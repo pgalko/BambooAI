@@ -1,1 +1,4 @@
-
+Enclosed are the test datasets
+- Timeseries_DJI.csv - Dow Jones Industrial Index historical data ("Close" price)
+- test_activity_data.csv - Running activity data extracted from a Garmin wearable
+- Wellness_Data_All.csv - Daily wellness metrics like steps, calories, resting heart rate, sleep extracted from Garmin wearable
