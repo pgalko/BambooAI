@@ -83,7 +83,7 @@ bamboo.pd_agent_converse("Calculate 1 minute moving average for the heartrate an
 
 **Plot 2:**
 
-![](images/line _of_bestfit__plot.png)
+![](images/line_of_bestfit__plot.png)
 
 **Plot Code:**
 
