@@ -104,4 +104,14 @@ The key can be obtained from here: https://platform.openai.com/account/api-keys
 - Be sure to monitor your token usage, as each execution of BambooAI uses an average of 400-600 tokens. At the time of writing, the cost per 1K tokens is $0.03 USD for GPT-4 and $0.002 USD for GPT-3.5-turbo. It's important to keep these costs in mind when using the library, particularly when using the more expensive models.
 - Currently the project consists of 126 lines of code, 49 lines of comments and 20 blanks.
 
+## Contributing
+
+Contributions are welcome, please free to open a pull request.
+
+## ToDo
+
+- Introduce memory limits.  A method for users to control the number of conversation pairs retained in memory and sent to the LLM during each iteration.
+- Ongoing work on optimizing the prompts and sanitization of the outputs.
+- Add abbility to inspect the LLM generated code before execution.
+- Add support for aditional LLMs.
 
