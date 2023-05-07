@@ -67,6 +67,11 @@ bamboo = BambooAI(df)
 bamboo.pd_agent_converse("Calculate 1 minute moving average for the heartrate and plot together with a polynomial line of best fit")
 ```
 
+**Environment Variables**
+
+The library requires an OpenAI API account and the API key to connect to an OpenAI LLMs. The OpenAI API key needs to be stored in a 'OPENAI_API_KEY' environment variable.
+The key can be obtained from here: https://platform.openai.com/account/api-keys
+
 ## Examples
 
 **Console Output 1:**
@@ -93,4 +98,9 @@ bamboo.pd_agent_converse("Calculate 1 minute moving average for the heartrate an
 ![](images/plot_code.png)
 
 ## Notes
+
+- The library currently supports only OpenAI Chat models. It has been tested with both gpt-3.5-turbo and gpt-4. The gpt-3.5-turbo seems to perform well and is the preferred option due to its 10x lower cost.
+- The library executes LLM generated Python code, this can be bad if the LLM generated Python code is harmful. Use cautiously.
+- Be sure to monitor your token usage, as each execution of BambooAI uses an average of 400-600 tokens. At the time of writing, the cost per 1K tokens is $0.03 USD for GPT-4 and $0.002 USD for GPT-3.5-turbo. It's important to keep these costs in mind when using the library, particularly when using the more expensive models.
+
 
