@@ -79,13 +79,16 @@ bamboo.pd_agent_converse("Calculate 1 minute moving average for the heartrate an
 
 **Plot 1:**
 
+*Prompt: Calculate 1 minute moving average of the heartrate column and plot.*
 ![](images/ma_plot.png)
 
 **Plot 2:**
 
-![](images/line_of_bestfit__plot.png)
+*Prompt: Calculate 1 minute moving average of the heartrate column and plot together with the actual heart rate and polynomial line of best fit.*
+![](images/line_of_bestfit_plot.png)
 
 **Plot Code:**
+*Please note that the code is executed and plot is displayed automatically during runtime, so there is no need to copy and execute it separately.*
 
 ![](images/plot_code.png)
 
