@@ -106,7 +106,7 @@ The key can be obtained from here: https://platform.openai.com/account/api-keys
 
 ## Contributing
 
-Contributions are welcome, please free to open a pull request.
+Contributions are welcome; please feel free to open a pull request. Keep in mind that our goal is to maintain a concise codebase with high readability.
 
 ## ToDo
 
