@@ -1,3 +1,4 @@
+
 import os
 import re
 import sys
@@ -57,7 +58,7 @@ class BambooAI:
         return content, tokens_used
     
     # Function to sanitize the output from the LLM
-    def _extract_code(self, response: str, separator: str = "```") -> str:
+    def _extract_code(response: str, separator: str = "```") -> str:
 
         # Define a blacklist of Python keywords and functions that are not allowed
         blacklist = ['os','subprocess','sys','eval','exec','file','open','socket','urllib']
@@ -89,13 +90,10 @@ class BambooAI:
         code = re.sub(r"df\s*=\s*pd\.DataFrame\(.*?\)", "", code)
 
         # Define the regular expression pattern to match the blacklist items
-        pattern = r"\b(" + "|".join(blacklist) + r")\b"
+        pattern = r"^(.*\b(" + "|".join(blacklist) + r")\b.*)$"
 
         # Replace the blacklist items with comments
-        code = re.sub(pattern, r"# \1 not allowed", code)
-
-        # Remove any import statements that were turned into comments
-        code = re.sub(r"^\s*#\s*import\s.*?$", "", code, flags=re.MULTILINE)
+        code = re.sub(pattern, r"# not allowed \1", code, flags=re.MULTILINE)
 
         # Return the cleaned and extracted code
         return code.strip()
@@ -194,3 +192,4 @@ class BambooAI:
         answer = output.getvalue()
 
         return answer
+    
