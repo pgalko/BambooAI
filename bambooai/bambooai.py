@@ -1,4 +1,3 @@
-
 import os
 import re
 import sys
@@ -56,8 +55,13 @@ class BambooAI:
         tokens_used = response.usage.total_tokens
 
         return content, tokens_used
-
+    
+    # Function to sanitize the output from the LLM
     def _extract_code(self, response: str, separator: str = "```") -> str:
+
+        # Define a blacklist of Python keywords and functions that are not allowed
+        blacklist = ['os','subprocess','sys','eval','exec','file','open','socket','urllib']
+
         # Set the initial value of code to the response
         code = response
 
@@ -70,7 +74,6 @@ class BambooAI:
         if match:
             # If a match is found, extract the code between <code> and </code>
             code = match.group(1)
-
             # Remove the "python" or "py" prefix if present
             if re.match(r"^(python|py)", code):
                 code = re.sub(r"^(python|py)", "", code)
@@ -81,6 +84,18 @@ class BambooAI:
 
         # Remove any instances of "df = pd.read_csv('filename.csv')" from the code
         code = re.sub(r"df\s*=\s*pd\.read_csv\('.*?'\)", "", code)
+        
+        # Remove any occurrences of df = pd.DataFrame() with any number of characters inside the parentheses.
+        code = re.sub(r"df\s*=\s*pd\.DataFrame\(.*?\)", "", code)
+
+        # Define the regular expression pattern to match the blacklist items
+        pattern = r"\b(" + "|".join(blacklist) + r")\b"
+
+        # Replace the blacklist items with comments
+        code = re.sub(pattern, r"# \1 not allowed", code)
+
+        # Remove any import statements that were turned into comments
+        code = re.sub(r"^\s*#\s*import\s.*?$", "", code, flags=re.MULTILINE)
 
         # Return the cleaned and extracted code
         return code.strip()
@@ -179,4 +194,3 @@ class BambooAI:
         answer = output.getvalue()
 
         return answer
-    
