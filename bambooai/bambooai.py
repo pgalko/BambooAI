@@ -58,7 +58,7 @@ class BambooAI:
         return content, tokens_used
     
     # Function to sanitize the output from the LLM
-    def _extract_code(response: str, separator: str = "```") -> str:
+    def _extract_code(self, response: str, separator: str = "```") -> str:
 
         # Define a blacklist of Python keywords and functions that are not allowed
         blacklist = ['os','subprocess','sys','eval','exec','file','open','socket','urllib']
