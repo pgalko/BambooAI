@@ -7,6 +7,12 @@ The BambooAI library is a user-friendly tool designed to make data analysis more
 
 My aim was to keep the code base under 150 lines of actual code (not counting comments and blanks) to ensure easy comprehension and clarity for users of various skill levels. By maintaining a concise code base, I strived to create an accessible and straightforward tool that streamlines the process of data analysis and visualization. This approach not only makes it easier for developers and users to understand the library's inner workings but also fosters efficient implementation and customization, catering to a diverse audience and their unique needs.
 
+## Preview
+
+Try it out in Google Colab:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]([your-notebook-url](https://colab.research.google.com/drive/1grKtqKD4u8cVGMoVv__umci4F7IU14vU?usp=sharing))
+
 ## How it works
 
 - User starts BambooAI
