@@ -2,11 +2,13 @@
 import os
 import re
 import sys
+from contextlib import redirect_stdout
 import io
 import time
 import openai
 import pandas as pd
-from termcolor import colored
+from termcolor import colored, cprint
+from IPython.display import display, HTML
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame, llm: str = 'gpt-3.5-turbo'):
@@ -58,10 +60,13 @@ class BambooAI:
         return content, tokens_used
     
     # Function to sanitize the output from the LLM
-    def _extract_code(self, response: str, separator: str = "```") -> str:
+    def _extract_code(self,response: str, separator: str = "```") -> str:
 
         # Define a blacklist of Python keywords and functions that are not allowed
-        blacklist = ['os','subprocess','sys','eval','exec','file','open','socket','urllib']
+        blacklist = ['os','subprocess','sys','eval','exec','file','open','socket','urllib',
+                    'shutil','pickle','ctypes','multiprocessing','tempfile','glob','code','pty','commands',
+                    'requests','cgi','cgitb','xml.etree.ElementTree','builtins'
+                    ]
 
         # Set the initial value of code to the response
         code = response
@@ -98,31 +103,48 @@ class BambooAI:
         # Return the cleaned and extracted code
         return code.strip()
 
+
     def pd_agent_converse(self, question=None):
         # Initialize the messages list with a system message containing the task prompt
         messages = [{"role": "system", "content": self.task.format(self.df_head, "")}]
 
+        # Function to display results nicely
+        def display_results(answer, code, total_tokens_used_sum):
+            if 'ipykernel' in sys.modules:
+                # Jupyter notebook or ipython
+                display(HTML(f'<p><b style="color:green;">Answer:</b><br><span style="color:green;">{answer}</span></p><br>'))
+                display(HTML(f'<p><b style="color:green;">Code:</b><br><span style="color:green;">{code}</span></p><br>'))
+                display(HTML(f'<p><b style="color:green;">Total Tokens Used:</b><br><span style="color:green;">{total_tokens_used_sum}</span></p><br>'))
+            else:
+                # Other environment (like terminal)
+                cprint(f"\nAnswer:\n{answer}\n", 'green', attrs=['bold'])
+                cprint(f"Code:\n{code}\n", 'green', attrs=['bold'])
+                cprint(f"Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
+
         # If a question is provided, skip the input prompt
         if question is not None:
-            answer = self.pd_agent(question, messages, self.df)
-            print(colored("\nAnswer:\n{}".format(answer), "green"))
+            # Call the pd_agent method with the user's question, the messages list, and the dataframe
+            answer, code, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
+            display_results(answer, code, total_tokens_used_sum)
             return
 
         # Start an infinite loop to keep asking the user for questions
         while True:
             # Prompt the user to enter a question or type 'exit' to quit
-            question = input(colored("Enter your question or type 'exit' to quit: ", "cyan"))
+            if 'ipykernel' in sys.modules:
+                display(HTML('<b style="color:blue;">Enter your question or type \'exit\' to quit:</b>'))
+                question = input()
+            else:
+                cprint("\nEnter your question or type 'exit' to quit:", 'blue', attrs=['bold'])
+                question = input()
 
             # If the user types 'exit', break out of the loop
             if question.strip().lower() == 'exit':
                 break
 
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer = self.pd_agent(question, messages, self.df)
-
-            # Print the answer returned by the pd_agent method
-            print(colored("\nAnswer:\n{}".format(answer), "green"))
-
+            answer, code, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
+            display_results(answer, code, total_tokens_used_sum)
 
     def pd_agent(self, question, messages, df=None):
         # Add a user message with the updated task prompt to the messages list
@@ -145,51 +167,41 @@ class BambooAI:
         self.total_tokens_used.append(tokens_used)
         total_tokens_used_sum = sum(self.total_tokens_used)
 
-        # Redirect standard output to a StringIO buffer
-        output = io.StringIO()
-        sys.stdout = output
-
         # Initialize error correction counter
         error_corrections = 0
 
-        # Try to execute the code and handle errors
-        while error_corrections < self.MAX_ERROR_CORRECTIONS:
-            try:
-                messages.append({"role": "assistant", "content": code})
-                exec(code)
-                break
-            except Exception as e:
-                # Increment the error correction counter and update the messages list with the error
-                error_corrections += 1
-                messages.append({"role": "user", "content": self.error_correct_task.format(e, code, question)})
-
-                # Attempt to correct the code and handle rate limit errors
+        # Redirect standard output to a StringIO buffer
+        with redirect_stdout(io.StringIO()) as output:
+            # Try to execute the code and handle errors
+            while error_corrections < self.MAX_ERROR_CORRECTIONS:
                 try:
-                    code, tokens_used = self.llm_call(messages)
-                    code = self._extract_code(code)
-                    self.total_tokens_used.append(tokens_used)
-                    total_tokens_used_sum = sum(self.total_tokens_used)
-                except openai.error.RateLimitError:
-                    print(
-                        "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-                    )
-                    time.sleep(10)
-                    code, tokens_used = self.llm_call(messages)
-                    code = self._extract_code(code)
-                    self.total_tokens_used.append(tokens_used)
-                    total_tokens_used_sum = sum(self.total_tokens_used)
+                    messages.append({"role": "assistant", "content": code})
+                    exec(code)
+                    break
+                except Exception as e:
+                    # Increment the error correction counter and update the messages list with the error
+                    error_corrections += 1
+                    messages.append({"role": "user", "content": self.error_correct_task.format(e, code, question)})
 
-        # Print the generated code
-        print("\nCode:\n{}".format(code))
-
-        # Restore standard output
-        sys.stdout = sys.__stdout__
-
-        # Print the total tokens used
-        print(colored("\nTotal tokens used:{}".format(total_tokens_used_sum), "yellow"))
+                    # Attempt to correct the code and handle rate limit errors
+                    try:
+                        code, tokens_used = self.llm_call(messages)
+                        code = self._extract_code(code)
+                        self.total_tokens_used.append(tokens_used)
+                        total_tokens_used_sum = sum(self.total_tokens_used)
+                    except openai.error.RateLimitError:
+                        print(
+                            "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
+                        )
+                        time.sleep(10)
+                        code, tokens_used = self.llm_call(messages)
+                        code = self._extract_code(code)
+                        self.total_tokens_used.append(tokens_used)
+                        total_tokens_used_sum = sum(self.total_tokens_used)
 
         # Get the output from the executed code
         answer = output.getvalue()
 
-        return answer
+        return answer, code, total_tokens_used_sum
+    
     
