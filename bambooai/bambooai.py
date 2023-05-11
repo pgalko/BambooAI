@@ -202,6 +202,9 @@ class BambooAI:
         # Get the output from the executed code
         answer = output.getvalue()
 
+        # Reset the StringIO buffer
+        output.truncate(0)
+        output.seek(0)
+
         return answer, code, total_tokens_used_sum
-    
     
