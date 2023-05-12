@@ -16,8 +16,9 @@ class BambooAI:
         self.API_KEY = os.environ.get('OPENAI_API_KEY')
         self.MAX_ERROR_CORRECTIONS = 3
 
-        self.df = df
-        self.df_head = df.head(1)
+        self.original_df = df
+        self.df = df.copy()  # make a copy of the dataframe
+        self.df_head = self.original_df.head(1)
     
         self.llm = llm
 
@@ -176,6 +177,8 @@ class BambooAI:
             while error_corrections < self.MAX_ERROR_CORRECTIONS:
                 try:
                     messages.append({"role": "assistant", "content": code})
+                    # Reset df to the original state before executing the code
+                    self.df = self.original_df.copy()
                     exec(code)
                     break
                 except Exception as e:
