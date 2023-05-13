@@ -119,7 +119,6 @@ class BambooAI:
         # Return the cleaned and extracted code
         return code.strip(), reflection.strip()
 
-
     def pd_agent_converse(self, question=None):
         # Initialize the messages list with a system message containing the task prompt
         messages = [{"role": "system", "content": self.task.format(self.df_head, "")}]
@@ -128,11 +127,10 @@ class BambooAI:
         def display_results(answer, code, reflection, total_tokens_used_sum):
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
-                display(HTML(f'<p><b style="color:green;">Answer:</b><br><span style="color:green;">{answer}</span></p><br>'))
-                display(HTML(f'<p><b style="color:green;">Code:</b><br><pre style="color:green;">{code}</pre></p><br>'))
-                display(HTML(f'<p><b style="color:green;">Thoughts:</b><br><span style="color:green;">{reflection}</span></p><br>'))
-                display(HTML(f'<p><b style="color:green;">Total Tokens Used:</b><br><span style="color:green;">{total_tokens_used_sum}</span></p><br>'))
-
+                display(HTML(f'<p><b style="color:blue;">Answer:</b><br><b style="color:black;">{answer}</b></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Code:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Thoughts:</b><br><b style="color:black;">{reflection}</b></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
                 # Other environment (like terminal)
                 cprint(f"\nAnswer:\n{answer}\n", 'green', attrs=['bold'])
