@@ -11,10 +11,12 @@ from termcolor import colored, cprint
 from IPython.display import display, HTML
 
 class BambooAI:
-    def __init__(self, df: pd.DataFrame, llm: str = 'gpt-3.5-turbo'):
+    def __init__(self, df: pd.DataFrame,max_conversations: int = 3 ,llm: str = 'gpt-3.5-turbo'):
 
         self.API_KEY = os.environ.get('OPENAI_API_KEY')
         self.MAX_ERROR_CORRECTIONS = 3
+        # Set the maximum number of question/answer pairs to be kept in the conversation memmory
+        self.MAX_CONVERSATIONS = (max_conversations*2) - 1
 
         self.original_df = df
         self.df = df.copy()  # make a copy of the dataframe
@@ -27,9 +29,11 @@ class BambooAI:
         The name of the dataframe is `df`.
         This is the result of `print(df.head(1))`:
         {}.
-
         Return the python code that prints out the answer to the following question : {}. 
         Prefix the python code with <code> and suffix the code with </code> .
+        Offer a short, couple of sentences reflection on your answer.
+        Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
+
         """
 
         self.error_correct_task = """
@@ -39,6 +43,8 @@ class BambooAI:
         The question was: {}.
         Return a corrected python code that fixes the error.
         Prefix the python code with <code> and suffix the code with </code>.
+        Offer a short, couple of sentences reflection on your answer.
+        Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
         """
 
         openai.api_key = self.API_KEY
@@ -68,6 +74,14 @@ class BambooAI:
                     'shutil','pickle','ctypes','multiprocessing','tempfile','glob','code','pty','commands',
                     'requests','cgi','cgitb','xml.etree.ElementTree','builtins'
                     ]
+        
+        # Search for a pattern between <reflection> and </reflection> in the response
+        match = re.search(r"<reflection>(.*)</reflection>", response, re.DOTALL)
+        if match:
+            # If a match is found, extract the reflection between <reflection> and </reflection>
+            reflection = match.group(1)
+        else:
+            reflection = ""
 
         # Set the initial value of code to the response
         code = response
@@ -102,7 +116,7 @@ class BambooAI:
         code = re.sub(pattern, r"# not allowed \1", code, flags=re.MULTILINE)
 
         # Return the cleaned and extracted code
-        return code.strip()
+        return code.strip(), reflection.strip()
 
 
     def pd_agent_converse(self, question=None):
@@ -110,23 +124,25 @@ class BambooAI:
         messages = [{"role": "system", "content": self.task.format(self.df_head, "")}]
 
         # Function to display results nicely
-        def display_results(answer, code, total_tokens_used_sum):
+        def display_results(answer, code, reflection, total_tokens_used_sum):
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
                 display(HTML(f'<p><b style="color:green;">Answer:</b><br><span style="color:green;">{answer}</span></p><br>'))
                 display(HTML(f'<p><b style="color:green;">Code:</b><br><span style="color:green;">{code}</span></p><br>'))
+                display(HTML(f'<p><b style="color:green;">Thought:</b><br><span style="color:green;">{reflection}</span></p><br>'))
                 display(HTML(f'<p><b style="color:green;">Total Tokens Used:</b><br><span style="color:green;">{total_tokens_used_sum}</span></p><br>'))
             else:
                 # Other environment (like terminal)
                 cprint(f"\nAnswer:\n{answer}\n", 'green', attrs=['bold'])
                 cprint(f"Code:\n{code}\n", 'green', attrs=['bold'])
+                cprint(f"Thought:\n{reflection}\n", 'green', attrs=['bold'])
                 cprint(f"Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
 
         # If a question is provided, skip the input prompt
         if question is not None:
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
-            display_results(answer, code, total_tokens_used_sum)
+            answer, code, reflection, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
+            display_results(answer, code, reflection, total_tokens_used_sum)
             return
 
         # Start an infinite loop to keep asking the user for questions
@@ -144,8 +160,8 @@ class BambooAI:
                 break
 
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
-            display_results(answer, code, total_tokens_used_sum)
+            answer, code, reflection, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
+            display_results(answer, code, reflection, total_tokens_used_sum)
 
     def pd_agent(self, question, messages, df=None):
         # Add a user message with the updated task prompt to the messages list
@@ -153,16 +169,16 @@ class BambooAI:
 
         # Call the OpenAI API and handle rate limit errors
         try:
-            code, tokens_used = self.llm_call(messages)
+            llm_response, tokens_used = self.llm_call(messages)
         except openai.error.RateLimitError:
             print(
                 "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
             )
             time.sleep(10)
-            code, tokens_used = self.llm_call(messages)
+            llm_response, tokens_used = self.llm_call(messages)
 
         # Extract the code from the API response
-        code = self._extract_code(code)
+        code,reflection = self._extract_code(llm_response)
 
         # Update the total tokens used
         self.total_tokens_used.append(tokens_used)
@@ -176,9 +192,14 @@ class BambooAI:
             # Try to execute the code and handle errors
             while error_corrections < self.MAX_ERROR_CORRECTIONS:
                 try:
-                    messages.append({"role": "assistant", "content": code})
+                    messages.append({"role": "assistant", "content": llm_response})
+                    # Remove the oldest conversation from the messages list
+                    if len(messages) > self.MAX_CONVERSATIONS:
+                        messages.pop(1)
+                        messages.pop(1)
                     # Reset df to the original state before executing the code
                     self.df = self.original_df.copy()
+                    # Execute the code
                     exec(code)
                     break
                 except Exception as e:
@@ -188,8 +209,8 @@ class BambooAI:
 
                     # Attempt to correct the code and handle rate limit errors
                     try:
-                        code, tokens_used = self.llm_call(messages)
-                        code = self._extract_code(code)
+                        llm_response, tokens_used = self.llm_call(messages)
+                        code,reflection = self._extract_code(llm_response)
                         self.total_tokens_used.append(tokens_used)
                         total_tokens_used_sum = sum(self.total_tokens_used)
                     except openai.error.RateLimitError:
@@ -197,8 +218,8 @@ class BambooAI:
                             "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
                         )
                         time.sleep(10)
-                        code, tokens_used = self.llm_call(messages)
-                        code = self._extract_code(code)
+                        llm_response, tokens_used = self.llm_call(messages)
+                        code,reflection = self._extract_code(llm_response)
                         self.total_tokens_used.append(tokens_used)
                         total_tokens_used_sum = sum(self.total_tokens_used)
 
@@ -209,5 +230,5 @@ class BambooAI:
         output.truncate(0)
         output.seek(0)
 
-        return answer, code, total_tokens_used_sum
+        return answer, code, reflection, total_tokens_used_sum
     
