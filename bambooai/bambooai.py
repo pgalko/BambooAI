@@ -29,7 +29,8 @@ class BambooAI:
         The name of the dataframe is `df`.
         This is the result of `print(df.head(1))`:
         {}.
-        Return the python code that prints out the answer to the following question : {}. 
+        Return the python code that prints out the answer to the following question : {}.
+        Always include the import statements at the top of the code, and comments where necessary. 
         Prefix the python code with <code> and suffix the code with </code> .
         Offer a short, couple of sentences reflection on your answer.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
@@ -42,6 +43,7 @@ class BambooAI:
         The code you provided is: {}.
         The question was: {}.
         Return a corrected python code that fixes the error.
+        Always include the import statements at the top of the code, and comments where necessary.
         Prefix the python code with <code> and suffix the code with </code>.
         Offer a short, couple of sentences reflection on your answer.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
@@ -129,13 +131,13 @@ class BambooAI:
                 # Jupyter notebook or ipython
                 display(HTML(f'<p><b style="color:green;">Answer:</b><br><span style="color:green;">{answer}</span></p><br>'))
                 display(HTML(f'<p><b style="color:green;">Code:</b><br><span style="color:green;">{code}</span></p><br>'))
-                display(HTML(f'<p><b style="color:green;">Thought:</b><br><span style="color:green;">{reflection}</span></p><br>'))
+                display(HTML(f'<p><b style="color:green;">Thoughts:</b><br><span style="color:green;">{reflection}</span></p><br>'))
                 display(HTML(f'<p><b style="color:green;">Total Tokens Used:</b><br><span style="color:green;">{total_tokens_used_sum}</span></p><br>'))
             else:
                 # Other environment (like terminal)
                 cprint(f"\nAnswer:\n{answer}\n", 'green', attrs=['bold'])
                 cprint(f"Code:\n{code}\n", 'green', attrs=['bold'])
-                cprint(f"Thought:\n{reflection}\n", 'green', attrs=['bold'])
+                cprint(f"Thoughts:\n{reflection}\n", 'green', attrs=['bold'])
                 cprint(f"Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
 
         # If a question is provided, skip the input prompt
@@ -166,6 +168,13 @@ class BambooAI:
     def pd_agent(self, question, messages, df=None):
         # Add a user message with the updated task prompt to the messages list
         messages.append({"role": "user", "content": self.task.format(self.df_head, question)})
+        
+        if 'ipykernel' in sys.modules:
+            # Jupyter notebook or ipython
+            display(HTML(f'<p><b style="color:red;"></b><br><span style="color:red;"> Processing your request, please wait...</span></p><br>'))
+        else:
+            # Other environment (like terminal)
+            cprint(f"\n> Processing your request, please wait...\n", 'red', attrs=['bold'])
 
         # Call the OpenAI API and handle rate limit errors
         try:
