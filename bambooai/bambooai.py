@@ -34,7 +34,6 @@ class BambooAI:
         Prefix the python code with <code> and suffix the code with </code> .
         Offer a short, couple of sentences reflection on your answer.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
-
         """
 
         self.error_correct_task = """
@@ -130,9 +129,10 @@ class BambooAI:
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
                 display(HTML(f'<p><b style="color:green;">Answer:</b><br><span style="color:green;">{answer}</span></p><br>'))
-                display(HTML(f'<p><b style="color:green;">Code:</b><br><span style="color:green;">{code}</span></p><br>'))
+                display(HTML(f'<p><b style="color:green;">Code:</b><br><pre style="color:green;">{code}</pre></p><br>'))
                 display(HTML(f'<p><b style="color:green;">Thoughts:</b><br><span style="color:green;">{reflection}</span></p><br>'))
                 display(HTML(f'<p><b style="color:green;">Total Tokens Used:</b><br><span style="color:green;">{total_tokens_used_sum}</span></p><br>'))
+
             else:
                 # Other environment (like terminal)
                 cprint(f"\nAnswer:\n{answer}\n", 'green', attrs=['bold'])
@@ -168,13 +168,14 @@ class BambooAI:
     def pd_agent(self, question, messages, df=None):
         # Add a user message with the updated task prompt to the messages list
         messages.append({"role": "user", "content": self.task.format(self.df_head, question)})
-        
+
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
             display(HTML(f'<p><b style="color:red;"></b><br><span style="color:red;"> Processing your request, please wait...</span></p><br>'))
         else:
             # Other environment (like terminal)
             cprint(f"\n> Processing your request, please wait...\n", 'red', attrs=['bold'])
+
 
         # Call the OpenAI API and handle rate limit errors
         try:
