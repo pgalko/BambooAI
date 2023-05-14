@@ -91,9 +91,9 @@ The key can be obtained from here: https://platform.openai.com/account/api-keys
 
 **Google Colab**
 
-![](images/Bamboo_AI_ML.png)
+![](images/BambooAI_ML.png)
 
-![](images/Bamboo_AI_Map.png)
+![](images/BambooAI_Map.png)
 
 ## Notes
 
