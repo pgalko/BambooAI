@@ -127,7 +127,7 @@ class BambooAI:
         def display_results(answer, code, reflection, total_tokens_used_sum):
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
-                display(HTML(f'<p><b style="color:blue;">Answer:</b><br><b style="color:black;">{answer}</b></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Answer:</b><br><pre style="color:black;"><b>{answer}</b></pre></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Code:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Thoughts:</b><br><b style="color:black;">{reflection}</b></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
