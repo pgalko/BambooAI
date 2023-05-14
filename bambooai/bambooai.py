@@ -11,10 +11,10 @@ from termcolor import colored, cprint
 from IPython.display import display, HTML
 
 class BambooAI:
-    def __init__(self, df: pd.DataFrame,max_conversations: int = 3 ,llm: str = 'gpt-3.5-turbo'):
+    def __init__(self, df: pd.DataFrame,max_conversations: int = 3 ,llm: str = 'gpt-3.5-turbo',llm_switch: bool = False):
 
         self.API_KEY = os.environ.get('OPENAI_API_KEY')
-        self.MAX_ERROR_CORRECTIONS = 3
+        self.MAX_ERROR_CORRECTIONS = 5
         # Set the maximum number of question/answer pairs to be kept in the conversation memmory
         self.MAX_CONVERSATIONS = (max_conversations*2) - 1
 
@@ -23,6 +23,7 @@ class BambooAI:
         self.df_head = self.original_df.head(1)
     
         self.llm = llm
+        self.llm_switch = llm_switch
 
         self.task = """
         There is a pandas dataframe.
@@ -50,9 +51,6 @@ class BambooAI:
 
         openai.api_key = self.API_KEY
         self.total_tokens_used = []
-
-        # print the model name in red
-        print(colored("\nUsing Model: {}".format(llm), "red"))
 
     def llm_call(self, messages: str, temperature: float = 0, max_tokens: int = 1000):
         response = openai.ChatCompletion.create(
@@ -169,11 +167,12 @@ class BambooAI:
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p><b style="color:red;"></b><br><span style="color:red;"> Processing your request, please wait...</span></p><br>'))
+            display(HTML(f'<p style="color:magenta;">\nUsing Model: {self.llm}</p>'))
+            display(HTML(f'<p><b style="color:magenta;">Processing your request, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            cprint(f"\n> Processing your request, please wait...\n", 'red', attrs=['bold'])
-
+            print(colored(f"\nUsing Model: {self.llm}", "magenta"))
+            cprint(f"\n> Processing your request, please wait...\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API and handle rate limit errors
         try:
@@ -195,6 +194,9 @@ class BambooAI:
         # Initialize error correction counter
         error_corrections = 0
 
+        # Store the original llm value
+        original_llm = self.llm
+
         # Redirect standard output to a StringIO buffer
         with redirect_stdout(io.StringIO()) as output:
             # Try to execute the code and handle errors
@@ -211,9 +213,27 @@ class BambooAI:
                     exec(code)
                     break
                 except Exception as e:
+                    # Print the error message
+                    if 'ipykernel' in sys.modules:
+                        # Jupyter notebook
+                        display(HTML(f'<b><span style="color: red;">Error:<br><pre>{e}</pre><br>The agent will retry.</span></b>'))
+                    else:
+                        # CLI
+                        print(colored(f'Error: {e}. The agent will retry.', 'red'))
+
                     # Increment the error correction counter and update the messages list with the error
                     error_corrections += 1
                     messages.append({"role": "user", "content": self.error_correct_task.format(e, code, question)})
+
+                    # Switch to gpt-4 if llm_switch is True
+                    if self.llm_switch:
+                        self.llm = 'gpt-4'
+                        if 'ipykernel' in sys.modules:
+                            # Jupyter notebook
+                            display(HTML('<span style="color: red;">Switching model to gpt-4 to try to improve the outcome.</span>'))
+                        else:
+                            # CLI
+                            print(colored('Switching model to gpt-4 to try to improve the outcome.', 'red'))
 
                     # Attempt to correct the code and handle rate limit errors
                     try:
@@ -230,6 +250,10 @@ class BambooAI:
                         code,reflection = self._extract_code(llm_response)
                         self.total_tokens_used.append(tokens_used)
                         total_tokens_used_sum = sum(self.total_tokens_used)
+
+            # Switch back to the original llm before the function finishes
+            self.llm = original_llm
+
 
         # Get the output from the executed code
         answer = output.getvalue()
