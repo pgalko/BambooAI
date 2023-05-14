@@ -81,34 +81,19 @@ The key can be obtained from here: https://platform.openai.com/account/api-keys
 
 ## Examples
 
-**Console Output 1:**
+**CLI Output 1:**
 
 ![](images/example_1.png)
 
-**Console Output 2:**
+**CLI Output 2:**
 
 ![](images/example_2.png)
 
-**Plot 1 CLI:**
-
-*Prompt: Calculate 1 minute moving average of the heartrate column and plot.*
-![](images/ma_plot.png)
-
-**Plot 2 CLI:**
-
-*Prompt: Calculate 1 minute moving average of the heartrate column and plot together with the actual heart rate and polynomial line of best fit.*
-![](images/line_of_bestfit_plot.png)
-
-**Plot Code CLI:**
-*Please note that the code is executed and plot is displayed automatically during runtime, so there is no need to copy and execute it separately.*
-
-![](images/plot_code.png)
-
 **Google Colab**
 
-*Running in a loop within Google Colab*
+![](images/Bamboo_AI_ML.png)
 
-![](images/Bamboo_AI_Notebook.png)
+![](images/Bamboo_AI_Map.png)
 
 ## Notes
 
