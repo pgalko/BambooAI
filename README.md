@@ -24,7 +24,7 @@ Try it out in Google Colab:
     - Obtains a response with corresponding Python code
     - Executes the code to generate an answer or visualization
       - If the code works, it displays the answer or visualization, and then prompts for another question, which could be related to the preceding question or an entirely new topic
-      - If an error occurs, the program requests a corrected code from the OpenAI API by providing the error message and then attempts to execute the corrected code.
+      - If an error occurs, the program requests a corrected code from the OpenAI API by providing the error message and then attempts to execute the corrected code. *If the "llm_switch" argument is set to "True" (LLM cascading) it will switch from base model to a more powerfull gpt-4 and retry. After successfull execution it will reset back to base model.*
   - The loop continues until the user enters 'exit', at which point the program terminates
   - The program displays the total token usage at each step, providing insight into the resources consumed during the process.
   
@@ -42,7 +42,19 @@ pip install bambooai
 
 **Usage**
 
+Args
+
+```
+bamboo = BambooAI(df,max_conversations=3,llm='gpt-3.5-turbo,llm_switch=False)
+
+df: pd.DataFrame - Dataframe
+max_conversations: int - Number of "user:assistant" conversation pairs to keep in memory for a context
+llm: str - Base LLM model
+llm_switch: bool - If True the agent will switch to gpt-4 after error
+```
+
 Run in a loop
+
 ```
 # Run in a loop remembering the conversation history
 import pandas as pd
