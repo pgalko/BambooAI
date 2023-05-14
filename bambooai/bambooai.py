@@ -71,7 +71,7 @@ class BambooAI:
     def _extract_code(self,response: str, separator: str = "```") -> str:
 
         # Define a blacklist of Python keywords and functions that are not allowed
-        blacklist = ['os','subprocess','sys','eval','exec','file','open','socket','urllib',
+        blacklist = ['os','subprocess','sys','eval','exec','file','socket','urllib',
                     'shutil','pickle','ctypes','multiprocessing','tempfile','glob','code','pty','commands',
                     'requests','cgi','cgitb','xml.etree.ElementTree','builtins'
                     ]
