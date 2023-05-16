@@ -2,13 +2,14 @@
 import os
 import re
 import sys
+import base64
 from contextlib import redirect_stdout
 import io
 import time
 import openai
 import pandas as pd
 from termcolor import colored, cprint
-from IPython.display import display, HTML
+from IPython.display import display, Image, HTML
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame,max_conversations: int = 3 ,llm: str = 'gpt-3.5-turbo',llm_switch: bool = False):
@@ -32,9 +33,11 @@ class BambooAI:
         {}.
         Return the python code that prints out the answer to the following question : {}.
         Always include the import statements at the top of the code, and comments where necessary. 
-        Prefix the python code with <code> and suffix the code with </code> .
+        Prefix the python code with <code> and suffix the code with </code>.
         Offer a short, couple of sentences reflection on your answer.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
+        Finally output a code for mermaid diagram. The code should start with "graph TD;"
+        Prefix the mermaid code with <flow> and suffix the mermaid flow with </flow>.
         """
 
         self.error_correct_task = """
@@ -47,10 +50,19 @@ class BambooAI:
         Prefix the python code with <code> and suffix the code with </code>.
         Offer a short, couple of sentences reflection on your answer.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
+        Finally output a code for mermaid diagram. The code should start with "graph TD;"
+        Prefix the mermaid code with <flow> and suffix the mermaid flow with </flow>.
         """
 
         openai.api_key = self.API_KEY
         self.total_tokens_used = []
+
+    def mm(self, graph):
+        graphbytes = graph.encode("ascii")
+        base64_bytes = base64.b64encode(graphbytes)
+        base64_string = base64_bytes.decode("ascii")
+        img_url = "https://mermaid.ink/img/" + base64_string
+        return img_url
 
     def llm_call(self, messages: str, temperature: float = 0, max_tokens: int = 1000):
         response = openai.ChatCompletion.create(
@@ -82,22 +94,30 @@ class BambooAI:
         else:
             reflection = ""
 
-        # Set the initial value of code to the response
-        code = response
+        # Search for a pattern between <flow> and </flow> in the response
+        match = re.search(r"<flow>(.*)</flow>", response, re.DOTALL)
+        if match:
+            # If a match is found, extract the reflection between <reflection> and </reflection>
+            flow = match.group(1)
+        else:
+            flow = ""
+
+        # Search for a pattern between <code> and </code> in the extracted code
+        match = re.search(r"<code>(.*)</code>", response, re.DOTALL)
+        if match:
+            # If a match is found, extract the code between <code> and </code>
+            code = match.group(1)
+            # If the response contains the separator, extract the code block between the separators
+            if len(code.split(separator)) > 1:
+                code = code.split(separator)[1]
 
         # If the response contains the separator, extract the code block between the separators
         if len(response.split(separator)) > 1:
             code = response.split(separator)[1]
-
-        # Search for a pattern between <code> and </code> in the extracted code
-        match = re.search(r"<code>(.*)</code>", code, re.DOTALL)
-        if match:
-            # If a match is found, extract the code between <code> and </code>
-            code = match.group(1)
-            # Remove the "python" or "py" prefix if present
-            if re.match(r"^(python|py)", code):
-                code = re.sub(r"^(python|py)", "", code)
-
+            
+        # Remove the "python" or "py" prefix if present
+        if re.match(r"^(python|py)", code):
+            code = re.sub(r"^(python|py)", "", code)
         # If the code is between single backticks, extract the code between them
         if re.match(r"^`.*`$", code):
             code = re.sub(r"^`(.*)`$", r"\1", code)
@@ -115,19 +135,20 @@ class BambooAI:
         code = re.sub(pattern, r"# not allowed \1", code, flags=re.MULTILINE)
 
         # Return the cleaned and extracted code
-        return code.strip(), reflection.strip()
+        return code.strip(), reflection.strip(), flow.strip()
 
     def pd_agent_converse(self, question=None):
         # Initialize the messages list with a system message containing the task prompt
         messages = [{"role": "system", "content": self.task.format(self.df_head, "")}]
 
         # Function to display results nicely
-        def display_results(answer, code, reflection, total_tokens_used_sum):
+        def display_results(answer, code, reflection, flow, total_tokens_used_sum):
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
                 display(HTML(f'<p><b style="color:blue;">Answer:</b><br><pre style="color:black;"><b>{answer}</b></pre></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Code:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Thoughts:</b><br><b style="color:black;">{reflection}</b></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Analysis Flow:</b><br><img src="{self.mm(flow)}" alt="Analysis Flow"></img></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
                 # Other environment (like terminal)
@@ -139,8 +160,8 @@ class BambooAI:
         # If a question is provided, skip the input prompt
         if question is not None:
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, reflection, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
-            display_results(answer, code, reflection, total_tokens_used_sum)
+            answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
+            display_results(answer, code, reflection, flow, total_tokens_used_sum)
             return
 
         # Start an infinite loop to keep asking the user for questions
@@ -158,8 +179,8 @@ class BambooAI:
                 break
 
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, reflection, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
-            display_results(answer, code, reflection, total_tokens_used_sum)
+            answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
+            display_results(answer, code, reflection,flow, total_tokens_used_sum)
 
     def pd_agent(self, question, messages, df=None):
         # Add a user message with the updated task prompt to the messages list
@@ -185,7 +206,7 @@ class BambooAI:
             llm_response, tokens_used = self.llm_call(messages)
 
         # Extract the code from the API response
-        code,reflection = self._extract_code(llm_response)
+        code,reflection,flow = self._extract_code(llm_response)
 
         # Update the total tokens used
         self.total_tokens_used.append(tokens_used)
@@ -238,7 +259,7 @@ class BambooAI:
                     # Attempt to correct the code and handle rate limit errors
                     try:
                         llm_response, tokens_used = self.llm_call(messages)
-                        code,reflection = self._extract_code(llm_response)
+                        code,reflection,flow = self._extract_code(llm_response)
                         self.total_tokens_used.append(tokens_used)
                         total_tokens_used_sum = sum(self.total_tokens_used)
                     except openai.error.RateLimitError:
@@ -247,13 +268,12 @@ class BambooAI:
                         )
                         time.sleep(10)
                         llm_response, tokens_used = self.llm_call(messages)
-                        code,reflection = self._extract_code(llm_response)
+                        code,reflection,flow = self._extract_code(llm_response)
                         self.total_tokens_used.append(tokens_used)
                         total_tokens_used_sum = sum(self.total_tokens_used)
 
             # Switch back to the original llm before the function finishes
             self.llm = original_llm
-
 
         # Get the output from the executed code
         answer = output.getvalue()
@@ -262,5 +282,5 @@ class BambooAI:
         output.truncate(0)
         output.seek(0)
 
-        return answer, code, reflection, total_tokens_used_sum
+        return answer, code, reflection, flow, total_tokens_used_sum
     
