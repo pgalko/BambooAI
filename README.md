@@ -102,6 +102,10 @@ The key can be obtained from here: https://platform.openai.com/account/api-keys
 
 ![](images/example_2.png)
 
+**Google Colab:**
+
+![](images/BambooAI_2.jpg)
+
 ## Notes
 
 - The library currently supports only OpenAI Chat models. It has been tested with both gpt-3.5-turbo and gpt-4. The gpt-3.5-turbo seems to perform well and is the preferred option due to its 10x lower cost.
