@@ -33,8 +33,8 @@ class BambooAI:
         {}.
         Return the python code that prints out the answer to the following question : {}.
         Always include the import statements at the top of the code, and comments where necessary. 
-        Prefix the python code with <code> and suffix the code with </code>.
-        Offer a short, couple of sentences reflection on your answer.
+        Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
+        Offer a  reflection on your answer, and posibble use case. Also offer some alternative approaches that could be beneficial.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
         Finally output a code for mermaid diagram. The code should start with "graph TD;"
         Prefix the mermaid code with <flow> and suffix the mermaid flow with </flow>.
@@ -47,8 +47,8 @@ class BambooAI:
         The question was: {}.
         Return a corrected python code that fixes the error.
         Always include the import statements at the top of the code, and comments where necessary.
-        Prefix the python code with <code> and suffix the code with </code>.
-        Offer a short, couple of sentences reflection on your answer.
+        Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
+        Offer a  reflection on your answer, and posibble use case. Also offer some alternative approaches that could be beneficial.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
         Finally output a code for mermaid diagram. The code should start with "graph TD;"
         Prefix the mermaid code with <flow> and suffix the mermaid flow with </flow>.
@@ -231,7 +231,8 @@ class BambooAI:
                     # Reset df to the original state before executing the code
                     self.df = self.original_df.copy()
                     # Execute the code
-                    exec(code)
+                    if code is not None:
+                        exec(code)
                     break
                 except Exception as e:
                     # Print the error message
