@@ -13,7 +13,7 @@ Try it out in Google Colab:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1grKtqKD4u8cVGMoVv__umci4F7IU14vU?usp=sharing)
 
-https://github.com/pgalko/BambooAI/assets/39939157/d8462d1c-3fb2-4025-b5cc-e886bfc06735
+https://github.com/pgalko/BambooAI/assets/39939157/fc1ea5af-4b6b-4897-9652-d7eb6a678a7d
 
 ## How it works
 
