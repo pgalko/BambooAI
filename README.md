@@ -13,6 +13,8 @@ Try it out in Google Colab:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1grKtqKD4u8cVGMoVv__umci4F7IU14vU?usp=sharing)
 
+https://github.com/pgalko/BambooAI/assets/39939157/d8462d1c-3fb2-4025-b5cc-e886bfc06735
+
 ## How it works
 
 - User starts BambooAI
@@ -99,12 +101,6 @@ The key can be obtained from here: https://platform.openai.com/account/api-keys
 **CLI Output 2:**
 
 ![](images/example_2.png)
-
-**Google Colab**
-
-![](images/BambooAI_ML.png)
-
-![](images/BambooAI_Map.png)
 
 ## Notes
 
