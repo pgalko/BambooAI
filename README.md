@@ -15,6 +15,8 @@ Try it out in Google Colab:
 
 https://github.com/pgalko/BambooAI/assets/39939157/fc1ea5af-4b6b-4897-9652-d7eb6a678a7d
 
+https://github.com/pgalko/BambooAI/assets/39939157/39923806-5f06-406b-9470-2b62310d20d7
+
 ## How it works
 
 - User starts BambooAI
