@@ -19,18 +19,18 @@ https://github.com/pgalko/BambooAI/assets/39939157/39923806-5f06-406b-9470-2b623
 
 ## How it works
 
-- User starts BambooAI
-- BambooAI checks if a question is provided
-  - If a question is given programmatically, it gets processed and the assistant exits after the execution
-  - If no question is provided programaticaly, BambooAI prompts the user for one and enters a loop of questions and answers, remembering the conversation history
-    - Sends each question to the OpenAI API LLM along with the conversation history
-    - Obtains a response with corresponding Python code
-    - Executes the code to generate an answer or visualization
-      - If the code works, it displays the answer or visualization, and then prompts for another question, which could be related to the preceding question or an entirely new topic
-      - If an error occurs, the program requests a corrected code from the OpenAI API by providing the error message and then attempts to execute the corrected code. *If the "llm_switch" argument is set to "True" (LLM cascading) it will switch from base model to a more powerfull gpt-4 and retry. After successfull execution it will reset back to base model.*
-  - The loop continues until the user enters 'exit', at which point the program terminates
-  - The program displays the total token usage at each step, providing insight into the resources consumed during the process.
-  
+- The user begins by starting the BambooAI agent.
+- BambooAI subsequently checks if a question has been provided:
+  - If a question is available, it continues to the next step.
+  - If no question is available, BambooAI prompts the user to input one. It then enters a loop of questions and answers, remembering the conversation history and continually prompting the user for a new question. This loop continues until the user types 'exit', signalling the termination of the program.
+- Following the reception of a question, the OpenAI API is called to review and evaluate the task. The Language Learning Model (LLM) then presents four possible analysis methods, choosing the one it deems most suitable. This selected method is summarised and framed as a task for a hypothetical junior data analyst.
+- The agent then replaces the original question with the task from the previous step and sends this as a prompt to the OpenAI API for code generation.
+- The response from the API, containing the corresponding Python code, is received, checked and sanitised if necessary.
+- This code is then executed to generate an answer or a visualization:
+  - If the code executes successfully, it displays the answer or visualization and subsequently prompts for another question. This new question could be related to the previous question or could be on an entirely new topic.
+  - If an error occurs during code execution, the program requests a corrected version of the code from the OpenAI API by providing the error message, and then attempts to execute the corrected code. *In cases where the "llm_switch" argument is set to "True" (indicating LLM cascading), the program will switch from the base model to the more powerful GPT-4 model for a retry. After successful execution, it will revert to the base model.*
+- The program then displays the total token usage at each step, thereby providing insights into the resources consumed during the process.
+ 
 **Flow chart:**
 
 ![](images/flow_chart_2.png)
