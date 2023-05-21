@@ -10,6 +10,8 @@ import openai
 import pandas as pd
 from termcolor import colored, cprint
 from IPython.display import display, Image, HTML
+import warnings
+warnings.filterwarnings('ignore')
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame,max_conversations: int = 3 ,llm: str = 'gpt-3.5-turbo',llm_switch: bool = False):
@@ -26,13 +28,27 @@ class BambooAI:
         self.llm = llm
         self.llm_switch = llm_switch
 
+        self.task_evaluation = """
+        There is a pandas dataframe.
+        The name of the dataframe is `df`.
+        This is the result of `print(df.head(1))`:
+        {}.
+        You are an AI senior data analyst and you are presented with a following task to analyze the data in the above df. 
+        {}. 
+        Can you present a four different approaches labeled as approach 1, approach 2 and approach 3 and approach 4 to address the above task ? 
+        Preserve any values or specific instructions included in the original task. Do not output any code.
+        Now, evaluate each of these approaches and select the one most likely to produce the desired results. You can only select one approach. 
+        Sumarise the selected approach as a task for a junior data analyst. Ask them to use a single method and include as much detail as necessary.
+        Prefix the resulting task with <task> and suffix the task with </task>.
+        """
+
         self.task = """
         There is a pandas dataframe.
         The name of the dataframe is `df`.
         This is the result of `print(df.head(1))`:
         {}.
         Return the python code that prints out the answer to the following question : {}.
-        Always include the import statements at the top of the code, and comments where necessary. 
+        Always include the import statements at the top of the code, and comments and print statement where necessary. 
         Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
         Offer a  reflection on your answer, and posibble use case. Also offer some alternative approaches that could be beneficial.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
@@ -46,7 +62,7 @@ class BambooAI:
         The code you provided is: {}.
         The question was: {}.
         Return a corrected python code that fixes the error.
-        Always include the import statements at the top of the code, and comments where necessary.
+        Always include the import statements at the top of the code, and comments and print statement where necessary.
         Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
         Offer a  reflection on your answer, and posibble use case. Also offer some alternative approaches that could be beneficial.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
@@ -77,7 +93,7 @@ class BambooAI:
 
         return content, tokens_used
     
-    # Function to sanitize the output from the LLM
+    # Functions to sanitize the output from the LLM
     def _extract_code(self,response: str, separator: str = "```") -> str:
 
         # Define a blacklist of Python keywords and functions that are not allowed
@@ -136,6 +152,73 @@ class BambooAI:
 
         # Return the cleaned and extracted code
         return code.strip(), reflection.strip(), flow.strip()
+    
+    def _extract_task(self, response: str) -> str:
+        # Search for a pattern between <task> and </task> in the response
+        match = re.search(r"<task>(.*)</task>", response, re.DOTALL)
+
+        if match:
+            # If a match is found, extract the task between <task> and </task>
+            task = match.group(1)
+
+            # Everything outside of <task></task> goes to reasoning.
+            # It splits the response into two parts, everything before <task> and everything after </task>
+            reasoning_parts = re.split(r"<task>.*</task>", response, flags=re.DOTALL)
+            reasoning = "".join(reasoning_parts)
+        else:
+            task = ""
+            # If no task is found, all the response goes to reasoning
+            reasoning = response
+
+        # Returning both task and reasoning
+        return task, reasoning
+    
+    def task_eval(self, question=None):
+        # Initialize the messages list with a system message containing the task prompt
+        eval_messages = [{"role": "system", "content": self.task_evaluation.format(self.df_head, question)}]
+
+        if 'ipykernel' in sys.modules:
+            # Jupyter notebook or ipython
+            display(HTML(f'<p style="color:magenta;">\nUsing Model: {self.llm}</p>'))
+            display(HTML(f'<p><b style="color:magenta;">Trying to determine the best method to analyse yout data, please wait...</b></p><br>'))
+        else:
+            # Other environment (like terminal)
+            print(colored(f"\n> Using Model: {self.llm}", "magenta"))
+            cprint(f"\n> Trying to determine the best method to anslyse yur data, please wait...\n", 'magenta', attrs=['bold'])
+
+        # Function to display results nicely
+        def display_task(task,reasoning):
+            if 'ipykernel' in sys.modules:
+                # Jupyter notebook or ipython
+                display(HTML(f'<p><b style="color:blue;">I have evaluated several possible approaches. Below is my reasoning:</b><br><pre style="color:black;"><b>{reasoning}</b></pre></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Task:</b><br style="color:black;"><b>{task}</b></p><br>'))
+            else:
+                # Other environment (like terminal)
+                cprint(f"\nI have evaluated several possible approaches. Below is my reasoning:\n{reasoning}\n", 'magenta', attrs=['bold'])
+                cprint(f"\nTask:\n{task}\n", 'magenta', attrs=['bold'])
+
+        # Call the OpenAI API and handle rate limit errors
+        try:
+            llm_response, tokens_used = self.llm_call(eval_messages)
+        except openai.error.RateLimitError:
+            print(
+                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
+            )
+            time.sleep(10)
+            llm_response, tokens_used = self.llm_call(eval_messages)
+
+        # Extract the task and esoning from the API response
+        task,reasoning = self._extract_task(llm_response)
+
+        if task is None:
+            task = question
+        
+        # Print reasoning
+        display_task(task,reasoning)
+
+        self.total_tokens_used.append(tokens_used)
+
+        return task
 
     def pd_agent_converse(self, question=None):
         # Initialize the messages list with a system message containing the task prompt
@@ -146,21 +229,23 @@ class BambooAI:
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
                 display(HTML(f'<p><b style="color:blue;">Answer:</b><br><pre style="color:black;"><b>{answer}</b></pre></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">Code:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">Thoughts:</b><br><b style="color:black;">{reflection}</b></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">Analysis Flow:</b><br><img src="{self.mm(flow)}" alt="Analysis Flow"></img></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">I have generated the following code:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Final Thoughts:</b><br><b style="color:black;">{reflection}</b></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Below is my approch as a Flow chart:</b><br><img src="{self.mm(flow)}" alt="Analysis Flow"></img></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
                 # Other environment (like terminal)
-                cprint(f"\nAnswer:\n{answer}\n", 'green', attrs=['bold'])
-                cprint(f"Code:\n{code}\n", 'green', attrs=['bold'])
-                cprint(f"Thoughts:\n{reflection}\n", 'green', attrs=['bold'])
-                cprint(f"Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
+                cprint(f"\n> Answer:\n{answer}\n", 'green', attrs=['bold'])
+                cprint(f"> I have generated the following code:\n{code}\n", 'green', attrs=['bold'])
+                cprint(f"> Final Thoughts:\n{reflection}\n", 'green', attrs=['bold'])
+                cprint(f"> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
 
         # If a question is provided, skip the input prompt
         if question is not None:
+            # Call the task_eval method with the user's question
+            task = self.task_eval(question)
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
+            answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
             display_results(answer, code, reflection, flow, total_tokens_used_sum)
             return
 
@@ -177,9 +262,11 @@ class BambooAI:
             # If the user types 'exit', break out of the loop
             if question.strip().lower() == 'exit':
                 break
-
+            
+            # Call the task_eval method with the user's question
+            task = self.task_eval(question)
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(question, messages, self.df)
+            answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
             display_results(answer, code, reflection,flow, total_tokens_used_sum)
 
     def pd_agent(self, question, messages, df=None):
@@ -192,7 +279,7 @@ class BambooAI:
             display(HTML(f'<p><b style="color:magenta;">Processing your request, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\nUsing Model: {self.llm}", "magenta"))
+            print(colored(f"\n> Using Model: {self.llm}", "magenta"))
             cprint(f"\n> Processing your request, please wait...\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API and handle rate limit errors
@@ -238,10 +325,10 @@ class BambooAI:
                     # Print the error message
                     if 'ipykernel' in sys.modules:
                         # Jupyter notebook
-                        display(HTML(f'<b><span style="color: red;">Error:<br><pre>{e}</pre><br>The agent will retry.</span></b>'))
+                        display(HTML(f'<b><span style="color: red;">Error:<br><pre>{e}</pre><br>Thanks for the feedback. I am going to reflect on the error and retry.</span></b>'))
                     else:
                         # CLI
-                        print(colored(f'Error: {e}. The agent will retry.', 'red'))
+                        print(colored(f'Error: {e}. > Thanks for the feedback. I am going to reflect on the error and retry.', 'red'))
 
                     # Increment the error correction counter and update the messages list with the error
                     error_corrections += 1
@@ -255,7 +342,7 @@ class BambooAI:
                             display(HTML('<span style="color: red;">Switching model to gpt-4 to try to improve the outcome.</span>'))
                         else:
                             # CLI
-                            print(colored('Switching model to gpt-4 to try to improve the outcome.', 'red'))
+                            print(colored('> Switching model to gpt-4 to try to improve the outcome.', 'red'))
 
                     # Attempt to correct the code and handle rate limit errors
                     try:
