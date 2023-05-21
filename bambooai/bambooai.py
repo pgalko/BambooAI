@@ -38,8 +38,8 @@ class BambooAI:
         Can you present a four different approaches labeled as approach 1, approach 2 and approach 3 and approach 4 to address the above task ? 
         Preserve any values or specific instructions included in the original task. Do not output any code.
         Now, evaluate each of these approaches and select the one most likely to produce the desired results. You can only select one approach. 
-        Sumarise the selected approach as a task for a junior data analyst. Ask them to use a single method and include as much detail as necessary.
-        Prefix the resulting task with <task> and suffix the task with </task>.
+        Sumarise the selected approach as a task for a fellow data analyst,include as much detail as necessary. 
+        Prefix their task with <task> and suffix the task with </task>.
         """
 
         self.task = """
@@ -47,7 +47,7 @@ class BambooAI:
         The name of the dataframe is `df`.
         This is the result of `print(df.head(1))`:
         {}.
-        Return the python code that prints out the answer to the following question : {}.
+        Return the python code that acomplishes the following task: {}.
         Always include the import statements at the top of the code, and comments and print statement where necessary. 
         Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
         Offer a  reflection on your answer, and posibble use case. Also offer some alternative approaches that could be beneficial.
@@ -60,7 +60,7 @@ class BambooAI:
         The code you provided resulted in an error.
         The error message is: {}.
         The code you provided is: {}.
-        The question was: {}.
+        The task was: {}.
         Return a corrected python code that fixes the error.
         Always include the import statements at the top of the code, and comments and print statement where necessary.
         Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
@@ -166,7 +166,7 @@ class BambooAI:
             reasoning_parts = re.split(r"<task>.*</task>", response, flags=re.DOTALL)
             reasoning = "".join(reasoning_parts)
         else:
-            task = ""
+            task = None
             # If no task is found, all the response goes to reasoning
             reasoning = response
 
@@ -184,7 +184,7 @@ class BambooAI:
         else:
             # Other environment (like terminal)
             print(colored(f"\n> Using Model: {self.llm}", "magenta"))
-            cprint(f"\n> Trying to determine the best method to anslyse yur data, please wait...\n", 'magenta', attrs=['bold'])
+            cprint(f"\n> Trying to determine the best method to analyse yur data, please wait...\n", 'magenta', attrs=['bold'])
 
         # Function to display results nicely
         def display_task(task,reasoning):
@@ -199,7 +199,7 @@ class BambooAI:
 
         # Call the OpenAI API and handle rate limit errors
         try:
-            llm_response, tokens_used = self.llm_call(eval_messages)
+            llm_response, tokens_used = self.llm_call(eval_messages,temperature=0) # higher temperature results in more "creative" answers (sometimes too creative :-))
         except openai.error.RateLimitError:
             print(
                 "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
@@ -209,7 +209,8 @@ class BambooAI:
 
         # Extract the task and esoning from the API response
         task,reasoning = self._extract_task(llm_response)
-
+        
+        #Use the user prompt as a task if task can not be exctracted
         if task is None:
             task = question
         
@@ -239,7 +240,7 @@ class BambooAI:
                 cprint(f"> I have generated the following code:\n{code}\n", 'green', attrs=['bold'])
                 cprint(f"> Final Thoughts:\n{reflection}\n", 'green', attrs=['bold'])
                 cprint(f"> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
-
+        
         # If a question is provided, skip the input prompt
         if question is not None:
             # Call the task_eval method with the user's question
