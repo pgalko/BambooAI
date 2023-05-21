@@ -96,13 +96,9 @@ The key can be obtained from here: https://platform.openai.com/account/api-keys
 
 ## Examples
 
-**CLI Output 1:**
+**CLI Output:**
 
 ![](images/example_1.png)
-
-**CLI Output 2:**
-
-![](images/example_2.png)
 
 **Google Colab:**
 
@@ -121,7 +117,6 @@ Contributions are welcome; please feel free to open a pull request. Keep in mind
 
 ## ToDo
 
-- Introduce memory limits.  A method for users to control the number of conversation pairs retained in memory and sent to the LLM during each iteration.
 - Ongoing work on optimizing the prompts and sanitization of the outputs.
 - Add abbility to inspect the LLM generated code before execution.
 - Add support for aditional LLMs.
