@@ -14,7 +14,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class BambooAI:
-    def __init__(self, df: pd.DataFrame,max_conversations: int = 3 ,llm: str = 'gpt-3.5-turbo',llm_switch: bool = False):
+    def __init__(self, df: pd.DataFrame,max_conversations: int = 2 ,llm: str = 'gpt-3.5-turbo',llm_switch: bool = False, exploratory: bool = False):
 
         self.API_KEY = os.environ.get('OPENAI_API_KEY')
         self.MAX_ERROR_CORRECTIONS = 5
@@ -28,18 +28,21 @@ class BambooAI:
         self.llm = llm
         self.llm_switch = llm_switch
 
+        # Set the exploratory mode. This mode is True when you want the model to evaluate the original prompt and suggest a few possible approaches.
+        self.exploratory = exploratory  
+
         self.task_evaluation = """
         There is a pandas dataframe.
         The name of the dataframe is `df`.
         This is the result of `print(df.head(1))`:
         {}.
-        You are an AI senior data analyst and you are presented with a following task to analyze the data in the above df. 
+        You are an AI data analyst and you are presented with a following task to analyze the data in the above df. 
         {}. 
-        Can you present a four different approaches labeled as approach 1, approach 2 and approach 3 and approach 4 to address the above task ? 
+        Can you present a four different approaches labeled as approach 1, approach 2, approach 3 and approach 4 to address the above task ? 
         Preserve any values or specific instructions included in the original task. Do not output any code.
         Now, evaluate each of these approaches and select the one most likely to produce the desired results. You can only select one approach. 
-        Sumarise the selected approach as a task for a fellow data analyst,include as much detail as necessary. 
-        Prefix their task with <task> and suffix the task with </task>.
+        Summarise the selected approach as a numbered task list for a fellow data analyst, include as much detail as necessary. 
+        Prefix the task list with <task_list> and suffix the task list with </task_list>.
         """
 
         self.task = """
@@ -47,7 +50,7 @@ class BambooAI:
         The name of the dataframe is `df`.
         This is the result of `print(df.head(1))`:
         {}.
-        Return the python code that acomplishes the following task: {}.
+        Return the python code that acomplishes the following tasks: {}.
         Always include the import statements at the top of the code, and comments and print statement where necessary. 
         Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
         Offer a  reflection on your answer, and posibble use case. Also offer some alternative approaches that could be beneficial.
@@ -155,7 +158,7 @@ class BambooAI:
     
     def _extract_task(self, response: str) -> str:
         # Search for a pattern between <task> and </task> in the response
-        match = re.search(r"<task>(.*)</task>", response, re.DOTALL)
+        match = re.search(r"<task_list>(.*)</task_list>", response, re.DOTALL)
 
         if match:
             # If a match is found, extract the task between <task> and </task>
@@ -163,7 +166,7 @@ class BambooAI:
 
             # Everything outside of <task></task> goes to reasoning.
             # It splits the response into two parts, everything before <task> and everything after </task>
-            reasoning_parts = re.split(r"<task>.*</task>", response, flags=re.DOTALL)
+            reasoning_parts = re.split(r"<task_list>.*</task_list>", response, flags=re.DOTALL)
             reasoning = "".join(reasoning_parts)
         else:
             task = None
@@ -190,8 +193,8 @@ class BambooAI:
         def display_task(task,reasoning):
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
-                display(HTML(f'<p><b style="color:blue;">I have evaluated several possible approaches. Below is my reasoning:</b><br><pre style="color:black;"><b>{reasoning}</b></pre></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">Task:</b><br style="color:black;"><b>{task}</b></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">I have evaluated several possible approaches. Below is my reasoning:</b><br><pre style="color:black;">{reasoning}</pre></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">I have created the following task list, and will now try to express it in code:</b><br><pre style="color:black;"><b>{task}</b></pre></p><br>'))
             else:
                 # Other environment (like terminal)
                 cprint(f"\nI have evaluated several possible approaches. Below is my reasoning:\n{reasoning}\n", 'magenta', attrs=['bold'])
@@ -243,8 +246,11 @@ class BambooAI:
         
         # If a question is provided, skip the input prompt
         if question is not None:
-            # Call the task_eval method with the user's question
-            task = self.task_eval(question)
+            # Call the task_eval method with the user's question if the exploratory mode is True
+            if self.exploratory is True:
+                task = self.task_eval(question)
+            else:
+                task = question
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
             answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
             display_results(answer, code, reflection, flow, total_tokens_used_sum)
@@ -264,8 +270,12 @@ class BambooAI:
             if question.strip().lower() == 'exit':
                 break
             
-            # Call the task_eval method with the user's question
-            task = self.task_eval(question)
+            # Call the task_eval method with the user's question if the exploratory mode is True
+            if self.exploratory is True:
+                task = self.task_eval(question)
+            else:
+                task = question
+
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
             answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
             display_results(answer, code, reflection,flow, total_tokens_used_sum)
@@ -326,10 +336,12 @@ class BambooAI:
                     # Print the error message
                     if 'ipykernel' in sys.modules:
                         # Jupyter notebook
-                        display(HTML(f'<b><span style="color: red;">Error:<br><pre>{e}</pre><br>Thanks for the feedback. I am going to reflect on the error and retry.</span></b>'))
+                        display(HTML(f'<br><b><span style="color: #d86c00;">I ran into an issue:</span></b><br><pre style="color: #d86c00;">{e}</pre><br><b><span style="color: #d86c00;">I will examine it, and try again with an adjusted code.</span></b><br>'))
                     else:
                         # CLI
-                        print(colored(f'Error: {e}. > Thanks for the feedback. I am going to reflect on the error and retry.', 'red'))
+                        #print(colored(f'I ran into an issue: {e}. > I will examine it, and try again with an adjusted code.', 'red'))
+                        sys.stderr.write('\033[31m' + f'> I ran into an issue: {e}. \n> I will examine it, and try again with an adjusted code.' + '\033[0m' + '\n')
+                        sys.stderr.flush()
 
                     # Increment the error correction counter and update the messages list with the error
                     error_corrections += 1
@@ -340,10 +352,12 @@ class BambooAI:
                         self.llm = 'gpt-4'
                         if 'ipykernel' in sys.modules:
                             # Jupyter notebook
-                            display(HTML('<span style="color: red;">Switching model to gpt-4 to try to improve the outcome.</span>'))
+                            display(HTML('<span style="color: #d86c00;">Switching model to gpt-4 to try to improve the outcome.</span>'))
                         else:
                             # CLI
-                            print(colored('> Switching model to gpt-4 to try to improve the outcome.', 'red'))
+                            print(colored('> Switching model to gpt-4 to try to improve the outcome.', 'red'), flush=True)
+                            sys.stderr.write('\033[31m' + f'> Switching model to gpt-4 to try to improve the outcome.' + '\033[0m' + '\n')
+                            sys.stderr.flush()
 
                     # Attempt to correct the code and handle rate limit errors
                     try:
