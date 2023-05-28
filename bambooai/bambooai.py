@@ -32,26 +32,28 @@ class BambooAI:
         self.exploratory = exploratory  
 
         self.task_evaluation = """
-        There is a pandas dataframe.
-        The name of the dataframe is `df`.
-        This is the result of `print(df.head(1))`:
+        You are an AI data analyst and you are presented with the following task "{}" to analyze the data in the pandas dataframe. 
+        The name of the dataframe is `df`, and the result of `print(df.head(1))` is:
         {}.
-        You are an AI data analyst and you are presented with a following task to analyze the data in the above df. 
-        {}. 
-        Can you present a four different approaches labeled as approach 1, approach 2, approach 3 and approach 4 to address the above task ? 
-        Preserve any values or specific instructions included in the original task. Do not output any code.
-        Now, evaluate each of these approaches and select the one most likely to produce the desired results. You can only select one approach. 
-        Summarise the selected approach as a numbered task list for a fellow data analyst, include as much detail as necessary. 
-        Prefix the task list with <task_list> and suffix the task list with </task_list>.
+        Describe by breaking the solution down as a numbered task list, including any supplied values or formulas from the above task.
+        This list should be no longer than 6 tasks, but can be less if 6 is not necessary.
+        Don’t generate code.   
+        """
+
+        self.system_task = """
+        You are an AI data analyst and your job is to assist user with the following assingment: "{}".
+        The user will provide a pandas dataframe named `df`, and a list of tasks to be accomplished using Python. 
+        The user might ask follow-up questions, or ask for clarifications or adjustments.
+        Your answers should always consist of the following segments: "code", "reflection" and "flow" enclosed within <segment></segment> tags.
+        Example:<code>Your code goes here</code> <reflection>Reflection on your answer</reflection> <flow>Mermaid flow diagram</flow>
         """
 
         self.task = """
-        There is a pandas dataframe.
-        The name of the dataframe is `df`.
-        This is the result of `print(df.head(1))`:
+        You have been presented with a pandas dataframe named `df`.
+        The result of `print(df.head(1))` is:
         {}.
         Return the python code that acomplishes the following tasks: {}.
-        Always include the import statements at the top of the code, and comments and print statement where necessary. 
+        Always include the import statements at the top of the code, and comments and print statement where necessary.
         Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
         Offer a  reflection on your answer, and posibble use case. Also offer some alternative approaches that could be beneficial.
         Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
@@ -60,10 +62,8 @@ class BambooAI:
         """
 
         self.error_correct_task = """
-        The code you provided resulted in an error.
-        The error message is: {}.
-        The code you provided is: {}.
-        The task was: {}.
+        The execution of the code that you provided in the previous step resulted in an error.
+        The error message is: {}
         Return a corrected python code that fixes the error.
         Always include the import statements at the top of the code, and comments and print statement where necessary.
         Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
@@ -142,10 +142,10 @@ class BambooAI:
             code = re.sub(r"^`(.*)`$", r"\1", code)
 
         # Remove any instances of "df = pd.read_csv('filename.csv')" from the code
-        code = re.sub(r"df\s*=\s*pd\.read_csv\('.*?'\)", "", code)
-        
+        code = re.sub(r"df\s*=\s*pd\.read_csv\('.*?'(,.*)?\)", "", code)
+
         # Remove any occurrences of df = pd.DataFrame() with any number of characters inside the parentheses.
-        code = re.sub(r"df\s*=\s*pd\.DataFrame\(.*?\)", "", code)
+        code = re.sub(r"df\s*=\s*pd\.DataFrame\(.*?\)", "", code, flags=re.DOTALL)
 
         # Define the regular expression pattern to match the blacklist items
         pattern = r"^(.*\b(" + "|".join(blacklist) + r")\b.*)$"
@@ -156,48 +156,26 @@ class BambooAI:
         # Return the cleaned and extracted code
         return code.strip(), reflection.strip(), flow.strip()
     
-    def _extract_task(self, response: str) -> str:
-        # Search for a pattern between <task> and </task> in the response
-        match = re.search(r"<task_list>(.*)</task_list>", response, re.DOTALL)
-
-        if match:
-            # If a match is found, extract the task between <task> and </task>
-            task = match.group(1)
-
-            # Everything outside of <task></task> goes to reasoning.
-            # It splits the response into two parts, everything before <task> and everything after </task>
-            reasoning_parts = re.split(r"<task_list>.*</task_list>", response, flags=re.DOTALL)
-            reasoning = "".join(reasoning_parts)
-        else:
-            task = None
-            # If no task is found, all the response goes to reasoning
-            reasoning = response
-
-        # Returning both task and reasoning
-        return task, reasoning
-    
     def task_eval(self, question=None):
         # Initialize the messages list with a system message containing the task prompt
-        eval_messages = [{"role": "system", "content": self.task_evaluation.format(self.df_head, question)}]
+        eval_messages = [{"role": "system", "content": self.task_evaluation.format(question, self.df_head,)}]
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
             display(HTML(f'<p style="color:magenta;">\nUsing Model: {self.llm}</p>'))
-            display(HTML(f'<p><b style="color:magenta;">Trying to determine the best method to analyse yout data, please wait...</b></p><br>'))
+            display(HTML(f'<p><b style="color:magenta;">Trying to determine the best method to analyse your data, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
             print(colored(f"\n> Using Model: {self.llm}", "magenta"))
-            cprint(f"\n> Trying to determine the best method to analyse yur data, please wait...\n", 'magenta', attrs=['bold'])
+            cprint(f"\n> Trying to determine the best method to analyse your data, please wait...\n", 'magenta', attrs=['bold'])
 
         # Function to display results nicely
-        def display_task(task,reasoning):
+        def display_task(task):
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
-                display(HTML(f'<p><b style="color:blue;">I have evaluated several possible approaches. Below is my reasoning:</b><br><pre style="color:black;">{reasoning}</pre></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">I have created the following task list, and will now try to express it in code:</b><br><pre style="color:black;"><b>{task}</b></pre></p><br>'))
             else:
                 # Other environment (like terminal)
-                cprint(f"\nI have evaluated several possible approaches. Below is my reasoning:\n{reasoning}\n", 'magenta', attrs=['bold'])
                 cprint(f"\nTask:\n{task}\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API and handle rate limit errors
@@ -210,24 +188,15 @@ class BambooAI:
             time.sleep(10)
             llm_response, tokens_used = self.llm_call(eval_messages)
 
-        # Extract the task and esoning from the API response
-        task,reasoning = self._extract_task(llm_response)
+        task = llm_response
         
-        #Use the user prompt as a task if task can not be exctracted
-        if task is None:
-            task = question
-        
-        # Print reasoning
-        display_task(task,reasoning)
+        display_task(task)
 
         self.total_tokens_used.append(tokens_used)
 
         return task
 
     def pd_agent_converse(self, question=None):
-        # Initialize the messages list with a system message containing the task prompt
-        messages = [{"role": "system", "content": self.task.format(self.df_head, "")}]
-
         # Function to display results nicely
         def display_results(answer, code, reflection, flow, total_tokens_used_sum):
             if 'ipykernel' in sys.modules:
@@ -246,6 +215,8 @@ class BambooAI:
         
         # If a question is provided, skip the input prompt
         if question is not None:
+            # Initialize the messages list with a system message containing the task prompt
+            messages = [{"role": "system", "content": self.system_task.format(question)}]
             # Call the task_eval method with the user's question if the exploratory mode is True
             if self.exploratory is True:
                 task = self.task_eval(question)
@@ -257,6 +228,7 @@ class BambooAI:
             return
 
         # Start an infinite loop to keep asking the user for questions
+        first_iteration = True  # Flag for the first iteration of the loop
         while True:
             # Prompt the user to enter a question or type 'exit' to quit
             if 'ipykernel' in sys.modules:
@@ -269,16 +241,24 @@ class BambooAI:
             # If the user types 'exit', break out of the loop
             if question.strip().lower() == 'exit':
                 break
-            
-            # Call the task_eval method with the user's question if the exploratory mode is True
-            if self.exploratory is True:
-                task = self.task_eval(question)
+
+            if first_iteration:
+                # Initialize the messages list with a system message containing the task prompt
+                messages = [{"role": "system", "content": self.system_task.format(question)}]
+                # Call the task_eval method with the user's question if the exploratory mode is True
+                if self.exploratory is True:
+                    task = self.task_eval(question)
+                else:
+                    task = question
             else:
                 task = question
 
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
             answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
             display_results(answer, code, reflection,flow, total_tokens_used_sum)
+
+            # After the first iteration, set the flag to False
+            first_iteration = False
 
     def pd_agent(self, question, messages, df=None):
         # Add a user message with the updated task prompt to the messages list
@@ -296,6 +276,7 @@ class BambooAI:
         # Call the OpenAI API and handle rate limit errors
         try:
             llm_response, tokens_used = self.llm_call(messages)
+
         except openai.error.RateLimitError:
             print(
                 "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
@@ -345,7 +326,7 @@ class BambooAI:
 
                     # Increment the error correction counter and update the messages list with the error
                     error_corrections += 1
-                    messages.append({"role": "user", "content": self.error_correct_task.format(e, code, question)})
+                    messages.append({"role": "user", "content": self.error_correct_task.format(e)})
 
                     # Switch to gpt-4 if llm_switch is True
                     if self.llm_switch:
