@@ -14,7 +14,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class BambooAI:
-    def __init__(self, df: pd.DataFrame,max_conversations: int = 2 ,llm: str = 'gpt-3.5-turbo',llm_switch: bool = False, exploratory: bool = False):
+    def __init__(self, df: pd.DataFrame,max_conversations: int = 2 ,llm: str = 'gpt-3.5-turbo',llm_switch: bool = False, exploratory: bool = True):
 
         self.API_KEY = os.environ.get('OPENAI_API_KEY')
         self.MAX_ERROR_CORRECTIONS = 5
