@@ -21,8 +21,8 @@ https://github.com/pgalko/BambooAI/assets/39939157/2d8e4a9f-29c4-438b-8c13-126a0
 - BambooAI subsequently checks if a question has been provided:
   - If a question is available, it continues to the next step.
   - If no question is available, BambooAI prompts the user to input one. It then enters a loop of questions and answers, remembering the conversation history and continually prompting the user for a new question. This loop continues until the user types 'exit', signalling the termination of the program.
-- Following the reception of a question, the OpenAI API is called to review and evaluate the task. The Language Learning Model (LLM) then presents four possible analysis methods, choosing the one it deems most suitable. This selected method is summarised and framed as a task for a hypothetical junior data analyst.
-- The agent then replaces the original question with the task from the previous step and sends this as a prompt to the OpenAI API for code generation.
+- Following the reception of a question, the OpenAI API is called to review and evaluate the task. The Language Learning Model (LLM) then presents a summary in the form of numbered task list.
+- The agent then replaces the original question with the task list from the previous step and sends this as a prompt to the OpenAI API for code generation.
 - The response from the API, containing the corresponding Python code, is received, checked and sanitised if necessary.
 - This code is then executed to generate an answer or a visualization:
   - If the code executes successfully, it displays the answer or visualization and subsequently prompts for another question. This new question could be related to the previous question or could be on an entirely new topic.
@@ -31,7 +31,7 @@ https://github.com/pgalko/BambooAI/assets/39939157/2d8e4a9f-29c4-438b-8c13-126a0
  
 **Flow chart:**
 
-![](images/flow_chart_2.png)
+![](images/flow_chart_3.png)
 
 ## How to use
 
