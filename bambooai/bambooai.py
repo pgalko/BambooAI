@@ -14,7 +14,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class BambooAI:
-    def __init__(self, df: pd.DataFrame,max_conversations: int = 2 ,llm: str = 'gpt-3.5-turbo',llm_switch: bool = False, exploratory: bool = True):
+    def __init__(self, df: pd.DataFrame,max_conversations: int = 2 ,llm: str = 'gpt-3.5-turbo',debug: bool = False, llm_switch: bool = False, exploratory: bool = False, flow_diagram: bool = False):
 
         self.API_KEY = os.environ.get('OPENAI_API_KEY')
         self.MAX_ERROR_CORRECTIONS = 5
@@ -26,39 +26,116 @@ class BambooAI:
         self.df_head = self.original_df.head(1)
     
         self.llm = llm
+        self.debug = debug
         self.llm_switch = llm_switch
 
         # Set the exploratory mode. This mode is True when you want the model to evaluate the original prompt and suggest a few possible approaches.
-        self.exploratory = exploratory  
+        self.exploratory = exploratory
+
+        # Show flow diagram
+        self.flow_diagram = flow_diagram
 
         self.task_evaluation = """
-        You are an AI data analyst and you are presented with the following task "{}" to analyze the data in the pandas dataframe. 
+        You are an AI computer scientist and your task is to design a heuristic algorithm to solve the following problem: "{}" with code. 
+        Your method will be used for data analysis and applied to a pandas dataframe.
         The name of the dataframe is `df`, and the result of `print(df.head(1))` is:
         {}.
-        Describe by breaking the solution down as a numbered task list, including any supplied values or formulas from the above task.
-        This list should be no longer than 6 tasks, but can be less if 6 is not necessary.
-        Don’t generate code.   
+        The dataframe df has already been defined and populated with the required data.
+         
+        Work the solution out in a step by step way to be sure we have the right answer. 
+        Your solution should be no longer than 8 steps, but can be less if 8 is not necessary.
+        Don’t generate code.
+
+        Example Input:       
+        Divide all values in column "example data" by 2, and print out the mean.
+
+        Example Output:
+          1. Locate the "example data" column in the dataframe `df`.
+          2. Divide all values in the "example data" column by 2.
+          3. Update the "example data" column with the new values obtained in step 2.
+          4. Calculate the mean of the updated "example data" column.
+          5. Print out the mean value obtained in step 4.         
         """
 
         self.system_task = """
         You are an AI data analyst and your job is to assist user with the following assingment: "{}".
-        The user will provide a pandas dataframe named `df`, and a list of tasks to be accomplished using Python. 
+        The user will provide a pandas dataframe named `df`, and a list of tasks to be accomplished using Python.
+        The dataframe df has already been defined and populated with the required data.
+        
+        Do not use <code>,</code> from "Example Output:" below.
+        Prefix the python code with <code> and suffix the code with </code>.
+
+        Deliver a comprehensive evaluation of the outcomes obtained from employing your method, including in-depth insights, 
+        identification of nuanced or hidden patterns, and potential use cases. 
+        Additionally, consider suggesting other methods that could potentially offer better results or efficiencies.
+        Don’t include any code or mermaid diagrams in the analisys.
+        Prefix the evaluation with <reflection> and suffix the evaluation with </reflection>.
+
+        Finally output the code for mermaid diagram. The code should start with "graph TD;"
+        Prefix the mermaid code with <flow> and suffix the mermaid code with </flow>.
+        
         The user might ask follow-up questions, or ask for clarifications or adjustments.
-        Your answers should always consist of the following segments: "code", "reflection" and "flow" enclosed within <segment></segment> tags.
-        Example:<code>Your code goes here</code> <reflection>Reflection on your answer</reflection> <flow>Mermaid flow diagram</flow>
+
+        Example input:
+        1. Locate the "example data" column in the dataframe `df`.
+        2. Divide all values in the "example data" column by 2.
+        3. Update the "example data" column with the new values obtained in step 2.
+        4. Calculate the mean of the updated "example data" column.
+        5. Print out the mean value obtained in step 4.
+
+        Example Output:
+        <code>
+        import pandas as pd
+
+        # Locate the "example data" column in the dataframe `df`
+        example_data_column = df['exampledata']
+
+        # Divide all values in the "example data" column by 2
+        example_data_column_divided_by_2 = example_data_column / 2
+
+        # Update the "example data" column with the new values obtained in step 2
+        df['exampledata'] = example_data_column_divided_by_2
+
+        # Calculate the mean of the updated "example data" column
+        mean_example_data = df['exampledata'].mean()
+
+        # Print out the mean value obtained in step 4
+        print("Mean of updated example data column:", mean_example_data)
+        </code>
+
+        <reflection>
+        This code divides example data values by 2 and computes the mean. 
+        Descriptive Statistics: 
+        The updated mean example data is the main outcome. Compare this to standard benchmarks to interpret its meaning.
+        Data Correction: 
+        If initial values were recorded too high, this code corrects them. Verify the success of this correction by checking if new values are within expected example data ranges.
+        Potential Errors: 
+        Review minimum and maximum values of the updated 'exampledata'. Implausible values may indicate data errors or outliers.
+        Visual Analysis:
+        A histogram of the updated 'exampledata' could reveal the distribution's characteristics and any outliers.
+        Further Applications: 
+        The updated values could be used for additional analyses, like comparing average example datas between different groups or studying the correlation of example data with other health indicators.
+        </reflection>
+
+        <flow>
+        graph TD;
+        A[Locate "example data" column in df] --> B[Divide all values in "example data" by 2];
+        B --> C[Update "example data" column with new values];
+        C --> D[Calculate mean of updated "example data" column];
+        D --> E[Print out the mean value];
+        </flow>
         """
 
         self.task = """
         You have been presented with a pandas dataframe named `df`.
+        The dataframe df has already been defined and populated with the required data.
         The result of `print(df.head(1))` is:
         {}.
         Return the python code that acomplishes the following tasks: {}.
         Always include the import statements at the top of the code, and comments and print statement where necessary.
-        Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
-        Offer a  reflection on your answer, and posibble use case. Also offer some alternative approaches that could be beneficial.
-        Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
-        Finally output a code for mermaid diagram. The code should start with "graph TD;"
-        Prefix the mermaid code with <flow> and suffix the mermaid flow with </flow>.
+        When working with machine learning models, ensure that the target variable, which the model is intended to predict, is not included among the feature variables used to train the model.
+        Make sure to also include a reflection on your answer and the code for mermaid diagram.
+        Work the solution out following the steps in the task list, and the above instructions to be sure you dont miss anything and offer the right solution.
         """
 
         self.error_correct_task = """
@@ -66,11 +143,77 @@ class BambooAI:
         The error message is: {}
         Return a corrected python code that fixes the error.
         Always include the import statements at the top of the code, and comments and print statement where necessary.
-        Prefix the python code with <code> and suffix the code with </code>. Skip if the answer can not be expressed in a code.
-        Offer a  reflection on your answer, and posibble use case. Also offer some alternative approaches that could be beneficial.
-        Prefix the reflection with <reflection> and suffix the reflection with </reflection>.
-        Finally output a code for mermaid diagram. The code should start with "graph TD;"
-        Prefix the mermaid code with <flow> and suffix the mermaid flow with </flow>.
+        Make sure to also include a reflection on your answer and the code for the mermaid diagram.
+        """
+
+        self.debug_code_task = """
+        Your job as an AI QA engineer is to inspect the given code and make sure that it meets its objective.
+        Code:
+        {}.
+        Objective:
+        {}.
+        The dataframe df has already been defined and populated with the required data. 
+
+        Your task is to examine the code line by line, and confirm that the code incorporates all numerical data, additional values, 
+        and formulas including the correct operators as detailed in the objective, and to ensure that these formulas are accurately implemented and perform as expected. 
+        Thoroughly examine each line of the code and refine it to optimize its accuracy and efficiency for its intended purpose. 
+        After making the necessary adjustments, supply the complete, updated code. Do not use <code></code> from "Example Output:" below.
+        Prefix the code with <code> and suffix the code with </code>.
+
+        Provide a summary of your evaluation. Don’t include any code in the summary.
+        Prefix the summary with <reflection> and suffix the summary with </reflection>.
+
+        Example Input
+        Task List:
+        1. Locate the "example data" column in the dataframe `df`.
+        2. Divide all values in the "example data" column by 2.
+        3. Update the "example data" column with the new values obtained in step 2.
+        4. Calculate the mean of the updated "example data" column.
+        5. Print out the mean value obtained in step 4.
+
+        Code: 
+        import pandas as pd
+
+        # Locate the "example data" column in the dataframe `df`
+        example_data_column = df['exampledata']
+
+        # Divide all values in the "example data" column by 2
+        example_data_column_divided_by_2 = example_data_column / df['exampledata'].mean()
+
+        # Update the "example data" column with the new values obtained in step 2
+        df['exampledata'] = example_data_column_divided_by_2
+
+        # Calculate the mean of the updated "example data" column
+        mean_example_data = df['exampledata'].mean()
+
+        # Print out the mean value obtained in step 4
+        print("Mean of updated example data column:", mean_example_data)
+
+        Example Output:
+        <code>
+        import pandas as pd
+
+        # Locate the "example data" column in the dataframe `df`
+        example_data_column = df['exampledata']
+
+        # Divide all values in the "example data" column by 2
+        example_data_column_divided_by_2 = example_data_column / 2
+
+        # Update the "example data" column with the new values obtained in step 2
+        df['exampledata'] = example_data_column_divided_by_2
+
+        # Calculate the mean of the updated "example data" column
+        mean_example_data = df['exampledata'].mean()
+
+        # Print out the mean value obtained in step 4
+        print("Mean of updated example data column:", mean_example_data)
+        </code>
+
+        <reflection>
+        I have inspected the provided code and discovered that the desired divisor was substituted with a mean of the exampledata column. 
+        This would still produce results without throwing any exception, but the results would not meet the specified objective. 
+        The bug would not be easily spotted unless the results are cross-verified or tested against expected results. 
+        </reflection>
         """
 
         openai.api_key = self.API_KEY
@@ -144,9 +287,6 @@ class BambooAI:
         # Remove any instances of "df = pd.read_csv('filename.csv')" from the code
         code = re.sub(r"df\s*=\s*pd\.read_csv\('.*?'(,.*)?\)", "", code)
 
-        # Remove any occurrences of df = pd.DataFrame() with any number of characters inside the parentheses.
-        code = re.sub(r"df\s*=\s*pd\.DataFrame\(.*?\)", "", code, flags=re.DOTALL)
-
         # Define the regular expression pattern to match the blacklist items
         pattern = r"^(.*\b(" + "|".join(blacklist) + r")\b.*)$"
 
@@ -162,11 +302,11 @@ class BambooAI:
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nUsing Model: {self.llm}</p>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {self.llm}</p>'))
             display(HTML(f'<p><b style="color:magenta;">Trying to determine the best method to analyse your data, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n> Using Model: {self.llm}", "magenta"))
+            print(colored(f"\n> Calling Model: {self.llm}", "magenta"))
             cprint(f"\n> Trying to determine the best method to analyse your data, please wait...\n", 'magenta', attrs=['bold'])
 
         # Function to display results nicely
@@ -181,6 +321,7 @@ class BambooAI:
         # Call the OpenAI API and handle rate limit errors
         try:
             llm_response, tokens_used = self.llm_call(eval_messages,temperature=0) # higher temperature results in more "creative" answers (sometimes too creative :-))
+            
         except openai.error.RateLimitError:
             print(
                 "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
@@ -196,20 +337,64 @@ class BambooAI:
 
         return task
 
+    def debug_code(self,code,question):
+        # Initialize the messages list with a system message containing the task prompt
+        debug_messages = [{"role": "system", "content": self.debug_code_task.format(code,question)}]
+
+        if 'ipykernel' in sys.modules:
+            # Jupyter notebook or ipython
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {self.llm}</p>'))
+            display(HTML(f'<p><b style="color:magenta;">I have now received the LLM response. I am going to check the returned code for any errors, bugs or inconsistencies, and correct it if necessary. Please wait...</b></p><br>'))
+        else:
+            # Other environment (like terminal)
+            print(colored(f"\n> Calling Model: {self.llm}", "magenta"))
+            cprint(f"\n> I have now received the LLM response. I am going to check the returned code for any errors, bugs or inconsistencies, and correct it if necessary. Please wait...\n", 'magenta', attrs=['bold'])
+
+        # Function to display results nicely
+        def display_task(debug_insight):
+            if 'ipykernel' in sys.modules:
+                # Jupyter notebook or ipython
+                display(HTML(f'<p><b style="color:blue;">I have finished debugging the code, below are my thoughts:</b><br><pre style="color:black; white-space: pre-wrap; font-weight: bold;">{debug_insight}</pre></p><br>'))
+                display(HTML(f'<p><b style="color:magenta;">I am proceeding to the execution...</b></p><br>'))
+            else:
+                # Other environment (like terminal)
+                cprint(f"\n> I have finished debugging the code, below are my thoughts:\n{debug_insight}\n", 'magenta', attrs=['bold'])
+                cprint(f"\n> I am proceeding to the execution...\n", 'magenta', attrs=['bold'])
+
+        # Call the OpenAI API and handle rate limit errors
+        try:
+            llm_response, tokens_used = self.llm_call(debug_messages,temperature=0) # higher temperature results in more "creative" answers (sometimes too creative :-))
+            
+        except openai.error.RateLimitError:
+            print(
+                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
+            )
+            time.sleep(10)
+            llm_response, tokens_used = self.llm_call(debug_messages)
+        
+        # Extract the code from the API response
+        debugged_code,debug_insight,flow = self._extract_code(llm_response)       
+        display_task(debug_insight)
+
+        self.total_tokens_used.append(tokens_used)
+
+        return debugged_code
+
     def pd_agent_converse(self, question=None):
         # Function to display results nicely
         def display_results(answer, code, reflection, flow, total_tokens_used_sum):
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
                 display(HTML(f'<p><b style="color:blue;">Answer:</b><br><pre style="color:black;"><b>{answer}</b></pre></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">I have generated the following code:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">Final Thoughts:</b><br><b style="color:black;">{reflection}</b></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">Below is my approch as a Flow chart:</b><br><img src="{self.mm(flow)}" alt="Analysis Flow"></img></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Here is the final code that accomplishes the task:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Final Thoughts:</b><br><pre style="color:black; white-space: pre-wrap; font-weight: bold;">{reflection}</pre></p><br>'))
+                if self.flow_diagram:
+                    display(HTML(f'<p><b style="color:blue;">Below is my approch as a Flow chart:</b><br><img src="{self.mm(flow)}" alt="Analysis Flow"></img></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
                 # Other environment (like terminal)
                 cprint(f"\n> Answer:\n{answer}\n", 'green', attrs=['bold'])
-                cprint(f"> I have generated the following code:\n{code}\n", 'green', attrs=['bold'])
+                cprint(f"> Here is the final code that accomplishes the task:\n{code}\n", 'green', attrs=['bold'])
                 cprint(f"> Final Thoughts:\n{reflection}\n", 'green', attrs=['bold'])
                 cprint(f"> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
         
@@ -266,12 +451,12 @@ class BambooAI:
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nUsing Model: {self.llm}</p>'))
-            display(HTML(f'<p><b style="color:magenta;">Processing your request, please wait...</b></p><br>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {self.llm}</p>'))
+            display(HTML(f'<p><b style="color:magenta;">I have sent your request to the LLM and awaiting response, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n> Using Model: {self.llm}", "magenta"))
-            cprint(f"\n> Processing your request, please wait...\n", 'magenta', attrs=['bold'])
+            print(colored(f"\n> Calling Model: {self.llm}", "magenta"))
+            cprint(f"\n> I have sent your request to the LLM and awaiting response, please wait...\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API and handle rate limit errors
         try:
@@ -297,6 +482,10 @@ class BambooAI:
         # Store the original llm value
         original_llm = self.llm
 
+        # Debug code
+        if self.debug:
+            code = self.debug_code(code, question)
+
         # Redirect standard output to a StringIO buffer
         with redirect_stdout(io.StringIO()) as output:
             # Try to execute the code and handle errors
@@ -311,7 +500,7 @@ class BambooAI:
                     self.df = self.original_df.copy()
                     # Execute the code
                     if code is not None:
-                        exec(code)
+                        exec(code, {'df': self.df})
                     break
                 except Exception as e:
                     # Print the error message
