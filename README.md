@@ -5,7 +5,7 @@ A lightweight library that leverages Language Models (LLMs) to enable natural la
 
 The BambooAI library is a user-friendly tool designed to make data analysis more accessible to non-programmers. Utilizing the power of Large Language Models (LLM), BambooAI can comprehend your questions about a dataset and automatically generate and execute the appropriate Python code for both analysis and plotting. Users can effortlessly gain valuable insights from their data without writing complex code or mastering advanced programming techniques. With BambooAI, simply input your dataset, ask questions in plain English, and receive answers along with relevant out of the box visualizations if asked for to help you better understand your data.
 
-My aim was to keep the code base under 200 lines of actual code (not counting prompts, comments and blanks) to ensure easy comprehension and clarity for users of various skill levels. By maintaining a concise code base, I strived to create an accessible and straightforward tool that streamlines the process of data analysis and visualization. This approach not only makes it easier for developers and users to understand the library's inner workings but also fosters efficient implementation and customization, catering to a diverse audience and their unique needs.
+My primary goal was to build a library that acts as a steadfast companion for analysts of all skill levels, rather than acting as the analyst itself. This library simplifies the intricate process of data analysis and visualization, serving to streamline the user's workflow. It's been crafted with a focus on user-friendliness, efficiency, and adaptability, enabling it to cater to a wide range of users and their unique analytical needs. By functioning as an aid rather than the main analyst, this library not only facilitates smoother operations but also empowers users to effectively employ their analytical skills, enhancing their overall productivity.
 
 ## Preview
 
@@ -24,11 +24,12 @@ https://github.com/pgalko/BambooAI/assets/39939157/2d8e4a9f-29c4-438b-8c13-126a0
 - Following the reception of a question, the OpenAI API is called to review and evaluate the task. The Language Learning Model (LLM) then presents a summary in the form of numbered task list.
 - The agent then replaces the original question with the task list from the previous step and sends this as a prompt to the OpenAI API for code generation.
 - The response from the API, containing the corresponding Python code, is received, checked and sanitised if necessary.
-  - If the debug parameter is set to "True", the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking and debugging.
+  - If the debug parameter is set to "True", the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking, debugging and sanitization of any harmful elements..
 - The received code is then executed to generate an answer or a visualization:
   - If the code executes successfully, it displays the answer or visualization and subsequently prompts for another question. This new question could be related to the previous question or could be on an entirely new topic.
   - If an error occurs during code execution, the program requests a corrected version of the code from the OpenAI API by providing the error message, and then attempts to execute the corrected code. *In cases where the "llm_switch" argument is set to "True" (indicating LLM cascading), the program will switch from the base model to the more powerful GPT-4 model for a retry. After successful execution, it will revert to the base model.*
 - The program then displays the total token usage at each step, thereby providing insights into the resources consumed during the process.
+- Lastly, the final answer is evaluated and given a score between 1-10. The answers that receive a rank above the threshold are exceptionally well-composed and are utilized to build the knowledge base for future references.
  
 **Flow chart:**
 
@@ -57,12 +58,14 @@ llm_switch: bool - If True, the agent will switch to gpt-4 after error
 
 debug: bool - If True, the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking and debugging.
 
+rank: bool - If True, the final version of the code is sent back to the Language Learning Model (LLM) ro ranking from on a scale from 1 to 10.The answers that receive a rank higher than the given threshold are exceptionally well-composed and are utilized to build the knowledge base for future references.
+
 exploratory: bool - If True, the LLM will assess the user's question and create a task list outlining the steps, which will be sent to the LLM as a prompt. This approach is effective for vague user prompts, but may not perform as well with more defined prompts. The default setting is True.
 
 flow_diagram: bool - If True, a mermaid diagram will be generated and displayed to complement the answer.
 
 
-e.g. bamboo = BambooAI(df, debug=True, llm_switch=True, exploratory=True, flow_diagram=False)
+e.g. bamboo = BambooAI(df, debug=True, rank=True, llm_switch=True, exploratory=True, flow_diagram=False)
 ```
 
 Run in a loop
@@ -116,6 +119,6 @@ Contributions are welcome; please feel free to open a pull request. Keep in mind
 ## ToDo
 
 - Ongoing work on optimizing the prompts and sanitization of the outputs.
-- Add ability to rank, and store high ranking Q:A pairs
+- Add Knowledge Base in a vector DB. A matching(similar) Q:A pairs will be used as a context/reference for subsequent questions to improve the accuracy and relevancy.
 - Add support for aditional LLMs.
 
