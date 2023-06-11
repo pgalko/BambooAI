@@ -12,7 +12,7 @@ from termcolor import colored, cprint
 from IPython.display import display, Image, HTML
 import warnings
 warnings.filterwarnings('ignore')
-import prompts
+from . import prompts
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame,
