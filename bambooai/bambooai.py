@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import base64
+import json
 from contextlib import redirect_stdout
 import io
 import time
@@ -12,17 +13,24 @@ from termcolor import colored, cprint
 from IPython.display import display, Image, HTML
 import warnings
 warnings.filterwarnings('ignore')
+#Running as a script
+# import prompts
+# import func_calls
+#Running as a package
 from . import prompts
+from . import function_calls
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame,
-                 max_conversations: int = 2 ,
-                 llm: str = 'gpt-3.5-turbo',
+                 max_conversations: int = 4,
+                 llm: str = 'gpt-3.5-turbo-0613',
+                 llm_func: str = 'gpt-3.5-turbo-0613',
+                 llm_16k: str = 'gpt-3.5-turbo-16k',
+                 llm_gpt4: str = 'gpt-4-0613',
                  debug: bool = False, 
                  rank: bool = False, 
                  llm_switch: bool = False, 
                  exploratory: bool = True, 
-                 flow_diagram: bool = False
                  ):
 
         self.API_KEY = os.environ.get('OPENAI_API_KEY')
@@ -34,8 +42,13 @@ class BambooAI:
         self.original_df = df
         self.df = df.copy()  # make a copy of the dataframe
         self.df_head = self.original_df.head(1)
-    
+
+        # LLMs
         self.llm = llm
+        self.llm_func = llm_func
+        self.llm_16k = llm_16k
+        self.llm_gpt4 = llm_gpt4
+
         # Set the debug mode. This mode is True when you want the model to debug the code and correct it.
         self.debug = debug
         # Set the llm_switch mode. This mode is True when you want the model to switch to gpt-4 for debugging, error correction and ranking.
@@ -45,9 +58,6 @@ class BambooAI:
 
         # Set the exploratory mode. This mode is True when you want the model to evaluate the original prompt and break it down in heuristic algorithm.
         self.exploratory = exploratory
-
-        # Set the flow_diagram mode. This mode is True when you want the model to generate a flow diagram.
-        self.flow_diagram = flow_diagram
         
         # Prompts
         self.task_evaluation = prompts.task_evaluation
@@ -56,30 +66,85 @@ class BambooAI:
         self.error_correct_task = prompts.error_correct_task
         self.debug_code_task = prompts.debug_code_task  
         self.rank_answer = prompts.rank_answer
+        self.solution_insights = prompts.solution_insights
+
+        # Functions
+        self.task_eval_function = func_calls.task_eval_function
+        self.insights_function = func_calls.solution_insights_function
         
         openai.api_key = self.API_KEY
+
         # Initialize the total tokens used list. This list will be used to keep track of the total tokens used by the model
         self.total_tokens_used = []
 
-    def mm(self, graph):
-        graphbytes = graph.encode("ascii")
-        base64_bytes = base64.b64encode(graphbytes)
-        base64_string = base64_bytes.decode("ascii")
-        img_url = "https://mermaid.ink/img/" + base64_string
-        return img_url
-
-    def llm_call(self, messages: str, temperature: float = 0, max_tokens: int = 2000):
-        response = openai.ChatCompletion.create(
-            model=self.llm,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+    def llm_call(self, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False):
+        model = self.llm
+        if llm_cascade:
+            model = self.llm_gpt4
+        try:
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except openai.error.RateLimitError:
+            print(
+                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
+            )
+            time.sleep(10)
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        # Exceeded the maximum number of tokens allowed by the API
+        except openai.error.InvalidRequestError:
+            print(
+                "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
+            )
+            response = openai.ChatCompletion.create(
+                model=self.llm_16k,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
 
         content = response.choices[0].message.content.strip()
         tokens_used = response.usage.total_tokens
 
         return content, tokens_used
+    
+    def llm_func_call(self, messages, functions, function_name):
+        try:
+            response = openai.ChatCompletion.create(
+            model = self.llm_func,
+            messages=messages,
+            functions=functions,
+            function_call = function_name,
+            temperature=0,
+            max_tokens = 700, 
+            )
+        except openai.error.RateLimitError:
+            print(
+                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
+            )
+            time.sleep(10)
+            response = openai.ChatCompletion.create(
+            model = self.llm_func,
+            messages=messages,
+            functions=functions,
+            function_call = function_name,
+            temperature=0,
+            )
+        
+        fn_name = response.choices[0].message["function_call"].name
+        arguments = response.choices[0].message["function_call"].arguments
+        tokens_used = response.usage.total_tokens
+
+        return fn_name,arguments,tokens_used
+
     
     # Functions to sanitize the output from the LLM
     def _extract_code(self,response: str, separator: str = "```") -> str:
@@ -89,30 +154,6 @@ class BambooAI:
                     'shutil','pickle','ctypes','multiprocessing','tempfile','glob','code','pty','commands',
                     'requests','cgi','cgitb','xml.etree.ElementTree','builtins'
                     ]
-        
-        # Search for a pattern between <reflection> and </reflection> in the response
-        match = re.search(r"<reflection>(.*)</reflection>", response, re.DOTALL)
-        if match:
-            # If a match is found, extract the reflection between <reflection> and </reflection>
-            reflection = match.group(1)
-        else:
-            reflection = ""
-
-        # Search for a pattern between <flow> and </flow> in the response
-        match = re.search(r"<flow>(.*)</flow>", response, re.DOTALL)
-        if match:
-            # If a match is found, extract the reflection between <flow> and </flow>
-            flow = match.group(1)
-        else:
-            flow = ""
-
-        # Search for a pattern between <rank> and </rank> in the response
-        match = re.search(r"<rank>(.*)</rank>", response)
-        if match:
-            # If a match is found, extract the reflection between <rank> and </rank>
-            rank = match.group(1)
-        else:
-            rank = ""
 
         # Search for a pattern between <code> and </code> in the extracted code
         match = re.search(r"<code>(.*)</code>", response, re.DOTALL)
@@ -144,14 +185,14 @@ class BambooAI:
         code = re.sub(pattern, r"# not allowed \1", code, flags=re.MULTILINE)
 
         # Return the cleaned and extracted code
-        return code.strip(), reflection.strip(), flow.strip()
+        return code.strip()
     
     def _extract_rank(self,response: str) -> str:
 
         # Search for a pattern between <rank> and </rank> in the response
         match = re.search(r"<rank>(.*)</rank>", response)
         if match:
-            # If a match is found, extract the reflection between <rank> and </rank>
+            # If a match is found, extract the rank between <rank> and </rank>
             rank = match.group(1)
         else:
             rank = ""
@@ -159,114 +200,89 @@ class BambooAI:
         # Return the cleaned and extracted code
         return rank.strip()
     
-    def task_eval(self, question=None):
-        # Initialize the messages list with a system message containing the task prompt
-        eval_messages = [{"role": "system", "content": self.task_evaluation.format(question, self.df_head,)}]
+    def task_eval(self, eval_messages):
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {self.llm}</p>'))
-            display(HTML(f'<p><b style="color:magenta;">Trying to determine the best method to analyse your data, please wait...</b></p><br>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {self.llm_func}</p>'))
+            display(HTML(f'<p><b style="color:magenta;">Trying to determine the best method to answer your question, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n> Calling Model: {self.llm}", "magenta"))
-            cprint(f"\n> Trying to determine the best method to analyse your data, please wait...\n", 'magenta', attrs=['bold'])
+            print(colored(f"\n>> Calling Model: {self.llm_func}", "magenta"))
+            cprint(f"\n>> Trying to determine the best method to answer your question, please wait...\n", 'magenta', attrs=['bold'])
 
-        # Function to display results nicely
-        def display_task(task):
-            if 'ipykernel' in sys.modules:
-                # Jupyter notebook or ipython
-                display(HTML(f'<p><b style="color:blue;">I have created the following task list, and will now try to express it in code:</b><br><pre style="color:black;"><b>{task}</b></pre></p><br>'))
-            else:
-                # Other environment (like terminal)
-                cprint(f"\nTask:\n{task}\n", 'magenta', attrs=['bold'])
+        # Call OpenAI API
+        function_name = {"name": "QA_Response"}
+        fn_name, arguments, tokens_used = self.llm_func_call(eval_messages,self.task_eval_function, function_name)
 
-        # Call the OpenAI API and handle rate limit errors
-        try:
-            llm_response, tokens_used = self.llm_call(eval_messages,temperature=0) # higher temperature results in more "creative" answers (sometimes too creative :-))
-            
-        except openai.error.RateLimitError:
-            print(
-                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-            )
-            time.sleep(10)
-            llm_response, tokens_used = self.llm_call(eval_messages)
+        # Parse the JSON string to a Python dict
+        arguments_dict = json.loads(arguments, strict=False)
 
-        task = llm_response
-        
-        display_task(task)
+        # Retrieve values
+        eval_answer = arguments_dict["answer"]
+        eval_answer_type = arguments_dict["answer_type"]
 
         self.total_tokens_used.append(tokens_used)
 
-        return task
+        return arguments, fn_name, eval_answer, eval_answer_type
 
-    def debug_code(self,code,question):
+    def debug_code(self,code,question, llm_cascade=False):
         # Initialize the messages list with a system message containing the task prompt
         debug_messages = [{"role": "system", "content": self.debug_code_task.format(code,question)}]
 
+        using_model = self.llm
+        if llm_cascade:
+            using_model = self.llm_gpt4
+
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {self.llm}</p>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
             display(HTML(f'<p><b style="color:magenta;">I have received the first version of the code. I am sending it back to LLM to get it checked for any errors, bugs or inconsistencies, and correction if necessary. Please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n> Calling Model: {self.llm}", "magenta"))
-            cprint(f"\n> I have received the first version of the code. I am sending it back to LLM to get it checked for any errors, bugs or inconsistencies, and correction if necessary. Please wait...\n", 'magenta', attrs=['bold'])
+            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
+            cprint(f"\n>> I have received the first version of the code. I am sending it back to LLM to get it checked for any errors, bugs or inconsistencies, and correction if necessary. Please wait...\n", 'magenta', attrs=['bold'])
 
         # Function to display results nicely
-        def display_task(debug_insight):
+        def display_task():
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
-                display(HTML(f'<p><b style="color:blue;">I have finished debugging the code, below are my thoughts:</b><br><pre style="color:black; white-space: pre-wrap; font-weight: bold;">{debug_insight}</pre></p><br>'))
-                display(HTML(f'<p><b style="color:magenta;">I am proceeding to the execution...</b></p><br>'))
+                display(HTML(f'<p><b style="color:magenta;">I have finished debugging the code, and will now proceed to the execution...</b></p><br>'))
             else:
                 # Other environment (like terminal)
-                cprint(f"\n> I have finished debugging the code, below are my thoughts:\n{debug_insight}\n", 'magenta', attrs=['bold'])
-                cprint(f"\n> I am proceeding to the execution...\n", 'magenta', attrs=['bold'])
+                cprint(f"\n>> I have finished debugging the code, and will now proceed to the execution...\n", 'magenta', attrs=['bold'])
 
-        # Call the OpenAI API and handle rate limit errors
-        try:
-            llm_response, tokens_used = self.llm_call(debug_messages,temperature=0) # higher temperature results in more "creative" answers (sometimes too creative :-))
-            
-        except openai.error.RateLimitError:
-            print(
-                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-            )
-            time.sleep(10)
-            llm_response, tokens_used = self.llm_call(debug_messages)
+        # Call the OpenAI API
+        llm_response, tokens_used = self.llm_call(debug_messages,temperature=0,llm_cascade=llm_cascade) # higher temperature results in more "creative" answers (sometimes too creative :-))
         
         # Extract the code from the API response
-        debugged_code,debug_insight,flow = self._extract_code(llm_response)       
-        display_task(debug_insight)
+        debugged_code = self._extract_code(llm_response)       
+        display_task()
 
         self.total_tokens_used.append(tokens_used)
 
         return debugged_code
 
-    def rank_code(self,code,question):
+    def rank_code(self,code,question,llm_cascade=False):
         # Initialize the messages list with a system message containing the task prompt
         rank_messages = [{"role": "system", "content": self.rank_answer.format(code,question)}]
 
+        using_model = self.llm
+        if llm_cascade:
+            using_model = self.llm_gpt4
+
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {self.llm}</p>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
             display(HTML(f'<p><b style="color:magenta;">I am going to evaluate and rank the answer. Please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n> Calling Model: {self.llm}", "magenta"))
-            cprint(f"\n> I am going to evaluate and rank the answer. Please wait..\n", 'magenta', attrs=['bold'])
+            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
+            cprint(f"\n>> I am going to evaluate and rank the answer. Please wait..\n", 'magenta', attrs=['bold'])
 
-        # Call the OpenAI API and handle rate limit errors
-        try:
-            llm_response, tokens_used = self.llm_call(rank_messages)
-            
-        except openai.error.RateLimitError:
-            print(
-                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-            )
-            time.sleep(10)
-            llm_response, tokens_used = self.llm_call(rank_messages)
-        
+        # Call the OpenAI API 
+        llm_response, tokens_used = self.llm_call(rank_messages,llm_cascade=llm_cascade)
+
         # Extract the code from the API response
         rank = self._extract_rank(llm_response)       
 
@@ -275,70 +291,83 @@ class BambooAI:
         return rank
 
     def pd_agent_converse(self, question=None):
-        # Function to display results nicely
-        def display_results(answer, code, reflection, flow, rank, total_tokens_used_sum):
-            if 'ipykernel' in sys.modules:
-                # Jupyter notebook or ipython
-                display(HTML(f'<p><b style="color:blue;">Answer:</b><br><pre style="color:black;"><b>{answer}</b></pre></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">Here is the final code that accomplishes the task:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">Final Thoughts:</b><br><pre style="color:black; white-space: pre-wrap; font-weight: bold;">{reflection}</pre></p><br>'))
-                if self.flow_diagram:
-                    display(HTML(f'<p><b style="color:blue;">Below is my approch as a Flow chart:</b><br><img src="{self.mm(flow)}" alt="Analysis Flow"></img></p><br>'))
-                if self.rank:
+        # Functions to display results nicely
+        def display_results(answer, code, rank, total_tokens_used_sum):
+            if 'ipykernel' in sys.modules:     
+                if answer is not None:
+                    display(HTML(f'<p><b style="color:blue;">I now have the final answer:</b><br><pre style="color:black; white-space: pre-wrap; font-weight: bold;">{answer}</pre></p><br>'))
+                if code is not None:
+                    display(HTML(f'<p><b style="color:blue;">Here is the final code that accomplishes the task:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
+                if self.rank and rank is not None:
                     display(HTML(f'<p><b style="color:blue;">Rank:</b><br><span style="color:black;">{rank}</span></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
+                if answer is not None:
+                    cprint(f"\n>> I now have the final answer:\n{answer}\n", 'green', attrs=['bold'])
+                if code is not None:
+                    cprint(f">> Here is the final code that accomplishes the task:\n{code}\n", 'green', attrs=['bold'])
+                if self.rank and rank is not None:
+                    cprint(f">> Rank:\n{rank}\n", 'green', attrs=['bold'])
+                cprint(f">> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
+
+        def display_eval(task_eval, title, total_tokens_used_sum):
+            if 'ipykernel' in sys.modules:
+                # Jupyter notebook or ipython
+                display(HTML(f'<p><b style="color:blue;">{title}</b><br><pre style="color:black; white-space: pre-wrap; font-weight: bold;">{task_eval}</pre></p><br>'))
+                display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
+            else:
                 # Other environment (like terminal)
-                cprint(f"\n> Answer:\n{answer}\n", 'green', attrs=['bold'])
-                cprint(f"> Here is the final code that accomplishes the task:\n{code}\n", 'green', attrs=['bold'])
-                cprint(f"> Final Thoughts:\n{reflection}\n", 'green', attrs=['bold'])
-                if self.rank:
-                    cprint(f"> Rank:\n{rank}\n", 'green', attrs=['bold'])
-                cprint(f"> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
+                cprint(f"\n>> {title}\n{task_eval}\n", 'magenta', attrs=['bold'])
+                cprint(f">> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
         
         # If a question is provided, skip the input prompt
         if question is not None:
             # Initialize the messages list with a system message containing the task prompt
-            messages = [{"role": "system", "content": self.system_task.format(question,question)}]
+            messages = [{"role": "system", "content": self.system_task.format(question)}]
+            # Initialize the messages list with a system message containing the task prompt
+            eval_messages = [{"role": "user", "content": self.task_evaluation.format(question, self.df_head)}]
+
             # Call the task_eval method with the user's question if the exploratory mode is True
             if self.exploratory is True:
-                task = self.task_eval(question)
+                arguments, fn_name, task_eval, task_type = self.task_eval(eval_messages)
+                total_tokens_used_sum = sum(self.total_tokens_used)
+                if task_type == 'natural_language':
+                    title = 'Here is an answer to your question:'                   
+                    display_eval(task_eval, title, total_tokens_used_sum)
+                    return
+                else:
+                    title = 'Here is a sequence of steps required to complete the task:'
+                    task = task_eval
+                    display_eval(task_eval, title, total_tokens_used_sum)
             else:
                 task = question
-            # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
 
-            # Store the original llm value
-            original_llm = self.llm
+            # Call the pd_agent method with the user's question, the messages list, and the dataframe
+            answer, code, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
 
             # Rank the LLM response
             if self.rank:
                 # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost
                 if self.llm_switch:
-                    self.llm = 'gpt-4'
-                rank = self.rank_code(code,question)
+                    llm_cascade = True
+                rank = self.rank_code(code,task,llm_cascade=llm_cascade)
             else:
                 rank = ""
 
-            # Switch back to the original llm before the function finishes
-            self.llm = original_llm
-
-            display_results(answer, code, reflection, flow, rank, total_tokens_used_sum)
+            display_results(answer, code, rank, total_tokens_used_sum)
             return
-
+        
         # Start an infinite loop to keep asking the user for questions
         first_iteration = True  # Flag for the first iteration of the loop
         while True:
             # Prompt the user to enter a question or type 'exit' to quit
             if 'ipykernel' in sys.modules:
                 display(HTML('<b style="color:blue;">Enter your question or type \'exit\' to quit:</b>'))
+                time.sleep(1)
                 question = input()
             else:
                 cprint("\nEnter your question or type 'exit' to quit:", 'blue', attrs=['bold'])
                 question = input()
-
-            # Remembert the original question for ranking
-            original_question = question
 
             # If the user types 'exit', break out of the loop
             if question.strip().lower() == 'exit':
@@ -346,37 +375,58 @@ class BambooAI:
 
             if first_iteration:
                 # Initialize the messages list with a system message containing the task prompt
-                messages = [{"role": "system", "content": self.system_task.format(question,question)}]
-                # Call the task_eval method with the user's question if the exploratory mode is True
-                if self.exploratory is True:
-                    task = self.task_eval(question)
+                messages = [{"role": "system", "content": self.system_task.format(question)}]
+                # Initialize the eval_messages list
+                eval_messages = []
+                first_iteration = False  
+                
+            # Call the task_eval method with the user's question if the exploratory mode is True
+            if self.exploratory is True:
+                eval_messages.append({"role": "user", "content": self.task_evaluation.format(question, self.df_head)})
+                arguments, fn_name, task_eval, task_type = self.task_eval(eval_messages)
+                eval_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "function_call": {
+                            "name": fn_name,
+                            "arguments": arguments,
+                        },
+                    }
+                )
+
+                # Remove the oldest conversation from the messages list
+                if len(eval_messages) > self.MAX_CONVERSATIONS:
+                    eval_messages.pop(1)
+                    eval_messages.pop(1)
+
+                total_tokens_used_sum = sum(self.total_tokens_used)
+
+                if task_type == 'natural_language':
+                    title = 'Here is an answer to your question:'                   
+                    display_eval(task_eval, title, total_tokens_used_sum)
+                    continue
                 else:
-                    task = question
+                    title = 'Here is a sequence of steps required to complete the task:'
+                    task = task_eval
+                    display_eval(task_eval, title, total_tokens_used_sum)
             else:
                 task = question
 
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, reflection, flow, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
-
-            # Store the original llm value
-            original_llm = self.llm
+            answer, code, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
 
             # Rank the LLM response
             if self.rank:
                 # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost
                 if self.llm_switch:
-                    self.llm = 'gpt-4'
-                rank = self.rank_code(code,original_question)
+                    llm_cascade = True
+                rank = self.rank_code(code,task,llm_cascade=llm_cascade)
             else:
                 rank = ""
 
-            # Switch back to the original llm before the function finishes
-            self.llm = original_llm
+            display_results(answer, code, rank, total_tokens_used_sum)
 
-            display_results(answer, code, reflection,flow,rank,total_tokens_used_sum)
-
-            # After the first iteration, set the flag to False
-            first_iteration = False
 
     def pd_agent(self, question, messages, df=None):
         # Add a user message with the updated task prompt to the messages list
@@ -388,48 +438,33 @@ class BambooAI:
             display(HTML(f'<p><b style="color:magenta;">I have sent your request to the LLM and awaiting response, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n> Calling Model: {self.llm}", "magenta"))
-            cprint(f"\n> I have sent your request to the LLM and awaiting response, please wait...\n", 'magenta', attrs=['bold'])
+            print(colored(f"\n>> Calling Model: {self.llm}", "magenta"))
+            cprint(f"\n>> I have sent your request to the LLM and awaiting response, please wait...\n", 'magenta', attrs=['bold'])
 
-        # Call the OpenAI API and handle rate limit errors
-        try:
-            llm_response, tokens_used = self.llm_call(messages)
-
-        except openai.error.RateLimitError:
-            print(
-                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-            )
-            time.sleep(10)
-            llm_response, tokens_used = self.llm_call(messages)
+        # Call the OpenAI API
+        llm_response, tokens_used = self.llm_call(messages)
 
         # Extract the code from the API response
-        code,reflection,flow= self._extract_code(llm_response)
+        code = self._extract_code(llm_response)
 
         # Update the total tokens used
         self.total_tokens_used.append(tokens_used)
-        total_tokens_used_sum = sum(self.total_tokens_used)
 
         # Initialize error correction counter
         error_corrections = 0
-
-        # Store the original llm value
-        original_llm = self.llm
 
         # Debug code if debug parameter is set to True
         if self.debug:
             # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost
             if self.llm_switch:
-                self.llm = 'gpt-4'
+                llm_cascade = True
                 if 'ipykernel' in sys.modules:
                     # Jupyter notebook
                     display(HTML('<span style="color: magenta;">Switching model to gpt-4 to debug the code.</span>'))
                 else:
                     # CLI
-                    print(colored("\n> Switching model to GPT-4 to debug the code.", "magenta"))
-            code = self.debug_code(code, question)
-
-            # Switch back to the original llm before the function finishes
-            self.llm = original_llm
+                    print(colored("\n>> Switching model to GPT-4 to debug the code.", "magenta"))
+            code = self.debug_code(code, question, llm_cascade=llm_cascade)
 
         # Redirect standard output to a StringIO buffer
         with redirect_stdout(io.StringIO()) as output:
@@ -455,7 +490,7 @@ class BambooAI:
                     else:
                         # CLI
                         #print(colored(f'I ran into an issue: {e}. > I will examine it, and try again with an adjusted code.', 'red'))
-                        sys.stderr.write('\033[31m' + f'> I ran into an issue: {e}. \n> I will examine it, and try again with an adjusted code.' + '\033[0m' + '\n')
+                        sys.stderr.write('\033[31m' + f'>> I ran into an issue: {e}. \n> I will examine it, and try again with an adjusted code.' + '\033[0m' + '\n')
                         sys.stderr.flush()
 
                     # Increment the error correction counter and update the messages list with the error
@@ -464,40 +499,42 @@ class BambooAI:
 
                     # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost.
                     if self.llm_switch:
-                        self.llm = 'gpt-4'
+                        llm_cascade = True
                         if 'ipykernel' in sys.modules:
                             # Jupyter notebook
                             display(HTML('<span style="color: #d86c00;">Switching model to gpt-4 to try to improve the outcome.</span>'))
                         else:
                             # CLI
-                            sys.stderr.write('\033[31m' + f'> Switching model to gpt-4 to try to improve the outcome.' + '\033[0m' + '\n')
+                            sys.stderr.write('\033[31m' + f'>> Switching model to gpt-4 to try to improve the outcome.' + '\033[0m' + '\n')
                             sys.stderr.flush()
 
-                    # Attempt to correct the code and handle rate limit errors
-                    try:
-                        llm_response, tokens_used = self.llm_call(messages)
-                        code,reflection,flow = self._extract_code(llm_response)
-                        self.total_tokens_used.append(tokens_used)
-                        total_tokens_used_sum = sum(self.total_tokens_used)
-                    except openai.error.RateLimitError:
-                        print(
-                            "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-                        )
-                        time.sleep(10)
-                        llm_response, tokens_used = self.llm_call(messages)
-                        code,reflection,flow = self._extract_code(llm_response)
-                        self.total_tokens_used.append(tokens_used)
-                        total_tokens_used_sum = sum(self.total_tokens_used)
-
-            # Switch back to the original llm before the function finishes
-            self.llm = original_llm
+                    # Call OpenAI API to get an updated code
+                    llm_response, tokens_used = self.llm_call(messages,llm_cascade=llm_cascade)
+                    code = self._extract_code(llm_response)
+                    self.total_tokens_used.append(tokens_used)
+                    
 
         # Get the output from the executed code
         answer = output.getvalue()
+
+        # Call OpenAI API
+        # Initialize the messages list with a system message containing the task prompt
+        insights_messages = [{"role": "user", "content": self.solution_insights.format(question, answer)}]
+        function_name = {"name": "Solution_Insights"}
+        fn_name, arguments, tokens_used = self.llm_func_call(insights_messages, self.insights_function, function_name)
+
+        # Parse the JSON string to a Python dict
+        arguments_dict = json.loads(arguments,strict=False)
+
+        # Retrieve values
+        answer = arguments_dict["insight"]
+
+        self.total_tokens_used.append(tokens_used)
+        total_tokens_used_sum = sum(self.total_tokens_used)
 
         # Reset the StringIO buffer
         output.truncate(0)
         output.seek(0)
 
-        return answer, code, reflection, flow, total_tokens_used_sum
+        return answer, code, total_tokens_used_sum
     
