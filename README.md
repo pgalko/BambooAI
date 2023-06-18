@@ -98,13 +98,43 @@ The key can be obtained from here: https://platform.openai.com/account/api-keys
 
 ## Examples
 
-**CLI Output:**
+**CLI Output: Prediction of a core temperature using Machine Learning**
 
-![](images/example_1.png)
+*Below is a machine learning example, BambooAI devising, implementing, comparing and finetuning a different Machine learning models to predict a Core Temperature.*
 
-**Google Colab:**
+![](images/1.png)
 
-![](images/BambooAI_2.jpg)
+*A plot resulting from the first iteration using MLPRegressor model. No need to copy/paste the matplotlib code. Displays on the fly*
+
+![](images/plot1.png)
+
+*Now compare to a few other ML models*
+
+![](images/2.png)
+
+*Follow up question for clarification*
+
+![](images/3.png)
+
+A further follow up, asking for clarification
+
+![](images/4.png)
+
+More follow up... Notice the switch to a 16 model as it ran out of 4K window space
+
+![](images/5.png)
+
+Yet more follow up question..
+
+![](images/6.png)
+
+Got sidetracked, and needed a feedback for correction
+
+![](images/7.png)
+
+Final iteration... using the best performing model and tuned hyper parameters. Final R-Squared 0.9166.
+
+![](images/8.png)
 
 ## Notes
 
