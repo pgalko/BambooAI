@@ -14,8 +14,8 @@ from IPython.display import display, Image, HTML
 import warnings
 warnings.filterwarnings('ignore')
 #Running as a script
-# import prompts
-# import func_calls
+#import prompts
+#import func_calls
 #Running as a package
 from . import prompts
 from . import func_calls
@@ -350,6 +350,8 @@ class BambooAI:
                 # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost
                 if self.llm_switch:
                     llm_cascade = True
+                else:
+                    llm_cascade = False
                 rank = self.rank_code(code,task,llm_cascade=llm_cascade)
             else:
                 rank = ""
@@ -421,6 +423,8 @@ class BambooAI:
                 # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost
                 if self.llm_switch:
                     llm_cascade = True
+                else:
+                    llm_cascade = False
                 rank = self.rank_code(code,task,llm_cascade=llm_cascade)
             else:
                 rank = ""
@@ -464,6 +468,8 @@ class BambooAI:
                 else:
                     # CLI
                     print(colored("\n>> Switching model to GPT-4 to debug the code.", "magenta"))
+            else:
+                llm_cascade = False
             code = self.debug_code(code, question, llm_cascade=llm_cascade)
 
         # Redirect standard output to a StringIO buffer
@@ -507,6 +513,8 @@ class BambooAI:
                             # CLI
                             sys.stderr.write('\033[31m' + f'>> Switching model to gpt-4 to try to improve the outcome.' + '\033[0m' + '\n')
                             sys.stderr.flush()
+                    else:
+                        llm_cascade = False
 
                     # Call OpenAI API to get an updated code
                     llm_response, tokens_used = self.llm_call(messages,llm_cascade=llm_cascade)
