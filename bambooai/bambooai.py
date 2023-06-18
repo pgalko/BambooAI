@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore')
 # import func_calls
 #Running as a package
 from . import prompts
-from . import function_calls
+from . import func_calls
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame,
