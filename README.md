@@ -62,10 +62,8 @@ rank: bool - If True, the final version of the code is sent back to the Language
 
 exploratory: bool - If True, the LLM will assess the user's question and create a task list outlining the steps, which will be sent to the LLM as a prompt. This approach is effective for vague user prompts, but may not perform as well with more defined prompts. The default setting is True.
 
-flow_diagram: bool - If True, a mermaid diagram will be generated and displayed to complement the answer.
 
-
-e.g. bamboo = BambooAI(df, debug=True, rank=True, llm_switch=True, exploratory=True, flow_diagram=False)
+e.g. bamboo = BambooAI(df, debug=True, rank=True, llm_switch=True, exploratory=True)
 ```
 
 Run in a loop
@@ -140,7 +138,8 @@ Final iteration... using the best performing model and tuned hyper parameters. F
 
 - The library currently supports only OpenAI Chat models. It has been tested with both gpt-3.5-turbo and gpt-4. The gpt-3.5-turbo seems to perform well and is the preferred option due to its 10x lower cost.
 - The library executes LLM generated Python code, this can be bad if the LLM generated Python code is harmful. Use cautiously.
-- Be sure to monitor your token usage, as each execution of BambooAI uses an average of 400-600 tokens. At the time of writing, the cost per 1K tokens is $0.03 USD for GPT-4 and $0.002 USD for GPT-3.5-turbo. It's important to keep these costs in mind when using the library, particularly when using the more expensive models.
+- Be sure to monitor your token usage. At the time of writing, the cost per 1K tokens is $0.03 USD for GPT-4 and $0.002 USD for GPT-3.5-turbo. It's important to keep these costs in mind when using the library, particularly when using the more expensive models.
+- Supported models: gpt-3.5-turbo, gpt-3.5-turbo-613, gpt-3.5-turbo-16k, gpt-4, gpt-4-0613.
 
 ## Contributing
 
