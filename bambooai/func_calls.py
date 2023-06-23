@@ -3,17 +3,18 @@
 task_eval_function = [
     {
         "name": "QA_Response",
-        "description": "The task classification function",
+        "description": "The answer classification function",
         "parameters": {
             "type": "object",
             "properties": {
                 "answer": {
                     "type": "string",
-                    "description": "Output the answer in  either natural language or as a heuristic algorithm depending on the task classification.",
+                    "description": "Answer as a narrative, or as an algorithm ,or a follow up question if more info is needed.",
                 },
                 "answer_type": {
                     "type": "string",
-                    "description": "The class of the response depending on the task. It is either natural_language or heuristic_algorithm",
+                    "enum": ["narrative", "algorithm", "follow_up"],
+                    "description": "Task classification",
                 },
             },
             "required": ["answer", "answer_type"],
