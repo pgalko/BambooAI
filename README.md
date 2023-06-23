@@ -33,7 +33,7 @@ https://github.com/pgalko/BambooAI/assets/39939157/2d8e4a9f-29c4-438b-8c13-126a0
  
 **Flow chart:**
 
-![](images/flow_chart_5.png)
+![](images/flow_chart_7.png)
 
 ## How to use
 
