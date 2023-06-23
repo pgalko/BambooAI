@@ -56,13 +56,13 @@ class BambooAI:
         # Set the rank mode. This mode is True when you want the model to rank the generated code.
         self.rank = rank
 
-        # Set the exploratory mode. This mode is True when you want the model to evaluate the original prompt and break it down in heuristic algorithm.
+        # Set the exploratory mode. This mode is True when you want the model to evaluate the original prompt and break it down in algorithm.
         self.exploratory = exploratory
         
         # Prompts
         self.task_evaluation = prompts.task_evaluation
         self.system_task = prompts.system_task
-        self.task = prompts.task
+        self.user_task = prompts.user_task
         self.error_correct_task = prompts.error_correct_task
         self.debug_code_task = prompts.debug_code_task  
         self.rank_answer = prompts.rank_answer
@@ -331,12 +331,12 @@ class BambooAI:
             if self.exploratory is True:
                 arguments, fn_name, task_eval, task_type = self.task_eval(eval_messages)
                 total_tokens_used_sum = sum(self.total_tokens_used)
-                if task_type == 'natural_language':
-                    title = 'Here is an answer to your question:'                   
+                if task_type == 'narrative':
+                    title = 'Here is the answer to your question:'                   
                     display_eval(task_eval, title, total_tokens_used_sum)
                     return
                 else:
-                    title = 'Here is a sequence of steps required to complete the task:'
+                    title = 'Here is the sequence of steps required to complete the task:'
                     task = task_eval
                     display_eval(task_eval, title, total_tokens_used_sum)
             else:
@@ -404,8 +404,12 @@ class BambooAI:
 
                 total_tokens_used_sum = sum(self.total_tokens_used)
 
-                if task_type == 'natural_language':
+                if task_type == 'narrative':
                     title = 'Here is an answer to your question:'                   
+                    display_eval(task_eval, title, total_tokens_used_sum)
+                    continue
+                if task_type == 'follow_up':
+                    title = 'To be able to answer your question, I am going to need some more info:'                   
                     display_eval(task_eval, title, total_tokens_used_sum)
                     continue
                 else:
@@ -434,7 +438,7 @@ class BambooAI:
 
     def pd_agent(self, question, messages, df=None):
         # Add a user message with the updated task prompt to the messages list
-        messages.append({"role": "user", "content": self.task.format(self.df_head, question)})
+        messages.append({"role": "user", "content": self.user_task.format(self.df_head, question)})
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
@@ -495,8 +499,7 @@ class BambooAI:
                         display(HTML(f'<br><b><span style="color: #d86c00;">I ran into an issue:</span></b><br><pre style="color: #d86c00;">{e}</pre><br><b><span style="color: #d86c00;">I will examine it, and try again with an adjusted code.</span></b><br>'))
                     else:
                         # CLI
-                        #print(colored(f'I ran into an issue: {e}. > I will examine it, and try again with an adjusted code.', 'red'))
-                        sys.stderr.write('\033[31m' + f'>> I ran into an issue: {e}. \n> I will examine it, and try again with an adjusted code.' + '\033[0m' + '\n')
+                        sys.stderr.write('\033[31m' + f'>> I ran into an issue: {e}. \n>> I will examine it, and try again with an adjusted code.' + '\033[0m' + '\n')
                         sys.stderr.flush()
 
                     # Increment the error correction counter and update the messages list with the error
