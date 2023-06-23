@@ -1,22 +1,18 @@
 # prompts.py
 
 task_evaluation = """
-    You are an AI data analyst and your task is to answer the following question: "{}". 
-    Depending on the nature of the question, your answer could be expressed either as a series of steps in a heuristic algorithm or as a natural language response.
+    As an AI data analyst, answer the question: '{}'.
 
-    If the question involves a data manipulation or analysis task that can be solved with code, you should design and output a heuristic algorithm that breaks the solution down into steps. 
-    This algorithm will be applied to a pandas dataframe, df, for data analysis. Here's what the first row of the dataframe looks like: {}.
+    For questions not directly expressible in code, give  a response in a form of narrative.
 
-    The dataframe df has already been defined and populated with the required data.
+    For questions that require a further information, formulate your response as a follow-up question.
 
-    Your heuristic algorithm should be presented as a numbered series of up to eight steps, although fewer steps can be used if eight is not necessary. 
-    Note that you should describe the steps of your algorithm in plain and consize English, rather than generating actual code.
+    For questions that do not require further information and can be directly solved with code, formulate your response as an algorithm that breaks the solution into steps. 
+    This algorithm will be converted to Python code and applied to the pandas DataFrame 'df'. Here's the first row of 'df': {}.
+    The DataFrame 'df' is already populated with necessary data.
+    Present your algorithm in up to eight simple, clear English steps. If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
 
-    However, if the question does not require a coded solution, or cannot be expressed in code, 
-    then you should provide and output your answer in the form of a natural language response without any steps. This means writing out your answer in full, 
-    grammatically correct sentences that directly address the question  
-
-    Output the answer in natural language or as a heuristic algorithm using the QA_Response function.
+    Finally, output your response using the QA_Response function.
 """
 
 system_task = """
@@ -48,14 +44,13 @@ system_task = """
     </code>
     """
 
-task = """
+user_task = """
     You have been presented with a pandas dataframe named `df`.
     The dataframe df has already been defined and populated with the required data.
     The result of `print(df.head(1))` is:
     {}.
     Return the python code that acomplishes the following tasks: {}.
     Always include the import statements at the top of the code, and comments and print statement where necessary.
-    When working with machine learning models, ensure that the target variable, which the model is intended to predict, is not included among the feature variables used to train the model.
     Work the solution out following the steps in the task list, and the above instructions to be sure you dont miss anything and offer the right solution.
     """
 
@@ -114,11 +109,12 @@ debug_code_task = """
     """
 
 rank_answer = """
-    You are an AI QA engineer, and your job is to rank the code: {}, provided by the AI data analyst on a scale from 1 to 10. 
-    Factors to consider include the relevance and accuracy of the solution to the original assignment: {}, 
-    the presence of any errors or bugs, the inclusion of all supplied values, the clarity of the code, and the comprehensiveness and formatting of each output.
+    As an AI QA Engineer, your role is to evaluate and grade the code: {}, supplied by the AI Data Analyst. You should rank it on a scale of 1 to 10.
 
-    For your ranking, most of the ranks should fall somewhere between 5-8. Only the code that is exceptionally well composed and delivers exactly the desired outcome should be scored higher. 
+    In your evaluation, consider factors such as the relevancy and accuracy of the solution in relation to the original assignment: {},
+    presence of any errors or bugs, appropriateness of the inclusion of all given values, clarity of the code, and the completeness and format of each output.
+
+    For most cases, your ranks should fall within the range of 5 to 8. Only exceptionally well-crafted codes that deliver exactly as per the desired outcome should score higher. 
 
     Please enclose your ranking in <rank></rank> tags.
 
@@ -129,7 +125,7 @@ rank_answer = """
 solution_insights = """
     You have been presented with the following task: {}, and asked to design a solution for it.
     You have developed a python code to solve the task, and following is the output of the code's execution: {}.
-    Deliver a brief summary of the outcomes obtained from employing your method. 
-    Make sure you include all calculations and results, and present them in a table format wherewer applicable.
-    Additionally, consider suggesting other methods that could potentially offer better results or efficiencies.
+    Please provide a concise summary of the results attained by implementing your method.  
+    Present this information in the most clear and comprehensible manner.
+    Be certain to incorporate all relevant computations and outcomes.
     """
