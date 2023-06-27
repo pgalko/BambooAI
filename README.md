@@ -5,7 +5,7 @@ A lightweight library that leverages Language Models (LLMs) to enable natural la
 
 The BambooAI library is a user-friendly tool designed to make data analysis more accessible to non-programmers. Utilizing the power of Large Language Models (LLM), BambooAI can comprehend your questions about a dataset and automatically generate and execute the appropriate Python code for both analysis and plotting. Users can effortlessly gain valuable insights from their data without writing complex code or mastering advanced programming techniques. With BambooAI, simply input your dataset, ask questions in plain English, and receive answers along with relevant out of the box visualizations if asked for to help you better understand your data.
 
-My primary goal was to build a library that acts as a steadfast companion for analysts of all skill levels, rather than acting as the analyst itself. This library simplifies the intricate process of data analysis and visualization, serving to streamline the user's workflow. It's been crafted with a focus on user-friendliness, efficiency, and adaptability, enabling it to cater to a wide range of users and their unique analytical needs. By functioning as an aid rather than the main analyst, this library not only facilitates smoother operations but also empowers users to effectively employ their analytical skills, enhancing their overall productivity.
+My main goal was to create a tool to help analysts at all levels, not to replace them. This library makes data analysis and visualization easier, helping to improve workflows. It's designed to be easy to use, efficient, and adaptable to different users' needs. As a supportive tool, not the main operator, it helps users apply their own analytical skills more effectively and increase their productivity.
 
 ## Preview
 
@@ -71,18 +71,18 @@ df: pd.DataFrame - Dataframe(Required)
 
 max_conversations: int - Number of "user:assistant" conversation pairs to keep in memory for a context. Default=2
 
-llm: str - Base LLM model. Default = gpt-3.5-turbo
+llm: str - Base LLM model. Default = gpt-3.5-turbo-0613
 
 llm_switch: bool - If True, the agent will switch to gpt-4 after error
 
 debug: bool - If True, the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking and debugging.
 
-rank: bool - If True, the final version of the code is sent back to the Language Learning Model (LLM) ro ranking from on a scale from 1 to 10.The answers that receive a rank higher than the given threshold are exceptionally well-composed and are utilized to build the knowledge base for future references.
+vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the rank surpasses a certain threshold (8), the corresponding question (vectorised), answer, code, and rank (metadata) are all stored in the Pinecone database. Each time a new question is asked, these records will be searched. If the similarity score is above 0.9, they will be offered as examples and included in the prompt (in a one-shot learning scenario)
 
 exploratory: bool - If True, the LLM will assess the user's question and create a task list outlining the steps, which will be sent to the LLM as a prompt. This approach is effective for vague user prompts, but may not perform as well with more defined prompts. The default setting is True.
 
 
-e.g. bamboo = BambooAI(df, debug=True, rank=True, llm_switch=True, exploratory=True)
+e.g. bamboo = BambooAI(df, debug=True, vector_db=True, llm_switch=True, exploratory=True)
 ```
 
 Run in a loop
@@ -110,8 +110,10 @@ Visualize the data (Uses Matplotlib). Works with both Loop and Single execution
 
 **Environment Variables**
 
-The library requires an OpenAI API account and the API key to connect to an OpenAI LLMs. The OpenAI API key needs to be stored in a 'OPENAI_API_KEY' environment variable.
-The key can be obtained from here: https://platform.openai.com/account/api-keys
+The library requires an OpenAI API account and the API key to connect to OpenAI LLMs. The OpenAI API key needs to be stored in a ```OPENAI_API_KEY``` environment variable.
+The key can be obtained from here: https://platform.openai.com/account/api-keys.
+
+The Pincone vector db is optional. If you don want to use it, you dont need to do anything. If you have an account with Pinecone and would like to use the knowledge base and ranking features, you will be required to setup ```PINECONE_API_KEY``` and ```PINECONE_ENV``` envirnoment variables, and set the 'vector_db' parameter to True. The vector db index is created upon first execution.
 
 ## Examples
 
@@ -167,6 +169,5 @@ Contributions are welcome; please feel free to open a pull request. Keep in mind
 ## ToDo
 
 - Ongoing work on optimizing the prompts and sanitization of the outputs.
-- Add Knowledge Base in a vector DB. A matching(similar) Q:A pairs will be used as a context/reference for subsequent questions to improve the accuracy and relevancy.
 - Add support for aditional LLMs.
 
