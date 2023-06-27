@@ -13,12 +13,16 @@ from termcolor import colored, cprint
 from IPython.display import display, Image, HTML
 import warnings
 warnings.filterwarnings('ignore')
+
 #Running as a script
 #import prompts
 #import func_calls
+#import qa_retrieval
+
 #Running as a package
 from . import prompts
 from . import func_calls
+from . import qa_retrieval
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame,
@@ -28,12 +32,26 @@ class BambooAI:
                  llm_16k: str = 'gpt-3.5-turbo-16k',
                  llm_gpt4: str = 'gpt-4-0613',
                  debug: bool = False, 
-                 rank: bool = False, 
+                 vector_db: bool = False, 
                  llm_switch: bool = False, 
                  exploratory: bool = True, 
                  ):
 
         self.API_KEY = os.environ.get('OPENAI_API_KEY')
+
+        # Check if the OPENAI_API_KEY environment variable is set
+        if not self.API_KEY:
+            raise EnvironmentError("OPENAI_API_KEY environment variable not found.")
+        
+        # Check if the PINECONE_API_KEY and PINECONE_ENV environment variables are set if vector_db is True
+        if vector_db:
+            PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
+            PINECONE_ENV = os.getenv('PINECONE_ENV')
+            
+            if PINECONE_API_KEY is None or PINECONE_ENV is None:
+                print("Warning: PINECONE_API_KEY or PINECONE_ENV environment variable not found. Disabling vector_db.")
+                vector_db = False
+
         self.MAX_ERROR_CORRECTIONS = 5
         # Set the maximum number of question/answer pairs to be kept in the conversation memmory
         self.MAX_CONVERSATIONS = (max_conversations*2) - 1
@@ -42,6 +60,7 @@ class BambooAI:
         self.original_df = df
         self.df = df.copy()  # make a copy of the dataframe
         self.df_head = self.original_df.head(1)
+        self.df_columns = self.df.columns.tolist()
 
         # LLMs
         self.llm = llm
@@ -54,12 +73,13 @@ class BambooAI:
         # Set the llm_switch mode. This mode is True when you want the model to switch to gpt-4 for debugging, error correction and ranking.
         self.llm_switch = llm_switch
         # Set the rank mode. This mode is True when you want the model to rank the generated code.
-        self.rank = rank
+        self.vector_db = vector_db
 
         # Set the exploratory mode. This mode is True when you want the model to evaluate the original prompt and break it down in algorithm.
         self.exploratory = exploratory
         
         # Prompts
+        self.default_example_output = prompts.example_output
         self.task_evaluation = prompts.task_evaluation
         self.system_task = prompts.system_task
         self.user_task = prompts.user_task
@@ -71,6 +91,10 @@ class BambooAI:
         # Functions
         self.task_eval_function = func_calls.task_eval_function
         self.insights_function = func_calls.solution_insights_function
+
+        # QA Retrieval
+        self.add_question_answer_pair = qa_retrieval.add_question_answer_pair
+        self.retrieve_answer = qa_retrieval.retrieve_answer
         
         openai.api_key = self.API_KEY
 
@@ -200,6 +224,19 @@ class BambooAI:
         # Return the cleaned and extracted code
         return rank.strip()
     
+    # Function to remove examples from messages when no longer needed
+    def _remove_examples(self,messages: str) -> str:
+        # Define the regular expression pattern
+        pattern = 'Example Output:\s*<code>.*?</code>\s*'
+
+        # Iterate over the list of dictionaries
+        for dict in messages:
+            # Access and clean up 'content' field
+            if dict.get('role') == 'user' and 'content' in dict:
+                dict['content'] = re.sub(pattern, '', dict['content'], flags=re.DOTALL)
+
+        return messages
+    
     def task_eval(self, eval_messages):
 
         if 'ipykernel' in sys.modules:
@@ -283,7 +320,7 @@ class BambooAI:
         # Call the OpenAI API 
         llm_response, tokens_used = self.llm_call(rank_messages,llm_cascade=llm_cascade)
 
-        # Extract the code from the API response
+        # Extract the rank from the API response
         rank = self._extract_rank(llm_response)       
 
         self.total_tokens_used.append(tokens_used)
@@ -298,7 +335,7 @@ class BambooAI:
                     display(HTML(f'<p><b style="color:blue;">I now have the final answer:</b><br><pre style="color:black; white-space: pre-wrap; font-weight: bold;">{answer}</pre></p><br>'))
                 if code is not None:
                     display(HTML(f'<p><b style="color:blue;">Here is the final code that accomplishes the task:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
-                if self.rank and rank is not None:
+                if self.vector_db and rank is not None:
                     display(HTML(f'<p><b style="color:blue;">Rank:</b><br><span style="color:black;">{rank}</span></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
@@ -306,7 +343,7 @@ class BambooAI:
                     cprint(f"\n>> I now have the final answer:\n{answer}\n", 'green', attrs=['bold'])
                 if code is not None:
                     cprint(f">> Here is the final code that accomplishes the task:\n{code}\n", 'green', attrs=['bold'])
-                if self.rank and rank is not None:
+                if self.vector_db and rank is not None:
                     cprint(f">> Rank:\n{rank}\n", 'green', attrs=['bold'])
                 cprint(f">> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
 
@@ -319,13 +356,16 @@ class BambooAI:
                 # Other environment (like terminal)
                 cprint(f"\n>> {title}\n{task_eval}\n", 'magenta', attrs=['bold'])
                 cprint(f">> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
+
+        # Initialize the eval_messages list
+        eval_messages = []
         
         # If a question is provided, skip the input prompt
         if question is not None:
             # Initialize the messages list with a system message containing the task prompt
-            messages = [{"role": "system", "content": self.system_task.format(question)}]
+            messages = [{"role": "system", "content": self.system_task}]
             # Initialize the messages list with a system message containing the task prompt
-            eval_messages = [{"role": "user", "content": self.task_evaluation.format(question, self.df_head)}]
+            eval_messages.append({"role": "user", "content": self.task_evaluation.format(question, self.df_head)})
 
             # Call the task_eval method with the user's question if the exploratory mode is True
             if self.exploratory is True:
@@ -335,6 +375,10 @@ class BambooAI:
                     title = 'Here is the answer to your question:'                   
                     display_eval(task_eval, title, total_tokens_used_sum)
                     return
+                if task_type == 'follow_up':
+                    title = 'To be able to answer your question, I am going to need some more info:'                   
+                    display_eval(task_eval, title, total_tokens_used_sum)
+                    return
                 else:
                     title = 'Here is the sequence of steps required to complete the task:'
                     task = task_eval
@@ -342,11 +386,21 @@ class BambooAI:
             else:
                 task = question
 
+            if self.vector_db:
+                # Call the retrieve_answer method to check if the question has already been asked and answered
+                example_output = self.retrieve_answer(task, self.df_columns)
+                if example_output is not None:
+                    example_output = example_output
+                else:
+                    example_output = self.default_example_output
+            else:
+                example_output = self.default_example_output
+
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
+            answer, code, total_tokens_used_sum = self.pd_agent(task, messages, example_output, self.df)
 
             # Rank the LLM response
-            if self.rank:
+            if self.vector_db:
                 # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost
                 if self.llm_switch:
                     llm_cascade = True
@@ -357,6 +411,28 @@ class BambooAI:
                 rank = ""
 
             display_results(answer, code, rank, total_tokens_used_sum)
+
+            if self.vector_db:
+                # Prompt the user to to give a feedback on the ranking
+                if 'ipykernel' in sys.modules:
+                    display(HTML('<b style="color:green;">Are you happy with the ranking ? If YES type \'yes\'. If NO type in the new rank on a scale from 1-10:</b>'))
+                    time.sleep(1)
+                    rank_feedback = input()
+                else:
+                    cprint("\nAre you happy with the ranking ?\nIf YES type 'yes'. If NO type in the new rank on a scale from 1-10:", 'green', attrs=['bold'])
+                    rank_feedback = input()
+
+                # If the user types "yes", use the rank as is. If not, use the user's rank.
+                if rank_feedback.strip().lower() == 'yes':
+                    rank = rank
+                elif rank_feedback in map(str, range(0, 11)):
+                    rank = rank_feedback
+                else:
+                    rank = rank
+
+                # Add the question and answer pair to the QA retrieval index
+                self.add_question_answer_pair(task, self.df_columns, code, rank)
+
             return
         
         # Start an infinite loop to keep asking the user for questions
@@ -377,9 +453,7 @@ class BambooAI:
 
             if first_iteration:
                 # Initialize the messages list with a system message containing the task prompt
-                messages = [{"role": "system", "content": self.system_task.format(question)}]
-                # Initialize the eval_messages list
-                eval_messages = []
+                messages = [{"role": "system", "content": self.system_task}]
                 first_iteration = False  
                 
             # Call the task_eval method with the user's question if the exploratory mode is True
@@ -418,12 +492,25 @@ class BambooAI:
                     display_eval(task_eval, title, total_tokens_used_sum)
             else:
                 task = question
+            
+            if self.vector_db:
+                # Call the retrieve_answer method to check if the question has already been asked and answered
+                example_output = self.retrieve_answer(task, self.df_columns)
+                if example_output is not None:
+                    example_output = example_output
+                else:
+                    example_output = self.default_example_output
+            else:
+                example_output = self.default_example_output
 
             # Call the pd_agent method with the user's question, the messages list, and the dataframe
-            answer, code, total_tokens_used_sum = self.pd_agent(task, messages, self.df)
+            answer, code, total_tokens_used_sum = self.pd_agent(task, messages, example_output, self.df)
+            
+            # Remove the examples from the messages list to minimize the number of tokens used
+            messages = self._remove_examples(messages)
 
             # Rank the LLM response
-            if self.rank:
+            if self.vector_db:
                 # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost
                 if self.llm_switch:
                     llm_cascade = True
@@ -435,10 +522,30 @@ class BambooAI:
 
             display_results(answer, code, rank, total_tokens_used_sum)
 
+            if self.vector_db:
+                # Prompt the user to to give a feedback on the ranking
+                if 'ipykernel' in sys.modules:
+                    display(HTML('<b style="color:green;">Are you happy with the ranking ? If YES type \'yes\'. If NO type in the new rank on a scale from 1-10:</b>'))
+                    time.sleep(1)
+                    rank_feedback = input()
+                else:
+                    cprint("\nAre you happy with the ranking ?\nIf YES type 'yes'. If NO type in the new rank on a scale from 1-10:", 'green', attrs=['bold'])
+                    rank_feedback = input()
 
-    def pd_agent(self, question, messages, df=None):
+                # If the user types "yes", use the rank as is. If not, use the user's rank.
+                if rank_feedback.strip().lower() == 'yes':
+                    rank = rank
+                elif rank_feedback in map(str, range(0, 11)):
+                    rank = rank_feedback
+                else:
+                    rank = rank
+
+                # Add the question and answer pair to the QA retrieval index
+                self.add_question_answer_pair(task, self.df_columns, code, rank)
+
+    def pd_agent(self, question, messages, example_output,df=None):
         # Add a user message with the updated task prompt to the messages list
-        messages.append({"role": "user", "content": self.user_task.format(self.df_head, question)})
+        messages.append({"role": "user", "content": self.user_task.format(self.df_head, question,example_output)})
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
