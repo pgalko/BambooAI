@@ -17,19 +17,38 @@ https://github.com/pgalko/BambooAI/assets/39939157/2d8e4a9f-29c4-438b-8c13-126a0
 
 ## How it works
 
-- The user begins by starting the BambooAI agent.
-- BambooAI subsequently checks if a question has been provided:
-  - If a question is available, it continues to the next step.
-  - If no question is available, BambooAI prompts the user to input one. It then enters a loop of questions and answers, remembering the conversation history and continually prompting the user for a new question. This loop continues until the user types 'exit', signalling the termination of the program.
-- Following the reception of a question, the OpenAI API is called to review and evaluate the task. The Language Learning Model (LLM) then presents a summary in the form of numbered task list.
-- The agent then replaces the original question with the task list from the previous step and sends this as a prompt to the OpenAI API for code generation.
-- The response from the API, containing the corresponding Python code, is received, checked and sanitised if necessary.
-  - If the debug parameter is set to "True", the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking, debugging and sanitization of any harmful elements..
-- The received code is then executed to generate an answer or a visualization:
-  - If the code executes successfully, it displays the answer or visualization and subsequently prompts for another question. This new question could be related to the previous question or could be on an entirely new topic.
-  - If an error occurs during code execution, the program requests a corrected version of the code from the OpenAI API by providing the error message, and then attempts to execute the corrected code. *In cases where the "llm_switch" argument is set to "True" (indicating LLM cascading), the program will switch from the base model to the more powerful GPT-4 model for a retry. After successful execution, it will revert to the base model.*
-- The program then displays the total token usage at each step, thereby providing insights into the resources consumed during the process.
-- Lastly, the final answer is evaluated and given a score between 1-10. The answers that receive a rank above the threshold are exceptionally well-composed and are utilized to build the knowledge base for future references.
+The BambooAI agent operates through several key steps to interact with users and generate responses:
+
+**1. Initiation**
+- The user starts the BambooAI agent.
+- If there's no input question, the agent prompts the user to either input a question or type 'exit' to terminate the program.
+
+**2. Task Evaluation**
+- The agent stores the received question and utilizes the Language Learning Model (LLM) to evaluate and categorize it.
+- The LLM determines whether the question necessitates a narrative response, additional information, or can be resolved using code.
+
+**3. Dynamic Prompt Build**
+- If code can resolve the question, the agent formulates an algorithm expressed as a task list.
+- The original question is modified to align with this algorithm. The agent conducts a semantic search for similar questions.
+- Any matching questions found are appended to the prompt as examples, and GPT-3 is used to generate code based on the algorithm.
+
+**4. Debugging, Execution, and Error Correction**
+- If the generated code needs debugging, GPT-4 is engaged.
+- The code is executed, and if errors occur, the agent logs the error message and refers it to the LLM (GPT-3 or GPT-4, depending on the settings) for correction.
+- This process continues until successful code execution.
+
+**5. Results, Ranking, and Knowledge Base Build**
+- Post successful execution, GPT-4 is used to rank the answer.
+- If the rank surpasses a set threshold, the question, answer, code, and rank are stored in the Pinecone vector database.
+- Regardless of the rank, the final answer or visualization is formatted and presented to the user.
+
+**6. Human Feedback and Loop Continuation**
+- The agent seeks feedback from the user.
+- If the user validates the auto-generated ranking, the question/answer pair is stored in the vector database.
+- If not, a new execution loop begins.
+
+Throughout this process, the agent continuously solicits user input, stores messages for context, and generates and executes code to ensure optimal results. Various AI models and a vector database are employed in this process to provide accurate and helpful responses to user's questions.
+
  
 **Flow chart:**
 
