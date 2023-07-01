@@ -95,6 +95,7 @@ class BambooAI:
         # QA Retrieval
         self.add_question_answer_pair = qa_retrieval.add_question_answer_pair
         self.retrieve_answer = qa_retrieval.retrieve_answer
+        self.similarity_threshold = 0.8
         
         openai.api_key = self.API_KEY
 
@@ -388,7 +389,7 @@ class BambooAI:
 
             if self.vector_db:
                 # Call the retrieve_answer method to check if the question has already been asked and answered
-                example_output = self.retrieve_answer(task, self.df_columns)
+                example_output = self.retrieve_answer(task, self.df_columns, similarity_threshold=self.similarity_threshold)
                 if example_output is not None:
                     example_output = example_output
                 else:
@@ -473,8 +474,8 @@ class BambooAI:
 
                 # Remove the oldest conversation from the messages list
                 if len(eval_messages) > self.MAX_CONVERSATIONS:
-                    eval_messages.pop(1)
-                    eval_messages.pop(1)
+                    eval_messages.pop(0)
+                    eval_messages.pop(0)
 
                 total_tokens_used_sum = sum(self.total_tokens_used)
 
@@ -495,7 +496,7 @@ class BambooAI:
             
             if self.vector_db:
                 # Call the retrieve_answer method to check if the question has already been asked and answered
-                example_output = self.retrieve_answer(task, self.df_columns)
+                example_output = self.retrieve_answer(task, self.df_columns, similarity_threshold=self.similarity_threshold)
                 if example_output is not None:
                     example_output = example_output
                 else:
@@ -543,9 +544,9 @@ class BambooAI:
                 # Add the question and answer pair to the QA retrieval index
                 self.add_question_answer_pair(task, self.df_columns, code, rank)
 
-    def pd_agent(self, question, messages, example_output,df=None):
+    def pd_agent(self, task, messages, example_output,df=None):
         # Add a user message with the updated task prompt to the messages list
-        messages.append({"role": "user", "content": self.user_task.format(self.df_head, question,example_output)})
+        messages.append({"role": "user", "content": self.user_task.format(self.df_head, task,example_output)})
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
@@ -581,7 +582,7 @@ class BambooAI:
                     print(colored("\n>> Switching model to GPT-4 to debug the code.", "magenta"))
             else:
                 llm_cascade = False
-            code = self.debug_code(code, question, llm_cascade=llm_cascade)
+            code = self.debug_code(code, task, llm_cascade=llm_cascade)
 
         # Redirect standard output to a StringIO buffer
         with redirect_stdout(io.StringIO()) as output:
@@ -637,7 +638,7 @@ class BambooAI:
 
         # Call OpenAI API
         # Initialize the messages list with a system message containing the task prompt
-        insights_messages = [{"role": "user", "content": self.solution_insights.format(question, answer)}]
+        insights_messages = [{"role": "user", "content": self.solution_insights.format(task, answer)}]
         function_name = {"name": "Solution_Insights"}
         fn_name, arguments, tokens_used = self.llm_func_call(insights_messages, self.insights_function, function_name)
 
