@@ -52,7 +52,7 @@ Throughout this process, the agent continuously solicits user input, stores mess
  
 **Flow chart:**
 
-![](images/flow_chart_8.png)
+![](images/flow_chart_9.png)
 
 ## How to use
 
