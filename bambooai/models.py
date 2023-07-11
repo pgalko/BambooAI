@@ -4,11 +4,13 @@ import time
 import openai
 import tiktoken
 
-# Get the OPENAI_API_KEY environment variable
-API_KEY = os.environ.get('OPENAI_API_KEY')
-openai.api_key = API_KEY
+def init_openai():
+    # Get the OPENAI_API_KEY environment variable
+    API_KEY = os.environ.get('OPENAI_API_KEY')
+    openai.api_key = API_KEY
 
 def llm_call( model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False):
+    init_openai()
     model = model_dict['llm']
     if llm_cascade:
         model = model_dict['llm_gpt4']
@@ -48,6 +50,7 @@ def llm_call( model_dict: dict, messages: str, temperature: float = 0, max_token
     return content, tokens_used
 
 def llm_func_call(model_dict: dict, messages: str, functions: str, function_name: str):
+    init_openai()
     model = model_dict['llm_func']
     try:
         response = openai.ChatCompletion.create(
@@ -78,6 +81,7 @@ def llm_func_call(model_dict: dict, messages: str, functions: str, function_name
     return fn_name,arguments,tokens_used
 
 def llm_stream(model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False):
+    init_openai()
     model = model_dict['llm']
     if llm_cascade:
         model = model_dict['llm_gpt4']
