@@ -20,8 +20,6 @@ task_evaluation = """
 
     For questions not directly expressible in code, give a response in a form of narrative.
 
-    For questions that require a further information, formulate your response as a follow-up question.
-
     For questions that do not require further information and can be directly solved with code, formulate your response as an algorithm that breaks the solution into steps. 
     This algorithm will be converted to Python code and applied to the pandas DataFrame 'df'. Here's the first row of 'df': {}.
     The DataFrame 'df' is already populated with necessary data.
@@ -80,7 +78,7 @@ debug_code_task = """
     At the beginning of each section, insert a comment or header that clearly identifies the task that section of code addresses. This could look like "# Task 1: Identify the dataframe df for example."
     Ensure that the code within each section correctly and efficiently completes the task described in the comment or header for that section.
 
-    After necessary modifications, provide the final, updated code.
+    After necessary modifications, provide the final, updated code, and a brief summary of the changes you made.
     Prefix the code with <code> and suffix the code with </code>.
 
     Example Input
@@ -125,7 +123,7 @@ rank_answer = """
 solution_insights = """
     You have been presented with the following task: {}, and asked to design a solution for it.
     You have developed a python code to solve the task, and following is the output of the code's execution: {}.
-    Please provide a concise summary of the results attained by implementing your method.  
+    Please provide a summary of the results attained by implementing your method.  
     Present this information in the most clear and comprehensible manner.
     Be certain to incorporate all relevant computations and outcomes.
     """
