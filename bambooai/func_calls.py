@@ -9,11 +9,11 @@ task_eval_function = [
             "properties": {
                 "answer": {
                     "type": "string",
-                    "description": "Answer as a narrative, or as an algorithm ,or a follow up question if more info is needed.",
+                    "description": "Answer as a narrative, or as an algorithm",
                 },
                 "answer_type": {
                     "type": "string",
-                    "enum": ["narrative", "algorithm", "follow_up"],
+                    "enum": ["narrative", "algorithm"],
                     "description": "Task classification",
                 },
             },
