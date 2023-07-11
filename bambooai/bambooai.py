@@ -2,45 +2,42 @@
 import os
 import re
 import sys
-import base64
 import json
 from contextlib import redirect_stdout
 import io
 import time
-import openai
 import pandas as pd
 from termcolor import colored, cprint
-from IPython.display import display, Image, HTML
+from IPython.display import display,HTML
 import warnings
 warnings.filterwarnings('ignore')
 
 #Running as a script
+#import models
 #import prompts
 #import func_calls
 #import qa_retrieval
+#import_google_search # Included in the package, but not ready yet. Will need some more work.
 
 #Running as a package
+from . import models
 from . import prompts
 from . import func_calls
 from . import qa_retrieval
+#from . import google_search # Included in the package, but not ready yet. Will need some more work.
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame,
                  max_conversations: int = 4,
-                 llm: str = 'gpt-3.5-turbo-0613',
-                 llm_func: str = 'gpt-3.5-turbo-0613',
-                 llm_16k: str = 'gpt-3.5-turbo-16k',
-                 llm_gpt4: str = 'gpt-4-0613',
+                 llm: str = 'gpt-3.5-turbo-0613', # Base Model
                  debug: bool = False, 
                  vector_db: bool = False, 
                  llm_switch: bool = False, 
                  exploratory: bool = True, 
                  ):
 
-        self.API_KEY = os.environ.get('OPENAI_API_KEY')
-
         # Check if the OPENAI_API_KEY environment variable is set
-        if not self.API_KEY:
+        if not os.getenv('OPENAI_API_KEY'):
             raise EnvironmentError("OPENAI_API_KEY environment variable not found.")
         
         # Check if the PINECONE_API_KEY and PINECONE_ENV environment variables are set if vector_db is True
@@ -63,10 +60,11 @@ class BambooAI:
         self.df_columns = self.df.columns.tolist()
 
         # LLMs
-        self.llm = llm
-        self.llm_func = llm_func
-        self.llm_16k = llm_16k
-        self.llm_gpt4 = llm_gpt4
+        # model dict
+        self.model_dict = {"llm": llm,
+                           "llm_gpt4": "gpt-4-0613",
+                           "llm_16k": "gpt-3.5-turbo-16k",
+                           "llm_func": "gpt-3.5-turbo-0613",}
 
         # Set the debug mode. This mode is True when you want the model to debug the code and correct it.
         self.debug = debug
@@ -92,85 +90,20 @@ class BambooAI:
         self.task_eval_function = func_calls.task_eval_function
         self.insights_function = func_calls.solution_insights_function
 
+        # LLM calls
+        self.llm_call = models.llm_call
+        self.llm_func_call = models.llm_func_call
+        self.llm_stream = models.llm_stream
+
         # QA Retrieval
         self.add_question_answer_pair = qa_retrieval.add_question_answer_pair
         self.retrieve_answer = qa_retrieval.retrieve_answer
         self.similarity_threshold = 0.8
-        
-        openai.api_key = self.API_KEY
 
         # Initialize the total tokens used list. This list will be used to keep track of the total tokens used by the model
         self.total_tokens_used = []
 
-    def llm_call(self, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False):
-        model = self.llm
-        if llm_cascade:
-            model = self.llm_gpt4
-        try:
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-        except openai.error.RateLimitError:
-            print(
-                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-            )
-            time.sleep(10)
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-        # Exceeded the maximum number of tokens allowed by the API
-        except openai.error.InvalidRequestError:
-            print(
-                "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
-            )
-            response = openai.ChatCompletion.create(
-                model=self.llm_16k,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
 
-        content = response.choices[0].message.content.strip()
-        tokens_used = response.usage.total_tokens
-
-        return content, tokens_used
-    
-    def llm_func_call(self, messages, functions, function_name):
-        try:
-            response = openai.ChatCompletion.create(
-            model = self.llm_func,
-            messages=messages,
-            functions=functions,
-            function_call = function_name,
-            temperature=0,
-            max_tokens = 700, 
-            )
-        except openai.error.RateLimitError:
-            print(
-                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-            )
-            time.sleep(10)
-            response = openai.ChatCompletion.create(
-            model = self.llm_func,
-            messages=messages,
-            functions=functions,
-            function_call = function_name,
-            temperature=0,
-            )
-        
-        fn_name = response.choices[0].message["function_call"].name
-        arguments = response.choices[0].message["function_call"].arguments
-        tokens_used = response.usage.total_tokens
-
-        return fn_name,arguments,tokens_used
-
-    
     # Functions to sanitize the output from the LLM
     def _extract_code(self,response: str, separator: str = "```") -> str:
 
@@ -239,19 +172,21 @@ class BambooAI:
         return messages
     
     def task_eval(self, eval_messages):
+        
+        llm_func = self.model_dict['llm_func']
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {self.llm_func}</p>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {llm_func}</p>'))
             display(HTML(f'<p><b style="color:magenta;">Trying to determine the best method to answer your question, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {self.llm_func}", "magenta"))
+            print(colored(f"\n>> Calling Model: {llm_func}", "magenta"))
             cprint(f"\n>> Trying to determine the best method to answer your question, please wait...\n", 'magenta', attrs=['bold'])
 
         # Call OpenAI API
         function_name = {"name": "QA_Response"}
-        fn_name, arguments, tokens_used = self.llm_func_call(eval_messages,self.task_eval_function, function_name)
+        fn_name, arguments, tokens_used = self.llm_func_call(self.model_dict, eval_messages,self.task_eval_function, function_name)
 
         # Parse the JSON string to a Python dict
         arguments_dict = json.loads(arguments, strict=False)
@@ -268,18 +203,18 @@ class BambooAI:
         # Initialize the messages list with a system message containing the task prompt
         debug_messages = [{"role": "system", "content": self.debug_code_task.format(code,question)}]
 
-        using_model = self.llm
+        using_model = self.model_dict['llm']
         if llm_cascade:
-            using_model = self.llm_gpt4
+            using_model = self.model_dict['llm_gpt4']
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
             display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
-            display(HTML(f'<p><b style="color:magenta;">I have received the first version of the code. I am sending it back to LLM to get it checked for any errors, bugs or inconsistencies, and correction if necessary. Please wait...</b></p><br>'))
+            display(HTML(f'<p><b style="color:magenta;"> I am reviewing and debugging the first version of the code to check for any errors, bugs, or inconsistencies and will make corrections if necessary. Please wait..</b></p><br>'))
         else:
             # Other environment (like terminal)
             print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
-            cprint(f"\n>> I have received the first version of the code. I am sending it back to LLM to get it checked for any errors, bugs or inconsistencies, and correction if necessary. Please wait...\n", 'magenta', attrs=['bold'])
+            cprint(f"\n>> I am reviewing and debugging the first version of the code to check for any errors, bugs, or inconsistencies and will make corrections if necessary. Please wait...\n", 'magenta', attrs=['bold'])
 
         # Function to display results nicely
         def display_task():
@@ -291,7 +226,7 @@ class BambooAI:
                 cprint(f"\n>> I have finished debugging the code, and will now proceed to the execution...\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API
-        llm_response, tokens_used = self.llm_call(debug_messages,temperature=0,llm_cascade=llm_cascade) # higher temperature results in more "creative" answers (sometimes too creative :-))
+        llm_response, tokens_used = self.llm_stream(self.model_dict, debug_messages,temperature=0,llm_cascade=llm_cascade) # higher temperature results in more "creative" answers (sometimes too creative :-))
         
         # Extract the code from the API response
         debugged_code = self._extract_code(llm_response)       
@@ -305,9 +240,9 @@ class BambooAI:
         # Initialize the messages list with a system message containing the task prompt
         rank_messages = [{"role": "system", "content": self.rank_answer.format(code,question)}]
 
-        using_model = self.llm
+        using_model = self.model_dict['llm']
         if llm_cascade:
-            using_model = self.llm_gpt4
+            using_model = self.model_dict['llm_gpt4']
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
@@ -319,7 +254,7 @@ class BambooAI:
             cprint(f"\n>> I am going to evaluate and rank the answer. Please wait..\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API 
-        llm_response, tokens_used = self.llm_call(rank_messages,llm_cascade=llm_cascade)
+        llm_response, tokens_used = self.llm_call(self.model_dict, rank_messages,llm_cascade=llm_cascade)
 
         # Extract the rank from the API response
         rank = self._extract_rank(llm_response)       
@@ -343,10 +278,12 @@ class BambooAI:
                 if answer is not None:
                     cprint(f"\n>> I now have the final answer:\n{answer}\n", 'green', attrs=['bold'])
                 if code is not None:
-                    cprint(f">> Here is the final code that accomplishes the task:\n{code}\n", 'green', attrs=['bold'])
+                    cprint(">> Here is the final code that accomplishes the task:", 'green', attrs=['bold'])
+                    print(code)
                 if self.vector_db and rank is not None:
-                    cprint(f">> Rank:\n{rank}\n", 'green', attrs=['bold'])
-                cprint(f">> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
+                    cprint("\n>> Rank:", 'green', attrs=['bold'])
+                    print(rank)
+                cprint(f"\n>> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
 
         def display_eval(task_eval, title, total_tokens_used_sum):
             if 'ipykernel' in sys.modules:
@@ -355,7 +292,7 @@ class BambooAI:
                 display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
                 # Other environment (like terminal)
-                cprint(f"\n>> {title}\n{task_eval}\n", 'magenta', attrs=['bold'])
+                print(f"\n>> {title}\n{task_eval}\n")
                 cprint(f">> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
 
         # Initialize the eval_messages list
@@ -483,10 +420,6 @@ class BambooAI:
                     title = 'Here is an answer to your question:'                   
                     display_eval(task_eval, title, total_tokens_used_sum)
                     continue
-                if task_type == 'follow_up':
-                    title = 'To be able to answer your question, I am going to need some more info:'                   
-                    display_eval(task_eval, title, total_tokens_used_sum)
-                    continue
                 else:
                     title = 'Here is a sequence of steps required to complete the task:'
                     task = task_eval
@@ -548,17 +481,19 @@ class BambooAI:
         # Add a user message with the updated task prompt to the messages list
         messages.append({"role": "user", "content": self.user_task.format(self.df_head, task,example_output)})
 
+        llm = self.model_dict['llm']
+
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {self.llm}</p>'))
-            display(HTML(f'<p><b style="color:magenta;">I have sent your request to the LLM and awaiting response, please wait...</b></p><br>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {llm}</p>'))
+            display(HTML(f'<p><b style="color:magenta;">I am generating the first version of the code, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {self.llm}", "magenta"))
-            cprint(f"\n>> I have sent your request to the LLM and awaiting response, please wait...\n", 'magenta', attrs=['bold'])
+            print(colored(f"\n>> Calling Model: {llm}", "magenta"))
+            cprint(f"\n>> I am generating the first version of the code, please wait\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API
-        llm_response, tokens_used = self.llm_call(messages)
+        llm_response, tokens_used = self.llm_stream(self.model_dict, messages)
 
         # Extract the code from the API response
         code = self._extract_code(llm_response)
@@ -628,7 +563,7 @@ class BambooAI:
                         llm_cascade = False
 
                     # Call OpenAI API to get an updated code
-                    llm_response, tokens_used = self.llm_call(messages,llm_cascade=llm_cascade)
+                    llm_response, tokens_used = self.llm_call(self.model_dict,messages,llm_cascade=llm_cascade)
                     code = self._extract_code(llm_response)
                     self.total_tokens_used.append(tokens_used)
                     
@@ -640,7 +575,7 @@ class BambooAI:
         # Initialize the messages list with a system message containing the task prompt
         insights_messages = [{"role": "user", "content": self.solution_insights.format(task, answer)}]
         function_name = {"name": "Solution_Insights"}
-        fn_name, arguments, tokens_used = self.llm_func_call(insights_messages, self.insights_function, function_name)
+        fn_name, arguments, tokens_used = self.llm_func_call(self.model_dict,insights_messages, self.insights_function, function_name)
 
         # Parse the JSON string to a Python dict
         arguments_dict = json.loads(arguments,strict=False)
