@@ -127,6 +127,8 @@ def llm_stream(model_dict: dict, messages: str, temperature: float = 0, max_toke
         chunk_message = chunk['choices'][0]['delta']  # extract the message
         collected_messages.append(chunk_message)  # save the message
         print(chunk_message.get('content', ''), end='', flush=True)  # print the message without a newline
+    
+    print()  # print a newline
 
     # get the complete text received
     full_reply_content = ''.join([m.get('content', '') for m in collected_messages])
