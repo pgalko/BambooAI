@@ -30,7 +30,6 @@ class QueryGenerator:
         
         query = response.choices[0].message.content.strip()
         tokens_used = response.usage.total_tokens
-        print(query)
         return query,tokens_used
 
 # Define a class to perform a Google search and retrieve the content of the resulting pages    
@@ -64,15 +63,20 @@ class SearchEngine:
     # Perform a Google search and retrieve the content of the top results
     def __call__(self, query, num_documents=30, context_size=128):
         google_resp = self.search_google(query)
+        
 
         documents = []
-        for resp in google_resp['organic']:
+        top_links = []
+
+        for i, resp in enumerate(google_resp['organic']):
             documents += self.search_url(resp['link'])
+            if i < 5:
+                top_links.append({'title': resp['title'], 'link': resp['link']})
             if len(documents) > num_documents:
                 break
-        
+
         documents = documents[:num_documents]
-        return documents
+        return documents, top_links
 
 # Define a class to retrieve the most relevant documents for a question
 class DocumentRetriever:
@@ -107,6 +111,9 @@ class Reader:
             "\n\n"
             f"Question: {query}"
             "\n\n"
+            "Present this information in the most clear and comprehensible manner"
+            "Be certain to incorporate all relevant facts and insights."
+            "\n\n"
             "Text: "
             "\n\n"
         )
@@ -114,7 +121,6 @@ class Reader:
         for ctx in contexts:
             prompt += f'* {ctx}\n'
 
-        print(prompt)
         return prompt
 
     # Use LLM to generate an answer to a question based on a set of contexts
@@ -142,11 +148,11 @@ class GoogleSearch:
         self.reader = Reader()
 
     def __call__(self, question):
-        query, query_tokens = self.query_generator(question)
-        documents = self.search_engine(query)
+        #query, query_tokens = self.query_generator(question)
+        documents,top_links = self.search_engine(question)
         contexts = self.document_retriever(question, documents)
-        answer, answer_tokens = self.reader(query, contexts)
+        answer, answer_tokens = self.reader(question, contexts)
 
-        search_tokens_used = query_tokens + answer_tokens
+        search_tokens_used = answer_tokens
 
-        return answer, search_tokens_used
+        return answer,top_links,search_tokens_used
