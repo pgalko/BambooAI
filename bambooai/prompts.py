@@ -1,7 +1,7 @@
 # prompts.py
 
 # Default Example (Otherwise Pinecone Long Term Memory)
-example_output = """
+example_output_df = """
     import pandas as pd
 
     # Identify the dataframe `df`
@@ -12,6 +12,29 @@ example_output = """
 
     # Print the output of the `describe()` method
     print(df_description)
+    """
+example_output_gen = """
+    # Import required libraries
+    import yfinance as yf
+    import matplotlib.pyplot as plt
+
+    # Define the ticker symbol
+    tickerSymbol = 'AAPL'
+
+    # Get data on this ticker
+    tickerData = yf.Ticker(tickerSymbol)
+
+    # Get the historical prices for this ticker
+    tickerDf = tickerData.history(period='1d', start='2010-1-1', end='2021-1-1')
+
+    # Normalize the data
+    tickerDf = tickerDf[['Close']]
+    tickerDf = tickerDf.reset_index()
+    tickerDf = tickerDf.rename(columns={'Date': 'ds', 'Close': 'y'})
+
+    # Plot the close prices
+    plt.plot(tickerDf.ds, tickerDf.y)
+    plt.show()
     """
 # Select the expert to route the user's request to
 task_classification = """
@@ -27,15 +50,38 @@ task_classification = """
 
     Can you please select the appropriate expert to best address this question?
   """
+# Select the relevant data analyst
+analyst_selection = """
+    Which one of these two experts would you choose for this task ? '{}'.
+    If the question is relevant to the data in the supplied dataframe choose "Data Analyst DF" . 
+    If the question is unrelated to the data in the dataframe choose "Data Analyst Generic".
 
+    Dataframe Headers:
+    {}
+
+    Please provide your answer by stating just the name of the expert.
+
+    Example Output:
+    Data Analyst DF
+    Data Analyst Generic
+"""
 # Expert Tasks
-analyst_task_evaluation = """
+analyst_task_evaluation_df = """
     You are an AI data analyst and your job is to assist the user with data analisys.
     The user asked the following question: '{}'.
 
     Formulate your response as an algorithm, breaking the solution into steps. This should be done in the context of previous conversations.
-    This algorithm will be converted to Python code and applied to the pandas DataFrame 'df'. Here's the first row of 'df': {}.
-    The DataFrame 'df' is already populated with necessary data.
+    This algorithm will be later converted to Python code and applied to the pandas DataFrame 'df'. Here's the first row of 'df': {}.
+    The DataFrame 'df' is already defined and populated with necessary data.
+    Present your algorithm in up to eight simple, clear English steps. If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
+    """
+analyst_task_evaluation_gen = """
+    You are an AI python programmer and your job is to assist the user with tasks required coding.
+    You have access to internet and can retrieve any dataset or access any APIs that might be required.
+    The user asked the following question: '{}'.
+
+    Formulate your response as an algorithm, breaking the solution into steps. This should be done in the context of previous conversations.
+    This algorithm will be later converted to Python code .
     Present your algorithm in up to eight simple, clear English steps. If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
     """
 theorist_task_evaluation = """
@@ -53,18 +99,37 @@ researcher_task_evaluation = """
     Example input: Can you please find out what is the popularity of Python programming language in 2023?
     Exaple output: Popularity of Python programming language in 2023
     """
-# System promp for code generation
-system_task = """
+# System prompts for code generation
+system_task_df = """
     You are an AI data analyst and your job is to assist user with analysing data in the pandas dataframe.
     The user will provide a dataframe named `df`, and a list of tasks to be accomplished using Python.
     The dataframe df has already been defined and populated with the required data.
     """
-# User prompt for code generation
-user_task = """
+system_task_gen = """
+   You are an AI data analyst and your job is to assist users with data analysis,
+   or ant other tasks related to coding. 
+   You have not been provided with any datasets, but you have access to the internet.
+   The user will provide a list of tasks to be accomplished using Python.  
+   """
+# User prompts for code generation
+user_task_df = """
     You have been presented with a pandas dataframe named `df`.
     The dataframe df has already been defined and populated with the required data.
     The result of `print(df.head(1))` is:
     {}.
+    Return the python code that acomplishes the following tasks: {}.
+    Approach each task from the list in isolation, advancing to the next only upon its successful resolution. 
+    Strictly adhere to the prescribed instructions to avoid oversights and ensure an accurate solution.
+    Always include the import statements at the top of the code.
+    Always include print statements to output the results of your code.
+    Prefix the python code with <code> and suffix the code with </code>.
+
+    Example Output:
+    <code>
+    {}
+    </code>
+    """
+user_task_gen = """
     Return the python code that acomplishes the following tasks: {}.
     Approach each task from the list in isolation, advancing to the next only upon its successful resolution. 
     Strictly adhere to the prescribed instructions to avoid oversights and ensure an accurate solution.
@@ -93,7 +158,7 @@ debug_code_task = """
     Task list:
     {}.
 
-    Please follow the below instructions to acoomplish your assingment.The dataframe df has already been defined and populated with the required data.
+    Please follow the below instructions to acoomplish your assingment.If provided, the dataframe df has already been defined and populated with the required data.
 
     Task Inspection:
     Go through the task list and the given Python code side by side.
