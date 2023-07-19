@@ -1,11 +1,13 @@
 # BambooAI
-A lightweight library that leverages Large Language Models (LLMs) to enable natural language interactions, allowing you to converse with your pandas DataFrames.
+A lightweight library utilizing Large Language Models (LLMs) to provide natural language interaction capabilities, much like a research and data analysis assistant enabling conversation with your data. You can either provide your own data sets, or allow the library to locate and fetch data for you. It supports Internet searches and external API interactions.
 
 ## Objective
 
-The BambooAI library is an experimental user-friendly tool designed to make data analysis more accessible to non-programmers. Utilizing the power of Large Language Models (LLM), BambooAI can comprehend your questions about a dataset and automatically generate and execute the appropriate Python code for both analysis and plotting. Users can effortlessly gain valuable insights from their data without writing complex code or mastering advanced programming techniques. With BambooAI, simply input your dataset, ask questions in plain English, and receive answers along with relevant out of the box visualizations if asked for to help you better understand your data.
+The BambooAI library is an experimental, lightweight tool that leverages Large Language Models (LLMs) to make data analysis more intuitive and accessible, even for non-programmers. Functioning like a research and data analysis assistant, it enables users to engage in natural language interactions with their data. You can supply your own data sets, or let BambooAI find and retrieve the necessary data for you. It also integrates Internet searches and an access to external APIs for broader context and utility.
 
-My main goal was to create a tool to help analysts at all levels, not to replace them. This library makes data analysis and visualization easier, helping to improve workflows. It's designed to be easy to use, efficient, and adaptable to different users' needs. As a supportive tool, not the main operator, it helps users apply their own analytical skills more effectively and increase their productivity.
+By understanding your natural language inquiries about a dataset, BambooAI can autonomously generate and execute the relevant Python code for analysis and visualization. This allows users to effortlessly extract valuable insights from their data without needing to write complex code or master advanced programming concepts. Just input your dataset, pose your questions in plain English, and BambooAI provides answers along with ready-to-use visualizations if requested, to deepen your understanding of the data.
+
+The primary aim of BambooAI is to enhance, not replace, the capabilities of analysts at every level. This library simplifies the processes of data analysis and visualization, thereby streamlining workflows. It's designed to be relatively user-friendly, efficient, and adaptable to different users' needs. As a supportive tool rather than the central operator, BambooAI empowers users to apply their analytical skills more effectively and boost their productivity.
 
 ## Preview
 
@@ -37,8 +39,9 @@ https://github.com/pgalko/BambooAI/assets/39939157/158f3e31-236f-42aa-8c08-b194a
 The BambooAI agent operates through several key steps to interact with users and generate responses:
 
 **1. Initiation**
-- The user starts the BambooAI agent.
-- If there's no input question, the agent prompts the user to either input a question or type 'exit' to terminate the program.
+- The user launches the BambooAI agent with a question.
+- If no initial question is provided, the agent prompts the user for a question or an 'exit' command to terminate the program.
+- The agent then enters a loop where it responds to each question provided, and upon completion, prompts the user for the next question. This loop continues until the user chooses to exit the program.
 
 **2. Task Evaluation**
 - The agent stores the received question and utilizes the Large Language Model (LLM) to evaluate and categorize it.
@@ -46,9 +49,10 @@ The BambooAI agent operates through several key steps to interact with users and
 - Depending on the task evaluation and classification the agent calls the appropriate agent.
 
 **3. Dynamic Prompt Build**
-- If code can resolve the question, the agent formulates an algorithm expressed as a task list.
-- The original question is modified to align with this algorithm. The agent conducts a semantic search against a vector db for similar questions.
-- Any matching questions found are appended to the prompt as examples, and GPT-3 is used to generate code based on the algorithm.
+- If the question can be resolved by code, the agent determines whether the necessary data is contained within the provided dataset, requires downloading from an external source, or if the question is of a generic nature and data is not required.
+- The agent then chooses its approach accordingly. It formulates an algorithm, expressed as a task list, to serve as a blueprint for the analysis.
+- The original question is modified to align with this algorithm. The agent performs a semantic search against a vector database for similar questions.
+- Any matching questions found are appended to the prompt as examples. GPT-3.5 or GPT-4 is then used to generate code based on the algorithm.
 
 **4. Debugging, Execution, and Error Correction**
 - If the generated code needs debugging, GPT-4 is engaged.
