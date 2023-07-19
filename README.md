@@ -9,9 +9,16 @@ My main goal was to create a tool to help analysts at all levels, not to replace
 
 ## Preview
 
-Try it out in Google Colab:
+**Try it out in Google Colab:**
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1grKtqKD4u8cVGMoVv__umci4F7IU14vU?usp=sharing)
+
+**A Generic Example (No dataframe supplied, Data downloaded from Internet):**
+
+https://github.com/pgalko/BambooAI/assets/39939157/ea72de1c-05db-472e-9c95-fa8e27fb1f7a
+
+
+**A Machine Learning Example using supplied dataframe:**
 
 https://github.com/pgalko/BambooAI/assets/39939157/158f3e31-236f-42aa-8c08-b194a5483c27
 
