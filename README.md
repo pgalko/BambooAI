@@ -13,12 +13,22 @@ My main goal was to create a tool to help analysts at all levels, not to replace
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1grKtqKD4u8cVGMoVv__umci4F7IU14vU?usp=sharing)
 
-**A Generic Example (No dataframe supplied, Data downloaded from Internet):**
+**A Generic Example (No dataframe required, Data downloaded from Internet):**
+```
+df = pd.read_csv('test_activity_data.csv')
+bamboo = BambooAI(df, debug=False, llm="gpt-4", llm_switch=False, vector_db=True, search_tool=True)
+bamboo.pd_agent_converse()
+```
 
 https://github.com/pgalko/BambooAI/assets/39939157/ea72de1c-05db-472e-9c95-fa8e27fb1f7a
 
 
 **A Machine Learning Example using supplied dataframe:**
+```
+df = pd.read_csv('test_activity_data.csv')
+bamboo = BambooAI(df, debug=True, llm_switch=True, vector_db=True, search_tool=True)
+bamboo.pd_agent_converse()
+```
 
 https://github.com/pgalko/BambooAI/assets/39939157/158f3e31-236f-42aa-8c08-b194a5483c27
 
