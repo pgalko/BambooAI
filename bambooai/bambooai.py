@@ -83,13 +83,18 @@ class BambooAI:
         self.exploratory = exploratory
         
         # Prompts
-        self.default_example_output = prompts.example_output
+        self.default_example_output_df = prompts.example_output_df
+        self.default_example_output_gen = prompts.example_output_gen
         self.task_classification = prompts.task_classification
-        self.analyst_task_evaluation = prompts.analyst_task_evaluation
+        self.analyst_selection = prompts.analyst_selection
+        self.analyst_task_evaluation_gen = prompts.analyst_task_evaluation_gen
+        self.analyst_task_evaluation_df = prompts.analyst_task_evaluation_df
         self.theorist_task_evaluation = prompts.theorist_task_evaluation
         self.researcher_task_evaluation = prompts.researcher_task_evaluation
-        self.system_task = prompts.system_task
-        self.user_task = prompts.user_task
+        self.system_task_df = prompts.system_task_df
+        self.system_task_gen = prompts.system_task_gen
+        self.user_task_df = prompts.user_task_df
+        self.user_task_gen = prompts.user_task_gen
         self.error_correct_task = prompts.error_correct_task
         self.debug_code_task = prompts.debug_code_task  
         self.rank_answer = prompts.rank_answer
@@ -103,6 +108,12 @@ class BambooAI:
         self.llm_call = models.llm_call
         self.llm_func_call = models.llm_func_call
         self.llm_stream = models.llm_stream
+
+        # Messages lists
+        self.pre_eval_messages = []
+        self.select_analyst_messages = []
+        self.eval_messages = []
+        self.code_messages = [{"role": "system", "content": self.system_task_df}]
 
         # QA Retrieval
         self.add_question_answer_pair = qa_retrieval.add_question_answer_pair
@@ -187,6 +198,20 @@ class BambooAI:
         else:
             # If no match is found, return None
             return None
+        
+    def _extract_analyst(self,response: str) -> str:
+        # Create a pattern to match any of the substrings
+        pattern = r'Data Analyst DF|Data Analyst Generic'
+        
+        # Use re.search to find the first match in the input string
+        match = re.search(pattern, response)
+        
+        if match:
+            # If a match is found, return it
+            return match.group()
+        else:
+            # If no match is found, return None
+            return None
     
     # Function to remove examples from messages when no longer needed
     def _remove_examples(self,messages: str) -> str:
@@ -246,6 +271,18 @@ class BambooAI:
 
         return selected_expert
     
+    def select_analyst(self, select_analyst_messages):
+        
+        llm = self.model_dict['llm']
+
+        # Call OpenAI API to evaluate the task
+        llm_response, tokens_used = self.llm_stream(self.model_dict, select_analyst_messages)
+        selected_analyst = self._extract_analyst(llm_response)
+
+        self.total_tokens_used.append(tokens_used)
+
+        return selected_analyst
+    
     #####################
     ### Main Function ###
     #####################
@@ -284,12 +321,8 @@ class BambooAI:
                     print(answer)
                 cprint(f"\n>> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
 
-        # Initialize the messages lists
-        pre_eval_messages = []
-        eval_messages = []
-        messages = [{"role": "system", "content": self.system_task}]
         
-        # Initialize the loop variable. If user provided question the loop will finish after one iteration
+        # Initialize the loop variable. If user provided question as an argument, the loop will finish after one iteration
         if question is not None:
             loop = False
         else:
@@ -314,30 +347,40 @@ class BambooAI:
             # Call the task_eval method with the user's question if the exploratory mode is True
             if self.exploratory is True:
                 ######## Select Expert ###########
-                pre_eval_messages.append({"role": "user", "content": self.task_classification.format(question)})
-                selected_expert = self.select_expert(pre_eval_messages) 
-                pre_eval_messages.append({"role": "assistant", "content": selected_expert})
+                self.pre_eval_messages.append({"role": "user", "content": self.task_classification.format(question)})
+                selected_expert = self.select_expert(self.pre_eval_messages) 
+                self.pre_eval_messages.append({"role": "assistant", "content": selected_expert})
 
-                ######## Formulate a task for the expert ###########
+                ######## Refine Expert Selection, and Formulate a task for the expert ###########
                 if selected_expert == 'Data Analyst':
-                    eval_messages.append({"role": "user", "content": self.analyst_task_evaluation.format(question, self.df_head)})
+                    self.select_analyst_messages.append({"role": "user", "content": self.analyst_selection.format(question, self.df_columns)})
+                    selected_analyst = self.select_analyst(self.select_analyst_messages)
+                    if selected_analyst == 'Data Analyst DF':
+                        self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_df.format(question, self.df_head)})
+                        # Replace first dict in messages with a new system task
+                        self.code_messages[0] = {"role": "system", "content": self.system_task_df}
+                    elif selected_analyst == 'Data Analyst Generic':
+                        self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_gen.format(question)})
+                        # Replace first dict in messages with a new system task
+                        self.code_messages[0] = {"role": "system", "content": self.system_task_gen}
+
                 elif selected_expert == 'Data Analysis Theorist':
-                    eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
+                    self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
                 elif selected_expert == 'Internet Research Specialist':
                     if self.search_tool:
-                        eval_messages.append({"role": "user", "content": self.researcher_task_evaluation.format(question)})
+                        self.eval_messages.append({"role": "user", "content": self.researcher_task_evaluation.format(question)})
                     else:
-                        eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
+                        self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
                 else:
-                    eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
+                    self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
 
-                task_eval = self.task_eval(eval_messages)
-                eval_messages.append({"role": "assistant", "content": task_eval})
+                task_eval = self.task_eval(self.eval_messages)
+                self.eval_messages.append({"role": "assistant", "content": task_eval})
 
                 # Remove the oldest conversation from the messages list
-                if len(eval_messages) > self.MAX_CONVERSATIONS:
-                    eval_messages.pop(0)
-                    eval_messages.pop(0)
+                if len(self.eval_messages) > self.MAX_CONVERSATIONS:
+                    self.eval_messages.pop(0)
+                    self.eval_messages.pop(0)
 
                 total_tokens_used_sum = sum(self.total_tokens_used)
 
@@ -353,7 +396,7 @@ class BambooAI:
                         for link in links_dict:
                             print(f"Title: {link['title']}\nLink: {link['link']}\n")
                         # Replace the last element in eval_messages with the answer from the Google search
-                        eval_messages[-1] = {"role": "assistant", "content": answer}
+                        self.eval_messages[-1] = {"role": "assistant", "content": answer}
                         self.total_tokens_used.append(search_tokens)
                         total_tokens_used_sum = sum(self.total_tokens_used)
                         display_eval(total_tokens_used_sum,answer)
@@ -375,21 +418,32 @@ class BambooAI:
             
             if self.vector_db:
                 # Call the retrieve_answer method to check if the question has already been asked and answered
-                example_output = self.retrieve_answer(task, self.df_columns, similarity_threshold=self.similarity_threshold)
+                if selected_analyst == 'Data Analyst DF':
+                    df_columns = self.df_columns
+                elif selected_analyst == 'Data Analyst Generic':
+                    df_columns = ''
+
+                example_output = self.retrieve_answer(task, df_columns, similarity_threshold=self.similarity_threshold)
                 if example_output is not None:
                     example_output = example_output
-                else:
-                    example_output = self.default_example_output
+                else:     
+                    if selected_analyst == 'Data Analyst DF':
+                        example_output = self.default_example_output_df
+                    else:
+                        example_output = self.default_example_output_gen
             else:
-                example_output = self.default_example_output
+                if selected_analyst == 'Data Analyst DF':
+                    example_output = self.default_example_output_df
+                else:
+                    example_output = self.default_example_output_gen
 
             # Call the generate_code() method to genarate and debug the code
-            code = self.generate_code(task, messages, example_output)
+            code = self.generate_code(selected_analyst, task, self.code_messages, example_output)
             # Call the execute_code() method to execute the code and summarise the results
-            answer, results, code, total_tokens_used_sum = self.execute_code(code, task, messages)  
+            answer, results, code, total_tokens_used_sum = self.execute_code(code, task, self.code_messages)  
             
             # Remove the examples from the messages list to minimize the number of tokens used
-            messages = self._remove_examples(messages)
+            self.code_messages = self._remove_examples(self.code_messages)
 
             # Rank the LLM response
             if self.vector_db:
@@ -423,7 +477,7 @@ class BambooAI:
                     rank = rank
 
                 # Add the question and answer pair to the QA retrieval index
-                self.add_question_answer_pair(task, self.df_columns, code, rank)
+                self.add_question_answer_pair(task, df_columns, code, rank)
             
             if not loop:
                 return 
@@ -432,9 +486,12 @@ class BambooAI:
     ### Code Functions ###
     ######################
             
-    def generate_code(self, task, messages, example_output):
+    def generate_code(self, selected_analyst, task, code_messages, example_output):
         # Add a user message with the updated task prompt to the messages list
-        messages.append({"role": "user", "content": self.user_task.format(self.df_head, task,example_output)})
+        if selected_analyst == 'Data Analyst DF':
+            code_messages.append({"role": "user", "content": self.user_task_df.format(self.df_head, task, example_output)})
+        elif selected_analyst == 'Data Analyst Generic':
+            code_messages.append({"role": "user", "content": self.user_task_gen.format(task,example_output)})
 
         llm = self.model_dict['llm']
 
@@ -448,8 +505,8 @@ class BambooAI:
             cprint(f"\n>> I am generating the first version of the code, please wait\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API
-        llm_response, tokens_used = self.llm_stream(self.model_dict, messages)
-        messages.append({"role": "assistant", "content": llm_response})
+        llm_response, tokens_used = self.llm_stream(self.model_dict, code_messages)
+        code_messages.append({"role": "assistant", "content": llm_response})
 
         # Extract the code from the API response
         code = self._extract_code(llm_response)
@@ -511,7 +568,7 @@ class BambooAI:
 
         return debugged_code
 
-    def execute_code(self, code, task, messages):
+    def execute_code(self, code, task, code_messages):
         # Initialize error correction counter
         error_corrections = 0
         # Redirect standard output to a StringIO buffer
@@ -520,9 +577,9 @@ class BambooAI:
             while error_corrections < self.MAX_ERROR_CORRECTIONS:
                 try:
                     # Remove the oldest conversation from the messages list
-                    if len(messages) > self.MAX_CONVERSATIONS:
-                        messages.pop(1)
-                        messages.pop(1)
+                    if len(code_messages) > self.MAX_CONVERSATIONS:
+                        code_messages.pop(1)
+                        code_messages.pop(1)
                     # Reset df to the original state before executing the code
                     self.df = self.original_df.copy()
                     # Execute the code
@@ -541,7 +598,7 @@ class BambooAI:
 
                     # Increment the error correction counter and update the messages list with the error
                     error_corrections += 1
-                    messages.append({"role": "user", "content": self.error_correct_task.format(e)})
+                    code_messages.append({"role": "user", "content": self.error_correct_task.format(e)})
 
                     # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost.
                     if self.llm_switch:
@@ -557,8 +614,8 @@ class BambooAI:
                         llm_cascade = False
 
                     # Call OpenAI API to get an updated code
-                    llm_response, tokens_used = self.llm_call(self.model_dict,messages,llm_cascade=llm_cascade)
-                    messages.append({"role": "assistant", "content": llm_response})
+                    llm_response, tokens_used = self.llm_call(self.model_dict,code_messages,llm_cascade=llm_cascade)
+                    code_messages.append({"role": "assistant", "content": llm_response})
                     code = self._extract_code(llm_response)
                     self.total_tokens_used.append(tokens_used)
                     
@@ -566,7 +623,7 @@ class BambooAI:
         results = output.getvalue()
 
         # I now need to add the answer to the messages list apending the answer to the content of the assistamt message.
-        messages[-1]['content'] = messages[-1]['content'] + '\nResults:\n' + results
+        code_messages[-1]['content'] = code_messages[-1]['content'] + '\nResults:\n' + results
 
         # Call OpenAI API to summarize the results
         # Initialize the messages list with a system message containing the task prompt
