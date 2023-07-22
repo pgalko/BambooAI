@@ -37,7 +37,7 @@ example_output_gen = """
     plt.show()
     """
 # Select the expert to route the user's request to
-task_classification = """
+system_task_classification= """
     You are an AI workflow routing specialist and your job is to route the user's request to the appropriate expert.
     The experts you have access to are as follows:
 
@@ -46,31 +46,36 @@ task_classification = """
     3. An "Internet Research Specialist" that can search the internet to find additional factual information, relevant data, and contextual details to help address user questions.
        This expert should be used when the question cannot be answered by the other two experts, or concerns a current event.
 
-    The user asked the following question: '{}'.
-
     Can you please select the appropriate expert to best address this question?
   """
+user_task_classification = """
+    The user asked the following question: '{}'.
+    """
 # Select the relevant data analyst
-analyst_selection = """
-    Which one of these two experts would you choose for this task ? '{}'.
-    If the question is relevant to the data in the supplied dataframe choose "Data Analyst DF" . 
-    If the question is unrelated to the data in the dataframe choose "Data Analyst Generic".
+system_analyst_selection = """
+    You are an AI workflow routing specialist and your job is to route the user's request to the appropriate expert.
+    The experts you have access to are as follows:
 
-    Dataframe Headers:
-    {}
+    1. A "Data Analyst DF" for questions that are relevant to the data in the supplied dataframe.
+    2. A "Data Analyst Generic" for questions that are unrelated to the data in the supplied dataframe.
 
-    Please provide your answer by stating just the name of the expert.
-
-    Example Output:
-    Data Analyst DF
-    Data Analyst Generic
-"""
+    Can you please select the appropriate expert to best address this question?
+    """
+user_analyst_selection = """
+    The user asked the following question: '{}', and provided the following dataframe: '{}'.
+    """
 # Expert Tasks
+system_task_evaluation = """
+    You are an AI assistant capable of assisting users with various tasks related to research, coding, and data analysis. 
+    The user will inform you about the expertise required to accomplish their task. 
+    Always approach each task within the context of previous conversations.
+"""
 analyst_task_evaluation_df = """
     You are an AI data analyst and your job is to assist the user with data analisys.
+    You have access to internet and can retrieve any information or data that might enhance the analysis.
     The user asked the following question: '{}'.
 
-    Formulate your response as an algorithm, breaking the solution into steps. This should be done in the context of previous conversations.
+    Formulate your response as an algorithm, breaking the solution into steps.
     This algorithm will be later converted to Python code and applied to the pandas DataFrame 'df'. Here's the first row of 'df': {}.
     The DataFrame 'df' is already defined and populated with necessary data.
     Present your algorithm in up to eight simple, clear English steps. If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
@@ -80,7 +85,7 @@ analyst_task_evaluation_gen = """
     You have access to internet and can retrieve any dataset or access any APIs that might be required.
     The user asked the following question: '{}'.
 
-    Formulate your response as an algorithm, breaking the solution into steps. This should be done in the context of previous conversations.
+    Formulate your response as an algorithm, breaking the solution into steps.
     This algorithm will be later converted to Python code .
     Present your algorithm in up to eight simple, clear English steps. If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
     """
@@ -91,7 +96,7 @@ theorist_task_evaluation = """
     Provide factual information responding directly to the user’s question. Include key details and context to ensure your response comprehensively answers their query.
     """
 researcher_task_evaluation = """
-    You are an AI internet research specialist and your job is to find the answer to the user's question.
+    You are an AI internet research specialist and your job is to formulate user's question as search query.
     The user asked the following question: '{}'.
     
     Reframe the question into a search query as per the below examples.
