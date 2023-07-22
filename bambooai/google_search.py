@@ -5,6 +5,7 @@ import requests
 import openai
 import os
 from newspaper import Article
+import re
 
 # Define a class to generate queries based on a question
 class QueryGenerator:
@@ -147,7 +148,12 @@ class GoogleSearch:
         self.document_retriever = DocumentRetriever()
         self.reader = Reader()
 
+    def _extract_search_query(self,response: str) -> str:
+        search_query = re.sub('\'|"', '',  response).strip()
+        return search_query
+
     def __call__(self, question):
+        question=self._extract_search_query(question)
         #query, query_tokens = self.query_generator(question)
         documents,top_links = self.search_engine(question)
         contexts = self.document_retriever(question, documents)
