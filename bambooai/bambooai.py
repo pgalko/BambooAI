@@ -27,7 +27,7 @@ from . import qa_retrieval
 from . import google_search
 
 class BambooAI:
-    def __init__(self, df: pd.DataFrame,
+    def __init__(self, df: pd.DataFrame = None,
                  max_conversations: int = 4,
                  llm: str = 'gpt-3.5-turbo-0613', # Base Model
                  debug: bool = False, 
@@ -60,10 +60,10 @@ class BambooAI:
         self.MAX_CONVERSATIONS = (max_conversations*2) - 1
         
         # Store the original dataframe. This will be used to reset the dataframe before executing the code
-        self.original_df = df
-        self.df = df.copy()  # make a copy of the dataframe
-        self.df_head = self.original_df.head(1)
-        self.df_columns = self.df.columns.tolist()
+        self.original_df = df if df is not None else None
+        self.df = df.copy() if df is not None else None
+        self.df_head = self.original_df.head(1) if df is not None else None
+        self.df_columns = self.df.columns.tolist() if df is not None else None
 
         # LLMs
         # model dict
@@ -85,8 +85,11 @@ class BambooAI:
         # Prompts
         self.default_example_output_df = prompts.example_output_df
         self.default_example_output_gen = prompts.example_output_gen
-        self.task_classification = prompts.task_classification
-        self.analyst_selection = prompts.analyst_selection
+        self.system_task_classification = prompts.system_task_classification
+        self.user_task_classification = prompts.user_task_classification
+        self.system_analyst_selection = prompts.system_analyst_selection
+        self.user_analyst_selection = prompts.user_analyst_selection
+        self.system_task_evaluation = prompts.system_task_evaluation
         self.analyst_task_evaluation_gen = prompts.analyst_task_evaluation_gen
         self.analyst_task_evaluation_df = prompts.analyst_task_evaluation_df
         self.theorist_task_evaluation = prompts.theorist_task_evaluation
@@ -110,9 +113,9 @@ class BambooAI:
         self.llm_stream = models.llm_stream
 
         # Messages lists
-        self.pre_eval_messages = []
-        self.select_analyst_messages = []
-        self.eval_messages = []
+        self.pre_eval_messages = [{"role": "system", "content": self.system_task_classification}]
+        self.select_analyst_messages = [{"role": "system", "content": self.system_analyst_selection}]
+        self.eval_messages = [{"role": "system", "content": self.system_task_evaluation}]
         self.code_messages = [{"role": "system", "content": self.system_task_df}]
 
         # QA Retrieval
@@ -265,11 +268,11 @@ class BambooAI:
 
         # Call OpenAI API to evaluate the task
         llm_response, tokens_used = self.llm_stream(self.model_dict, pre_eval_messages)
-        selected_expert = self._extract_expert(llm_response)
+        expert = self._extract_expert(llm_response)
 
         self.total_tokens_used.append(tokens_used)
 
-        return selected_expert
+        return expert
     
     def select_analyst(self, select_analyst_messages):
         
@@ -277,11 +280,90 @@ class BambooAI:
 
         # Call OpenAI API to evaluate the task
         llm_response, tokens_used = self.llm_stream(self.model_dict, select_analyst_messages)
-        selected_analyst = self._extract_analyst(llm_response)
+        analyst = self._extract_analyst(llm_response)
 
         self.total_tokens_used.append(tokens_used)
 
-        return selected_analyst
+        return analyst
+    
+    def taskmaster(self, question):
+        task = None
+        analyst = None
+
+        def display_eval(total_tokens_used_sum,answer=None):
+            if 'ipykernel' in sys.modules:
+                # Jupyter notebook or ipython
+                if answer is not None:
+                    print(answer)
+                display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
+            else:
+                # Other environment (like terminal)
+                if answer is not None:
+                    print(answer)
+                cprint(f"\n>> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
+
+        ######## Select Expert ###########
+        self.pre_eval_messages.append({"role": "user", "content": self.user_task_classification.format(question)})
+        expert = self.select_expert(self.pre_eval_messages) 
+        self.pre_eval_messages.append({"role": "assistant", "content": expert})
+
+        ######## Refine Expert Selection, and Formulate a task for the expert ###########
+        if expert == 'Data Analyst':
+            self.select_analyst_messages.append({"role": "user", "content": self.user_analyst_selection.format(question, self.df_columns)})
+            analyst = self.select_analyst(self.select_analyst_messages)
+            if analyst == 'Data Analyst DF':
+                self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_df.format(question, self.df_head)})
+                # Replace first dict in messages with a new system task
+                self.code_messages[0] = {"role": "system", "content": self.system_task_df}
+            elif analyst == 'Data Analyst Generic':
+                self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_gen.format(question)})
+                # Replace first dict in messages with a new system task
+                self.code_messages[0] = {"role": "system", "content": self.system_task_gen}
+
+        elif expert == 'Data Analysis Theorist':
+            self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
+        elif expert == 'Internet Research Specialist':
+            if self.search_tool:
+                self.eval_messages.append({"role": "user", "content": self.researcher_task_evaluation.format(question)})
+            else:
+                self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
+        else:
+            self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
+
+        task_eval = self.task_eval(self.eval_messages)
+        self.eval_messages.append({"role": "assistant", "content": task_eval})
+
+        # Remove the oldest conversation from the messages list
+        if len(self.eval_messages) > self.MAX_CONVERSATIONS:
+            self.eval_messages.pop(1)
+            self.eval_messages.pop(1)
+
+        total_tokens_used_sum = sum(self.total_tokens_used)
+
+        if expert == 'Data Analysis Theorist':                  
+            display_eval(total_tokens_used_sum)
+        
+        elif expert == 'Internet Research Specialist':
+            if self.search_tool:
+                print('I either do not have an answer to your query or I am not confident that the information that I have is satisfactory.\nI am going to search the Internet. Please wait...\n')
+                answer,links_dict,search_tokens = self.google_search(task_eval)
+                for link in links_dict:
+                    print(f"Title: {link['title']}\nLink: {link['link']}\n")
+                # Replace the last element in eval_messages with the answer from the Google search
+                self.eval_messages[-1] = {"role": "assistant", "content": answer}
+                self.total_tokens_used.append(search_tokens)
+                total_tokens_used_sum = sum(self.total_tokens_used)
+                display_eval(total_tokens_used_sum,answer)
+            else:
+                display_eval(total_tokens_used_sum)
+        
+        elif expert == 'Data Analyst':
+            task = task_eval
+            display_eval(total_tokens_used_sum)
+        else:
+            display_eval(total_tokens_used_sum)
+
+        return analyst,task
     
     #####################
     ### Main Function ###
@@ -308,20 +390,7 @@ class BambooAI:
                     cprint("\n>> Solution Rank:", 'green', attrs=['bold'])
                     print(rank)
                 cprint(f"\n>> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
-
-        def display_eval(total_tokens_used_sum,answer=None):
-            if 'ipykernel' in sys.modules:
-                # Jupyter notebook or ipython
-                if answer is not None:
-                    print(answer)
-                display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
-            else:
-                # Other environment (like terminal)
-                if answer is not None:
-                    print(answer)
-                cprint(f"\n>> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
-
-        
+      
         # Initialize the loop variable. If user provided question as an argument, the loop will finish after one iteration
         if question is not None:
             loop = False
@@ -344,101 +413,42 @@ class BambooAI:
                 if question.strip().lower() == 'exit':
                     break
                 
-            # Call the task_eval method with the user's question if the exploratory mode is True
             if self.exploratory is True:
-                ######## Select Expert ###########
-                self.pre_eval_messages.append({"role": "user", "content": self.task_classification.format(question)})
-                selected_expert = self.select_expert(self.pre_eval_messages) 
-                self.pre_eval_messages.append({"role": "assistant", "content": selected_expert})
-
-                ######## Refine Expert Selection, and Formulate a task for the expert ###########
-                if selected_expert == 'Data Analyst':
-                    self.select_analyst_messages.append({"role": "user", "content": self.analyst_selection.format(question, self.df_columns)})
-                    selected_analyst = self.select_analyst(self.select_analyst_messages)
-                    if selected_analyst == 'Data Analyst DF':
-                        self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_df.format(question, self.df_head)})
-                        # Replace first dict in messages with a new system task
-                        self.code_messages[0] = {"role": "system", "content": self.system_task_df}
-                    elif selected_analyst == 'Data Analyst Generic':
-                        self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_gen.format(question)})
-                        # Replace first dict in messages with a new system task
-                        self.code_messages[0] = {"role": "system", "content": self.system_task_gen}
-
-                elif selected_expert == 'Data Analysis Theorist':
-                    self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
-                elif selected_expert == 'Internet Research Specialist':
-                    if self.search_tool:
-                        self.eval_messages.append({"role": "user", "content": self.researcher_task_evaluation.format(question)})
-                    else:
-                        self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
+                # Call the taskmaister method with the user's question if the exploratory mode is True
+                analyst,task = self.taskmaster(question)
+                if not loop:
+                    if not analyst:
+                        return
                 else:
-                    self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
-
-                task_eval = self.task_eval(self.eval_messages)
-                self.eval_messages.append({"role": "assistant", "content": task_eval})
-
-                # Remove the oldest conversation from the messages list
-                if len(self.eval_messages) > self.MAX_CONVERSATIONS:
-                    self.eval_messages.pop(0)
-                    self.eval_messages.pop(0)
-
-                total_tokens_used_sum = sum(self.total_tokens_used)
-
-                if selected_expert == 'Data Analysis Theorist':                  
-                    display_eval(total_tokens_used_sum)
-                    if not loop:
-                        return
-                    continue
-                elif selected_expert == 'Internet Research Specialist':
-                    if self.search_tool:
-                        print('I either do not have an answer to your query or I am not confident that the information that I have is satisfactory.\nI am going to search the Internet. Please wait...\n')
-                        answer,links_dict,search_tokens = self.google_search(task_eval)
-                        for link in links_dict:
-                            print(f"Title: {link['title']}\nLink: {link['link']}\n")
-                        # Replace the last element in eval_messages with the answer from the Google search
-                        self.eval_messages[-1] = {"role": "assistant", "content": answer}
-                        self.total_tokens_used.append(search_tokens)
-                        total_tokens_used_sum = sum(self.total_tokens_used)
-                        display_eval(total_tokens_used_sum,answer)
-                    else:
-                        display_eval(total_tokens_used_sum)
-                    if not loop:
-                        return
-                    continue
-                elif selected_expert == 'Data Analyst':
-                    task = task_eval
-                    display_eval(total_tokens_used_sum)
-                else:
-                    display_eval(total_tokens_used_sum)
-                    if not loop:
-                        return
-                    continue
+                    if not analyst:
+                        continue
             else:
+                analyst = 'Data Analyst DF'
                 task = question
             
             if self.vector_db:
                 # Call the retrieve_answer method to check if the question has already been asked and answered
-                if selected_analyst == 'Data Analyst DF':
+                if analyst == 'Data Analyst DF':
                     df_columns = self.df_columns
-                elif selected_analyst == 'Data Analyst Generic':
+                elif analyst == 'Data Analyst Generic':
                     df_columns = ''
 
                 example_output = self.retrieve_answer(task, df_columns, similarity_threshold=self.similarity_threshold)
                 if example_output is not None:
                     example_output = example_output
                 else:     
-                    if selected_analyst == 'Data Analyst DF':
+                    if analyst == 'Data Analyst DF':
                         example_output = self.default_example_output_df
                     else:
                         example_output = self.default_example_output_gen
             else:
-                if selected_analyst == 'Data Analyst DF':
+                if analyst == 'Data Analyst DF':
                     example_output = self.default_example_output_df
                 else:
                     example_output = self.default_example_output_gen
 
             # Call the generate_code() method to genarate and debug the code
-            code = self.generate_code(selected_analyst, task, self.code_messages, example_output)
+            code = self.generate_code(analyst, task, self.code_messages, example_output)
             # Call the execute_code() method to execute the code and summarise the results
             answer, results, code, total_tokens_used_sum = self.execute_code(code, task, self.code_messages)  
             
@@ -486,11 +496,11 @@ class BambooAI:
     ### Code Functions ###
     ######################
             
-    def generate_code(self, selected_analyst, task, code_messages, example_output):
+    def generate_code(self, analyst, task, code_messages, example_output):
         # Add a user message with the updated task prompt to the messages list
-        if selected_analyst == 'Data Analyst DF':
+        if analyst == 'Data Analyst DF':
             code_messages.append({"role": "user", "content": self.user_task_df.format(self.df_head, task, example_output)})
-        elif selected_analyst == 'Data Analyst Generic':
+        elif analyst == 'Data Analyst Generic':
             code_messages.append({"role": "user", "content": self.user_task_gen.format(task,example_output)})
 
         llm = self.model_dict['llm']
@@ -580,8 +590,9 @@ class BambooAI:
                     if len(code_messages) > self.MAX_CONVERSATIONS:
                         code_messages.pop(1)
                         code_messages.pop(1)
-                    # Reset df to the original state before executing the code
-                    self.df = self.original_df.copy()
+                    if self.df is not None:
+                        # Reset df to the original state before executing the code
+                        self.df = self.original_df.copy()
                     # Execute the code
                     if code is not None:
                         exec(code, {'df': self.df})
