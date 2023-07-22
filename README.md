@@ -89,7 +89,7 @@ pip install bambooai
 Parameters
 
 ```
-df: pd.DataFrame - Dataframe(Required)
+df: pd.DataFrame - Dataframe (It will try to source the data from internet, if 'df' is not provided)
 
 max_conversations: int - Number of "user:assistant" conversation pairs to keep in memory for a context. Default=2
 
