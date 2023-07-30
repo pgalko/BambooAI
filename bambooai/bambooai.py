@@ -306,10 +306,10 @@ class BambooAI:
 
         ######## Refine Expert Selection, and Formulate a task for the expert ###########
         if expert == 'Data Analyst':
-            self.select_analyst_messages.append({"role": "user", "content": self.user_analyst_selection.format(question, self.df.columns.tolist())})
+            self.select_analyst_messages.append({"role": "user", "content": self.user_analyst_selection.format(question, None if self.df is None else self.df.columns.tolist())})
             analyst = self.select_analyst(self.select_analyst_messages)
             if analyst == 'Data Analyst DF':
-                self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_df.format(question, self.df.head(1))})
+                self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_df.format(question, None if self.df is None else self.df.head(1))})
                 # Replace first dict in messages with a new system task
                 self.code_messages[0] = {"role": "system", "content": self.system_task_df}
             elif analyst == 'Data Analyst Generic':
@@ -382,7 +382,7 @@ class BambooAI:
             else:
                 if self.df is not None:
                     cprint(f"\n>> Here is the head of your dataframe:", 'green', attrs=['bold'])
-                    print(self.df.head(5))
+                    display(self.df.head(5))
                 if answer is not None:
                     cprint(f"\n>> I now have the final answer:\n{answer}\n", 'green', attrs=['bold'])
                 if code is not None:
@@ -431,7 +431,7 @@ class BambooAI:
             if self.vector_db:
                 # Call the retrieve_answer method to check if the question has already been asked and answered
                 if analyst == 'Data Analyst DF':
-                    df_columns = self.df.columns.tolist()
+                    df_columns = '' if self.df is None else self.df.columns.tolist()
                 elif analyst == 'Data Analyst Generic':
                     df_columns = ''
 
@@ -501,7 +501,7 @@ class BambooAI:
     def generate_code(self, analyst, task, code_messages, example_output):
         # Add a user message with the updated task prompt to the messages list
         if analyst == 'Data Analyst DF':
-            code_messages.append({"role": "user", "content": self.user_task_df.format(self.df.head(1), task, example_output)})
+            code_messages.append({"role": "user", "content": self.user_task_df.format(None if self.df is None else self.df.head(1), task, example_output)})
         elif analyst == 'Data Analyst Generic':
             code_messages.append({"role": "user", "content": self.user_task_gen.format(task,example_output)})
 
