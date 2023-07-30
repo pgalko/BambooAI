@@ -59,11 +59,8 @@ class BambooAI:
         # Set the maximum number of question/answer pairs to be kept in the conversation memmory
         self.MAX_CONVERSATIONS = (max_conversations*2) - 1
         
-        # Store the original dataframe. This will be used to reset the dataframe before executing the code
-        self.original_df = df if df is not None else None
-        self.df = df.copy() if df is not None else None
-        self.df_head = self.original_df.head(1) if df is not None else None
-        self.df_columns = self.df.columns.tolist() if df is not None else None
+        # Dataframe
+        self.df = df if df is not None else None
 
         # LLMs
         # model dict
@@ -139,8 +136,8 @@ class BambooAI:
 
         # Define a blacklist of Python keywords and functions that are not allowed
         blacklist = ['os','subprocess','sys','eval','exec','file','socket','urllib',
-                    'shutil','pickle','ctypes','multiprocessing','tempfile','glob','code','pty','commands',
-                    'requests','cgi','cgitb','xml.etree.ElementTree','builtins'
+                    'shutil','pickle','ctypes','multiprocessing','tempfile','glob','code','pty'
+                    'commands','cgi','cgitb','xml.etree.ElementTree','builtins'
                     ]
 
         # Search for a pattern between <code> and </code> in the extracted code
@@ -309,10 +306,10 @@ class BambooAI:
 
         ######## Refine Expert Selection, and Formulate a task for the expert ###########
         if expert == 'Data Analyst':
-            self.select_analyst_messages.append({"role": "user", "content": self.user_analyst_selection.format(question, self.df_columns)})
+            self.select_analyst_messages.append({"role": "user", "content": self.user_analyst_selection.format(question, self.df.columns.tolist())})
             analyst = self.select_analyst(self.select_analyst_messages)
             if analyst == 'Data Analyst DF':
-                self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_df.format(question, self.df_head)})
+                self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_df.format(question, self.df.head(1))})
                 # Replace first dict in messages with a new system task
                 self.code_messages[0] = {"role": "system", "content": self.system_task_df}
             elif analyst == 'Data Analyst Generic':
@@ -372,7 +369,9 @@ class BambooAI:
     def pd_agent_converse(self, question=None):
         # Functions to display results nicely
         def display_results(answer, code, rank, total_tokens_used_sum):
-            if 'ipykernel' in sys.modules:     
+            if 'ipykernel' in sys.modules: 
+                if self.df is not None:
+                    display(HTML(f'<p><b style="color:blue;">Here is the head of your dataframe:</b><br><pre style="color:#555555;">{self.df.head(5)}</pre></p><br>'))    
                 if answer is not None:
                     display(HTML(f'<p><b style="color:blue;">I now have the final answer:</b><br><pre style="color:black; white-space: pre-wrap; font-weight: bold;">{answer}</pre></p><br>'))
                 if code is not None:
@@ -381,6 +380,9 @@ class BambooAI:
                     display(HTML(f'<p><b style="color:blue;">Solution Rank:</b><br><span style="color:black;">{rank}</span></p><br>'))
                 display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
+                if self.df is not None:
+                    cprint(f"\n>> Here is the head of your dataframe:", 'green', attrs=['bold'])
+                    print(self.df.head(5))
                 if answer is not None:
                     cprint(f"\n>> I now have the final answer:\n{answer}\n", 'green', attrs=['bold'])
                 if code is not None:
@@ -429,7 +431,7 @@ class BambooAI:
             if self.vector_db:
                 # Call the retrieve_answer method to check if the question has already been asked and answered
                 if analyst == 'Data Analyst DF':
-                    df_columns = self.df_columns
+                    df_columns = self.df.columns.tolist()
                 elif analyst == 'Data Analyst Generic':
                     df_columns = ''
 
@@ -499,7 +501,7 @@ class BambooAI:
     def generate_code(self, analyst, task, code_messages, example_output):
         # Add a user message with the updated task prompt to the messages list
         if analyst == 'Data Analyst DF':
-            code_messages.append({"role": "user", "content": self.user_task_df.format(self.df_head, task, example_output)})
+            code_messages.append({"role": "user", "content": self.user_task_df.format(self.df.head(1), task, example_output)})
         elif analyst == 'Data Analyst Generic':
             code_messages.append({"role": "user", "content": self.user_task_gen.format(task,example_output)})
 
@@ -581,6 +583,11 @@ class BambooAI:
     def execute_code(self, code, task, code_messages):
         # Initialize error correction counter
         error_corrections = 0
+
+        # Create a copy of the original self.df
+        if self.df is not None:
+            original_df = self.df.copy()
+
         # Redirect standard output to a StringIO buffer
         with redirect_stdout(io.StringIO()) as output:
             # Try to execute the code and handle errors
@@ -590,12 +597,11 @@ class BambooAI:
                     if len(code_messages) > self.MAX_CONVERSATIONS:
                         code_messages.pop(1)
                         code_messages.pop(1)
-                    if self.df is not None:
-                        # Reset df to the original state before executing the code
-                        self.df = self.original_df.copy()
+
                     # Execute the code
                     if code is not None:
                         exec(code, {'df': self.df})
+
                     break
                 except Exception as e:
                     # Print the error message
@@ -624,6 +630,10 @@ class BambooAI:
                     else:
                         llm_cascade = False
 
+                    # Reset df to the original state before trying again
+                    if self.df is not None:
+                        self.df = original_df.copy()
+
                     # Call OpenAI API to get an updated code
                     llm_response, tokens_used = self.llm_call(self.model_dict,code_messages,llm_cascade=llm_cascade)
                     code_messages.append({"role": "assistant", "content": llm_response})
@@ -634,7 +644,7 @@ class BambooAI:
         results = output.getvalue()
 
         # I now need to add the answer to the messages list apending the answer to the content of the assistamt message.
-        code_messages[-1]['content'] = code_messages[-1]['content'] + '\nResults:\n' + results
+        code_messages[-1]['content'] = code_messages[-1]['content'] + '\nResults of the previous step:\n' + results
 
         # Call OpenAI API to summarize the results
         # Initialize the messages list with a system message containing the task prompt
