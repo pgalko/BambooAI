@@ -58,14 +58,14 @@ class SearchEngine:
         full_words = full_text.split(' ')
         # Create a list of "documents". Each "document" is a string that contains document_size consecutive words from the article.
         documents = [' '.join(full_words[i:i+document_size]) for i in range(0, len(full_words), document_size)]
+        # Remove documents that are too short
         documents = [doc for doc in documents if len(doc) > 100]
         return documents
     
-    # Perform a Google search and retrieve the content of the top results
-    def __call__(self, query, num_documents=30, context_size=128):
+    # Perform a Google search and retrieve the content of the top results. Maximum word count is num_documents * context_size (default 7680)
+    def __call__(self, query, num_documents=30, context_size=256):
         google_resp = self.search_google(query)
         
-
         documents = []
         top_links = []
 
@@ -130,7 +130,7 @@ class Reader:
 
         messages = [{"role": "system", "content": prompt}]
         response = openai.ChatCompletion.create(
-            model = 'gpt-3.5-turbo-0613',
+            model = 'gpt-3.5-turbo-16k',
             messages = messages,
             temperature = 0,
             max_tokens = 1000,
