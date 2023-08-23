@@ -1,6 +1,5 @@
 
 import os
-import re
 import sys
 import json
 from contextlib import redirect_stdout
@@ -18,6 +17,7 @@ warnings.filterwarnings('ignore')
 #import func_calls
 #import qa_retrieval
 #import google_search 
+#import reg_ex
 
 #Running as a package
 from . import models
@@ -25,6 +25,7 @@ from . import prompts
 from . import func_calls
 from . import qa_retrieval
 from . import google_search
+from . import reg_ex
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -34,7 +35,8 @@ class BambooAI:
                  vector_db: bool = False, 
                  search_tool: bool = False,
                  llm_switch: bool = False, 
-                 exploratory: bool = True, 
+                 exploratory: bool = True,
+                 local_code_model: str = None 
                  ):
 
         # Check if the OPENAI_API_KEY environment variable is set
@@ -63,11 +65,13 @@ class BambooAI:
         self.df = df if df is not None else None
 
         # LLMs
-        # model dict
+        # OpenAI models model dict
         self.model_dict = {"llm": llm,
                            "llm_gpt4": "gpt-4-0613",
                            "llm_16k": "gpt-3.5-turbo-16k",
                            "llm_func": "gpt-3.5-turbo-0613",}
+        # Local models
+        self.local_code_model = local_code_model
 
         # Set the debug mode. This mode is True when you want the model to debug the code and correct it.
         self.debug = debug
@@ -100,6 +104,13 @@ class BambooAI:
         self.rank_answer = prompts.rank_answer
         self.solution_insights = prompts.solution_insights
 
+        # Regular expresions
+        self._extract_code = reg_ex._extract_code
+        self._extract_rank = reg_ex._extract_rank
+        self._extract_expert = reg_ex._extract_expert
+        self._extract_analyst = reg_ex._extract_analyst
+        self._remove_examples = reg_ex._remove_examples
+
         # Functions
         self.task_eval_function = func_calls.task_eval_function
         self.insights_function = func_calls.solution_insights_function
@@ -127,104 +138,6 @@ class BambooAI:
         self.search_tool = search_tool
         self.google_search = google_search.GoogleSearch()
 
-    #########################
-    ### Output Sanitizing ###
-    #########################
-
-    # Function to sanitize the LLM response, and exctract the code.
-    def _extract_code(self,response: str, separator: str = "```") -> str:
-
-        # Define a blacklist of Python keywords and functions that are not allowed
-        blacklist = ['os','subprocess','sys','eval','exec','file','socket','urllib',
-                    'shutil','pickle','ctypes','multiprocessing','tempfile','glob','code','pty'
-                    'commands','cgi','cgitb','xml.etree.ElementTree','builtins'
-                    ]
-
-        # Search for a pattern between <code> and </code> in the extracted code
-        match = re.search(r"<code>(.*)</code>", response, re.DOTALL)
-        if match:
-            # If a match is found, extract the code between <code> and </code>
-            code = match.group(1)
-            # If the response contains the separator, extract the code block between the separators
-            if len(code.split(separator)) > 1:
-                code = code.split(separator)[1]
-
-        # If the response contains the separator, extract the code block between the separators
-        if len(response.split(separator)) > 1:
-            code = response.split(separator)[1]
-            
-        # Remove the "python" or "py" prefix if present
-        if re.match(r"^(python|py)", code):
-            code = re.sub(r"^(python|py)", "", code)
-        # If the code is between single backticks, extract the code between them
-        if re.match(r"^`.*`$", code):
-            code = re.sub(r"^`(.*)`$", r"\1", code)
-
-        # Remove any instances of "df = pd.read_csv('filename.csv')" from the code
-        code = re.sub(r"df\s*=\s*pd\.read_csv\('.*?'(,.*)?\)", "", code)
-
-        # Define the regular expression pattern to match the blacklist items
-        pattern = r"^(.*\b(" + "|".join(blacklist) + r")\b.*)$"
-
-        # Replace the blacklist items with comments
-        code = re.sub(pattern, r"# not allowed \1", code, flags=re.MULTILINE)
-
-        # Return the cleaned and extracted code
-        return code.strip()
-    
-    def _extract_rank(self,response: str) -> str:
-
-        # Search for a pattern between <rank> and </rank> in the response
-        match = re.search(r"<rank>(.*)</rank>", response)
-        if match:
-            # If a match is found, extract the rank between <rank> and </rank>
-            rank = match.group(1)
-        else:
-            rank = ""
-
-        # Return the cleaned and extracted code
-        return rank.strip()
-    
-    def _extract_expert(self,response: str) -> str:
-        # Create a pattern to match any of the substrings
-        pattern = r'Data Analyst|Data Analysis Theorist|Internet Research Specialist'
-        
-        # Use re.search to find the first match in the input string
-        match = re.search(pattern, response)
-        
-        if match:
-            # If a match is found, return it
-            return match.group()
-        else:
-            # If no match is found, return None
-            return None
-        
-    def _extract_analyst(self,response: str) -> str:
-        # Create a pattern to match any of the substrings
-        pattern = r'Data Analyst DF|Data Analyst Generic'
-        
-        # Use re.search to find the first match in the input string
-        match = re.search(pattern, response)
-        
-        if match:
-            # If a match is found, return it
-            return match.group()
-        else:
-            # If no match is found, return None
-            return None
-    
-    # Function to remove examples from messages when no longer needed
-    def _remove_examples(self,messages: str) -> str:
-        # Define the regular expression pattern
-        pattern = 'Example Output:\s*<code>.*?</code>\s*'
-
-        # Iterate over the list of dictionaries
-        for dict in messages:
-            # Access and clean up 'content' field
-            if dict.get('role') == 'user' and 'content' in dict:
-                dict['content'] = re.sub(pattern, '', dict['content'], flags=re.DOTALL)
-
-        return messages
     
     ######################
     ### Eval Functions ###
@@ -452,7 +365,7 @@ class BambooAI:
             # Call the generate_code() method to genarate and debug the code
             code = self.generate_code(analyst, task, self.code_messages, example_output)
             # Call the execute_code() method to execute the code and summarise the results
-            answer, results, code, total_tokens_used_sum = self.execute_code(code, task, self.code_messages)  
+            answer, results, code, total_tokens_used_sum = self.execute_code(analyst,code, task, self.code_messages)  
             
             # Remove the examples from the messages list to minimize the number of tokens used
             self.code_messages = self._remove_examples(self.code_messages)
@@ -505,7 +418,10 @@ class BambooAI:
         elif analyst == 'Data Analyst Generic':
             code_messages.append({"role": "user", "content": self.user_task_gen.format(task,example_output)})
 
-        llm = self.model_dict['llm']
+        if self.local_code_model:
+            llm = self.local_code_model
+        else:
+            llm = self.model_dict['llm']
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
@@ -516,12 +432,12 @@ class BambooAI:
             print(colored(f"\n>> Calling Model: {llm}", "magenta"))
             cprint(f"\n>> I am generating the first version of the code, please wait\n", 'magenta', attrs=['bold'])
 
-        # Call the OpenAI API
-        llm_response, tokens_used = self.llm_stream(self.model_dict, code_messages)
+        # Call the OpenAI API or a local code model
+        llm_response, tokens_used = self.llm_stream(self.model_dict, code_messages, local_model=self.local_code_model)
         code_messages.append({"role": "assistant", "content": llm_response})
 
         # Extract the code from the API response
-        code = self._extract_code(llm_response)
+        code = self._extract_code(llm_response,analyst,local_model=self.local_code_model)
 
         # Update the total tokens used
         self.total_tokens_used.append(tokens_used)
@@ -539,11 +455,11 @@ class BambooAI:
                     print(colored("\n>> Switching model to GPT-4 to debug the code.", "magenta"))
             else:
                 llm_cascade = False
-            code = self.debug_code(code, task, llm_cascade=llm_cascade)
+            code = self.debug_code(analyst, code, task, llm_cascade=llm_cascade)
 
         return code
     
-    def debug_code(self,code,question, llm_cascade=False):
+    def debug_code(self,analyst,code,question, llm_cascade=False):
         # Initialize the messages list with a system message containing the task prompt
         debug_messages = [{"role": "system", "content": self.debug_code_task.format(code,question)}]
 
@@ -573,14 +489,14 @@ class BambooAI:
         llm_response, tokens_used = self.llm_stream(self.model_dict, debug_messages,temperature=0,llm_cascade=llm_cascade) # higher temperature results in more "creative" answers (sometimes too creative :-))
         
         # Extract the code from the API response
-        debugged_code = self._extract_code(llm_response)       
+        debugged_code = self._extract_code(llm_response,analyst)       
         display_task()
 
         self.total_tokens_used.append(tokens_used)
 
         return debugged_code
 
-    def execute_code(self, code, task, code_messages):
+    def execute_code(self, analyst, code, task, code_messages):
         # Initialize error correction counter
         error_corrections = 0
 
@@ -637,14 +553,14 @@ class BambooAI:
                     # Call OpenAI API to get an updated code
                     llm_response, tokens_used = self.llm_call(self.model_dict,code_messages,llm_cascade=llm_cascade)
                     code_messages.append({"role": "assistant", "content": llm_response})
-                    code = self._extract_code(llm_response)
+                    code = self._extract_code(llm_response,analyst)
                     self.total_tokens_used.append(tokens_used)
                     
         # Get the output from the executed code
         results = output.getvalue()
 
         # I now need to add the answer to the messages list apending the answer to the content of the assistamt message.
-        code_messages[-1]['content'] = code_messages[-1]['content'] + '\nResults of the previous step:\n' + results
+        code_messages[-1]['content'] = code_messages[-1]['content'] + '\nThe execution of this code resulted in the following:\n' + results
 
         # Call OpenAI API to summarize the results
         # Initialize the messages list with a system message containing the task prompt
