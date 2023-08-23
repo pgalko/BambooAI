@@ -127,12 +127,12 @@ user_task_df = """
     Strictly adhere to the prescribed instructions to avoid oversights and ensure an accurate solution.
     Always include the import statements at the top of the code.
     Always include print statements to output the results of your code.
-    Prefix the python code with <code> and suffix the code with </code>.
+    Always use the backticks to enclose the code.
 
     Example Output:
-    <code>
+    ```python
     {}
-    </code>
+    ```
     """
 user_task_gen = """
     Return the python code that acomplishes the following tasks: {}.
@@ -140,12 +140,12 @@ user_task_gen = """
     Strictly adhere to the prescribed instructions to avoid oversights and ensure an accurate solution.
     Always include the import statements at the top of the code.
     Always include print statements to output the results of your code.
-    Prefix the python code with <code> and suffix the code with </code>.
+    Always use the backticks to enclose the code.
 
     Example Output:
-    <code>
+    ```python
     {}
-    </code>
+    ```
     """
 # Code error correction
 error_correct_task = """
@@ -167,15 +167,17 @@ debug_code_task = """
 
     Task Inspection:
     Go through the task list and the given Python code side by side.
-    Ensure that each task in the list is accurately addressed by a corresponding section of code. Do not move on to the next task until the current one is completely solved and its implementation in the code is confirmed.
+    Ensure that each task in the list is accurately addressed by a corresponding section of code. 
+    Do not move on to the next task until the current one is completely solved and its implementation in the code is confirmed.
 
     Code Sectioning and Commenting:
     Based on the task list, divide the Python code into sections. Each task from the list should correspond to a distinct section of code.
-    At the beginning of each section, insert a comment or header that clearly identifies the task that section of code addresses. This could look like "# Task 1: Identify the dataframe df for example."
+    At the beginning of each section, insert a comment or header that clearly identifies the task that section of code addresses. 
+    This could look like "# Task 1: Identify the dataframe df for example."
     Ensure that the code within each section correctly and efficiently completes the task described in the comment or header for that section.
 
     After necessary modifications, provide the final, updated code, and a brief summary of the changes you made.
-    Prefix the code with <code> and suffix the code with </code>.
+    Always use the backticks to enclose the code.
 
     Example Input
     Task List:
@@ -188,7 +190,7 @@ debug_code_task = """
     df_description
 
     Example Output:
-    <code>
+    ```python
     import pandas as pd
 
     # Task 1: Identify the dataframe `df`
@@ -199,7 +201,7 @@ debug_code_task = """
 
     # Task 3: Print the output of the `describe()` method
     print(df_description)
-    </code>
+    ```
  """
 # Code ranking
 rank_answer = """
