@@ -56,7 +56,7 @@ The BambooAI agent operates through several key steps to interact with users and
 
 **4. Debugging, Execution, and Error Correction**
 - If the generated code needs debugging, GPT-4 is engaged.
-- The code is executed, and if errors occur, the agent logs the error message and refers it to the LLM (GPT-3 or GPT-4, depending on the settings) for correction.
+- The code is executed using GPT-3,GPT-4 or a local OS model, and if errors occur, the agent logs the error message and refers it back to the LLM (GPT-3 or GPT-4, depending on the settings) for correction.
 - This process continues until successful code execution.
 
 **5. Results, Ranking, and Knowledge Base Build**
@@ -105,8 +105,11 @@ vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the
 
 exploratory: bool - If set to True, the LLM will evaluate the user's question and select an "Expert" that is best suited to address the question (experts: Internet Search Specialist, Data Analisys Theoretician, Data Analyst). For instance, if the task involves code generation/execution, it will generate a task list detailing the steps, which will subsequently be sent to the LLM as a prompt for the next action. This method is particularly effective for vague user prompts, but it might not perform as efficiently with more specific prompts. The default setting is True.
 
+local_code_model: str - Takes a name of the localy installed open source model. It will use this model instead of an Open AI model to generate the code. The currently supported models: WizardCoder-15B-V1.0 and WizardCoder-15B-1.0-GPTQ. For use with free Colab use WizardCoder-15B-1.0-GPTQ. Requires for the model to be downloaded from Hugging Faces which can take awhile. If used in Colab you will need to change the runtime type and use the GPU hardware accelerator for this option to work. Default None.
+
 
 e.g. bamboo = BambooAI(df, debug=True, vector_db=True, llm_switch=True, search_tool=True, exploratory=True)
+     bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, llm_switch=False, search_tool=True, local_code_model='WizardCoder-15B-1.0-GPTQ')
 ```
 
 Run in a loop
@@ -140,6 +143,19 @@ The key can be obtained from here: https://platform.openai.com/account/api-keys.
 The Pincone vector db is optional. If you don want to use it, you dont need to do anything. If you have an account with Pinecone and would like to use the knowledge base and ranking features, you will be required to setup ```PINECONE_API_KEY``` and ```PINECONE_ENV``` envirooment variables, and set the 'vector_db' parameter to True. The vector db index is created upon first execution.
 
 The Google Search is also optional. If you don want to use it, you dont need to do anything. If you have an account with Serper and would like to use the Google Search feature, you will be required to setup ```SERPER_API_KEY``` environment variable, and set the 'search_tool' parameter to True.
+
+**Local Models**
+
+The library currently supports two open source models: *WizardCoder-15B-V1.0* and *WizardCoder-15B-1.0-GPTQ*. More models will be added soon. At present the local models are only called upon for code generation tasks, all other tasks like pseudo code generaration, summarisation, error correction and ranking are still handled by OpenAI models of choice. The model is downloaded from Huggingface and cached localy for subsequent executions. For a reasonable performance it requires CUDA enabled GPU and the pytorch library compatible with the CUDA version. Below are the required libraries that are not included in the package and will need to be installed independently:
+```
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 (Adjust to match your CUDA version. This library is already included in Colab notebooks)
+pip install auto-gptq (Only required if using WizardCoder-15B-1.0-GPTQ model)
+pip install accelerate
+pip install einops
+pip install xformers
+pip install bitsandbytes
+```
+The settings for local models are located in local_models.py module and can be adjusted to match your particular configuration or preferences.
 
 ## Examples
 
