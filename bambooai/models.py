@@ -80,76 +80,86 @@ def llm_func_call(model_dict: dict, messages: str, functions: str, function_name
 
     return fn_name,arguments,tokens_used
 
-def llm_stream(model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False):
-    init_openai()
-    model = model_dict['llm']
-    if llm_cascade:
-        model = model_dict['llm_gpt4']
-    try:
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream = True
-        )
-    except openai.error.RateLimitError:
-        print(
-            "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-        )
-        time.sleep(10)
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream = True
-        )
-    # Exceeded the maximum number of tokens allowed by the API
-    except openai.error.InvalidRequestError:
-        print(
-            "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
-        )
-        response = openai.ChatCompletion.create(
-            model=model_dict['llm_16k'],
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream = True
-        )
-    
-    # create variables to collect the stream of chunks
-    collected_chunks = []
-    collected_messages = []
-    # iterate through the stream of events
-    for chunk in response:
-        collected_chunks.append(chunk)  # save the event response
-        chunk_message = chunk['choices'][0]['delta']  # extract the message
-        collected_messages.append(chunk_message)  # save the message
-        print(chunk_message.get('content', ''), end='', flush=True)  # print the message without a newline
-    
-    print()  # print a newline
+def llm_stream(model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False, local_model: str = None):
+    #If local_model is not None, use local model instead of OpenAI API
+    if local_model:
+        # Running as a script
+        #import local_models
+        # Running as a package
+        from . import local_models
+        full_reply_content, total_tokens_used = local_models.llm_local_stream(messages,local_model)
+        return full_reply_content, total_tokens_used
+    #If local_model is None, use OpenAI API
+    else:
+        init_openai()
+        model = model_dict['llm']
+        if llm_cascade:
+            model = model_dict['llm_gpt4']
+        try:
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream = True
+            )
+        except openai.error.RateLimitError:
+            print(
+                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
+            )
+            time.sleep(10)
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream = True
+            )
+        # Exceeded the maximum number of tokens allowed by the API
+        except openai.error.InvalidRequestError:
+            print(
+                "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
+            )
+            response = openai.ChatCompletion.create(
+                model=model_dict['llm_16k'],
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream = True
+            )
+        
+        # create variables to collect the stream of chunks
+        collected_chunks = []
+        collected_messages = []
+        # iterate through the stream of events
+        for chunk in response:
+            collected_chunks.append(chunk)  # save the event response
+            chunk_message = chunk['choices'][0]['delta']  # extract the message
+            collected_messages.append(chunk_message)  # save the message
+            print(chunk_message.get('content', ''), end='', flush=True)  # print the message without a newline
+        
+        print()  # print a newline
 
-    # get the complete text received
-    full_reply_content = ''.join([m.get('content', '') for m in collected_messages])
+        # get the complete text received
+        full_reply_content = ''.join([m.get('content', '') for m in collected_messages])
 
-    # count the number of response tokens used
-    response_tokens_used = len(collected_chunks)
+        # count the number of response tokens used
+        response_tokens_used = len(collected_chunks)
 
-    # count the number of prompt tokens used
-    encoding = tiktoken.encoding_for_model(model)   
-    tokens_per_message = 3
-    tokens_per_name = 1
-    prompt_tokens_used = 0
-    for message in messages:
-        prompt_tokens_used += tokens_per_message
-        for key, value in message.items():
-            prompt_tokens_used += len(encoding.encode(value))
-            if key == "name":
-                prompt_tokens_used += tokens_per_name
-    prompt_tokens_used += 3  # every reply is primed with <|start|>assistant<|message|>
+        # count the number of prompt tokens used
+        encoding = tiktoken.encoding_for_model(model)   
+        tokens_per_message = 3
+        tokens_per_name = 1
+        prompt_tokens_used = 0
+        for message in messages:
+            prompt_tokens_used += tokens_per_message
+            for key, value in message.items():
+                prompt_tokens_used += len(encoding.encode(value))
+                if key == "name":
+                    prompt_tokens_used += tokens_per_name
+        prompt_tokens_used += 3  # every reply is primed with <|start|>assistant<|message|>
 
-    # calculate the total tokens used
-    total_tokens_used = prompt_tokens_used + response_tokens_used
+        # calculate the total tokens used
+        total_tokens_used = prompt_tokens_used + response_tokens_used
 
-    return full_reply_content, total_tokens_used
+        return full_reply_content, total_tokens_used
