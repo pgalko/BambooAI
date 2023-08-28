@@ -13,9 +13,9 @@ def llm_call( model_dict: dict, messages: str, temperature: float = 0, max_token
     #If local_model is not None, and llm_cascade is False use local model instead of OpenAI API
     if local_model and not llm_cascade: 
         # Running as a script
-        import local_models
-        # Running as a package
-        #from . import local_models
+        #import local_models
+        #Running as a package
+        from . import local_models
         content, total_tokens_used = local_models.llm_local_stream(messages,local_model)
         return content, total_tokens_used
     #If local_model is None, use OpenAI API
