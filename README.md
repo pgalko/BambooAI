@@ -105,11 +105,11 @@ vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the
 
 exploratory: bool - If set to True, the LLM will evaluate the user's question and select an "Expert" that is best suited to address the question (experts: Internet Search Specialist, Data Analisys Theoretician, Data Analyst). For instance, if the task involves code generation/execution, it will generate a task list detailing the steps, which will subsequently be sent to the LLM as a prompt for the next action. This method is particularly effective for vague user prompts, but it might not perform as efficiently with more specific prompts. The default setting is True.
 
-local_code_model: str - Takes a name of the localy installed open source model. It will use this model instead of an Open AI model to generate the code. The currently supported models: WizardCoder-15B-V1.0 and WizardCoder-15B-1.0-GPTQ. For use with free Colab use WizardCoder-15B-1.0-GPTQ. Requires for the model to be downloaded from Hugging Faces which can take awhile. If used in Colab you will need to change the runtime type and use the GPU hardware accelerator for this option to work. Default None.
+local_code_model: str - Takes a name of the localy installed open source model. It will use this model instead of an Open AI model to generate the code. For use with free Colab use 13B/15B GPTQ models. Requires for the model to be downloaded from Hugging Faces which can take awhile. If used in Colab you will need to change the runtime type and use the GPU hardware accelerator for this option to work. Default None.
 
 
 e.g. bamboo = BambooAI(df, debug=True, vector_db=True, llm_switch=True, search_tool=True, exploratory=True)
-     bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, llm_switch=False, search_tool=True, local_code_model='WizardCoder-15B-1.0-GPTQ')
+     bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, llm_switch=False, search_tool=True, local_code_model='WizardCoder-15B-1.0')
 ```
 
 Run in a loop
@@ -146,7 +146,13 @@ The Google Search is also optional. If you don want to use it, you dont need to 
 
 **Local Models**
 
-The library currently supports two open source models: *WizardCoder-15B-V1.0* and *WizardCoder-15B-1.0-GPTQ*. More models will be added soon (Eagerly awaiting the release of the recently announced Meta Llama 2-Code model). At present the local models are only called upon for code generation tasks, all other tasks like pseudo code generaration, summarisation, error correction and ranking are still handled by OpenAI models of choice. The model is downloaded from Huggingface and cached localy for subsequent executions. For a reasonable performance it requires CUDA enabled GPU and the pytorch library compatible with the CUDA version. Below are the required libraries that are not included in the package and will need to be installed independently:
+The library currently supports the following open source models: 
+- **WizardCoder(WizardLM):** WizardCoder-15B-V1.0, WizardCoder-Python-7B-V1.0, WizardCoder-Python-13B-V1.0, WizardCoder-Python-34B-V1.0
+- **WizardCoder GPTQ(TheBloke):** WizardCoder-15B-1.0-GPTQ, WizardCoder-Python73B-V1.0-GPTQ, WizardCoder-Python-13B-V1.0-GPTQ, WizardCoder-Python-34B-V1.0-GPTQ
+- **CodeLlama Instruct(TheBloke):** CodeLlama-7B-Instruct-fp16, CodeLlama-13B-Instruct-fp16, CodeLlama-34B-Instruct-fp16
+- **CodeLlama Completion(TheBloke):** CodeLlama-7B-Python-fp16, CodeLlama-13B-Python-fp16, CodeLlama-34B-Python-fp16
+  
+At present the local models are only called upon for code generation tasks, all other tasks like pseudo code generaration, summarisation, error correction and ranking are still handled by OpenAI models of choice. The model is downloaded from Huggingface and cached localy for subsequent executions. For a reasonable performance it requires CUDA enabled GPU and the pytorch library compatible with the CUDA version. Below are the required libraries that are not included in the package and will need to be installed independently:
 ```
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 (Adjust to match your CUDA version. This library is already included in Colab notebooks)
 pip install auto-gptq (Only required if using WizardCoder-15B-1.0-GPTQ model)
