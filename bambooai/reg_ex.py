@@ -1,6 +1,14 @@
 
 import re
 
+def _normalize_indentation(code_segment: str) -> str:
+    # Determine the minimum indentation of non-empty lines
+    lines = code_segment.strip().split('\n')
+    min_indent = min(len(re.match(r'^\s*', line).group()) for line in lines if line.strip())
+    
+    # Remove the minimum indentation from each line
+    return '\n'.join(line[min_indent:] for line in lines)
+
 # Function to sanitize the LLM response, and extract the code.
 def _extract_code(response: str, analyst: str, local_model: str = None) -> str:
     # Use re.sub to replace all occurrences of the <|im_sep|> with the ```.
@@ -13,9 +21,17 @@ def _extract_code(response: str, analyst: str, local_model: str = None) -> str:
                 ]
         
     # Use a regular expression to find all code segments enclosed in triple backticks with "python"
-    code_segments = re.findall(r'```python\s*(.*?)\s*```', response, re.DOTALL)
-    # Combine the code segments into a single string, separating them with a newline
-    code = '\n'.join(code_segments)
+    #code_segments = re.findall(r'```python\s*(.*?)\s*```', response, re.DOTALL)
+    # Use a regular expression to find all code segments enclosed in triple backticks with or without "python"
+    code_segments = re.findall(r'```(?:python\s*)?(.*?)\s*```', response, re.DOTALL)
+    if not code_segments:
+         code_segments = re.findall(r'\[PYTHON\](.*?)\[/PYTHON\]', response, re.DOTALL)
+
+    # Normalize the indentation for each code segment
+    normalized_code_segments = [_normalize_indentation(segment) for segment in code_segments]
+
+    # Combine the normalized code segments into a single string
+    code = '\n'.join(normalized_code_segments).lstrip()
 
     # Remove any instances of "df = pd.read_csv('filename.csv')" from the code
     code = re.sub(r"df\s*=\s*pd\.read_csv\((.*?)\)", "", code)
