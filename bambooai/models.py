@@ -9,45 +9,55 @@ def init_openai():
     API_KEY = os.environ.get('OPENAI_API_KEY')
     openai.api_key = API_KEY
 
-def llm_call( model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False):
-    init_openai()
-    model = model_dict['llm']
-    if llm_cascade:
-        model = model_dict['llm_gpt4']
-    try:
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-    except openai.error.RateLimitError:
-        print(
-            "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
-        )
-        time.sleep(10)
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-    # Exceeded the maximum number of tokens allowed by the API
-    except openai.error.InvalidRequestError:
-        print(
-            "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
-        )
-        response = openai.ChatCompletion.create(
-            model=model_dict['llm_16k'],   
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+def llm_call( model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False, local_model: str = None):
+    #If local_model is not None, and llm_cascade is False use local model instead of OpenAI API
+    if local_model and not llm_cascade: 
+        # Running as a script
+        import local_models
+        # Running as a package
+        #from . import local_models
+        content, total_tokens_used = local_models.llm_local_stream(messages,local_model)
+        return content, total_tokens_used
+    #If local_model is None, use OpenAI API
+    else:
+        init_openai()
+        model = model_dict['llm']
+        if llm_cascade:
+            model = model_dict['llm_gpt4']
+        try:
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except openai.error.RateLimitError:
+            print(
+                "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
+            )
+            time.sleep(10)
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        # Exceeded the maximum number of tokens allowed by the API
+        except openai.error.InvalidRequestError:
+            print(
+                "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
+            )
+            response = openai.ChatCompletion.create(
+                model=model_dict['llm_16k'],   
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
 
-    content = response.choices[0].message.content.strip()
-    tokens_used = response.usage.total_tokens
+        content = response.choices[0].message.content.strip()
+        tokens_used = response.usage.total_tokens
 
-    return content, tokens_used
+        return content, tokens_used
 
 def llm_func_call(model_dict: dict, messages: str, functions: str, function_name: str):
     init_openai()
@@ -81,12 +91,12 @@ def llm_func_call(model_dict: dict, messages: str, functions: str, function_name
     return fn_name,arguments,tokens_used
 
 def llm_stream(model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False, local_model: str = None):
-    #If local_model is not None, use local model instead of OpenAI API
-    if local_model:
+    #If local_model is not None, and llm_cascade is False use local model instead of OpenAI API
+    if local_model and not llm_cascade: 
         # Running as a script
-        #import local_models
+        import local_models
         # Running as a package
-        from . import local_models
+        #from . import local_models
         full_reply_content, total_tokens_used = local_models.llm_local_stream(messages,local_model)
         return full_reply_content, total_tokens_used
     #If local_model is None, use OpenAI API
