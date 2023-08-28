@@ -13,7 +13,7 @@ from transformers import (
 
 logging.set_verbosity(logging.CRITICAL)
 
-def convert_openai_to_wizard(messages: str):
+def convert_openai_to_alpaca(messages: str):
     formatted_content = ""
     last_role = None
 
@@ -39,26 +39,76 @@ def convert_openai_to_wizard(messages: str):
 
     return formatted_content
 
+def convert_openai_to_llama2_chat(messages: list):
+    formatted_content = ""
+    in_inst = False
+    
+    for i, item in enumerate(messages):
+        role = item['role']
+        content = item['content']
+        
+        if role == 'system':
+            formatted_content += "<s>[INST]" + "<<SYS>>" + content + "<</SYS>>\n\n"
+            in_inst = True
+        elif role == 'user':
+            if not in_inst:
+                formatted_content += "<s>[INST]"
+            formatted_content += content
+            formatted_content += "[/INST]"
+            in_inst = False
+        elif role == 'assistant':
+            formatted_content += content
+            if in_inst:
+                formatted_content += " "
+
+    # Remove content starting with "Example Output:" and ending at the next "[/INST]"
+    #formatted_content = re.sub(r'Example Output:.*?\[/INST\]', '[/INST]', formatted_content, flags=re.S)
+    return formatted_content.strip()
+
+def convert_openai_to_llama2_completion(messages: list):
+    formatted_content = None
+    for message in reversed(messages):
+        if message['role'] == 'user':
+            formatted_content = message['content']
+            break
+    # Remove content starting with "Example Output:" "
+    #formatted_content = re.sub(r'Example Output:.*', '', formatted_content, flags=re.S)
+    return formatted_content
+
 def llm_local_stream(messages: str,local_model: str):   
     total_tokens_used=0
+
+    wizard_coder_models=['WizardCoder-15B-V1.0','WizardCoder-Python-7B-V1.0','WizardCoder-Python-13B-V1.0','WizardCoder-Python-34B-V1.0']
+    wizard_coder_gptq_models=['WizardCoder-15B-1.0-GPTQ','WizardCoder-Python-7B-V1.0-GPTQ','WizardCoder-Python-13B-V1.0-GPTQ','WizardCoder-Python-34B-V1.0-GPTQ']
+    code_llama_instruct_models=['CodeLlama-7B-Instruct-fp16','CodeLlama-13B-Instruct-fp16','CodeLlama-34B-Instruct-fp16']
+    code_llama_completion_models=['CodeLlama-7B-Python-fp16','CodeLlama-13B-Python-fp16','CodeLlama-34B-Python-fp16']
+    all_models = wizard_coder_models + wizard_coder_gptq_models + code_llama_instruct_models + code_llama_completion_models
 
     try:
         from torch import cuda,bfloat16,float16
     except ImportError:
         raise ImportError("The torch package is required for using local models. Please install it using pip install torch.")
     
-    if local_model == 'WizardCoder-15B-V1.0':
-        model_name = "WizardLM/WizardCoder-15B-V1.0"
-        messages = convert_openai_to_wizard(messages)
-    elif local_model == 'WizardCoder-15B-1.0-GPTQ':
+    if local_model in wizard_coder_models:
+        model_name = f"WizardLM/{local_model}"
+        messages = convert_openai_to_alpaca(messages)
+    elif local_model in wizard_coder_gptq_models:
         try:
             from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
         except ImportError:
-            raise ImportError("The auto_gptq package is required for using WizardCoder-15B-1.0-GPTQ. Please install it using pip install auto-gptq")
-        model_name = "TheBloke/WizardCoder-15B-1.0-GPTQ"
-        messages = convert_openai_to_wizard(messages)
+            raise ImportError("The auto_gptq package is required for using WizardCoder-GPTQ. Please install it using pip install auto-gptq")
+        model_name = f"TheBloke/{local_model}"
+        messages = convert_openai_to_alpaca(messages)
+    elif local_model in code_llama_instruct_models:
+        model_name = f"TheBloke/{local_model}"
+        messages = convert_openai_to_llama2_chat(messages)
+    elif local_model in code_llama_completion_models:
+        model_name = f"TheBloke/{local_model}"
+        messages = convert_openai_to_llama2_completion(messages)
     else:
-        raise ValueError('Currently the only supported local_models are WizardCoder-15B-V1.0 and WizardCoder-15B-1.0-GPTQ')
+        all_models_str = ', '.join(all_models)
+        error_message = f"Currently the only supported local_models are: {all_models_str}"
+        raise ValueError(error_message)
 
     if cuda.is_available():
         gpu_memory_gb = cuda.get_device_properties(0).total_memory / 1e9 if cuda.is_available() else 0  # In GB
@@ -74,7 +124,7 @@ def llm_local_stream(messages: str,local_model: str):
         bnb_4bit_compute_dtype=bfloat16
     )
 
-    if local_model == 'WizardCoder-15B-V1.0':
+    if local_model in wizard_coder_models or local_model in code_llama_instruct_models or local_model in code_llama_completion_models:
         # If the GPU has more than 80GB of memory, use float16
         if cuda.is_available() and gpu_memory_gb >= 80:
             model_config = {
@@ -93,7 +143,7 @@ def llm_local_stream(messages: str,local_model: str):
             **model_config,
         )
 
-    elif local_model == 'WizardCoder-15B-1.0-GPTQ':
+    elif local_model in wizard_coder_gptq_models:
         model = AutoGPTQForCausalLM.from_quantized(
             model_name,
             use_safetensors=True,
@@ -116,7 +166,7 @@ def llm_local_stream(messages: str,local_model: str):
                     top_k=5,
                     num_return_sequences=1,
                     eos_token_id=tokenizer.eos_token_id,
-                    max_length=2048,
+                    max_length=16000,
                     repetition_penalty=1.1,
                     streamer=streamer,
                     return_full_text=False,
