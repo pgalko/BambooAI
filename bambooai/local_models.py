@@ -128,7 +128,7 @@ def llm_local_stream(messages: str,local_model: str):
         bnb_4bit_compute_dtype=bfloat16
     )
 
-    if local_model in wizard_coder_models or local_model in code_llama_instruct_models or local_model in code_llama_completion_models:
+    if local_model in wizard_coder_models or local_model in code_llama_instruct_models or local_model in code_llama_completion_models or local_model in phind_models:
         # If the GPU has more than 80GB of memory, use float16
         if cuda.is_available() and gpu_memory_gb >= 80:
             model_config = {
