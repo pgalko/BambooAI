@@ -150,8 +150,9 @@ The library currently supports the following open source models:
 - **WizardCoder(WizardLM):** WizardCoder-15B-V1.0, WizardCoder-Python-7B-V1.0, WizardCoder-Python-13B-V1.0, WizardCoder-Python-34B-V1.0
 - **WizardCoder GPTQ(TheBloke):** WizardCoder-15B-1.0-GPTQ, WizardCoder-Python73B-V1.0-GPTQ, WizardCoder-Python-13B-V1.0-GPTQ, WizardCoder-Python-34B-V1.0-GPTQ
 - **CodeLlama Instruct(TheBloke):** CodeLlama-7B-Instruct-fp16, CodeLlama-13B-Instruct-fp16, CodeLlama-34B-Instruct-fp16
+- **CodeLlama Instruct(Phind):** Phind-CodeLlama-34B-v2
 - **CodeLlama Completion(TheBloke):** CodeLlama-7B-Python-fp16, CodeLlama-13B-Python-fp16, CodeLlama-34B-Python-fp16
-  
+
 At present the local models are only called upon for code generation tasks, all other tasks like pseudo code generaration, summarisation, error correction and ranking are still handled by OpenAI models of choice. The model is downloaded from Huggingface and cached localy for subsequent executions. For a reasonable performance it requires CUDA enabled GPU and the pytorch library compatible with the CUDA version. Below are the required libraries that are not included in the package and will need to be installed independently:
 ```
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 (Adjust to match your CUDA version. This library is already included in Colab notebooks)
@@ -211,7 +212,7 @@ Final iteration... using the best performing model and tuned hyper parameters. F
 - Be sure to monitor your token usage. At the time of writing, the cost per 1K tokens is $0.03 USD for GPT-4 and $0.002 USD for GPT-3.5-turbo. It's important to keep these costs in mind when using the library, particularly when using the more expensive models.
 - Supported OpenAI models: *gpt-3.5-turbo, gpt-3.5-turbo-613, gpt-3.5-turbo-16k, gpt-4, gpt-4-0613.*
 - Supported Open Source Models: *WizardCoder-15B-V1.0, WizardCoder-Python-7B-V1.0, WizardCoder-Python-13B-V1.0, WizardCoder-Python-34B-V1.0, WizardCoder-15B-1.0-GPTQ, WizardCoder-Python73B-V1.0-GPTQ, WizardCoder-Python-13B-V1.0-GPTQ,
-  WizardCoder-Python-34B-V1.0-GPTQ, CodeLlama-7B-Instruct-fp16, CodeLlama-13B-Instruct-fp16, CodeLlama-34B-Instruct-fp16, CodeLlama-7B-Python-fp16, CodeLlama-13B-Python-fp16, CodeLlama-34B-Python-fp16.*
+  WizardCoder-Python-34B-V1.0-GPTQ, CodeLlama-7B-Instruct-fp16, CodeLlama-13B-Instruct-fp16, CodeLlama-34B-Instruct-fp16, CodeLlama-7B-Python-fp16, CodeLlama-13B-Python-fp16, CodeLlama-34B-Python-fp16, Phind-CodeLlama-34B-v2.*
 
 ## Contributing
 
