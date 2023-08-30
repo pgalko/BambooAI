@@ -144,7 +144,7 @@ The Pincone vector db is optional. If you don want to use it, you dont need to d
 
 The Google Search is also optional. If you don want to use it, you dont need to do anything. If you have an account with Serper and would like to use the Google Search feature, you will be required to setup ```SERPER_API_KEY``` environment variable, and set the 'search_tool' parameter to True.
 
-**Local Models**
+**Local Open Source Models**
 
 The library currently supports the following open-source models. I have selected the models that currently score the highest on the HumanEval benchmark.
 - **WizardCoder(WizardLM):** WizardCoder-15B-V1.0, WizardCoder-Python-7B-V1.0, WizardCoder-Python-13B-V1.0, WizardCoder-Python-34B-V1.0
