@@ -79,10 +79,11 @@ def llm_local_stream(messages: str,local_model: str):
     total_tokens_used=0
 
     wizard_coder_models=['WizardCoder-15B-V1.0','WizardCoder-Python-7B-V1.0','WizardCoder-Python-13B-V1.0','WizardCoder-Python-34B-V1.0']
+    phind_models=['Phind-CodeLlama-34B-v2']
     wizard_coder_gptq_models=['WizardCoder-15B-1.0-GPTQ','WizardCoder-Python-7B-V1.0-GPTQ','WizardCoder-Python-13B-V1.0-GPTQ','WizardCoder-Python-34B-V1.0-GPTQ']
     code_llama_instruct_models=['CodeLlama-7B-Instruct-fp16','CodeLlama-13B-Instruct-fp16','CodeLlama-34B-Instruct-fp16']
     code_llama_completion_models=['CodeLlama-7B-Python-fp16','CodeLlama-13B-Python-fp16','CodeLlama-34B-Python-fp16']
-    all_models = wizard_coder_models + wizard_coder_gptq_models + code_llama_instruct_models + code_llama_completion_models
+    all_models = wizard_coder_models + wizard_coder_gptq_models + code_llama_instruct_models + code_llama_completion_models + phind_models
 
     try:
         from torch import cuda,bfloat16,float16
@@ -98,6 +99,9 @@ def llm_local_stream(messages: str,local_model: str):
         except ImportError:
             raise ImportError("The auto_gptq package is required for using WizardCoder-GPTQ. Please install it using pip install auto-gptq")
         model_name = f"TheBloke/{local_model}"
+        messages = convert_openai_to_alpaca(messages)
+    elif local_model in phind_models:
+        model_name = f"Phind/{local_model}"
         messages = convert_openai_to_alpaca(messages)
     elif local_model in code_llama_instruct_models:
         model_name = f"TheBloke/{local_model}"
