@@ -146,7 +146,7 @@ The Google Search is also optional. If you don want to use it, you dont need to 
 
 **Local Models**
 
-The library currently supports the following open source models: 
+The library currently supports the following open-source models. I have selected the models that currently score the highest on the HumanEval benchmark.
 - **WizardCoder(WizardLM):** WizardCoder-15B-V1.0, WizardCoder-Python-7B-V1.0, WizardCoder-Python-13B-V1.0, WizardCoder-Python-34B-V1.0
 - **WizardCoder GPTQ(TheBloke):** WizardCoder-15B-1.0-GPTQ, WizardCoder-Python73B-V1.0-GPTQ, WizardCoder-Python-13B-V1.0-GPTQ, WizardCoder-Python-34B-V1.0-GPTQ
 - **CodeLlama Instruct(TheBloke):** CodeLlama-7B-Instruct-fp16, CodeLlama-13B-Instruct-fp16, CodeLlama-34B-Instruct-fp16
