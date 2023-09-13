@@ -163,7 +163,7 @@ Code:
 Task list:
 {}.
 
-Please follow the below instructions to acoomplish your assingment.If provided, the dataframe df has already been defined and populated with the required data.
+Please follow the below instructions to accomplish your assingment.If provided, the dataframe df has already been defined and populated with the required data.
 
 Task Inspection:
 Go through the task list and the given Python code side by side.
@@ -173,21 +173,11 @@ Do not move on to the next task until the current one is completely solved and i
 Code Sectioning and Commenting:
 Based on the task list, divide the Python code into sections. Each task from the list should correspond to a distinct section of code.
 At the beginning of each section, insert a comment or header that clearly identifies the task that section of code addresses. 
-This could look like "# Task 1: Identify the dataframe df for example."
+This could look like "# Task 1: Identify the dataframe df" for example.
 Ensure that the code within each section correctly and efficiently completes the task described in the comment or header for that section.
 
 After necessary modifications, provide the final, updated code, and a brief summary of the changes you made.
 Always use the backticks to enclose the code.
-
-Example Input
-Task List:
-1. Identify the dataframe `df`.
-2. Call the `describe()` method on `df`.
-3. Print the output of the `describe()` method.
-
-Code: 
-df_description = df.describe()
-df_description
 
 Example Output:
 ```python
@@ -202,7 +192,7 @@ df_description = df.describe()
 # Task 3: Print the output of the `describe()` method
 print(df_description)
 ```
- """
+"""
 # Code ranking
 rank_answer = """
 As an AI QA Engineer, your role is to evaluate and grade the code: {}, supplied by the AI Data Analyst. You should rank it on a scale of 1 to 10.

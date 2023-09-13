@@ -34,7 +34,8 @@ class BambooAI:
                  debug: bool = False, 
                  vector_db: bool = False, 
                  search_tool: bool = False,
-                 llm_switch: bool = False, 
+                 llm_switch_plan: bool = False,
+                 llm_switch_code: bool = False, 
                  exploratory: bool = True,
                  local_code_model: str = None 
                  ):
@@ -75,12 +76,14 @@ class BambooAI:
 
         # Set the debug mode. This mode is True when you want the model to debug the code and correct it.
         self.debug = debug
-        # Set the llm_switch mode. This mode is True when you want the model to switch to gpt-4 for debugging, error correction and ranking.
-        self.llm_switch = llm_switch
-        # Set the rank mode. This mode is True when you want the model to rank the generated code.
+        # Set the llm_switch_plan mode. This mode is True when you want the model to switch to gpt-4 for planning tasks (task_eval, select_expert, select_analyst).
+        self.llm_switch_plan = llm_switch_plan
+        # Set the llm_switch_code mode. This mode is True when you want the model to switch to gpt-4 for coding tasks (debugg, error correction, ranking).
+        self.llm_switch_code = llm_switch_code
+        # Set the vector_db mode. This mode is True when you want the model to rank the generated code, and store the results above threshold in a vector database.
         self.vector_db = vector_db
 
-        # Set the exploratory mode. This mode is True when you want the model to evaluate the original prompt and break it down in algorithm.
+        # Set the exploratory mode. This mode is True when you want the model to evaluate the original user prompt and break it down in algorithm.
         self.exploratory = exploratory
         
         # Prompts
@@ -143,53 +146,55 @@ class BambooAI:
     ### Eval Functions ###
     ######################
     
-    def task_eval(self, eval_messages):
-        
-        llm = self.model_dict['llm']
+    def task_eval(self, eval_messages, llm_cascade_plan=False):
+
+        using_model = self.model_dict['llm']
+        if llm_cascade_plan:
+            using_model = self.model_dict['llm_gpt4']
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {llm}</p>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
             display(HTML(f'<p><b style="color:magenta;">Trying to determine the best method to answer your question, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {llm}", "magenta"))
+            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
             cprint(f"\n>> Trying to determine the best method to answer your question, please wait...\n", 'magenta', attrs=['bold'])
 
         # Call OpenAI API to evaluate the task
-        llm_response, tokens_used = self.llm_stream(self.model_dict, eval_messages)
+        llm_response, tokens_used = self.llm_stream(self.model_dict, eval_messages, llm_cascade=llm_cascade_plan)
 
         self.total_tokens_used.append(tokens_used)
 
         return llm_response
     
-    def select_expert(self, pre_eval_messages):
+    def select_expert(self, pre_eval_messages, llm_cascade_plan=False):
         
-        llm = self.model_dict['llm']
+        using_model = self.model_dict['llm']
+        if llm_cascade_plan:
+            using_model = self.model_dict['llm_gpt4']
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {llm}</p>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
             display(HTML(f'<p><b style="color:magenta;">Selecting the expert to best answer your query, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {llm}", "magenta"))
+            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
             cprint(f"\n>> Selecting the expert to best answer your query, please wait..\n", 'magenta', attrs=['bold'])
 
         # Call OpenAI API to evaluate the task
-        llm_response, tokens_used = self.llm_stream(self.model_dict, pre_eval_messages)
+        llm_response, tokens_used = self.llm_stream(self.model_dict, pre_eval_messages, llm_cascade=llm_cascade_plan)
         expert = self._extract_expert(llm_response)
 
         self.total_tokens_used.append(tokens_used)
 
         return expert
     
-    def select_analyst(self, select_analyst_messages):
-        
-        llm = self.model_dict['llm']
+    def select_analyst(self, select_analyst_messages, llm_cascade_plan=False):
 
         # Call OpenAI API to evaluate the task
-        llm_response, tokens_used = self.llm_stream(self.model_dict, select_analyst_messages)
+        llm_response, tokens_used = self.llm_stream(self.model_dict, select_analyst_messages, llm_cascade=llm_cascade_plan)
         analyst = self._extract_analyst(llm_response)
 
         self.total_tokens_used.append(tokens_used)
@@ -199,6 +204,12 @@ class BambooAI:
     def taskmaster(self, question):
         task = None
         analyst = None
+
+        # Switch to gpt-4 if llm_switch_plan parameter is set to True. This will increase the processing time and cost
+        if self.llm_switch_plan:
+            llm_cascade_plan = True
+        else:
+            llm_cascade_plan = False
 
         def display_eval(total_tokens_used_sum,answer=None):
             if 'ipykernel' in sys.modules:
@@ -214,13 +225,13 @@ class BambooAI:
 
         ######## Select Expert ###########
         self.pre_eval_messages.append({"role": "user", "content": self.user_task_classification.format(question)})
-        expert = self.select_expert(self.pre_eval_messages) 
+        expert = self.select_expert(self.pre_eval_messages,llm_cascade_plan=llm_cascade_plan) 
         self.pre_eval_messages.append({"role": "assistant", "content": expert})
 
         ######## Refine Expert Selection, and Formulate a task for the expert ###########
         if expert == 'Data Analyst':
             self.select_analyst_messages.append({"role": "user", "content": self.user_analyst_selection.format(question, None if self.df is None else self.df.columns.tolist())})
-            analyst = self.select_analyst(self.select_analyst_messages)
+            analyst = self.select_analyst(self.select_analyst_messages, llm_cascade_plan=llm_cascade_plan)
             if analyst == 'Data Analyst DF':
                 self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_df.format(question, None if self.df is None else self.df.head(1))})
                 # Replace first dict in messages with a new system task
@@ -240,7 +251,7 @@ class BambooAI:
         else:
             self.eval_messages.append({"role": "user", "content": self.theorist_task_evaluation.format(question)})
 
-        task_eval = self.task_eval(self.eval_messages)
+        task_eval = self.task_eval(self.eval_messages, llm_cascade_plan=llm_cascade_plan)
         self.eval_messages.append({"role": "assistant", "content": task_eval})
 
         # Remove the oldest conversation from the messages list
@@ -365,19 +376,19 @@ class BambooAI:
             # Call the generate_code() method to genarate and debug the code
             code = self.generate_code(analyst, task, self.code_messages, example_output)
             # Call the execute_code() method to execute the code and summarise the results
-            answer, results, code, total_tokens_used_sum = self.execute_code(analyst,code, task, self.code_messages)  
+            answer, results, code, total_tokens_used_sum = self.execute_code(analyst,code, task, self.code_messages)
             
             # Remove the examples from the messages list to minimize the number of tokens used
             self.code_messages = self._remove_examples(self.code_messages)
 
             # Rank the LLM response
             if self.vector_db:
-                # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost
-                if self.llm_switch:
-                    llm_cascade = True
+                # Switch to gpt-4 if llm_switch_code parameter is set to True. This will increase the processing time and cost
+                if self.llm_switch_code:
+                    llm_cascade_code = True
                 else:
-                    llm_cascade = False
-                rank = self.rank_code(results, code,task,llm_cascade=llm_cascade)
+                    llm_cascade_code = False
+                rank = self.rank_code(results, code,task,llm_cascade_code=llm_cascade_code)
             else:
                 rank = ""
 
@@ -419,17 +430,17 @@ class BambooAI:
             code_messages.append({"role": "user", "content": self.user_task_gen.format(task,example_output)})
 
         if self.local_code_model:
-            llm = self.local_code_model
+            using_model = self.local_code_model
         else:
-            llm = self.model_dict['llm']
+            using_model = self.model_dict['llm']
 
         if 'ipykernel' in sys.modules:
             # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {llm}</p>'))
+            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
             display(HTML(f'<p><b style="color:magenta;">I am generating the first version of the code, please wait...</b></p><br>'))
         else:
             # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {llm}", "magenta"))
+            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
             cprint(f"\n>> I am generating the first version of the code, please wait\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API or a local code model
@@ -444,9 +455,9 @@ class BambooAI:
 
         # Debug code if debug parameter is set to True
         if self.debug:
-            # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost
-            if self.llm_switch:
-                llm_cascade = True
+            # Switch to gpt-4 if llm_switch_code parameter is set to True. This will increase the processing time and cost
+            if self.llm_switch_code:
+                llm_cascade_code = True
                 if 'ipykernel' in sys.modules:
                     # Jupyter notebook
                     display(HTML('<span style="color: magenta;">Switching model to gpt-4 to debug the code.</span>'))
@@ -454,17 +465,20 @@ class BambooAI:
                     # CLI
                     print(colored("\n>> Switching model to GPT-4 to debug the code.", "magenta"))
             else:
-                llm_cascade = False
-            code = self.debug_code(analyst, code, task, llm_cascade=llm_cascade)
+                llm_cascade_code = False
+            code = self.debug_code(analyst, code, task, llm_cascade_code=llm_cascade_code)
 
         return code
     
-    def debug_code(self,analyst,code,question, llm_cascade=False):
+    def debug_code(self,analyst,code,question, llm_cascade_code=False):
         # Initialize the messages list with a system message containing the task prompt
-        debug_messages = [{"role": "system", "content": self.debug_code_task.format(code,question)}]
-
-        using_model = self.model_dict['llm']
-        if llm_cascade:
+        debug_messages = [{"role": "user", "content": self.debug_code_task.format(code,question)}]
+        
+        if self.local_code_model:
+            using_model = self.local_code_model
+        else:
+            using_model = self.model_dict['llm']
+        if llm_cascade_code:
             using_model = self.model_dict['llm_gpt4']
 
         if 'ipykernel' in sys.modules:
@@ -486,7 +500,7 @@ class BambooAI:
                 cprint(f"\n>> I have finished debugging the code, and will now proceed to the execution...\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API
-        llm_response, tokens_used = self.llm_stream(self.model_dict, debug_messages,temperature=0,llm_cascade=llm_cascade) # higher temperature results in more "creative" answers (sometimes too creative :-))
+        llm_response, tokens_used = self.llm_stream(self.model_dict, debug_messages,temperature=0, llm_cascade=llm_cascade_code, local_model=self.local_code_model)
         
         # Extract the code from the API response
         debugged_code = self._extract_code(llm_response,analyst)       
@@ -517,7 +531,8 @@ class BambooAI:
                     # Execute the code
                     if code is not None:
                         exec(code, {'df': self.df})
-
+                        # Remove examples from the messages list to minimize the number of tokens used
+                        self.code_messages = self._remove_examples(self.code_messages)
                     break
                 except Exception as e:
                     # Print the error message
@@ -531,11 +546,16 @@ class BambooAI:
 
                     # Increment the error correction counter and update the messages list with the error
                     error_corrections += 1
+                    #If error correction is greater than 2 remove the first error correction
+                    if error_corrections > 2:
+                        del code_messages[-4] 
+                        del code_messages[-3]
+
                     code_messages.append({"role": "user", "content": self.error_correct_task.format(e)})
 
-                    # Switch to gpt-4 if llm_switch parameter is set to True. This will increase the processing time and cost.
-                    if self.llm_switch:
-                        llm_cascade = True
+                    # Switch to gpt-4 if llm_switch_code parameter is set to True. This will increase the processing time and cost.
+                    if self.llm_switch_code:
+                        llm_cascade_code = True
                         if 'ipykernel' in sys.modules:
                             # Jupyter notebook
                             display(HTML('<span style="color: #d86c00;">Switching model to gpt-4 to try to improve the outcome.</span>'))
@@ -544,14 +564,14 @@ class BambooAI:
                             sys.stderr.write('\033[31m' + f'>> Switching model to gpt-4 to try to improve the outcome.' + '\033[0m' + '\n')
                             sys.stderr.flush()
                     else:
-                        llm_cascade = False
+                        llm_cascade_code = False
 
                     # Reset df to the original state before trying again
                     if self.df is not None:
                         self.df = original_df.copy()
 
                     # Call OpenAI API to get an updated code
-                    llm_response, tokens_used = self.llm_call(self.model_dict,code_messages,llm_cascade=llm_cascade)
+                    llm_response, tokens_used = self.llm_call(self.model_dict,code_messages,llm_cascade=llm_cascade_code)
                     code_messages.append({"role": "assistant", "content": llm_response})
                     code = self._extract_code(llm_response,analyst)
                     self.total_tokens_used.append(tokens_used)
@@ -576,12 +596,12 @@ class BambooAI:
 
         return summary, results, code, total_tokens_used_sum
     
-    def rank_code(self,results, code,question,llm_cascade=False):
+    def rank_code(self,results, code,question,llm_cascade_code=False):
         # Initialize the messages list with a system message containing the task prompt
         rank_messages = [{"role": "system", "content": self.rank_answer.format(code,results,question)}]
 
         using_model = self.model_dict['llm']
-        if llm_cascade:
+        if llm_cascade_code:
             using_model = self.model_dict['llm_gpt4']
 
         if 'ipykernel' in sys.modules:
@@ -594,7 +614,7 @@ class BambooAI:
             cprint(f"\n>> I am going to evaluate and rank the answer. Please wait..\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API 
-        llm_response, tokens_used = self.llm_call(self.model_dict, rank_messages,llm_cascade=llm_cascade)
+        llm_response, tokens_used = self.llm_call(self.model_dict, rank_messages,llm_cascade=llm_cascade_code)
 
         # Extract the rank from the API response
         rank = self._extract_rank(llm_response)       

@@ -176,6 +176,6 @@ def llm_local_stream(messages: str,local_model: str):
                     return_full_text=False,
                 )
 
-    result = result[0]['generated_text'] 
+    result = result[0]['generated_text']
 
     return result,total_tokens_used
