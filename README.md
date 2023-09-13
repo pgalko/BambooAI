@@ -18,7 +18,7 @@ The primary aim of BambooAI is to enhance, not replace, the capabilities of anal
 **A Generic Example (No dataframe required, Data downloaded from Internet):**
 ```
 df = pd.read_csv('test_activity_data.csv')
-bamboo = BambooAI(df, debug=False, llm="gpt-4", llm_switch=False, vector_db=True, search_tool=True)
+bamboo = BambooAI(df, debug=False, llm="gpt-4", llm_switch_code=False, vector_db=True, search_tool=True)
 bamboo.pd_agent_converse()
 ```
 
@@ -28,7 +28,7 @@ https://github.com/pgalko/BambooAI/assets/39939157/ea72de1c-05db-472e-9c95-fa8e2
 **A Machine Learning Example using supplied dataframe:**
 ```
 df = pd.read_csv('test_activity_data.csv')
-bamboo = BambooAI(df, debug=True, llm_switch=True, vector_db=True, search_tool=True)
+bamboo = BambooAI(df, debug=True, llm_switch_code=True, vector_db=True, search_tool=True)
 bamboo.pd_agent_converse()
 ```
 
@@ -56,7 +56,7 @@ The BambooAI agent operates through several key steps to interact with users and
 
 **4. Debugging, Execution, and Error Correction**
 - If the generated code needs debugging, GPT-4 is engaged.
-- The code is executed using GPT-3,GPT-4 or a local OS model, and if errors occur, the agent logs the error message and refers it back to the LLM (GPT-3 or GPT-4, depending on the settings) for correction.
+- The code is executed using GPT-3,GPT-4 or a local OS model, and if errors occur, the agent logs the error message and refers it back to the LLM (GPT-3 or GPT-4, depending on the ```llm_switch_code``` parameter) for correction.
 - This process continues until successful code execution.
 
 **5. Results, Ranking, and Knowledge Base Build**
@@ -95,7 +95,9 @@ max_conversations: int - Number of "user:assistant" conversation pairs to keep i
 
 llm: str - Base LLM model. Default = gpt-3.5-turbo-0613
 
-llm_switch: bool - If True, the agent will switch to gpt-4 after error,or if a self reflection is required (code debug, solution ranking).
+llm_switch_plan: bool - If True, the agent will use gpt-4 to devise the plan (task list). It will switch back to the base model for all other tasks.
+
+llm_switch_code: bool - If True, the agent will switch to gpt-4 after error,or if a self reflection is required (code debug, solution ranking).
 
 debug: bool - If True, the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking and debugging.
 
@@ -108,8 +110,8 @@ exploratory: bool - If set to True, the LLM will evaluate the user's question an
 local_code_model: str - Takes a name of the localy installed open source model. It will use this model instead of an Open AI model to generate the code. For use with free Colab use 13B/15B GPTQ models. Requires for the model to be downloaded from Hugging Faces which can take awhile. If used in Colab you will need to change the runtime type and use the GPU hardware accelerator for this option to work. Default None.
 
 
-e.g. bamboo = BambooAI(df, debug=True, vector_db=True, llm_switch=True, search_tool=True, exploratory=True)
-     bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, llm_switch=False, search_tool=True, local_code_model='WizardCoder-15B-1.0')
+e.g. bamboo = BambooAI(df, debug=True, vector_db=True, llm_switch_code=True, search_tool=True, exploratory=True)
+     bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, llm_switch_plan=False, search_tool=True, local_code_model='WizardCoder-15B-1.0')
 ```
 
 Run in a loop
