@@ -19,19 +19,22 @@ class QueryGenerator:
         return prompt
     
     # Use LLM to generate a query from a question
-    def __call__(self, question):
+    def __call__(self, token_cost_dict,model_dict,chain_id,question):
+        tool = 'Google Search Query Generator'
         prompt = self.construct_prompt(question)
         messages = [{"role": "system", "content": prompt}]
-        response = openai.ChatCompletion.create(
-            model = 'gpt-3.5-turbo-0613',
-            messages = messages,
-            temperature = 0,
-            max_tokens = 64,
-        )
-        
-        query = response.choices[0].message.content.strip()
-        tokens_used = response.usage.total_tokens
-        return query,tokens_used
+
+        try:
+            # Attempt package-relative import
+            from . import models
+        except ImportError:
+            # Fall back to script-style import
+            import models
+        log_and_call_manager = models.LogAndCallManager(token_cost_dict)
+
+        llm_response = models.llm_call(log_and_call_manager,model_dict, messages, tool=tool, chain_id=chain_id)
+
+        return llm_response
 
 # Define a class to perform a Google search and retrieve the content of the resulting pages    
 class SearchEngine:
@@ -124,22 +127,26 @@ class Reader:
 
         return prompt
 
-    # Use LLM to generate an answer to a question based on a set of contexts
-    def __call__(self, query, contexts):
+    # Use LLM to generate answer to a question based on a set of contexts
+    def __call__(self,token_cost_dict,model_dict,chain_id,query, contexts):
+        tool = 'Google Search Sumarizer'
         prompt = self.construct_prompt(query, contexts)
-
-        messages = [{"role": "system", "content": prompt}]
-        response = openai.ChatCompletion.create(
-            model = 'gpt-3.5-turbo-16k',
-            messages = messages,
-            temperature = 0,
-            max_tokens = 1000,
-        )
+        search_messages = [{"role": "system", "content": prompt}]
         
-        answer = response.choices[0].message.content.strip()
-        tokens_used = response.usage.total_tokens
+        try:
+            # Attempt package-relative import
+            from . import models
+        except ImportError:
+            # Fall back to script-style import
+            import models
 
-        return answer,tokens_used
+        log_and_call_manager = models.LogAndCallManager(token_cost_dict)
+
+        #replace llm in model_dict with 'gpt-3.5-turbo-16k'
+        model_dict['llm']='gpt-3.5-turbo-16k'
+        llm_response = models.llm_call(log_and_call_manager,model_dict, search_messages, tool=tool, chain_id=chain_id)
+
+        return llm_response
     
 class GoogleSearch:
     def __init__(self):
@@ -152,13 +159,11 @@ class GoogleSearch:
         search_query = re.sub('\'|"', '',  response).strip()
         return search_query
 
-    def __call__(self, question):
+    def __call__(self, token_cost_dict,model_dict,chain_id,question):
         question=self._extract_search_query(question)
-        #query, query_tokens = self.query_generator(question)
+        #query = self.query_generator(token_cost_dict,model_dict,chain_id,question)
         documents,top_links = self.search_engine(question)
         contexts = self.document_retriever(question, documents)
-        answer, answer_tokens = self.reader(question, contexts)
+        answer = self.reader(token_cost_dict,model_dict,chain_id,question, contexts)
 
-        search_tokens_used = answer_tokens
-
-        return answer,top_links,search_tokens_used
+        return answer,top_links

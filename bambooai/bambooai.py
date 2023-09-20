@@ -11,21 +11,12 @@ from IPython.display import display,HTML
 import warnings
 warnings.filterwarnings('ignore')
 
-#Running as a script
-#import models
-#import prompts
-#import func_calls
-#import qa_retrieval
-#import google_search 
-#import reg_ex
-
-#Running as a package
-from . import models
-from . import prompts
-from . import func_calls
-from . import qa_retrieval
-from . import google_search
-from . import reg_ex
+try:
+    # Attempt package-relative import
+    from . import models, prompts, func_calls, qa_retrieval, google_search, reg_ex
+except ImportError:
+    # Fall back to script-style import
+    import models, prompts, func_calls, qa_retrieval, google_search, reg_ex
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -123,6 +114,15 @@ class BambooAI:
         self.llm_func_call = models.llm_func_call
         self.llm_stream = models.llm_stream
 
+        # Logging
+        self.token_cost_dict = {
+                                'gpt-3.5-turbo-0613': {'prompt_tokens': 0.0015, 'completion_tokens': 0.0020},
+                                'gpt-3.5-turbo-16k': {'prompt_tokens': 0.0030, 'completion_tokens': 0.0040},
+                                'gpt-4-0613': {'prompt_tokens': 0.03, 'completion_tokens': 0.06}  
+                                }
+        self.log_and_call_manager = models.LogAndCallManager(self.token_cost_dict)
+        self.chain_id = None
+
         # Messages lists
         self.pre_eval_messages = [{"role": "system", "content": self.system_task_classification}]
         self.select_analyst_messages = [{"role": "system", "content": self.system_analyst_selection}]
@@ -134,9 +134,6 @@ class BambooAI:
         self.retrieve_answer = qa_retrieval.retrieve_answer
         self.similarity_threshold = 0.8
 
-        # Initialize the total tokens used list. This list will be used to keep track of the total tokens used by the models
-        self.total_tokens_used = []
-
         # Google Search
         self.search_tool = search_tool
         self.google_search = google_search.GoogleSearch()
@@ -147,7 +144,7 @@ class BambooAI:
     ######################
     
     def task_eval(self, eval_messages, llm_cascade_plan=False):
-
+        tool = 'Planner'
         using_model = self.model_dict['llm']
         if llm_cascade_plan:
             using_model = self.model_dict['llm_gpt4']
@@ -162,14 +159,12 @@ class BambooAI:
             cprint(f"\n>> Trying to determine the best method to answer your question, please wait...\n", 'magenta', attrs=['bold'])
 
         # Call OpenAI API to evaluate the task
-        llm_response, tokens_used = self.llm_stream(self.model_dict, eval_messages, llm_cascade=llm_cascade_plan)
-
-        self.total_tokens_used.append(tokens_used)
+        llm_response = self.llm_stream(self.log_and_call_manager,self.model_dict, eval_messages, llm_cascade=llm_cascade_plan,tool=tool, chain_id=self.chain_id)
 
         return llm_response
     
     def select_expert(self, pre_eval_messages, llm_cascade_plan=False):
-        
+        tool = 'Expert Selector'
         using_model = self.model_dict['llm']
         if llm_cascade_plan:
             using_model = self.model_dict['llm_gpt4']
@@ -184,20 +179,16 @@ class BambooAI:
             cprint(f"\n>> Selecting the expert to best answer your query, please wait..\n", 'magenta', attrs=['bold'])
 
         # Call OpenAI API to evaluate the task
-        llm_response, tokens_used = self.llm_stream(self.model_dict, pre_eval_messages, llm_cascade=llm_cascade_plan)
+        llm_response = self.llm_stream(self.log_and_call_manager,self.model_dict, pre_eval_messages, llm_cascade=llm_cascade_plan, tool=tool,chain_id=self.chain_id)
         expert = self._extract_expert(llm_response)
-
-        self.total_tokens_used.append(tokens_used)
 
         return expert
     
     def select_analyst(self, select_analyst_messages, llm_cascade_plan=False):
-
+        tool = 'Analyst Selector'
         # Call OpenAI API to evaluate the task
-        llm_response, tokens_used = self.llm_stream(self.model_dict, select_analyst_messages, llm_cascade=llm_cascade_plan)
+        llm_response = self.llm_stream(self.log_and_call_manager,self.model_dict, select_analyst_messages, llm_cascade=llm_cascade_plan, tool=tool, chain_id=self.chain_id)
         analyst = self._extract_analyst(llm_response)
-
-        self.total_tokens_used.append(tokens_used)
 
         return analyst
     
@@ -211,17 +202,15 @@ class BambooAI:
         else:
             llm_cascade_plan = False
 
-        def display_eval(total_tokens_used_sum,answer=None):
+        def display_eval(answer=None):
             if 'ipykernel' in sys.modules:
                 # Jupyter notebook or ipython
                 if answer is not None:
                     print(answer)
-                display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
                 # Other environment (like terminal)
                 if answer is not None:
                     print(answer)
-                cprint(f"\n>> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
 
         ######## Select Expert ###########
         self.pre_eval_messages.append({"role": "user", "content": self.user_task_classification.format(question)})
@@ -259,30 +248,26 @@ class BambooAI:
             self.eval_messages.pop(1)
             self.eval_messages.pop(1)
 
-        total_tokens_used_sum = sum(self.total_tokens_used)
+        if expert == 'Data Analysis Theorist':
+            self.log_and_call_manager.print_summary_to_terminal()
 
-        if expert == 'Data Analysis Theorist':                  
-            display_eval(total_tokens_used_sum)
-        
         elif expert == 'Internet Research Specialist':
             if self.search_tool:
                 print('I either do not have an answer to your query or I am not confident that the information that I have is satisfactory.\nI am going to search the Internet. Please wait...\n')
-                answer,links_dict,search_tokens = self.google_search(task_eval)
+                answer,links_dict = self.google_search(self.token_cost_dict,self.model_dict,self.chain_id,task_eval)
                 for link in links_dict:
                     print(f"Title: {link['title']}\nLink: {link['link']}\n")
                 # Replace the last element in eval_messages with the answer from the Google search
                 self.eval_messages[-1] = {"role": "assistant", "content": answer}
-                self.total_tokens_used.append(search_tokens)
-                total_tokens_used_sum = sum(self.total_tokens_used)
-                display_eval(total_tokens_used_sum,answer)
+                display_eval(answer)
+                self.log_and_call_manager.print_summary_to_terminal()
             else:
-                display_eval(total_tokens_used_sum)
-        
+                self.log_and_call_manager.print_summary_to_terminal()
+
         elif expert == 'Data Analyst':
             task = task_eval
-            display_eval(total_tokens_used_sum)
         else:
-            display_eval(total_tokens_used_sum)
+            self.log_and_call_manager.print_summary_to_terminal()
 
         return analyst,task
     
@@ -292,7 +277,7 @@ class BambooAI:
 
     def pd_agent_converse(self, question=None):
         # Functions to display results nicely
-        def display_results(answer, code, rank, total_tokens_used_sum):
+        def display_results(answer, code, rank):
             if 'ipykernel' in sys.modules: 
                 if self.df is not None:
                     display(HTML(f'<p><b style="color:blue;">Here is the head of your dataframe:</b><br><pre style="color:#555555;">{self.df.head(5)}</pre></p><br>'))    
@@ -302,7 +287,6 @@ class BambooAI:
                     display(HTML(f'<p><b style="color:blue;">Here is the final code that accomplishes the task:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
                 if self.vector_db and rank is not None:
                     display(HTML(f'<p><b style="color:blue;">Solution Rank:</b><br><span style="color:black;">{rank}</span></p><br>'))
-                display(HTML(f'<p><b style="color:blue;">Total Tokens Used:</b><br><span style="color:black;">{total_tokens_used_sum}</span></p><br>'))
             else:
                 if self.df is not None:
                     cprint(f"\n>> Here is the head of your dataframe:", 'green', attrs=['bold'])
@@ -315,13 +299,16 @@ class BambooAI:
                 if self.vector_db and rank is not None:
                     cprint("\n>> Solution Rank:", 'green', attrs=['bold'])
                     print(rank)
-                cprint(f"\n>> Total tokens used:\n{total_tokens_used_sum}\n", 'yellow', attrs=['bold'])
       
         # Initialize the loop variable. If user provided question as an argument, the loop will finish after one iteration
         if question is not None:
             loop = False
         else:
             loop = True
+
+        # Set the chain id
+        chain_id = int(time.time())
+        self.chain_id = chain_id
 
         # Start the conversation loop
         while True:
@@ -337,6 +324,7 @@ class BambooAI:
 
                 # If the user types 'exit', break out of the loop
                 if question.strip().lower() == 'exit':
+                    self.log_and_call_manager.write_summary_to_log()
                     break
                 
             if self.exploratory is True:
@@ -376,10 +364,7 @@ class BambooAI:
             # Call the generate_code() method to genarate and debug the code
             code = self.generate_code(analyst, task, self.code_messages, example_output)
             # Call the execute_code() method to execute the code and summarise the results
-            answer, results, code, total_tokens_used_sum = self.execute_code(analyst,code, task, self.code_messages)
-            
-            # Remove the examples from the messages list to minimize the number of tokens used
-            self.code_messages = self._remove_examples(self.code_messages)
+            answer, results, code = self.execute_code(analyst,code, task, self.code_messages)
 
             # Rank the LLM response
             if self.vector_db:
@@ -392,7 +377,7 @@ class BambooAI:
             else:
                 rank = ""
 
-            display_results(answer, code, rank, total_tokens_used_sum)
+            display_results(answer, code, rank)
 
             if self.vector_db:
                 # Prompt the user to to give a feedback on the ranking
@@ -414,8 +399,11 @@ class BambooAI:
 
                 # Add the question and answer pair to the QA retrieval index
                 self.add_question_answer_pair(task, df_columns, code, rank)
+
+            self.log_and_call_manager.print_summary_to_terminal()
             
             if not loop:
+                self.log_and_call_manager.write_summary_to_log()
                 return 
             
     ######################
@@ -423,6 +411,7 @@ class BambooAI:
     ######################
             
     def generate_code(self, analyst, task, code_messages, example_output):
+        tool = 'Code Generator'
         # Add a user message with the updated task prompt to the messages list
         if analyst == 'Data Analyst DF':
             code_messages.append({"role": "user", "content": self.user_task_df.format(None if self.df is None else self.df.head(1), task, example_output)})
@@ -444,14 +433,11 @@ class BambooAI:
             cprint(f"\n>> I am generating the first version of the code, please wait\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API or a local code model
-        llm_response, tokens_used = self.llm_stream(self.model_dict, code_messages, local_model=self.local_code_model)
+        llm_response = self.llm_stream(self.log_and_call_manager,self.model_dict, code_messages, local_model=self.local_code_model, tool=tool, chain_id=self.chain_id)
         code_messages.append({"role": "assistant", "content": llm_response})
 
         # Extract the code from the API response
         code = self._extract_code(llm_response,analyst,local_model=self.local_code_model)
-
-        # Update the total tokens used
-        self.total_tokens_used.append(tokens_used)
 
         # Debug code if debug parameter is set to True
         if self.debug:
@@ -471,6 +457,7 @@ class BambooAI:
         return code
     
     def debug_code(self,analyst,code,question, llm_cascade_code=False):
+        tool = 'Code Debugger'
         # Initialize the messages list with a system message containing the task prompt
         debug_messages = [{"role": "user", "content": self.debug_code_task.format(code,question)}]
         
@@ -500,13 +487,11 @@ class BambooAI:
                 cprint(f"\n>> I have finished debugging the code, and will now proceed to the execution...\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API
-        llm_response, tokens_used = self.llm_stream(self.model_dict, debug_messages,temperature=0, llm_cascade=llm_cascade_code, local_model=self.local_code_model)
+        llm_response = self.llm_stream(self.log_and_call_manager,self.model_dict, debug_messages,temperature=0, llm_cascade=llm_cascade_code, local_model=self.local_code_model, tool=tool, chain_id=self.chain_id)
         
         # Extract the code from the API response
         debugged_code = self._extract_code(llm_response,analyst)       
         display_task()
-
-        self.total_tokens_used.append(tokens_used)
 
         return debugged_code
 
@@ -571,10 +556,10 @@ class BambooAI:
                         self.df = original_df.copy()
 
                     # Call OpenAI API to get an updated code
-                    llm_response, tokens_used = self.llm_call(self.model_dict,code_messages,llm_cascade=llm_cascade_code)
+                    tool = 'Error Corrector'
+                    llm_response = self.llm_call(self.log_and_call_manager,self.model_dict,code_messages,llm_cascade=llm_cascade_code, tool=tool, chain_id=self.chain_id)
                     code_messages.append({"role": "assistant", "content": llm_response})
                     code = self._extract_code(llm_response,analyst)
-                    self.total_tokens_used.append(tokens_used)
                     
         # Get the output from the executed code
         results = output.getvalue()
@@ -583,20 +568,19 @@ class BambooAI:
         code_messages[-1]['content'] = code_messages[-1]['content'] + '\nThe execution of this code resulted in the following:\n' + results
 
         # Call OpenAI API to summarize the results
+        tool = 'Solution Summarizer'
         # Initialize the messages list with a system message containing the task prompt
         insights_messages = [{"role": "user", "content": self.solution_insights.format(task, results)}]
-        summary, tokens_used = self.llm_call(self.model_dict,insights_messages)
-
-        self.total_tokens_used.append(tokens_used)
-        total_tokens_used_sum = sum(self.total_tokens_used)
+        summary = self.llm_call(self.log_and_call_manager,self.model_dict,insights_messages,tool=tool, chain_id=self.chain_id)
 
         # Reset the StringIO buffer
         output.truncate(0)
         output.seek(0)
 
-        return summary, results, code, total_tokens_used_sum
+        return summary, results, code
     
     def rank_code(self,results, code,question,llm_cascade_code=False):
+        tool = 'Code Ranker'
         # Initialize the messages list with a system message containing the task prompt
         rank_messages = [{"role": "system", "content": self.rank_answer.format(code,results,question)}]
 
@@ -614,11 +598,9 @@ class BambooAI:
             cprint(f"\n>> I am going to evaluate and rank the answer. Please wait..\n", 'magenta', attrs=['bold'])
 
         # Call the OpenAI API 
-        llm_response, tokens_used = self.llm_call(self.model_dict, rank_messages,llm_cascade=llm_cascade_code)
+        llm_response = self.llm_call(self.log_and_call_manager,self.model_dict, rank_messages,llm_cascade=llm_cascade_code,tool=tool, chain_id=self.chain_id)
 
         # Extract the rank from the API response
         rank = self._extract_rank(llm_response)       
-
-        self.total_tokens_used.append(tokens_used)
 
         return rank

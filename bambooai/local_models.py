@@ -1,6 +1,7 @@
 
 import re
 import logging
+import time
 logging.basicConfig(level='CRITICAL')
 from transformers import (
     AutoModelForCausalLM,
@@ -160,6 +161,8 @@ def llm_local_stream(messages: str,local_model: str):
     print(f"Model loaded on {device}")
     print(f"GPU memory available: {gpu_memory_gb}GB\n")
 
+    start_time = time.time()
+
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
 
     streamer = TextStreamer(tokenizer,skip_prompt=True)
@@ -178,4 +181,15 @@ def llm_local_stream(messages: str,local_model: str):
 
     result = result[0]['generated_text']
 
-    return result,total_tokens_used
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+
+    # Calcutale tokens usage
+    completion_tokens_used = len(tokenizer.encode(result))
+    prompt_tokens_used = len(tokenizer.encode(messages))
+    total_tokens_used = completion_tokens_used + prompt_tokens_used
+    
+    tokens_per_second = completion_tokens_used / elapsed_time
+
+    return result,messages,prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
+
