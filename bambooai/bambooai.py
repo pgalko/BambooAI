@@ -117,8 +117,10 @@ class BambooAI:
         # Logging
         self.token_cost_dict = {
                                 'gpt-3.5-turbo-0613': {'prompt_tokens': 0.0015, 'completion_tokens': 0.0020},
+                                'gpt-3.5-turbo-instruct': {'prompt_tokens': 0.0015, 'completion_tokens': 0.0020},
                                 'gpt-3.5-turbo-16k': {'prompt_tokens': 0.0030, 'completion_tokens': 0.0040},
-                                'gpt-4-0613': {'prompt_tokens': 0.03, 'completion_tokens': 0.06}  
+                                'gpt-4': {'prompt_tokens': 0.03, 'completion_tokens': 0.06},
+                                'gpt-4-0613': {'prompt_tokens': 0.03, 'completion_tokens': 0.06} 
                                 }
         self.log_and_call_manager = models.LogAndCallManager(self.token_cost_dict)
         self.chain_id = None
