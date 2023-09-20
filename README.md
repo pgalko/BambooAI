@@ -166,6 +166,74 @@ pip install bitsandbytes
 ```
 The settings for local models are located in local_models.py module and can be adjusted to match your particular configuration or preferences.
 
+**Logging**
+
+All LLM interactions (local or via APIs) are logged in the bambooai_log.log file. When the size of the log file reaches 5 MB, a new log file is created. A total of 3 log files are kept on the file system before the oldest file gets overwritten.
+
+The following info is captured:
+
+- Tool
+- Chain ID
+- Timestamp (GMT)
+- Model
+- Prompt/Messages (JSON)
+- LLM Response
+- Prompt Tokens
+- Completion Tokens
+- Total Tokens
+- Total LLM interaction time
+- Response Speed (tokens/second)
+- Cost
+
+Example log entry:
+```
+====================================================================================================
+Tool: Code Generator
+Chain ID: 1695192595
+Timestamp (GMT): 2023-09-20 06:50:42
+Model: gpt-3.5-turbo-0613
+====================================================================================================
+
+=== Messages ===
+[
+  {
+    "role": "system",
+    "content": "\nYou are an AI data analyst and your job is to assist users with analyzing data in the pandas dataframe.\nThe user will provide a dataframe named `df`, and a list of tasks to be accomplished using Python.\nThe dataframe df has already been defined and populated with the required data.\n"
+  },
+  {
+    "role": "user",
+    "content": "\nYou have been presented with a pandas dataframe named `df`.\nThe dataframe df has already been defined and populated with the required data.\nThe result of `print(df.head(1))` is:\n   PassengerId  Survived  Pclass                     Name   Sex   Age  SibSp  Parch     Ticket  Fare Cabin Embarked\n0            1         0       3  Braund, Mr. Owen Harris  male  22.0      1      0  A/5 21171  7.25   NaN        S.\nReturn the python code that accomplishes the following tasks: Sure, here's a step-by-step algorithm to find the average age of female survivors:\n\n1. Filter the DataFrame 'df' to include only rows where the 'Survived' column equals 1. This will give us a DataFrame of only survivors.\n\n2. From the survivors DataFrame, filter again to include only rows where the 'Sex' column equals 'female'. This will give us a DataFrame of only female survivors.\n\n3. From the female survivors DataFrame, select the 'Age' column. This will give us a Series of the ages of female survivors.\n\n4. Use the 'mean' function on the Series of ages to calculate the average age. This will give us the average age of female survivors.\n\n5. Store the result in a variable, say 'average_age'.\n\n6. Print or return the 'average_age' variable. This will be the final output of the algorithm.\n\n7. Handle any missing or NaN values in the 'Age' column appropriately. If there are any missing values, you might decide to ignore them, fill them with a specific value, or fill them with the mean/median age.\n\n8. Make sure to handle any potential errors or exceptions that might occur during the execution of the algorithm, such as the absence of the 'Survived', 'Sex', or 'Age' columns in the DataFrame..\nApproach each task from the list in isolation, advancing to the next only upon its successful resolution. \nStrictly adhere to the prescribed instructions to avoid oversights and ensure an accurate solution.\nAlways include the import statements at the top of the code.\nAlways include print statements to output the results of your code.\nAlways use the backticks to enclose the code.\n\nExample Output:\n```python\n\nimport pandas as pd\n\n# Identify the dataframe `df`\n# df has already been defined and populated with the required data\n\n# Call the `describe()` method on `df`\ndf_description = df.describe()\n\n# Print the output of the `describe()` method\nprint(df_description)\n\n```\n"
+  }
+]
+
+=== Response ===
+
+import pandas as pd
+
+# Filter the DataFrame to include only rows where 'Survived' column equals 1
+survivors = df[df['Survived'] == 1]
+
+# Filter the survivors DataFrame to include only rows where 'Sex' column equals 'female'
+female_survivors = survivors[survivors['Sex'] == 'female']
+
+# Select the 'Age' column from the female survivors DataFrame
+age_of_female_survivors = female_survivors['Age']
+
+# Calculate the average age of female survivors
+average_age = age_of_female_survivors.mean()
+
+# Print the average age of female survivors
+print(average_age)
+
+=== Statistics ===
+Prompt Tokens: 604 tokens
+Completion Tokens: 203 tokens
+Total Tokens: 807 tokens
+Total Time: 8.58 seconds
+Response Speed: 23.65 tokens/second
+Cost: $0.0013
+```
+
 ## Examples
 
 **CLI Output: Prediction of a core temperature using Machine Learning**
