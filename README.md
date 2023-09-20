@@ -168,7 +168,7 @@ The settings for local models are located in local_models.py module and can be a
 
 **Logging**
 
-All LLM interactions (local or via APIs) are logged in the bambooai_log.log file. When the size of the log file reaches 5 MB, a new log file is created. A total of 3 log files are kept on the file system before the oldest file gets overwritten.
+All LLM interactions (local or via APIs) are logged in the `bambooai_log.log` file. When the size of the log file reaches 5 MB, a new log file is created. A total of 3 log files are kept on the file system before the oldest file gets overwritten.
 
 The following info is captured:
 
@@ -293,4 +293,6 @@ Contributions are welcome; please feel free to open a pull request. Keep in mind
 - Implement ReAct https://arxiv.org/abs/2201.11903, where a question can be decomposed into individual sub-steps and then sequentially routed to the appropriate Experts for processing. This approach should enhance the reasoning capabilities when dealing with multifaceted tasks.
 - Keep adding support for aditional Open Source LLMs
 - Experiment with GPT-3.5 finetuning to see whether there is any benefit.
+- Experiment with recently released gpt-3.5-turbo-instruct model.
+- Devise a method to store logs in a JSON format so they can be parsed programaticaly, and used for in-context learning or model finetuning.
 
