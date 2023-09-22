@@ -180,7 +180,7 @@ The following details are captured:
 Log Structure:
 ```
 - chain_id: 1695375585
-  ├─ chain_steps (LLM Calls)
+  ├─ chain_details (LLM Calls)
   │   ├─ List of Dictionaries (Multiple Steps)
   │       ├─ Step 1
   │       │   ├─ tool (String)
@@ -205,7 +205,7 @@ Log Structure:
   │       ├─ Tokens per Second (Float)
   │       ├─ Total Cost (Float)
   │
-  ├─ per_model_metrics
+  ├─ summary_per_model
       ├─ Dictionary
           ├─ LLM 1 (Dictionary)
           │   ├─ LLM Calls (Integer)
@@ -213,8 +213,8 @@ Log Structure:
           │   ├─ Completion Tokens (Integer)
           │   ├─ Total Tokens (Integer)
           │   ├─ Total Time (Float)
-          │   ├─ Total Cost (Float)
           │   ├─ Tokens per Second (Float)
+          │   ├─ Total Cost (Float)
           ├─ LLM 2
           |   └─ ... (Similar Fields)
           └─ ... (LLM 3, LLM 4, LLM 5 ...)
