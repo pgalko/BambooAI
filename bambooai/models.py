@@ -3,120 +3,6 @@ import os
 import time
 import openai
 import tiktoken
-import json
-import logging
-from logging.handlers import RotatingFileHandler
-from IPython.display import display, HTML
-from termcolor import cprint
-import sys
-
-# Initialize the logger
-logger = logging.getLogger('bambooai_logger')
-logger.setLevel(logging.INFO)
-
-# Disable propagation to the root logger
-logger.propagate = False
-
-# Remove all handlers associated with the logger object.
-for handler in logger.handlers:
-    logger.removeHandler(handler)
-
-# Initialize the Rotating File Handler
-handler = RotatingFileHandler('bambooai_log.log', maxBytes=5*1024*1024, backupCount=3)  # 5 MB
-logger.addHandler(handler)
-
-class LogAndCallManager:
-    def __init__(self, token_cost_dict):
-        self.token_summary = {}
-        self.token_cost_dict = token_cost_dict
-        
-    def update_token_summary(self, chain_id, prompt_tokens, completion_tokens, total_tokens, elapsed_time, cost):
-        if chain_id not in self.token_summary:
-            self.token_summary[chain_id] = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0, 'elapsed_time': 0,'total_cost': 0}
-        
-        self.token_summary[chain_id]['prompt_tokens'] += prompt_tokens
-        self.token_summary[chain_id]['completion_tokens'] += completion_tokens
-        self.token_summary[chain_id]['total_tokens'] += total_tokens
-        self.token_summary[chain_id]['elapsed_time'] += elapsed_time
-        self.token_summary[chain_id]['total_cost'] += cost
-
-    def write_summary_to_log(self):
-        log_entry = "\n" + "*" * 100 + "\n"
-        log_entry += f"CHAIN COMPLETED"
-        log_entry += "\n" + "*" * 100 + "\n"
-        log_entry += "\n*** Chain Summary ***\n"
-
-        for chain_id, tokens in self.token_summary.items():
-            avg_speed = tokens['completion_tokens'] / tokens['elapsed_time']
-
-            log_entry += f"Chain ID: {chain_id}\n"
-            log_entry += f"Prompt Tokens: {tokens['prompt_tokens']}\n"
-            log_entry += f"Completion Tokens: {tokens['completion_tokens']}\n"
-            log_entry += f"Total Tokens: {tokens['total_tokens']}\n"
-            log_entry += f"Total Time (LLM Interact.): {tokens['elapsed_time']:.2f} seconds\n"
-            log_entry += f"Average Response Speed: {avg_speed:.2f} tokens/second\n"
-            log_entry += f"Total Cost: ${tokens['total_cost']:.4f}\n"
-            
-        log_entry += "\n" + "*" * 100 + "\n"
-        log_entry += f"NEW CHAIN"
-        log_entry += "\n" + "*" * 100 + "\n"
-
-        logger.info(log_entry)
-
-    def print_summary_to_terminal(self):
-        summary_text = ""
-        for chain_id, tokens in self.token_summary.items():
-            avg_speed = tokens['completion_tokens'] / tokens['elapsed_time']
-
-            summary_text += f"Chain ID: {chain_id}\n"
-            summary_text += f"Prompt Tokens: {tokens['prompt_tokens']}\n"
-            summary_text += f"Completion Tokens: {tokens['completion_tokens']}\n"
-            summary_text += f"Total Tokens: {tokens['total_tokens']}\n"
-            summary_text += f"Total Time (LLM Interact.): {tokens['elapsed_time']:.2f} seconds\n"
-            summary_text += f"Average Response Speed: {avg_speed:.2f} tokens/second\n"
-            summary_text += f"Total Cost: ${tokens['total_cost']:.4f}\n"
-
-        if 'ipykernel' in sys.modules:
-            # Jupyter notebook or ipython
-            display(HTML(f'''
-            <br>
-            <p><b style="color: blue;">Chain Summary (Detailed info in bambooai_log.log file):</b></p>
-            <pre style="color: black; white-space: pre-line;">{summary_text}</pre>
-            '''))
-        else:
-            # Other environment (like terminal)
-            cprint("\n>> Chain Summary (Detailed info in bambooai_log.log file):", 'yellow', attrs=['bold'])
-            print(summary_text)
-
-    def write_to_log(self, tool, chain_id, timestamp, model, messages, content, prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second):
-        # Calculate the costs
-        token_costs = self.token_cost_dict.get(model, {})
-        prompt_token_cost = token_costs.get('prompt_tokens', 0)
-        completion_token_cost = token_costs.get('completion_tokens', 0)
-        cost = ((prompt_tokens * prompt_token_cost) / 1000) + ((completion_tokens * completion_token_cost) / 1000)
-        
-        self.update_token_summary(chain_id, prompt_tokens, completion_tokens, total_tokens, elapsed_time, cost)
-
-        log_entry = "\n" + "=" * 100 + "\n"
-        log_entry += f"Tool: {tool}\n"
-        log_entry += f"Chain ID: {chain_id}\n"
-        log_entry += f"Timestamp (GMT): {timestamp}\n"
-        log_entry += f"Model: {model}\n"
-        log_entry += "=" * 100 + "\n"
-        log_entry += "\n=== Messages ===\n"
-        pretty_messages = json.dumps(messages, indent=2)
-        log_entry += pretty_messages + "\n"
-        log_entry += "\n=== Response ===\n"
-        log_entry += content + "\n"
-        log_entry += "\n=== Statistics ===\n"
-        log_entry += f"Prompt Tokens: {prompt_tokens} tokens\n"
-        log_entry += f"Completion Tokens: {completion_tokens} tokens\n"
-        log_entry += f"Total Tokens: {total_tokens} tokens\n"
-        log_entry += f"Total Time: {elapsed_time:.2f} seconds\n"
-        log_entry += f"Response Speed: {tokens_per_second:.2f} tokens/second\n"
-        log_entry += f"Cost: ${cost:.4f}\n"
-        
-        logger.info(log_entry)
 
 def init_openai():
     # Get the OPENAI_API_KEY environment variable
@@ -190,10 +76,10 @@ def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature:
         prompt_tokens_used = prompt_tokens
         completion_tokens_used = completion_tokens
         total_tokens_used = total_tokens
-        if elapsed_time > 0:  
+        if elapsed_time > 0:
             tokens_per_second = completion_tokens_used / elapsed_time
         else:
-            tokens_per_second = 'N/A'
+            tokens_per_second = 0
         
         log_and_call_manager.write_to_log(tool, chain_id, timestamp, model_used, messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time,tokens_per_second)
 
@@ -336,8 +222,11 @@ def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperatur
 
         # calculate the total tokens used
         total_tokens_used = prompt_tokens_used + completion_tokens_used
-
-        tokens_per_second = completion_tokens_used / elapsed_time
+        
+        if elapsed_time > 0:
+            tokens_per_second = completion_tokens_used / elapsed_time
+        else:
+            tokens_per_second = 0
 
         log_and_call_manager.write_to_log(tool, chain_id, timestamp, model_used, messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
 

@@ -26,11 +26,11 @@ class QueryGenerator:
 
         try:
             # Attempt package-relative import
-            from . import models
+            from . import models, log_manager
         except ImportError:
             # Fall back to script-style import
-            import models
-        log_and_call_manager = models.LogAndCallManager(token_cost_dict)
+            import models, log_manager
+        log_and_call_manager = log_manager.LogAndCallManager(token_cost_dict)
 
         llm_response = models.llm_call(log_and_call_manager,model_dict, messages, tool=tool, chain_id=chain_id)
 
@@ -135,12 +135,12 @@ class Reader:
         
         try:
             # Attempt package-relative import
-            from . import models
+            from . import models, log_manager
         except ImportError:
             # Fall back to script-style import
-            import models
+            import models, log_manager
 
-        log_and_call_manager = models.LogAndCallManager(token_cost_dict)
+        log_and_call_manager = log_manager.LogAndCallManager(token_cost_dict)
 
         #replace llm in model_dict with 'gpt-3.5-turbo-16k'
         model_dict['llm']='gpt-3.5-turbo-16k'

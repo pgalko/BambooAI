@@ -13,10 +13,10 @@ warnings.filterwarnings('ignore')
 
 try:
     # Attempt package-relative import
-    from . import models, prompts, func_calls, qa_retrieval, google_search, reg_ex
+    from . import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager
 except ImportError:
     # Fall back to script-style import
-    import models, prompts, func_calls, qa_retrieval, google_search, reg_ex
+    import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -122,7 +122,7 @@ class BambooAI:
                                 'gpt-4': {'prompt_tokens': 0.03, 'completion_tokens': 0.06},
                                 'gpt-4-0613': {'prompt_tokens': 0.03, 'completion_tokens': 0.06} 
                                 }
-        self.log_and_call_manager = models.LogAndCallManager(self.token_cost_dict)
+        self.log_and_call_manager = log_manager.LogAndCallManager(self.token_cost_dict)
         self.chain_id = None
 
         # Messages lists
@@ -140,7 +140,18 @@ class BambooAI:
         self.search_tool = search_tool
         self.google_search = google_search.GoogleSearch()
 
-    
+    ######################
+    ### Util Functions ###
+    ######################
+
+    def reset_messages_and_logs(self):
+        self.pre_eval_messages = [{"role": "system", "content": self.system_task_classification}]
+        self.select_analyst_messages = [{"role": "system", "content": self.system_analyst_selection}]
+        self.eval_messages = [{"role": "system", "content": self.system_task_evaluation}]
+        self.code_messages = [{"role": "system", "content": self.system_task_df}]
+
+        self.log_and_call_manager.clear_run_logs()
+
     ######################
     ### Eval Functions ###
     ######################
@@ -312,6 +323,9 @@ class BambooAI:
         chain_id = int(time.time())
         self.chain_id = chain_id
 
+        # Reset messages and logs
+        self.reset_messages_and_logs()
+
         # Start the conversation loop
         while True:
             if loop:
@@ -326,7 +340,7 @@ class BambooAI:
 
                 # If the user types 'exit', break out of the loop
                 if question.strip().lower() == 'exit':
-                    self.log_and_call_manager.write_summary_to_log()
+                    self.log_and_call_manager.consolidate_logs()    
                     break
                 
             if self.exploratory is True:
@@ -334,9 +348,11 @@ class BambooAI:
                 analyst,task = self.taskmaster(question)
                 if not loop:
                     if not analyst:
+                        self.log_and_call_manager.consolidate_logs()
                         return
                 else:
                     if not analyst:
+                        self.log_and_call_manager.consolidate_logs()
                         continue
             else:
                 analyst = 'Data Analyst DF'
@@ -405,7 +421,7 @@ class BambooAI:
             self.log_and_call_manager.print_summary_to_terminal()
             
             if not loop:
-                self.log_and_call_manager.write_summary_to_log()
+                self.log_and_call_manager.consolidate_logs()
                 return 
             
     ######################
