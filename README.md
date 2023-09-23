@@ -182,7 +182,7 @@ Log Structure:
 - chain_id: 1695375585
   ├─ chain_details (LLM Calls)
   │   ├─ List of Dictionaries (Multiple Steps)
-  │       ├─ Step 1
+  │       ├─ Call 1
   │       │   ├─ tool (String)
   │       │   ├─ chain_id (Integer)
   │       │   ├─ timestamp (String)
@@ -191,9 +191,9 @@ Log Structure:
   │       │   │   └─ role (String)
   │       │   │   └─ content (String)
   │       │   └─ Other Fields (content, prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second, cost)
-  │       ├─ Step 2
+  │       ├─ Call 2
   │       │   └─ ... (Similar Fields)
-  │       └─ ... (Step 3, Step 4, Step 5 ...)
+  │       └─ ... (Call 3, Call 4, Call 5 ...)
   │
   ├─ chain_summary
   │   ├─ Dictionary
