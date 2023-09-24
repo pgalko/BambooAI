@@ -21,7 +21,7 @@ def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature:
             import local_models
         content_received, local_llm_messages,prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = local_models.llm_local_stream(messages,local_model)
         log_and_call_manager.write_to_log(tool, chain_id, timestamp, local_model, local_llm_messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
-        return content_received, total_tokens_used
+        return content_received
     #If local_model is None, use OpenAI API
     else:
         init_openai()
@@ -141,7 +141,7 @@ def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperatur
             import local_models
         content_received, local_llm_messages,prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = local_models.llm_local_stream(messages,local_model)
         log_and_call_manager.write_to_log(tool, chain_id, timestamp, local_model, local_llm_messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
-        return content_received, total_tokens_used
+        return content_received
     #If local_model is None, use OpenAI API
     else:
         init_openai()
