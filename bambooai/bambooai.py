@@ -26,6 +26,9 @@ class BambooAI:
                  exploratory: bool = True,
                  local_code_model: str = None 
                  ):
+        
+        # Output
+        self.output_manager = output_manager.OutputManager()
 
         # Check if the OPENAI_API_KEY environment variable is set
         if not os.getenv('OPENAI_API_KEY'):
@@ -120,9 +123,6 @@ class BambooAI:
                                 }
         self.log_and_call_manager = log_manager.LogAndCallManager(self.token_cost_dict)
         self.chain_id = None
-
-        # Output
-        self.output_manager = output_manager.OutputManager()
 
         # Messages lists
         self.pre_eval_messages = [{"role": "system", "content": self.system_task_classification}]
