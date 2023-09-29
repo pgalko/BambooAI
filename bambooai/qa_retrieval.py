@@ -3,13 +3,22 @@ from sentence_transformers import SentenceTransformer
 import os
 import hashlib
 
+try:
+    # Attempt package-relative import
+    from . import output_manager
+except ImportError:
+    # Fall back to script-style import
+    import output_manager
+
+output_manager = output_manager.OutputManager()
+
 def init_pinecone():
     # Get the PINECONE_API_KEY and PINECONE_ENV environment variables
     PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
     PINECONE_ENV = os.getenv('PINECONE_ENV')
 
     if PINECONE_API_KEY is None or PINECONE_ENV is None:
-        print("Warning: PINECONE_API_KEY or PINECONE_ENV environment variable not found.")
+        output_manager.print_wrapper("Warning: PINECONE_API_KEY or PINECONE_ENV environment variable not found.")
         return None, None
 
     # Initialize Pinecone
@@ -21,7 +30,7 @@ def init_pinecone():
     # Create a new Pinecone index if it doesnt exist
     index_name = "bambooai-qa-retrieval"
     if index_name not in pinecone.list_indexes():
-        print(f"Creating a new vector db index. Please wait... {index_name}")
+        output_manager.print_wrapper(f"Creating a new vector db index. Please wait... {index_name}")
         pinecone.create_index(name=index_name, metric="cosine", shards=1, dimension=384)
 
     # Instantiate Pinecone index
@@ -34,7 +43,7 @@ def add_question_answer_pair(question, df_columns, code, new_rank):
     # Check if the new rank is above the threshold
     new_rank=int(new_rank)
     if new_rank < 8:
-        print("The new rank is below the threshold. Not adding/updating the vector db record.")
+        output_manager.print_wrapper("The new rank is below the threshold. Not adding/updating the vector db record.")
         return
 
     # Hash the question to be used as id
@@ -57,9 +66,9 @@ def add_question_answer_pair(question, df_columns, code, new_rank):
         metadata = {"df_col":df_columns,"question_txt":question,"code":code,"rank": new_rank}
         vectors = [(id,xq,metadata)]
         index.upsert(vectors=vectors)
-        print(f"Added/Updated the vector db record with id: {id}")
+        output_manager.print_wrapper(f"Added/Updated the vector db record with id: {id}")
     else:
-        print(f"Existing rank {existing_rank} is higher or equal to the new rank. I am not updating the existing vector db record.")
+        output_manager.print_wrapper(f"Existing rank {existing_rank} is higher or equal to the new rank. I am not updating the existing vector db record.")
 
 
 def retrieve_answer(question, df_columns, match_df=True, similarity_threshold=0.9):
@@ -73,24 +82,24 @@ def retrieve_answer(question, df_columns, match_df=True, similarity_threshold=0.
     matches = results.get('results', [{}])[0].get('matches', [])
 
     if not matches:
-        print("No vector db match found")
+        output_manager.print_wrapper("No vector db match found")
         return None
 
     match = matches[0]
     closest_match_id = match['id']
     similarity_score = match['score']
-    print(f"Closest match vector db record: {closest_match_id}, Similarity score: {similarity_score}")
+    output_manager.print_wrapper(f"Closest match vector db record: {closest_match_id}, Similarity score: {similarity_score}")
     
     # Check if the similarity score is above the threshold
     if similarity_score < similarity_threshold:
-        print(f"Similarity score {similarity_score} is below the threshold {similarity_threshold}")
+        output_manager.print_wrapper(f"Similarity score {similarity_score} is below the threshold {similarity_threshold}")
         return None
 
     fetched_data = index.fetch(ids=[closest_match_id])
     vector_data = fetched_data.get('vectors', {}).get(closest_match_id, {})
 
     if not vector_data:
-        print("No data found for this vector db id")
+        output_manager.print_wrapper("No data found for this vector db id")
         return None
 
     # Get the metadata
@@ -100,7 +109,7 @@ def retrieve_answer(question, df_columns, match_df=True, similarity_threshold=0.
         if metadata['df_col'] == df_columns:
             code = metadata['code']
         else:
-            print("The dataframe columns do not match. I will not use this record.")
+            output_manager.print_wrapper("The dataframe columns do not match. I will not use this record.")
             return None
     # Return the matadata withouth checking the dataframe columns
     else:

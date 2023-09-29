@@ -14,6 +14,15 @@ from transformers import (
 
 logging.set_verbosity(logging.CRITICAL)
 
+try:
+    # Attempt package-relative import
+    from . import output_manager
+except ImportError:
+    # Fall back to script-style import
+    import output_manager
+
+output_manager = output_manager.OutputManager()
+
 def convert_openai_to_alpaca(messages: str):
     formatted_content = ""
     last_role = None
@@ -135,12 +144,12 @@ def llm_local_stream(messages: str,local_model: str):
             model_config = {
                 "torch_dtype": float16,
             }
-            print(f"Using {model_config['torch_dtype']} precision")
+            output_manager.print_wrapper(f"Using {model_config['torch_dtype']} precision")
         else:
             model_config = {
                 "quantization_config": bnb_config,
             }
-            print(f"Uing {model_config['quantization_config'].bnb_4bit_quant_type} quantization")
+            output_manager.print_wrapper(f"Uing {model_config['quantization_config'].bnb_4bit_quant_type} quantization")
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             trust_remote_code=True,
@@ -158,8 +167,8 @@ def llm_local_stream(messages: str,local_model: str):
         )
 
     model.eval()
-    print(f"Model loaded on {device}")
-    print(f"GPU memory available: {gpu_memory_gb}GB\n")
+    output_manager.print_wrapper(f"Model loaded on {device}")
+    output_manager.print_wrapper(f"GPU memory available: {gpu_memory_gb}GB\n")
 
     start_time = time.time()
 

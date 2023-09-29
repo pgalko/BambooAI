@@ -1,10 +1,14 @@
 import json
 import logging
 from logging.handlers import RotatingFileHandler
-from IPython.display import display, HTML
-from termcolor import cprint
-import sys
 import os
+
+try:
+    # Attempt package-relative import
+    from . import output_manager
+except ImportError:
+    # Fall back to script-style import
+    import output_manager
 
 ORIGINAL_LOG_FILE_PATH = 'bambooai_run_log.json'
 CONSOLIDATED_LOG_FILE_PATH = 'bambooai_consolidated_log.json'
@@ -26,6 +30,7 @@ class LogAndCallManager:
     def __init__(self, token_cost_dict):
         self.token_summary = {}
         self.token_cost_dict = token_cost_dict
+        self.output_manager = output_manager.OutputManager()
         
     def update_token_summary(self, chain_id, prompt_tokens, completion_tokens, total_tokens, elapsed_time, cost):
         if chain_id not in self.token_summary:
@@ -50,17 +55,7 @@ class LogAndCallManager:
             summary_text += f"Average Response Speed: {avg_speed:.2f} tokens/second\n"
             summary_text += f"Total Cost: ${tokens['total_cost']:.4f}\n"
 
-        if 'ipykernel' in sys.modules:
-            # Jupyter notebook or ipython
-            display(HTML(f'''
-            <br>
-            <p><b style="color: blue;">Chain Summary (Detailed info in bambooai_consolidated_log.json file):</b></p>
-            <pre style="color: black; white-space: pre-line;">{summary_text}</pre>
-            '''))
-        else:
-            # Other environment (like terminal)
-            cprint("\n>> Chain Summary (Detailed info in bambooai_consolidated_log.json file):", 'yellow', attrs=['bold'])
-            print(summary_text)
+        self.output_manager.display_call_summary(summary_text)
 
     def write_to_log(self, tool, chain_id, timestamp, model, messages, content, prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second):
         # Calculate the costs

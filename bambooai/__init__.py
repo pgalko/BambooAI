@@ -7,3 +7,4 @@ from . import google_search
 from . import reg_ex
 from . import local_models
 from . import log_manager
+from . import output_manager

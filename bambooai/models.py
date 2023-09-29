@@ -24,6 +24,15 @@ def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature:
         return content_received
     #If local_model is None, use OpenAI API
     else:
+        try:
+            # Attempt package-relative import
+            from . import output_manager
+        except ImportError:
+            # Fall back to script-style import
+            import output_manager
+
+        output_manager = output_manager.OutputManager()
+
         init_openai()
         model = model_dict['llm']
         if llm_cascade:
@@ -38,7 +47,7 @@ def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature:
             )
             end_time = time.time()
         except openai.error.RateLimitError:
-            print(
+            output_manager.print_wrapper(
                 "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
             )
             time.sleep(10)
@@ -52,7 +61,7 @@ def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature:
             end_time = time.time()
         # Exceeded the maximum number of tokens allowed by the API
         except openai.error.InvalidRequestError:
-            print(
+            output_manager.print_wrapper(
                 "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
             )
             start_time = time.time()
@@ -87,6 +96,15 @@ def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature:
 
 def llm_func_call(log_and_call_manager, model_dict: dict, messages: str, functions: str, function_name: str, tool: str = None, chain_id: str = None):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+    try:
+        # Attempt package-relative import
+        from . import output_manager
+    except ImportError:
+        # Fall back to script-style import
+        import output_manager
+
+    output_manager = output_manager.OutputManager()
+
     init_openai()
     model = model_dict['llm_func']
     try:
@@ -101,7 +119,7 @@ def llm_func_call(log_and_call_manager, model_dict: dict, messages: str, functio
         )
         end_time = time.time()
     except openai.error.RateLimitError:
-        print(
+        output_manager.print_wrapper(
             "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
         )
         time.sleep(10)
@@ -144,6 +162,15 @@ def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperatur
         return content_received
     #If local_model is None, use OpenAI API
     else:
+        try:
+            # Attempt package-relative import
+            from . import output_manager
+        except ImportError:
+            # Fall back to script-style import
+            import output_manager
+
+        output_manager = output_manager.OutputManager()
+
         init_openai()
         model = model_dict['llm']
         if llm_cascade:
@@ -157,7 +184,7 @@ def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperatur
                 stream = True
             )
         except openai.error.RateLimitError:
-            print(
+            output_manager.print_wrapper(
                 "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
             )
             time.sleep(10)
@@ -170,7 +197,7 @@ def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperatur
             )
         # Exceeded the maximum number of tokens allowed by the API
         except openai.error.InvalidRequestError:
-            print(
+            output_manager.print_wrapper(
                 "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
             )
             response = openai.ChatCompletion.create(
@@ -191,12 +218,12 @@ def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperatur
             collected_chunks.append(chunk)  # save the event response
             chunk_message = chunk['choices'][0]['delta']  # extract the message
             collected_messages.append(chunk_message)  # save the message
-            print(chunk_message.get('content', ''), end='', flush=True)  # print the message without a newline
+            output_manager.print_wrapper(chunk_message.get('content', ''), end='', flush=True)  # output_manager.print_wrapper the message without a newline
 
         end_time = time.time()
         elapsed_time = end_time - start_time
         
-        print()  # print a newline
+        output_manager.print_wrapper("")  # output_manager.print_wrapper a newline
 
         # get the complete text received
         full_reply_content = ''.join([m.get('content', '') for m in collected_messages])

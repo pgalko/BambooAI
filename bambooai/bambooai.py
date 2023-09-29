@@ -1,22 +1,18 @@
 
 import os
-import sys
-import json
 from contextlib import redirect_stdout
 import io
 import time
 import pandas as pd
-from termcolor import colored, cprint
-from IPython.display import display,HTML
 import warnings
 warnings.filterwarnings('ignore')
 
 try:
     # Attempt package-relative import
-    from . import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager
+    from . import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager, output_manager
 except ImportError:
     # Fall back to script-style import
-    import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager
+    import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager, output_manager
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -37,7 +33,7 @@ class BambooAI:
         
         # Check if the SERPER_API_KEY environment variable is set
         if not os.getenv('SERPER_API_KEY'):
-            print("Warning: SERPER_API_KEY environment variable not found. Disabling google_search.")
+            self.output_manager.print_wrapper("Warning: SERPER_API_KEY environment variable not found. Disabling google_search.")
             search_tool = False
         
         # Check if the PINECONE_API_KEY and PINECONE_ENV environment variables are set if vector_db is True
@@ -46,7 +42,7 @@ class BambooAI:
             PINECONE_ENV = os.getenv('PINECONE_ENV')
             
             if PINECONE_API_KEY is None or PINECONE_ENV is None:
-                print("Warning: PINECONE_API_KEY or PINECONE_ENV environment variable not found. Disabling vector_db.")
+                self.output_manager.print_wrapper("Warning: PINECONE_API_KEY or PINECONE_ENV environment variable not found. Disabling vector_db.")
                 vector_db = False
 
         self.MAX_ERROR_CORRECTIONS = 5
@@ -125,6 +121,9 @@ class BambooAI:
         self.log_and_call_manager = log_manager.LogAndCallManager(self.token_cost_dict)
         self.chain_id = None
 
+        # Output
+        self.output_manager = output_manager.OutputManager()
+
         # Messages lists
         self.pre_eval_messages = [{"role": "system", "content": self.system_task_classification}]
         self.select_analyst_messages = [{"role": "system", "content": self.system_analyst_selection}]
@@ -162,14 +161,7 @@ class BambooAI:
         if llm_cascade_plan:
             using_model = self.model_dict['llm_gpt4']
 
-        if 'ipykernel' in sys.modules:
-            # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
-            display(HTML(f'<p><b style="color:magenta;">Trying to determine the best method to answer your question, please wait...</b></p><br>'))
-        else:
-            # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
-            cprint(f"\n>> Trying to determine the best method to answer your question, please wait...\n", 'magenta', attrs=['bold'])
+        self.output_manager.display_tool_start(tool,using_model)
 
         # Call OpenAI API to evaluate the task
         llm_response = self.llm_stream(self.log_and_call_manager,self.model_dict, eval_messages, llm_cascade=llm_cascade_plan,tool=tool, chain_id=self.chain_id)
@@ -182,14 +174,7 @@ class BambooAI:
         if llm_cascade_plan:
             using_model = self.model_dict['llm_gpt4']
 
-        if 'ipykernel' in sys.modules:
-            # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
-            display(HTML(f'<p><b style="color:magenta;">Selecting the expert to best answer your query, please wait...</b></p><br>'))
-        else:
-            # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
-            cprint(f"\n>> Selecting the expert to best answer your query, please wait..\n", 'magenta', attrs=['bold'])
+        self.output_manager.display_tool_start(tool,using_model)
 
         # Call OpenAI API to evaluate the task
         llm_response = self.llm_stream(self.log_and_call_manager,self.model_dict, pre_eval_messages, llm_cascade=llm_cascade_plan, tool=tool,chain_id=self.chain_id)
@@ -214,16 +199,6 @@ class BambooAI:
             llm_cascade_plan = True
         else:
             llm_cascade_plan = False
-
-        def display_eval(answer=None):
-            if 'ipykernel' in sys.modules:
-                # Jupyter notebook or ipython
-                if answer is not None:
-                    print(answer)
-            else:
-                # Other environment (like terminal)
-                if answer is not None:
-                    print(answer)
 
         ######## Select Expert ###########
         self.pre_eval_messages.append({"role": "user", "content": self.user_task_classification.format(question)})
@@ -266,13 +241,13 @@ class BambooAI:
 
         elif expert == 'Internet Research Specialist':
             if self.search_tool:
-                print('I either do not have an answer to your query or I am not confident that the information that I have is satisfactory.\nI am going to search the Internet. Please wait...\n')
+                self.output_manager.print_wrapper('I either do not have an answer to your query or I am not confident that the information that I have is satisfactory.\nI am going to search the Internet. Please wait...')
                 answer,links_dict = self.google_search(self.token_cost_dict,self.model_dict,self.chain_id,task_eval)
                 for link in links_dict:
-                    print(f"Title: {link['title']}\nLink: {link['link']}\n")
+                    self.output_manager.print_wrapper(f"Title: {link['title']}\nLink: {link['link']}")
                 # Replace the last element in eval_messages with the answer from the Google search
                 self.eval_messages[-1] = {"role": "assistant", "content": answer}
-                display_eval(answer)
+                self.output_manager.print_wrapper(answer)
                 self.log_and_call_manager.print_summary_to_terminal()
             else:
                 self.log_and_call_manager.print_summary_to_terminal()
@@ -289,29 +264,6 @@ class BambooAI:
     #####################
 
     def pd_agent_converse(self, question=None):
-        # Functions to display results nicely
-        def display_results(answer, code, rank):
-            if 'ipykernel' in sys.modules: 
-                if self.df is not None:
-                    display(HTML(f'<p><b style="color:blue;">Here is the head of your dataframe:</b><br><pre style="color:#555555;">{self.df.head(5)}</pre></p><br>'))    
-                if answer is not None:
-                    display(HTML(f'<p><b style="color:blue;">I now have the final answer:</b><br><pre style="color:black; white-space: pre-wrap; font-weight: bold;">{answer}</pre></p><br>'))
-                if code is not None:
-                    display(HTML(f'<p><b style="color:blue;">Here is the final code that accomplishes the task:</b><br><pre style="color:#555555;">{code}</pre></p><br>'))
-                if self.vector_db and rank is not None:
-                    display(HTML(f'<p><b style="color:blue;">Solution Rank:</b><br><span style="color:black;">{rank}</span></p><br>'))
-            else:
-                if self.df is not None:
-                    cprint(f"\n>> Here is the head of your dataframe:", 'green', attrs=['bold'])
-                    display(self.df.head(5))
-                if answer is not None:
-                    cprint(f"\n>> I now have the final answer:\n{answer}\n", 'green', attrs=['bold'])
-                if code is not None:
-                    cprint(">> Here is the final code that accomplishes the task:", 'green', attrs=['bold'])
-                    print(code)
-                if self.vector_db and rank is not None:
-                    cprint("\n>> Solution Rank:", 'green', attrs=['bold'])
-                    print(rank)
       
         # Initialize the loop variable. If user provided question as an argument, the loop will finish after one iteration
         if question is not None:
@@ -329,15 +281,7 @@ class BambooAI:
         # Start the conversation loop
         while True:
             if loop:
-                # Prompt the user to enter a question or type 'exit' to quit
-                if 'ipykernel' in sys.modules:
-                    display(HTML('<b style="color:blue;">Enter your question or type \'exit\' to quit:</b>'))
-                    time.sleep(1)
-                    question = input()
-                else:
-                    cprint("\nEnter your question or type 'exit' to quit:", 'blue', attrs=['bold'])
-                    question = input()
-
+                question = self.output_manager.display_user_input_prompt()
                 # If the user types 'exit', break out of the loop
                 if question.strip().lower() == 'exit':
                     self.log_and_call_manager.consolidate_logs()    
@@ -352,7 +296,6 @@ class BambooAI:
                         return
                 else:
                     if not analyst:
-                        self.log_and_call_manager.consolidate_logs()
                         continue
             else:
                 analyst = 'Data Analyst DF'
@@ -395,17 +338,11 @@ class BambooAI:
             else:
                 rank = ""
 
-            display_results(answer, code, rank)
+            # Display the results
+            self.output_manager.display_results(df=self.df, answer=answer, code=code, rank=rank, vector_db=self.vector_db)
 
             if self.vector_db:
-                # Prompt the user to to give a feedback on the ranking
-                if 'ipykernel' in sys.modules:
-                    display(HTML('<b style="color:green;">Are you happy with the ranking ? If YES type \'yes\'. If NO type in the new rank on a scale from 1-10:</b>'))
-                    time.sleep(1)
-                    rank_feedback = input()
-                else:
-                    cprint("\nAre you happy with the ranking ?\nIf YES type 'yes'. If NO type in the new rank on a scale from 1-10:", 'green', attrs=['bold'])
-                    rank_feedback = input()
+                rank_feedback = self.output_manager.display_user_input_rank()
 
                 # If the user types "yes", use the rank as is. If not, use the user's rank.
                 if rank_feedback.strip().lower() == 'yes':
@@ -441,14 +378,7 @@ class BambooAI:
         else:
             using_model = self.model_dict['llm']
 
-        if 'ipykernel' in sys.modules:
-            # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
-            display(HTML(f'<p><b style="color:magenta;">I am generating the first version of the code, please wait...</b></p><br>'))
-        else:
-            # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
-            cprint(f"\n>> I am generating the first version of the code, please wait\n", 'magenta', attrs=['bold'])
+        self.output_manager.display_tool_start(tool,using_model)
 
         # Call the OpenAI API or a local code model
         llm_response = self.llm_stream(self.log_and_call_manager,self.model_dict, code_messages, local_model=self.local_code_model, tool=tool, chain_id=self.chain_id)
@@ -462,15 +392,12 @@ class BambooAI:
             # Switch to gpt-4 if llm_switch_code parameter is set to True. This will increase the processing time and cost
             if self.llm_switch_code:
                 llm_cascade_code = True
-                if 'ipykernel' in sys.modules:
-                    # Jupyter notebook
-                    display(HTML('<span style="color: magenta;">Switching model to gpt-4 to debug the code.</span>'))
-                else:
-                    # CLI
-                    print(colored("\n>> Switching model to GPT-4 to debug the code.", "magenta"))
+                self.output_manager.display_model_switch()
             else:
                 llm_cascade_code = False
             code = self.debug_code(analyst, code, task, llm_cascade_code=llm_cascade_code)
+        else:
+            self.output_manager.display_tool_end(tool)
 
         return code
     
@@ -486,30 +413,14 @@ class BambooAI:
         if llm_cascade_code:
             using_model = self.model_dict['llm_gpt4']
 
-        if 'ipykernel' in sys.modules:
-            # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
-            display(HTML(f'<p><b style="color:magenta;"> I am reviewing and debugging the first version of the code to check for any errors, bugs, or inconsistencies and will make corrections if necessary. Please wait..</b></p><br>'))
-        else:
-            # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
-            cprint(f"\n>> I am reviewing and debugging the first version of the code to check for any errors, bugs, or inconsistencies and will make corrections if necessary. Please wait...\n", 'magenta', attrs=['bold'])
-
-        # Function to display results nicely
-        def display_task():
-            if 'ipykernel' in sys.modules:
-                # Jupyter notebook or ipython
-                display(HTML(f'<p><b style="color:magenta;">I have finished debugging the code, and will now proceed to the execution...</b></p><br>'))
-            else:
-                # Other environment (like terminal)
-                cprint(f"\n>> I have finished debugging the code, and will now proceed to the execution...\n", 'magenta', attrs=['bold'])
+        self.output_manager.display_tool_start(tool,using_model)
 
         # Call the OpenAI API
         llm_response = self.llm_stream(self.log_and_call_manager,self.model_dict, debug_messages,temperature=0, llm_cascade=llm_cascade_code, local_model=self.local_code_model, tool=tool, chain_id=self.chain_id)
         
         # Extract the code from the API response
         debugged_code = self._extract_code(llm_response,analyst)       
-        display_task()
+        self.output_manager.display_tool_end(tool)
 
         return debugged_code
 
@@ -538,14 +449,8 @@ class BambooAI:
                         self.code_messages = self._remove_examples(self.code_messages)
                     break
                 except Exception as e:
-                    # Print the error message
-                    if 'ipykernel' in sys.modules:
-                        # Jupyter notebook
-                        display(HTML(f'<br><b><span style="color: #d86c00;">I ran into an issue:</span></b><br><pre style="color: #d86c00;">{e}</pre><br><b><span style="color: #d86c00;">I will examine it, and try again with an adjusted code.</span></b><br>'))
-                    else:
-                        # CLI
-                        sys.stderr.write('\033[31m' + f'>> I ran into an issue: {e}. \n>> I will examine it, and try again with an adjusted code.' + '\033[0m' + '\n')
-                        sys.stderr.flush()
+                    # Display the error message
+                    self.output_manager.display_error(e,self.llm_switch_code)
 
                     # Increment the error correction counter and update the messages list with the error
                     error_corrections += 1
@@ -559,13 +464,6 @@ class BambooAI:
                     # Switch to gpt-4 if llm_switch_code parameter is set to True. This will increase the processing time and cost.
                     if self.llm_switch_code:
                         llm_cascade_code = True
-                        if 'ipykernel' in sys.modules:
-                            # Jupyter notebook
-                            display(HTML('<span style="color: #d86c00;">Switching model to gpt-4 to try to improve the outcome.</span>'))
-                        else:
-                            # CLI
-                            sys.stderr.write('\033[31m' + f'>> Switching model to gpt-4 to try to improve the outcome.' + '\033[0m' + '\n')
-                            sys.stderr.flush()
                     else:
                         llm_cascade_code = False
 
@@ -606,14 +504,7 @@ class BambooAI:
         if llm_cascade_code:
             using_model = self.model_dict['llm_gpt4']
 
-        if 'ipykernel' in sys.modules:
-            # Jupyter notebook or ipython
-            display(HTML(f'<p style="color:magenta;">\nCalling Model: {using_model}</p>'))
-            display(HTML(f'<p><b style="color:magenta;">I am going to evaluate and rank the answer. Please wait...</b></p><br>'))
-        else:
-            # Other environment (like terminal)
-            print(colored(f"\n>> Calling Model: {using_model}", "magenta"))
-            cprint(f"\n>> I am going to evaluate and rank the answer. Please wait..\n", 'magenta', attrs=['bold'])
+        self.output_manager.display_tool_start(tool,using_model)
 
         # Call the OpenAI API 
         llm_response = self.llm_call(self.log_and_call_manager,self.model_dict, rank_messages,llm_cascade=llm_cascade_code,tool=tool, chain_id=self.chain_id)
