@@ -52,7 +52,7 @@ class OutputManager:
     def display_tool_start(self, tool, model):
         color = self.color_tool_header
         if tool == 'Planner':
-            msg = 'Trying to determine the best method to answer your question, please wait...'
+            msg = 'Drafting a plan to provide a comprehensive answer, please wait...'
         elif tool == 'Expert Selector':
             msg = 'Selecting the expert to best answer your query, please wait...'
         elif tool == 'Code Generator':
@@ -60,7 +60,7 @@ class OutputManager:
         elif tool == 'Code Debugger':
             msg = 'I am reviewing and debugging the first version of the code to check for any errors, bugs, or inconsistencies and will make corrections if necessary. Please wait...'
         elif tool == 'Code Ranker':
-            msg = 'I am going to assess, summarize and rank the answer. Please wait...'
+            msg = 'I am going to assess, summarize and rank the answer, please wait...'
 
         if 'ipykernel' in sys.modules:
             display(HTML(f'<p style="color:{color};">\nCalling Model: {model}</p>'))

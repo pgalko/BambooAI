@@ -9,7 +9,7 @@ def init_openai():
     API_KEY = os.environ.get('OPENAI_API_KEY')
     openai.api_key = API_KEY
 
-def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False, local_model: str = None, tool: str = None, chain_id: str = None):
+def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 2000, llm_cascade: bool = False, local_model: str = None, tool: str = None, chain_id: str = None):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     #If local_model is not None, and llm_cascade is False use local model instead of OpenAI API
     if local_model and not llm_cascade: 
@@ -147,7 +147,7 @@ def llm_func_call(log_and_call_manager, model_dict: dict, messages: str, functio
 
     return fn_name,arguments
 
-def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 1000, llm_cascade: bool = False, local_model: str = None, tool: str = None, chain_id: str = None): 
+def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 2000, llm_cascade: bool = False, local_model: str = None, tool: str = None, chain_id: str = None): 
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     #If local_model is not None, and llm_cascade is False use local model instead of OpenAI API
     if local_model and not llm_cascade: 

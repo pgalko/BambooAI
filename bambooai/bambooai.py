@@ -54,6 +54,9 @@ class BambooAI:
         
         # Dataframe
         self.df = df if df is not None else None
+        
+        # Results of the code execution
+        self.code_exec_results = None
 
         # LLMs
         # OpenAI models model dict
@@ -148,6 +151,7 @@ class BambooAI:
         self.select_analyst_messages = [{"role": "system", "content": self.system_analyst_selection}]
         self.eval_messages = [{"role": "system", "content": self.system_task_evaluation}]
         self.code_messages = [{"role": "system", "content": self.system_task_df}]
+        self.code_exec_results = None
 
         self.log_and_call_manager.clear_run_logs()
 
@@ -209,6 +213,7 @@ class BambooAI:
         if expert == 'Data Analyst':
             self.select_analyst_messages.append({"role": "user", "content": self.user_analyst_selection.format(question, None if self.df is None else self.df.columns.tolist())})
             analyst = self.select_analyst(self.select_analyst_messages, llm_cascade_plan=llm_cascade_plan)
+            self.select_analyst_messages.append({"role": "assistant", "content": analyst})
             if analyst == 'Data Analyst DF':
                 self.eval_messages.append({"role": "user", "content": self.analyst_task_evaluation_df.format(question, None if self.df is None else self.df.head(1))})
                 # Replace first dict in messages with a new system task
@@ -369,9 +374,9 @@ class BambooAI:
         tool = 'Code Generator'
         # Add a user message with the updated task prompt to the messages list
         if analyst == 'Data Analyst DF':
-            code_messages.append({"role": "user", "content": self.user_task_df.format(None if self.df is None else self.df.head(1), task, example_output)})
+            code_messages.append({"role": "user", "content": self.user_task_df.format(None if self.df is None else self.df.head(1), task, self.code_exec_results, example_output)})
         elif analyst == 'Data Analyst Generic':
-            code_messages.append({"role": "user", "content": self.user_task_gen.format(task,example_output)})
+            code_messages.append({"role": "user", "content": self.user_task_gen.format(task, self.code_exec_results, example_output)})
 
         if self.local_code_model:
             using_model = self.local_code_model
@@ -479,9 +484,9 @@ class BambooAI:
                     
         # Get the output from the executed code
         results = output.getvalue()
-
-        # I now need to add the answer to the messages list apending the answer to the content of the assistamt message.
-        code_messages[-1]['content'] = code_messages[-1]['content'] + '\nThe execution of this code resulted in the following:\n' + results
+        
+        # Store the results in a class variable
+        self.code_exec_results = results
 
         # Call OpenAI API to summarize the results
         tool = 'Solution Summarizer'
