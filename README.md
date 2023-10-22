@@ -74,10 +74,6 @@ Throughout this process, the agent continuously solicits user input, stores mess
 **Flow chart (General agent flow):**
 
 ![](images/BambooAI_Agent_Flow.png)
- 
-**Flow chart (LLM interactions):**
-
-![](images/flow_chart_11.png)
 
 ## How to use
 
@@ -139,6 +135,10 @@ bamboo = BambooAI(df)
 bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart rate column")
 ```
 Visualize the data (Uses Matplotlib). Works with both Loop and Single execution
+
+**Flow chart (Parameters and LLM interactions):**
+
+![](images/flow_chart_11.png)
 
 **Environment Variables**
 
