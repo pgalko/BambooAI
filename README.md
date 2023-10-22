@@ -71,8 +71,11 @@ The BambooAI agent operates through several key steps to interact with users and
 
 Throughout this process, the agent continuously solicits user input, stores messages for context, and generates and executes code to ensure optimal results. Various AI models and a vector database are employed in this process to provide accurate and helpful responses to user's questions.
 
+**Flow chart (General agent flow):**
+
+![](images/BambooAI_Agent_Flow.png)
  
-**Flow chart:**
+**Flow chart (LLM interactions):**
 
 ![](images/flow_chart_11.png)
 
