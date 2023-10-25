@@ -173,7 +173,7 @@ All LLM interactions (local or via APIs) are logged in the `bambooai_consolidate
 The following details are captured:
 
 - **Chain ID**
-- **All LLM calls (steps) within the chain**, including details of each call eg. tool name, timestamp, model, prompt (context memory), response, token use, cost, tokens per second etc. 
+- **All LLM calls (steps) within the chain**, including details of each call eg. agent name, timestamp, model, prompt (context memory), response, token use, cost, tokens per second etc. 
 - **Chain summary**, including token use, cost, count of llm calls, tokens per second etc.
 - **Summary per LLM**, including token use, cost, number of calls, tokens per second etc.
 
@@ -183,7 +183,7 @@ Log Structure:
   ├─ chain_details (LLM Calls)
   │   ├─ List of Dictionaries (Multiple Steps)
   │       ├─ Call 1
-  │       │   ├─ tool (String)
+  │       │   ├─ agent (String)
   │       │   ├─ chain_id (Integer)
   │       │   ├─ timestamp (String)
   │       │   ├─ model (String)
