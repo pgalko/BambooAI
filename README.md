@@ -18,7 +18,7 @@ The primary aim of BambooAI is to enhance, not replace, the capabilities of anal
 **A Generic Example (No dataframe required, Data downloaded from Internet):**
 ```
 df = pd.read_csv('test_activity_data.csv')
-bamboo = BambooAI(df, debug=False, llm="gpt-4", llm_switch_code=False, vector_db=True, search_tool=True)
+bamboo = BambooAI(df, debug=False, vector_db=True, search_tool=True)
 bamboo.pd_agent_converse()
 ```
 
@@ -28,7 +28,7 @@ https://github.com/pgalko/BambooAI/assets/39939157/ea72de1c-05db-472e-9c95-fa8e2
 **A Machine Learning Example using supplied dataframe:**
 ```
 df = pd.read_csv('test_activity_data.csv')
-bamboo = BambooAI(df, debug=True, llm_switch_code=True, vector_db=True, search_tool=True)
+bamboo = BambooAI(df, debug=True, vector_db=True, search_tool=True)
 bamboo.pd_agent_converse()
 ```
 
@@ -52,11 +52,11 @@ The BambooAI agent operates through several key steps to interact with users and
 - If the question can be resolved by code, the agent determines whether the necessary data is contained within the provided dataset, requires downloading from an external source, or if the question is of a generic nature and data is not required.
 - The agent then chooses its approach accordingly. It formulates an algorithm, expressed as a task list, to serve as a blueprint for the analysis.
 - The original question is modified to align with this algorithm. The agent performs a semantic search against a vector database for similar questions.
-- Any matching questions found are appended to the prompt as examples. GPT-3.5 or GPT-4 is then used to generate code based on the algorithm.
+- Any matching questions found are appended to the prompt as examples. GPT-3.5, GPT-4 or a local OSS model is then used to generate code based on the algorithm.
 
 **4. Debugging, Execution, and Error Correction**
 - If the generated code needs debugging, GPT-4 is engaged.
-- The code is executed using GPT-3,GPT-4 or a local OS model, and if errors occur, the agent logs the error message and refers it back to the LLM (GPT-3 or GPT-4, depending on the ```llm_switch_code``` parameter) for correction.
+- The code is executed, and if errors occur, the agent logs the error message and refers it back to the LLM for correction.
 - This process continues until successful code execution.
 
 **5. Results, Ranking, and Knowledge Base Build**
@@ -92,12 +92,6 @@ df: pd.DataFrame - Dataframe (It will try to source the data from internet, if '
 
 max_conversations: int - Number of "user:assistant" conversation pairs to keep in memory for a context. Default=2
 
-llm: str - Base LLM model. Default = gpt-3.5-turbo-0613
-
-llm_switch_plan: bool - If True, the agent will use gpt-4 to devise the plan (task list). It will switch back to the base model for all other tasks.
-
-llm_switch_code: bool - If True, the agent will switch to gpt-4 after error,or if a self reflection is required (code debug, solution ranking).
-
 debug: bool - If True, the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking and debugging.
 
 search_tool: bool - If True, the agent will switch to a google search if the answer is not available or satisfactory.
@@ -106,14 +100,19 @@ vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the
 
 exploratory: bool - If set to True, the LLM will evaluate the user's question and select an "Expert" that is best suited to address the question (experts: Internet Search Specialist, Data Analisys Theoretician, Data Analyst). For instance, if the task involves code generation/execution, it will generate a task list detailing the steps, which will subsequently be sent to the LLM as a prompt for the next action. This method is particularly effective for vague user prompts, but it might not perform as efficiently with more specific prompts. The default setting is True.
 
-local_code_model: str - Takes a name of the localy installed open source model. It will use this model instead of an Open AI model to generate the code. For use with free Colab use 13B/15B GPTQ models. Requires for the model to be downloaded from Hugging Faces which can take awhile. If used in Colab you will need to change the runtime type and use the GPU hardware accelerator for this option to work. Default None.
-
-
-e.g. bamboo = BambooAI(df, debug=True, vector_db=True, llm_switch_code=True, search_tool=True, exploratory=True)
-     bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, llm_switch_plan=False, search_tool=True, local_code_model='WizardCoder-15B-1.0')
+e.g. bamboo = BambooAI(df, debug=True, vector_db=True, search_tool=True, exploratory=True)
+     bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, search_tool=True)
 ```
 
-Run in a loop
+LLM Config
+
+The agent specific llm configuration is stored in ```LLM_CONFIG``` environment variable, or in the "LLM_CONFIG.json file which needs to be stored in the BambooAI's working directory. The config is in a form of JSON list of dictionaries and specifies model name, provider, temperature and max_tokens for each agent. You can use the provided LLM_CONFIG_sample.json as a starting point, and modify the config to reflect your preferences. If neither "ENV VAR" nor "LLM_CONFIG.json" is present, BambooAI will use the default hardcoded configuration that uses "gpt-3.5-turbo" for all agents.
+
+Prompt Templates
+
+The BambooAI library uses default hardcoded set of prompt templates for each agent. If you want to experiment with them, you can modify the provided "PROMPT_TEMPLATES_sample.json" file, remove the "_sample from its name and store in the working directory. Subsequently, the content of the modified "PROMPT_TEMPLATES.json" will be used instead of the hardcoded defaults. You can always revert back to default prompts by removing/renaming the modified "PROMPT_TEMPLATES.json".
+
+Example usage: Run in a loop
 
 ```
 # Run in a loop remembering the conversation history
@@ -124,7 +123,7 @@ df = pd.read_csv('test_activity_data.csv')
 bamboo = BambooAI(df)
 bamboo.pd_agent_converse()
 ```
-Single execution
+Example Usage: Single execution
 ```
 # Run programaticaly (Single execution).
 import pandas as pd
@@ -134,16 +133,13 @@ df = pd.read_csv('test_activity_data.csv')
 bamboo = BambooAI(df)
 bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart rate column")
 ```
-Visualize the data (Uses Matplotlib). Works with both Loop and Single execution
-
-**Flow chart (Parameters and LLM interactions):**
-
-![](images/flow_chart_11.png)
 
 **Environment Variables**
 
 The library requires an OpenAI API account and the API key to connect to OpenAI LLMs. The OpenAI API key needs to be stored in a ```OPENAI_API_KEY``` environment variable.
 The key can be obtained from here: https://platform.openai.com/account/api-keys.
+
+As mentioned above, the llm config can be stored in a string format in the  ```LLM_CONFIG``` environment variable. You can use the content of the provided LLM_CONFIG_sample.json as a starting point and modify to your preference, depending on what models you have access to. 
 
 The Pincone vector db is optional. If you don want to use it, you dont need to do anything. If you have an account with Pinecone and would like to use the knowledge base and ranking features, you will be required to setup ```PINECONE_API_KEY``` and ```PINECONE_ENV``` envirooment variables, and set the 'vector_db' parameter to True. The vector db index is created upon first execution.
 
@@ -158,7 +154,8 @@ The library currently supports the following open-source models. I have selected
 - **CodeLlama Instruct(Phind):** Phind-CodeLlama-34B-v2
 - **CodeLlama Completion(TheBloke):** CodeLlama-7B-Python-fp16, CodeLlama-13B-Python-fp16, CodeLlama-34B-Python-fp16
 
-At present the local models are only called upon for code generation tasks, all other tasks like pseudo code generaration, summarisation, error correction and ranking are still handled by OpenAI models of choice. The model is downloaded from Huggingface and cached localy for subsequent executions. For a reasonable performance it requires CUDA enabled GPU and the pytorch library compatible with the CUDA version. Below are the required libraries that are not included in the package and will need to be installed independently:
+If you want to use a local model for a specific agent, modify the LLM_CONFIG content replacing the OpenAI model name with the local model name and change the provider value to 'local'. eg. ```{"agent": "Code Generator", "details": {"model": "Phind-CodeLlama-34B-v2", "provider":"local","max_tokens": 2000, "temperature": 0}}```
+At present it is recommended to use local models only for code generation tasks, all other tasks like pseudo code generaration, summarisation, error correction and ranking should be still handled by OpenAI models of choice. The model is downloaded from Huggingface and cached localy for subsequent executions. For a reasonable performance it requires CUDA enabled GPU and the pytorch library compatible with the CUDA version. Below are the required libraries that are not included in the package and will need to be installed independently:
 ```
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 (Adjust to match your CUDA version. This library is already included in Colab notebooks)
 pip install auto-gptq (Only required if using WizardCoder-15B-1.0-GPTQ model)
@@ -167,7 +164,7 @@ pip install einops
 pip install xformers
 pip install bitsandbytes
 ```
-The settings for local models are located in local_models.py module and can be adjusted to match your particular configuration or preferences.
+The settings and parameters for local models are located in local_models.py module and can be adjusted to match your particular configuration or preferences.
 
 **Logging**
 
