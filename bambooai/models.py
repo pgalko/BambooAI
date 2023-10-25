@@ -1,28 +1,92 @@
 
 import os
 import time
+import json
 import openai
 import tiktoken
 
-def init_openai():
-    # Get the OPENAI_API_KEY environment variable
-    API_KEY = os.environ.get('OPENAI_API_KEY')
-    openai.api_key = API_KEY
+def load_llm_config():
 
-def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 2000, llm_cascade: bool = False, local_model: str = None, tool: str = None, chain_id: str = None):
+    default_llm_config = [
+    {"agent": "Expert Selector", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 500, "temperature": 0}},
+    {"agent": "Analyst Selector", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 500, "temperature": 0}},
+    {"agent": "Theorist", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Planner", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Code Generator", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Code Debugger", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Error Corrector", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Code Ranker", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 500, "temperature": 0}},
+    {"agent": "Solution Summarizer", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Google Search Query Generator", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Google Search Summarizer", "details": {"model": "gpt-3.5-turbo-16k", "provider":"openai","max_tokens": 2000, "temperature": 0}}
+    ]
+
+    # Get the LLM_CONFIG environment variable
+    if os.environ.get('LLM_CONFIG'):
+        llm_config = os.environ.get('LLM_CONFIG')
+        llm_config = json.loads(llm_config)
+    # load config from the JSON file
+    elif os.path.exists("LLM_CONFIG.json"):
+        try:
+            with open("LLM_CONFIG.json", 'r') as f:
+                llm_config = json.load(f)
+        except Exception as e:
+            llm_config = default_llm_config
+    # Use hardcoded default configuration
+    else:
+        llm_config = default_llm_config
+
+    return llm_config
+
+def init(agent):
+    
+    llm_config = load_llm_config()
+
+    for item in llm_config:
+        if item['agent'] == agent:
+            details = item.get('details', {})
+            model = details.get('model', 'Unknown')
+            provider = details.get('provider', 'Unknown')
+            max_tokens = details.get('max_tokens', 'Unknown')
+            temperature = details.get('temperature', 'Unknown')
+
+    if provider == "openai":
+        # Get the OPENAI_API_KEY environment variable
+        API_KEY = os.environ.get('OPENAI_API_KEY')
+        openai.api_key = API_KEY
+
+    return model, provider, max_tokens, temperature
+
+def get_model_name(agent):
+    
+    llm_config = load_llm_config()
+
+    for item in llm_config:
+        if item['agent'] == agent:
+            details = item.get('details', {})
+            model = details.get('model', 'Unknown')
+            provider = details.get('provider', 'Unknown')
+
+    return model, provider
+
+def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: str = None):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-    #If local_model is not None, and llm_cascade is False use local model instead of OpenAI API
-    if local_model and not llm_cascade: 
+    default_16K_model = "gpt-3.5-turbo-16k"
+
+    # Initialize the LLM parameters
+    model,provider,max_tokens,temperature = init(agent)
+    
+    # If the provider is local, use the local model instead of OpenAI API
+    if provider == "local": 
         try:
             # Attempt package-relative import
             from . import local_models
         except ImportError:
             # Fall back to script-style import
             import local_models
-        content_received, local_llm_messages,prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = local_models.llm_local_stream(messages,local_model)
-        log_and_call_manager.write_to_log(tool, chain_id, timestamp, local_model, local_llm_messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
+        content_received, local_llm_messages,prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = local_models.llm_local_stream(messages,model)
+        log_and_call_manager.write_to_log(agent, chain_id, timestamp, model, local_llm_messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
         return content_received
-    #If local_model is None, use OpenAI API
     else:
         try:
             # Attempt package-relative import
@@ -32,11 +96,7 @@ def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature:
             import output_manager
 
         output_manager = output_manager.OutputManager()
-
-        init_openai()
-        model = model_dict['llm']
-        if llm_cascade:
-            model = model_dict['llm_gpt4']
+        
         try:
             start_time = time.time()
             response = openai.ChatCompletion.create(
@@ -66,7 +126,7 @@ def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature:
             )
             start_time = time.time()
             response = openai.ChatCompletion.create(
-                model=model_dict['llm_16k'],   
+                model=default_16K_model,   
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -90,12 +150,16 @@ def llm_call(log_and_call_manager, model_dict: dict, messages: str, temperature:
         else:
             tokens_per_second = 0
         
-        log_and_call_manager.write_to_log(tool, chain_id, timestamp, model_used, messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time,tokens_per_second)
+        log_and_call_manager.write_to_log(agent, chain_id, timestamp, model_used, messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time,tokens_per_second)
 
         return content
 
-def llm_func_call(log_and_call_manager, model_dict: dict, messages: str, functions: str, function_name: str, tool: str = None, chain_id: str = None):
+def llm_func_call(log_and_call_manager, messages: str, functions: str, function_name: str, agent: str = None, chain_id: str = None):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+
+    # Initialize the LLM parameters
+    model,provider,max_tokens,temperature = init(agent)
+
     try:
         # Attempt package-relative import
         from . import output_manager
@@ -105,8 +169,6 @@ def llm_func_call(log_and_call_manager, model_dict: dict, messages: str, functio
 
     output_manager = output_manager.OutputManager()
 
-    init_openai()
-    model = model_dict['llm_func']
     try:
         start_time = time.time()
         response = openai.ChatCompletion.create(
@@ -114,8 +176,8 @@ def llm_func_call(log_and_call_manager, model_dict: dict, messages: str, functio
         messages=messages,
         functions=functions,
         function_call = function_name,
-        temperature=0,
-        max_tokens = 700, 
+        temperature=temperature,
+        max_tokens = max_tokens, 
         )
         end_time = time.time()
     except openai.error.RateLimitError:
@@ -129,7 +191,7 @@ def llm_func_call(log_and_call_manager, model_dict: dict, messages: str, functio
         messages=messages,
         functions=functions,
         function_call = function_name,
-        temperature=0,
+        temperature=temperature,
         )
         end_time = time.time()
 
@@ -143,24 +205,28 @@ def llm_func_call(log_and_call_manager, model_dict: dict, messages: str, functio
 
     tokens_per_second = completion_tokens / elapsed_time
     
-    log_and_call_manager.write_to_log(tool, chain_id, timestamp, model, messages, arguments, prompt_tokens, completion_tokens, total_tokens, elapsed_time,tokens_per_second)
+    log_and_call_manager.write_to_log(agent, chain_id, timestamp, model, messages, arguments, prompt_tokens, completion_tokens, total_tokens, elapsed_time,tokens_per_second)
 
     return fn_name,arguments
 
-def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperature: float = 0, max_tokens: int = 2000, llm_cascade: bool = False, local_model: str = None, tool: str = None, chain_id: str = None): 
+def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id: str = None): 
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-    #If local_model is not None, and llm_cascade is False use local model instead of OpenAI API
-    if local_model and not llm_cascade: 
+    default_16K_model = "gpt-3.5-turbo-16k"
+
+    # Initialize the LLM parameters
+    model,provider,max_tokens,temperature = init(agent)
+
+    # If the provider is local, use the local model instead of OpenAI API
+    if provider == "local": 
         try:
             # Attempt package-relative import
             from . import local_models
         except ImportError:
             # Fall back to script-style import
             import local_models
-        content_received, local_llm_messages,prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = local_models.llm_local_stream(messages,local_model)
-        log_and_call_manager.write_to_log(tool, chain_id, timestamp, local_model, local_llm_messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
+        content_received, local_llm_messages,prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = local_models.llm_local_stream(messages,model)
+        log_and_call_manager.write_to_log(agent, chain_id, timestamp, model, local_llm_messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
         return content_received
-    #If local_model is None, use OpenAI API
     else:
         try:
             # Attempt package-relative import
@@ -170,11 +236,7 @@ def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperatur
             import output_manager
 
         output_manager = output_manager.OutputManager()
-
-        init_openai()
-        model = model_dict['llm']
-        if llm_cascade:
-            model = model_dict['llm_gpt4']
+        
         try:
             response = openai.ChatCompletion.create(
                 model=model,
@@ -201,7 +263,7 @@ def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperatur
                 "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
             )
             response = openai.ChatCompletion.create(
-                model=model_dict['llm_16k'],
+                model=default_16K_model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -255,6 +317,6 @@ def llm_stream(log_and_call_manager, model_dict: dict, messages: str, temperatur
         else:
             tokens_per_second = 0
 
-        log_and_call_manager.write_to_log(tool, chain_id, timestamp, model_used, messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
+        log_and_call_manager.write_to_log(agent, chain_id, timestamp, model_used, messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
 
         return full_reply_content

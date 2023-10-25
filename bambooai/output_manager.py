@@ -11,7 +11,7 @@ class OutputManager:
         self.color_result_header_cli = 'green'
         self.color_result_body_code = '#555555'
         self.color_result_body_text = 'black'
-        # Tool colors
+        # agent colors
         self.color_tool_header = 'magenta'
         # Error colors
         self.color_error_ntb = '#d86c00'
@@ -48,18 +48,22 @@ class OutputManager:
                 cprint(f"\n>> Solution Rank:", self.color_result_header_cli, attrs=['bold'])
                 self.print_wrapper(rank)
     
-    # Display the header for the tool
-    def display_tool_start(self, tool, model):
+    # Display the header for the agent
+    def display_tool_start(self, agent, model):
         color = self.color_tool_header
-        if tool == 'Planner':
+        if agent == 'Planner':
             msg = 'Drafting a plan to provide a comprehensive answer, please wait...'
-        elif tool == 'Expert Selector':
+        elif agent == 'Theorist':
+            msg = 'Working on an answer to your question, please wait...'
+        elif agent == 'Google Search Query Generator':
+            msg = 'Generating a query to search for the answer, please wait...'
+        elif agent == 'Expert Selector':
             msg = 'Selecting the expert to best answer your query, please wait...'
-        elif tool == 'Code Generator':
+        elif agent == 'Code Generator':
             msg = 'I am generating the first version of the code, please wait...'
-        elif tool == 'Code Debugger':
+        elif agent == 'Code Debugger':
             msg = 'I am reviewing and debugging the first version of the code to check for any errors, bugs, or inconsistencies and will make corrections if necessary. Please wait...'
-        elif tool == 'Code Ranker':
+        elif agent == 'Code Ranker':
             msg = 'I am going to assess, summarize and rank the answer, please wait...'
 
         if 'ipykernel' in sys.modules:
@@ -69,12 +73,12 @@ class OutputManager:
             cprint(f"\n>> Calling Model: {model}", color)
             cprint(f"\n>> {msg}\n", color, attrs=['bold'])
     
-    # Display the footer for the tool
-    def display_tool_end(self, tool):
+    # Display the footer for the agent
+    def display_tool_end(self, agent):
         color = self.color_tool_header
-        if tool == 'Code Debugger':
+        if agent == 'Code Debugger':
             msg = 'I have finished debugging the code, and will now proceed to the execution...'
-        elif tool == 'Code Generator':
+        elif agent == 'Code Generator':
             msg = 'I have finished generating the code, and will now proceed to the execution...'
 
         if 'ipykernel' in sys.modules:
@@ -83,19 +87,12 @@ class OutputManager:
             cprint(f"\n>> {msg}\n", color, attrs=['bold'])
     
     # Display the error message
-    def display_error(self, error, llm_switch_code = False):
+    def display_error(self, error):
         if 'ipykernel' in sys.modules:
             display(HTML(f'<br><b><span style="color:{self.color_error_ntb};">I ran into an issue:</span></b><br><pre style="color:{self.color_error_ntb};">{error}</pre><br><b><span style="color:{self.color_error_ntb};">I will examine it, and try again with an adjusted code.</span></b><br>'))
         else:
-            sys.stderr.write(f"{self.color_error_cli['color']}>> I ran into an issue: {error}. \n>> I will examine it, and try again with an adjusted code.{self.color_error_cli['reset']}\n")
+            sys.stderr.write(f"{self.color_error_cli['color']}\n>> I ran into an issue:{error}. \n>> I will examine it, and try again with an adjusted code.{self.color_error_cli['reset']}\n")
             sys.stderr.flush()
-
-        if llm_switch_code == True:
-            if 'ipykernel' in sys.modules:
-                display(HTML(f'<span style="color: {self.color_error_ntb};">Switching model to gpt-4 to try to improve the outcome.</span>'))
-            else:
-                sys.stderr.write(f"{self.color_error_cli['color']}>> Switching model to gpt-4 to try to improve the outcome.{self.color_error_cli['reset']}\n")
-                sys.stderr.flush()
     
     # Display the input to enter the prompt
     def display_user_input_prompt(self):
@@ -120,14 +117,6 @@ class OutputManager:
             rank_feedback = input()
 
         return rank_feedback
-    
-    # Display the model switch message
-    def display_model_switch(self):
-        color = self.color_tool_header
-        if 'ipykernel' in sys.modules:
-            display(HTML(f'<span style="color:{color};">Switching model to gpt-4 to debug the code.</span>'))
-        else:
-            cprint("\n>> Switching model to GPT-4 to debug the code.", color)
 
     # Display the llm calls summary
     def display_call_summary(self, summary_text):

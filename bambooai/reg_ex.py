@@ -10,13 +10,14 @@ def _normalize_indentation(code_segment: str) -> str:
     return '\n'.join(line[min_indent:] for line in lines)
 
 # Function to sanitize the LLM response, and extract the code.
-def _extract_code(response: str, analyst: str, local_model: str = None) -> str:
+def _extract_code(response: str, analyst: str, provider: str) -> str:
+  
     # Use re.sub to replace all occurrences of the <|im_sep|> with the ```.
     response = re.sub(re.escape("<|im_sep|>"),"```", response)
 
     # Define a blacklist of Python keywords and functions that are not allowed
     blacklist = ['subprocess','sys','eval','exec','socket','urllib',
-                'shutil','pickle','ctypes','multiprocessing','tempfile','glob','code','pty'
+                'shutil','pickle','ctypes','multiprocessing','tempfile','glob','pty'
                 'commands','cgi','cgitb','xml.etree.ElementTree','builtins'
                 ]
         
@@ -37,7 +38,7 @@ def _extract_code(response: str, analyst: str, local_model: str = None) -> str:
     code = re.sub(r"df\s*=\s*pd\.read_csv\((.*?)\)", "", code)
     
     # This is necessary for local OS models, as they are not as good as OpenAI models deriving the instruction from the promt
-    if analyst == "Data Analyst DF" and local_model:
+    if analyst == "Data Analyst DF" and provider == "local":
         # Replace all occurrences of "data" with "df" if "data=pd." is present
         if re.search(r"data=pd\.", code):
             code = re.sub(r"\bdata\b", "df", code)

@@ -1,0 +1,13 @@
+[
+    {"agent": "Expert Selector", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 500, "temperature": 0}},
+    {"agent": "Analyst Selector", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 500, "temperature": 0}},
+    {"agent": "Theorist", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Planner", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Code Generator", "details": {"model": "gpt-3.5-turbo-0613", "provider":"local","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Code Debugger", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Error Corrector", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Code Ranker", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 500, "temperature": 0}},
+    {"agent": "Solution Summarizer", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Google Search Query Generator", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Google Search Summarizer", "details": {"model": "gpt-3.5-turbo-16k", "provider":"openai","max_tokens": 2000, "temperature": 0}}
+]

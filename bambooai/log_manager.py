@@ -57,7 +57,7 @@ class LogAndCallManager:
 
         self.output_manager.display_call_summary(summary_text)
 
-    def write_to_log(self, tool, chain_id, timestamp, model, messages, content, prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second):
+    def write_to_log(self, agent, chain_id, timestamp, model, messages, content, prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second):
         # Calculate the costs
         token_costs = self.token_cost_dict.get(model, {})
         prompt_token_cost = token_costs.get('prompt_tokens', 0)
@@ -68,7 +68,7 @@ class LogAndCallManager:
 
         # Writing to JSON log
         json_entry = {
-            'tool': tool,
+            'agent': agent,
             'chain_id': chain_id,
             'timestamp': timestamp,
             'model': model,

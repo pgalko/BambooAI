@@ -7,35 +7,6 @@ import os
 from newspaper import Article
 import re
 
-# Define a class to generate queries based on a question
-class QueryGenerator:
-    # Construct a prompt for LLM based on a question
-    def construct_prompt(self, question):
-        prompt = (
-            "Extract the search query form this text"
-            f"text: {question}"
-            "Exaple output: Popularity of Python programming language in 2022"
-        )
-        return prompt
-    
-    # Use LLM to generate a query from a question
-    def __call__(self, token_cost_dict,model_dict,chain_id,question):
-        tool = 'Google Search Query Generator'
-        prompt = self.construct_prompt(question)
-        messages = [{"role": "system", "content": prompt}]
-
-        try:
-            # Attempt package-relative import
-            from . import models, log_manager
-        except ImportError:
-            # Fall back to script-style import
-            import models, log_manager
-        log_and_call_manager = log_manager.LogAndCallManager(token_cost_dict)
-
-        llm_response = models.llm_call(log_and_call_manager,model_dict, messages, tool=tool, chain_id=chain_id)
-
-        return llm_response
-
 # Define a class to perform a Google search and retrieve the content of the resulting pages    
 class SearchEngine:
     # Perform a Google search using the SERPer API
@@ -109,61 +80,53 @@ class DocumentRetriever:
 
 # Define a class to generate an answer to a question based on a set of documents
 class Reader:
-    def construct_prompt(self, query, contexts):
-        prompt = (
-            "Summarise the below text into an answer for the following question:"
-            "\n\n"
-            f"Question: {query}"
-            "\n\n"
-            "Present this information in the most clear and comprehensible manner"
-            "Be certain to incorporate all relevant facts and insights."
-            "\n\n"
-            "Text: "
-            "\n\n"
-        )
-
-        for ctx in contexts:
-            prompt += f'* {ctx}\n'
-
-        return prompt
-
-    # Use LLM to generate answer to a question based on a set of contexts
-    def __call__(self,token_cost_dict,model_dict,chain_id,query, contexts):
-        tool = 'Google Search Sumarizer'
-        prompt = self.construct_prompt(query, contexts)
-        search_messages = [{"role": "system", "content": prompt}]
+    def __call__(self,token_cost_dict,chain_id,query, contexts):
+        agent = 'Google Search Summarizer'
+        text = ""
         
         try:
             # Attempt package-relative import
-            from . import models, log_manager
+            from . import models, log_manager, prompts
         except ImportError:
             # Fall back to script-style import
-            import models, log_manager
+            import models, log_manager, prompts
+        
+        # Construct prompt and messages
+        for ctx in contexts:
+            text += f'* {ctx}\n'
+
+        # Check if PROMPT_TEMPLATES.json exists and load the prompts from there. If not, use the default prompts.
+        if os.path.exists("PROMPT_TEMPLATES.json"):
+            # Load from JSON file
+            with open("PROMPT_TEMPLATES.json", "r") as f:
+                prompt_data = json.load(f)
+            prompt = prompt_data.get("google_search_summarizer_system", "")
+            prompt = prompt.format(query,text)
+        else:
+            prompt = prompts.google_search_summarizer_system.format(query,text)
+            
+        search_messages = [{"role": "system", "content": prompt}]
 
         log_and_call_manager = log_manager.LogAndCallManager(token_cost_dict)
 
-        #replace llm in model_dict with 'gpt-3.5-turbo-16k'
-        model_dict['llm']='gpt-3.5-turbo-16k'
-        llm_response = models.llm_call(log_and_call_manager,model_dict, search_messages, tool=tool, chain_id=chain_id)
+        llm_response = models.llm_call(log_and_call_manager,search_messages, agent=agent, chain_id=chain_id)
 
         return llm_response
     
 class GoogleSearch:
     def __init__(self):
-        self.query_generator = QueryGenerator()
         self.search_engine = SearchEngine()
         self.document_retriever = DocumentRetriever()
         self.reader = Reader()
 
-    def _extract_search_query(self,response: str) -> str:
-        search_query = re.sub('\'|"', '',  response).strip()
+    def _extract_search_query(self,question: str) -> str:
+        search_query = re.sub('\'|"', '',  question).strip()
         return search_query
 
-    def __call__(self, token_cost_dict,model_dict,chain_id,question):
+    def __call__(self, token_cost_dict,chain_id,question):
         question=self._extract_search_query(question)
-        #query = self.query_generator(token_cost_dict,model_dict,chain_id,question)
         documents,top_links = self.search_engine(question)
         contexts = self.document_retriever(question, documents)
-        answer = self.reader(token_cost_dict,model_dict,chain_id,question, contexts)
+        answer = self.reader(token_cost_dict,chain_id,question, contexts)
 
         return answer,top_links
