@@ -85,7 +85,7 @@ pip install bambooai
 
 **Usage**
 
-Parameters
+- Parameters
 
 ```
 df: pd.DataFrame - Dataframe (It will try to source the data from internet, if 'df' is not provided)
@@ -104,15 +104,15 @@ e.g. bamboo = BambooAI(df, debug=True, vector_db=True, search_tool=True, explora
      bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, search_tool=True)
 ```
 
-LLM Config
+- LLM Config
 
 The agent specific llm configuration is stored in ```LLM_CONFIG``` environment variable, or in the "LLM_CONFIG.json file which needs to be stored in the BambooAI's working directory. The config is in a form of JSON list of dictionaries and specifies model name, provider, temperature and max_tokens for each agent. You can use the provided LLM_CONFIG_sample.json as a starting point, and modify the config to reflect your preferences. If neither "ENV VAR" nor "LLM_CONFIG.json" is present, BambooAI will use the default hardcoded configuration that uses "gpt-3.5-turbo" for all agents.
 
-Prompt Templates
+- Prompt Templates
 
 The BambooAI library uses default hardcoded set of prompt templates for each agent. If you want to experiment with them, you can modify the provided "PROMPT_TEMPLATES_sample.json" file, remove the "_sample from its name and store in the working directory. Subsequently, the content of the modified "PROMPT_TEMPLATES.json" will be used instead of the hardcoded defaults. You can always revert back to default prompts by removing/renaming the modified "PROMPT_TEMPLATES.json".
 
-Example usage: Run in a loop
+- Example usage: Run in a loop
 
 ```
 # Run in a loop remembering the conversation history
@@ -123,7 +123,7 @@ df = pd.read_csv('test_activity_data.csv')
 bamboo = BambooAI(df)
 bamboo.pd_agent_converse()
 ```
-Example Usage: Single execution
+- Example Usage: Single execution
 ```
 # Run programaticaly (Single execution).
 import pandas as pd
