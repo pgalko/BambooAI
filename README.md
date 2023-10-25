@@ -104,6 +104,9 @@ e.g. bamboo = BambooAI(df, debug=True, vector_db=True, search_tool=True, explora
      bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, search_tool=True)
 ```
 
+***Deprecation Notice (October 25, 2023):***
+*Please note that the "llm", "local_code_model", "llm_switch_plan", and "llm_switch_code" parameters have been deprecated as of v 0.3.29. The assignment of models and model parameters to agents is now handled via LLM_CONFIG. This can be set either as an environment variable or via a LLM_CONFIG.json file in the working directory. Please see the details below*
+
 - LLM Config
 
 The agent specific llm configuration is stored in ```LLM_CONFIG``` environment variable, or in the "LLM_CONFIG.json file which needs to be stored in the BambooAI's working directory. The config is in a form of JSON list of dictionaries and specifies model name, provider, temperature and max_tokens for each agent. You can use the provided LLM_CONFIG_sample.json as a starting point, and modify the config to reflect your preferences. If neither "ENV VAR" nor "LLM_CONFIG.json" is present, BambooAI will use the default hardcoded configuration that uses "gpt-3.5-turbo" for all agents.
