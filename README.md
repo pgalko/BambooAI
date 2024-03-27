@@ -280,7 +280,7 @@ Contributions are welcome; please feel free to open a pull request. Keep in mind
 ## ToDo
 
 - Implement ReAct https://arxiv.org/abs/2201.11903, where a question can be decomposed into individual sub-steps and then sequentially routed to the appropriate Experts for processing. This approach should enhance the reasoning capabilities when dealing with multifaceted tasks.
-- Keep adding support for aditional Open Source LLMs
+- Keep adding support for additional Open Source LLMs
 - Experiment with GPT-3.5 finetuning to see whether there is any benefit.
 - Experiment with recently released gpt-3.5-turbo-instruct model.
 
