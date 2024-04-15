@@ -111,7 +111,7 @@ The user will provide a list of tasks to be accomplished using Python.
 code_generator_user_df = """
 You have been presented with a pandas dataframe named `df`.
 The dataframe df has already been defined and populated with the required data.
-The result of `print(df.head(1))` is:
+The result of `print(df.dtypes)` is:
 {}.
 Return the python code that accomplishes the following tasks: {}.
 Approach each task from the list in isolation, advancing to the next only upon its successful resolution. 

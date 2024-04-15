@@ -28,7 +28,7 @@ class OutputManager:
     def display_results(self, df=None, answer=None, code=None, rank=None, vector_db=False):
         if 'ipykernel' in sys.modules:
             if df is not None:
-                display(HTML(f'<p><b style="color:{self.color_result_header_ntb};">Here is the head of your dataframe:</b><br><pre style="color:{self.color_result_body_code};">{df.head(5)}</pre></p><br>'))
+                display(HTML(f'<p><b style="color:{self.color_result_header_ntb};">Here is the structure of your dataframe:</b><br><pre style="color:{self.color_result_body_code};">{df.dtypes}</pre></p><br>'))
             if answer is not None:
                 display(HTML(f'<p><b style="color:{self.color_result_header_ntb};">I now have the final answer:</b><br><pre style="color:{self.color_result_body_text}; white-space: pre-wrap; font-weight: bold;">{answer}</pre></p><br>'))
             if code is not None:
@@ -37,8 +37,8 @@ class OutputManager:
                 display(HTML(f'<p><b style="color:{self.color_result_header_ntb};">Solution Rank:</b><br><span style="color:{self.color_result_body_text};">{rank}</span></p><br>'))
         else:
             if df is not None:
-                cprint(f"\n>> Here is the head of your dataframe:", self.color_result_header_cli, attrs=['bold'])
-                self.print_wrapper(df.head(5))
+                cprint(f"\n>> Here is the structure of your dataframe:", self.color_result_header_cli, attrs=['bold'])
+                self.print_wrapper(df.dtypes)
             if answer is not None:
                 cprint(f"\n>> I now have the final answer:\n{answer}", self.color_result_header_cli, attrs=['bold'])
             if code is not None:
