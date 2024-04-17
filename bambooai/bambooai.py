@@ -207,7 +207,7 @@ class BambooAI:
             analyst = self.select_analyst(self.select_analyst_messages)
             self.select_analyst_messages.append({"role": "assistant", "content": analyst})
             if analyst == 'Data Analyst DF':
-                self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(question, None if self.df is None else self.df.head(1))})
+                self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(question, None if self.df is None else self.df.dtypes)})
                 # Replace first dict in messages with a new system task
                 self.code_messages[0] = {"role": "system", "content": self.code_generator_system_df}
             elif analyst == 'Data Analyst Generic':
@@ -365,7 +365,7 @@ class BambooAI:
         agent = 'Code Generator'
         # Add a user message with the updated task prompt to the messages list
         if analyst == 'Data Analyst DF':
-            code_messages.append({"role": "user", "content": self.code_generator_user_df.format(None if self.df is None else self.df.head(1), task, self.code_exec_results, example_output)})
+            code_messages.append({"role": "user", "content": self.code_generator_user_df.format(None if self.df is None else self.df.dtypes, task, self.code_exec_results, example_output)})
         elif analyst == 'Data Analyst Generic':
             code_messages.append({"role": "user", "content": self.code_generator_user_gen.format(task, self.code_exec_results, example_output)})
 
