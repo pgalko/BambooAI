@@ -97,7 +97,9 @@ class BambooAI:
             with open("PROMPT_TEMPLATES.json", "r") as f:
                 prompt_data = json.load(f)
 
-        # Set templates to the values from the JSON file or the default values
+        # Set templates to the values from the JSON file or the default values. This dynamicaly sets the object attributes.
+        # These attributes are part of the object's state and will exist as long as the object itself exists.
+        # The attributes can be called using self.<attribute_name> throughout the class.
         for template in templates:
             value = prompt_data.get(template, getattr(prompts, template, ""))
             setattr(self, template, value)
@@ -121,10 +123,14 @@ class BambooAI:
         # Logging
         self.token_cost_dict = {
                                 'gpt-3.5-turbo-0613': {'prompt_tokens': 0.0015, 'completion_tokens': 0.0020},
+                                'gpt-3.5-turbo-1106': {'prompt_tokens': 0.0010, 'completion_tokens': 0.0020},
                                 'gpt-3.5-turbo-instruct': {'prompt_tokens': 0.0015, 'completion_tokens': 0.0020},
                                 'gpt-3.5-turbo-16k': {'prompt_tokens': 0.0030, 'completion_tokens': 0.0040},
                                 'gpt-4': {'prompt_tokens': 0.03, 'completion_tokens': 0.06},
-                                'gpt-4-0613': {'prompt_tokens': 0.03, 'completion_tokens': 0.06} 
+                                'gpt-4-1106-preview': {'prompt_tokens': 0.01, 'completion_tokens': 0.03},
+                                'gpt-4-0613': {'prompt_tokens': 0.03, 'completion_tokens': 0.06}, 
+                                'gpt-4-0125-preview': {'prompt_tokens': 0.01, 'completion_tokens': 0.03},
+                                'gpt-4-turbo': {'prompt_tokens': 0.01, 'completion_tokens': 0.03}
                                 }
         self.log_and_call_manager = log_manager.LogAndCallManager(self.token_cost_dict)
         self.chain_id = None
@@ -326,7 +332,7 @@ class BambooAI:
             # Call the generate_code() method to genarate and debug the code
             code = self.generate_code(analyst, task, self.code_messages, example_output)
             # Call the execute_code() method to execute the code and summarise the results
-            answer, results, code = self.execute_code(analyst,code, task, self.code_messages)
+            answer, results, code = self.execute_code(analyst,code, task, question, self.code_messages)
 
             # Rank the LLM response
             if self.vector_db:
@@ -398,7 +404,7 @@ class BambooAI:
         self.output_manager.display_tool_start(agent,using_model)
 
         # Call the OpenAI API
-        llm_response = self.llm_stream(self.log_and_call_manager, debug_messages, temperature=0, agent=agent, chain_id=self.chain_id)
+        llm_response = self.llm_stream(self.log_and_call_manager, debug_messages, agent=agent, chain_id=self.chain_id)
         
         # Extract the code from the API response
         debugged_code = self._extract_code(llm_response,analyst,provider)       
@@ -406,7 +412,7 @@ class BambooAI:
 
         return debugged_code
 
-    def execute_code(self, analyst, code, task, code_messages):
+    def execute_code(self, analyst, code, task, original_question, code_messages):
         agent = 'Code Executor'
         # Initialize error correction counter
         error_corrections = 0
@@ -453,7 +459,7 @@ class BambooAI:
         # Store the results in a class variable so it can be appended to the subsequent messages list
         self.code_exec_results = results
 
-        summary = self.summarise_solution(task, results)
+        summary = self.summarise_solution(task, original_question, results)
 
         # Reset the StringIO buffer
         output.truncate(0)
@@ -516,11 +522,11 @@ class BambooAI:
     ## Summarise the solution ##
     ############################
 
-    def summarise_solution(self, task, results):
+    def summarise_solution(self, task, original_question, results):
         agent = 'Solution Summarizer'
 
         # Initialize the messages list with a system message containing the task prompt
-        insights_messages = [{"role": "user", "content": self.solution_summarizer_system.format(task, results)}]
+        insights_messages = [{"role": "user", "content": self.solution_summarizer_system.format(original_question, task, results)}]
         # Call the OpenAI API
         summary = self.llm_call(self.log_and_call_manager,insights_messages,agent=agent, chain_id=self.chain_id)
 

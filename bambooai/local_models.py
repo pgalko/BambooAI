@@ -90,10 +90,11 @@ def llm_local_stream(messages: str,local_model: str):
 
     wizard_coder_models=['WizardCoder-15B-V1.0','WizardCoder-Python-7B-V1.0','WizardCoder-Python-13B-V1.0','WizardCoder-Python-34B-V1.0']
     phind_models=['Phind-CodeLlama-34B-v2']
+    open_code_interpreter_models=['OpenCodeInterpreter-DS-33B']
     wizard_coder_gptq_models=['WizardCoder-15B-1.0-GPTQ','WizardCoder-Python-7B-V1.0-GPTQ','WizardCoder-Python-13B-V1.0-GPTQ','WizardCoder-Python-34B-V1.0-GPTQ']
     code_llama_instruct_models=['CodeLlama-7B-Instruct-fp16','CodeLlama-13B-Instruct-fp16','CodeLlama-34B-Instruct-fp16']
     code_llama_completion_models=['CodeLlama-7B-Python-fp16','CodeLlama-13B-Python-fp16','CodeLlama-34B-Python-fp16']
-    all_models = wizard_coder_models + wizard_coder_gptq_models + code_llama_instruct_models + code_llama_completion_models + phind_models
+    all_models = wizard_coder_models + wizard_coder_gptq_models + code_llama_instruct_models + code_llama_completion_models + phind_models + open_code_interpreter_models
 
     try:
         from torch import cuda,bfloat16,float16
@@ -119,6 +120,9 @@ def llm_local_stream(messages: str,local_model: str):
     elif local_model in code_llama_completion_models:
         model_name = f"TheBloke/{local_model}"
         messages = convert_openai_to_llama2_completion(messages)
+    elif local_model in open_code_interpreter_models:
+        model_name = f"m-a-p/{local_model}"
+        messages = messages
     else:
         all_models_str = ', '.join(all_models)
         error_message = f"Currently the only supported local_models are: {all_models_str}"
@@ -138,7 +142,7 @@ def llm_local_stream(messages: str,local_model: str):
         bnb_4bit_compute_dtype=bfloat16
     )
 
-    if local_model in wizard_coder_models or local_model in code_llama_instruct_models or local_model in code_llama_completion_models or local_model in phind_models:
+    if local_model in wizard_coder_models or local_model in code_llama_instruct_models or local_model in code_llama_completion_models or local_model in phind_models or local_model in open_code_interpreter_models:
         # If the GPU has more than 80GB of memory, use float16
         if cuda.is_available() and gpu_memory_gb >= 80:
             model_config = {
@@ -174,12 +178,13 @@ def llm_local_stream(messages: str,local_model: str):
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
 
-    streamer = TextStreamer(tokenizer,skip_prompt=True)
+    streamer = TextStreamer(tokenizer,skip_prompt=True, skip_special_tokens=True)
 
     pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer)
+
     result = pipe(messages, 
                     do_sample=True,
-                    top_k=5,
+                    top_k=1,
                     num_return_sequences=1,
                     eos_token_id=tokenizer.eos_token_id,
                     max_length=16000,
@@ -194,9 +199,9 @@ def llm_local_stream(messages: str,local_model: str):
     elapsed_time = end_time - start_time
 
     # Calcutale tokens usage
-    completion_tokens_used = len(tokenizer.encode(result))
-    prompt_tokens_used = len(tokenizer.encode(messages))
-    total_tokens_used = completion_tokens_used + prompt_tokens_used
+    completion_tokens_used = 0 #len(tokenizer.encode(result))
+    prompt_tokens_used = 0 #len(tokenizer.encode(messages))
+    total_tokens_used = 0 #completion_tokens_used + prompt_tokens_used
     
     tokens_per_second = completion_tokens_used / elapsed_time
 

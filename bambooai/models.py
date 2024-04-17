@@ -5,20 +5,22 @@ import json
 import openai
 import tiktoken
 
+openai_client = openai.OpenAI()
+
 def load_llm_config():
 
     default_llm_config = [
-    {"agent": "Expert Selector", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 500, "temperature": 0}},
-    {"agent": "Analyst Selector", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 500, "temperature": 0}},
-    {"agent": "Theorist", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Planner", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Code Generator", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Code Debugger", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Error Corrector", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Code Ranker", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 500, "temperature": 0}},
-    {"agent": "Solution Summarizer", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Google Search Query Generator", "details": {"model": "gpt-3.5-turbo-0613", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Google Search Summarizer", "details": {"model": "gpt-3.5-turbo-16k", "provider":"openai","max_tokens": 2000, "temperature": 0}}
+    {"agent": "Expert Selector", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 500, "temperature": 0}},
+    {"agent": "Analyst Selector", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 500, "temperature": 0}},
+    {"agent": "Theorist", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Planner", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Code Generator", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Code Debugger", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Error Corrector", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Code Ranker", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 500, "temperature": 0}},
+    {"agent": "Solution Summarizer", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Google Search Query Generator", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
+    {"agent": "Google Search Summarizer", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}}
     ]
 
     # Get the LLM_CONFIG environment variable
@@ -53,7 +55,7 @@ def init(agent):
     if provider == "openai":
         # Get the OPENAI_API_KEY environment variable
         API_KEY = os.environ.get('OPENAI_API_KEY')
-        openai.api_key = API_KEY
+        openai_client.api_key = API_KEY
 
     return model, provider, max_tokens, temperature
 
@@ -99,20 +101,20 @@ def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: s
         
         try:
             start_time = time.time()
-            response = openai.ChatCompletion.create(
+            response = openai_client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
             end_time = time.time()
-        except openai.error.RateLimitError:
+        except openai.RateLimitError:
             output_manager.print_wrapper(
                 "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
             )
             time.sleep(10)
             start_time = time.time()
-            response = openai.ChatCompletion.create(
+            response = openai_client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
@@ -120,12 +122,12 @@ def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: s
             )
             end_time = time.time()
         # Exceeded the maximum number of tokens allowed by the API
-        except openai.error.InvalidRequestError:
+        except openai.BadRequestError:
             output_manager.print_wrapper(
                 "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
             )
             start_time = time.time()
-            response = openai.ChatCompletion.create(
+            response = openai_client.chat.completions.create(
                 model=default_16K_model,   
                 messages=messages,
                 temperature=temperature,
@@ -171,7 +173,7 @@ def llm_func_call(log_and_call_manager, messages: str, functions: str, function_
 
     try:
         start_time = time.time()
-        response = openai.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
         model = model,
         messages=messages,
         functions=functions,
@@ -180,13 +182,13 @@ def llm_func_call(log_and_call_manager, messages: str, functions: str, function_
         max_tokens = max_tokens, 
         )
         end_time = time.time()
-    except openai.error.RateLimitError:
+    except openai.RateLimitError:
         output_manager.print_wrapper(
             "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
         )
         time.sleep(10)
         start_time = time.time()
-        response = openai.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
         model = model,
         messages=messages,
         functions=functions,
@@ -238,19 +240,19 @@ def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id:
         output_manager = output_manager.OutputManager()
         
         try:
-            response = openai.ChatCompletion.create(
+            response = openai_client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream = True
             )
-        except openai.error.RateLimitError:
+        except openai.RateLimitError:
             output_manager.print_wrapper(
                 "The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again."
             )
             time.sleep(10)
-            response = openai.ChatCompletion.create(
+            response = openai_client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
@@ -258,11 +260,11 @@ def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id:
                 stream = True
             )
         # Exceeded the maximum number of tokens allowed by the API
-        except openai.error.InvalidRequestError:
+        except openai.BadRequestError:
             output_manager.print_wrapper(
                 "The OpenAI API maximum tokens limit has been exceeded. Switching to a 16K model."
             )
-            response = openai.ChatCompletion.create(
+            response = openai_client.chat.completions.create(
                 model=default_16K_model,
                 messages=messages,
                 temperature=temperature,
@@ -278,9 +280,10 @@ def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id:
          # iterate through the stream of events
         for chunk in response:
             collected_chunks.append(chunk)  # save the event response
-            chunk_message = chunk['choices'][0]['delta']  # extract the message
-            collected_messages.append(chunk_message)  # save the message
-            output_manager.print_wrapper(chunk_message.get('content', ''), end='', flush=True)  # output_manager.print_wrapper the message without a newline
+            if chunk.choices[0].delta.content is not None:
+                chunk_message = chunk.choices[0].delta  # extract the message
+                collected_messages.append(chunk_message)  # save the message
+                output_manager.print_wrapper(chunk_message.content, end='', flush=True)  # output_manager.print_wrapper the message without a newline
 
         end_time = time.time()
         elapsed_time = end_time - start_time
@@ -288,7 +291,7 @@ def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id:
         output_manager.print_wrapper("")  # output_manager.print_wrapper a newline
 
         # get the complete text received
-        full_reply_content = ''.join([m.get('content', '') for m in collected_messages])
+        full_reply_content = ''.join([m.content for m in collected_messages])
 
         model_used = model
         content_received = full_reply_content
