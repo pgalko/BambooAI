@@ -289,9 +289,9 @@ Final iteration... using the best performing model and tuned hyper parameters. F
 
 ## Notes
 
-- The library currently supports OpenAI Chat models. It has been tested with both gpt-3.5-turbo and gpt-4. The gpt-3.5-turbo seems to perform well and is the good starting/exploration option due to its 10x lower cost.
-- It can also be used with models from the following vendors via API. Anthropic, Mistral, Google Gemini, Grok.
-- Also the use of Ollama and all of it's models is supported.
+- The library currently supports OpenAI Chat models. It has been tested with both gpt-3.5-turbo and gpt-4. The gpt-3.5-turbo seems to perform OK for simpler tasks and is the good starting/exploration option due to its 10x lower cost.
+- It can also be used with models from the following vendors via API. Anthropic, Mistral, Google Gemini, Groq. All you need is the API key.
+- Also the use of Ollama and all of it's models is supported. This could be quite handy as a buch of Llama 3 finetunes are about to start landing.
 - For coding tasks it also supports SOTA open source code models like CodeLlama and WizardCoder.
 - The library executes LLM generated Python code, this can be bad if the LLM generated Python code is harmful. Use cautiously.
 - Be sure to monitor your token usage. At the time of writing, the cost per 1K input tokens is $0.01 USD for GPT-4-turbo and $0.001 USD for GPT-3.5-turbo. It's important to keep these costs in mind when using the library, particularly when using the more expensive models.
