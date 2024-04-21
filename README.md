@@ -38,23 +38,6 @@ https://github.com/pgalko/BambooAI/assets/39939157/158f3e31-236f-42aa-8c08-b194a
 
 The BambooAI agent operates through several key steps to interact with users and generate responses:
 
-## Supported vendors/models
-
-The library supports use of various open source or proprietary models, either via API or localy.
-
-API:
-OpenAI - All models
-Google - Gemini Models
-Anthropic - All Models
-Groq - All Models
-Mistral - All Models
-
-Local:
-Ollama - All Models
-A Selection of local models(more info below)
-
-You can specify what vendor/model you want to use for a specific agent by modifying the content of LLM_CONFIG file, replacing the default OpenAI model name with the model and vendor of your choicee. eg. ```{"agent": "Code Generator", "details": {"model": "open-mixtral-8x22b", "provider":"mistral","max_tokens": 4000, "temperature": 0}}```. The purpose of LLM_CONFIG is described in more detail below.
-
 **1. Initiation**
 - The user launches the BambooAI agent with a question.
 - If no initial question is provided, the agent prompts the user for a question or an 'exit' command to terminate the program.
@@ -91,6 +74,23 @@ Throughout this process, the agent continuously solicits user input, stores mess
 **Flow chart (General agent flow):**
 
 ![](images/BambooAI_Agent_Flow.png)
+
+## Supported vendors/models
+
+The library supports use of various open source or proprietary models, either via API or localy.
+
+**API:**
+- OpenAI - All models
+- Google - Gemini Models
+- Anthropic - All Models
+- Groq - All Models
+- Mistral - All Models
+
+**Local:**
+- Ollama - All Models
+- A Selection of local models(more info below)
+
+You can specify what vendor/model you want to use for a specific agent by modifying the content of LLM_CONFIG file, replacing the default OpenAI model name with the model and vendor of your choicee. eg. ```{"agent": "Code Generator", "details": {"model": "open-mixtral-8x22b", "provider":"mistral","max_tokens": 4000, "temperature": 0}}```. The purpose of LLM_CONFIG is described in more detail below.
 
 ## How to use
 
