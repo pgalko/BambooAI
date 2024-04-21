@@ -85,7 +85,7 @@ def convert_openai_to_llama2_completion(messages: list):
     #formatted_content = re.sub(r'Example Output:.*', '', formatted_content, flags=re.S)
     return formatted_content
 
-def llm_local_stream(messages: str,local_model: str):   
+def llm_stream(messages: str,local_model: str, temperature: str, max_tokens: str):   
     total_tokens_used=0
 
     wizard_coder_models=['WizardCoder-15B-V1.0','WizardCoder-Python-7B-V1.0','WizardCoder-Python-13B-V1.0','WizardCoder-Python-34B-V1.0']
@@ -100,6 +100,20 @@ def llm_local_stream(messages: str,local_model: str):
         from torch import cuda,bfloat16,float16
     except ImportError:
         raise ImportError("The torch package is required for using local models. Please install it using pip install torch.")
+    
+    if cuda.is_available():
+        gpu_memory_gb = cuda.get_device_properties(0).total_memory / 1e9 if cuda.is_available() else 0  # In GB
+        device = f'cuda:{cuda.current_device()}'
+    else:
+        gpu_memory_gb = 0
+        device = 'cpu'
+
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type='nf4',
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=bfloat16
+    )
     
     if local_model in wizard_coder_models:
         model_name = f"WizardLM/{local_model}"
@@ -123,24 +137,14 @@ def llm_local_stream(messages: str,local_model: str):
     elif local_model in open_code_interpreter_models:
         model_name = f"m-a-p/{local_model}"
         messages = messages
+    elif local_model.startswith('ollama'):
+        slash_index = local_model.index('/')
+        model_name = local_model[slash_index + 1:]
+        messages = messages
     else:
         all_models_str = ', '.join(all_models)
         error_message = f"Currently the only supported local_models are: {all_models_str}"
         raise ValueError(error_message)
-
-    if cuda.is_available():
-        gpu_memory_gb = cuda.get_device_properties(0).total_memory / 1e9 if cuda.is_available() else 0  # In GB
-        device = f'cuda:{cuda.current_device()}'
-    else:
-        gpu_memory_gb = 0
-        device = 'cpu'
-
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type='nf4',
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_compute_dtype=bfloat16
-    )
 
     if local_model in wizard_coder_models or local_model in code_llama_instruct_models or local_model in code_llama_completion_models or local_model in phind_models or local_model in open_code_interpreter_models:
         # If the GPU has more than 80GB of memory, use float16
@@ -169,7 +173,7 @@ def llm_local_stream(messages: str,local_model: str):
             use_triton=False,
             quantize_config=None
         )
-
+    
     model.eval()
     output_manager.print_wrapper(f"Model loaded on {device}")
     output_manager.print_wrapper(f"GPU memory available: {gpu_memory_gb}GB\n")
@@ -199,9 +203,9 @@ def llm_local_stream(messages: str,local_model: str):
     elapsed_time = end_time - start_time
 
     # Calcutale tokens usage
-    completion_tokens_used = 0 #len(tokenizer.encode(result))
-    prompt_tokens_used = 0 #len(tokenizer.encode(messages))
-    total_tokens_used = 0 #completion_tokens_used + prompt_tokens_used
+    completion_tokens_used = len(tokenizer.encode(result))
+    prompt_tokens_used = len(tokenizer.encode(messages))
+    total_tokens_used = completion_tokens_used + prompt_tokens_used
     
     tokens_per_second = completion_tokens_used / elapsed_time
 

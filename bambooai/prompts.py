@@ -146,7 +146,7 @@ Example Output:
 error_corector_system = """
 The execution of the code that you provided in the previous step resulted in an error.
 The error message is: {}
-Return a corrected python code that fixes the error.
+Return a complete, corrected python code that incorporates the fixes for the error.
 Always include the import statements at the top of the code, and comments and print statements where necessary.
 """
 # Code Debugger Prompts

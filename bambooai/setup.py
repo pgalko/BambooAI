@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='bambooai',
-    version='0.3.30',
+    version='0.3.32',
     description='A lightweight library for working with pandas dataframes using natural language queries',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -20,6 +20,11 @@ setup(
         'newspaper3k',
         'pinecone-client',
         'sentence-transformers',
+        'google-generativeai',
+        'groq',
+        'ollama',
+        'anthropic',
+        'mistralai'
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',

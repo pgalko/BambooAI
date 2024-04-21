@@ -117,7 +117,6 @@ class BambooAI:
 
         # LLM calls
         self.llm_call = models.llm_call
-        self.llm_func_call = models.llm_func_call
         self.llm_stream = models.llm_stream
 
         # Logging
@@ -130,7 +129,15 @@ class BambooAI:
                                 'gpt-4-1106-preview': {'prompt_tokens': 0.01, 'completion_tokens': 0.03},
                                 'gpt-4-0613': {'prompt_tokens': 0.03, 'completion_tokens': 0.06}, 
                                 'gpt-4-0125-preview': {'prompt_tokens': 0.01, 'completion_tokens': 0.03},
-                                'gpt-4-turbo': {'prompt_tokens': 0.01, 'completion_tokens': 0.03}
+                                'gpt-4-turbo': {'prompt_tokens': 0.01, 'completion_tokens': 0.03},
+                                'llama3-70b-8192': {'prompt_tokens': 0.00059, 'completion_tokens': 0.00079}, #Groq Llama3
+                                'gemini-1.5-pro-latest': {'prompt_tokens': 0.0025, 'completion_tokens': 0.0025}, 
+                                'claude-3-haiku-20240307': {'prompt_tokens': 0.00025, 'completion_tokens': 0.00079}, 
+                                'claude-3-sonnet-20240229': {'prompt_tokens': 0.003, 'completion_tokens': 0.015},
+                                'claude-3-opus-20240307': {'prompt_tokens': 0.015, 'completion_tokens': 0.075},
+                                'mistral-small': {'prompt_tokens': 0.002, 'completion_tokens': 0.006},
+                                'open-mixtral-8x22b': {'prompt_tokens': 0.002, 'completion_tokens': 0.006},
+                                'mistral-large': {'prompt_tokens': 0.008, 'completion_tokens': 0.024},
                                 }
         self.log_and_call_manager = log_manager.LogAndCallManager(self.token_cost_dict)
         self.chain_id = None
@@ -503,8 +510,8 @@ class BambooAI:
 
     def rank_code(self,results, code,question):
         agent = 'Code Ranker'
-        # Initialize the messages list with a system message containing the task prompt
-        rank_messages = [{"role": "system", "content": self.code_ranker_system.format(code,results,question)}]
+        # Initialize the messages list with a user message containing the task prompt
+        rank_messages = [{"role": "user", "content": self.code_ranker_system.format(code,results,question)}]
 
         using_model,provider = models.get_model_name(agent)
 
@@ -525,7 +532,7 @@ class BambooAI:
     def summarise_solution(self, task, original_question, results):
         agent = 'Solution Summarizer'
 
-        # Initialize the messages list with a system message containing the task prompt
+        # Initialize the messages list with a user message containing the task prompt
         insights_messages = [{"role": "user", "content": self.solution_summarizer_system.format(original_question, task, results)}]
         # Call the OpenAI API
         summary = self.llm_call(self.log_and_call_manager,insights_messages,agent=agent, chain_id=self.chain_id)

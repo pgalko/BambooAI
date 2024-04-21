@@ -38,6 +38,23 @@ https://github.com/pgalko/BambooAI/assets/39939157/158f3e31-236f-42aa-8c08-b194a
 
 The BambooAI agent operates through several key steps to interact with users and generate responses:
 
+## Supported vendors/models
+
+The library supports use of various open source or proprietary models, either via API or localy.
+
+API:
+OpenAI - All models
+Google - Gemini Models
+Anthropic - All Models
+Groq - All Models
+Mistral - All Models
+
+Local:
+Ollama - All Models
+A Selection of local models(more info below)
+
+You can specify what vendor/model you want to use for a specific agent by modifying the content of LLM_CONFIG file, replacing the default OpenAI model name with the model and vendor of your choicee. eg. ```{"agent": "Code Generator", "details": {"model": "open-mixtral-8x22b", "provider":"mistral","max_tokens": 4000, "temperature": 0}}```. The purpose of LLM_CONFIG is described in more detail below.
+
 **1. Initiation**
 - The user launches the BambooAI agent with a question.
 - If no initial question is provided, the agent prompts the user for a question or an 'exit' command to terminate the program.
@@ -142,6 +159,9 @@ bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart r
 The library requires an OpenAI API account and the API key to connect to OpenAI LLMs. The OpenAI API key needs to be stored in a ```OPENAI_API_KEY``` environment variable.
 The key can be obtained from here: https://platform.openai.com/account/api-keys.
 
+In addition to OpenAI models a selection of models from different providers is also supported (Groq, Gemini, Mistral, Anthropic). The API keys needs to be stored in environment variables in the following format ```<VENDOR_NAME>_API_KEY```.
+You need to use ```GEMINI_API_KEY``` for Google Gemini models. 
+
 As mentioned above, the llm config can be stored in a string format in the  ```LLM_CONFIG``` environment variable. You can use the content of the provided LLM_CONFIG_sample.json as a starting point and modify to your preference, depending on what models you have access to. 
 
 The Pincone vector db is optional. If you don want to use it, you dont need to do anything. If you have an account with Pinecone and would like to use the knowledge base and ranking features, you will be required to setup ```PINECONE_API_KEY``` and ```PINECONE_ENV``` envirooment variables, and set the 'vector_db' parameter to True. The vector db index is created upon first execution.
@@ -150,14 +170,14 @@ The Google Search is also optional. If you don want to use it, you dont need to 
 
 **Local Open Source Models**
 
-The library currently supports the following open-source models. I have selected the models that currently score the highest on the HumanEval benchmark.
+The library currently directly supports the following open-source models. I have selected the models that currently score the highest on the HumanEval benchmark.
 - **WizardCoder(WizardLM):** WizardCoder-15B-V1.0, WizardCoder-Python-7B-V1.0, WizardCoder-Python-13B-V1.0, WizardCoder-Python-34B-V1.0
 - **WizardCoder GPTQ(TheBloke):** WizardCoder-15B-1.0-GPTQ, WizardCoder-Python73B-V1.0-GPTQ, WizardCoder-Python-13B-V1.0-GPTQ, WizardCoder-Python-34B-V1.0-GPTQ
 - **CodeLlama Instruct(TheBloke):** CodeLlama-7B-Instruct-fp16, CodeLlama-13B-Instruct-fp16, CodeLlama-34B-Instruct-fp16
 - **CodeLlama Instruct(Phind):** Phind-CodeLlama-34B-v2
 - **CodeLlama Completion(TheBloke):** CodeLlama-7B-Python-fp16, CodeLlama-13B-Python-fp16, CodeLlama-34B-Python-fp16
 
-If you want to use a local model for a specific agent, modify the LLM_CONFIG content replacing the OpenAI model name with the local model name and change the provider value to 'local'. eg. ```{"agent": "Code Generator", "details": {"model": "Phind-CodeLlama-34B-v2", "provider":"local","max_tokens": 2000, "temperature": 0}}```
+If you want to use the local model for a specific agent, modify the LLM_CONFIG content replacing the OpenAI model name with the local model name and change the provider value to 'local'. eg. ```{"agent": "Code Generator", "details": {"model": "Phind-CodeLlama-34B-v2", "provider":"local","max_tokens": 2000, "temperature": 0}}```
 At present it is recommended to use local models only for code generation tasks, all other tasks like pseudo code generaration, summarisation, error correction and ranking should be still handled by OpenAI models of choice. The model is downloaded from Huggingface and cached localy for subsequent executions. For a reasonable performance it requires CUDA enabled GPU and the pytorch library compatible with the CUDA version. Below are the required libraries that are not included in the package and will need to be installed independently:
 ```
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 (Adjust to match your CUDA version. This library is already included in Colab notebooks)
@@ -168,6 +188,10 @@ pip install xformers
 pip install bitsandbytes
 ```
 The settings and parameters for local models are located in local_models.py module and can be adjusted to match your particular configuration or preferences.
+
+**Ollama**
+
+The library also supports the use of Ollama https://ollama.com/ and all of it's models. If you want to use a local Ollama model for a specific agent, modify the LLM_CONFIG content replacing the OpenAI model name with the Ollama model name and change the provider value to 'ollama'. eg. ```{"agent": "Code Generator", "details": {"model": "llama3:70b", "provider":"ollama","max_tokens": 2000, "temperature": 0}}```
 
 **Logging**
 
