@@ -7,6 +7,8 @@ import os
 from newspaper import Article
 import re
 
+openai_client = openai.OpenAI()
+
 # Define a class to perform a Google search and retrieve the content of the resulting pages    
 class SearchEngine:
     # Perform a Google search using the SERPer API
@@ -57,12 +59,12 @@ class SearchEngine:
 class DocumentRetriever:
     # Create a vector embedding of a text using OpenAI's 'text-embedding-ada-002' model
     def encode(self, input):
-        resp = openai.Embedding.create(
+        resp = openai_client.embeddings.create(
             model = 'text-embedding-ada-002',
             input = input
         )
 
-        embeds = np.array([d['embedding'] for d in resp['data']])
+        embeds = np.array([d.embedding for d in resp.data])
         return embeds
     
     # Retrieve the most relevant documents for a question using vector embeddings

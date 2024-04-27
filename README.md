@@ -75,6 +75,23 @@ Throughout this process, the agent continuously solicits user input, stores mess
 
 ![](images/BambooAI_Agent_Flow.png)
 
+## Supported vendors/models
+
+The library supports use of various open source or proprietary models, either via API or localy.
+
+**API:**
+- OpenAI - All models
+- Google - Gemini Models
+- Anthropic - All Models
+- Groq - All Models
+- Mistral - All Models
+
+**Local:**
+- Ollama - All Models
+- A Selection of local models(more info below)
+
+You can specify what vendor/model you want to use for a specific agent by modifying the content of LLM_CONFIG file, replacing the default OpenAI model name with the model and vendor of your choicee. eg. ```{"agent": "Code Generator", "details": {"model": "open-mixtral-8x22b", "provider":"mistral","max_tokens": 4000, "temperature": 0}}```. The purpose of LLM_CONFIG is described in more detail below.
+
 ## How to use
 
 **Installation**
@@ -142,6 +159,9 @@ bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart r
 The library requires an OpenAI API account and the API key to connect to OpenAI LLMs. The OpenAI API key needs to be stored in a ```OPENAI_API_KEY``` environment variable.
 The key can be obtained from here: https://platform.openai.com/account/api-keys.
 
+In addition to OpenAI models a selection of models from different providers is also supported (Groq, Gemini, Mistral, Anthropic). The API keys needs to be stored in environment variables in the following format ```<VENDOR_NAME>_API_KEY```.
+You need to use ```GEMINI_API_KEY``` for Google Gemini models. 
+
 As mentioned above, the llm config can be stored in a string format in the  ```LLM_CONFIG``` environment variable. You can use the content of the provided LLM_CONFIG_sample.json as a starting point and modify to your preference, depending on what models you have access to. 
 
 The Pincone vector db is optional. If you don want to use it, you dont need to do anything. If you have an account with Pinecone and would like to use the knowledge base and ranking features, you will be required to setup ```PINECONE_API_KEY``` and ```PINECONE_ENV``` envirooment variables, and set the 'vector_db' parameter to True. The vector db index is created upon first execution.
@@ -150,14 +170,14 @@ The Google Search is also optional. If you don want to use it, you dont need to 
 
 **Local Open Source Models**
 
-The library currently supports the following open-source models. I have selected the models that currently score the highest on the HumanEval benchmark.
+The library currently directly supports the following open-source models. I have selected the models that currently score the highest on the HumanEval benchmark.
 - **WizardCoder(WizardLM):** WizardCoder-15B-V1.0, WizardCoder-Python-7B-V1.0, WizardCoder-Python-13B-V1.0, WizardCoder-Python-34B-V1.0
 - **WizardCoder GPTQ(TheBloke):** WizardCoder-15B-1.0-GPTQ, WizardCoder-Python73B-V1.0-GPTQ, WizardCoder-Python-13B-V1.0-GPTQ, WizardCoder-Python-34B-V1.0-GPTQ
 - **CodeLlama Instruct(TheBloke):** CodeLlama-7B-Instruct-fp16, CodeLlama-13B-Instruct-fp16, CodeLlama-34B-Instruct-fp16
 - **CodeLlama Instruct(Phind):** Phind-CodeLlama-34B-v2
 - **CodeLlama Completion(TheBloke):** CodeLlama-7B-Python-fp16, CodeLlama-13B-Python-fp16, CodeLlama-34B-Python-fp16
 
-If you want to use a local model for a specific agent, modify the LLM_CONFIG content replacing the OpenAI model name with the local model name and change the provider value to 'local'. eg. ```{"agent": "Code Generator", "details": {"model": "Phind-CodeLlama-34B-v2", "provider":"local","max_tokens": 2000, "temperature": 0}}```
+If you want to use the local model for a specific agent, modify the LLM_CONFIG content replacing the OpenAI model name with the local model name and change the provider value to 'local'. eg. ```{"agent": "Code Generator", "details": {"model": "Phind-CodeLlama-34B-v2", "provider":"local","max_tokens": 2000, "temperature": 0}}```
 At present it is recommended to use local models only for code generation tasks, all other tasks like pseudo code generaration, summarisation, error correction and ranking should be still handled by OpenAI models of choice. The model is downloaded from Huggingface and cached localy for subsequent executions. For a reasonable performance it requires CUDA enabled GPU and the pytorch library compatible with the CUDA version. Below are the required libraries that are not included in the package and will need to be installed independently:
 ```
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 (Adjust to match your CUDA version. This library is already included in Colab notebooks)
@@ -168,6 +188,10 @@ pip install xformers
 pip install bitsandbytes
 ```
 The settings and parameters for local models are located in local_models.py module and can be adjusted to match your particular configuration or preferences.
+
+**Ollama**
+
+The library also supports the use of Ollama https://ollama.com/ and all of it's models. If you want to use a local Ollama model for a specific agent, modify the LLM_CONFIG content replacing the OpenAI model name with the Ollama model name and change the provider value to 'ollama'. eg. ```{"agent": "Code Generator", "details": {"model": "llama3:70b", "provider":"ollama","max_tokens": 2000, "temperature": 0}}```
 
 **Logging**
 
@@ -265,11 +289,13 @@ Final iteration... using the best performing model and tuned hyper parameters. F
 
 ## Notes
 
-- The library currently supports OpenAI Chat models. It has been tested with both gpt-3.5-turbo and gpt-4. The gpt-3.5-turbo seems to perform well and is the preferred option due to its 10x lower cost.
+- The library currently supports OpenAI Chat models. It has been tested with both gpt-3.5-turbo and gpt-4. The gpt-3.5-turbo seems to perform OK for simpler tasks and is the good starting/exploration option due to its 10x lower cost.
+- It can also be used with models from the following vendors via API. Anthropic, Mistral, Google Gemini, Groq. All you need is the API key.
+- Also the use of Ollama and all of it's models is supported. This could be quite handy as a buch of Llama 3 finetunes are about to start landing.
 - For coding tasks it also supports SOTA open source code models like CodeLlama and WizardCoder.
 - The library executes LLM generated Python code, this can be bad if the LLM generated Python code is harmful. Use cautiously.
-- Be sure to monitor your token usage. At the time of writing, the cost per 1K tokens is $0.03 USD for GPT-4 and $0.002 USD for GPT-3.5-turbo. It's important to keep these costs in mind when using the library, particularly when using the more expensive models.
-- Supported OpenAI models: *gpt-3.5-turbo, gpt-3.5-turbo-613, gpt-3.5-turbo-16k, gpt-4, gpt-4-0613.*
+- Be sure to monitor your token usage. At the time of writing, the cost per 1K input tokens is $0.01 USD for GPT-4-turbo and $0.001 USD for GPT-3.5-turbo. It's important to keep these costs in mind when using the library, particularly when using the more expensive models.
+- Supported OpenAI models: *gpt-3.5-turbo, gpt-3.5-turbo-613, gpt-3.5-turbo-16k, gpt-4, gpt-4-turbo.*
 - Supported Open Source Models: *WizardCoder-15B-V1.0, WizardCoder-Python-7B-V1.0, WizardCoder-Python-13B-V1.0, WizardCoder-Python-34B-V1.0, WizardCoder-15B-1.0-GPTQ, WizardCoder-Python73B-V1.0-GPTQ, WizardCoder-Python-13B-V1.0-GPTQ,
   WizardCoder-Python-34B-V1.0-GPTQ, CodeLlama-7B-Instruct-fp16, CodeLlama-13B-Instruct-fp16, CodeLlama-34B-Instruct-fp16, CodeLlama-7B-Python-fp16, CodeLlama-13B-Python-fp16, CodeLlama-34B-Python-fp16, Phind-CodeLlama-34B-v2.*
 
@@ -279,8 +305,6 @@ Contributions are welcome; please feel free to open a pull request. Keep in mind
 
 ## ToDo
 
-- Implement ReAct https://arxiv.org/abs/2201.11903, where a question can be decomposed into individual sub-steps and then sequentially routed to the appropriate Experts for processing. This approach should enhance the reasoning capabilities when dealing with multifaceted tasks.
-- Keep adding support for additional Open Source LLMs
-- Experiment with GPT-3.5 finetuning to see whether there is any benefit.
-- Experiment with recently released gpt-3.5-turbo-instruct model.
+- A lot :-)
+
 
