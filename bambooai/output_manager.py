@@ -10,7 +10,7 @@ class OutputManager:
         self.color_result_header_ntb = 'blue'
         self.color_result_header_cli = 'green'
         self.color_result_body_code = '#555555'
-        self.color_result_body_text = 'black'
+        self.color_result_body_text = 'gray'
         # agent colors
         self.color_tool_header = 'magenta'
         # Error colors
@@ -21,7 +21,7 @@ class OutputManager:
         self.color_usr_input_rank = 'green'
         # Token summary colors
         self.color_token_summary_header_ntb = 'blue'
-        self.color_token_summary_text_ntb = 'black'
+        self.color_token_summary_text_ntb = 'gray'
         self.color_token_summary_cli = 'yellow'
     
     # Display the results of the analysis
