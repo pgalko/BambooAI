@@ -45,7 +45,7 @@ The BambooAI agent operates through several key steps to interact with users and
 
 **2. Task Evaluation**
 - The agent stores the received question and utilizes the Large Language Model (LLM) to evaluate and categorize it.
-- The LLM determines whether the question necessitates a textual response, additional information (Google search), or can be resolved using code.
+- The LLM determines whether the question necessitates a textual response, additional information (Google search: https://serper.dev/), or can be resolved using code.
 - Depending on the task evaluation and classification the agent calls the appropriate agent.
 
 **3. Dynamic Prompt Build**
@@ -111,7 +111,7 @@ max_conversations: int - Number of "user:assistant" conversation pairs to keep i
 
 debug: bool - If True, the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking and debugging.
 
-search_tool: bool - If True, the Planner agent will use a google search if the required information is not available or satisfactory.
+search_tool: bool - If True, the Planner agent will use a "google search: https://serper.dev/" if the required information is not available or satisfactory.
 
 vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the rank surpasses a certain threshold (8), the corresponding question (vectorised), answer, code, and rank (metadata) are all stored in the Pinecone database. Each time a new question is asked, these records will be searched. If the similarity score is above 0.9, they will be offered as examples and included in the prompt (in a one-shot learning scenario)
 
@@ -166,7 +166,7 @@ As mentioned above, the llm config can be stored in a string format in the  ```L
 
 The Pincone vector db is optional. If you don want to use it, you dont need to do anything. If you have an account with Pinecone and would like to use the knowledge base and ranking features, you will be required to setup ```PINECONE_API_KEY``` and ```PINECONE_ENV``` envirooment variables, and set the 'vector_db' parameter to True. The vector db index is created upon first execution.
 
-The Google Search is also optional. If you don want to use it, you dont need to do anything. If you have an account with Serper and would like to use the Google Search feature, you will be required to setup ```SERPER_API_KEY``` environment variable, and set the 'search_tool' parameter to True.
+The Google Search is also optional. If you don want to use it, you dont need to do anything. If you have an account with Serper and would like to use the Google Search functionality, you will be required to setup and account with ": https://serper.dev/", and set ```SERPER_API_KEY``` environment variable, and set the 'search_tool' parameter to True.
 
 **Local Open Source Models**
 
