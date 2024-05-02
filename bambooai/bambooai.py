@@ -236,7 +236,7 @@ class BambooAI:
 
         ######## Refine Expert Selection, and Formulate the task for the expert ###########
         if expert == 'Data Analyst':
-            self.select_analyst_messages.append({"role": "user", "content": self.analyst_selector_user.format(question, None if self.df is None else self.df.columns.tolist())})
+            self.select_analyst_messages.append({"role": "user", "content": self.analyst_selector_user.format(question, None if self.df is None else df_columns)})
             analyst, rephrased_query = self.select_analyst(self.select_analyst_messages)
             self.select_analyst_messages.append({"role": "assistant", f"content": f"analyst:{analyst},rephrased_query:{rephrased_query}"})
 
@@ -247,10 +247,10 @@ class BambooAI:
 
             # Retrieve the matching code and plan from the vector database if exists
             if self.vector_db:
-                example_code, example_plan = self.retrieve_answer(rephrased_query, df_columns, similarity_threshold=self.similarity_threshold)
+                retrieved_code, retrieved_plan = self.retrieve_answer(rephrased_query, df_columns, similarity_threshold=self.similarity_threshold)
 
-                if example_plan is not None:
-                    example_plan = f"Use the below plan as base for your answer:\n\n```yaml\n{example_plan}\n```"
+                if retrieved_plan is not None:
+                    example_plan = f"Use the below plan as base for your answer:\n\n```yaml\n{retrieved_plan}\n```"
 
             if analyst == 'Data Analyst DF':
                 self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(None if self.df is None else self.df.dtypes.to_string(max_rows=None), example_plan, question)}) 
@@ -326,27 +326,17 @@ class BambooAI:
             else:
                 analyst = 'Data Analyst DF'
                 task = question
+
+            if analyst == 'Data Analyst DF':
+                    example_code = self.default_example_output_df
+            else:
+                example_code = self.default_example_output_gen
             
             if self.vector_db:
                 # Call the retrieve_answer method to check if the question has already been asked and answered
-                if analyst == 'Data Analyst DF':
-                    df_columns = '' if self.df is None else self.df.columns.tolist()
-                elif analyst == 'Data Analyst Generic':
-                    df_columns = ''
-
-                example_code, example_plan = self.retrieve_answer(rephrased_query, df_columns, similarity_threshold=self.similarity_threshold)
-                if example_code is not None:
-                    example_code = f"Review the the below code, and use as base for your answer:\n\n```python\n{example_code}\n```"
-                else:     
-                    if analyst == 'Data Analyst DF':
-                        example_code = self.default_example_output_df
-                    else:
-                        example_code = self.default_example_output_gen
-            else:
-                if analyst == 'Data Analyst DF':
-                    example_code = self.default_example_output_df
-                else:
-                    example_code = self.default_example_output_gen
+                retrieved_code, retrieved_plan = self.retrieve_answer(rephrased_query, '' if self.df is None else self.df.columns.tolist(), similarity_threshold=self.similarity_threshold)
+                if retrieved_code is not None:
+                    example_code = f"Review the the below code, and use as base for your answer:\n\n```python\n{retrieved_code}\n```"
 
             # Call the generate_code() method to genarate and debug the code
             code = self.generate_code(analyst, task, self.code_messages, example_code)
@@ -374,7 +364,7 @@ class BambooAI:
                     rank = rank
 
                 # Add the question and answer pair to the QA retrieval index
-                self.add_question_answer_pair(rephrased_query, task, df_columns, code, rank)
+                self.add_question_answer_pair(rephrased_query, task, '' if self.df is None else self.df.columns.tolist(), code, rank)
 
             self.log_and_call_manager.print_summary_to_terminal()
             
