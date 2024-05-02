@@ -12,10 +12,10 @@ warnings.filterwarnings('ignore')
 
 try:
     # Attempt package-relative import
-    from . import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager, output_manager
+    from . import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager, output_manager, utils
 except ImportError:
     # Fall back to script-style import
-    import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager, output_manager
+    import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager, output_manager, utils
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -70,6 +70,8 @@ class BambooAI:
         templates = [
             "default_example_output_df",
             "default_example_output_gen",
+            "default_example_plan_df",
+            "default_example_plan_gen",
             "expert_selector_system",
             "expert_selector_user",
             "analyst_selector_system",
@@ -79,6 +81,7 @@ class BambooAI:
             "planner_user_df",
             "theorist_system",
             "google_search_query_generator_system",
+            "google_search_react_system",
             "code_generator_system_df",
             "code_generator_system_gen",
             "code_generator_user_df",
@@ -109,11 +112,13 @@ class BambooAI:
         self._extract_rank = reg_ex._extract_rank
         self._extract_expert = reg_ex._extract_expert
         self._extract_analyst = reg_ex._extract_analyst
+        self._extract_plan = reg_ex._extract_plan
         self._remove_examples = reg_ex._remove_examples
 
         # Functions
         self.task_eval_function = func_calls.task_eval_function
         self.insights_function = func_calls.solution_insights_function
+        self.search_function = func_calls.search_function
 
         # LLM calls
         self.llm_call = models.llm_call
@@ -145,7 +150,7 @@ class BambooAI:
         # Messages lists
         self.pre_eval_messages = [{"role": "system", "content": self.expert_selector_system}]
         self.select_analyst_messages = [{"role": "system", "content": self.analyst_selector_system}]
-        self.eval_messages = [{"role": "system", "content": self.planner_system}]
+        self.eval_messages = [{"role": "system", "content": self.planner_system.format(utils.get_readable_date())}]
         self.code_messages = [{"role": "system", "content": self.code_generator_system_df}]
 
         # QA Retrieval
@@ -155,7 +160,7 @@ class BambooAI:
 
         # Google Search
         self.search_tool = search_tool
-        self.google_search = google_search.GoogleSearch()
+        self.google_search = google_search.SmartSearchOrchestrator()
 
     ######################
     ### Util Functions ###
@@ -164,17 +169,18 @@ class BambooAI:
     def reset_messages_and_logs(self):
         self.pre_eval_messages = [{"role": "system", "content": self.expert_selector_system}]
         self.select_analyst_messages = [{"role": "system", "content": self.analyst_selector_system}]
-        self.eval_messages = [{"role": "system", "content": self.planner_system}]
+        self.eval_messages = [{"role": "system", "content": self.planner_system.format(utils.get_readable_date())}]
         self.code_messages = [{"role": "system", "content": self.code_generator_system_df}]
         self.code_exec_results = None
 
         self.log_and_call_manager.clear_run_logs()
-
+    
     ######################
     ### Eval Functions ###
     ######################
     
     def select_expert(self, pre_eval_messages):
+        '''Call the Expert Selector'''
         agent = 'Expert Selector'
         using_model,provider = models.get_model_name(agent)
 
@@ -182,96 +188,102 @@ class BambooAI:
 
         # Call OpenAI API to evaluate the task
         llm_response = self.llm_stream(self.log_and_call_manager,pre_eval_messages, agent=agent,chain_id=self.chain_id)
-        expert = self._extract_expert(llm_response)
+        expert, requires_dataset, confidence = self._extract_expert(llm_response)
 
-        return expert
+        return expert, requires_dataset, confidence
     
     def select_analyst(self, select_analyst_messages):
+        '''Call the Analyst Selector'''
         agent = 'Analyst Selector'
         # Call OpenAI API to evaluate the task
         llm_response = self.llm_stream(self.log_and_call_manager,select_analyst_messages, agent=agent, chain_id=self.chain_id)
-        analyst = self._extract_analyst(llm_response)
+        analyst, rephrased_query = self._extract_analyst(llm_response)
 
-        return analyst
+        return analyst, rephrased_query
     
     def task_eval(self, eval_messages, agent):
-        agent = agent
+        '''Call the Task Evaluator'''
         using_model,provider = models.get_model_name(agent)
 
         self.output_manager.display_tool_start(agent,using_model)
 
-        # Call OpenAI API to evaluate the task
-        llm_response = self.llm_stream(self.log_and_call_manager,eval_messages, agent=agent, chain_id=self.chain_id)
+        if self.search_tool:
+            tools=self.search_function
+        else:
+            tools=None
 
-        return llm_response
+        # Call OpenAI API to evaluate the task
+        llm_response = self.llm_stream(self.log_and_call_manager,eval_messages, agent=agent, chain_id=self.chain_id, tools=tools)
+        if agent == 'Planner':
+            response = self._extract_plan(llm_response)
+        else:
+            response = llm_response
+            
+        return response
     
-    def taskmaster(self, question):
+    def taskmaster(self, question, df_columns):
+        '''Taskmaster function to select the expert, refine the expert selection, and formulate a task for the expert'''
         task = None
         analyst = None
+        rephrased_query = None
+        requires_dataset = None
+        confidence = None
 
         ######## Select Expert ###########
         self.pre_eval_messages.append({"role": "user", "content": self.expert_selector_user.format(question)})
-        expert = self.select_expert(self.pre_eval_messages) 
-        self.pre_eval_messages.append({"role": "assistant", "content": expert})
+        expert,requires_dataset,confidence  = self.select_expert(self.pre_eval_messages) 
+        self.pre_eval_messages.append({"role": "assistant", "content": f"expert:{expert},requires_dataset:{requires_dataset},confidence:{confidence}"})
 
-        ######## Refine Expert Selection, and Formulate a task for the expert ###########
+        ######## Refine Expert Selection, and Formulate the task for the expert ###########
         if expert == 'Data Analyst':
             self.select_analyst_messages.append({"role": "user", "content": self.analyst_selector_user.format(question, None if self.df is None else self.df.columns.tolist())})
-            analyst = self.select_analyst(self.select_analyst_messages)
-            self.select_analyst_messages.append({"role": "assistant", "content": analyst})
+            analyst, rephrased_query = self.select_analyst(self.select_analyst_messages)
+            self.select_analyst_messages.append({"role": "assistant", f"content": f"analyst:{analyst},rephrased_query:{rephrased_query}"})
+
             if analyst == 'Data Analyst DF':
-                self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(question, None if self.df is None else self.df.dtypes)})
-                # Replace first dict in messages with a new system task
+                example_plan = self.default_example_plan_df
+            elif analyst == 'Data Analyst Generic':
+                example_plan = self.default_example_plan_gen
+
+            # Retrieve the matching code and plan from the vector database if exists
+            if self.vector_db:
+                example_code, example_plan = self.retrieve_answer(rephrased_query, df_columns, similarity_threshold=self.similarity_threshold)
+
+                if example_plan is not None:
+                    example_plan = f"Use the below plan as base for your answer:\n\n```yaml\n{example_plan}\n```"
+
+            if analyst == 'Data Analyst DF':
+                self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(None if self.df is None else self.df.dtypes.to_string(max_rows=None), example_plan, question)}) 
+                # Replace first dict in messages with a new system task. This is to distinguish between the two types of analysts
                 self.code_messages[0] = {"role": "system", "content": self.code_generator_system_df}
             elif analyst == 'Data Analyst Generic':
-                self.eval_messages.append({"role": "user", "content": self.planner_user_gen.format(question)})
-                # Replace first dict in messages with a new system task
+                self.eval_messages.append({"role": "user", "content": self.planner_user_gen.format(example_plan, question)})
+                # Replace first dict in messages with a new system task. This is to distinguish between the two types of analysts
                 self.code_messages[0] = {"role": "system", "content": self.code_generator_system_gen}
             agent = 'Planner'
 
         elif expert == 'Data Analysis Theorist':
             self.eval_messages.append({"role": "user", "content": self.theorist_system.format(question)})
             agent = 'Theorist'
-        elif expert == 'Internet Research Specialist':
-            if self.search_tool:
-                self.eval_messages.append({"role": "user", "content": self.google_search_query_generator_system.format(question)})
-                agent = 'Google Search Query Generator'
-            else:
-                self.eval_messages.append({"role": "user", "content": self.theorist_system.format(question)})
-                agent = 'Theorist'
         else:
             self.eval_messages.append({"role": "user", "content": self.theorist_system.format(question)})
 
         task_eval = self.task_eval(self.eval_messages, agent)
         self.eval_messages.append({"role": "assistant", "content": task_eval})
 
-        # Remove the oldest conversation from the messages list
+        # Remove the oldest conversation from the eval_messages list
         if len(self.eval_messages) > self.MAX_CONVERSATIONS:
             self.eval_messages.pop(1)
             self.eval_messages.pop(1)
 
         if expert == 'Data Analysis Theorist':
             self.log_and_call_manager.print_summary_to_terminal()
-
-        elif expert == 'Internet Research Specialist':
-            if self.search_tool:
-                self.output_manager.print_wrapper('I either do not have an answer to your query or I am not confident that the information that I have is satisfactory.\nI am going to search the Internet. Please wait...')
-                answer,links_dict = self.google_search(self.token_cost_dict,self.chain_id,task_eval)
-                for link in links_dict:
-                    self.output_manager.print_wrapper(f"Title: {link['title']}\nLink: {link['link']}")
-                # Replace the last element in eval_messages with the answer from the Google search
-                self.eval_messages[-1] = {"role": "assistant", "content": answer}
-                self.output_manager.print_wrapper(answer)
-                self.log_and_call_manager.print_summary_to_terminal()
-            else:
-                self.log_and_call_manager.print_summary_to_terminal()
-
         elif expert == 'Data Analyst':
             task = task_eval
         else:
             self.log_and_call_manager.print_summary_to_terminal()
 
-        return analyst,task
+        return analyst, task, rephrased_query, requires_dataset, confidence
     
     #####################
     ### Main Function ###
@@ -303,7 +315,7 @@ class BambooAI:
                 
             if self.exploratory is True:
                 # Call the taskmaister method with the user's question if the exploratory mode is True
-                analyst,task = self.taskmaster(question)
+                analyst, task, rephrased_query, requires_dataset, confidence = self.taskmaster(question,'' if self.df is None else self.df.columns.tolist())
                 if not loop:
                     if not analyst:
                         self.log_and_call_manager.consolidate_logs()
@@ -322,22 +334,22 @@ class BambooAI:
                 elif analyst == 'Data Analyst Generic':
                     df_columns = ''
 
-                example_output = self.retrieve_answer(task, df_columns, similarity_threshold=self.similarity_threshold)
-                if example_output is not None:
-                    example_output = example_output
+                example_code, example_plan = self.retrieve_answer(rephrased_query, df_columns, similarity_threshold=self.similarity_threshold)
+                if example_code is not None:
+                    example_code = f"Review the the below code, and use as base for your answer:\n\n```python\n{example_code}\n```"
                 else:     
                     if analyst == 'Data Analyst DF':
-                        example_output = self.default_example_output_df
+                        example_code = self.default_example_output_df
                     else:
-                        example_output = self.default_example_output_gen
+                        example_code = self.default_example_output_gen
             else:
                 if analyst == 'Data Analyst DF':
-                    example_output = self.default_example_output_df
+                    example_code = self.default_example_output_df
                 else:
-                    example_output = self.default_example_output_gen
+                    example_code = self.default_example_output_gen
 
             # Call the generate_code() method to genarate and debug the code
-            code = self.generate_code(analyst, task, self.code_messages, example_output)
+            code = self.generate_code(analyst, task, self.code_messages, example_code)
             # Call the execute_code() method to execute the code and summarise the results
             answer, results, code = self.execute_code(analyst,code, task, question, self.code_messages)
 
@@ -362,7 +374,7 @@ class BambooAI:
                     rank = rank
 
                 # Add the question and answer pair to the QA retrieval index
-                self.add_question_answer_pair(task, df_columns, code, rank)
+                self.add_question_answer_pair(rephrased_query, task, df_columns, code, rank)
 
             self.log_and_call_manager.print_summary_to_terminal()
             
@@ -374,13 +386,13 @@ class BambooAI:
     ### Code Functions ###
     ######################
             
-    def generate_code(self, analyst, task, code_messages, example_output):
+    def generate_code(self, analyst, task, code_messages, example_code):
         agent = 'Code Generator'
         # Add a user message with the updated task prompt to the messages list
         if analyst == 'Data Analyst DF':
-            code_messages.append({"role": "user", "content": self.code_generator_user_df.format(None if self.df is None else self.df.dtypes, task, self.code_exec_results, example_output)})
+            code_messages.append({"role": "user", "content": self.code_generator_user_df.format(None if self.df is None else self.df.dtypes.to_string(max_rows=None), task, self.code_exec_results, example_code)})
         elif analyst == 'Data Analyst Generic':
-            code_messages.append({"role": "user", "content": self.code_generator_user_gen.format(task, self.code_exec_results, example_output)})
+            code_messages.append({"role": "user", "content": self.code_generator_user_gen.format(task, self.code_exec_results, example_code)})
 
         using_model,provider = models.get_model_name(agent)
 

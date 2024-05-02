@@ -2,8 +2,6 @@ import os
 import time
 from anthropic import Client
 
-client = Client()
-
 try:
     # Attempt package-relative import
     from . import output_manager
@@ -15,7 +13,13 @@ output_manager = output_manager.OutputManager()
 
 def init():
     API_KEY = os.environ.get('ANTHROPIC_API_KEY')
-    client.api_key = API_KEY
+    if API_KEY is None:
+        output_manager.print_wrapper("Warning: ANTHROPIC_API_KEY environment variable not found.")
+        return
+    else:
+        client = Client()
+        client.api_key = API_KEY
+        return client
 
 def convert_openai_to_anthropic(messages):
     updated_data = []
@@ -30,7 +34,7 @@ def convert_openai_to_anthropic(messages):
 
 def llm_call(messages: str,model: str,temperature: str,max_tokens: str):  
 
-    init()
+    client = init()
 
     messages, system_instruction = convert_openai_to_anthropic(messages)
 
@@ -61,11 +65,11 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str):
 
     return content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(messages: str,model: str,temperature: str,max_tokens: str):  
+def llm_stream(log_and_call_manager, chain_id: str,messages: str,model: str,temperature: str,max_tokens: str,tools: str = None):  
 
     collected_messages = []
 
-    init()
+    client = init()
 
     messages, system_instruction = convert_openai_to_anthropic(messages)
 

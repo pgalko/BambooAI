@@ -111,7 +111,7 @@ max_conversations: int - Number of "user:assistant" conversation pairs to keep i
 
 debug: bool - If True, the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking and debugging.
 
-search_tool: bool - If True, the agent will switch to a google search if the answer is not available or satisfactory.
+search_tool: bool - If True, the Planner agent will use a google search if the required information is not available or satisfactory.
 
 vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the rank surpasses a certain threshold (8), the corresponding question (vectorised), answer, code, and rank (metadata) are all stored in the Pinecone database. Each time a new question is asked, these records will be searched. If the similarity score is above 0.9, they will be offered as examples and included in the prompt (in a one-shot learning scenario)
 

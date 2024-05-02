@@ -1,6 +1,6 @@
 import os
 import time
-from groq import Groq
+from mistralai.client import MistralClient
 import tiktoken
 
 try:
@@ -13,13 +13,13 @@ except ImportError:
 output_manager = output_manager.OutputManager()
 
 def init():
-    API_KEY = os.environ.get('GROQ_API_KEY')
+    API_KEY = os.environ.get('MISTRAL_API_KEY')
     if API_KEY is None:
-        output_manager.print_wrapper("Warning: GROQ_API_KEY environment variable not found.")
+        output_manager.print_wrapper("Warning: MISTRAL_API_KEY environment variable not found.")
         return
     else:
-        client = Groq()
-        client.api_key = API_KEY
+        client = MistralClient()
+        client._api_key = API_KEY
         return client
 
 def llm_call(messages: str,model: str,temperature: str,max_tokens: str):  
@@ -28,7 +28,7 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str):
 
     start_time = time.time()
 
-    response = client.chat.completions.create(
+    response = client.chat(
         model=model, 
         messages=messages,
         temperature=temperature,
@@ -54,23 +54,15 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str):
 
     return content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(log_and_call_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str, tools: str = None):  
+def llm_stream(log_and_call_manager, chain_id: str,messages: str,model: str,temperature: str,max_tokens: str,tools: str = None):  
 
     collected_chunks = []
     collected_messages = []
 
     client = init()
 
-    response = client.chat.completions.create(
-        model=model, 
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        stream =True,
-    )
-
     start_time = time.time()
-    for chunk in response:
+    for chunk in client.chat_stream(model=model, messages=messages, temperature=temperature, max_tokens=max_tokens):
         collected_chunks.append(chunk)
         if chunk.choices[0].delta.content is not None:
             chunk_message = chunk.choices[0].delta.content

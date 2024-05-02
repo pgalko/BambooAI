@@ -56,7 +56,7 @@ class OutputManager:
         elif agent == 'Theorist':
             msg = 'Working on an answer to your question, please wait...'
         elif agent == 'Google Search Query Generator':
-            msg = 'Generating a query to search for the answer, please wait...'
+            msg = 'I am going to generate the queries and search the internet for the answer, please wait...'
         elif agent == 'Expert Selector':
             msg = 'Selecting the expert to best answer your query, please wait...'
         elif agent == 'Code Generator':
@@ -65,6 +65,7 @@ class OutputManager:
             msg = 'I am reviewing and debugging the first version of the code to check for any errors, bugs, or inconsistencies and will make corrections if necessary. Please wait...'
         elif agent == 'Code Ranker':
             msg = 'I am going to assess, summarize and rank the answer, please wait...'
+        
 
         if 'ipykernel' in sys.modules:
             display(HTML(f'<p style="color:{color};">\nCalling Model: {model}</p>'))
@@ -117,6 +118,14 @@ class OutputManager:
             rank_feedback = input()
 
         return rank_feedback
+    
+    # Display the input to enter the rank
+    def display_search_task(self,action, action_input):
+        if 'ipykernel' in sys.modules:
+            display(HTML(f'<span style="color:{self.color_usr_input_rank};">-- running {action}: \"{action_input}\"</span>'))
+            time.sleep(1)
+        else:
+            cprint(f"\n--running {action}: \"{action_input}\"", self.color_usr_input_rank)
 
     # Display the llm calls summary
     def display_call_summary(self, summary_text):

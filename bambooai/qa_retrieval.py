@@ -1,3 +1,4 @@
+import json
 import pinecone
 from sentence_transformers import SentenceTransformer
 import os
@@ -38,7 +39,7 @@ def init_pinecone():
 
     return model, index
 
-def add_question_answer_pair(question, df_columns, code, new_rank):
+def add_question_answer_pair(question, plan, df_columns, code, new_rank):
     model, index = init_pinecone()
     # Check if the new rank is above the threshold
     new_rank=int(new_rank)
@@ -63,8 +64,8 @@ def add_question_answer_pair(question, df_columns, code, new_rank):
 
     # If the existing rank is less than the new rank, add or update the question vector and associated data
     if existing_rank < new_rank:
-        metadata = {"df_col":df_columns,"question_txt":question,"code":code,"rank": new_rank}
-        vectors = [(id,xq,metadata)]
+        metadata = {"plan": plan, "df_col": df_columns, "question_txt": question, "code": code, "rank": new_rank}
+        vectors = [(id, xq, metadata)]
         index.upsert(vectors=vectors)
         output_manager.print_wrapper(f"Added/Updated the vector db record with id: {id}")
     else:
@@ -83,7 +84,7 @@ def retrieve_answer(question, df_columns, match_df=True, similarity_threshold=0.
 
     if not matches:
         output_manager.print_wrapper("No vector db match found")
-        return None
+        return None, None
 
     match = matches[0]
     closest_match_id = match['id']
@@ -93,14 +94,14 @@ def retrieve_answer(question, df_columns, match_df=True, similarity_threshold=0.
     # Check if the similarity score is above the threshold
     if similarity_score < similarity_threshold:
         output_manager.print_wrapper(f"Similarity score {similarity_score} is below the threshold {similarity_threshold}")
-        return None
+        return None, None
 
     fetched_data = index.fetch(ids=[closest_match_id])
     vector_data = fetched_data.get('vectors', {}).get(closest_match_id, {})
 
     if not vector_data:
         output_manager.print_wrapper("No data found for this vector db id")
-        return None
+        return None, None
 
     # Get the metadata
     metadata = vector_data['metadata']
@@ -108,13 +109,15 @@ def retrieve_answer(question, df_columns, match_df=True, similarity_threshold=0.
     if match_df:
         if metadata['df_col'] == df_columns:
             code = metadata['code']
+            plan = metadata['plan']
         else:
             output_manager.print_wrapper("The dataframe columns do not match. I will not use this record.")
-            return None
+            return None, None
     # Return the matadata withouth checking the dataframe columns
     else:
         code = metadata['code']
+        plan = metadata['plan']
 
-    return code
+    return code, plan
 
 

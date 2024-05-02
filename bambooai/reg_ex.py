@@ -1,4 +1,4 @@
-
+import json
 import re
 
 def _normalize_indentation(code_segment: str) -> str:
@@ -70,30 +70,60 @@ def _extract_rank(response: str) -> str:
 def _extract_expert(response: str) -> str:
     # Create a pattern to match any of the substrings
     pattern = r'Data Analyst|Data Analysis Theorist|Internet Research Specialist'
-    
-    # Use re.search to find the first match in the input string
-    match = re.search(pattern, response)
-    
-    if match:
-        # If a match is found, return it
-        return match.group()
+
+    json_segment = re.findall(r'```(?:json\s*)?(.*?)\s*```', response, re.DOTALL)
+
+    if json_segment:
+        # This regex replaces 'True' and 'False' with 'true' and 'false', respectively
+        json_segment = re.sub(r'\b(True|False)\b', lambda match: match.group(0).lower(), json_segment[0])
+        data = json.loads(json_segment)
+        requires_dataset = data['requires_dataset']
+        expert = data['expert']
+        confidence = data['confidence']
+
+        return expert, requires_dataset, confidence
     else:
-        # If no match is found, return None
-        return None
+        # Use re.search to find the first match in the input string
+        match = re.search(pattern, response)
+        
+        if match:
+            # If a match is found, return it
+            return match.group(), None, None
+        else:
+            # If no match is found, return None
+            return None, None, None
     
 def _extract_analyst(response: str) -> str:
     # Create a pattern to match any of the substrings
     pattern = r'Data Analyst DF|Data Analyst Generic'
-    
-    # Use re.search to find the first match in the input string
-    match = re.search(pattern, response)
-    
-    if match:
-        # If a match is found, return it
-        return match.group()
+
+    json_segment = re.findall(r'```(?:json\s*)?(.*?)\s*```', response, re.DOTALL)
+
+    if json_segment:
+        data = json.loads(json_segment[0])
+        analyst = data['analyst']
+        rephrased_query = data['rephrased_query']
+        return analyst, rephrased_query
     else:
-        # If no match is found, return None
-        return None
+        # Use re.search to find the first match in the input string
+        match = re.search(pattern, response)
+        
+        if match:
+            # If a match is found, return it
+            return match.group(), None, None
+        else:
+            # If no match is found, return None
+            return None, None, None
+        
+def _extract_plan(response: str) -> str:
+
+    yaml_segment = re.findall(r'```(?:yaml\s*)?(.*?)\s*```', response, re.DOTALL)
+
+    if yaml_segment:
+        plan = yaml_segment[0]
+    else:
+        plan = ""
+    return plan
 
 # Function to remove examples from messages when no longer needed
 def _remove_examples(messages: str) -> str:

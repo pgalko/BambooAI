@@ -38,3 +38,23 @@ solution_insights_function = [
             },
     },
     ]
+
+search_function = [
+  {
+    "type": "function",
+    "function": {
+      "name": "google_search",
+      "description": "This function executes a Google search and delivers results by identifying and summarizing the most relevant documents from the returned search results.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "search_query": {
+            "type": "string",
+            "description": "A query string to search for",
+          }
+        },
+        "required": ["search_result"]
+      }
+    }
+  }
+]

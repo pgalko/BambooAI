@@ -102,7 +102,7 @@ def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: s
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
-def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id: str = None):
+def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id: str = None, tools:str = None):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
     # Initialize the LLM parameters
@@ -125,7 +125,7 @@ def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id:
 
         # Call the appropriate function from the imported module
         function_name = provider_function_map[provider]
-        content_received, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = getattr(provider_module, function_name)(messages, model, temperature, max_tokens)
+        content_received, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = getattr(provider_module, function_name)(log_and_call_manager, chain_id, messages, model, temperature, max_tokens, tools)
         
         # Log the results
         log_and_call_manager.write_to_log(agent, chain_id, timestamp, model, local_llm_messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
