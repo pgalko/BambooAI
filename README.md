@@ -18,6 +18,12 @@ The primary aim of BambooAI is to enhance, not replace, the capabilities of anal
 
 **A Machine Learning Example using supplied dataframe:**
 ```
+!pip install pandas
+!pip install bambooai
+
+import pandas as pd
+from bambooai import BambooAI
+
 df = pd.read_csv('titanic.csv')
 bamboo = BambooAI(df, debug=True, vector_db=True, search_tool=True)
 bamboo.pd_agent_converse()
