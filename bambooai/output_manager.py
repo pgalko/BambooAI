@@ -1,6 +1,6 @@
 
 from termcolor import cprint
-from IPython.display import display, HTML
+from IPython.display import display, HTML, Markdown
 import sys
 import time
 
@@ -10,7 +10,7 @@ class OutputManager:
         self.color_result_header_ntb = 'blue'
         self.color_result_header_cli = 'green'
         self.color_result_body_code = '#555555'
-        self.color_result_body_text = 'gray'
+        self.color_result_body_text = '#555555'
         # agent colors
         self.color_tool_header = 'magenta'
         # Error colors
@@ -21,20 +21,23 @@ class OutputManager:
         self.color_usr_input_rank = 'green'
         # Token summary colors
         self.color_token_summary_header_ntb = 'blue'
-        self.color_token_summary_text_ntb = 'gray'
+        self.color_token_summary_text_ntb = '#555555'
         self.color_token_summary_cli = 'yellow'
     
     # Display the results of the analysis
     def display_results(self, df=None, answer=None, code=None, rank=None, vector_db=False):
         if 'ipykernel' in sys.modules:
             if df is not None:
-                display(HTML(f'<p><b style="color:{self.color_result_header_ntb};">Here is the structure of your dataframe:</b><br><pre style="color:{self.color_result_body_code};">{df.dtypes}</pre></p><br>'))
+        # Create a Markdown table from the dtypes
+                dtype_table = "| Column Name | Data Type |\n|-------------|-----------|\n"
+                dtype_table += "\n".join([f"| {col} | {dtype} |" for col, dtype in df.dtypes.items()])
+                display(Markdown(f'**Here is the structure of your dataframe:**\n\n{dtype_table}'))
             if answer is not None:
-                display(HTML(f'<p><b style="color:{self.color_result_header_ntb};">I now have the final answer:</b><br><pre style="color:{self.color_result_body_text}; white-space: pre-wrap; font-weight: bold;">{answer}</pre></p><br>'))
+                display(Markdown(f'**I now have the final answer:**\n\n{answer}'))
             if code is not None:
-                display(HTML(f'<p><b style="color:{self.color_result_header_ntb};">Here is the final code that accomplishes the task:</b><br><pre style="color:{self.color_result_body_code};">{code}</pre></p><br>'))
+                display(Markdown(f'**Here is the final code that accomplishes the task:**\n\n```python\n{code}\n```'))
             if vector_db and rank is not None:
-                display(HTML(f'<p><b style="color:{self.color_result_header_ntb};">Solution Rank:</b><br><span style="color:{self.color_result_body_text};">{rank}</span></p><br>'))
+                display(Markdown(f'**Solution Rank:**\n\n{rank}'))
         else:
             if df is not None:
                 cprint(f"\n>> Here is the structure of your dataframe:", self.color_result_header_cli, attrs=['bold'])
@@ -127,14 +130,23 @@ class OutputManager:
         else:
             cprint(f"\n--running {action}: \"{action_input}\"", self.color_usr_input_rank)
 
-    # Display the llm calls summary
     def display_call_summary(self, summary_text):
         if 'ipykernel' in sys.modules:
-            display(HTML(f'''
-            <br>
-            <p><b style="color:{self.color_token_summary_header_ntb};">Chain Summary (Detailed info in bambooai_consolidated_log.json file):</b></p>
-            <pre style="color:{self.color_token_summary_text_ntb}; white-space: pre-line;">{summary_text}</pre>
-            '''))
+            # Split the summary text into lines
+            summary_lines = summary_text.split('\n')
+            # Start the Markdown table with headers
+            markdown_table = '**Chain Summary (Detailed info in bambooai_consolidated_log.json file):**\n\n'
+            markdown_table += '| Metric                      | Value          |\n'
+            markdown_table += '|-----------------------------|----------------|\n'
+            # Populate the table with data
+            for line in summary_lines:
+                if line.strip():  # Ensure the line contains data
+                    key, value = line.split(':')
+                    key = key.strip()
+                    value = value.strip()
+                    markdown_table += f'| {key} | {value} |\n'
+
+            display(Markdown(markdown_table))
         else:
             cprint("\n>> Chain Summary (Detailed info in bambooai_consolidated_log.json file):", self.color_token_summary_cli, attrs=['bold'])
             self.print_wrapper(summary_text)
