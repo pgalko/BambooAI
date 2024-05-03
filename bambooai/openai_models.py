@@ -4,8 +4,6 @@ import time
 import openai
 import tiktoken
 
-openai_client = openai.OpenAI()
-
 try:
     # Attempt package-relative import
     from . import output_manager, google_search, prompts, utils
@@ -18,11 +16,17 @@ google_search_function = google_search.SmartSearchOrchestrator()
 
 def init():
     API_KEY = os.environ.get('OPENAI_API_KEY')
-    openai_client.api_key = API_KEY
+    if API_KEY is None:
+        output_handler.print_wrapper("Warning: OPENAI_API_KEY environment variable not found.")
+        return
+    else:
+        openai_client = openai.OpenAI()
+        openai_client.api_key = API_KEY
+        return openai_client
 
 def llm_call(messages: str,model: str,temperature: str,max_tokens: str):  
 
-    init()
+    openai_client = init()
 
     try:
         start_time = time.time()
@@ -72,7 +76,7 @@ def llm_stream(log_and_call_manager, chain_id: str, messages: str,model: str,tem
 
     tools = tools
 
-    init()
+    openai_client = init()
 
     available_functions = {
         "google_search": google_search_function
