@@ -3,11 +3,11 @@ A lightweight library utilizing Large Language Models (LLMs) to provide natural 
 
 ## Objective
 
-The BambooAI library is an experimental, lightweight tool that leverages Large Language Models (LLMs) to make data analysis more intuitive and accessible, even for non-programmers. Functioning like a research and data analysis assistant, it enables users to engage in natural language interactions with their data. You can supply your own data sets, or let BambooAI find and retrieve the necessary data for you. It also integrates Internet searches and an access to external APIs for broader context and utility.
+The BambooAI library is a experimental, lightweigh tool that utilizes Large Language Models (LLMs) to facilitate data analysis, making it more accessible to users, including those without programming expertise. It functions as an assistant for research and data analysis, allowing users to interact with their data through natural language. Users can supply their own datasets or BambooAI can assist in sourcing the necessary data. The tool also integrates internet searches and accesses external APIs to enhance its functionality.
 
-By understanding your natural language inquiries about a dataset, BambooAI can autonomously generate and execute the relevant Python code for analysis and visualization. This allows users to effortlessly extract valuable insights from their data without needing to write complex code or master advanced programming concepts. Just input your dataset, pose your questions in plain English, and BambooAI provides answers along with ready-to-use visualizations if requested, to deepen your understanding of the data.
+BambooAI processes natural language queries about datasets and can generate and execute Python code for data analysis and visualization. This enables users to derive insights from their data without extensive coding knowledge. Users simply input their dataset, ask questions in simple English, and BambooAI provides the answers, along with visualizations if needed, to help understand the data better.
 
-The primary aim of BambooAI is to enhance, not replace, the capabilities of analysts at every level. This library simplifies the processes of data analysis and visualization, thereby streamlining workflows. It's designed to be relatively user-friendly, efficient, and adaptable to different users' needs. As a supportive tool rather than the central operator, BambooAI empowers users to apply their analytical skills more effectively and boost their productivity.
+BambooAI aims to augment the capabilities of data analysts across all levels. It simplifies data analysis and visualization, helping to streamline workflows. The library is designed to be user-friendly, efficient, and adaptable to meet various needs.
 
 ## Preview
 
@@ -28,8 +28,8 @@ df = pd.read_csv('titanic.csv')
 bamboo = BambooAI(df, debug=True, vector_db=False, search_tool=True)
 bamboo.pd_agent_converse()
 ```
-**Task:** "Can you please devise a machine learnig model to predict the survival of passengers on the Titanic? 
-Output the accuracy of the model. Plot the confusion matrix, correlation matrix, and other relevant metrics. Search internet for the best approach to this task."
+**Task:** _Can you please devise a machine learnig model to predict the survival of passengers on the Titanic? 
+Output the accuracy of the model. Plot the confusion matrix, correlation matrix, and other relevant metrics. Search internet for the best approach to this task._
 
 
 https://github.com/pgalko/BambooAI/assets/39939157/6058a3a2-63d9-44b9-b065-0a0cda5d7e17
@@ -248,6 +248,42 @@ Log Structure:
           |   └─ ... (Similar Fields)
           └─ ... (LLM 3, LLM 4, LLM 5 ...)
 ```
+
+## Performance Benchmark (3rd May 2024)
+
+**Task:** _Devise a machine learning model to predict the survival of passengers on the Titanic. The output should include the accuracy of the model and visualizations of the confusion matrix, correlation matrix, and other relevant metrics._
+
+**Dataset:** _Titanic.csv_
+
+**Model:** _GPT-4-Turbo_
+
+### **_OpenAI Assistants API (Code Interpreter)_**
+- **Result:**
+  - **Confusion Matrix:**
+    - **True Negative (TN):** 90 passengers were correctly predicted as not surviving.
+    - **True Positive (TP):** 56 passengers were correctly predicted as surviving.
+    - **False Negative (FN):** 18 passengers were incorrectly predicted as not surviving.
+    - **False Positive (FP):** 15 passengers were incorrectly predicted as surviving.
+    
+- **Execution Time:** 77.12 seconds
+- **Input Tokens:** 7128
+- **Output Tokens:** 1215
+- **Total Cost:** $0.1077
+
+### **_BambooAI (No Planning, Google Search or Vector DB)_**
+- **Result:**
+  - **Confusion Matrix:**
+    - **True Negative (TN):** 92 passengers were correctly predicted as not surviving.
+    - **True Positive (TP):** 55 passengers were correctly predicted as surviving.
+    - **False Negative (FN):** 19 passengers were incorrectly predicted as not surviving.
+    - **False Positive (FP):** 13 passengers were incorrectly predicted as surviving.
+    
+
+- **Execution Time:** 47.39 seconds
+- **Input Tokens:** 722
+- **Output Tokens:** 931
+- **Total Cost:** $0.0353
+
 
 ## Notes
 
