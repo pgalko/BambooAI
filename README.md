@@ -15,24 +15,26 @@ The primary aim of BambooAI is to enhance, not replace, the capabilities of anal
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1grKtqKD4u8cVGMoVv__umci4F7IU14vU?usp=sharing)
 
-**A Generic Example (No dataframe required, Data downloaded from Internet):**
-```
-df = pd.read_csv('test_activity_data.csv')
-bamboo = BambooAI(df, debug=False, vector_db=True, search_tool=True)
-bamboo.pd_agent_converse()
-```
-
-https://github.com/pgalko/BambooAI/assets/39939157/ea72de1c-05db-472e-9c95-fa8e27fb1f7a
-
 
 **A Machine Learning Example using supplied dataframe:**
 ```
-df = pd.read_csv('test_activity_data.csv')
-bamboo = BambooAI(df, debug=True, vector_db=True, search_tool=True)
+!pip install pandas
+!pip install bambooai
+
+import pandas as pd
+from bambooai import BambooAI
+
+df = pd.read_csv('titanic.csv')
+bamboo = BambooAI(df, debug=True, vector_db=False, search_tool=True)
 bamboo.pd_agent_converse()
 ```
+**Task:** "Can you please devise a machine learnig model to predict the survival of passengers on the Titanic? 
+Output the accuracy of the model. Plot the confusion matrix, correlation matrix, and other relevant metrics. Search internet for the best approach to this task."
 
-https://github.com/pgalko/BambooAI/assets/39939157/158f3e31-236f-42aa-8c08-b194a5483c27
+
+https://github.com/pgalko/BambooAI/assets/39939157/6058a3a2-63d9-44b9-b065-0a0cda5d7e17
+
+
 
 ## How it works
 
@@ -246,46 +248,6 @@ Log Structure:
           |   └─ ... (Similar Fields)
           └─ ... (LLM 3, LLM 4, LLM 5 ...)
 ```
-
-## Examples
-
-**CLI Output: Prediction of a core temperature using Machine Learning**
-
-*Below is a machine learning example, BambooAI devising, implementing, comparing and finetuning a different Machine learning models to predict a Core Temperature.*
-
-![](images/1.png)
-
-*A plot resulting from the first iteration using MLPRegressor model. No need to copy/paste the matplotlib code. Displays on the fly*
-
-![](images/plot1.png)
-
-*Now compare to a few other ML models*
-
-![](images/2.png)
-
-*Follow up question for clarification*
-
-![](images/3.png)
-
-A further follow up, asking for clarification
-
-![](images/4.png)
-
-More follow up... Notice the switch to a 16 model as it ran out of 4K window space
-
-![](images/5.png)
-
-Yet more follow up question..
-
-![](images/6.png)
-
-Got sidetracked, and needed a feedback for correction
-
-![](images/7.png)
-
-Final iteration... using the best performing model and tuned hyper parameters. Final R-Squared 0.9166.
-
-![](images/8.png)
 
 ## Notes
 
