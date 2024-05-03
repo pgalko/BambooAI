@@ -265,10 +265,13 @@ Log Structure:
     - **False Negative (FN):** 18 passengers were incorrectly predicted as not surviving.
     - **False Positive (FP):** 15 passengers were incorrectly predicted as surviving.
     
-- **Execution Time:** 77.12 seconds
-- **Input Tokens:** 7128
-- **Output Tokens:** 1215
-- **Total Cost:** $0.1077
+| Metric         | Value        |
+| -------------- | ------------ |
+| Execution Time | 77.12 seconds|
+| Input Tokens   | 7128         |
+| Output Tokens  | 1215         |
+| Total Cost     | $0.1077      |
+
 
 ### **_BambooAI (No Planning, Google Search or Vector DB)_**
 - **Result:**
@@ -279,10 +282,12 @@ Log Structure:
     - **False Positive (FP):** 13 passengers were incorrectly predicted as surviving.
     
 
-- **Execution Time:** 47.39 seconds
-- **Input Tokens:** 722
-- **Output Tokens:** 931
-- **Total Cost:** $0.0353
+| Metric         | Value        |
+| -------------- | ------------ |
+| Execution Time | 47.39 seconds|
+| Input Tokens   | 722          |
+| Output Tokens  | 931          |
+| Total Cost     | $0.0353      |
 
 
 ## Notes
