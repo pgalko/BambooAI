@@ -1,11 +1,10 @@
 import openai
 import re
-from serpapi import GoogleSearch
 import json
 import numpy as np
 import requests
 import os
-from newspaper import Article
+from newspaper import Article, Config
 
 openai_client = openai.OpenAI()
 
@@ -45,7 +44,7 @@ class SmartSearchOrchestrator:
         self.messages = messages
      
         self.chat_bot = ChatBot() 
-        self.google_search = GoogleSearch()
+        self.google_search = Search()
         self.calculate = Calculator()
 
         self.known_actions = {
@@ -101,22 +100,26 @@ class SearchEngine:
     # Perform a Google search using the SERPer API
     def search_google(self, query, gl='us', hl='en'):
         url = "https://google.serper.dev/search"
-        payload = json.dumps({"q": query, "gl": gl, "hl": hl, "num": SEARCH_RESULTS, "autocorrect": False})
+        payload = json.dumps({"q": query, "gl": gl, "hl": hl, "num": SEARCH_RESULTS, "autocorrect": True})
         headers = {'X-API-KEY': os.environ['SERPER_API_KEY'], 'Content-Type': 'application/json'}
 
         response = requests.request("POST", url, headers=headers, data=payload)
         response = json.loads(response.text)
+
         return response
     
     # Download and parse an article from a URL using the Newspaper library
     def search_url(self, url, document_size=CHUNK_SIZE):
         try:
-            article = Article(url)
+            config = Config()
+            config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
+            config.memoize_articles = False  # Disable caching
+            article = Article(url, config=config)
             article.download()
             article.parse()
         except:
             return []
-
+  
         full_text = article.text.replace('\n', ' ')
         full_words = full_text.split(' ')
         # Create a list of "documents". Each "document" is a string that contains document_size consecutive words from the article.
@@ -131,16 +134,42 @@ class SearchEngine:
         
         documents = []
         top_links = []
+        direct_answer = None
 
-        for i, resp in enumerate(google_resp['organic']):
-            documents += self.search_url(resp['link'])
-            if i < 5:
-                top_links.append({'title': resp['title'], 'link': resp['link']})
-            if len(documents) > num_documents:
-                break
+        # Check if 'answerBox' key exists in the response
+        if 'answerBox' in google_resp and google_resp['answerBox']:
+            url_found = False
+            for key, value in google_resp['answerBox'].items():
+                if isinstance(value, str) and "https://" in value:
+                    documents += self.search_url(value)
+                    top_links.append({
+                        'title': google_resp['answerBox'].get('title', 'No title available'),
+                        'link': value
+                    })
+                    url_found = True
+                    break  
+            if not url_found or len(documents) == 0:
+                direct_answer = f"\n{json.dumps(google_resp['answerBox'], indent=2)}\n"
+        # Check if knowledgeGraph key exists in the response
+        elif 'knowledgeGraph' in google_resp and google_resp['knowledgeGraph']:
+            direct_answer = f"\n{json.dumps(google_resp['knowledgeGraph'], indent=2)}\n"
+        else:
+            # Handling the case where there is no direct answer
+            for i, resp in enumerate(google_resp.get('organic', [])):
+                # Additional call to search_url to parse the content of the link
+                documents += self.search_url(resp['link'])
+                if i < 5:  # Only store top 5 links
+                    top_links.append({
+                        'title': resp['title'],
+                        'link': resp['link']
+                    })
+                if len(documents) > num_documents:
+                    break
 
+        # Ensuring we only return the requested number of documents
         documents = documents[:num_documents]
-        return documents, top_links
+
+        return documents, top_links, direct_answer
 
 # Define a class to retrieve the most relevant documents for a question
 class DocumentRetriever:
@@ -190,9 +219,9 @@ class Reader:
             with open("PROMPT_TEMPLATES.json", "r") as f:
                 prompt_data = json.load(f)
             prompt = prompt_data.get("google_search_summarizer_system", "")
-            prompt = prompt.format(query,text)
+            prompt = prompt.format(text, query)
         else:
-            prompt = prompts.google_search_summarizer_system.format(query,text)
+            prompt = prompts.google_search_summarizer_system.format(text, query)
             
         search_messages = [{"role": "system", "content": prompt}]
 
@@ -200,7 +229,7 @@ class Reader:
 
         return llm_response
     
-class GoogleSearch:
+class Search:
     def __init__(self):
         self.search_engine = SearchEngine()
         self.document_retriever = DocumentRetriever()
@@ -212,7 +241,9 @@ class GoogleSearch:
 
     def __call__(self, log_and_call_manager,chain_id,question):
         question=self._extract_search_query(question)
-        documents,top_links = self.search_engine(question)
+        documents,top_links,direct_answer = self.search_engine(question)
+        if direct_answer:
+            return direct_answer, None
         contexts = self.document_retriever(question, documents)
         answer = self.reader(log_and_call_manager,chain_id,question, contexts)
 

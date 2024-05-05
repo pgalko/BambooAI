@@ -214,6 +214,9 @@ class BambooAI:
 
         # Call OpenAI API to evaluate the task
         llm_response = self.llm_stream(self.log_and_call_manager,eval_messages, agent=agent, chain_id=self.chain_id, tools=tools)
+
+        self.output_manager.display_task_eval(llm_response)
+
         if agent == 'Planner':
             response = self._extract_plan(llm_response)
         else:
@@ -262,7 +265,7 @@ class BambooAI:
                 self.code_messages[0] = {"role": "system", "content": self.code_generator_system_gen}
             agent = 'Planner'
 
-        elif expert == 'Data Analysis Theorist':
+        elif expert == 'Research Specialist':
             self.eval_messages.append({"role": "user", "content": self.theorist_system.format(question)})
             agent = 'Theorist'
         else:
@@ -276,7 +279,7 @@ class BambooAI:
             self.eval_messages.pop(1)
             self.eval_messages.pop(1)
 
-        if expert == 'Data Analysis Theorist':
+        if expert == 'Research Specialist':
             self.log_and_call_manager.print_summary_to_terminal()
         elif expert == 'Data Analyst':
             task = task_eval

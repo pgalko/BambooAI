@@ -69,7 +69,7 @@ def _extract_rank(response: str) -> str:
 
 def _extract_expert(response: str) -> str:
     # Create a pattern to match any of the substrings
-    pattern = r'Data Analyst|Data Analysis Theorist|Internet Research Specialist'
+    pattern = r'Data Analyst|Research Specialist'
 
     json_segment = re.findall(r'```(?:json\s*)?(.*?)\s*```', response, re.DOTALL)
 

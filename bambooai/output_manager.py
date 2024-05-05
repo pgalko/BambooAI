@@ -28,16 +28,15 @@ class OutputManager:
     def display_results(self, df=None, answer=None, code=None, rank=None, vector_db=False):
         if 'ipykernel' in sys.modules:
             if df is not None:
-        # Create a Markdown table from the dtypes
                 dtype_table = "| Column Name | Data Type |\n|-------------|-----------|\n"
                 dtype_table += "\n".join([f"| {col} | {dtype} |" for col, dtype in df.dtypes.items()])
-                display(Markdown(f'**Here is the structure of your dataframe:**\n\n{dtype_table}'))
-            if answer is not None:
-                display(Markdown(f'**I now have the final answer:**\n\n{answer}'))
+                display(Markdown(f'## Dataframe Structure:\n\n{dtype_table}'))
             if code is not None:
-                display(Markdown(f'**Here is the final code that accomplishes the task:**\n\n```python\n{code}\n```'))
+                display(Markdown(f'## Applied Code:\n\n```python\n{code}\n```'))
+            if answer is not None:
+                display(Markdown(f'## Solution Summary:\n\n{answer}'))
             if vector_db and rank is not None:
-                display(Markdown(f'**Solution Rank:**\n\n{rank}'))
+                display(Markdown(f'## Solution Rank:\n\n{rank}'))
         else:
             if df is not None:
                 cprint(f"\n>> Here is the structure of your dataframe:", self.color_result_header_cli, attrs=['bold'])
@@ -50,6 +49,10 @@ class OutputManager:
             if vector_db and rank is not None:
                 cprint(f"\n>> Solution Rank:", self.color_result_header_cli, attrs=['bold'])
                 self.print_wrapper(rank)
+
+    def display_task_eval(self, task_eval):
+        if 'ipykernel' in sys.modules:
+            display(Markdown(f'## Reasoning:\n\n{task_eval}'))
     
     # Display the header for the agent
     def display_tool_start(self, agent, model):
