@@ -174,6 +174,18 @@ class BambooAI:
         self.code_exec_results = None
 
         self.log_and_call_manager.clear_run_logs()
+
+    def messages_maintenace(self, messages):
+        # Remove tool_calls messages from the messages list
+        for i in range(len(messages) - 1, -1, -1):  # Start from the last item to index 0
+            msg = messages[i]
+            if "tool_calls" in msg or msg.get("role") == "tool":
+                messages.pop(i)
+        # Remove the oldest conversation from the messages list
+        if len(messages) > self.MAX_CONVERSATIONS:
+            messages.pop(1)
+            messages.pop(1)
+            self.output_manager.display_system_messages("Truncating messages")
     
     ######################
     ### Eval Functions ###
@@ -266,18 +278,16 @@ class BambooAI:
             agent = 'Planner'
 
         elif expert == 'Research Specialist':
-            self.eval_messages.append({"role": "user", "content": self.theorist_system.format(question)})
+            self.eval_messages.append({"role": "user", "content": self.theorist_system.format(utils.get_readable_date(),question)})
             agent = 'Theorist'
         else:
-            self.eval_messages.append({"role": "user", "content": self.theorist_system.format(question)})
+            self.eval_messages.append({"role": "user", "content": self.theorist_system.format(utils.get_readable_date(),question)})
 
         task_eval = self.task_eval(self.eval_messages, agent)
         self.eval_messages.append({"role": "assistant", "content": task_eval})
 
-        # Remove the oldest conversation from the eval_messages list
-        if len(self.eval_messages) > self.MAX_CONVERSATIONS:
-            self.eval_messages.pop(1)
-            self.eval_messages.pop(1)
+        # Remove the oldest conversation and all tool calls from the eval_messages list
+        self.messages_maintenace(self.eval_messages)
 
         if expert == 'Research Specialist':
             self.log_and_call_manager.print_summary_to_terminal()
@@ -439,15 +449,13 @@ class BambooAI:
             while error_corrections < self.MAX_ERROR_CORRECTIONS:
                 try:
                     # Remove the oldest conversation from the messages list
-                    if len(code_messages) > self.MAX_CONVERSATIONS:
-                        code_messages.pop(1)
-                        code_messages.pop(1)
+                    self.messages_maintenace(code_messages)
 
                     # Execute the code
                     if code is not None:
                         exec(code, {'df': self.df})
                         # Remove examples from the messages list to minimize the number of tokens used
-                        self.code_messages = self._remove_examples(self.code_messages)
+                        code_messages = self._remove_examples(code_messages)
                     break
                 except Exception as error:
                     # Capture the full traceback

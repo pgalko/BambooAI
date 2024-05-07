@@ -133,6 +133,13 @@ class OutputManager:
         else:
             cprint(f"\n--running {action}: \"{action_input}\"", self.color_usr_input_rank)
 
+    def display_system_messages(self, message):
+        if 'ipykernel' in sys.modules:
+            display(HTML(f'<span style="color:{self.color_usr_input_rank};">-- info: \"{message}\"</span>'))
+            time.sleep(1)
+        else:
+            cprint(f"\n--info: \"{message}\"", self.color_usr_input_rank)
+
     def display_call_summary(self, summary_text):
         if 'ipykernel' in sys.modules:
             # Split the summary text into lines

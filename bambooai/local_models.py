@@ -152,12 +152,12 @@ def llm_stream(messages: str,local_model: str, temperature: str, max_tokens: str
             model_config = {
                 "torch_dtype": float16,
             }
-            output_manager.print_wrapper(f"Using {model_config['torch_dtype']} precision")
+            output_manager.display_system_messages(f"Using {model_config['torch_dtype']} precision")
         else:
             model_config = {
                 "quantization_config": bnb_config,
             }
-            output_manager.print_wrapper(f"Uing {model_config['quantization_config'].bnb_4bit_quant_type} quantization")
+            output_manager.display_system_messages(f"Using {model_config['quantization_config'].bnb_4bit_quant_type} quantization")
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             trust_remote_code=True,
@@ -175,8 +175,8 @@ def llm_stream(messages: str,local_model: str, temperature: str, max_tokens: str
         )
     
     model.eval()
-    output_manager.print_wrapper(f"Model loaded on {device}")
-    output_manager.print_wrapper(f"GPU memory available: {gpu_memory_gb}GB\n")
+    output_manager.display_system_messages(f"Model loaded on {device}")
+    output_manager.display_system_messages(f"GPU memory available: {gpu_memory_gb}GB\n")
 
     start_time = time.time()
 

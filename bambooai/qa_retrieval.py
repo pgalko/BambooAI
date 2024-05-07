@@ -31,7 +31,7 @@ def init_pinecone():
     # Create a new Pinecone index if it doesnt exist
     index_name = "bambooai-qa-retrieval"
     if index_name not in pinecone.list_indexes():
-        output_manager.print_wrapper(f"Creating a new vector db index. Please wait... {index_name}")
+        output_manager.display_system_messages(f"Creating a new vector db index. Please wait... {index_name}")
         pinecone.create_index(name=index_name, metric="cosine", shards=1, dimension=384)
 
     # Instantiate Pinecone index
@@ -44,7 +44,7 @@ def add_question_answer_pair(question, plan, df_columns, code, new_rank):
     # Check if the new rank is above the threshold
     new_rank=int(new_rank)
     if new_rank < 8:
-        output_manager.print_wrapper("The new rank is below the threshold. Not adding/updating the vector db record.")
+        output_manager.display_system_messages("The new rank is below the threshold. Not adding/updating the vector db record.")
         return
 
     # Hash the question to be used as id
@@ -67,9 +67,9 @@ def add_question_answer_pair(question, plan, df_columns, code, new_rank):
         metadata = {"plan": plan, "df_col": df_columns, "question_txt": question, "code": code, "rank": new_rank}
         vectors = [(id, xq, metadata)]
         index.upsert(vectors=vectors)
-        output_manager.print_wrapper(f"Added/Updated the vector db record with id: {id}")
+        output_manager.display_system_messages(f"Added/Updated the vector db record with id: {id}")
     else:
-        output_manager.print_wrapper(f"Existing rank {existing_rank} is higher or equal to the new rank. I am not updating the existing vector db record.")
+        output_manager.display_system_messages(f"Existing rank {existing_rank} is higher or equal to the new rank. I am not updating the existing vector db record.")
 
 
 def retrieve_answer(question, df_columns, match_df=True, similarity_threshold=0.9):
@@ -83,24 +83,24 @@ def retrieve_answer(question, df_columns, match_df=True, similarity_threshold=0.
     matches = results.get('results', [{}])[0].get('matches', [])
 
     if not matches:
-        output_manager.print_wrapper("No vector db match found")
+        output_manager.display_system_messages("No vector db match found")
         return None, None
 
     match = matches[0]
     closest_match_id = match['id']
     similarity_score = match['score']
-    output_manager.print_wrapper(f"Closest match vector db record: {closest_match_id}, Similarity score: {similarity_score}")
+    output_manager.display_system_messages(f"Closest match vector db record: {closest_match_id}, Similarity score: {similarity_score}")
     
     # Check if the similarity score is above the threshold
     if similarity_score < similarity_threshold:
-        output_manager.print_wrapper(f"Similarity score {similarity_score} is below the threshold {similarity_threshold}")
+        output_manager.display_system_messages(f"Similarity score {similarity_score} is below the threshold {similarity_threshold}")
         return None, None
 
     fetched_data = index.fetch(ids=[closest_match_id])
     vector_data = fetched_data.get('vectors', {}).get(closest_match_id, {})
 
     if not vector_data:
-        output_manager.print_wrapper("No data found for this vector db id")
+        output_manager.display_system_messages("No data found for this vector db id")
         return None, None
 
     # Get the metadata
@@ -111,7 +111,7 @@ def retrieve_answer(question, df_columns, match_df=True, similarity_threshold=0.
             code = metadata['code']
             plan = metadata['plan']
         else:
-            output_manager.print_wrapper("The dataframe columns do not match. I will not use this record.")
+            output_manager.display_system_messages("The dataframe columns do not match. I will not use this record.")
             return None, None
     # Return the matadata withouth checking the dataframe columns
     else:

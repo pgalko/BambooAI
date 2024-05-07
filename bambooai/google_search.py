@@ -80,15 +80,12 @@ class SmartSearchOrchestrator:
                 if links:
                     for link in links:
                         output_handler.print_wrapper(f"\nTitle: {link['title']}\nLink: {link['link']}")
-                output_handler.print_wrapper("\nObservation:", observation)
+                #output_handler.print_wrapper("\nObservation:", observation)
                 next_prompt.append({"role": "user", "content": "Observation: {}".format(observation)})
             else:
                 break
-        
-        if observation is None:
-            observation = result
 
-        return observation
+        return result
     
     def __call__(self, log_and_call_manager, chain_id, messages):
         return self.perform_query(log_and_call_manager, chain_id, messages)
@@ -148,7 +145,7 @@ class SearchEngine:
                     })
                     url_found = True
                     break  
-            if not url_found or len(documents) == 0:
+            if not url_found or len(documents) < 200:
                 direct_answer = f"\n{json.dumps(google_resp['answerBox'], indent=2)}\n"
         # Check if knowledgeGraph key exists in the response
         elif 'knowledgeGraph' in google_resp and google_resp['knowledgeGraph']:

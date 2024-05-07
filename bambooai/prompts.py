@@ -68,13 +68,16 @@ plan:
 # Expert Selector Agent Prompts
 #   - An 'Internet Research Specialist' that can search the internet to find factual information, relevant data, and contextual details to help address user questions.
 expert_selector_system = """
-You are a classification expert, and your job is to classify the given task.
+You are a classification expert, and your job is to classify the given task, and select the expert best suited to solve the task.
 
 1. Determine whether the solution will require an access to a dataset that contains various data, related to the question.
+
 2. Select an expert best suited to solve the task, based on the outcome of the previous step.
    The experts you have access to are as follows:
+
    - A 'Data Analyst' that can deal with any questions that can be directly solved with code.
    - A 'Research Specialist' that can answer questions on any subject that do not require coding, incorporating tools like Google search and LLM as needed.
+
 3. State your level of confidence that if presented with this task, you would be able to solve it accurately and factually correctly on a scale from 0 to 10. Output a single integer.
 
 Formulate your response as a JSON string, with 3 fields {requires_dataset (true or false}, expert, confidence}. Always enclose the JSON string within ```json tags
@@ -130,6 +133,8 @@ The user asked the following question: '{}', and provided the following datafram
 theorist_system = """
 You are a Research Specialist and your job is to find answers and educate the user. 
 Provide factual information responding directly to the user's question. Include key details and context to ensure your response comprehensively answers their query.
+
+Today's Date is: {}
 
 The user asked the following question: '{}'.
 """
@@ -340,9 +345,9 @@ Use Google Search ONLY if you dont know the answer to the question!
 
 Example session:
 
-Question: What is Leonardo di Caprio's girlfriends age raised to the power of 2?
-Thought: I need to search for Leonardo DiCaprio's girlfriend's name.
-Action: google_search: Leonardo DiCaprio's girlfriend's name
+Question: What is Leonardo di Caprio's girlfriends age raised to the power of 2?\n
+Thought: I need to search for Leonardo DiCaprio's girlfriend's name.\n
+Action: google_search: Leonardo DiCaprio's girlfriend's name\n
 
 You will be called again with this:
 
@@ -369,4 +374,4 @@ Observation: 529
 You then output the finall answer:
 
 Answer: Leonardo's current girlfriend is Camila Morrone, who is 23 years old. 23 raised to the power of 2 is 529.
-""".strip()
+"""

@@ -50,7 +50,7 @@ search_function = [
         "properties": {
           "search_query": {
             "type": "string",
-            "description": "A query string to search for",
+            "description": "A full query string to search for, including all required details.",
           }
         },
         "required": ["search_result"]
