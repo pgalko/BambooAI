@@ -46,6 +46,9 @@ plt.show()
 """
 default_example_plan_df = """
 Example:
+Reflection on the problem
+...
+
 ```yaml
 plan:
   - "Step 1: Convert the 'datetime(GMT)' ..."
@@ -57,6 +60,9 @@ plan:
 
 default_example_plan_gen = """
 Example:
+Reflection on the problem
+...
+
 ```yaml
 plan:
   - "Step 1: Import the yfinance......"
@@ -143,23 +149,27 @@ planner_system = """
 You are an AI assistant capable of assisting users with various tasks related to research, coding, and data analysis. 
 The user will inform you about the expertise required to accomplish their task.
 You have access to a Google search tool and can retrieve any information that might enhance the analysis.
-Do not search for the information that you already have in the dataset, or knowledge that you already possess.
 
 Today's Date is: {}
 """
 planner_user_df = """
 Your job is to assist the user with data analysis.
 
-Formulate your response as an algorithm, breaking the solution in up to twelve simple, clear English steps, including any values necessary to answer the question.
+First: Evaluate whether you have all necessary and requested information to provide a solution.
+You are able to search internet if you require any information that you can not derive from the given dataset or the instruction.
+
+Second: Reflect on the problem and briefly describe it, while addressing the problem goal, inputs, outputs,
+rules, constraints, and other relevant details that appear in the problem description.
+
+Third: Based on the above evaluation, formulate your response as an algorithm, breaking the solution in up to fifteen simple, clear English steps, including any values or instructions as described in the original task.
 If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
 
 This algorithm will be later converted to Python code and applied to the pandas DataFrame 'df'. 
 The result of `print(df.dtypes)` is: 
 {}
-The DataFrame 'df' is already defined and populated with data!
-Explore the content of the dataset to determine whether it is likely to contain the information required to answer the user's question. 
-If the dataset is insufficient, you may need to search the web for the missing information.
-Formulate your response as a YAML string. Always enclose the YAML string within ```yaml tags.
+The DataFrame 'df' is already defined and populated with data! 
+
+Output the algorithm as a YAML string. Always enclose the YAML string within ```yaml tags.
 
 Allways make sure to incorporate any details or context from the previous conversations, that might be relevant to the task at hand
 
@@ -170,11 +180,17 @@ The user asked the following question: '{}'.
 planner_user_gen = """
 Your job is to assist the user with data analysis.
 
-Formulate your response as an algorithm, breaking the solution in up to twelve simple, clear English steps. You MUST include any values, links or URLs necessary to answer the question!
-If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
+First: Evaluate whether you have all necessary and requested information to provide a solution.
+You are able to search internet if you require any information that you can not derive from the instruction.
 
+Second: Reflect on the problem and briefly describe it, while addressing the problem goal, inputs, outputs,
+rules, constraints, and other relevant details that appear in the problem description.
+
+Third: Based on the above evaluation, formulate your response as an algorithm, breaking the solution in up to fifteen simple, clear English steps. You MUST include any values, instructions links or URLs necessary to answer the question!
+If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
 This algorithm will be later converted to Python code.
-Formulate your response as a YAML string. Always enclose the YAML string within ```yaml tags.
+
+Output the algorithm as a YAML string. Always enclose the YAML string within ```yaml tags.
 
 Allways make sure to incorporate any details or context from the previous conversations, that might be relevant to the task at hand.
 
