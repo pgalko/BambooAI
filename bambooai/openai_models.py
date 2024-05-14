@@ -173,7 +173,7 @@ def llm_stream(log_and_call_manager, chain_id: str, messages: str,model: str,tem
     completion_tokens_used = len(collected_chunks)
 
     # count the number of prompt tokens used
-    encoding = tiktoken.encoding_for_model(model)   
+    encoding = tiktoken.encoding_for_model("gpt-4")   
     tokens_per_message = 3
     tokens_per_name = 1
     prompt_tokens_used = 0

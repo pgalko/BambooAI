@@ -3,6 +3,7 @@ from termcolor import cprint
 from IPython.display import display, HTML, Markdown
 import sys
 import time
+import pandas as pd
 
 class OutputManager:
     def __init__(self):
@@ -28,9 +29,12 @@ class OutputManager:
     def display_results(self, df=None, answer=None, code=None, rank=None, vector_db=False):
         if 'ipykernel' in sys.modules:
             if df is not None:
-                dtype_table = "| Column Name | Data Type |\n|-------------|-----------|\n"
-                dtype_table += "\n".join([f"| {col} | {dtype} |" for col, dtype in df.dtypes.items()])
-                display(Markdown(f'## Dataframe Structure:\n\n{dtype_table}'))
+                display(Markdown('## Dataframe Preview'))
+                pd.set_option('display.max_columns', None)  # Display all columns
+                pd.set_option('display.expand_frame_repr', False)  # Prevents wrapping of the display
+                pd.set_option('display.max_colwidth', None)  # Display the full text of columns
+                # Display the head of the DataFrame with style
+                display(df.head())
             if code is not None:
                 display(Markdown(f'## Applied Code:\n\n```python\n{code}\n```'))
             if answer is not None:

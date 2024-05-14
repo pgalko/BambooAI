@@ -45,7 +45,7 @@ plt.show()
 ```
 """
 default_example_plan_df = """
-Example:
+EXAMPLE:
 Reflection on the problem
 ...
 
@@ -59,7 +59,7 @@ plan:
 """
 
 default_example_plan_gen = """
-Example:
+EXAMPLE:
 Reflection on the problem
 ...
 
@@ -115,15 +115,17 @@ You are a classification expert, and your job is to classify the given task.
     - A 'Data Analyst Generic':
       Select this expert if user did not provide the dataframe.
 
-2. Rephrase the query, focusing on incorporating previous context and ensuring accuracy in spelling, syntax, and grammar. Make sure that you capture all nuances of the user query.
-  If there is a previous context, please put greatest emphasis on the query preceding this one. 
-  The rephrased version should be both as descriptive as possible while concise, suitable for later conversion into a detailed, multi-step action plan.
-  There is no need to include the dataframe details in the rephrased query.
+2. Rephrase the query.
+    - Focus on incorporating previous context and ensure accuracy in spelling, syntax, and grammar. 
+    - Capture every nuance of the user's request meticulously, omitting no details.
+    - Place significant emphasis on the query that immediately precedes this one. 
+    - The rephrased version should be both as descriptive as possible while concise, suitable for later conversion into a detailed, multi-step action plan.
+    - There is no need to include the dataframe details in the rephrased query.
 
 Formulate your response as a JSON string, with 2 fields {analyst,rephrased_query}. Always enclose the JSON string within ```json tags
 
 Example Query:
-How many rows are there in this dataset ?
+How many rows in this dataset ?
 
 Example Output:
 ```json
@@ -133,7 +135,13 @@ Example Output:
 }
 """
 analyst_selector_user = """
-The user asked the following question: '{}', and provided the following dataframe: '{}'.
+DATAFRAME COLUMNS:
+
+{}
+
+QUESTION:
+
+{}
 """
 # Theorist Agent Prompts
 theorist_system = """
@@ -153,20 +161,27 @@ You have access to a Google search tool and can retrieve any information that mi
 Today's Date is: {}
 """
 planner_user_df = """
-Your job is to assist the user with data analysis.
+TASK:
+{}
 
-First: Evaluate whether you have all necessary and requested information to provide a solution.
-You are able to search internet if you require any information that you can not derive from the given dataset or the instruction.
+DATAFRAME:
+
+```yaml
+{}
+```
+First: Evaluate whether you have all necessary and requested information to provide a solution. 
+Use the dataset description above to determine what data and in what format you have available to you.
+You are able to search internet if the user asks for it, or you require any information that you can not derive from the given dataset or the instruction.
 
 Second: Reflect on the problem and briefly describe it, while addressing the problem goal, inputs, outputs,
 rules, constraints, and other relevant details that appear in the problem description.
 
-Third: Based on the above evaluation, formulate your response as an algorithm, breaking the solution in up to fifteen simple, clear English steps, including any values or instructions as described in the original task.
-If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
+Third: Based on the preceding steps, formulate your response as an algorithm, breaking the solution in up to eight simple yet descriptive, clear English steps. 
+You MUST Include all values or instructions as described in the above task!
+If fewer steps suffice, that's acceptable. If more are needed, please include them.
+Remember to explain steps rather than write code.
 
-This algorithm will be later converted to Python code and applied to the pandas DataFrame 'df'. 
-The result of `print(df.dtypes)` is: 
-{}
+This algorithm will be later converted to Python code and applied to the pandas DataFrame 'df'.
 The DataFrame 'df' is already defined and populated with data! 
 
 Output the algorithm as a YAML string. Always enclose the YAML string within ```yaml tags.
@@ -174,11 +189,10 @@ Output the algorithm as a YAML string. Always enclose the YAML string within ```
 Allways make sure to incorporate any details or context from the previous conversations, that might be relevant to the task at hand
 
 {}
-
-The user asked the following question: '{}'.
 """
 planner_user_gen = """
-Your job is to assist the user with data analysis.
+TASK:
+{}
 
 First: Evaluate whether you have all necessary and requested information to provide a solution.
 You are able to search internet if you require any information that you can not derive from the instruction.
@@ -186,8 +200,10 @@ You are able to search internet if you require any information that you can not 
 Second: Reflect on the problem and briefly describe it, while addressing the problem goal, inputs, outputs,
 rules, constraints, and other relevant details that appear in the problem description.
 
-Third: Based on the above evaluation, formulate your response as an algorithm, breaking the solution in up to fifteen simple, clear English steps. You MUST include any values, instructions links or URLs necessary to answer the question!
-If fewer steps suffice, that's acceptable. Remember to explain steps rather than write code.
+Second: Based on the preceding steps, formulate your response as an algorithm, breaking the solution in up to eight simple yet descriptive, clear English steps. 
+You MUST include all values, instructions links or URLs necessary to solve the above task!
+If fewer steps suffice, that's acceptable. If more are needed, please include them. 
+Remember to explain steps rather than write code.
 This algorithm will be later converted to Python code.
 
 Output the algorithm as a YAML string. Always enclose the YAML string within ```yaml tags.
@@ -195,46 +211,56 @@ Output the algorithm as a YAML string. Always enclose the YAML string within ```
 Allways make sure to incorporate any details or context from the previous conversations, that might be relevant to the task at hand.
 
 {}
-
-The user asked the following question: '{}'.
 """
 # Code Generator Agent Prompts
 code_generator_system_df = """
 You are an AI data analyst and your job is to assist users with analyzing data in the pandas dataframe.
-The user will provide a dataframe named `df`, and a list of tasks to be accomplished using Python.
-The dataframe df has already been defined and populated with the required data.
-"""
-code_generator_system_gen = """
-You are an AI data analyst and your job is to assist users with data analysis,
-or any other tasks related to coding. 
-You have not been provided with any datasets, but you have access to the internet.
-The user will provide a list of tasks to be accomplished using Python.  
-"""
-code_generator_user_df = """
-You have been presented with a pandas dataframe named `df`.
+The user will provide a dataframe named `df`, and the task formulated as a list of steps to be solved using Python.
 The dataframe df has already been defined and populated with the required data!
-The result of `print(df.dtypes)` is:
-{}.
-Return the python code that accomplishes the following task: 
-{}
-Strictly adhere to the prescribed instructions to avoid oversights and ensure an accurate solution.
-For context, here is the output of the previous task:
-{}
+
+Please make sure that your output contains a FULL, COMPLETE CODE that includes all steps, and solves the task!
 Always include the import statements at the top of the code.
 Always include print statements to output the results of your code.
-Please make sure that you output contains a FULL, COMPLETE CODE that includes all steps, and solves the task!
+"""
+code_generator_system_gen = """
+You are an AI data analyst and your job is to assist users with data analysis, or any other tasks related to coding. 
+You have not been provided with any datasets, but you have access to the internet.
+The user will provide the task formulated as a list of steps to be solved using Python. 
+
+Please make sure that your output contains a FULL, COMPLETE CODE that includes all steps, and solves the task!
+Always include the import statements at the top of the code.
+Always include print statements to output the results of your code.
+"""
+code_generator_user_df = """
+TASK:
+{}
+
+PLAN:
+```yaml
+{}
+```
+
+DATAFRAME `print(df.dtypes)`:
+{}
+
+CODE EXECUTION OF THE PREVIOUS TASK RESULTED IN:
+{}
+
 
 {}
 """
 code_generator_user_gen = """
-Return the python code that accomplishes the following task:
+TASK:
 {}
-Strictly adhere to the prescribed instructions to avoid oversights and ensure an accurate solution.
-For context, here is the output of the previous task:
+
+PLAN:
+``yaml
 {}
-Always include the import statements at the top of the code.
-Always include print statements to output the results of your code.
-Please make sure that you output contains a FULL, COMPLETE CODE that includes all steps, and solves the task!
+```
+
+CODE EXECUTION OF THE PREVIOUS TASK RESULTED IN:
+{}
+
 
 {}
 """

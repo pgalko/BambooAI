@@ -29,7 +29,7 @@ def convert_openai_to_gemini(messages):
 
     return updated_data, system_content
 
-def llm_call(messages: str,model: str,temperature: str,max_tokens: str):  
+def llm_call(messages: str,model_name: str,temperature: str,max_tokens: str):  
 
     init()
 
@@ -42,7 +42,7 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str):
         "max_output_tokens": max_tokens,
     }
 
-    model = gemini.GenerativeModel(model_name=model,
+    model = gemini.GenerativeModel(model_name=model_name,
         generation_config=generation_config,
         system_instruction = system_instruction
     )
@@ -68,7 +68,7 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str):
 
     return content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(log_and_call_manager, chain_id: str,messages: str,model: str,temperature: str,max_tokens: str,tools: str = None):
+def llm_stream(log_and_call_manager, chain_id: str,messages: str,model_name: str,temperature: str,max_tokens: str,tools: str = None):
     collected_messages = []  
 
     init()
@@ -82,7 +82,7 @@ def llm_stream(log_and_call_manager, chain_id: str,messages: str,model: str,temp
         "max_output_tokens": max_tokens,
     }
 
-    model = gemini.GenerativeModel(model_name=model,
+    model = gemini.GenerativeModel(model_name=model_name,
         generation_config=generation_config,
         system_instruction = system_instruction,
     )

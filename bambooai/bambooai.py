@@ -126,17 +126,14 @@ class BambooAI:
 
         # Logging
         self.token_cost_dict = {
-                                'gpt-3.5-turbo-0613': {'prompt_tokens': 0.0015, 'completion_tokens': 0.0020},
-                                'gpt-3.5-turbo-1106': {'prompt_tokens': 0.0010, 'completion_tokens': 0.0020},
                                 'gpt-3.5-turbo-instruct': {'prompt_tokens': 0.0015, 'completion_tokens': 0.0020},
-                                'gpt-3.5-turbo-16k': {'prompt_tokens': 0.0030, 'completion_tokens': 0.0040},
+                                'gpt-3.5-turbo': {'prompt_tokens': 0.0050, 'completion_tokens': 0.0015},
                                 'gpt-4': {'prompt_tokens': 0.03, 'completion_tokens': 0.06},
-                                'gpt-4-1106-preview': {'prompt_tokens': 0.01, 'completion_tokens': 0.03},
-                                'gpt-4-0613': {'prompt_tokens': 0.03, 'completion_tokens': 0.06}, 
-                                'gpt-4-0125-preview': {'prompt_tokens': 0.01, 'completion_tokens': 0.03},
+                                'gpt-4-32k': {'prompt_tokens': 0.06, 'completion_tokens': 0.12},
                                 'gpt-4-turbo': {'prompt_tokens': 0.01, 'completion_tokens': 0.03},
+                                'gpt-4o': {'prompt_tokens': 0.005, 'completion_tokens': 0.015},
                                 'llama3-70b-8192': {'prompt_tokens': 0.00059, 'completion_tokens': 0.00079}, #Groq Llama3
-                                'gemini-1.5-pro-latest': {'prompt_tokens': 0.0025, 'completion_tokens': 0.0025}, 
+                                'gemini-1.5-pro-latest': {'prompt_tokens': 0.007, 'completion_tokens': 0.021}, 
                                 'claude-3-haiku-20240307': {'prompt_tokens': 0.00025, 'completion_tokens': 0.00079}, 
                                 'claude-3-sonnet-20240229': {'prompt_tokens': 0.003, 'completion_tokens': 0.015},
                                 'claude-3-opus-20240307': {'prompt_tokens': 0.015, 'completion_tokens': 0.075},
@@ -238,7 +235,7 @@ class BambooAI:
     
     def taskmaster(self, question, df_columns):
         '''Taskmaster function to select the expert, refine the expert selection, and formulate a task for the expert'''
-        task = None
+        plan = None
         analyst = None
         rephrased_query = None
         requires_dataset = None
@@ -251,7 +248,7 @@ class BambooAI:
 
         ######## Refine Expert Selection, and Formulate the task for the expert ###########
         if expert == 'Data Analyst':
-            self.select_analyst_messages.append({"role": "user", "content": self.analyst_selector_user.format(question, None if self.df is None else df_columns)})
+            self.select_analyst_messages.append({"role": "user", "content": self.analyst_selector_user.format(None if self.df is None else df_columns, question)})
             analyst, rephrased_query = self.select_analyst(self.select_analyst_messages)
             self.select_analyst_messages.append({"role": "assistant", f"content": f"analyst:{analyst},rephrased_query:{rephrased_query}"})
 
@@ -268,11 +265,11 @@ class BambooAI:
                     example_plan = f"Use the below plan as base for your answer:\n\n```yaml\n{retrieved_plan}\n```"
 
             if analyst == 'Data Analyst DF':
-                self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(None if self.df is None else self.df.dtypes.to_string(max_rows=None), example_plan, question)}) 
+                self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(question, None if self.df is None else utils.inspect_dataframe(self.df), example_plan)}) 
                 # Replace first dict in messages with a new system task. This is to distinguish between the two types of analysts
                 self.code_messages[0] = {"role": "system", "content": self.code_generator_system_df}
             elif analyst == 'Data Analyst Generic':
-                self.eval_messages.append({"role": "user", "content": self.planner_user_gen.format(example_plan, question)})
+                self.eval_messages.append({"role": "user", "content": self.planner_user_gen.format(question, example_plan)})
                 # Replace first dict in messages with a new system task. This is to distinguish between the two types of analysts
                 self.code_messages[0] = {"role": "system", "content": self.code_generator_system_gen}
             agent = 'Planner'
@@ -292,11 +289,11 @@ class BambooAI:
         if expert == 'Research Specialist':
             self.log_and_call_manager.print_summary_to_terminal()
         elif expert == 'Data Analyst':
-            task = task_eval
+            plan = task_eval
         else:
             self.log_and_call_manager.print_summary_to_terminal()
 
-        return analyst, task, rephrased_query, requires_dataset, confidence
+        return analyst, plan, rephrased_query, requires_dataset, confidence
     
     #####################
     ### Main Function ###
@@ -328,7 +325,7 @@ class BambooAI:
                 
             if self.exploratory is True:
                 # Call the taskmaister method with the user's question if the exploratory mode is True
-                analyst, task, rephrased_query, requires_dataset, confidence = self.taskmaster(question,'' if self.df is None else self.df.columns.tolist())
+                analyst, plan, rephrased_query, requires_dataset, confidence = self.taskmaster(question,'' if self.df is None else self.df.columns.tolist())
                 if not loop:
                     if not analyst:
                         self.log_and_call_manager.consolidate_logs()
@@ -338,7 +335,7 @@ class BambooAI:
                         continue
             else:
                 analyst = 'Data Analyst DF'
-                task = question
+                plan = question
 
             if analyst == 'Data Analyst DF':
                     example_code = self.default_example_output_df
@@ -352,13 +349,13 @@ class BambooAI:
                     example_code = f"Review the the below code, and use as base for your answer:\n\n```python\n{retrieved_code}\n```"
 
             # Call the generate_code() method to genarate and debug the code
-            code = self.generate_code(analyst, task, self.code_messages, example_code)
+            code = self.generate_code(analyst, question, plan, self.code_messages, example_code)
             # Call the execute_code() method to execute the code and summarise the results
-            answer, results, code = self.execute_code(analyst,code, task, question, self.code_messages)
+            answer, results, code = self.execute_code(analyst,code, plan, question, self.code_messages)
 
             # Rank the LLM response
             if self.vector_db:
-                rank = self.rank_code(results, code,task)
+                rank = self.rank_code(results, code, plan)
             else:
                 rank = ""
 
@@ -377,7 +374,7 @@ class BambooAI:
                     rank = rank
 
                 # Add the question and answer pair to the QA retrieval index
-                self.add_question_answer_pair(rephrased_query, task, '' if self.df is None else self.df.columns.tolist(), code, rank)
+                self.add_question_answer_pair(rephrased_query, plan, '' if self.df is None else self.df.columns.tolist(), code, rank)
 
             self.log_and_call_manager.print_summary_to_terminal()
             
@@ -389,13 +386,13 @@ class BambooAI:
     ### Code Functions ###
     ######################
             
-    def generate_code(self, analyst, task, code_messages, example_code):
+    def generate_code(self, analyst, question, plan, code_messages, example_code):
         agent = 'Code Generator'
         # Add a user message with the updated task prompt to the messages list
         if analyst == 'Data Analyst DF':
-            code_messages.append({"role": "user", "content": self.code_generator_user_df.format(None if self.df is None else self.df.dtypes.to_string(max_rows=None), task, self.code_exec_results, example_code)})
+            code_messages.append({"role": "user", "content": self.code_generator_user_df.format(question, plan, None if self.df is None else self.df.dtypes.to_string(max_rows=None), self.code_exec_results, example_code)})
         elif analyst == 'Data Analyst Generic':
-            code_messages.append({"role": "user", "content": self.code_generator_user_gen.format(task, self.code_exec_results, example_code)})
+            code_messages.append({"role": "user", "content": self.code_generator_user_gen.format(question, plan, self.code_exec_results, example_code)})
 
         using_model,provider = models.get_model_name(agent)
 
@@ -410,7 +407,7 @@ class BambooAI:
 
         # Debug code if debug parameter is set to True
         if self.debug:
-            code = self.debug_code(analyst, code, task)
+            code = self.debug_code(analyst, code, plan)
         else:
             self.output_manager.display_tool_end(agent)
 
@@ -434,7 +431,7 @@ class BambooAI:
 
         return debugged_code
 
-    def execute_code(self, analyst, code, task, original_question, code_messages):
+    def execute_code(self, analyst, code, plan, original_question, code_messages):
         agent = 'Code Executor'
         # Initialize error correction counter
         error_corrections = 0
@@ -479,7 +476,7 @@ class BambooAI:
         # Store the results in a class variable so it can be appended to the subsequent messages list
         self.code_exec_results = results
 
-        summary = self.summarise_solution(task, original_question, results)
+        summary = self.summarise_solution(original_question, plan, results)
 
         # Reset the StringIO buffer
         output.truncate(0)
@@ -521,7 +518,7 @@ class BambooAI:
 
         return code, code_messages
 
-    def rank_code(self,results, code,question):
+    def rank_code(self,results, code, question):
         agent = 'Code Ranker'
         # Initialize the messages list with a user message containing the task prompt
         rank_messages = [{"role": "user", "content": self.code_ranker_system.format(code,results,question)}]
@@ -542,11 +539,11 @@ class BambooAI:
     ## Summarise the solution ##
     ############################
 
-    def summarise_solution(self, task, original_question, results):
+    def summarise_solution(self, original_question, plan, results):
         agent = 'Solution Summarizer'
 
         # Initialize the messages list with a user message containing the task prompt
-        insights_messages = [{"role": "user", "content": self.solution_summarizer_system.format(original_question, task, results)}]
+        insights_messages = [{"role": "user", "content": self.solution_summarizer_system.format(original_question, plan, results)}]
         # Call the OpenAI API
         summary = self.llm_call(self.log_and_call_manager,insights_messages,agent=agent, chain_id=self.chain_id)
 
