@@ -41,9 +41,8 @@ class BambooAI:
         # Check if the PINECONE_API_KEY and PINECONE_ENV environment variables are set if vector_db is True
         if vector_db:
             PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
-            PINECONE_ENV = os.getenv('PINECONE_ENV')
             
-            if PINECONE_API_KEY is None or PINECONE_ENV is None:
+            if PINECONE_API_KEY is None:
                 self.output_manager.print_wrapper("Warning: PINECONE_API_KEY or PINECONE_ENV environment variable not found. Disabling vector_db.")
                 vector_db = False
 
@@ -53,6 +52,7 @@ class BambooAI:
         
         # Dataframe
         self.df = df if df is not None else None
+        self.original_df_columns = df.columns.tolist() if df is not None else None
         
         # Results of the code execution
         self.code_exec_results = None
@@ -133,7 +133,8 @@ class BambooAI:
                                 'gpt-4-turbo': {'prompt_tokens': 0.01, 'completion_tokens': 0.03},
                                 'gpt-4o': {'prompt_tokens': 0.005, 'completion_tokens': 0.015},
                                 'llama3-70b-8192': {'prompt_tokens': 0.00059, 'completion_tokens': 0.00079}, #Groq Llama3
-                                'gemini-1.5-pro-latest': {'prompt_tokens': 0.007, 'completion_tokens': 0.021}, 
+                                'gemini-1.5-pro-latest': {'prompt_tokens': 0.0035, 'completion_tokens': 0.0105},
+                                'gemini-1.5-flash-latest': {'prompt_tokens': 0.00035, 'completion_tokens': 0.00053},
                                 'claude-3-haiku-20240307': {'prompt_tokens': 0.00025, 'completion_tokens': 0.00079}, 
                                 'claude-3-sonnet-20240229': {'prompt_tokens': 0.003, 'completion_tokens': 0.015},
                                 'claude-3-opus-20240307': {'prompt_tokens': 0.015, 'completion_tokens': 0.075},
@@ -151,8 +152,7 @@ class BambooAI:
         self.code_messages = [{"role": "system", "content": self.code_generator_system_df}]
 
         # QA Retrieval
-        self.add_question_answer_pair = qa_retrieval.add_question_answer_pair
-        self.retrieve_answer = qa_retrieval.retrieve_answer
+        self.pinecone_wrapper = qa_retrieval.PineconeWrapper()
         self.similarity_threshold = 0.8
 
         # Google Search
@@ -259,7 +259,11 @@ class BambooAI:
 
             # Retrieve the matching code and plan from the vector database if exists
             if self.vector_db:
-                retrieved_code, retrieved_plan = self.retrieve_answer(rephrased_query, df_columns, similarity_threshold=self.similarity_threshold)
+                vector_data = self.pinecone_wrapper.retrieve_matching_record(rephrased_query, self.original_df_columns, similarity_threshold=self.similarity_threshold)
+                if vector_data:
+                    retrieved_plan = vector_data['metadata']['plan']
+                else:
+                    retrieved_plan = None
 
                 if retrieved_plan is not None:
                     example_plan = f"Use the below plan as base for your answer:\n\n```yaml\n{retrieved_plan}\n```"
@@ -344,7 +348,11 @@ class BambooAI:
             
             if self.vector_db:
                 # Call the retrieve_answer method to check if the question has already been asked and answered
-                retrieved_code, retrieved_plan = self.retrieve_answer(rephrased_query, '' if self.df is None else self.df.columns.tolist(), similarity_threshold=self.similarity_threshold)
+                vector_data = vector_data = self.pinecone_wrapper.retrieve_matching_record(rephrased_query, '' if self.df is None else self.original_df_columns, similarity_threshold=self.similarity_threshold)
+                if vector_data:
+                    retrieved_code = vector_data['metadata']['code']
+                else:
+                    retrieved_code = None
                 if retrieved_code is not None:
                     example_code = f"Review the the below code, and use as base for your answer:\n\n```python\n{retrieved_code}\n```"
 
@@ -374,7 +382,7 @@ class BambooAI:
                     rank = rank
 
                 # Add the question and answer pair to the QA retrieval index
-                self.add_question_answer_pair(rephrased_query, plan, '' if self.df is None else self.df.columns.tolist(), code, rank)
+                self.pinecone_wrapper.add_record(rephrased_query, plan, '' if self.df is None else self.original_df_columns, code, rank, self.similarity_threshold)
 
             self.log_and_call_manager.print_summary_to_terminal()
             

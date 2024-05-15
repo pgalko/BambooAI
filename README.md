@@ -115,7 +115,7 @@ debug: bool - If True, the received code is sent back to the Language Learning M
 
 search_tool: bool - If True, the Planner agent will use a "google search: https://serper.dev/" if the required information is not available or satisfactory.
 
-vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the rank surpasses a certain threshold (8), the corresponding question (vectorised), answer, code, and rank (metadata) are all stored in the Pinecone database. Each time a new question is asked, these records will be searched. If the similarity score is above 0.9, they will be offered as examples and included in the prompt (in a one-shot learning scenario)
+vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the rank surpasses a certain threshold (8), the corresponding question (vectorised), plan, code, and rank (metadata) are all stored in the Pinecone database. Each time a new question is asked, these records will be searched. If the similarity score is above 0.9, they will be offered as examples and included in the prompt (in a one-shot learning scenario)
 
 exploratory: bool - If set to True, the LLM will evaluate the user's question and select an "Expert" that is best suited to address the question (experts: Internet Search Specialist, Data Analisys Theoretician, Data Analyst). For instance, if the task involves code generation/execution, it will generate a task list detailing the steps, which will subsequently be sent to the LLM as a prompt for the next action. This method is particularly effective for vague user prompts, but it might not perform as efficiently with more specific prompts. The default setting is True.
 
@@ -166,7 +166,7 @@ You need to use ```GEMINI_API_KEY``` for Google Gemini models.
 
 As mentioned above, the llm config can be stored in a string format in the  ```LLM_CONFIG``` environment variable. You can use the content of the provided LLM_CONFIG_sample.json as a starting point and modify to your preference, depending on what models you have access to. 
 
-The Pincone vector db is optional. If you don want to use it, you dont need to do anything. If you have an account with Pinecone and would like to use the knowledge base and ranking features, you will be required to setup ```PINECONE_API_KEY``` and ```PINECONE_ENV``` envirooment variables, and set the 'vector_db' parameter to True. The vector db index is created upon first execution.
+The Pincone vector db is optional. If you don want to use it, you dont need to do anything. If you have an account with Pinecone and would like to use the knowledge base and ranking features, you will be required to setup ```PINECONE_API_KEY``` envirooment variable, and set the 'vector_db' parameter to True. The vector db index is created upon first execution.
 
 The Google Search is also optional. If you don want to use it, you dont need to do anything. If you have an account with Serper and would like to use the Google Search functionality, you will be required to setup and account with ": https://serper.dev/", and set ```SERPER_API_KEY``` environment variable, and set the 'search_tool' parameter to True.
 
