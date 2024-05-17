@@ -131,7 +131,7 @@ Example Output:
 ```json
 {
   "analyst": "Data Analyst DF",
-  "rephrased_query": "How many rows does this dataset contain?",
+  "rephrased_query": "How many rows does this dataset contain?"
 }
 """
 analyst_selector_user = """
