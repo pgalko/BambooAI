@@ -5,6 +5,10 @@ import numpy as np
 import requests
 import os
 from newspaper import Article, Config
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 openai_client = openai.OpenAI()
 
@@ -76,6 +80,8 @@ class SmartSearchOrchestrator:
                 if action not in self.known_actions:
                     raise Exception("Unknown action: {}: {}".format(action, action_input))
                 output_handler.display_search_task(action, action_input)
+                if os.environ.get('SELENIUM_WEBDRIVER_PATH'):
+                    output_handler.display_system_messages(f"Using the Selenium WebDriver at: {os.environ.get('SELENIUM_WEBDRIVER_PATH')}")
                 observation, links = self.known_actions[action](log_and_call_manager, chain_id, action_input)
                 if links:
                     for link in links:
@@ -94,6 +100,38 @@ class SmartSearchOrchestrator:
 
 # Define a class to perform a Google search and retrieve the content of the resulting pages    
 class SearchEngine:
+    def __init__(self):
+        webdriver_path = os.environ.get('SELENIUM_WEBDRIVER_PATH')
+        if webdriver_path and webdriver_path.strip():
+            self.webdriver_path = os.path.normpath(webdriver_path)
+        else:
+            self.webdriver_path = None
+        self.driver = None
+        self.headless = True
+        
+        if self.webdriver_path:
+            # Initialize Selenium WebDriver if path is provided
+            service = ChromeService(executable_path=self.webdriver_path)
+            options = Options()
+            if self.headless:
+                options.add_argument("--headless")
+            options.add_argument("--disable-gpu")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+
+            # Set up logging preferences to suppress console messages
+            options.add_argument("--log-level=3")  # Suppress console logs
+
+            # Optionally, you can set the logging level for the browser specifically
+            options.set_capability('goog:loggingPrefs', {'browser': 'OFF', 'driver': 'OFF', 'performance': 'OFF', 'server': 'OFF'})
+
+            self.driver = webdriver.Chrome(service=service, options=options)
+
+    def __del__(self):
+        # Quit the WebDriver when the instance is destroyed, if it was initialized
+        if self.driver:
+            self.driver.quit()
+
     # Perform a Google search using the SERPer API
     def search_google(self, query, gl='us', hl='en'):
         url = "https://google.serper.dev/search"
@@ -108,11 +146,25 @@ class SearchEngine:
     # Download and parse an article from a URL using the Newspaper library
     def search_url(self, url, document_size=CHUNK_SIZE):
         try:
+            if self.driver:
+                # Use Selenium to get the dynamic content
+                self.driver.get(url)
+                full_html = self.driver.page_source
+            else:
+                # Use Newspaper3 to get the static HTML content
+                full_html = None
+
+            # Use Newspaper3 to parse the HTML content
             config = Config()
             config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
             config.memoize_articles = False  # Disable caching
             article = Article(url, config=config)
-            article.download()
+            
+            if self.driver and full_html:
+                article.set_html(full_html)
+            else:
+                article.download()
+                
             article.parse()
         except:
             return []

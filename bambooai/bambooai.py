@@ -12,10 +12,10 @@ warnings.filterwarnings('ignore')
 
 try:
     # Attempt package-relative import
-    from . import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager, output_manager, utils
+    from . import models, prompts, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, utils
 except ImportError:
     # Fall back to script-style import
-    import models, prompts, func_calls, qa_retrieval, google_search, reg_ex, log_manager, output_manager, utils
+    import models, prompts, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, utils
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -153,11 +153,10 @@ class BambooAI:
 
         # QA Retrieval
         self.pinecone_wrapper = qa_retrieval.PineconeWrapper()
-        self.similarity_threshold = 0.8
+        self.similarity_threshold = 0.9
 
         # Google Search
         self.search_tool = search_tool
-        self.google_search = google_search.SmartSearchOrchestrator()
 
     ######################
     ### Util Functions ###

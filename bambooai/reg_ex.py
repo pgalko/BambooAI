@@ -96,7 +96,6 @@ def _extract_expert(response: str) -> str:
 def _extract_analyst(response: str) -> str:
     # Create a pattern to match any of the substrings
     pattern = r'Data Analyst DF|Data Analyst Generic'
-
     json_segment = re.findall(r'```(?:json\s*)?(.*?)\s*```', response, re.DOTALL)
 
     if json_segment:
@@ -120,7 +119,7 @@ def _extract_plan(response: str) -> str:
     yaml_segment = re.findall(r'```(?:yaml\s*)?(.*?)\s*```', response, re.DOTALL)
 
     if yaml_segment:
-        plan = yaml_segment[0]
+        plan = yaml_segment[-1]
     else:
         plan = ""
     return plan

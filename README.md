@@ -113,11 +113,11 @@ max_conversations: int - Number of "user:assistant" conversation pairs to keep i
 
 debug: bool - If True, the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking and debugging.
 
-search_tool: bool - If True, the Planner agent will use a "google search: https://serper.dev/" if the required information is not available or satisfactory.
+search_tool: bool - If True, the Planner agent will use a "google search: https://serper.dev/" if the required information is not available or satisfactory. By default it only support HTML sites, but can be enhanced with Selenium if the ChromeDriver exists on the system (details below).
 
 vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the rank surpasses a certain threshold (8), the corresponding question (vectorised), plan, code, and rank (metadata) are all stored in the Pinecone database. Each time a new question is asked, these records will be searched. If the similarity score is above 0.9, they will be offered as examples and included in the prompt (in a one-shot learning scenario)
 
-exploratory: bool - If set to True, the LLM will evaluate the user's question and select an "Expert" that is best suited to address the question (experts: Internet Search Specialist, Data Analisys Theoretician, Data Analyst). For instance, if the task involves code generation/execution, it will generate a task list detailing the steps, which will subsequently be sent to the LLM as a prompt for the next action. This method is particularly effective for vague user prompts, but it might not perform as efficiently with more specific prompts. The default setting is True.
+exploratory: bool - If set to True, the LLM will evaluate the user's question and select an "Expert" that is best suited to address the question (experts: Research Specialist, Data Analyst). In addition, if the task involves code generation/execution, it will generate a task list detailing the steps, which will subsequently be sent to the LLM as a part of the prompt for the next action. This method is particularly effective for vague user prompts, but it might not perform as efficiently with more specific prompts. The default setting is True.
 
 e.g. bamboo = BambooAI(df, debug=True, vector_db=True, search_tool=True, exploratory=True)
      bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, search_tool=True)
@@ -168,7 +168,7 @@ As mentioned above, the llm config can be stored in a string format in the  ```L
 
 The Pincone vector db is optional. If you don want to use it, you dont need to do anything. If you have an account with Pinecone and would like to use the knowledge base and ranking features, you will be required to setup ```PINECONE_API_KEY``` envirooment variable, and set the 'vector_db' parameter to True. The vector db index is created upon first execution.
 
-The Google Search is also optional. If you don want to use it, you dont need to do anything. If you have an account with Serper and would like to use the Google Search functionality, you will be required to setup and account with ": https://serper.dev/", and set ```SERPER_API_KEY``` environment variable, and set the 'search_tool' parameter to True.
+The Google Search is also optional. If you don want to use it, you dont need to do anything. If you have an account with Serper and would like to use the Google Search functionality, you will be required to setup and account with ": https://serper.dev/", and set ```SERPER_API_KEY``` environment variable, and set the 'search_tool' parameter to True. By default bambooai can only scrape websites with HTML content. However it is also capable of using Selenium with ChromeDriver, which is much more powerfull. To enable this functionality you will need to manualy download a version of ChromeDriver that matches your version of the Chrome browser, store it on the filesystem and create an environment variable ```SELENIUM_WEBDRIVER_PATH``` with a path to your ChromeDriver. BambooAI wil pick it up automaticaly, and use Selenium for all scraping tasks.
 
 **Local Open Source Models**
 

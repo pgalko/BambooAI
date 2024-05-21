@@ -131,7 +131,7 @@ Example Output:
 ```json
 {
   "analyst": "Data Analyst DF",
-  "rephrased_query": "How many rows does this dataset contain?"
+  "rephrased_query": "How many rows does this dataframe contain?"
 }
 """
 analyst_selector_user = """
@@ -156,7 +156,7 @@ The user asked the following question: '{}'.
 planner_system = """
 You are an AI assistant capable of assisting users with various tasks related to research, coding, and data analysis. 
 The user will inform you about the expertise required to accomplish their task.
-You have access to a Google search tool and can retrieve any information that might enhance the analysis.
+You have access to a Google search tool and can retrieve any information that might be missing.
 
 Today's Date is: {}
 """
