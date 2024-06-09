@@ -7,17 +7,17 @@ import json
 def load_llm_config():
 
     default_llm_config = [
-    {"agent": "Expert Selector", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 500, "temperature": 0}},
-    {"agent": "Analyst Selector", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 500, "temperature": 0}},
-    {"agent": "Theorist", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Planner", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Code Generator", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Code Debugger", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Error Corrector", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Code Ranker", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 500, "temperature": 0}},
-    {"agent": "Solution Summarizer", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Google Search Query Generator", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}},
-    {"agent": "Google Search Summarizer", "details": {"model": "gpt-4-turbo", "provider":"openai","max_tokens": 2000, "temperature": 0}}
+    {"agent": "Expert Selector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Analyst Selector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Theorist", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Planner", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Code Generator", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Code Debugger", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Error Corrector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Code Ranker", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Solution Summarizer", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Google Search Query Generator", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Google Search Summarizer", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}}
     ]
 
     # Get the LLM_CONFIG environment variable

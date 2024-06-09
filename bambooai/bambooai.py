@@ -138,9 +138,11 @@ class BambooAI:
                                 'claude-3-haiku-20240307': {'prompt_tokens': 0.00025, 'completion_tokens': 0.00079}, 
                                 'claude-3-sonnet-20240229': {'prompt_tokens': 0.003, 'completion_tokens': 0.015},
                                 'claude-3-opus-20240307': {'prompt_tokens': 0.015, 'completion_tokens': 0.075},
-                                'mistral-small': {'prompt_tokens': 0.002, 'completion_tokens': 0.006},
+                                'open-mixtral-8x7b': {'prompt_tokens': 0.0007, 'completion_tokens': 0.0007},
+                                'mistral-small-latest': {'prompt_tokens': 0.001, 'completion_tokens': 0.003},
+                                'codestral-latest': {'prompt_tokens': 0.001, 'completion_tokens': 0.003},
                                 'open-mixtral-8x22b': {'prompt_tokens': 0.002, 'completion_tokens': 0.006},
-                                'mistral-large': {'prompt_tokens': 0.008, 'completion_tokens': 0.024},
+                                'mistral-large-latest': {'prompt_tokens': 0.004, 'completion_tokens': 0.012},
                                 }
         self.log_and_call_manager = log_manager.LogAndCallManager(self.token_cost_dict)
         self.chain_id = None
