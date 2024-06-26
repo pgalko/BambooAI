@@ -251,7 +251,7 @@ Log Structure:
           └─ ... (LLM 3, LLM 4, LLM 5 ...)
 ```
 
-## Performance Benchmark (3rd May 2024)
+## Performance Comparison (3rd May 2024)
 
 **Task:** _Devise a machine learning model to predict the survival of passengers on the Titanic. The output should include the accuracy of the model and visualizations of the confusion matrix, correlation matrix, and other relevant metrics._
 
