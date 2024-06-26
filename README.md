@@ -109,11 +109,11 @@ pip install bambooai
 ```
 df: pd.DataFrame - Dataframe (It will try to source the data from internet, if 'df' is not provided)
 
-max_conversations: int - Number of "user:assistant" conversation pairs to keep in memory for a context. Default=2
+max_conversations: int - Number of "user:assistant" conversation pairs to keep in memory for a context. Default=4
 
-debug: bool - If True, the received code is sent back to the Language Learning Model (LLM) for an evaluation of its relevance to the user's question, along with code error checking and debugging.
+debug: bool - If True, the received code is sent back to the LLM for evaluation of its relevance to the user's question, along with code error checking and debugging.
 
-search_tool: bool - If True, the Planner agent will use a "google search: https://serper.dev/" if the required information is not available or satisfactory. By default it only support HTML sites, but can be enhanced with Selenium if the ChromeDriver exists on the system (details below).
+search_tool: bool - If True, the Planner agent will use a "google search API: https://serper.dev/" if the required information is not available or satisfactory. By default it only support HTML sites, but can be enhanced with Selenium if the ChromeDriver exists on the system (details below).
 
 vector_db: bool - If True, each answer will first be ranked from 1 to 10. If the rank surpasses a certain threshold (8), the corresponding question (vectorised), plan, code, and rank (metadata) are all stored in the Pinecone database. Each time a new question is asked, these records will be searched. If the similarity score is above 0.9, they will be offered as examples and included in the prompt (in a one-shot learning scenario)
 
