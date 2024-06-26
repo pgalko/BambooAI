@@ -39,7 +39,7 @@ solution_insights_function = [
     },
     ]
 
-search_function = [
+openai_search_function = [
   {
     "type": "function",
     "function": {
@@ -53,8 +53,25 @@ search_function = [
             "description": "A full query string to search for, including all required details.",
           }
         },
-        "required": ["search_result"]
+        "required": ["search_query"]
       }
+    }
+  }
+]
+
+anthropic_search_function = [
+  {
+    "name": "google_search",
+    "description": "This function executes a Google search and delivers results by identifying and summarizing the most relevant documents from the returned search results.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_query": {
+                "type": "string",
+                "description": "A full query string to search for, including all required details.",
+            }
+        },
+        "required": ["search_query"]
     }
   }
 ]

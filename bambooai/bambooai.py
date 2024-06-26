@@ -24,6 +24,7 @@ class BambooAI:
                  vector_db: bool = False, 
                  search_tool: bool = False,
                  exploratory: bool = True,
+                 df_ontology: bool = False
                  ):
         
         # Output
@@ -53,6 +54,8 @@ class BambooAI:
         # Dataframe
         self.df = df if df is not None else None
         self.original_df_columns = df.columns.tolist() if df is not None else None
+        self.df_ontology = df_ontology # Set the df_ontology mode. This mode is True when you want the model to inspect the dataframe and provide insights.
+        self.query_metrics = None # Stores details retrieved from the ontology
         
         # Results of the code execution
         self.code_exec_results = None
@@ -80,6 +83,7 @@ class BambooAI:
             "planner_user_gen",
             "planner_user_df",
             "theorist_system",
+            "dataframe_inspector_system",
             "google_search_query_generator_system",
             "google_search_react_system",
             "code_generator_system_df",
@@ -118,7 +122,8 @@ class BambooAI:
         # Functions
         self.task_eval_function = func_calls.task_eval_function
         self.insights_function = func_calls.solution_insights_function
-        self.search_function = func_calls.search_function
+        self.openai_search_function = func_calls.openai_search_function
+        self.anthropic_search_function = func_calls.anthropic_search_function
 
         # LLM calls
         self.llm_call = models.llm_call
@@ -136,7 +141,7 @@ class BambooAI:
                                 'gemini-1.5-pro-latest': {'prompt_tokens': 0.0035, 'completion_tokens': 0.0105},
                                 'gemini-1.5-flash-latest': {'prompt_tokens': 0.00035, 'completion_tokens': 0.00053},
                                 'claude-3-haiku-20240307': {'prompt_tokens': 0.00025, 'completion_tokens': 0.00079}, 
-                                'claude-3-sonnet-20240229': {'prompt_tokens': 0.003, 'completion_tokens': 0.015},
+                                'claude-3-5-sonnet-20240620': {'prompt_tokens': 0.003, 'completion_tokens': 0.015},
                                 'claude-3-opus-20240307': {'prompt_tokens': 0.015, 'completion_tokens': 0.075},
                                 'open-mixtral-8x7b': {'prompt_tokens': 0.0007, 'completion_tokens': 0.0007},
                                 'mistral-small-latest': {'prompt_tokens': 0.001, 'completion_tokens': 0.003},
@@ -155,7 +160,7 @@ class BambooAI:
 
         # QA Retrieval
         self.pinecone_wrapper = qa_retrieval.PineconeWrapper()
-        self.similarity_threshold = 0.9
+        self.similarity_threshold = 0.80
 
         # Google Search
         self.search_tool = search_tool
@@ -207,9 +212,9 @@ class BambooAI:
         agent = 'Analyst Selector'
         # Call OpenAI API to evaluate the task
         llm_response = self.llm_stream(self.log_and_call_manager,select_analyst_messages, agent=agent, chain_id=self.chain_id)
-        analyst, rephrased_query = self._extract_analyst(llm_response)
+        analyst, query_unknown, query_condition = self._extract_analyst(llm_response)
 
-        return analyst, rephrased_query
+        return analyst, query_unknown, query_condition
     
     def task_eval(self, eval_messages, agent):
         '''Call the Task Evaluator'''
@@ -217,8 +222,10 @@ class BambooAI:
 
         self.output_manager.display_tool_start(agent,using_model)
 
-        if self.search_tool:
-            tools=self.search_function
+        if self.search_tool and provider == 'openai':
+            tools=self.openai_search_function
+        elif self.search_tool and provider == 'anthropic':
+            tools=self.anthropic_search_function
         else:
             tools=None
 
@@ -238,7 +245,8 @@ class BambooAI:
         '''Taskmaster function to select the expert, refine the expert selection, and formulate a task for the expert'''
         plan = None
         analyst = None
-        rephrased_query = None
+        query_unknown = None
+        query_condition = None
         requires_dataset = None
         confidence = None
 
@@ -250,8 +258,8 @@ class BambooAI:
         ######## Refine Expert Selection, and Formulate the task for the expert ###########
         if expert == 'Data Analyst':
             self.select_analyst_messages.append({"role": "user", "content": self.analyst_selector_user.format(None if self.df is None else df_columns, question)})
-            analyst, rephrased_query = self.select_analyst(self.select_analyst_messages)
-            self.select_analyst_messages.append({"role": "assistant", f"content": f"analyst:{analyst},rephrased_query:{rephrased_query}"})
+            analyst, query_unknown, query_condition = self.select_analyst(self.select_analyst_messages)
+            self.select_analyst_messages.append({"role": "assistant", f"content": f"analyst:{analyst},unknown:{query_unknown},condition:{query_condition}"})
 
             if analyst == 'Data Analyst DF':
                 example_plan = self.default_example_plan_df
@@ -260,17 +268,24 @@ class BambooAI:
 
             # Retrieve the matching code and plan from the vector database if exists
             if self.vector_db:
-                vector_data = self.pinecone_wrapper.retrieve_matching_record(rephrased_query, self.original_df_columns, similarity_threshold=self.similarity_threshold)
+                vector_data = self.pinecone_wrapper.retrieve_matching_record(query_unknown, query_condition, self.original_df_columns, similarity_threshold=self.similarity_threshold)
                 if vector_data:
                     retrieved_plan = vector_data['metadata']['plan']
                 else:
                     retrieved_plan = None
 
                 if retrieved_plan is not None:
-                    example_plan = f"Use the below plan as base for your answer:\n\n```yaml\n{retrieved_plan}\n```"
+                    example_plan = f"Review the below plan, and use as base for your answer. Modify or adjust as needed:\n\n```yaml\n{retrieved_plan}\n```"
 
             if analyst == 'Data Analyst DF':
-                self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(question, None if self.df is None else utils.inspect_dataframe(self.df), example_plan)}) 
+                if self.df_ontology:
+                    self.query_metrics = utils.inspect_dataframe(self.df, self.log_and_call_manager, self.chain_id, query_condition)
+                    self.query_metrics = self._extract_plan(self.query_metrics)
+                    dataframe_description = f"{self.df.head(3)}\n\nREQUIRED METRICS AND JOINS:\n```yaml\n{self.query_metrics}\n```"
+                else:
+                    dataframe_description = utils.inspect_dataframe(self.df)
+
+                self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(question, None if self.df is None else dataframe_description, example_plan)}) 
                 # Replace first dict in messages with a new system task. This is to distinguish between the two types of analysts
                 self.code_messages[0] = {"role": "system", "content": self.code_generator_system_df}
             elif analyst == 'Data Analyst Generic':
@@ -298,7 +313,7 @@ class BambooAI:
         else:
             self.log_and_call_manager.print_summary_to_terminal()
 
-        return analyst, plan, rephrased_query, requires_dataset, confidence
+        return analyst, plan, query_unknown, query_condition, requires_dataset, confidence
     
     #####################
     ### Main Function ###
@@ -330,7 +345,7 @@ class BambooAI:
                 
             if self.exploratory is True:
                 # Call the taskmaister method with the user's question if the exploratory mode is True
-                analyst, plan, rephrased_query, requires_dataset, confidence = self.taskmaster(question,'' if self.df is None else self.df.columns.tolist())
+                analyst, plan, query_unknown, query_condition, requires_dataset, confidence = self.taskmaster(question,'' if self.df is None else self.df.columns.tolist())
                 if not loop:
                     if not analyst:
                         self.log_and_call_manager.consolidate_logs()
@@ -349,13 +364,13 @@ class BambooAI:
             
             if self.vector_db:
                 # Call the retrieve_answer method to check if the question has already been asked and answered
-                vector_data = vector_data = self.pinecone_wrapper.retrieve_matching_record(rephrased_query, '' if self.df is None else self.original_df_columns, similarity_threshold=self.similarity_threshold)
+                vector_data = vector_data = self.pinecone_wrapper.retrieve_matching_record(query_unknown, query_condition, '' if self.df is None else self.original_df_columns, similarity_threshold=self.similarity_threshold)
                 if vector_data:
                     retrieved_code = vector_data['metadata']['code']
                 else:
                     retrieved_code = None
                 if retrieved_code is not None:
-                    example_code = f"Review the the below code, and use as base for your answer:\n\n```python\n{retrieved_code}\n```"
+                    example_code = f"Review the the below code, and use as base for your answer. Modify or adjust as needed:\n\n```python\n{retrieved_code}\n```"
 
             # Call the generate_code() method to genarate and debug the code
             code = self.generate_code(analyst, question, plan, self.code_messages, example_code)
@@ -369,7 +384,7 @@ class BambooAI:
                 rank = ""
 
             # Display the results
-            self.output_manager.display_results(df=self.df, answer=answer, code=code, rank=rank, vector_db=self.vector_db)
+            self.output_manager.display_results(self.df, answer, code, rank, self.vector_db)
 
             if self.vector_db:
                 rank_feedback = self.output_manager.display_user_input_rank()
@@ -383,7 +398,7 @@ class BambooAI:
                     rank = rank
 
                 # Add the question and answer pair to the QA retrieval index
-                self.pinecone_wrapper.add_record(rephrased_query, plan, '' if self.df is None else self.original_df_columns, code, rank, self.similarity_threshold)
+                self.pinecone_wrapper.add_record(query_unknown, query_condition, plan, '' if self.df is None else self.original_df_columns, code, rank, self.similarity_threshold)
 
             self.log_and_call_manager.print_summary_to_terminal()
             
@@ -397,9 +412,13 @@ class BambooAI:
             
     def generate_code(self, analyst, question, plan, code_messages, example_code):
         agent = 'Code Generator'
+        if self.df_ontology:
+            dataframe_description = f"{self.df.head(3)}\n\nREQUIRED METRICS AND JOINS:\n{self.query_metrics}"
+        else:
+            dataframe_description = self.df.dtypes.to_string(max_rows=None)
         # Add a user message with the updated task prompt to the messages list
         if analyst == 'Data Analyst DF':
-            code_messages.append({"role": "user", "content": self.code_generator_user_df.format(question, plan, None if self.df is None else self.df.dtypes.to_string(max_rows=None), self.code_exec_results, example_code)})
+            code_messages.append({"role": "user", "content": self.code_generator_user_df.format(question, plan, None if self.df is None else dataframe_description, self.code_exec_results, example_code)})
         elif analyst == 'Data Analyst Generic':
             code_messages.append({"role": "user", "content": self.code_generator_user_gen.format(question, plan, self.code_exec_results, example_code)})
 
@@ -459,7 +478,10 @@ class BambooAI:
 
                     # Execute the code
                     if code is not None:
-                        exec(code, {'df': self.df})
+                        local_vars = {'df': self.df} # Create a local variable to store the dataframe
+                        exec(code, local_vars) # Execute the code
+                        self.df = local_vars['df'] # Update the dataframe with the local variable
+
                         # Remove examples from the messages list to minimize the number of tokens used
                         code_messages = self._remove_examples(code_messages)
                     break

@@ -10,6 +10,7 @@ def load_llm_config():
     {"agent": "Expert Selector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
     {"agent": "Analyst Selector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
     {"agent": "Theorist", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
+    {"agent": "Dataframe Inspector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
     {"agent": "Planner", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
     {"agent": "Code Generator", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
     {"agent": "Code Debugger", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},

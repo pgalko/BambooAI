@@ -15,7 +15,7 @@ openai_client = openai.OpenAI()
 MAX_ITERATIONS = 5
 CHUNK_SIZE = 512
 TOP_K_RESULTS = 6
-SEARCH_RESULTS = 20
+SEARCH_RESULTS = 5
 NUM_DOCUMENTS = 30
 
 class ChatBot:
@@ -272,7 +272,7 @@ class Reader:
         else:
             prompt = prompts.google_search_summarizer_system.format(text, query)
             
-        search_messages = [{"role": "system", "content": prompt}]
+        search_messages = [{"role": "user", "content": prompt}]
 
         llm_response = models.llm_stream(log_and_call_manager,search_messages, agent=agent, chain_id=chain_id)
 

@@ -1,4 +1,5 @@
 import json
+from json import JSONEncoder
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -25,6 +26,22 @@ for handler in logger.handlers:
 # Initialize the Rotating File Handler for JSON log
 handler = RotatingFileHandler(CONSOLIDATED_LOG_FILE_PATH, maxBytes=5*1024*1024, backupCount=3)  # 5 MB
 logger.addHandler(handler)
+
+# The purpose of this class is to provide a custom JSON encoder that can serialize custom objects that come as a part of Anthropic API tool use responses.
+class FlexibleJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        if hasattr(obj, '__dict__'):
+            return self.serialize_custom_object(obj)
+        elif isinstance(obj, dict):
+            return {k: self.default(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self.default(item) for item in obj]
+        return super().default(obj)
+
+    def serialize_custom_object(self, obj):
+        obj_dict = obj.__dict__.copy()
+        obj_dict['__custom_class__'] = obj.__class__.__name__
+        return obj_dict
 
 class LogAndCallManager:
     def __init__(self, token_cost_dict):
@@ -97,7 +114,7 @@ class LogAndCallManager:
         
         # Write the updated JSON logs back to the file
         with open(ORIGINAL_LOG_FILE_PATH, 'w') as json_file:
-            json.dump(existing_json_logs, json_file, indent=2)
+            json.dump(existing_json_logs, json_file, indent=2, cls=FlexibleJSONEncoder)
 
 
     def consolidate_logs(self):     
@@ -167,7 +184,7 @@ class LogAndCallManager:
         
         # Write the updated consolidated logs back to the file
         with open(CONSOLIDATED_LOG_FILE_PATH, 'w') as json_file:
-            json.dump(consolidated_logs, json_file, indent=2)
+            json.dump(consolidated_logs, json_file, indent=2, cls=FlexibleJSONEncoder)
 
     def clear_run_logs(self):
         # Clear the existing log entries and token summary
@@ -175,6 +192,6 @@ class LogAndCallManager:
 
         # Clear the original log file
         with open(ORIGINAL_LOG_FILE_PATH, 'w') as json_file:
-            json.dump([], json_file, indent=2)
+            json.dump([], json_file, indent=2, cls=FlexibleJSONEncoder)
 
 

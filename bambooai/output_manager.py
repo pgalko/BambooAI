@@ -63,6 +63,8 @@ class OutputManager:
         color = self.color_tool_header
         if agent == 'Planner':
             msg = 'Drafting a plan to provide a comprehensive answer, please wait...'
+        elif agent == 'Dataframe Inspector':
+            msg = 'Inspecting the dataframe schema, please wait...'
         elif agent == 'Theorist':
             msg = 'Working on an answer to your question, please wait...'
         elif agent == 'Google Search Query Generator':

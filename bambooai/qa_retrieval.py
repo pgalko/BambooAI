@@ -2,6 +2,7 @@ import hashlib
 import os
 from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
+import numpy as np
 
 try:
     # Attempt package-relative import
@@ -91,14 +92,14 @@ class PineconeWrapper:
         # Vectorize the question
         vectorised_question = self.vectorize_question(question)
         # Query the vector db
-        results = self.index.query(vector=vectorised_question, top_k=1, include_values=True)
+        results = self.index.query(vector=vectorised_question, top_k=5, include_values=True)
         matches = results.get('matches', [])
 
         if not matches:
             output_handler.display_system_messages("I was unable to find a matching record in the vector db.")
             return None
 
-        return matches[0]
+        return matches
     
     def fetch_record(self, id):
         fetched_data = self.index.fetch(ids=[id])
@@ -111,36 +112,59 @@ class PineconeWrapper:
     def check_similarity(self, match, similarity_threshold):
         match_id = match['id']
         similarity_score = match['score']
-        output_handler.display_system_messages(f"\nClosest match vector db record: {match_id}, Similarity score: {similarity_score}\n")
+        #output_handler.display_system_messages(f"\nClosest match vector db record: {match_id}, Similarity score: {similarity_score}\n")
         
         # Check if the similarity score is above the threshold
-        if match['score'] < similarity_threshold:
-            output_handler.display_system_messages(f"Similarity score {match['score']} is below the threshold {similarity_threshold}")
+        if similarity_score < similarity_threshold:
+            output_handler.display_system_messages(f"Query similarity score {match['score']} for record {match_id} is below the threshold. Will ignore this match")
             return False
         
-        return True 
+        return True
+    
+    def cosine_similarity_np(self, vec1, vec2):
+        dot_product = np.dot(vec1, vec2)
+        norm_vec1 = np.linalg.norm(vec1)
+        norm_vec2 = np.linalg.norm(vec2)
+        if norm_vec1 == 0 or norm_vec2 == 0:
+            # Handle the case where one or both vectors are zero-vectors.
+            return 0
+        cosine_sim = dot_product / (norm_vec1 * norm_vec2)
+        return cosine_sim
 
-    def retrieve_matching_record(self, question, df_columns, similarity_threshold, match_df=True,):
-        match = self.query_index(question)
-        if match and self.check_similarity(match,similarity_threshold):
-            vector_data = self.fetch_record(match['id'])
-            if not vector_data:
-                return None
-            # Get the metadata
-            metadata = vector_data['metadata']
-            # Check if the dataframe columns match
-            if match_df:
-                if metadata['df_col'] == df_columns:
-                    return vector_data
-                else:
-                    output_handler.display_system_messages("The dataframe columns do not match. I will not use this record.")
-                    return None
+    def retrieve_matching_record(self, question, condition, df_columns, similarity_threshold, match_df=True,):
+        retrieved_matches = self.query_index(question)
+        highest_similarity_score = 0.8
+        closest_match = None
+
+        if not retrieved_matches:
+            return None
+        for match in retrieved_matches:
+            if match and self.check_similarity(match,similarity_threshold):
+                match_data = self.fetch_record(match['id'])
+                if not match_data:
+                    continue
+                metadata = match_data['metadata']
+                #Vectorise the condition and metadata['query_condition'] and compute the score
+                query_condition_vector = self.vectorize_question(condition)
+                retrieved_query_condition_vector = self.vectorize_question(metadata['query_condition'])
+                # Compute the cosine similarity score
+                similarity_score = self.cosine_similarity_np(query_condition_vector, retrieved_query_condition_vector)
+                if similarity_score > highest_similarity_score:
+                    highest_similarity_score = similarity_score
+                    closest_match = match_data
+
+        # Check if the dataframe columns match
+        if match_df and closest_match:
+            if metadata['df_col'] == df_columns:
+                output_handler.display_system_messages(f"Found a record {closest_match['id']}, with matching query, condition and dataframe columns. Condition Similarity Score: {highest_similarity_score}.")
+                return closest_match
             else:
-                return vector_data
+                output_handler.display_system_messages("The dataframe columns do not match. I will not use this record.")
+                return None
         else:
-            return None      
+            return closest_match
 
-    def add_record(self, question, plan, df_columns, code, new_rank, similarity_threshold):
+    def add_record(self, question, condition, plan, df_columns, code, new_rank, similarity_threshold):
         new_rank = int(new_rank)
 
         if new_rank < 8:
@@ -154,7 +178,7 @@ class PineconeWrapper:
         vectorised_question = self.vectorize_question(question)
 
         # Fetch the record with closest match to the question
-        vector_data = self.retrieve_matching_record(question, df_columns, similarity_threshold)
+        vector_data = self.retrieve_matching_record(question, condition, df_columns, similarity_threshold)
 
         vector_rank = -1 # Default rank if the record does not exist  
 
@@ -163,7 +187,7 @@ class PineconeWrapper:
             id = vector_data['id']
         # If the new rank is higher, add/update the record
         if vector_rank < new_rank:
-            metadata = {"plan": plan, "df_col": df_columns, "question_txt": question, "code": code, "rank": new_rank}
+            metadata = {"query_unknown": question, "query_condition": condition, "df_col": df_columns, "plan": plan,  "code": code, "rank": new_rank}
             vectors = [(id, vectorised_question, metadata)]
             self.index.upsert(vectors=vectors)
             output_handler.display_system_messages(f"\nAdded/Updated the vector db record with id: {id}")

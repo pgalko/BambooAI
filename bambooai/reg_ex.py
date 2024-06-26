@@ -101,8 +101,9 @@ def _extract_analyst(response: str) -> str:
     if json_segment:
         data = json.loads(json_segment[0])
         analyst = data['analyst']
-        rephrased_query = data['rephrased_query']
-        return analyst, rephrased_query
+        query_unknown = data['unknown']
+        query_condition = data['condition']   
+        return analyst, query_unknown, query_condition
     else:
         # Use re.search to find the first match in the input string
         match = re.search(pattern, response)

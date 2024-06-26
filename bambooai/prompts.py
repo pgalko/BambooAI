@@ -72,7 +72,6 @@ plan:
   ```
 """
 # Expert Selector Agent Prompts
-#   - An 'Internet Research Specialist' that can search the internet to find factual information, relevant data, and contextual details to help address user questions.
 expert_selector_system = """
 You are a classification expert, and your job is to classify the given task, and select the expert best suited to solve the task.
 
@@ -115,24 +114,41 @@ You are a classification expert, and your job is to classify the given task.
     - A 'Data Analyst Generic':
       Select this expert if user did not provide the dataframe.
 
-2. Rephrase the query.
-    - Focus on incorporating previous context and ensure accuracy in spelling, syntax, and grammar. 
-    - Capture every nuance of the user's request meticulously, omitting no details.
-    - Place significant emphasis on the query that immediately precedes this one. 
-    - The rephrased version should be both as descriptive as possible while concise, suitable for later conversion into a detailed, multi-step action plan.
-    - There is no need to include the dataframe details in the rephrased query.
+2. Rephrase the query, focusing on incorporating previous context and any feedback received from the user.
+    - If there is previous context, place the greatest emphasis on the query immediately preceding this one.
+    - The rephrased version should be as descriptive as possible while remaining concise. It should include any information present in the original query.
+    - Format the the rephrased query as follows:
+        WHAT IS THE UNKNOWN: <fill in>
+        WHAT ARE THE DATA: <fill in>
+        WHAT IS THE CONDITION: <fill in>
 
-Formulate your response as a JSON string, with 2 fields {analyst,rephrased_query}. Always enclose the JSON string within ```json tags
+Formulate your response as a JSON string, with 4 fields {analyst, unknown, data, condition}. Always enclose the JSON string within ```json tags
 
-Example Query:
-How many rows in this dataset ?
+Example Query 1:
+Divide the activity data into 1-kilometer segments and plot the pace for each segment on a bar chart. Plot heartrate on the secondary y axis.
 
-Example Output:
+Example Output 1:
 ```json
 {
   "analyst": "Data Analyst DF",
-  "rephrased_query": "How many rows does this dataframe contain?"
+  "unknown": "Pace and heartrate for each 1-kilometer segment represented visually",
+  "data": "Pandas Dataframe 'df'",
+  "condition": "Divide data into 1-kilometer segments and plot pace on a bar chart with heartrate on the secondary y-axis"
 }
+```
+
+Example Query 2:
+The output is incorrect. Use speed and datetime to calculate distance instead of lat and long.
+
+Example Output 2:
+```json
+{
+  "analyst": "Data Analyst DF",
+  "unknown": "Pace and heartrate for each 1-kilometer segment represented visually",
+  "data": "Pandas Dataframe 'df'",
+  "condition": "Use speed and datetime recorded in 1-second intervals to calculate distance, divide data into 1-kilometer segments, and plot pace on a bar chart with heartrate on the secondary y-axis"
+}
+```
 """
 analyst_selector_user = """
 DATAFRAME COLUMNS:
@@ -152,6 +168,104 @@ Today's Date is: {}
 
 The user asked the following question: '{}'.
 """
+
+# Dataframe Inspector Agent Prompts
+dataframe_inspector_system = """
+Your role is to inspect the given dataframe and provide a summary of its schema and structure.
+
+DATAFRAME ONTOLOGY:
+
+{}
+
+Above is an ontology that describes a dataset that is in a form of a pandas data frame and the relationships between different metrics that might or might not be present in this dataset. The data frame is ready and populated with data.
+
+1. Identify all metrics that will be required to deliver the solution.
+2. Identify the missing metrics
+3. Determine the units for each required metric
+4. Determine the keys and relationships between metrics
+4. Explore functions described in the Ontology and include them in the solution if necessary.
+5. Output the requirements and functions including full function syntax as a YAML string. Always enclose the YAML string within ```yaml tags.
+
+TASK:
+
+{}
+
+Example Task 1:
+Calculate average pace for the last lap of the most recent Run activity
+
+Example Output 1
+
+```yaml
+required_metrics:
+  - name: Speed
+    category: Velocity
+    type: PreComputed
+    derived_from: [Datetime, Distance]
+    units: Meters per Second
+    record frequency: 10 seconds
+    present_in_dataset: true
+
+missing_metrics:
+  - name: Pace
+    category: Velocity
+    type: Derived
+    derived_from: [Speed]
+    derived using formula: "1000 / (Speed * 60)"
+    units: Minutes per Kilometer
+    record frequency: 10 seconds
+    present_in_dataset: false
+
+joins:# To inform segmentation and joining
+  - keys: [ActivityID, ActivityType, Datetime, LapID] # To inform segmentation and joining
+
+functions: []
+```
+
+Example Task 2:
+Compute and plot a mean-maximal curve for power for Ride activities for each year.
+
+Example Output 2
+
+```yaml
+required_metrics:
+  - name: Power
+    category: Mechanical
+    type: DirectlyMeasured
+    units: Watts
+    frequency: 10 seconds
+    present_in_dataset: true
+  - name: Datetime
+    category: Temporal
+    type: DirectlyMeasured
+    units: ISO 8601
+    record frequency: 10 seconds
+    present_in_dataset: true
+
+missing_metrics: []
+
+joins:
+  - keys: [ActivityID, ActivityType, Datetime] # To inform segmentation and joining
+
+functions:
+  - name: meanMaxCurveFunction
+    description: "Calculate the maximum rolling mean for a metric and various window sizes."
+    definition:\"""
+      Parameters:
+          df (pd.DataFrame): DataFrame containing the data
+          metric (str): Column name of the metric
+          windows (list of int): List of window sizes
+
+      Returns:
+          list of float: Maximum rolling mean values for each window size
+
+      Abstract Syntax:
+          mean_maximal_powers = []
+          for window in windows:
+              rolling_mean = df[metric].rolling(window=window).mean()
+              max_rolling_mean = rolling_mean.max()
+              mean_maximal_powers.append(max_rolling_mean)
+              \""" .
+"""
 # Planner Agent Prompts
 planner_system = """
 You are an AI assistant capable of assisting users with various tasks related to research, coding, and data analysis. 
@@ -166,9 +280,8 @@ TASK:
 
 DATAFRAME:
 
-```yaml
 {}
-```
+
 First: Evaluate whether you have all necessary and requested information to provide a solution. 
 Use the dataset description above to determine what data and in what format you have available to you.
 You are able to search internet if the user asks for it, or you require any information that you can not derive from the given dataset or the instruction.
@@ -177,7 +290,7 @@ Second: Reflect on the problem and briefly describe it, while addressing the pro
 rules, constraints, and other relevant details that appear in the problem description.
 
 Third: Based on the preceding steps, formulate your response as an algorithm, breaking the solution in up to eight simple yet descriptive, clear English steps. 
-You MUST Include all values or instructions as described in the above task!
+You MUST Include all values or instructions as described in the above task, or retrieved using internet search!
 If fewer steps suffice, that's acceptable. If more are needed, please include them.
 Remember to explain steps rather than write code.
 
@@ -200,8 +313,8 @@ You are able to search internet if you require any information that you can not 
 Second: Reflect on the problem and briefly describe it, while addressing the problem goal, inputs, outputs,
 rules, constraints, and other relevant details that appear in the problem description.
 
-Second: Based on the preceding steps, formulate your response as an algorithm, breaking the solution in up to eight simple yet descriptive, clear English steps. 
-You MUST include all values, instructions links or URLs necessary to solve the above task!
+Third: Based on the preceding steps, formulate your response as an algorithm, breaking the solution in up to eight simple yet descriptive, clear English steps. 
+You MUST Include all values, instructions or URLs as described in the above task, or retrieved using internet search!
 If fewer steps suffice, that's acceptable. If more are needed, please include them. 
 Remember to explain steps rather than write code.
 This algorithm will be later converted to Python code.
@@ -240,7 +353,7 @@ PLAN:
 {}
 ```
 
-DATAFRAME `print(df.dtypes)`:
+DATAFRAME:
 {}
 
 CODE EXECUTION OF THE PREVIOUS TASK RESULTED IN:

@@ -99,13 +99,13 @@ def llm_stream(log_and_call_manager, chain_id: str, messages: str,model: str,tem
 
         if delta and delta.content:
             collected_messages.append(delta.content)  # save the message
-            output_handler.print_wrapper(delta.content, end='', flush=True)  # output_manager.print_wrapper the message without a newline
+            output_handler.print_wrapper(delta.content, end='', flush=True)
         elif delta and delta.tool_calls:
             tcchunklist = delta.tool_calls
             for tcchunk in tcchunklist:
                 if len(tool_calls) <= tcchunk.index:
                     tool_calls.append({"id": "", "type": "function", "function": { "name": "", "arguments": "" } })
-                tc = tool_calls[tcchunk.index]
+                tc = tool_calls[tcchunk.index] 
 
                 if tcchunk.id:
                     tc["id"] += tcchunk.id
