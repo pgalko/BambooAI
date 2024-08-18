@@ -34,6 +34,9 @@ Output the accuracy of the model. Plot the confusion matrix, correlation matrix,
 
 https://github.com/pgalko/BambooAI/assets/39939157/6058a3a2-63d9-44b9-b065-0a0cda5d7e17
 
+**Prototype Web UI:**
+
+
 
 
 ## How it works
