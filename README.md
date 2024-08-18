@@ -28,11 +28,21 @@ df = pd.read_csv('titanic.csv')
 bamboo = BambooAI(df, debug=True, vector_db=False, search_tool=True)
 bamboo.pd_agent_converse()
 ```
-**Task:** _Can you please devise a machine learnig model to predict the survival of passengers on the Titanic? 
+**Jupyter Notebook:** 
+
+_Task: Can you please devise a machine learnig model to predict the survival of passengers on the Titanic? 
 Output the accuracy of the model. Plot the confusion matrix, correlation matrix, and other relevant metrics. Search internet for the best approach to this task._
 
 
 https://github.com/pgalko/BambooAI/assets/39939157/6058a3a2-63d9-44b9-b065-0a0cda5d7e17
+
+**Web UI:**
+
+_Task: Various queries related to sports data analysis_
+
+https://github.com/user-attachments/assets/fa735fce-9645-4a22-af02-e40579acd53d
+
+
 
 ## How it works
 
