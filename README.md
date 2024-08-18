@@ -299,6 +299,11 @@ Log Structure:
 | Output Tokens  | 931          |
 | Total Cost     | $0.0353      |
 
+## Eval Report 18th Aug 2024
+
+[Objective Assessment of AI Tools for Sports Data Analytics_ Maxwell-v2 vs. Generic LLMs.pdf](https://github.com/user-attachments/files/16647425/Objective.Assessment.of.AI.Tools.for.Sports.Data.Analytics_.Maxwell-v2.vs.Generic.LLMs.pdf)
+
+
 
 ## Notes
 
