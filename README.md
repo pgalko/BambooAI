@@ -25,7 +25,7 @@ import pandas as pd
 from bambooai import BambooAI
 
 df = pd.read_csv('titanic.csv')
-bamboo = BambooAI(df, debug=True, vector_db=False, search_tool=True)
+bamboo = BambooAI(df, debug=False, vector_db=False, search_tool=True)
 bamboo.pd_agent_converse()
 ```
 **Task:** _Can you please devise a machine learnig model to predict the survival of passengers on the Titanic? 
