@@ -34,7 +34,11 @@ _Task: Can you please devise a machine learnig model to predict the survival of 
 Output the accuracy of the model. Plot the confusion matrix, correlation matrix, and other relevant metrics. Search internet for the best approach to this task._
 
 
-https://github.com/pgalko/BambooAI/assets/39939157/6058a3a2-63d9-44b9-b065-0a0cda5d7e17
+
+
+https://github.com/user-attachments/assets/59ef810c-80d8-4ef1-8edf-82ba64178b85
+
+
 
 **Web UI:**
 
