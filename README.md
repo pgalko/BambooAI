@@ -1,9 +1,9 @@
 # BambooAI
-A lightweight library utilizing Large Language Models (LLMs) to provide natural language interaction capabilities, much like a research and data analysis assistant enabling conversation with your data. You can either provide your own data sets, or allow the library to locate and fetch data for you. It supports Internet searches and external API interactions.
+An open-source library that lets you analyze and explore data through natural language conversations using LLMs. Works with your local datasets or can fetch data from external sources and APIs.
 
 ## Objective
 
-The BambooAI library is a experimental, lightweigh tool that utilizes Large Language Models (LLMs) to facilitate data analysis, making it more accessible to users, including those without programming expertise. It functions as an assistant for research and data analysis, allowing users to interact with their data through natural language. Users can supply their own datasets or BambooAI can assist in sourcing the necessary data. The tool also integrates internet searches and accesses external APIs to enhance its functionality.
+The BambooAI library is an experimental tool that utilizes Large Language Models (LLMs) to facilitate data analysis, making it more accessible to users, including those without programming expertise. It functions as an assistant for research and data analysis, allowing users to interact with their data through natural language. Users can supply their own datasets or BambooAI can assist in sourcing the necessary data. The tool also integrates internet searches and accesses external APIs to enhance its functionality.
 
 BambooAI processes natural language queries about datasets and can generate and execute Python code for data analysis and visualization. This enables users to derive insights from their data without extensive coding knowledge. Users simply input their dataset, ask questions in simple English, and BambooAI provides the answers, along with visualizations if needed, to help understand the data better.
 
@@ -38,9 +38,13 @@ https://github.com/pgalko/BambooAI/assets/39939157/6058a3a2-63d9-44b9-b065-0a0cd
 
 **Web UI:**
 
-_Task: Various queries related to sports data analysis_
+_Task: Various queries related to sports data_
 
-https://github.com/user-attachments/assets/fa735fce-9645-4a22-af02-e40579acd53d
+
+https://github.com/user-attachments/assets/5d013ea0-cb44-4044-9cf4-3efa155288b8
+
+
+
 
 
 
@@ -53,31 +57,25 @@ The BambooAI agent operates through several key steps to interact with users and
 - If no initial question is provided, the agent prompts the user for a question or an 'exit' command to terminate the program.
 - The agent then enters a loop where it responds to each question provided, and upon completion, prompts the user for the next question. This loop continues until the user chooses to exit the program.
 
-**2. Task Evaluation**
-- The agent stores the received question and utilizes the Large Language Model (LLM) to evaluate and categorize it.
+**2. Task Routing**
+- The agent stores the received question and utilizes the Large Language Model (LLM) to classify it.
 - The LLM determines whether the question necessitates a textual response, additional information (Google search: https://serper.dev/), or can be resolved using code.
-- Depending on the task evaluation and classification the agent calls the appropriate agent.
+- Depending on the task evaluation and classification the task is routed to the appropriate agent.
 
 **3. Dynamic Prompt Build**
 - If the question can be resolved by code, the agent determines whether the necessary data is contained within the provided dataset, requires downloading from an external source, or if the question is of a generic nature and data is not required.
-- The agent then chooses its approach accordingly. It formulates an algorithm, expressed as a task list, to serve as a blueprint for the analysis.
+- The agent then chooses its approach accordingly. It can formulate a plan to serve as a blueprint for the analysis.
 - The original question is modified to align with this algorithm. The agent performs a semantic search against a vector database for similar questions.
-- Any matching questions found are appended to the prompt as examples. GPT-3.5, GPT-4 or a local OSS model is then used to generate code based on the algorithm.
+- Any matching questions found are appended to the prompt as examples. A selected LLM model is then used to generate code based on the algorithm.
 
 **4. Debugging, Execution, and Error Correction**
-- If the generated code needs debugging, GPT-4 is engaged.
 - The code is executed, and if errors occur, the agent logs the error message and refers it back to the LLM for correction.
-- This process continues until successful code execution.
+- This process continues until successful code execution or the error correction limit is reached.
 
 **5. Results, Ranking, and Knowledge Base Build**
-- Post successful execution, GPT-4 is used to rank the answer.
+- Post successful execution, user can rank the answer.
 - If the rank surpasses a set threshold, the question, answer, code, and rank are stored in the Pinecone vector database.
 - Regardless of the rank, the final answer or visualization is formatted and presented to the user.
-
-**6. Human Feedback and Loop Continuation**
-- The agent seeks feedback from the user.
-- If the user validates the auto-generated ranking, the question/answer pair is stored in the vector database.
-- If not, a new execution loop begins.
 
 Throughout this process, the agent continuously solicits user input, stores messages for context, and generates and executes code to ensure optimal results. Various AI models and a vector database are employed in this process to provide accurate and helpful responses to user's questions.
 
@@ -87,7 +85,7 @@ Throughout this process, the agent continuously solicits user input, stores mess
 
 ## Supported vendors/models
 
-The library supports use of various open source or proprietary models, either via API or localy.
+The library is vendoe agnistic and supports use of various open source or proprietary models, either via API or localy.
 
 **API:**
 - OpenAI - All models
@@ -133,16 +131,13 @@ e.g. bamboo = BambooAI(df, debug=True, vector_db=True, search_tool=True, explora
      bamboo = BambooAI(df,debug=False, vector_db=False, exploratory=True, search_tool=True)
 ```
 
-***Deprecation Notice (October 25, 2023):***
-*Please note that the "llm", "local_code_model", "llm_switch_plan", and "llm_switch_code" parameters have been deprecated as of v 0.3.29. The assignment of models and model parameters to agents is now handled via LLM_CONFIG. This can be set either as an environment variable or via a LLM_CONFIG.json file in the working directory. Please see the details below*
-
 - LLM Config
 
 The agent specific llm configuration is stored in ```LLM_CONFIG``` environment variable, or in the "LLM_CONFIG.json file which needs to be stored in the BambooAI's working directory. The config is in a form of JSON list of dictionaries and specifies model name, provider, temperature and max_tokens for each agent. You can use the provided LLM_CONFIG_sample.json as a starting point, and modify the config to reflect your preferences. If neither "ENV VAR" nor "LLM_CONFIG.json" is present, BambooAI will use the default hardcoded configuration that uses "gpt-3.5-turbo" for all agents.
 
 - Prompt Templates
 
-The BambooAI library uses default hardcoded set of prompt templates for each agent. If you want to experiment with them, you can modify the provided "PROMPT_TEMPLATES_sample.json" file, remove the "_sample from its name and store in the working directory. Subsequently, the content of the modified "PROMPT_TEMPLATES.json" will be used instead of the hardcoded defaults. You can always revert back to default prompts by removing/renaming the modified "PROMPT_TEMPLATES.json".
+The BambooAI library uses default hand crafted set of prompt templates for each agent. If you want to experiment with them, you can modify the provided "PROMPT_TEMPLATES_sample.json" file, remove the "_sample from its name and store in the working directory. Subsequently, the content of the modified "PROMPT_TEMPLATES.json" will be used instead of the defaults. You can always revert back to default prompts by removing/renaming the modified "PROMPT_TEMPLATES.json".
 
 - Example usage: Run in a loop
 
@@ -307,15 +302,9 @@ Log Structure:
 
 ## Notes
 
-- The library currently supports OpenAI Chat models. It has been tested with both gpt-3.5-turbo and gpt-4. The gpt-3.5-turbo seems to perform OK for simpler tasks and is the good starting/exploration option due to its 10x lower cost.
-- It can also be used with models from the following vendors via API. Anthropic, Mistral, Google Gemini, Groq. All you need is the API key.
-- Also the use of Ollama and all of it's models is supported. This could be quite handy as a buch of Llama 3 finetunes are about to start landing.
-- For coding tasks it also supports SOTA open source code models like CodeLlama and WizardCoder.
+- The library currently suports models from various vendors OpenAI, Anthropic, Google, Mistral, Groq served through their APIs. It also supports all Ollama models.
 - The library executes LLM generated Python code, this can be bad if the LLM generated Python code is harmful. Use cautiously.
-- Be sure to monitor your token usage. At the time of writing, the cost per 1K input tokens is $0.01 USD for GPT-4-turbo and $0.001 USD for GPT-3.5-turbo. It's important to keep these costs in mind when using the library, particularly when using the more expensive models.
-- Supported OpenAI models: *gpt-3.5-turbo, gpt-3.5-turbo-613, gpt-3.5-turbo-16k, gpt-4, gpt-4-turbo.*
-- Supported Open Source Models: *WizardCoder-15B-V1.0, WizardCoder-Python-7B-V1.0, WizardCoder-Python-13B-V1.0, WizardCoder-Python-34B-V1.0, WizardCoder-15B-1.0-GPTQ, WizardCoder-Python73B-V1.0-GPTQ, WizardCoder-Python-13B-V1.0-GPTQ,
-  WizardCoder-Python-34B-V1.0-GPTQ, CodeLlama-7B-Instruct-fp16, CodeLlama-13B-Instruct-fp16, CodeLlama-34B-Instruct-fp16, CodeLlama-7B-Python-fp16, CodeLlama-13B-Python-fp16, CodeLlama-34B-Python-fp16, Phind-CodeLlama-34B-v2.*
+- Be sure to monitor your token usage. The cummulative summary is displayed after each interaction.*
 
 ## Contributing
 
