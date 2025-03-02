@@ -1,6 +1,8 @@
 # BambooAI
 An open-source library that lets you analyze and explore data through natural language conversations using LLMs. Works with your local datasets or can fetch data from external sources and APIs.
 
+<img width="500" alt="BambooAI Logo" src="https://github.com/user-attachments/assets/7faed0d0-393f-4396-92f9-7aa4cb9dfb4d" />
+
 ## Objective
 
 The BambooAI library is an experimental tool that utilizes Large Language Models (LLMs) to facilitate data analysis, making it more accessible to users, including those without programming expertise. It functions as an assistant for research and data analysis, allowing users to interact with their data through natural language. Users can supply their own datasets or BambooAI can assist in sourcing the necessary data. The tool also integrates internet searches and accesses external APIs to enhance its functionality.
