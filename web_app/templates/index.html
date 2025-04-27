@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BambooAI</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.0.18/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.1/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="icon" type="image/svg+xml" href="/static/image/favicon.svg" id="favicon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.1/styles/github.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+    <!-- LocalForage dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
+
+    <!-- KaTeX dependencies -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <!-- Configure marked to handle LaTeX safely -->
+    <script>
+    // Configure marked to not escape our LaTeX delimiters
+    const renderer = new marked.Renderer();
+    const originalCode = renderer.code.bind(renderer);
+
+    renderer.code = function(code, language) {
+        if (language === 'math' || language === 'latex') {
+            return code;  // Don't wrap in code blocks
+        }
+        return originalCode(code, language);
+    };
+
+    marked.setOptions({
+        renderer: renderer,
+        breaks: true,
+        gfm: true,
+        headerIds: false,
+        mangle: false,
+        sanitize: false,
+        smartLists: true,
+        smartypants: false
+    });
+    </script>
+        
+    <!-- CodeMirror Core -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+
+    <!-- CodeMirror Theme -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+
+    <!-- CodeMirror Python Mode -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
+
+</head>
+<body>
+    <div class="container">
+        <button id="collapseButton" class="collapse-button" aria-label="Toggle left panel">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+        </button>
+        <div class="left-panel" id="leftPanel">
+            <div class="top-panel">
+                <div class="menu-container">
+                    <button id="menuButton" class="menu-button" title="Menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="4" y1="8" x2="20" y2="8"></line>
+                            <line x1="4" y1="12" x2="20" y2="12"></line>
+                            <line x1="4" y1="16" x2="20" y2="16"></line>
+                        </svg>
+                    </button>
+            
+                    <div class="menu-popup">
+                        <img src="/static/image/logo_light.svg" alt="Logo" class="menu-logo">
+                        <button class="menu-option login-option" title="Login">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                                <polyline points="10 17 15 12 10 7"/>
+                                <line x1="15" y1="12" x2="3" y2="12"/>
+                            </svg>
+                            <span>Login</span>
+                        </button>
+                        <button class="menu-option new-conversation-option" title="New Workflow">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2v6h6"/>
+                                <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2Z"/>
+                                <path d="M12 18v-6"/>
+                                <path d="M9 15h6"/>
+                            </svg>
+                            <span>New Workflow</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="theme-toggle-container">
+                    <button id="themeToggle" class="icon-button theme-toggle" title="Toggle theme" aria-label="Toggle theme">
+                        <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"/>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                        <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="content-area">
+                <div id="streamOutput"></div>
+                <div class="scroll-indicator">↓</div>
+            </div>           
+            <div class="input-area">
+                <div class="input-row">
+                    <div class="textarea-container">
+                        <textarea
+                            id="queryInput"
+                            placeholder="Enter your query here"
+                        ></textarea>
+                    
+                        <div class="icon-row">
+                            <!-- Paperclip with menu -->
+                            <div class="attach-menu-container">
+                                <button
+                                    id="uploadButton"
+                                    type="button"
+                                    class="icon-button attach-icon"
+                                    title="Attach dataset"
+                                >
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path
+                                            d="M21.44 11.05l-9.19 9.19a6 6 0 0 1
+                                               -8.49-8.49l8.57-8.57A4 4 0 1 1
+                                               18 8.84l-8.59 8.57a2 2 0 0 1
+                                               -2.83-2.83l8.49-8.48"
+                                        />
+                                    </svg>
+                                </button>
+            
+                                <!-- New attach menu -->
+                                <div class="attach-menu">
+                                    <button class="attach-option computer-option" title="Upload from computer">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                            <line x1="8" y1="21" x2="16" y2="21"/>
+                                            <line x1="12" y1="17" x2="12" y2="21"/>
+                                        </svg>
+                                        <span>Computer</span>
+                                    </button>
+                                    <button class="attach-option cloud-option" title="Upload from cloud">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                                        </svg>
+                                        <span>Cloud</span>
+                                    </button>
+                                </div>
+                            </div>
+            
+                            <input type="file" id="csvFile" accept=".csv" style="display: none" />
+                            
+                            <!-- Planning brain -->
+                            <button
+                                id="planningSwitch"
+                                type="button"
+                                class="icon-button planning-brain"
+                                aria-checked="false"
+                                title="Planning"
+                            >
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path
+                                        d="M9.5 2A2.5 2.5 0 0 1
+                                            12 4.5v15a2.5 2.5 0 0 1
+                                            -4.96.44 2.5 2.5 0 0 1
+                                            -2.96-3.08 3 3 0 0 1
+                                            -.34-5.58 2.5 2.5 0 0 1
+                                            1.32-4.24 2.5 2.5 0 0 1
+                                            1.98-3A2.5 2.5 0 0 1
+                                            9.5 2Z"
+                                    />
+                                    <path
+                                        d="M14.5 2A2.5 2.5 0 0 0
+                                            12 4.5v15a2.5 2.5 0 0 0
+                                            4.96.44 2.5 2.5 0 0 0
+                                            2.96-3.08 3 3 0 0 0
+                                            .34-5.58 2.5 2.5 0 0 0
+                                            -1.32-4.24 2.5 2.5 0 0
+                                            0 -1.98-3A2.5 2.5 0 0
+                                            0 14.5 2Z"
+                                    />
+                                </svg>
+                            </button>
+
+                            <!-- Ontology link -->
+                            <button
+                            id="ontologySwitch"
+                            type="button"
+                            class="icon-button ontology-link"
+                            aria-checked="false"
+                            title="Select Ontology"
+                            >
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                            </svg>
+                            </button>
+                            <!-- Hidden file input for ontology selection -->
+                            <input type="file" id="ontologyFile" accept=".ttl" style="display: none" />
+                            
+                            <!-- Guide me -->
+                            <button
+                            id="suggestQuestions"
+                            type="button"
+                            class="icon-button filter-icon suggest-questions disabled"
+                            title="Guide me"
+                            >
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="M22 3H2l8 9.46V19a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2v-6.54L22 3z"/>
+                            </svg>
+                            </button>
+
+                            <!-- Rank Solution -->
+                            <button id="rankButton" type="button" class="icon-button rank-icon" title="Rank Solution" style="display: none;">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    
+                        <!-- Submit button -->
+                        <button
+                            id="submitQuery"
+                            class="submit-button"
+                            aria-label="Submit query"
+                        >
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="m22 2-7 20-4-9-9-4Z" />
+                                <path d="M22 2 11 13" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            
+                <!-- File status messages -->
+                <div id="fileStatus"></div>
+            </div>            
+        </div>
+        <div class="right-panel" id="rightPanel">
+            <div class="panel-header">
+                <div class="tab-navigation">
+                    <button id="prevResponse" class="nav-arrow" disabled>&larr;</button>
+                    <button id="nextResponse" class="nav-arrow" disabled>&rarr;</button>
+                </div>
+            </div>
+            <div class="tab-container" id="tabContainer"></div>
+            <div id="contentOutput"></div>
+        </div>
+    </div>
+
+    <!-- Rank Modal -->
+    <div id="rankModal" class="modal">
+        <div class="modal-content">
+            <button class="close" aria-label="Close">×</button>
+            <h3>Rate the Solution</h3>
+            <div id="rankStatusMessage" class="rank-status-message"></div>
+            <div class="star-rating" id="starRating">
+                <input type="radio" id="star10" name="rating" value="10" hidden>
+                <label for="star10" title="10 stars">★</label>
+                <input type="radio" id="star9" name="rating" value="9" hidden>
+                <label for="star9" title="9 stars">★</label>
+                <input type="radio" id="star8" name="rating" value="8" hidden>
+                <label for="star8" title="8 stars">★</label>
+                <input type="radio" id="star7" name="rating" value="7" hidden>
+                <label for="star7" title="7 stars">★</label>
+                <input type="radio" id="star6" name="rating" value="6" hidden>
+                <label for="star6" title="6 stars">★</label>
+                <input type="radio" id="star5" name="rating" value="5" hidden>
+                <label for="star5" title="5 stars">★</label>
+                <input type="radio" id="star4" name="rating" value="4" hidden>
+                <label for="star4" title="4 stars">★</label>
+                <input type="radio" id="star3" name="rating" value="3" hidden>
+                <label for="star3" title="3 stars">★</label>
+                <input type="radio" id="star2" name="rating" value="2" hidden>
+                <label for="star2" title="2 stars">★</label>
+                <input type="radio" id="star1" name="rating" value="1" hidden>
+                <label for="star1" title="1 star">★</label>
+            </div>
+            <div class="knowledge-base-hint">8+ adds to knowledge base</div>
+            <button id="submit-rank" class="submit-rank-btn" aria-label="Submit rating">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9"></polygon>
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Summary Popup -->
+    <div id="summaryPopup" class="summary-popup">
+        <button class="close-button">&times;</button>
+        <div id="summaryContent"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script> 
+</body>
+</html>

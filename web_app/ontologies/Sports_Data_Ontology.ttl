@@ -1,0 +1,1065 @@
+
+#################################################################
+#    Object Properties
+#################################################################
+
+:containsWellnessAggregate rdf:type owl:ObjectProperty ;
+                           rdfs:domain :WellnessDataframe ;
+                           rdfs:range :WellnessMeasurement .
+
+:applicableToDataObject rdf:type owl:ObjectProperty ;
+                        rdfs:domain :Function ;
+                        rdfs:range :DataObjects .
+
+:canBeComputedUsingFunction rdf:type owl:ObjectProperty ;
+                            rdfs:domain :DataObjects ;
+                            rdfs:range :Function .
+
+:containsActivity rdf:type owl:ObjectProperty ;
+                  rdfs:domain :ActivityDataframe ;
+                  rdfs:range :Activity .
+
+:containsLap rdf:type owl:ObjectProperty ;
+             rdfs:domain :Activity ;
+             rdfs:range :Segment .
+
+:containsSegment rdf:type owl:ObjectProperty ;
+                 rdfs:domain :Activity ;
+                 rdfs:range :Segment .
+
+:derivedFrom rdf:type owl:ObjectProperty ;
+             rdfs:domain :Derived ;
+             rdfs:range :DirectlyMeasured ,
+                        :PreComputed .
+
+:functionRequiresMeasurements rdf:type owl:ObjectProperty ;
+                              rdfs:domain :Function ;
+                              rdfs:range :MeasurementCategory .
+
+:groupedBy rdf:type owl:ObjectProperty ;
+           rdfs:domain :DataObjects ;
+           rdfs:range :Key .
+
+:hasRelation rdf:type owl:ObjectProperty ;
+             rdfs:domain :Key ,
+                         :Measurement ;
+             rdfs:range :Key .
+
+:hasUniqueIdentifier rdf:type owl:ObjectProperty ;
+                     rdfs:domain :DataObjects ,
+                                 :MeasurementCategory ;
+                     rdfs:range :Key .
+
+:preComputedFrom rdf:type owl:ObjectProperty ;
+                 rdfs:domain :PreComputed ;
+                 rdfs:range :DirectlyMeasured ,
+                            :PreComputed .
+
+#################################################################
+#    Data properties
+#################################################################
+
+:allowedValues rdf:type owl:DatatypeProperty ;
+               rdfs:domain :Key ;
+               rdfs:range xsd:string .
+
+:computeTimeseriesStats rdf:type owl:DatatypeProperty ;
+                        rdfs:domain :Timeseries ;
+                        rdfs:range xsd:string .
+
+:derivedUsingFormula rdf:type owl:DatatypeProperty ;
+                     rdfs:domain :Measurement ;
+                     rdfs:range xsd:string .
+
+:functionDefinition rdf:type owl:DatatypeProperty ;
+                    rdfs:domain :Function ;
+                    rdfs:range xsd:string .
+
+:isPresentInDataset rdf:type owl:DatatypeProperty ;
+                    rdfs:domain :Key ,
+                                :Measurement ;
+                    rdfs:range xsd:boolean .
+
+:measuredInUnits rdf:type owl:DatatypeProperty ;
+                 rdfs:domain :Measurement ;
+                 rdfs:range xsd:string .
+
+:recordedWithFrequency rdf:type owl:DatatypeProperty ;
+                       rdfs:domain :Measurement ;
+                       rdfs:range xsd:string .
+
+#################################################################
+#    Classes
+#################################################################
+
+:DatasourceType rdf:type owl:Class .
+
+:Primary rdf:type owl:Class ;
+         rdfs:subClassOf :DatasourceType .
+
+:Secondary rdf:type owl:Class ;
+           rdfs:subClassOf :DatasourceType .
+
+:Activity rdf:type owl:Class ;
+          rdfs:subClassOf :Timeseries .
+
+:ActivityDataframe rdf:type owl:Class ;
+                   rdfs:subClassOf :Dataframe .
+
+:ActivityDataframeIndex rdf:type owl:Class ;
+                        rdfs:subClassOf :Index .
+
+:ActivityMeasurement rdf:type owl:Class ;
+                     rdfs:subClassOf :Measurement ;
+                     rdfs:comment "A single value in the ActivityDataframee, representing measurements at a specific timestamp within an activity." .
+
+:DataObjects rdf:type owl:Class .
+
+:Dataframe rdf:type owl:Class ;
+           rdfs:subClassOf :Timeseries .
+
+:Derived rdf:type owl:Class ;
+         rdfs:subClassOf :MeasurementType .
+
+:DirectlyMeasured rdf:type owl:Class ;
+                  rdfs:subClassOf :MeasurementType .
+
+:Environmental rdf:type owl:Class ;
+               rdfs:subClassOf :MeasurementCategory .
+
+:Function rdf:type owl:Class .
+
+:Geospatial rdf:type owl:Class ;
+            rdfs:subClassOf :MeasurementCategory .
+
+:Index rdf:type owl:Class ;
+       rdfs:subClassOf :DataObjects .
+
+:Instrument rdf:type owl:Class .
+
+:Key rdf:type owl:Class .
+
+:List rdf:type owl:Class ;
+      rdfs:subClassOf :DataObjects ;
+      rdfs:comment "A list of computed values" .
+
+:Map rdf:type owl:Class ;
+     rdfs:subClassOf :VisualObjects .
+
+:Measurement rdf:type owl:Class ;
+             rdfs:subClassOf :DataObjects .
+
+:MeasurementCategory rdf:type owl:Class .
+
+:MeasurementType rdf:type owl:Class .
+
+:Mechanical rdf:type owl:Class ;
+            rdfs:subClassOf :MeasurementCategory .
+
+:Metabolic rdf:type owl:Class ;
+           rdfs:subClassOf :MeasurementCategory .
+
+:Plot2D rdf:type owl:Class ;
+        rdfs:subClassOf :VisualObjects .
+
+:Plot3D rdf:type owl:Class ;
+        rdfs:subClassOf :VisualObjects .
+
+:PreComputed rdf:type owl:Class ;
+             rdfs:subClassOf :MeasurementType .
+
+:Scalar rdf:type owl:Class ;
+        rdfs:subClassOf :DataObjects .
+
+:Segment rdf:type owl:Class ;
+         rdfs:subClassOf :Timeseries ;
+         rdfs:comment "A single activity segment, containing multiple measurements at regular intervals. Can be refered to as Lap, Interval, TimeSegment or DistanceSegment" .
+
+:Temporal rdf:type owl:Class ;
+          rdfs:subClassOf :MeasurementCategory .
+
+:Timeseries rdf:type owl:Class ;
+            rdfs:subClassOf :DataObjects ;
+            rdfs:comment "A sequence of records indexed in time order." .
+
+:Velocity rdf:type owl:Class ;
+          rdfs:subClassOf :MeasurementCategory .
+
+:VisualObjects rdf:type owl:Class .
+
+:Wellness rdf:type owl:Class ;
+          rdfs:subClassOf :MeasurementCategory .
+
+:WellnessDataframe rdf:type owl:Class ;
+                   rdfs:subClassOf :Dataframe ;
+                   rdfs:comment "A container of daily wellness metrics tracking various health-related indicators, with each row representing a single day's measurements across multiple dimensions of well-being." .
+
+:WellnessMeasurement rdf:type owl:Class ;
+                     rdfs:subClassOf :Measurement ;
+                     rdfs:comment "A single value in the WellnessDataframe, representing measurements at a specific point in time (daily) for a particular wellness metric or health indicator." .
+
+#################################################################
+#    Individuals
+#################################################################
+
+:AverageStress rdf:type owl:NamedIndividual ,
+                        :Derived ,
+                        :Wellness ,
+                        :WellnessMeasurement ;
+               :hasUniqueIdentifier :Date ;
+               :isPresentInDataset "true"^^xsd:boolean ;
+               :recordedWithFrequency "1 Day" .
+
+:BMI rdf:type owl:NamedIndividual ,
+              :Derived ,
+              :Wellness ,
+              :WellnessMeasurement ;
+     :hasUniqueIdentifier :Date ;
+     :isPresentInDataset "true"^^xsd:boolean ;
+     :measuredInUnits "Percent" ;
+     :recordedWithFrequency "1 Day" ;
+     rdfs:comment "Body Mass Index" .
+
+:BodyWeight rdf:type owl:NamedIndividual ,
+                     :DirectlyMeasured ,
+                     :Wellness ,
+                     :WellnessMeasurement ;
+            :hasUniqueIdentifier :Date ;
+            :isPresentInDataset "true"^^xsd:boolean ;
+            :measuredInUnits "kg" ;
+            :recordedWithFrequency "1 Day" .
+
+:CaloriesBurnt rdf:type owl:NamedIndividual ,
+                        :Derived ,
+                        :Metabolic ,
+                        :WellnessMeasurement ;
+               :hasUniqueIdentifier :Date ;
+               :isPresentInDataset "true"^^xsd:boolean ;
+               :measuredInUnits "cal (Calories)" ;
+               :recordedWithFrequency "1 Day" ;
+               rdfs:comment "Daily Calorie Expenditure" .
+
+:CaloriesConsumed rdf:type owl:NamedIndividual ,
+                           :Derived ,
+                           :Metabolic ,
+                           :WellnessMeasurement ;
+                  :hasUniqueIdentifier :Date ;
+                  :isPresentInDataset "true"^^xsd:boolean ;
+                  :measuredInUnits "cal (Calories)" ;
+                  :recordedWithFrequency "1 Day" ;
+                  rdfs:comment "Daily calorie consumption" .
+
+:DailySteps rdf:type owl:NamedIndividual ,
+                     :PreComputed ,
+                     :Wellness ,
+                     :WellnessMeasurement ;
+            :hasUniqueIdentifier :Date ;
+            :isPresentInDataset "true"^^xsd:boolean ;
+            :measuredInUnits "Steps" ;
+            :recordedWithFrequency "1 Day" .
+
+:DailyWalkingDistance rdf:type owl:NamedIndividual ,
+                               :PreComputed ,
+                               :Wellness ,
+                               :WellnessMeasurement ;
+                      :hasUniqueIdentifier :Date ;
+                      :isPresentInDataset "true"^^xsd:boolean ;
+                      :measuredInUnits "meters" ;
+                      :recordedWithFrequency "1 Day" ;
+                      rdfs:comment "Walking distance accumulated throughout the day, combining both exercise and routine movement." .
+
+:Date rdf:type owl:NamedIndividual ,
+               :DirectlyMeasured ,
+               :Key ,
+               :Temporal ,
+               :Wellness ,
+               :WellnessMeasurement ;
+      :hasRelation :ActivityDataframeIndex ;
+      :isPresentInDataset "true"^^xsd:boolean ;
+      :measuredInUnits "ISO 8601" ;
+      :recordedWithFrequency "1 Day" .
+
+:FloorsAscended rdf:type owl:NamedIndividual ,
+                         :Derived ,
+                         :Wellness ,
+                         :WellnessMeasurement ;
+                :hasUniqueIdentifier :Date ;
+                :isPresentInDataset "true"^^xsd:boolean ;
+                :measuredInUnits "Floors" ;
+                :recordedWithFrequency "1 Day" .
+
+:FloorsDescended rdf:type owl:NamedIndividual ,
+                          :Derived ,
+                          :Wellness ,
+                          :WellnessMeasurement ;
+                 :hasUniqueIdentifier :Date ;
+                 :isPresentInDataset "true"^^xsd:boolean ;
+                 :measuredInUnits "Floors" ;
+                 :recordedWithFrequency "1 Day" .
+
+:RestingHeartRate rdf:type owl:NamedIndividual ,
+                           :DirectlyMeasured ,
+                           :Metabolic ,
+                           :WellnessMeasurement ;
+                  :hasUniqueIdentifier :Date ;
+                  :isPresentInDataset "true"^^xsd:boolean ;
+                  :measuredInUnits "BPM" ;
+                  :recordedWithFrequency "1 Day" .
+
+:SleepDuration rdf:type owl:NamedIndividual ,
+                        :DirectlyMeasured ,
+                        :Wellness ,
+                        :WellnessMeasurement ;
+               :hasUniqueIdentifier :Date ;
+               :isPresentInDataset "true"^^xsd:boolean ;
+               :measuredInUnits "Seconds" ;
+               :recordedWithFrequency "1 Day" .
+
+:WellnessDataframe rdf:type owl:NamedIndividual ,
+                            :Secondary ,
+                            :WellnessDataframe ;
+                   :containsWellnessAggregate :AverageStress ,
+                                              :BMI ,
+                                              :BodyWeight ,
+                                              :CaloriesBurnt ,
+                                              :CaloriesConsumed ,
+                                              :DailySteps ,
+                                              :DailyWalkingDistance ,
+                                              :Date ,
+                                              :FloorsAscended ,
+                                              :FloorsDescended ,
+                                              :RestingHeartRate ,
+                                              :SleepDuration ;
+                   :groupedBy :Date ;
+                   rdfs:comment "A container of daily wellness metrics tracking various health-related indicators, with each row representing a single day's measurements across multiple dimensions of well-being." .
+
+:Activity rdf:type owl:NamedIndividual ,
+                   :Activity ;
+          :containsLap :Lap ;
+          :containsSegment :DistanceSegment ,
+                           :TimeSegment ;
+          :groupedBy :ActivityID ;
+          :hasUniqueIdentifier :ActivityID .
+
+:ActivityDataframe rdf:type owl:NamedIndividual ,
+                            :Primary ,
+                            :ActivityDataframe ;
+                   :containsActivity :Activity .
+
+:ActivityDataframeIndex rdf:type owl:NamedIndividual ,
+                                 :ActivityDataframeIndex ;
+                        :canBeComputedUsingFunction :computeDataframeIndexFunction .
+
+:ActivityID rdf:type owl:NamedIndividual ,
+                     :Key ;
+            :hasRelation :AthleteID ;
+            :isPresentInDataset "true"^^xsd:boolean .
+
+:ActivityType rdf:type owl:NamedIndividual ,
+                       :Key ;
+              :hasRelation :ActivityID ;
+              :allowedValues "Ride" ,
+                             "Run" ,
+                             "Swim" ;
+              :isPresentInDataset "true"^^xsd:boolean ;
+              rdfs:comment "A key representing activity type with allowed values: Ride, Swim, Run" .
+
+:AirTemperature rdf:type owl:NamedIndividual ,
+                         :ActivityMeasurement ,
+                         :DirectlyMeasured ,
+                         :Environmental ;
+                :hasRelation :ActivityID ,
+                             :ActivityType ,
+                             :Datetime ,
+                             :LapID ;
+                :isPresentInDataset "true"^^xsd:boolean ;
+                :measuredInUnits "Celsius" ;
+                :recordedWithFrequency "1 Second" .
+
+:AthleteID rdf:type owl:NamedIndividual ,
+                    :Key ;
+           :isPresentInDataset "true"^^xsd:boolean .
+
+:Cadence rdf:type owl:NamedIndividual ,
+                  :ActivityMeasurement ,
+                  :DirectlyMeasured ,
+                  :Mechanical ;
+         :hasRelation :ActivityID ,
+                      :ActivityType ,
+                      :Datetime ,
+                      :LapID ;
+         :isPresentInDataset "true"^^xsd:boolean ;
+         :measuredInUnits "RPM" ;
+         :recordedWithFrequency "1 Second" .
+
+:Calories rdf:type owl:NamedIndividual ,
+                   :ActivityMeasurement ,
+                   :Derived ,
+                   :Metabolic ;
+          :derivedFrom :Power ;
+          :hasRelation :ActivityID ,
+                       :ActivityType ,
+                       :Datetime ,
+                       :LapID ;
+          :derivedUsingFormula "(Power * (1.0/3600) * 3.6 / 0.24)" ;
+          :isPresentInDataset "true"^^xsd:boolean ;
+          :measuredInUnits "cal (Calories)" ;
+          :recordedWithFrequency "1 Second" ;
+          rdfs:comment "Calories burned during activity" .
+
+:Datetime rdf:type owl:NamedIndividual ,
+                   :ActivityMeasurement ,
+                   :DirectlyMeasured ,
+                   :Key ,
+                   :Temporal ;
+          :hasRelation :ActivityID ,
+                       :ActivityType ,
+                       :LapID ;
+          :isPresentInDataset "true"^^xsd:boolean ;
+          :measuredInUnits "ISO 8601" ;
+          :recordedWithFrequency "1 Second" .
+
+:Distance rdf:type owl:NamedIndividual ,
+                   :ActivityMeasurement ,
+                   :Geospatial ,
+                   :PreComputed ;
+          :hasRelation :ActivityID ,
+                       :ActivityType ,
+                       :Datetime ,
+                       :LapID ;
+          :preComputedFrom :Latitude ,
+                           :Longitude ;
+          :isPresentInDataset "true"^^xsd:boolean ;
+          :measuredInUnits "Meters" ;
+          :recordedWithFrequency "1 Second" .
+
+:DistanceSegment rdf:type owl:NamedIndividual ,
+                          :Segment ;
+                 :groupedBy :SegmentID ;
+                 :hasUniqueIdentifier :SegmentID ;
+                 rdfs:comment "A single distance based segment during activity, containing multiple measurements at regular intervals" .
+
+:Elevation rdf:type owl:NamedIndividual ,
+                    :ActivityMeasurement ,
+                    :DirectlyMeasured ,
+                    :Geospatial ;
+           :hasRelation :ActivityID ,
+                        :ActivityType ,
+                        :Datetime ,
+                        :LapID ;
+           :isPresentInDataset "true"^^xsd:boolean ;
+           :measuredInUnits "Meters" ;
+           :recordedWithFrequency "1 Second" .
+
+:Gradient rdf:type owl:NamedIndividual ,
+                   :ActivityMeasurement ,
+                   :Geospatial ,
+                   :PreComputed ;
+          :hasRelation :ActivityID ,
+                       :ActivityType ,
+                       :Datetime ,
+                       :LapID ;
+          :preComputedFrom :Distance ,
+                           :Elevation ;
+          :isPresentInDataset "true"^^xsd:boolean ;
+          :measuredInUnits "Percent" ;
+          :recordedWithFrequency "1 Second" ;
+          rdfs:comment "Ratio of the vertical gain to the horizontal distance covered, expressed as a percentage" .
+
+:HRDrift rdf:type owl:NamedIndividual ,
+                  :Scalar ;
+         :canBeComputedUsingFunction :calculateHRDrift ;
+         rdfs:comment "HR drift, or heart rate drift, is a phenomenon observed during prolonged endurance exercise. It refers to the gradual increase in heart rate over time while maintaining the same level of exertion or exercise intensity." .
+
+:Heartrate rdf:type owl:NamedIndividual ,
+                    :ActivityMeasurement ,
+                    :DirectlyMeasured ,
+                    :Metabolic ;
+           :hasRelation :ActivityID ,
+                        :ActivityType ,
+                        :Datetime ,
+                        :LapID ;
+           :isPresentInDataset "true"^^xsd:boolean ;
+           :measuredInUnits "BPM" ;
+           :recordedWithFrequency "1 Second" .
+
+:Humidity rdf:type owl:NamedIndividual ,
+                   :ActivityMeasurement ,
+                   :DirectlyMeasured ,
+                   :Environmental ;
+          :hasRelation :ActivityID ,
+                       :ActivityType ,
+                       :Datetime ,
+                       :LapID ;
+          :isPresentInDataset "false"^^xsd:boolean ;
+          :measuredInUnits "Percent" ;
+          :recordedWithFrequency "1 Second" .
+
+:Lap rdf:type owl:NamedIndividual ,
+              :Segment ;
+     :groupedBy :LapID ;
+     :hasUniqueIdentifier :LapID .
+
+:LapID rdf:type owl:NamedIndividual ,
+                :Key ;
+       :hasRelation :ActivityID ;
+       :isPresentInDataset "true"^^xsd:boolean .
+
+:Latitude rdf:type owl:NamedIndividual ,
+                   :ActivityMeasurement ,
+                   :DirectlyMeasured ,
+                   :Geospatial ;
+          :hasRelation :ActivityID ,
+                       :ActivityType ,
+                       :Datetime ,
+                       :LapID ;
+          :isPresentInDataset "true"^^xsd:boolean ;
+          :measuredInUnits "Degrees" ;
+          :recordedWithFrequency "1 Second" .
+
+:Longitude rdf:type owl:NamedIndividual ,
+                    :ActivityMeasurement ,
+                    :DirectlyMeasured ,
+                    :Geospatial ;
+           :hasRelation :ActivityID ,
+                        :ActivityType ,
+                        :Datetime ,
+                        :LapID ;
+           :isPresentInDataset "true"^^xsd:boolean ;
+           :measuredInUnits "Degrees" ;
+           :recordedWithFrequency "1 Second" .
+
+:MapPlot rdf:type owl:NamedIndividual ,
+                  :Map ;
+         :canBeComputedUsingFunction :mapPlotFunction ;
+         rdfs:comment "A geographical visualization showing your activity data points overlaid on a map, allowing you to see where your activities took place on an actual map background." .
+
+:Pace rdf:type owl:NamedIndividual ,
+               :ActivityMeasurement ,
+               :Derived ,
+               :Velocity ;
+      :canBeComputedUsingFunction :calculatePaceFunction ;
+      :hasRelation :ActivityID ,
+                   :ActivityType ,
+                   :Datetime ,
+                   :LapID ;
+      :isPresentInDataset "false"^^xsd:boolean ;
+      :measuredInUnits """Run = Minutes per Kilometer
+Swim = Minutes per 100 meters
+Ride = Kilometers per Hour""" ;
+      :recordedWithFrequency "1 Second" .
+
+:Plot2D rdf:type owl:NamedIndividual ,
+                 :Plot2D ;
+        :canBeComputedUsingFunction :Plot2DFunction .
+
+:Plot2DFunction rdf:type owl:NamedIndividual ,
+                         :Function ;
+                :applicableToDataObject :Activity ,
+                                        :ActivityDataframeIndex ,
+                                        :DistanceSegment ,
+                                        :Lap ,
+                                        :TimeSegment ;
+                :functionDefinition """Create an interactive 2D plot from a DataFrame
+Parameters:
+    df (pd.DataFrame): DataFrame containing the data to be plotted
+    x (str): Column name for x-axis data
+    y (str): Column name for y-axis data
+    plot_type (str): Type of plot to create using plotly express
+    title (str, optional): Plot title. Default is None
+    labels (dict, optional): Dictionary of axis labels. Default is None
+    color (str, optional): Plot color. Default is '#2ecc71'
+    hover_data (list, optional): List of column names for hover tooltip. Default is None
+Returns:
+    plotly.graph_objects.Figure: Interactive plot ready for display
+Function Body:
+    import pandas as pd
+    import plotly.express as px
+
+    plot_func = getattr(px, plot_type)
+    fig = plot_func(
+        df, x=x, y=y,
+        title=title,
+        labels=labels,
+        color_discrete_sequence=[color],
+        hover_data=hover_data
+    )
+
+    fig.update_layout(
+        template='plotly_white',
+        dragmode='pan',
+        hovermode='closest',
+        autosize=True
+    )
+
+    fig.show()""" ;
+                rdfs:comment "This function is used to create interactive 2D visualizations for analyzing relationships between variables, including time series analysis, categorical comparisons, statistical distributions, correlations and any other data exploration requiring single or multiple variables plotted against one or two axes." .
+
+:Plot3D rdf:type owl:NamedIndividual ,
+                 :Plot3D ;
+        :canBeComputedUsingFunction :Plot3D .
+
+:Plot3DFunction rdf:type owl:NamedIndividual ,
+                         :Function ;
+                :applicableToDataObject :Activity ,
+                                        :ActivityDataframeIndex ,
+                                        :DistanceSegment ,
+                                        :Lap ,
+                                        :TimeSegment ;
+                :functionDefinition """Create an interactive 3D plot from a DataFrame
+Parameters:
+    df (pd.DataFrame): DataFrame containing the data to be plotted
+    x (str): Column name for x-axis data
+    y (str): Column name for y-axis data
+    z (str): Column name for z-axis data
+    plot_type (str): Type of 3D plot to create using plotly express
+    title (str, optional): Plot title. Default is None
+    labels (dict, optional): Dictionary of axis labels. Default is None
+    color (str, optional): Plot color. Default is '#2ecc71'
+    hover_data (list, optional): List of column names for hover tooltip. Default is None
+Returns:
+    plotly.graph_objects.Figure: Interactive 3D plot ready for display
+Function Body:
+    import pandas as pd
+    import plotly.express as px
+
+    plot_func = getattr(px, plot_type)
+    fig = plot_func(
+        df, x=x, y=y, z=z,
+        title=title,
+        labels=labels,
+        color_discrete_sequence=[color],
+        hover_data=hover_data
+    )
+
+    fig.update_layout(
+        template='plotly_white',
+        dragmode='pan',
+        hovermode='closest',
+        autosize=True
+    )
+
+    fig.show()""" ;
+                rdfs:comment "This function is used to visualize complex data relationships across three dimensions, particularly useful for spatial data analysis, multi-variable comparisons, or any scenario where depth adds meaningful context to the visualization." .
+
+:Power rdf:type owl:NamedIndividual ,
+                :ActivityMeasurement ,
+                :DirectlyMeasured ,
+                :Mechanical ;
+       :hasRelation :ActivityID ,
+                    :ActivityType ,
+                    :Datetime ,
+                    :LapID ;
+       :isPresentInDataset "true"^^xsd:boolean ;
+       :measuredInUnits "Watts" ;
+       :recordedWithFrequency "1 Second" .
+
+:SegmentID rdf:type owl:NamedIndividual ,
+                    :Key ;
+           :canBeComputedUsingFunction :determineSegmentsFunction ;
+           :hasRelation :ActivityID ;
+           :isPresentInDataset "false"^^xsd:boolean .
+
+:Speed rdf:type owl:NamedIndividual ,
+                :ActivityMeasurement ,
+                :PreComputed ,
+                :Velocity ;
+       :hasRelation :ActivityID ,
+                    :ActivityType ,
+                    :Datetime ,
+                    :LapID ;
+       :preComputedFrom :Datetime ,
+                        :Distance ;
+       :isPresentInDataset "true"^^xsd:boolean ;
+       :measuredInUnits "Meters per Second" ;
+       :recordedWithFrequency "1 Second" .
+
+:TimeSegment rdf:type owl:NamedIndividual ,
+                      :Segment ;
+             :groupedBy :SegmentID ;
+             :hasUniqueIdentifier :SegmentID ;
+             rdfs:comment "A single time based segment during activity, containing multiple measurements at regular intervals." .
+
+:Torque rdf:type owl:NamedIndividual ,
+                 :ActivityMeasurement ,
+                 :Derived ,
+                 :Mechanical ;
+        :derivedFrom :Cadence ,
+                     :Power ;
+        :hasRelation :ActivityID ,
+                     :ActivityType ,
+                     :Datetime ,
+                     :LapID ;
+        :derivedUsingFormula """# Calculate torque
+import numpy as np
+Torque = Power * 60 / (2 * np.pi * Cadence)""" ;
+        :isPresentInDataset "false"^^xsd:boolean ;
+        :measuredInUnits "Nm (Newton Meters)" ;
+        :recordedWithFrequency "1 Second" .
+
+:WindDirection rdf:type owl:NamedIndividual ,
+                        :ActivityMeasurement ,
+                        :DirectlyMeasured ,
+                        :Environmental ;
+               :hasRelation :ActivityID ,
+                            :ActivityType ,
+                            :Datetime ,
+                            :LapID ;
+               :isPresentInDataset "false"^^xsd:boolean ;
+               :measuredInUnits "Degrees" ;
+               :recordedWithFrequency "1 Second" .
+
+:WindSpeed rdf:type owl:NamedIndividual ,
+                    :ActivityMeasurement ,
+                    :DirectlyMeasured ,
+                    :Environmental ;
+           :hasRelation :ActivityID ,
+                        :ActivityType ,
+                        :Datetime ,
+                        :LapID ;
+           :isPresentInDataset "false"^^xsd:boolean ;
+           :measuredInUnits "Meters per Second" ;
+           :recordedWithFrequency "1 Second" .
+
+:calculateHRDrift rdf:type owl:NamedIndividual ,
+                           :Function ;
+                  :applicableToDataObject :Activity ;
+                  :functionRequiresMeasurements :Datetime ,
+                                                :Heartrate ,
+                                                :Power ;
+                  :functionDefinition """Calculate HR drift using power data for exertion normalization.
+Imports:
+    import pandas as pd
+    import numpy as np
+    from scipy import stats
+
+Parameters:
+    df (pandas.DataFrame): DataFrame containing at least 'Datetime', 'Heartrate', and 'Power' columns.
+
+Returns:
+    float: HR drift per hour (normalized units per hour)
+
+Function Body:    
+    # Ensure the DataFrame is sorted by Datetime
+    df['Datetime'] = pd.to_datetime(df['Datetime'])
+    df = df.sort_values('Datetime')
+    # Filter out rows with missing or zero values for Heartrate and Power
+    df = df[(df['Heartrate'] > 0) & (df['Power'] > 0)]
+    # If there's not enough data after filtering, return NaN
+    if len(df) < 20 * 60:
+        return np.nan
+    # Calculate time elapsed in minutes
+    df['TimeElapsed'] = (df['Datetime'] - df['Datetime'].iloc[0]).dt.total_seconds() / 60
+    # Filter out the first 20 minutes of activity
+    df_steady = df[df['TimeElapsed'] >= 20]
+    # If there's not enough data after filtering, return NaN
+    if len(df_steady) < 10 * 60: 
+        return np.nan
+    # Normalize heart rate based on power output
+    df_steady['HR_per_Watt'] = df_steady['Heartrate'] / df_steady['Power']
+    # Calculate moving averages to smooth out noise
+    window_size = 60
+    df_steady['HR_per_Watt_MA'] = df_steady['HR_per_Watt'].rolling(window=window_size, center=True).mean()
+    # Remove NaN values that may have been introduced by the rolling mean
+    df_steady = df_steady.dropna(subset=['HR_per_Watt_MA'])
+    # If there's not enough data after removing NaNs, return NaN
+    if len(df_steady) < 10 * 60:  # Changed from 10 to 10 * 60
+        return np.nan
+    # Linear regression to find the slope of HR increase
+    slope, *, *, *, * = stats.linregress(df_steady['TimeElapsed'], df_steady['HR_per_Watt_MA'])
+    # Calculate drift per hour
+    drift_per_hour = slope * 60
+    return drift_per_hour""" ;
+                  rdfs:comment "This function is used  to measure cardiovascular drift during endurance activities by analyzing how heart rate changes relative to power output over time, helping identify fatigue patterns and heat adaptation needs." .
+
+:calculatePaceFunction rdf:type owl:NamedIndividual ,
+                                :Function ;
+                       :applicableToDataObject :Activity ;
+                       :functionRequiresMeasurements :Speed ;
+                       :functionDefinition """Calculate Pace for various activities.
+    Imports:
+        import numpy as np
+        import pandas as pd
+    
+    Parameters:
+        df (pd.DataFrame): DataFrame containing the data
+        speed_col (str): Name of the column containing speed values in m/s
+        activity_col (str): Name of the column containing activity types
+    
+    Returns:
+        pd.DataFrame: DataFrame with added 'Pace' column
+                      (running: min/km, swimming: min/100m, cycling: km/h)
+    
+    Function Body:    
+        # Remove invalid speeds and activities
+        df = df[(df[speed_col] > 0) & df[activity_col].notna()].copy()
+        
+        # Create masks for each activity type
+        run_mask = (df[activity_col].str.lower() == 'run')
+        swim_mask = (df[activity_col].str.lower() == 'swim')
+        ride_mask = (df[activity_col].str.lower() == 'ride')
+        
+        # Calculate pace for each activity type
+        df['Pace'] = np.nan
+        df.loc[run_mask, 'Pace'] = 1000 / (df.loc[run_mask, speed_col] * 60)  # min/km
+        df.loc[swim_mask, 'Pace'] = 100 / (df.loc[swim_mask, speed_col] * 60)  # min/100m
+        df.loc[ride_mask, 'Pace'] = df.loc[ride_mask, speed_col] * 3.6  # km/h
+        
+        # Remove rows with invalid pace values
+        df = df[df['Pace'].notna() & (df['Pace'] > 0)]
+        
+        return df""" ;
+                       rdfs:comment "This function is used  to convert speed data into sport-specific pace metrics (running in min/km, swimming in min/100m, cycling in km/h) when analyzing mixed activity data that includes running, swimming, and cycling." .
+
+:computeDataframeIndexFunction rdf:type owl:NamedIndividual ,
+                                        :Function ;
+                               :applicableToDataObject :ActivityDataframe ;
+                               :functionDefinition """Create an index of activities by computing summary statistics for each activity in the original dataframe. This index provides a condensed view of activities, enabling quick lookup and filtering based on various attributes, and serves as an efficient reference point for accessing detailed data in the original dataframe.
+
+Parameters:
+    df (pandas.DataFrame): The input DataFrame containing detailed activity data with multiple rows per activity
+    order_by (str, optional): Column name to sort the resulting index DataFrame by. Defaults to 'Datetime
+    ascending (bool, optional): Sort order for the index. True for ascending, False for descending. Defaults to False (descending).
+
+Returns:
+    pandas.DataFrame: Index DataFrame containing activity summaries, with one row per activity, including columns: ActivityID, ActivityType, Datetime, Distance, Duration, Calories, AvgSpeed, StartLatitude, StartLongitude, AvgElevation, AvgHeartrate, AvgCadence, AvgPower, AvgAirTemperature, AvgGradient, NumberOfLaps
+
+Function Body:
+    # Ensure Datetime is in datetime format
+    if df['Datetime'].dtype == 'object':
+        df['Datetime'] = pd.to_datetime(df['Datetime'], errors='coerce')
+
+    # Define aggregation functions
+    agg_functions = {
+        'ActivityType': 'first',
+        'Datetime': 'min',
+        'Distance': lambda x: np.abs(x.max() - x.min()),
+        'Latitude': 'first',
+        'Longitude': 'first',
+        'Elevation': 'mean',
+        'Speed': 'mean',
+        'Heartrate': 'mean',
+        'Cadence': 'mean',
+        'Power': 'mean',
+        'AirTemperature': 'mean',
+        'Gradient': 'mean',
+        'LapID': 'max',
+        'Calories': 'sum'
+    }
+
+    # Compute statistics for each activity
+    activity_stats = df.groupby('ActivityID').agg(agg_functions).reset_index()
+
+    # Calculate duration
+    activity_stats['Duration'] = df.groupby('ActivityID')['Datetime'].apply(
+        lambda x: (x.max() - x.min()).total_seconds()
+    ).values
+
+    # Rename columns
+    new_columns = [
+        'ActivityID', 'ActivityType', 'Datetime', 'Distance', 'StartLatitude',
+        'StartLongitude', 'AvgElevation', 'AvgSpeed', 'AvgHeartrate', 'AvgCadence',
+        'AvgPower', 'AvgAirTemperature', 'AvgGradient', 'NumberOfLaps', 'Calories', 'Duration'
+    ]
+    activity_stats.columns = new_columns
+
+    # Round numeric columns to 3 decimal places
+    numeric_cols = activity_stats.select_dtypes(include=[np.number]).columns
+    activity_stats[numeric_cols] = activity_stats[numeric_cols].round(3)
+
+    # Ensure NumberOfLaps is an integer
+    activity_stats['NumberOfLaps'] = activity_stats['NumberOfLaps'].fillna(0).astype(int)
+
+    # Sort the DataFrame based on the order_by parameter and ascending/descending option
+    return activity_stats.sort_values(by=order_by, ascending=ascending)""" ;
+                               rdfs:comment "This function is used to create a high-level summary of athletic activities by generating a single-row-per-activity index containing key metrics like distance, duration, and averages, useful for activity browsing, filtering, and quick analytics without processing the full raw data." .
+
+:computeFunctionalThresholdPowerFunction rdf:type owl:NamedIndividual ,
+                                                  :Function ;
+                                         :applicableToDataObject :Activity ;
+                                         :functionRequiresMeasurements :Datetime ,
+                                                                       :Power ;
+                                         :functionDefinition """Calculate the highest Functional Threshold Power (FTP) from power data.
+
+Parameters:
+    df (pd.DataFrame): DataFrame containing the activity data
+
+Returns:
+    int: Highest calculated FTP value in watts
+
+Function Body:
+    # Convert datetime column to datetime type
+    df['datetime'] = pd.to_datetime(df['datetime'])
+    # Sort DataFrame by datetime
+    df = df.sort_values('datetime')
+    # Calculate rolling 20-minute average power
+    window_size = 20 * 60  # 20 minutes in 1-second intervals
+    rolling_power = df['Power'].rolling(window=window_size, center=False).mean()
+    # Find maximum 20-minute power
+    max_20min_power = rolling_power.max()
+    # Calculate and round FTP
+    highest_ftp = round(max_20min_power * 0.95)
+    return int(highest_ftp)""" ;
+                                         rdfs:comment "This function is used to estimate a cyclist's Functional Threshold Power (FTP) from raw power data by identifying their best 20-minute power output from any ride or training session." .
+
+:computeMeanMaxCurveFunction rdf:type owl:NamedIndividual ,
+                                      :Function ;
+                             :applicableToDataObject :Activity ,
+                                                     :ActivityDataframe ,
+                                                     :Lap ;
+                             :functionDefinition """Calculate the maximum rolling mean for a measurement and various window sizes.
+
+Parameters:
+    df (pd.DataFrame): DataFrame containing the data
+    measurement (str): Column name of the measurement
+    windows (list of int): List of window sizes
+
+Returns:
+    list of float: Maximum rolling mean values for each window size
+
+Function Body:
+    windows = [1,5,10,30,60,180,300, 600, 1200,3600]
+    mean_maximal_powers = []
+    for window in windows:
+        rolling_mean = df[measurement].rolling(window=window).mean()
+        max_rolling_mean = rolling_mean.max()
+        mean_maximal_powers.append(max_rolling_mean)""" ;
+                             rdfs:comment "This function is used to identify the maximal sustained output over different time durations in athletic performance data, such as power output, heart rate, speed, or any other performance metric that requires rolling mean analysis." .
+
+:determineSegmentsFunction rdf:type owl:NamedIndividual ,
+                                    :Function ;
+                           :applicableToDataObject :Activity ;
+                           :functionDefinition """Create segments based on either time or distance for data grouped by ActivityID.
+Segments that are not complete (don't match the full segment duration/distance) are marked as null.
+
+Parameters:
+    df (pandas.DataFrame): The input DataFrame
+    segment_type (str): Type of segmentation, either 'time' or 'distance' (default: 'time')
+    segment_duration (int): Time interval in seconds for segmentation (default: 1200, which is 20 minutes)
+    segment_distance (float): Distance in meters for each segment (default: 1000, which is 1km)
+    
+Returns:
+    pandas.DataFrame: DataFrame with an additional column for segment id.
+                     Complete segments are numbered (0, 1, 2, ...), incomplete segments are null.
+
+Function Body:    
+    # Ensure the datetime column is in datetime format
+    df['Datetime'] = pd.to_datetime(df['Datetime'])
+    
+    # Sort the DataFrame by ActivityID and Datetime
+    df = df.sort_values(by=['ActivityID', 'Datetime'])
+    
+    if segment_type == 'time':
+        # Group by ActivityID and calculate time-based segments
+        def process_time_group(group):
+            # Calculate total seconds for the activity
+            total_seconds = (group['Datetime'].max() - group['Datetime'].min()).total_seconds()
+            # Calculate number of complete segments
+            complete_segments = int(total_seconds // segment_duration)
+            
+            # Assign segment numbers
+            segment_seconds = (group['Datetime'] - group['Datetime'].min()).dt.total_seconds()
+            group['SegmentID'] = (segment_seconds // segment_duration).astype(int)
+            
+            # Set incomplete segments to null
+            group.loc[group['SegmentID'] >= complete_segments, 'SegmentID'] = np.nan
+            
+            return group
+        
+        df = df.groupby('ActivityID', group_keys=False).apply(process_time_group)
+    
+    elif segment_type == 'distance':
+        # Process each activity separately
+        def process_distance_group(group):
+            # Calculate total distance and complete segments
+            total_distance = group['Distance'].max()
+            complete_segments = int(total_distance // segment_distance)
+            
+            # Assign segment numbers
+            group['SegmentID'] = (group['Distance'] // segment_distance).astype(int)
+            
+            # Set incomplete segments to null
+            group.loc[group['SegmentID'] >= complete_segments, 'SegmentID'] = np.nan
+            
+            return group
+        
+        df = df.groupby('ActivityID', group_keys=False).apply(process_distance_group)
+    
+    else:
+        raise ValueError(\"segment_type must be either 'time' or 'distance'\")
+    
+    return df""" ;
+                           rdfs:comment "This function is used to split athletic activities into equal intervals (time-based or distance-based) for analyzing segments, splits, laps, or any interval-based performance analysis." .
+
+:functionalThresholdPower rdf:type owl:NamedIndividual ,
+                                   :Scalar ;
+                          :canBeComputedUsingFunction :computeFunctionalThresholdPowerFunction ;
+                          rdfs:comment "Highest average power output that can be sustained for approximately one hour." .
+
+:mapPlotFunction rdf:type owl:NamedIndividual ,
+                          :Function ;
+                 :applicableToDataObject :Activity ;
+                 :functionRequiresMeasurements :Latitude ,
+                                               :Longitude ;
+                 :functionDefinition """Create an interactive map plot from a DataFrame with longitude and latitude columns
+Parameters:
+    df (pd.DataFrame): DataFrame containing the data to be plotted
+    longitude (str): Column name for longitude data
+    latitude (str): Column name for latitude data
+    zoom (int, optional): Initial zoom level for the map. Default is 10
+    style (str, optional): Map style to use. Default is 'carto-positron'
+    point_size (int, optional): Size of the scatter points. Default is 8
+    opacity (float, optional): Opacity value for points. Default is 0.7
+    marker_color (str, optional): Color for points. Default is 'blue'
+    hover_data (list, optional): List of column names to show in hover tooltip. Default is None
+Returns:
+    plotly.graph_objects.Figure: Interactive map figure ready for display
+Function Body:
+    import pandas as pd
+    import plotly.express as px
+
+    fig = px.scatter_mapbox(
+        df,
+        lat=latitude,
+        lon=longitude,
+        zoom=zoom,
+        opacity=opacity,
+        size_max=point_size,
+        color_discrete_sequence=[marker_color],
+        hover_data=hover_data
+    )
+
+    fig.update_layout(
+        mapbox_style=style,
+        dragmode='pan',
+        hovermode='closest',
+        autosize=True,
+        mapbox=dict(
+            center=dict(
+                lat=df[latitude].mean(),
+                lon=df[longitude].mean()
+            )
+        )
+    )
+
+    fig.show()""" ;
+                 rdfs:comment "This function is used to visualize athletic activities like running routes, cycling paths, player movements, training sessions, or any GPS-tracked sports data that needs to be displayed on a map background." .
+
+:meanMaxCurve rdf:type owl:NamedIndividual ,
+                       :List ;
+              :canBeComputedUsingFunction :computeMeanMaxCurveFunction ;
+              rdfs:comment "A record of the maximum sustained output values across standardized time durations, showing an athlete's peak capabilities at each duration." .
+
+
+#################################################################
+#    Annotations
+#################################################################
+
+:Activity rdfs:comment "A single activity session, containing multiple rows of measurements at regular intervals." .
+
+
+:ActivityDataframe rdfs:comment "A container for multiple activities and coresponding measurements, organized as time series data." .
+
+
+:ActivityDataframeIndex rdfs:comment "ActivityID-indexed summary providing a condensed view of Activities  with aggregated metrics. Enables quick filtering and reference to detailed data in the original Dataframe." .
+

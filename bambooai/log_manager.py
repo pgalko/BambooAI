@@ -4,15 +4,13 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
-try:
-    # Attempt package-relative import
-    from . import output_manager
-except ImportError:
-    # Fall back to script-style import
-    import output_manager
+LOG_DIR = 'logs'
+RUN_LOG_FILE_PATH = os.path.join(LOG_DIR, 'bambooai_run_log.json')
+CONSOLIDATED_LOG_FILE_PATH = os.path.join(LOG_DIR, 'consolidated_logs.json')
 
-ORIGINAL_LOG_FILE_PATH = 'bambooai_run_log.json'
-CONSOLIDATED_LOG_FILE_PATH = 'bambooai_consolidated_log.json'
+# Create the logs directory if it doesn't exist
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
 
 # Initialize the JSON logger
 logger = logging.getLogger('bambooai_json_logger')
@@ -47,7 +45,6 @@ class LogAndCallManager:
     def __init__(self, token_cost_dict):
         self.token_summary = {}
         self.token_cost_dict = token_cost_dict
-        self.output_manager = output_manager.OutputManager()
         
     def update_token_summary(self, chain_id, prompt_tokens, completion_tokens, total_tokens, elapsed_time, cost):
         if chain_id not in self.token_summary:
@@ -59,20 +56,32 @@ class LogAndCallManager:
         self.token_summary[chain_id]['elapsed_time'] += elapsed_time
         self.token_summary[chain_id]['total_cost'] += cost
 
-    def print_summary_to_terminal(self):
-        summary_text = ""
+    def print_summary_to_terminal(self, output_manager):
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        elapsed_time = 0
+        total_cost = 0
+
         for chain_id, tokens in self.token_summary.items():
-            avg_speed = tokens['completion_tokens'] / tokens['elapsed_time']
+            prompt_tokens += tokens['prompt_tokens']
+            completion_tokens += tokens['completion_tokens']
+            total_tokens += tokens['total_tokens']
+            elapsed_time += tokens['elapsed_time']
+            total_cost += tokens['total_cost']
 
-            summary_text += f"Chain ID: {chain_id}\n"
-            summary_text += f"Prompt Tokens: {tokens['prompt_tokens']}\n"
-            summary_text += f"Completion Tokens: {tokens['completion_tokens']}\n"
-            summary_text += f"Total Tokens: {tokens['total_tokens']}\n"
-            summary_text += f"Total Time (LLM Interact.): {tokens['elapsed_time']:.2f} seconds\n"
-            summary_text += f"Average Response Speed: {avg_speed:.2f} tokens/second\n"
-            summary_text += f"Total Cost: ${tokens['total_cost']:.4f}\n"
+        avg_speed = completion_tokens / elapsed_time if elapsed_time > 0 else 0
 
-        self.output_manager.display_call_summary(summary_text)
+        summary_text = ""
+        summary_text += f"Chain ID: {chain_id}\n"
+        summary_text += f"Total Prompt Tokens: {prompt_tokens}\n"
+        summary_text += f"Total Completion Tokens: {completion_tokens}\n"
+        summary_text += f"Total Tokens: {total_tokens}\n"
+        summary_text += f"Total Time (LLM Interact.): {elapsed_time:.2f} seconds\n"
+        summary_text += f"Average Response Speed: {avg_speed:.2f} tokens/second\n"
+        summary_text += f"Total Cost: ${total_cost:.4f}\n"
+
+        output_manager.display_call_summary(summary_text)
 
     def write_to_log(self, agent, chain_id, timestamp, model, messages, content, prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second):
         # Calculate the costs
@@ -100,7 +109,7 @@ class LogAndCallManager:
         }
         # Load existing JSON logs from file
         try:
-            with open(ORIGINAL_LOG_FILE_PATH, 'r') as json_file:
+            with open(RUN_LOG_FILE_PATH, 'r') as json_file:
                 file_content = json_file.read()
                 if not file_content:
                     existing_json_logs = []
@@ -113,14 +122,14 @@ class LogAndCallManager:
         existing_json_logs.append(json_entry)
         
         # Write the updated JSON logs back to the file
-        with open(ORIGINAL_LOG_FILE_PATH, 'w') as json_file:
+        with open(RUN_LOG_FILE_PATH, 'w') as json_file:
             json.dump(existing_json_logs, json_file, indent=2, cls=FlexibleJSONEncoder)
 
 
     def consolidate_logs(self):     
         # Read the existing original JSON log file
-        if os.path.exists(ORIGINAL_LOG_FILE_PATH):
-            with open(ORIGINAL_LOG_FILE_PATH, 'r') as json_file:
+        if os.path.exists(RUN_LOG_FILE_PATH):
+            with open(RUN_LOG_FILE_PATH, 'r') as json_file:
                 existing_json_logs = json.load(json_file)
         else:
             existing_json_logs = []
@@ -191,7 +200,7 @@ class LogAndCallManager:
         self.token_summary.clear()
 
         # Clear the original log file
-        with open(ORIGINAL_LOG_FILE_PATH, 'w') as json_file:
+        with open(RUN_LOG_FILE_PATH, 'w') as json_file:
             json.dump([], json_file, indent=2, cls=FlexibleJSONEncoder)
 
 

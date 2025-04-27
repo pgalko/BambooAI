@@ -14,15 +14,6 @@ from transformers import (
 
 logging.set_verbosity(logging.CRITICAL)
 
-try:
-    # Attempt package-relative import
-    from . import output_manager
-except ImportError:
-    # Fall back to script-style import
-    import output_manager
-
-output_manager = output_manager.OutputManager()
-
 def convert_openai_to_alpaca(messages: str):
     formatted_content = ""
     last_role = None
@@ -85,7 +76,8 @@ def convert_openai_to_llama2_completion(messages: list):
     #formatted_content = re.sub(r'Example Output:.*', '', formatted_content, flags=re.S)
     return formatted_content
 
-def llm_stream(messages: str,local_model: str, temperature: str, max_tokens: str):   
+def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: str, local_model: str, temperature: str, max_tokens: str, tools: str=None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):
+    # (log_and_call_manager, output_manager, chain_id, messages, model, temperature, max_tokens, tools   
     total_tokens_used=0
 
     wizard_coder_models=['WizardCoder-15B-V1.0','WizardCoder-Python-7B-V1.0','WizardCoder-Python-13B-V1.0','WizardCoder-Python-34B-V1.0']

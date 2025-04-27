@@ -5,3 +5,11 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.venv/*
+web_app/temp/*
+web_app/iframe_figures/*
+web_app/storage/*
+web_app/logs/*
+web_app/datasets/*
+.DS_Store
+LLM_CONFIG.json

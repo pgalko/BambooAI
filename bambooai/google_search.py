@@ -1,4 +1,3 @@
-import openai
 import re
 import json
 import numpy as np
@@ -9,9 +8,13 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+import openai
+from google import genai
+from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 
 openai_client = openai.OpenAI()
 
+SEARCH_MODE = os.environ.get('WEB_SEARCH_MODE', 'google_ai')
 MAX_ITERATIONS = 5
 CHUNK_SIZE = 512
 TOP_K_RESULTS = 6
@@ -20,14 +23,14 @@ NUM_DOCUMENTS = 30
 
 class ChatBot:
     def __init__(self):
-        self.agent = 'Google Search Query Generator'
+        self.agent = 'Google Search Executor'
         self.completion = None
         
-    def __call__(self, log_and_call_manager, chain_id, messages):
-        result = self.execute(log_and_call_manager, chain_id, messages)
+    def __call__(self, log_and_call_manager, output_manager, chain_id, messages):
+        result = self.execute(log_and_call_manager, output_manager, chain_id, messages)
         return result
 
-    def execute(self,log_and_call_manager, chain_id, messages):
+    def execute(self,log_and_call_manager, output_manager, chain_id, messages):
         try:
             # Attempt package-relative import
             from . import models
@@ -35,20 +38,22 @@ class ChatBot:
             # Fall back to script-style import
             import models
 
-        self.completion = models.llm_stream(log_and_call_manager,messages, agent=self.agent, chain_id=chain_id)
+        self.completion = models.llm_stream(log_and_call_manager, output_manager, messages, agent=self.agent, chain_id=chain_id)
 
         return self.completion
 
 class SmartSearchOrchestrator:
     action_re = re.compile(r'^Action: (\w+): (.*)$')
 
-    def __init__(self, log_and_call_manager=None,chain_id=None, messages=None):
+    def __init__(self, log_and_call_manager=None,output_manager=None,chain_id=None, messages=None):
         self.log_and_call_manager = log_and_call_manager
+        self.output_manager = output_manager
         self.chain_id = chain_id
         self.messages = messages
      
         self.chat_bot = ChatBot() 
         self.google_search = Search()
+        self.gemini_search = GeminiSearch()
         self.calculate = Calculator()
 
         self.known_actions = {
@@ -56,45 +61,40 @@ class SmartSearchOrchestrator:
             "calculate": self.calculate,
 }
 
-    def perform_query(self, log_and_call_manager, chain_id, messages, max_turns=MAX_ITERATIONS):
-        try:
-            # Attempt package-relative import
-            from . import output_manager
-        except ImportError:
-            # Fall back to script-style import
-            import output_manager
+    def perform_query(self, log_and_call_manager, output_manager, chain_id, messages, max_turns=MAX_ITERATIONS):
+  
+        links = None
 
-        output_handler = output_manager.OutputManager()
+        if SEARCH_MODE == "google_ai":
+            result, links = self.gemini_search(log_and_call_manager, output_manager, chain_id, messages)
+        elif SEARCH_MODE == "selenium":
+            i = 0
+            observation = None
+            next_prompt = messages
+            while i < max_turns:
+                i += 1
+                result = self.chat_bot(log_and_call_manager, output_manager, chain_id, next_prompt)
+                next_prompt.append({"role": "assistant", "content": result})
+                actions = [self.action_re.match(a) for a in result.split('\n') if self.action_re.match(a)]
+                if actions:
+                    # There is an action to run
+                    action, action_input = actions[0].groups()
+                    if action not in self.known_actions:
+                        raise Exception("Unknown action: {}: {}".format(action, action_input))
+                    output_manager.display_tool_info(action, action_input, chain_id)
+                    observation, links = self.known_actions[action](log_and_call_manager, output_manager, chain_id, action_input)
+                    #if links:
+                        #for link in links:
+                            #output_handler.print_wrapper(f"\nTitle: {link['title']}\nLink: {link['link']}")
+                    #output_handler.print_wrapper("\nObservation:", observation)
+                    next_prompt.append({"role": "user", "content": "Observation: {}".format(observation)})
+                else:
+                    break
 
-        i = 0
-        observation = None
-        next_prompt = messages
-        while i < max_turns:
-            i += 1
-            result = self.chat_bot(log_and_call_manager, chain_id, next_prompt)
-            next_prompt.append({"role": "assistant", "content": result})
-            actions = [self.action_re.match(a) for a in result.split('\n') if self.action_re.match(a)]
-            if actions:
-                # There is an action to run
-                action, action_input = actions[0].groups()
-                if action not in self.known_actions:
-                    raise Exception("Unknown action: {}: {}".format(action, action_input))
-                output_handler.display_search_task(action, action_input)
-                if os.environ.get('SELENIUM_WEBDRIVER_PATH'):
-                    output_handler.display_system_messages(f"Using the Selenium WebDriver at: {os.environ.get('SELENIUM_WEBDRIVER_PATH')}")
-                observation, links = self.known_actions[action](log_and_call_manager, chain_id, action_input)
-                if links:
-                    for link in links:
-                        output_handler.print_wrapper(f"\nTitle: {link['title']}\nLink: {link['link']}")
-                #output_handler.print_wrapper("\nObservation:", observation)
-                next_prompt.append({"role": "user", "content": "Observation: {}".format(observation)})
-            else:
-                break
-
-        return result
+        return result, links
     
-    def __call__(self, log_and_call_manager, chain_id, messages):
-        return self.perform_query(log_and_call_manager, chain_id, messages)
+    def __call__(self, log_and_call_manager, output_manager, chain_id, messages):
+        return self.perform_query(log_and_call_manager, output_manager, chain_id, messages)
     
 ### SEARCH ACTIONS ###
 
@@ -111,26 +111,37 @@ class SearchEngine:
         
         if self.webdriver_path:
             # Initialize Selenium WebDriver if path is provided
-            service = ChromeService(executable_path=self.webdriver_path)
-            options = Options()
+            self.service = ChromeService(executable_path=self.webdriver_path)
+            self.options = Options()
             if self.headless:
-                options.add_argument("--headless")
-            options.add_argument("--disable-gpu")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
+                self.options.add_argument("--headless")
+            self.options.add_argument("--disable-gpu")
+            self.options.add_argument("--no-sandbox")
+            self.options.add_argument("--disable-dev-shm-usage")
 
             # Set up logging preferences to suppress console messages
-            options.add_argument("--log-level=3")  # Suppress console logs
+            self.options.add_argument("--log-level=3")
+            self.options.add_experimental_option('excludeSwitches', ['enable-logging'])
+            self.options.add_experimental_option('excludeSwitches', ['enable-automation'])
+            self.options.add_experimental_option('useAutomationExtension', False)
 
             # Optionally, you can set the logging level for the browser specifically
-            options.set_capability('goog:loggingPrefs', {'browser': 'OFF', 'driver': 'OFF', 'performance': 'OFF', 'server': 'OFF'})
+            self.options.set_capability('goog:loggingPrefs', {
+                'browser': 'OFF', 
+                'driver': 'OFF', 
+                'performance': 'OFF', 
+                'server': 'OFF'
+                })
 
-            self.driver = webdriver.Chrome(service=service, options=options)
-
-    def __del__(self):
-        # Quit the WebDriver when the instance is destroyed, if it was initialized
+    def __enter__(self):
+        if self.webdriver_path:
+            self.driver = webdriver.Chrome(service=self.service, options=self.options)
+        return self
+    
+    def __exit__(self, exc_type, exc_value, exc_traceback):
         if self.driver:
             self.driver.quit()
+
 
     # Perform a Google search using the SERPer API
     def search_google(self, query, gl='us', hl='en'):
@@ -179,6 +190,7 @@ class SearchEngine:
     
     # Perform a Google search and retrieve the content of the top results. Maximum word count is num_documents * context_size (default 7680)
     def __call__(self, query, num_documents=NUM_DOCUMENTS):
+        
         google_resp = self.search_google(query)
         
         documents = []
@@ -247,7 +259,7 @@ class DocumentRetriever:
 
 # Define a class to generate an answer to a question based on a set of documents
 class Reader:
-    def __call__(self,log_and_call_manager,chain_id,query, contexts):
+    def __call__(self,log_and_call_manager,output_manager,chain_id,query, contexts):
         agent = 'Google Search Summarizer'
         text = ""
         
@@ -274,7 +286,7 @@ class Reader:
             
         search_messages = [{"role": "user", "content": prompt}]
 
-        llm_response = models.llm_stream(log_and_call_manager,search_messages, agent=agent, chain_id=chain_id)
+        llm_response = models.llm_stream(log_and_call_manager,output_manager, search_messages, agent=agent, chain_id=chain_id)
 
         return llm_response
     
@@ -288,22 +300,94 @@ class Search:
         search_query = re.sub('\'|"', '',  question).strip()
         return search_query
 
-    def __call__(self, log_and_call_manager,chain_id,question):
-        question=self._extract_search_query(question)
-        documents,top_links,direct_answer = self.search_engine(question)
-        if direct_answer:
-            return direct_answer, None
-        contexts = self.document_retriever(question, documents)
-        answer = self.reader(log_and_call_manager,chain_id,question, contexts)
+    def __call__(self, log_and_call_manager, output_manager, chain_id, question):
+        question = self._extract_search_query(question)
+        with self.search_engine as engine:
+            documents, top_links, direct_answer = engine(question)
+            if direct_answer:
+                return direct_answer, None
+            contexts = self.document_retriever(question, documents)
+            answer = self.reader(log_and_call_manager, output_manager, chain_id, question, contexts)
+        return answer, top_links
+    
+class GeminiSearch:
+    def __init__(self):
 
+        try:
+            # Attempt package-relative import
+            from . import models
+        except ImportError:
+            # Fall back to script-style import
+            import models
+        
+        self.API_KEY = os.environ.get('GEMINI_API_KEY')
+        self.gemini_client = genai.Client(api_key=self.API_KEY)
+        self.models = models
+        self.agent = 'Google Search Executor'
+        
+    def _extract_search_query(self,messages: str) -> str:
+        query = messages[-1]['content']
+        search_query = re.sub('\'|"', '',  query).strip()
+        search_query = f"Search Internet for: {search_query}"
+        return search_query
+    
+    def _call_gemini(self,search_query: str) -> str:
+
+        model_id = self.models.get_model_name(self.agent)[0]
+
+        google_search_tool = Tool(
+            google_search = GoogleSearch()
+        )
+
+        response = self.gemini_client.models.generate_content(
+            model=model_id,
+            contents=search_query,
+            config=GenerateContentConfig(
+                tools=[google_search_tool],
+                response_modalities=["TEXT"],
+            )
+        )
+        return response
+    
+    def _parse_response(self,response: str, output_manager, chain_id) -> str:
+        top_links = []
+        answer = ""
+        metadata = response.candidates[0].grounding_metadata
+        search_html = None
+
+        for part in response.candidates[0].content.parts:
+            # Concatenate the strings separated by a new line in the 'parts' list
+            if part.text:
+                answer += part.text + '\n'
+        for chunk in metadata.grounding_chunks:
+            if chunk.web:
+                top_links.append({
+                        'title': chunk.web.title,
+                        'link': chunk.web.uri
+                    })
+            # Check if search_entry_point exists and is not None before accessing rendered_content
+            if hasattr(metadata, 'search_entry_point') and metadata.search_entry_point is not None and hasattr(metadata.search_entry_point, 'rendered_content'):
+                search_html = metadata.search_entry_point.rendered_content
+        
+        # Output the search_entry_point HTML as a JSON structure
+        if search_html:
+            output_manager.send_html_content(search_html, chain_id=chain_id)
+
+        return answer, top_links     
+    
+    def __call__(self, log_and_call_manager, output_manager, chain_id, messages):
+        search_query = self._extract_search_query(messages)
+        output_manager.display_tool_info('google_ai_search', search_query, chain_id)
+        response = self._call_gemini(search_query)
+        answer, top_links = self._parse_response(response, output_manager, chain_id)
         return answer, top_links
     
 ### END SEARCH ACTIONS ###
     
 class Calculator:
-    def __call__(self, log_and_call_manager, chain_id, code):
+    def __call__(self, log_and_call_manager, output_manager, chain_id, code):
         links = None
-        # It's still important to be careful with eval(), as it can execute arbitrary code.
+
         try:
             return str(eval(code)),links
         except Exception as e:

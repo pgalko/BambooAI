@@ -3,26 +3,16 @@ import time
 from mistralai.client import MistralClient
 import tiktoken
 
-try:
-    # Attempt package-relative import
-    from . import output_manager
-except ImportError:
-    # Fall back to script-style import
-    import output_manager
-
-output_manager = output_manager.OutputManager()
-
 def init():
     API_KEY = os.environ.get('MISTRAL_API_KEY')
     if API_KEY is None:
-        output_manager.print_wrapper("Warning: MISTRAL_API_KEY environment variable not found.")
         return
     else:
         client = MistralClient()
         client._api_key = API_KEY
         return client
 
-def llm_call(messages: str,model: str,temperature: str,max_tokens: str):  
+def llm_call(messages: str,model: str,temperature: str,max_tokens: str, response_format: str = None):  
 
     client = init()
 
@@ -33,6 +23,7 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str):
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
+        response_format=response_format,
     )
 
     end_time = time.time()
@@ -54,7 +45,7 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str):
 
     return content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(log_and_call_manager, chain_id: str,messages: str,model: str,temperature: str,max_tokens: str,tools: str = None):  
+def llm_stream(log_and_call_manager, output_manager, chain_id: str,messages: str,model: str,temperature: str,max_tokens: str,tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):  
 
     collected_chunks = []
     collected_messages = []
@@ -62,17 +53,17 @@ def llm_stream(log_and_call_manager, chain_id: str,messages: str,model: str,temp
     client = init()
 
     start_time = time.time()
-    for chunk in client.chat_stream(model=model, messages=messages, temperature=temperature, max_tokens=max_tokens):
+    for chunk in client.chat_stream(model=model, messages=messages, temperature=temperature, max_tokens=max_tokens, response_format=response_format,):
         collected_chunks.append(chunk)
         if chunk.choices[0].delta.content is not None:
             chunk_message = chunk.choices[0].delta.content
             collected_messages.append(chunk_message)
-            output_manager.print_wrapper(chunk_message, end='', flush=True)  
+            output_manager.print_wrapper(chunk_message, end='', flush=True, chain_id=chain_id)  
 
     end_time = time.time()
     elapsed_time = end_time - start_time
 
-    output_manager.print_wrapper("")
+    output_manager.print_wrapper("", chain_id=chain_id)
 
     full_reply_content = ''.join([m for m in collected_messages])
 

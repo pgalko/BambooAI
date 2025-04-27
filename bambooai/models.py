@@ -2,68 +2,85 @@ import importlib
 import os
 import time
 import json
+import sys
 
 
 def load_llm_config():
-
-    default_llm_config = [
-    {"agent": "Expert Selector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Analyst Selector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Theorist", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Dataframe Inspector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Planner", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Code Generator", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Code Debugger", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Error Corrector", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Code Ranker", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Solution Summarizer", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Google Search Query Generator", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}},
-    {"agent": "Google Search Summarizer", "details": {"model": "gpt-4o", "provider":"openai","max_tokens": 4000, "temperature": 0}}
-    ]
-
-    # Get the LLM_CONFIG environment variable
-    if os.environ.get('LLM_CONFIG'):
-        llm_config = os.environ.get('LLM_CONFIG')
-        llm_config = json.loads(llm_config)
-    # load config from the JSON file
-    elif os.path.exists("LLM_CONFIG.json"):
+    """
+    Load LLM configuration from JSON file.
+    Raises an error if configuration can't be loaded.
+    """
+    # Check if configuration file exists
+    if os.path.exists("LLM_CONFIG.json"):
         try:
             with open("LLM_CONFIG.json", 'r') as f:
-                llm_config = json.load(f)
+                config_data = json.load(f)
+                return config_data
         except Exception as e:
-            llm_config = default_llm_config
-    # Use hardcoded default configuration
-    else:
-        llm_config = default_llm_config
+            raise ValueError(f"Error reading LLM_CONFIG.json file: {e}")
+    
+    # No configuration found
+    sys.exit("Error: LLM_CONFIG.json not found. Please provide model configuration.")
 
-    return llm_config
+def get_model_properties():
+    """Get the model properties dictionary from config"""
+    config = load_llm_config()
+    return config.get("model_properties", {})
 
 def init(agent):
+    """Initialize configuration for a specific agent"""
+    config = load_llm_config()
+    agent_configs = config.get("agent_configs", [])
     
-    llm_config = load_llm_config()
-
-    for item in llm_config:
-        if item['agent'] == agent:
+    # Default values
+    model = None
+    provider = None
+    max_tokens = 4000
+    temperature = 0
+    response_format = None
+    
+    # Search for the agent in the config
+    for item in agent_configs:
+        if item.get('agent') == agent:
             details = item.get('details', {})
-            model = details.get('model', 'Unknown')
-            provider = details.get('provider', 'Unknown')
-            max_tokens = details.get('max_tokens', 'Unknown')
-            temperature = details.get('temperature', 'Unknown')
+            model = details.get('model')
+            provider = details.get('provider')
+            max_tokens = details.get('max_tokens', max_tokens)
+            temperature = details.get('temperature', temperature)
+            
+            # Check if provider is 'openai' and response_format is set
+            if provider == 'openai' and 'response_format' in details:
+                response_format = details.get('response_format')
+            break
+    
+    if not model or not provider:
+        raise ValueError(f"Agent '{agent}' not found in configuration or has incomplete details")
+    
+    return model, provider, max_tokens, temperature, response_format
 
-    return model, provider, max_tokens, temperature
 
 def get_model_name(agent):
+    """Get model name and provider for a specific agent"""
+    config = load_llm_config()
+    agent_configs = config.get("agent_configs", [])
     
-    llm_config = load_llm_config()
-
-    for item in llm_config:
-        if item['agent'] == agent:
+    model = None
+    provider = None
+    
+    # Search for the agent in the config
+    for item in agent_configs:
+        if item.get('agent') == agent:
             details = item.get('details', {})
-            model = details.get('model', 'Unknown')
-            provider = details.get('provider', 'Unknown')
-
+            model = details.get('model')
+            provider = details.get('provider')
+            break
+    
+    if not model or not provider:
+        raise ValueError(f"Agent '{agent}' not found in configuration or has incomplete details")
+    
     return model, provider
 
+# Import models module based on provider
 def try_import(module_name):
     try:
         # Attempt package-relative import
@@ -75,7 +92,7 @@ def try_import(module_name):
 
 def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: str = None):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-    model, provider, max_tokens, temperature = init(agent)
+    model, provider, max_tokens, temperature, response_format = init(agent)
 
     # Map providers to their respective function names ('llm_stream' for local, 'llm_call' for others)
     provider_function_map = {
@@ -83,9 +100,12 @@ def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: s
         'groq': 'llm_call',
         'openai': 'llm_call',
         'ollama': 'llm_call',
+        'vllm': 'llm_call',
         'gemini': 'llm_call',
         'anthropic': 'llm_call',
-        'mistral': 'llm_call'
+        'mistral': 'llm_call',
+        'openrouter': 'llm_call',
+        "deepseek": 'llm_call'
     }
 
     if provider in provider_function_map:
@@ -94,7 +114,7 @@ def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: s
 
         # Call the appropriate function from the imported module
         function_name = provider_function_map[provider]
-        content_received, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = getattr(provider_module, function_name)(messages, model, temperature, max_tokens)
+        content_received, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = getattr(provider_module, function_name)(messages, model, temperature, max_tokens, response_format)
         
         # Log the results
         log_and_call_manager.write_to_log(agent, chain_id, timestamp, model, local_llm_messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
@@ -103,11 +123,11 @@ def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: s
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
-def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id: str = None, tools:str = None):
+def llm_stream(log_and_call_manager, output_manager, messages: str, agent: str = None, chain_id: str = None, tools:str = None, reasoning_models:list = None, reasoning_effort:str = "medium"):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
     # Initialize the LLM parameters
-    model, provider, max_tokens, temperature = init(agent)
+    model, provider, max_tokens, temperature, response_format = init(agent)
 
     # Map providers to their respective function names
     provider_function_map = {
@@ -115,9 +135,12 @@ def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id:
         'groq': 'llm_stream',
         'openai': 'llm_stream',
         'ollama': 'llm_stream',
+        'vllm': 'llm_stream',
         'gemini': 'llm_stream',
         'anthropic': 'llm_stream',
-        'mistral': 'llm_stream'
+        'mistral': 'llm_stream',
+        'openrouter': 'llm_stream',
+        "deepseek": 'llm_stream'
     }
 
     if provider in provider_function_map:
@@ -126,12 +149,22 @@ def llm_stream(log_and_call_manager, messages: str, agent: str = None, chain_id:
 
         # Call the appropriate function from the imported module
         function_name = provider_function_map[provider]
-        content_received, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = getattr(provider_module, function_name)(log_and_call_manager, chain_id, messages, model, temperature, max_tokens, tools)
+        result = getattr(provider_module, function_name)(log_and_call_manager, output_manager, chain_id, messages, model, temperature, max_tokens, tools, response_format, reasoning_models, reasoning_effort)
         
+        # Unpack the result
+        if tools:
+            content_received, tool_response, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = result
+        else:
+            content_received, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = result
+            tool_response = []
+
         # Log the results
         log_and_call_manager.write_to_log(agent, chain_id, timestamp, model, local_llm_messages, content_received, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second)
         
-        return content_received
+        if tools:
+            return content_received, tool_response
+        else:
+            return content_received
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 

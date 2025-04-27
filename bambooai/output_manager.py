@@ -24,42 +24,91 @@ class OutputManager:
         self.color_token_summary_header_ntb = 'blue'
         self.color_token_summary_text_ntb = '#555555'
         self.color_token_summary_cli = 'yellow'
+        # Check if the code is running in a Jupyter notebook
+        self.is_notebook = 'ipykernel' in sys.modules
     
-    # Display the results of the analysis
-    def display_results(self, df=None, answer=None, code=None, rank=None, vector_db=False):
-        if 'ipykernel' in sys.modules:
-            if df is not None:
-                display(Markdown('## Dataframe Preview'))
-                pd.set_option('display.max_columns', None)  # Display all columns
-                pd.set_option('display.expand_frame_repr', False)  # Prevents wrapping of the display
-                pd.set_option('display.max_colwidth', None)  # Display the full text of columns
-                # Display the head of the DataFrame with style
-                display(df.head())
-            if code is not None:
-                display(Markdown(f'## Applied Code:\n\n```python\n{code}\n```'))
-            if answer is not None:
-                display(Markdown(f'## Solution Summary:\n\n{answer}'))
-            if vector_db and rank is not None:
-                display(Markdown(f'## Solution Rank:\n\n{rank}'))
+    # Display the complete results.
+    def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None, query=None, data_model=None, research=None, plan=None, code=None, answer=None, plot_jsons=None, review=None, vector_db=False):
+        self.display_formated_df(df)
+        self.display_formatted_data_model(data_model)
+        self.display_formatted_search(research)
+        self.display_formated_plan(plan)
+        self.display_formated_code(code)
+        self.display_formated_answer(answer)
+        self.display_formated_review(vector_db, review)
+
+    def send_html_content(self, html_content, chain_id=None):
+        """Display HTML content directly in the notebook"""
+        if self.is_notebook:
+            display(HTML(html_content))
         else:
-            if df is not None:
+            pass
+
+    # Markdown formated Agent summaries
+    def display_formated_plan(self, plan):
+        if plan is not None:
+            if self.is_notebook:
+                display(Markdown(f"## Reasoning and Planning:\n\n```yaml\n{plan['yaml']}\n```"))
+            else:
+                cprint(f"\n>> Reasoning and Planning:", self.color_result_header_cli, attrs=['bold'])
+                self.print_wrapper(plan)
+
+    def display_formated_df(self, df):
+        if df is not None:
+            if self.is_notebook:
+                display(Markdown(f'## Dataframe Preview:'))
+                pd.set_option('display.max_columns', None)
+                pd.set_option('display.expand_frame_repr', False)
+                pd.set_option('display.max_colwidth', None)
+                display(df.head(25))
+            else:
                 cprint(f"\n>> Here is the structure of your dataframe:", self.color_result_header_cli, attrs=['bold'])
                 self.print_wrapper(df.dtypes)
-            if answer is not None:
-                cprint(f"\n>> I now have the final answer:\n{answer}", self.color_result_header_cli, attrs=['bold'])
-            if code is not None:
+
+    def display_formatted_data_model(self, data_model):
+        if data_model is not None:
+            if self.is_notebook:
+                display(Markdown(f"## Data Model:\n\n```yaml\n{data_model['yaml']}\n```"))
+            else:
+                cprint(f"\n>> Data Model:", self.color_result_header_cli, attrs=['bold'])
+                self.print_wrapper(data_model['yaml'])
+
+    def display_formated_code(self, code):
+        if code is not None:
+            if self.is_notebook:
+                display(Markdown(f'## Applied Code:\n\n```python\n{code}\n```'))
+            else:
                 cprint(f"\n>> Here is the final code that accomplishes the task:", self.color_result_header_cli, attrs=['bold'])
                 self.print_wrapper(code)
-            if vector_db and rank is not None:
-                cprint(f"\n>> Solution Rank:", self.color_result_header_cli, attrs=['bold'])
-                self.print_wrapper(rank)
 
-    def display_task_eval(self, task_eval):
-        if 'ipykernel' in sys.modules:
-            display(Markdown(f'## Reasoning:\n\n{task_eval}'))
-    
+    def display_formated_answer(self, answer):
+        if answer is not None:
+            if self.is_notebook:
+                display(Markdown(f'## Solution Summary:\n\n{answer}'))
+            else:
+                cprint(f"\n>> I now have the final answer:\n{answer}", self.color_result_header_cli, attrs=['bold'])
+
+    def display_formated_review(self, vector_db, review):
+        if vector_db and review is not None:
+            if self.is_notebook:
+                display(Markdown(f'## Solution review:\n\n{review}'))
+            else:
+                cprint(f"\n>> Solution Review:", self.color_result_header_cli, attrs=['bold'])
+                self.print_wrapper(review)
+
+    def display_formatted_search(self, triplets):
+        if triplets:
+            markdown_content = f"## Research Findings:\n\n"
+            for triplet in triplets:
+                markdown_content += f"### Query: {triplet['query']}\n\n{triplet['result']}\n\n### Sources:\n"
+                for link in triplet['links']:
+                    markdown_content += f"\nTitle: {link['title']}  \nLink: {link['link']}  \n\n"
+
+            if self.is_notebook:
+                display(Markdown(markdown_content))
+
     # Display the header for the agent
-    def display_tool_start(self, agent, model):
+    def display_tool_start(self, agent, model, chain_id=None):
         color = self.color_tool_header
         if agent == 'Planner':
             msg = 'Drafting a plan to provide a comprehensive answer, please wait...'
@@ -72,36 +121,23 @@ class OutputManager:
         elif agent == 'Expert Selector':
             msg = 'Selecting the expert to best answer your query, please wait...'
         elif agent == 'Code Generator':
-            msg = 'I am generating the first version of the code, please wait...'
-        elif agent == 'Code Debugger':
-            msg = 'I am reviewing and debugging the first version of the code to check for any errors, bugs, or inconsistencies and will make corrections if necessary. Please wait...'
-        elif agent == 'Code Ranker':
-            msg = 'I am going to assess, summarize and rank the answer, please wait...'
+            msg = 'I am generating the code, please wait...'
+        elif agent == 'Reviewer':
+            msg = 'I am going to assess and rank the answer, please wait...'
+        elif agent == 'Solution Summarizer':
+            msg = 'Summarizing the solution, please wait...'
         
 
-        if 'ipykernel' in sys.modules:
+        if self.is_notebook:
             display(HTML(f'<p style="color:{color};">\nCalling Model: {model}</p>'))
             display(HTML(f'<p><b style="color:{color};">{msg}</b></p><br>'))
         else:
             cprint(f"\n>> Calling Model: {model}", color)
             cprint(f"\n>> {msg}\n", color, attrs=['bold'])
     
-    # Display the footer for the agent
-    def display_tool_end(self, agent):
-        color = self.color_tool_header
-        if agent == 'Code Debugger':
-            msg = 'I have finished debugging the code, and will now proceed to the execution...'
-        elif agent == 'Code Generator':
-            msg = 'I have finished generating the code, and will now proceed to the execution...'
-
-        if 'ipykernel' in sys.modules:
-            display(HTML(f'<p><b style="color:{color};">{msg}</b></p><br>'))
-        else:
-            cprint(f"\n>> {msg}\n", color, attrs=['bold'])
-    
     # Display the error message
-    def display_error(self, error):
-        if 'ipykernel' in sys.modules:
+    def display_error(self, error, chain_id=None):
+        if self.is_notebook:
             display(HTML(f'<br><b><span style="color:{self.color_error_ntb};">I ran into an issue:</span></b><br><pre style="color:{self.color_error_ntb};">{error}</pre><br><b><span style="color:{self.color_error_ntb};">I will examine it, and try again with an adjusted code.</span></b><br>'))
         else:
             sys.stderr.write(f"{self.color_error_cli['color']}\n>> I ran into an issue:{error}. \n>> I will examine it, and try again with an adjusted code.{self.color_error_cli['reset']}\n")
@@ -109,7 +145,7 @@ class OutputManager:
     
     # Display the input to enter the prompt
     def display_user_input_prompt(self):
-        if 'ipykernel' in sys.modules:
+        if self.is_notebook:
             display(HTML(f'<b style="color:{self.color_usr_input_prompt};">Enter your question or type \'exit\' to quit:</b>'))
             time.sleep(1)
             question = input()
@@ -121,33 +157,44 @@ class OutputManager:
     
     # Display the input to enter the rank
     def display_user_input_rank(self):
-        if 'ipykernel' in sys.modules:
+        if self.is_notebook:
             display(HTML(f'<b style="color:{self.color_usr_input_rank};">Are you happy with the ranking ? If YES type \'yes\'. If NO type in the new rank on a scale from 1-10:</b>'))
             time.sleep(1)
-            rank_feedback = input()
+            rank = input()
         else:
             cprint("\nAre you happy with the ranking ?\nIf YES type 'yes'. If NO type in the new rank on a scale from 1-10:", self.color_usr_input_rank, attrs=['bold'])
-            rank_feedback = input()
+            rank = input()
 
-        return rank_feedback
+        return rank
     
-    # Display the input to enter the rank
-    def display_search_task(self,action, action_input):
-        if 'ipykernel' in sys.modules:
-            display(HTML(f'<span style="color:{self.color_usr_input_rank};">-- running {action}: \"{action_input}\"</span>'))
+    # Request user feedback
+    def request_user_feedback(self, chain_id=None, query_clarification=None, context_needed=None):
+        if self.is_notebook:
+            display(HTML(f'<b style="color:{self.color_usr_input_rank};">Requesting user feedback: \"{query_clarification}\"</b>'))
+            time.sleep(1)
+            feedback = input()
+        else:
+            cprint(f"\nRequesting user feedback: \"{query_clarification}\"", self.color_usr_input_rank)
+            feedback = input()
+        
+        return feedback
+ 
+    def display_tool_info(self,action, action_input, chain_id=None):
+        if self.is_notebook:
+            display(HTML(f'<span style="color:{self.color_usr_input_rank};">-- Performing Action {action}: \"{action_input}\"</span>'))
             time.sleep(1)
         else:
-            cprint(f"\n--running {action}: \"{action_input}\"", self.color_usr_input_rank)
+            cprint(f"\n--Performing Action {action}: \"{action_input}\"", self.color_usr_input_rank)
 
     def display_system_messages(self, message):
-        if 'ipykernel' in sys.modules:
+        if self.is_notebook:
             display(HTML(f'<span style="color:{self.color_usr_input_rank};">-- info: \"{message}\"</span>'))
             time.sleep(1)
         else:
             cprint(f"\n--info: \"{message}\"", self.color_usr_input_rank)
 
     def display_call_summary(self, summary_text):
-        if 'ipykernel' in sys.modules:
+        if self.is_notebook:
             # Split the summary text into lines
             summary_lines = summary_text.split('\n')
             # Start the Markdown table with headers
@@ -168,7 +215,7 @@ class OutputManager:
             self.print_wrapper(summary_text)
 
     # A wrapper for the print function. This can be used to add additional behaviors or formatting to the print function
-    def print_wrapper(self, message, end="\n", flush=False):
+    def print_wrapper(self, message, end="\n", flush=False, chain_id=None):
         # Add any additional behaviors or formatting here
         formatted_message = message
         

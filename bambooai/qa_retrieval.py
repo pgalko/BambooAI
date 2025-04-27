@@ -4,15 +4,6 @@ from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
 import numpy as np
 
-try:
-    # Attempt package-relative import
-    from . import output_manager
-except ImportError:
-    # Fall back to script-style import
-    import output_manager
-
-output_handler = output_manager.OutputManager()
-
 class EmbeddingClientIntegration:
     def vectorize(self):
         raise NotImplementedError
@@ -43,7 +34,8 @@ class HFSentenceTransformersClient(EmbeddingClientIntegration):
     
 
 class PineconeWrapper:
-    def __init__(self):
+    def __init__(self, output_manager=None):
+        self.output_manager = output_manager
         self.api_key = os.getenv('PINECONE_API_KEY')
         if not self.api_key:
             return
@@ -63,7 +55,7 @@ class PineconeWrapper:
             try:
                 return HFSentenceTransformersClient()
             except RuntimeError as e:
-                output_handler.display_system_messages(e)
+                self.output_manager.display_system_messages(e)
         else:
             raise ValueError("Unsupported embedding platform")
         
@@ -79,7 +71,7 @@ class PineconeWrapper:
 
     def ensure_index_exists(self):
         if self.index_name not in self.pinecone_client.list_indexes().names():
-            output_handler.display_system_messages(f"Creating a new vector db index. Please wait... {self.index_name}")
+            self.output_manager.display_system_messages(f"Creating a new vector db index. Please wait... {self.index_name}")
             self.pinecone_client.create_index(
                 name=self.index_name,
                 metric="cosine",
@@ -96,7 +88,7 @@ class PineconeWrapper:
         matches = results.get('matches', [])
 
         if not matches:
-            output_handler.display_system_messages("I was unable to find a matching record in the vector db.")
+            self.output_manager.display_system_messages("I was unable to find a matching record in the vector db.")
             return None
 
         return matches
@@ -105,18 +97,18 @@ class PineconeWrapper:
         fetched_data = self.index.fetch(ids=[id])
         vector_data = fetched_data.get('vectors', {}).get(id, {})
         if not vector_data:
-            output_handler.display_system_messages("No data found for this vector db id")
+            self.output_manager.display_system_messages("No data found for this vector db id")
             return None
         return vector_data
 
     def check_similarity(self, match, similarity_threshold):
         match_id = match['id']
         similarity_score = match['score']
-        #output_handler.display_system_messages(f"\nClosest match vector db record: {match_id}, Similarity score: {similarity_score}\n")
+        #self.output_manager.display_system_messages(f"\nClosest match vector db record: {match_id}, Similarity score: {similarity_score}\n")
         
         # Check if the similarity score is above the threshold
         if similarity_score < similarity_threshold:
-            output_handler.display_system_messages(f"Query similarity score {match['score']} for record {match_id} is below the threshold. Will ignore this match")
+            #self.output_manager.display_system_messages(f"Query similarity score {match['score']} for record {match_id} is below the threshold. Will ignore this match")
             return False
         
         return True
@@ -133,7 +125,7 @@ class PineconeWrapper:
 
     def retrieve_matching_record(self, question, condition, df_columns, similarity_threshold, match_df=True,):
         retrieved_matches = self.query_index(question)
-        highest_similarity_score = 0.8
+        highest_similarity_score = 0.80
         closest_match = None
 
         if not retrieved_matches:
@@ -156,19 +148,19 @@ class PineconeWrapper:
         # Check if the dataframe columns match
         if match_df and closest_match:
             if metadata['df_col'] == df_columns:
-                output_handler.display_system_messages(f"Found a record {closest_match['id']}, with matching query, condition and dataframe columns. Condition Similarity Score: {highest_similarity_score}.")
+                self.output_manager.display_system_messages(f"Found a matching record. Similarity Score: {highest_similarity_score}.")
                 return closest_match
             else:
-                output_handler.display_system_messages("The dataframe columns do not match. I will not use this record.")
+                self.output_manager.display_system_messages("The dataframe columns do not match. I will not use this record.")
                 return None
         else:
             return closest_match
 
-    def add_record(self, question, condition, plan, df_columns, code, new_rank, similarity_threshold):
+    def add_record(self, question, condition, plan, df_columns, data_model, code, new_rank, similarity_threshold):
         new_rank = int(new_rank)
 
         if new_rank < 8:
-            output_handler.display_system_messages("The new rank is below the threshold. Not adding/updating the vector db record.")
+            self.output_manager.display_system_messages("The new rank is below the threshold. Not adding/updating the vector db record.")
             return
         
         # Generate a unique id for the record.
@@ -187,9 +179,9 @@ class PineconeWrapper:
             id = vector_data['id']
         # If the new rank is higher, add/update the record
         if vector_rank < new_rank:
-            metadata = {"query_unknown": question, "query_condition": condition, "df_col": df_columns, "plan": plan,  "code": code, "rank": new_rank}
+            metadata = {"query_unknown": question, "query_condition": condition, "df_col": df_columns, "data_model": data_model,"plan": plan,  "code": code, "rank": new_rank}
             vectors = [(id, vectorised_question, metadata)]
             self.index.upsert(vectors=vectors)
-            output_handler.display_system_messages(f"\nAdded/Updated the vector db record with id: {id}")
+            self.output_manager.display_system_messages(f"Added/Updated the vector db record.")
         else:
-            output_handler.display_system_messages(f"Existing rank {vector_rank} is higher or equal to the new rank. I am not updating the existing vector db record.")
+            self.output_manager.display_system_messages(f"Existing rank {vector_rank} is higher or equal to the new rank. I am not updating the existing vector db record.")

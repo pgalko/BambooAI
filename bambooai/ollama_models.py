@@ -1,20 +1,21 @@
+import os
 import time
 from ollama import Client
 import tiktoken
 
+def init():
+    OLLAMA_HOST = os.environ.get('REMOTE_OLLAMA')
+    if OLLAMA_HOST is None:
+        client = Client(host='http://localhost:11434')
+    else:
+        client = Client(host=OLLAMA_HOST)
+    return client
+
 client = Client()
 
-try:
-    # Attempt package-relative import
-    from . import output_manager
-except ImportError:
-    # Fall back to script-style import
-    import output_manager
-
-output_manager = output_manager.OutputManager()
-
-def llm_call(messages: str,model: str,temperature: str,max_tokens: str):  
-    client = Client(host='http://localhost:11434')
+def llm_call(messages: str,model: str,temperature: str,max_tokens: str, response_format: str = None):  
+    
+    client = init()
 
     start_time = time.time()
 
@@ -44,11 +45,12 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str):
 
     return content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(log_and_call_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str,tools: str = None):  
+def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str,tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):  
     collected_chunks = []
     collected_messages = []
 
-    client = Client(host='http://localhost:11434')
+    client = init()
+    
     response = client.chat(
         model=model, 
         messages=messages,
@@ -64,12 +66,12 @@ def llm_stream(log_and_call_manager, chain_id: str, messages: str,model: str,tem
         collected_chunks.append(chunk)
         chunk_message = chunk['message']['content']
         collected_messages.append(chunk_message)
-        output_manager.print_wrapper(chunk_message, end='', flush=True)  
+        output_manager.print_wrapper(chunk_message, end='', flush=True, chain_id=chain_id)  
 
     end_time = time.time()
     elapsed_time = end_time - start_time
 
-    output_manager.print_wrapper("")
+    output_manager.print_wrapper("", chain_id=chain_id)
 
     full_reply_content = ''.join([m for m in collected_messages])
 
