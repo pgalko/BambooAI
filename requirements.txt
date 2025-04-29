@@ -8,7 +8,8 @@ seaborn
 plotly
 termcolor
 newspaper3k
-pinecone-client
+pinecone
+selenium
 google-generativeai
 google-genai
 groq
@@ -21,9 +22,9 @@ nbformat
 python-dotenv
 lxml[html_clean]
 gunicorn
+google-cloud-storage
 statsmodels
 scipy
 scikit-learn
-contextily
 geopandas
 yfinance

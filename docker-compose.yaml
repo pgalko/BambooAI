@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  bambooai-webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bambooai-webapp
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount local configuration files
+      - ./web_app/.env:/app/web_app/.env
+      - ./web_app/LLM_CONFIG.json:/app/web_app/LLM_CONFIG.json
+      
+      # Mount persistent storage directories
+      - ./web_app/storage:/app/web_app/storage
+      - ./web_app/temp:/app/web_app/temp
+      - ./web_app/logs:/app/web_app/logs
+    
+    # Restart policy
+    restart: unless-stopped

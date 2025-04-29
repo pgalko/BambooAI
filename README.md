@@ -2,7 +2,6 @@
 
 <img width="200" alt="BambooAI Logo" src="images/logo_light.png" />
 
-
 BambooAI is an open-source library that enables natural language-based data analysis using Large Language Models (LLMs). It works with both local datasets and can fetch data from external sources and APIs.
 
 ## Table of Contents
@@ -457,6 +456,40 @@ bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart r
    ```
 
 Access web interface at http://localhost:5000
+
+### Option 3: Using Docker
+
+Prerequisites:
+- [Docker](https://docs.docker.com/get-docker/) installed on your system
+- [Docker Compose](https://docs.docker.com/compose/install/) installed on your system
+
+1. Clone repository:
+   ```bash
+   git clone https://github.com/pgalko/BambooAI.git
+   cd BambooAI
+   ```
+
+2. Configure environment:
+   ```bash
+   cp .env.example web_app/.env
+   # Edit .env with your settings
+   ```
+
+3. Configure LLM agents, models and parameters:
+   ```bash
+   cp LLM_CONFIG_sample.json web_app/LLM_CONFIG.json
+   ```
+   - Edit `web_app/LLM_CONFIG.json` with your desired combination of agents and models
+   - Ensure all necessary API keys are present in your .env file
+
+4. Build and run the Docker container:
+   ```bash
+   docker-compose up -d
+   ```
+
+Access web interface at http://localhost:5000
+
+**Note**: The Docker setup preserves all configuration and data between container restarts. If you encounter any issues, check the container logs with `docker-compose logs -f`.
 
 ## Model Support
 
