@@ -459,37 +459,20 @@ Access web interface at http://localhost:5000
 
 ### Option 3: Using Docker
 
+BambooAI can be easily deployed using Docker, which provides a consistent environment regardless of your operating system or local setup.
+
+For detailed Docker setup and usage instructions, please refer to our [Docker Setup Wiki](https://github.com/pgalko/BambooAI/wiki/Docker-Installation-Guide-for-BambooAI).
+
+The Docker approach offers several advantages:
+- No need to manage Python dependencies locally
+- Consistent environment across different machines
+- Easy configuration through volume mounting
+- Support for both repository-based and standalone deployments
+- **Sandboxed code execution** for enhanced security
+
 Prerequisites:
 - [Docker](https://docs.docker.com/get-docker/) installed on your system
 - [Docker Compose](https://docs.docker.com/compose/install/) installed on your system
-
-1. Clone repository:
-   ```bash
-   git clone https://github.com/pgalko/BambooAI.git
-   cd BambooAI
-   ```
-
-2. Configure environment:
-   ```bash
-   cp .env.example web_app/.env
-   # Edit .env with your settings
-   ```
-
-3. Configure LLM agents, models and parameters:
-   ```bash
-   cp LLM_CONFIG_sample.json web_app/LLM_CONFIG.json
-   ```
-   - Edit `web_app/LLM_CONFIG.json` with your desired combination of agents and models
-   - Ensure all necessary API keys are present in your .env file
-
-4. Build and run the Docker container:
-   ```bash
-   docker-compose up -d
-   ```
-
-Access web interface at http://localhost:5000
-
-**Note**: The Docker setup preserves all configuration and data between container restarts. If you encounter any issues, check the container logs with `docker-compose logs -f`.
 
 ## Model Support
 
