@@ -12,7 +12,6 @@ except ImportError:
     import google_search, prompts, utils, context_retrieval
 
 google_search_function = google_search.SmartSearchOrchestrator()
-get_auxiliary_dataset = context_retrieval.get_auxiliary_dataset
 
 def init():
     API_KEY = os.environ.get('OPENROUTER_API_KEY')
@@ -70,6 +69,7 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str, response
 def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str,tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):  
     collected_chunks = []
     collected_messages = []
+    reasoning_messages = []
     tool_calls = []
     search_triplets = []
     google_search_messages = [{"role": "system", "content": prompts.google_search_react_system.format(utils.get_readable_date())}]
@@ -79,8 +79,7 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
     openai_client = init()
 
     available_functions = {
-        "google_search": google_search_function,
-        "get_auxiliary_dataset": get_auxiliary_dataset
+        "google_search": google_search_function
     }
 
     def add_triplet(query, result, links):
@@ -92,15 +91,31 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
         }
         search_triplets.append(triplet)
 
-    response = openai_client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        tools=tools,
-        stream = True,
-        response_format = response_format,
-    )
+    def get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models=None, reasoning_effort="medium"):
+        if reasoning_models and model in reasoning_models:
+            output_manager.display_tool_info('Thinking', f"Model {model} needs a moment to think...", chain_id=chain_id)
+
+        request_body = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "tools": tools,
+            "stream": True,
+            "response_format": response_format if response_format else None
+        }
+
+        request_body["extra_body"] = {
+            "reasoning": {
+                #"max_tokens": 2000, 
+                "effort": reasoning_effort
+                },
+            "usage": {"include": True}
+        }
+
+        return openai_client.chat.completions.create(**request_body)
+
+    response = get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models, reasoning_effort)
     
     start_time = time.time()
     # iterate through the stream of events
@@ -108,10 +123,13 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
         delta = chunk.choices[0].delta
         collected_chunks.append(chunk)  # save the event response
 
-        if delta and delta.content:
-            collected_messages.append(delta.content)  # save the message
+        if delta and hasattr(delta, 'content') and delta.content:
+            collected_messages.append(delta.content)
             output_manager.print_wrapper(delta.content, end='', flush=True, chain_id=chain_id)
-        elif delta and delta.tool_calls:
+        elif delta and hasattr(delta, 'reasoning') and delta.reasoning:
+            reasoning_messages.append(delta.reasoning)
+            output_manager.print_wrapper(delta.reasoning, end='', flush=True, chain_id=chain_id)
+        elif delta and hasattr(delta, 'tool_calls') and delta.tool_calls:
             tcchunklist = delta.tool_calls
             for tcchunk in tcchunklist:
                 if len(tool_calls) <= tcchunk.index:
@@ -137,23 +155,13 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
         function_name = tool_call['function']['name']
         function_to_call = available_functions[function_name]
         function_args = json.loads(tool_call['function']['arguments'])
-        
-        if function_name == "google_search":
-            google_search_messages.append({"role": "user", "content": function_args.get("search_query")})
-            function_response, links = function_to_call(
-                log_and_call_manager,
-                output_manager, 
-                chain_id,
-                messages=google_search_messages
-            )
-            add_triplet(function_args.get("search_query"), function_response, links)
-
-        elif function_name == "get_auxiliary_dataset":
-            function_response = function_to_call(
-                output_manager,
-                chain_id,
-                function_args.get("file_format")
-            )
+        google_search_messages.append({"role": "user", "content": function_args.get("search_query")})
+        function_response, links = function_to_call(
+            log_and_call_manager,
+            output_manager, 
+            chain_id,
+            messages=google_search_messages
+        )
         
         messages.append(
             {
@@ -164,39 +172,42 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
             }  # extend conversation with function response
         )
 
+        add_triplet(
+            function_args.get("search_query"),
+            function_response,
+            links
+        )
+
         # Check if it's the last tool call in the list before calling 
         if index == len(tool_calls) - 1:
-            response = openai_client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stream=True,
-                response_format=response_format,
-            )
+            response = get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models, reasoning_effort)
 
     # iterate through the stream of events
     for chunk in response:
         delta = chunk.choices[0].delta
         collected_chunks.append(chunk)  # save the event response
 
-        if delta and delta.content:
-            collected_messages.append(delta.content)  # save the message
+        if delta and hasattr(delta, 'content') and delta.content:
+            collected_messages.append(delta.content)
             output_manager.print_wrapper(delta.content, end='', flush=True, chain_id=chain_id)
+        elif delta and hasattr(delta, 'reasoning') and delta.reasoning:
+            reasoning_messages.append(delta.reasoning)
+            output_manager.print_wrapper(delta.reasoning, end='', flush=True, chain_id=chain_id)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     
     output_manager.print_wrapper("",chain_id=chain_id)
 
-    # get the complete text received
+    # get the complete reasoning and collected messages content
     full_reply_content = ''.join([m for m in collected_messages])
+    reasoning = ''.join([m for m in reasoning_messages])
 
     # Tiktoken encoding
     encoding = tiktoken.encoding_for_model("gpt-4")
 
     # count the number of response tokens used
-    completion_tokens_used = len(encoding.encode(full_reply_content))
+    completion_tokens_used = len(encoding.encode(full_reply_content+reasoning))
 
     # count the number of prompt tokens used
     tokens_per_message = 3
