@@ -99,7 +99,6 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
     def get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models=None, reasoning_effort="medium"):
         if reasoning_models and model in reasoning_models:
             output_manager.display_tool_info('Thinking', f"Model {model} needs a moment to think...", chain_id=chain_id)
-            messages = [message for message in messages if message.get('role') != 'system']
             return openai_client.chat.completions.create(
                 model=model,
                 messages=messages,

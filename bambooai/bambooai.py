@@ -562,8 +562,10 @@ class BambooAI:
 
         self.output_manager.display_tool_start(agent,using_model, chain_id=self.chain_id)
 
+        reasoning_effort = "medium"
+
         # Call OpenAI API to evaluate the task
-        llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, pre_eval_messages, agent=agent,chain_id=self.chain_id)
+        llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, pre_eval_messages, agent=agent,chain_id=self.chain_id, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
         expert, requires_dataset, confidence = self._extract_expert(llm_response)
 
         return llm_response, expert, requires_dataset, confidence
@@ -572,6 +574,8 @@ class BambooAI:
         '''Call the Analyst Selector'''
         agent = 'Analyst Selector'
         using_model,provider = models.get_model_name(agent)
+
+        reasoning_effort = "medium"
 
         if provider == 'openai':
             tools=self.filter_tools(self.openai_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
@@ -584,9 +588,9 @@ class BambooAI:
 
         # Call LLM API to evaluate the task
         if tools:
-            llm_response, tool_response = self.llm_stream(self.log_and_call_manager, self.output_manager, select_analyst_messages, agent=agent, chain_id=self.chain_id, tools=tools)
+            llm_response, tool_response = self.llm_stream(self.log_and_call_manager, self.output_manager, select_analyst_messages, agent=agent, chain_id=self.chain_id, tools=tools, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
         else:
-            llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, select_analyst_messages, agent=agent, chain_id=self.chain_id)
+            llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, select_analyst_messages, agent=agent, chain_id=self.chain_id, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
             tool_response = []
             
         analyst, query_unknown, query_condition, intent_breakdown = self._extract_analyst(llm_response)
