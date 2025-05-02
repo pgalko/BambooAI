@@ -161,8 +161,12 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
 
     try:
         start_time = time.time()
-
+        
         for chunk in response:
+            # Check for None candidates
+            if chunk.candidates is None:
+                output_manager.display_system_messages("Gemini API Warning: Received chunk with None candidates, skipping...")
+                continue  # Skip this chunk and proceed to the next one
             for part in chunk.candidates[0].content.parts:
                 if part.text or part.thought is not None:
                     if part.thought:
