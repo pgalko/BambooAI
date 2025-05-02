@@ -478,7 +478,7 @@ def load_sample_data():
 @app.route('/query', methods=['POST'])
 def query():
     session_id = session['session_id']
-    bamboo_ai_instance = bamboo_ai_instances[session_id]
+    bamboo_ai_instance = get_bamboo_ai(session_id)
     user_input = request.json['query']
     thread_id = request.json['thread_id']
     chain_id = request.json['chain_id']
@@ -525,7 +525,7 @@ def query():
 @app.route('/submit_rank', methods=['POST'])
 def submit_rank():
     session_id = session['session_id']
-    bamboo_ai_instance = bamboo_ai_instances[session_id]
+    bamboo_ai_instance = get_bamboo_ai(session_id)
 
     bamboo_ai_instance.output_manager.enable_web_mode()
     
