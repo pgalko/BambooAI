@@ -241,6 +241,18 @@ document.addEventListener('DOMContentLoaded', function() {
         console.warn('Submit query button not found');
     }
 
+    if (queryInput) {
+        queryInput.addEventListener('keydown', function (e) {
+            // Check for Ctrl+Enter or Cmd+Enter
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                handleQuerySubmit();
+            }
+        });
+    } else {
+        console.warn('Query input element not found');
+    }
+
     if (prevButton && nextButton) {
         prevButton.addEventListener('click', () => {
             navigateResponses(-1);
