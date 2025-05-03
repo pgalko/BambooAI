@@ -550,6 +550,14 @@ For detailed evaluation report, see: [Objective Assessment Report](https://githu
 
 Contributions are welcome via pull requests. Focus on maintaining code readability and conciseness.
 
+For development support, this project integrates with DeepWiki by Cognition Labs, to help developers and users better understand code relationships, architecture, and workflows:
+- AI-generated comprehensive documentation
+- Interactive code exploration
+- Context-aware development guidance
+
+Access the full interactive documentation here:
+[DeepWiki pgalko/BambooAI](https://deepwiki.com/pgalko/BambooAI)
+
 ## Notes
 
 - Supports multiple model providers and local execution
