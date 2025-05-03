@@ -547,15 +547,15 @@ Task: Titanic survival prediction model with visualizations
 For detailed evaluation report, see: [Objective Assessment Report](https://github.com/user-attachments/files/16647425/Objective.Assessment.of.AI.Tools.for.Sports.Data.Analytics_.Maxwell-v2.vs.Generic.LLMs.pdf)
 
 ## Contributing
-
 Contributions are welcome via pull requests. Focus on maintaining code readability and conciseness.
 
-For development support, this project integrates with DeepWiki by Cognition Labs, to help developers and users better understand code relationships, architecture, and workflows:
+This project is indexed with DeepWiki by Cognition Labs, providing developers with:
 - AI-generated comprehensive documentation
 - Interactive code exploration
 - Context-aware development guidance
+- Visualization of project workflows
 
-Access the full interactive documentation here:
+Access the project's full interactive documentation:
 [DeepWiki pgalko/BambooAI](https://deepwiki.com/pgalko/BambooAI)
 
 ## Notes
