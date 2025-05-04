@@ -16,9 +16,9 @@ BambooAI is an open-source library that enables natural language-based data anal
   - [LLM Configuration](#llm-configuration)
 - [Usage Examples](#usage-examples)
 - [Web Application Setup](#web-application-setup)
-  - [Using pip package](#option-1-using-pip-package)
-  - [Using complete repository](#option-2-using-complete-repository) 
-  - [Using Docker](#option-3-using-docker)
+  - [Using Docker (Recomended)](option-1-using-docker-recomended)
+  - [Using pip package](#option-2-using-pip-package)
+  - [Using complete repository](#option-3-using-complete-repository) 
 - [Model Support](#model-support)
 - [Environment Variables](#environment-variables)
 - [Logging](#logging)
@@ -78,7 +78,7 @@ pip install -r requirements.txt
 
 ## Quick Start
 
-Try it out in Google Colab: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1grKtqKD4u8cVGMoVv__umci4F7IU14vU?usp=sharing)
+Try it out on a basic example in Google Colab: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1grKtqKD4u8cVGMoVv__umci4F7IU14vU?usp=sharing)
 
 ### Basic Example
 
@@ -208,7 +208,7 @@ BambooAI uses multi-agent system where different specialized agents handle speci
 
 #### Configuration Structure
 
-The LLM configuration is stored in `LLM_CONFIG.json` or the `LLM_CONFIG` environment variable. Here's the complete configuration structure:
+The LLM configuration is stored in `LLM_CONFIG.json`. Here's the complete configuration structure:
 
 ```json
 {
@@ -255,7 +255,7 @@ The LLM configuration is stored in `LLM_CONFIG.json` or the `LLM_CONFIG` environ
   }
 }
 ```
-If you use `LLM_CONFIG.json` configuration file (recommended) it needs to be located in the BambooAI working dir, eg. `/Users/palogalko/AI_Experiments/Bamboo_AI/web_app/LLM_CONFIG.json`, and all API keys for the specified models need to be present in the `.env` also located in the working dir.
+The `LLM_CONFIG.json` configuration file needs to be located in the BambooAI working dir, eg. `/Users/palogalko/AI_Experiments/Bamboo_AI/web_app/LLM_CONFIG.json`, and all API keys for the specified models need to be present in the `.env` also located in the working dir.
 The above combination of agents/models is the most performant according to our tests as of 22 Apr 2025 using sports and performance datasets. I would strongly encourage you to experiment with these settings to see what combination best suits your particular use case.
 
 #### Agent Roles
@@ -365,7 +365,24 @@ bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart r
 
 ## Web Application Setup
 
-### Option 1: Using pip package
+### Option 1: Using Docker (Recomended)
+
+BambooAI can be easily deployed using Docker, which provides a consistent environment regardless of your operating system or local setup.
+
+For detailed Docker setup and usage instructions, please refer to our [Docker Setup Wiki](https://github.com/pgalko/BambooAI/wiki/Docker-Installation-Guide-for-BambooAI).
+
+The Docker approach offers several advantages:
+- No need to manage Python dependencies locally
+- Consistent environment across different machines
+- Easy configuration through volume mounting
+- Support for both repository-based and standalone deployments
+- **Sandboxed code execution** for enhanced security
+
+Prerequisites:
+- [Docker](https://docs.docker.com/get-docker/) installed on your system
+- [Docker Compose](https://docs.docker.com/compose/install/) installed on your system
+
+### Option 2: Using pip package
 
 1. Install BambooAI:
    ```bash
@@ -410,7 +427,7 @@ bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart r
    python app.py
    ```
 
-### Option 2: Using complete repository
+### Option 3: Using complete repository
 
 1. Clone repository:
    ```bash
@@ -459,23 +476,6 @@ bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart r
    ```
 
 Access web interface at http://localhost:5000
-
-### Option 3: Using Docker
-
-BambooAI can be easily deployed using Docker, which provides a consistent environment regardless of your operating system or local setup.
-
-For detailed Docker setup and usage instructions, please refer to our [Docker Setup Wiki](https://github.com/pgalko/BambooAI/wiki/Docker-Installation-Guide-for-BambooAI).
-
-The Docker approach offers several advantages:
-- No need to manage Python dependencies locally
-- Consistent environment across different machines
-- Easy configuration through volume mounting
-- Support for both repository-based and standalone deployments
-- **Sandboxed code execution** for enhanced security
-
-Prerequisites:
-- [Docker](https://docs.docker.com/get-docker/) installed on your system
-- [Docker Compose](https://docs.docker.com/compose/install/) installed on your system
 
 ## Model Support
 
