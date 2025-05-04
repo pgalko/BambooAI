@@ -53,7 +53,6 @@ class SmartSearchOrchestrator:
      
         self.chat_bot = ChatBot() 
         self.google_search = Search()
-        self.gemini_search = GeminiSearch()
         self.calculate = Calculator()
 
         self.known_actions = {
@@ -62,11 +61,17 @@ class SmartSearchOrchestrator:
 }
 
     def perform_query(self, log_and_call_manager, output_manager, chain_id, messages, max_turns=MAX_ITERATIONS):
-  
         links = None
 
         if SEARCH_MODE == "google_ai":
-            result, links = self.gemini_search(log_and_call_manager, output_manager, chain_id, messages)
+            try:
+                # Only initialize when needed
+                if not hasattr(self, 'gemini_search'):
+                    self.gemini_search = GeminiSearch()
+                result, links = self.gemini_search(log_and_call_manager, output_manager, chain_id, messages)
+            except Exception as e:
+                result = f"Error with Gemini search: {str(e)}"
+                output_manager.display_error(result, chain_id=chain_id)
         elif SEARCH_MODE == "selenium":
             i = 0
             observation = None
