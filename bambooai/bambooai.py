@@ -908,6 +908,8 @@ class BambooAI:
                 self.output_manager.display_results(chain_id=self.chain_id, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df, api_client=self.api_client)
                 analyst = 'Data Analyst DF'
                 plan = None
+                tool_response = []
+                intent_breakdown = question
 
             if analyst == 'Data Analyst DF':
                 example_code = self.default_example_output_df
