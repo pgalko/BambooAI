@@ -29,3 +29,4 @@ scikit-learn
 geopandas
 yfinance
 opentelemetry-distro
+setuptools

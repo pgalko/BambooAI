@@ -6,7 +6,7 @@ import tiktoken
 
 try:
     # Attempt package-relative import
-    from . import google_search, prompts, utils
+    from .. import google_search, prompts, utils
 except ImportError:
     # Fall back to script-style import
     import google_search, prompts, utils

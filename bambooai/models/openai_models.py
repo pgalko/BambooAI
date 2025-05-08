@@ -5,7 +5,7 @@ import openai
 
 try:
     # Attempt package-relative import
-    from . import google_search, prompts, utils, context_retrieval
+    from .. import google_search, prompts, utils, context_retrieval
 except ImportError:
     # Fall back to script-style import
     import google_search, prompts, utils, context_retrieval
