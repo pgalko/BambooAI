@@ -1864,30 +1864,69 @@ After completing your analysis, extract the key insights and structure them into
 ```yaml
 problem_reflection:
   goal: "Brief description of the analysis goal"
-  key_inputs: "List of key inputs"
-  main_output: "Expected outputs"
-  constraints: "Any limitations or constraints"
+  key_inputs:
+    - "First key input with proper list formatting"
+    - "Second key input"
+    - "Third key input (all list items have hyphens and quotes)"
+  main_output:
+    - "Expected output 1 (formatted as list item)"
+    - "Expected output 2 (formatted as list item)"
+  constraints:
+    - "Limitation 1 (formatted as list item)"
+    - "Limitation 2 (formatted as list item)"
+
 dataset_comprehension:
   structure: "Description of dataset structure"
-  key_variables: "List of important variables"
-  relationships: "Observed relationships" 
-  aggregations: "required aggregations"
-  potential_issues: "Any data quality concerns"
+  key_variables:
+    - "Important variable 1 with description"
+    - "Important variable 2 with description"
+    - "Important variable 3 with description"
+  relationships: "Observed relationships between variables" 
+  aggregations: "Required aggregations to perform"
+  potential_issues:
+    - "Data quality concern 1"
+    - "Data quality concern 2"
+
 data_operations:
-  - operation: "Name of operation"
-    description: "Purpose and method"
+  - operation: "First Operation Name"
+    description: "Purpose and method of first operation (describe what functions will do, but DO NOT include actual code)"
+  - operation: "Second Operation Name"
+    description: "Purpose and method of second operation (describe what functions will do, but DO NOT include actual code)"
+
 analysis_steps:
-  - name: "Step name"
+  - name: "Step 1: Initial Data Processing"
     purpose: "Why this step is necessary"
-    actions: "What will be done using what helper functions"
-    formula: "Any relevant formulas"
+    actions:
+      - "First action to perform in this step"
+      - "Second action to perform in this step"
+      - "Third action to perform in this step"
+    formula: "Any relevant formulas for this step (mathematical notation only, not code)"
     expected_outcome: "What this step will produce"
+  
+  - name: "Step 2: Advanced Analysis"
+    purpose: "Purpose of the second step"
+    actions:
+      - "First action for step 2"
+      - "Second action for step 2"
+    formula: "Any relevant formula for step 2 (mathematical notation only, not code)"
+    expected_outcome: "Expected outcome of step 2"
+
 visualization_requirements:
-  - chart_type: "Type of visualization"
-    purpose: "What this visualization will show"
-    requirements: "What is required, and what helper functions should be used"
-output_format: "Description of final output format"
-key_insights: "List of expected key findings"
+  chart_type: "Type of visualization"
+  purpose: "What this visualization will show"
+  requirements:
+    - "Requirement 1 for visualization"
+    - "Requirement 2 for visualization"
+    - "Helper function that should be used (describe function purpose, but DO NOT include code)"
+
+output_format:
+  - "Description of first output format element"
+  - "Description of second output format element"
+
+key_insights:
+  - "Expected key finding 1"
+  - "Expected key finding 2"
+  - "Expected key finding 3"
 ```
 
 If you need additional information or data, you have access to the following tools:
@@ -2045,25 +2084,63 @@ After completing your analysis, extract the key insights and structure them into
 ```yaml
 problem_reflection:
   goal: "Brief description of the analysis goal"
-  key_inputs: "List of key inputs"
-  main_output: "Expected outputs"
-  constraints: "Any limitations or constraints"
+  key_inputs:
+    - "First key input with proper formatting"
+    - "Second key input"
+    - "Third key input"
+  main_output:
+    - "Expected output 1"
+    - "Expected output 2"
+  constraints:
+    - "Limitation 1"
+    - "Limitation 2"
+
 resource_identification:
-  data_sources: "List of data sources"
-  libraries: "Required libraries and APIs"
-  helper_functions: "Key functions to be used"
+  data_sources:
+    - "Data source 1 with description"
+    - "Data source 2 with description"
+  libraries:
+    - "Required library 1"
+    - "Required library 2"
+    - "Required API"
+  helper_functions:
+    - "Helper function 1 with brief description of purpose (DO NOT include function code)"
+    - "Helper function 2 with brief description of purpose (DO NOT include function code)"
+
 implementation_steps:
-  - name: "Step name"
+  - name: "Step 1: Initial Data Processing"
     purpose: "Why this step is necessary"
-    actions: "What will be done using what helper functions"
-    formula: "Any relevant formulas"
+    actions:
+      - "First action to perform in this step"
+      - "Second action to perform in this step"
+      - "Third action to perform in this step"
+    formula: "Any relevant formulas for this step (mathematical notation only, NOT code implementation)"
     expected_outcome: "What this step will produce"
+  
+  - name: "Step 2: Advanced Analysis"
+    purpose: "Purpose of the second step"
+    actions:
+      - "First action for step 2"
+      - "Second action for step 2"
+    formula: "Any relevant formula for step 2 (mathematical notation only, NOT code implementation)"
+    expected_outcome: "Expected outcome of step 2"
+
 visualization_requirements:
-  - chart_type: "Type of visualization"
+  - chart_type: "Type of visualization (e.g., line chart)"
     purpose: "What this visualization will show"
-    requirements: "What is required, and what helper functions should be used"
-output_format: "Description of final output format"
-key_insights: "List of expected key findings"
+    requirements:
+      - "Data requirement 1 for visualization"
+      - "Data requirement 2 for visualization"
+      - "Helper function that should be used (describe function purpose only, DO NOT include code)"
+
+output_format:
+  - "Description of first output format element"
+  - "Description of second output format element"
+
+key_insights:
+  - "Expected key finding 1"
+  - "Expected key finding 2"
+  - "Expected key finding 3"
 ```
 
 If you need to search internet for additional information, you may do so, but use this capability sparingly.

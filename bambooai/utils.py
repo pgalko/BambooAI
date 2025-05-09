@@ -179,29 +179,6 @@ def get_node_style(node_type):
     return f'fill:{fill_color},stroke:#CCCCCC,stroke-width:2px'
 
 def format_label(label, max_width=20):
-    clean_label = re.sub(r'[^\w\s-]', '', label)
-    wrapped_lines = textwrap.wrap(clean_label, width=max_width)
-    return '<br/>' + '<br/>'.join(wrapped_lines)
-
-def sanitize_id(label):
-    sanitized = re.sub(r'[^\w\s-]', '_', label)
-    sanitized = re.sub(r'_+', '_', sanitized)
-    return sanitized.strip('_').replace(' ', '_')
-
-NODE_COLORS = {
-    'container': 'none',
-    'data': 'none',
-    'function': 'none',
-    'derived_object': 'none',
-    'measurement': 'none',
-    'default': 'none'
-}
-
-def get_node_style(node_type):
-    fill_color = NODE_COLORS.get(node_type, NODE_COLORS['default'])
-    return f'fill:{fill_color},stroke:#CCCCCC,stroke-width:2px'
-
-def format_label(label, max_width=20):
     if not isinstance(label, str):
         label = str(label)
     
