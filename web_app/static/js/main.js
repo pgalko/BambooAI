@@ -6,6 +6,7 @@ let currentData = {
     chain_id: null,
     thread_id: null 
 };
+let lastActiveChainId = null;
 let tabCounter = 0;
 let currentResponseIndex = -1;
 let responses = [];
@@ -143,6 +144,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectionQuery = document.getElementById('selectionQuery');
     const selectionForm = document.getElementById('selectionForm');
 
+    // Workflow map option handler
+    const workflowMapOption = document.querySelector('.workflow-map-option');
+    const workflowMapModal = document.getElementById('workflowMapModal');
+    const closeBtn = workflowMapModal.querySelector('.workflow-close');
+
     // Initialize window.currentData if not exists
     if (!window.currentData) {
         window.currentData = { chain_id: null, thread_id: null };
@@ -240,7 +246,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.warn('Submit query button not found');
     }
-
+    // Handle query submission with Enter key
     if (queryInput) {
         queryInput.addEventListener('keydown', function (e) {
             // Check for Ctrl+Enter or Cmd+Enter
@@ -252,6 +258,15 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.warn('Query input element not found');
     }
+    
+    // Handle show workflow map with Ctrl+M or Cmd+M
+    document.addEventListener('keydown', function(e) {
+        // Check for Ctrl+M or Cmd+M
+        if ((e.ctrlKey || e.metaKey) && e.key === 'm') {
+            e.preventDefault();
+            showWorkflowMap();
+        }
+    });
 
     if (prevButton && nextButton) {
         prevButton.addEventListener('click', () => {
@@ -552,11 +567,278 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         removeHighlights();
     });
+    
+    // Initialize the workflow map modal
+    if (workflowMapOption) {
+        workflowMapOption.addEventListener('click', function() {
+            document.querySelector('.menu-popup').style.display = 'none';
+            document.querySelector('.menu-overlay').classList.remove('active');
+            showWorkflowMap();
+        });
+    }
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            workflowMapModal.style.display = 'none';
+        });
+    }
+    
+    // Close the modal if user clicks outside of it
+    workflowMapModal.addEventListener('click', function(event) {
+        if (event.target === workflowMapModal) {
+            workflowMapModal.style.display = 'none';
+        }
+    });
 });
 
 //--------------------
 //  HELPER FUNCTIONS
 //--------------------
+
+// Function to show the workflow map
+function showWorkflowMap() {
+    const workflowMapModal = document.getElementById('workflowMapModal');
+    const workflowMapContainer = document.getElementById('workflowMapContainer');
+    const nodeTaskContent = document.getElementById('nodeTaskContent');
+    const nodePlotPreview = document.getElementById('nodePlotPreview');
+    
+    workflowMapContainer.innerHTML = '<div class="loading-indicator">Generating workflow map...</div>';
+    nodeTaskContent.innerHTML = 'Hover over a node to view details';
+    nodePlotPreview.innerHTML = '<div class="plot-preview-message">Plot previews will appear here if available</div>';
+    workflowMapModal.style.display = 'flex';
+    
+    // Simple mermaid diagram generation
+    let diagram = 'flowchart TD\n';
+    
+    // Add nodes with query text and chain ID
+    responses.forEach((response, index) => {
+        const nodeId = `node${index}`;
+        
+        // Get query text from the response or use a fallback
+        let queryText = response.queryText || 'No query';
+        
+        // Trim if too long (30 chars max)
+        if (queryText.length > 30) {
+            queryText = queryText.substring(0, 27) + '...';
+        }
+        
+        // Format node text with query and chain ID
+        const nodeText = `${queryText}<br>Chain ID: ${response.chain_id || 'N/A'}`;
+        
+        // Add node to diagram
+        diagram += `    ${nodeId}["${nodeText}"]\n`;
+    });
+    
+    // Add edges for parent-child relationships
+    responses.forEach((response, index) => {
+        if (response.parentChainId) {
+            const parentIndex = responses.findIndex(r => 
+                r.chain_id === response.parentChainId);
+            
+            if (parentIndex >= 0) {
+                diagram += `    node${parentIndex} --> node${index}\n`;
+            }
+        }
+    });
+    
+    // Highlight current node
+    diagram += `    style node${currentResponseIndex} fill:#4CAF50,stroke:#388E3C,color:white,stroke-width:2px\n`;
+    
+    // Add clickable class to all nodes - generate dynamically based on responses length
+    diagram += '    classDef clickable cursor:pointer;\n';
+    
+    // Dynamically generate node list
+    if (responses.length > 0) {
+        const nodeList = Array.from({length: Math.min(responses.length, 30)}, (_, i) => `node${i}`).join(',');
+        diagram += `    class ${nodeList} clickable;\n`;
+    }
+    
+    // Render the diagram
+    ensureMermaid();
+    mermaid.render(`workflow-${Date.now()}`, diagram)
+        .then(({ svg }) => {
+            workflowMapContainer.innerHTML = svg;
+            
+            // Extract task and answer content for each node
+            const nodeContents = responses.map((response, index) => {
+                return {
+                    task: extractTaskFromResponse(response),
+                    answer: extractAnswerFromResponse(response)
+                };
+            });
+            
+            // Extract plot data for each response (if available)
+            const nodePlots = responses.map((response) => {
+                return extractPlotDataFromResponse(response);
+            });
+            
+            // Add hover and click handlers to nodes
+            setTimeout(() => {
+                const nodes = workflowMapContainer.querySelectorAll('g.node');
+                nodes.forEach((node) => {
+                    // Extract the index from the node id
+                    const match = node.id.match(/flowchart-node(\d+)/);
+                    if (match) {
+                        const index = parseInt(match[1]);
+                        
+                        // Add hover handler
+                        node.addEventListener('mouseenter', function() {
+                            if (index >= 0 && index < responses.length) {
+                                const nodeContent = nodeContents[index];
+                                
+                                // Build the content HTML with task or answer fallback
+                                let contentHtml = '';
+                                
+                                if (nodeContent.task && nodeContent.task !== 'null' && nodeContent.task.trim() !== '') {
+                                    // If task is available and not "null", display it
+                                    contentHtml = nodeContent.task;
+                                } else if (nodeContent.answer && 
+                                          nodeContent.answer !== 'No answer content available' && 
+                                          nodeContent.answer !== 'Answer content not found' && 
+                                          nodeContent.answer !== 'Error extracting answer') {
+                                    // Use answer as fallback, but no need for a label now since we have section headers
+                                    contentHtml = nodeContent.answer;
+                                } else {
+                                    // If neither is available or both contain error messages
+                                    contentHtml = 'No content available for this node';
+                                }
+                                
+                                // Update the task content area
+                                nodeTaskContent.innerHTML = contentHtml;
+                                
+                                // Show plot preview if available
+                                const plotData = nodePlots[index];
+                                if (plotData) {
+                                    nodePlotPreview.innerHTML = '';
+                                    try {
+                                        const plotContainer = renderPlotlyPreview(plotData);
+                                        nodePlotPreview.appendChild(plotContainer);
+                                    } catch (err) {
+                                        console.error('Error rendering plot preview:', err);
+                                        nodePlotPreview.innerHTML = '<div class="plot-preview-message">Error rendering plot preview</div>';
+                                    }
+                                } else {
+                                    nodePlotPreview.innerHTML = '<div class="plot-preview-message">No plot available for this node</div>';
+                                }
+                            }
+                        });
+                        
+                        // Add click handler
+                        node.addEventListener('click', function() {
+                            // Navigate to this response
+                            if (index >= 0 && index < responses.length) {
+                                currentResponseIndex = index;
+                                
+                                // Update lastActiveChainId to current chain_id
+                                lastActiveChainId = responses[index].chain_id || null;
+                                
+                                loadResponseContent(responses[currentResponseIndex]);
+                                updateNavigationButtons();
+                                
+                                // Close the modal
+                                workflowMapModal.style.display = 'none';
+                            }
+                        });
+                    }
+                });
+            }, 100);
+        })
+        .catch(err => {
+            console.error('Mermaid render error:', err);
+            workflowMapContainer.innerHTML = `<div class="error">Error generating workflow map: ${err.message}</div>`;
+        });
+}
+
+// Function to extract plot data from a response
+function extractPlotDataFromResponse(response) {
+    try {
+        // Create a temporary div to parse HTML content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = response.contentOutput || '';
+        
+        // Look for plot content
+        const plotTab = tempDiv.querySelector('#content-plot');
+        if (!plotTab) return null;
+        
+        // Try to find Plotly JSON data in the plot tab
+        const plotlyDiv = plotTab.querySelector('.plotly-plot div[data-plotly-json]');
+        if (plotlyDiv && plotlyDiv.dataset.plotlyJson) {
+            return plotlyDiv.dataset.plotlyJson;
+        }
+        
+        // If no JSON data found, check for plot images
+        const plotImage = plotTab.querySelector('.plot-image');
+        if (plotImage && plotImage.src) {
+            // For image-based plots, return the src
+            // Note: This would need additional handling in renderPlotlyPreview
+            return plotImage.src;
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error extracting plot data:', error);
+        return null;
+    }
+}
+
+// Extract task information from response
+function extractTaskFromResponse(response) {
+    try {
+        // Create a temporary div to parse HTML content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = response.contentOutput || '';
+        
+        // Look for the Query tab content
+        const queryTab = tempDiv.querySelector('#content-query');
+        if (!queryTab) return null;
+        
+        // Try to find the intent_breakdown text in the query tab
+        const intentText = queryTab.innerHTML.match(/intent_breakdown:\s*"([^"]*)"/);
+        if (intentText && intentText[1]) {
+            return intentText[1].trim();
+        }
+        
+        // Alternative: try to extract from YAML content
+        const yamlContent = queryTab.querySelector('.yaml-wrapper');
+        if (yamlContent) {
+            const yamlText = yamlContent.textContent;
+            const intentMatch = yamlText.match(/intent_breakdown:\s*"([^"]*)"/);
+            if (intentMatch && intentMatch[1]) {
+                return intentMatch[1].trim();
+            }
+        }
+        
+        return null; // Return null instead of error message for cleaner fallback logic
+    } catch (error) {
+        console.error('Error extracting task information:', error);
+        return null;
+    }
+}
+
+// Extract answer content from response
+function extractAnswerFromResponse(response) {
+    try {
+        // Create a temporary div to parse HTML content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = response.contentOutput || '';
+        
+        // Look for the Answer tab content
+        const answerTab = tempDiv.querySelector('#content-answer');
+        if (!answerTab) return 'No answer content available';
+        
+        // Get the markdown content
+        const markdownContent = answerTab.querySelector('.markdown-content');
+        if (markdownContent) {
+            // Return the HTML content as in the original
+            return markdownContent.innerHTML;
+        }
+        
+        return 'Answer content not found';
+    } catch (error) {
+        console.error('Error extracting answer content:', error);
+        return 'Error extracting answer';
+    }
+}
 
 // Theme toggle functionality
 function initializeThemeToggle() {
@@ -700,6 +982,9 @@ function handleQuerySubmit() {
     if (!query) {
         return;
     }
+
+    // Store the query text in currentData for later use
+    currentData.queryText = query;
 
     const streamOutputDiv = document.getElementById('streamOutput');
     streamOutputDiv.innerHTML = '';
@@ -1092,14 +1377,20 @@ async function saveCurrentResponse() {
     const contentOutput = document.getElementById('contentOutput');
     const streamOutput = document.getElementById('streamOutput');
     
+    // Simple tracking of parent-child relationship
     const newResponse = {
         tabContent: tabContainer.innerHTML,
         contentOutput: contentOutput.innerHTML,
         streamOutput: streamOutput.innerHTML,
         taskContents: taskContents,
-        chain_id: currentData.chain_id || null,  // Include chain_id in saved response
-        thread_id: currentData.thread_id || null  // Include thread_id in saved response
+        chain_id: currentData.chain_id || null,
+        thread_id: currentData.thread_id || null,
+        parentChainId: lastActiveChainId, // Store parent relationship
+        queryText: currentData.queryText || 'No query'  // Store the query text
     };
+    
+    // Update lastActiveChainId for next interaction
+    lastActiveChainId = currentData.chain_id || null;
     
     responses.push(newResponse);
     currentResponseIndex = responses.length - 1;
@@ -1270,6 +1561,11 @@ function navigateResponses(direction) {
     currentResponseIndex += direction;
     if (currentResponseIndex < 0) currentResponseIndex = 0;
     if (currentResponseIndex >= responses.length) currentResponseIndex = responses.length - 1;
+
+    // Update lastActiveChainId when navigating
+    if (responses[currentResponseIndex]) {
+        lastActiveChainId = responses[currentResponseIndex].chain_id || null;
+    }
 
     loadResponseContent(responses[currentResponseIndex]);
     updateNavigationButtons();
@@ -2626,7 +2922,8 @@ async function storeInFavorites(userRank, statusMessage, submitButton, starRatin
         tabContent: chainData.tabContent || '',
         contentOutput: chainData.contentOutput || '',
         streamOutput: chainData.streamOutput || '',
-        taskContents: chainData.taskContents || {}
+        taskContents: chainData.taskContents || {},
+        queryText: chainData.queryText || '',
     };
 
     // Extract the intent_breakdown from the Query tab content
@@ -2804,9 +3101,9 @@ function initializeThreadsUI() {
     // Create and append the divider and header
     const dividerAndHeaderHTML = `
         <hr class="menu-divider">
-        <h3 class="threads-header">Workflows:</h3>
+        <h3 class="threads-header">Checkpoints:</h3>
         <div id="threads-list" class="threads-list">
-            <div class="thread-loading">Loading workflows...</div>
+            <div class="thread-loading">Loading checkpoints...</div>
         </div>
     `;
     
@@ -2998,6 +3295,9 @@ function createThreadItem(chain, isLatest) {
     threadItem.addEventListener('click', () => {
         // Load the thread content
         loadThreadContent(chain.thread_id, chain.chain_id);
+
+        // Update lastActiveChainId to current chain_id
+        lastActiveChainId = chain.chain_id;
         
         // Close the menu and overlay when chain is clicked
         toggleMenu(false);

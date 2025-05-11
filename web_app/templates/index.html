@@ -95,6 +95,13 @@
                             </svg>
                             <span>New Workflow</span>
                         </button>
+                        <button class="menu-option workflow-map-option">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3h6v6H3zM15 3h6v6h-6zM21 15h-6v6h6zM9 15H3v6h6zM12 9v12M9 9H3M15 9h6M12 3v6"/>
+                            </svg>
+                            <span>Workflow Map</span>
+                            <span class="keyboard-shortcut">⌘M</span>
+                        </button>
                     </div>
                 </div>
                 <div class="theme-toggle-container">
@@ -346,6 +353,32 @@
                     <polygon points="22 2 15 22 11 13 2 9"></polygon>
                 </svg>
             </button>
+        </div>
+    </div>
+
+    <!-- Workflow Map Modal -->
+    <div id="workflowMapModal" class="modal">
+        <div class="modal-content workflow-modal-content">
+            <div class="modal-header">
+                <h2>Workflow Map</h2>
+                <button class="close workflow-close">&times;</button>
+            </div>
+            <div class="modal-body workflow-body">
+                <div id="workflowMapContainer" class="workflow-map-container"></div>
+                <div id="workflowDetailsPane" class="workflow-details-pane">
+                    <div class="details-content">
+                        <div id="nodeTaskContent" class="details-text">
+                            Hover over a node to view task details
+                        </div>
+                        <div id="nodePlotPreview" class="details-plot-preview">
+                            <!-- Plot preview will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <p class="hint">Click on any node to navigate to that conversation</p>
+            </div>
         </div>
     </div>
     
