@@ -10,9 +10,11 @@ warnings.filterwarnings('ignore')
 try:
     # Attempt package-relative import
     from . import code_executor, models, prompts, template_formatting, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
+    from .message_manager import MessageManager
 except ImportError:
     # Fall back to script-style import
     import code_executor, models, prompts, template_formatting, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
+    from message_manager import MessageManager
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -33,6 +35,22 @@ class BambooAI:
         # Output
         self.output_manager = web_output_manager.WebOutputManager() if webui else output_manager.OutputManager()
         self.webui = webui
+        self.MAX_CONVERSATIONS = (max_conversations*2) - 1
+
+        try:
+            interaction_store = storage_manager.SimpleInteractionStore()
+        except storage_manager.StorageError as e:
+            self.output_manager.print_wrapper(f"Warning: Failed to initialize interaction store: {e}")
+            interaction_store = None
+
+        # Message Manager
+        self.message_manager = MessageManager(
+            max_conversations = self.MAX_CONVERSATIONS,
+            output_manager=self.output_manager,
+            interaction_store=interaction_store,
+            model_dict=None,  # Will be set after model_dict is initialized
+            reg_ex=reg_ex,
+        )
 
         # Code execution and API client
         self.execution_mode = os.getenv('EXECUTION_MODE', 'local')
@@ -44,13 +62,6 @@ class BambooAI:
 
         # Web search mode
         self.search_mode = os.getenv('WEB_SEARCH_MODE', 'google_ai')
-
-        # Storage
-        try:
-            self.interaction_store = storage_manager.SimpleInteractionStore()
-        except storage_manager.StorageError as e:
-            self.output_manager.print_wrapper(f"Warning: Failed to initialize interaction store: {e}")
-            self.interaction_store = None
 
         # Check if the OPENAI_API_KEY environment variable is set
         if not os.getenv('OPENAI_API_KEY'):
@@ -112,18 +123,6 @@ class BambooAI:
         # Results of the code execution
         self.code_exec_results = None
 
-        # QA Pairs (a list of dictionaries containing "question/results of the code execution" pairs)
-        self.qa_pairs = []
-        
-        # Tasks (a list of task)
-        self.tasks = []
-
-        # Last generated code
-        self.last_code = None
-
-        # Last generated plan
-        self.last_plan = None
-
         # Set the vector_db mode. This mode is True when you want the model to rank the generated code, and store the results above threshold in a vector database.
         self.vector_db = vector_db
 
@@ -138,59 +137,6 @@ class BambooAI:
         self.pandas_version = versions['pandas_version']
         self.python_version = versions['python_version']
         self.plotly_version = versions['plotly_version']
-        
-        # Prompts
-        # Define list of templates
-        templates = [
-            "default_example_output_df",
-            "default_example_output_gen",
-            "default_example_plan_df",
-            "default_example_plan_gen",
-            "expert_selector_system",
-            "expert_selector_user",
-            "analyst_selector_system",
-            "analyst_selector_user",
-            "planner_system",
-            "planner_user_gen",
-            "planner_user_df",
-            "planner_user_gen_reasoning",
-            "planner_user_df_reasoning",
-            "theorist_system",
-            "dataframe_inspector_system",
-            "dataframe_inspector_user",
-            "google_search_query_generator_system",
-            "google_search_react_system",
-            "code_generator_system_df",
-            "code_generator_system_gen",
-            "code_generator_user_df_plan",
-            "code_generator_user_df_no_plan",
-            "code_generator_user_gen_plan",
-            "code_generator_user_gen_no_plan",
-            "error_corector_system",
-            "error_corector_system_reasoning",
-            "error_corector_edited_system",
-            "error_corector_edited_system_reasoning",
-            "reviewer_system",
-            "solution_summarizer_system",
-            "solution_summarizer_custom_code_system",
-            "plot_query",
-            "plot_query_routing"
-        ]
-
-        prompt_data = {}
-
-        # Check if the JSON file exists
-        if os.path.exists("PROMPT_TEMPLATES.json"):
-            # Load from JSON file
-            with open("PROMPT_TEMPLATES.json", "r") as f:
-                prompt_data = json.load(f)
-
-        # Set templates to the values from the JSON file or the default values. This dynamicaly sets the object attributes.
-        # These attributes are part of the object's state and will exist as long as the object itself exists.
-        # The attributes can be called using self.<attribute_name> throughout the class.
-        for template in templates:
-            value = prompt_data.get(template, getattr(prompts, template, ""))
-            setattr(self, template, value)
 
         # Regular expresions
         self._extract_code = reg_ex._extract_code
@@ -231,16 +177,6 @@ class BambooAI:
             if model_info['multimodal'] == 'true'
         ]
 
-
-        # Messages lists
-        self.pre_eval_messages = [{"role": "system", "content": self.expert_selector_system}]
-        self.select_analyst_messages = [{"role": "system", "content": self.analyst_selector_system}]
-        self.eval_messages = [{"role": "system", "content": self.planner_system}]
-        self.code_messages = [{"role": "system", "content": self.code_generator_system_df}]
-        self.df_inspector_messages = [{"role": "system", "content": self.dataframe_inspector_system}]
-        self.plan_review_messages = None
-        self.insight_messages = None
-
         # QA Retrieval
         self.pinecone_wrapper = qa_retrieval.PineconeWrapper(output_manager=self.output_manager)
         self.similarity_threshold = 0.80
@@ -264,7 +200,7 @@ class BambooAI:
             'code_generator_user_gen_plan',
             'code_generator_user_gen_no_plan'
         ]
-        code_gen_template_dict = {name: getattr(self, name) for name in code_gen_templates}
+        code_gen_template_dict = {name: getattr(self.message_manager, name) for name in code_gen_templates}
         self.code_gen_prompt_generator = template_formatting.CodeGenPromptGenerator(code_gen_template_dict, self.model_dict)
 
 
@@ -272,287 +208,21 @@ class BambooAI:
     ### Util Functions ###
     ######################
 
-    def reset_messages_and_logs(self):
-        self.pre_eval_messages = [{"role": "system", "content": self.expert_selector_system}]
-        self.select_analyst_messages = [{"role": "system", "content": self.analyst_selector_system}]
-        self.eval_messages = [{"role": "system", "content": self.planner_system}]
-        self.code_messages = [{"role": "system", "content": self.code_generator_system_df}]
-        self.df_inspector_messages = [{"role": "system", "content": self.dataframe_inspector_system}]
-        self.code_exec_results = None
+    # Methods moved to MessageManager:
+    # - reset_messages_and_logs
+    # - reset_non_cumul_messages
+    # - reset_retrieved_data
 
-        self.log_and_call_manager.clear_run_logs()
+    # Methods moved to MessageManager:
+    # - messages_maintenance
+    # - filter_tools
 
-    def reset_non_cumul_messages(self):
-        self.plan_review_messages = None
-        self.insight_messages = None
-
-    def reset_retrieved_data(self):
-        self.retrieved_data_model = None
-        self.retrieved_plan = None
-        self.retrieved_code = None
-
-    def messages_maintenace(self, messages):
-        # Remove tool_calls messages from the messages list
-        for i in range(len(messages) - 1, -1, -1):  # Start from the last item to index 0
-            msg = messages[i]
-            if "tool_calls" in msg or msg.get("role") == "tool":
-                messages.pop(i)
-        # Remove the oldest conversation from the messages list
-        if len(messages) > self.MAX_CONVERSATIONS:
-            messages.pop(1)
-            messages.pop(1)
-            self.output_manager.display_system_messages("Truncating messages")
-
-    def filter_tools(self, provider, search_enabled=False, auxiliary_enabled=False, feedback_enabled=False):
-        if provider not in ['openai', 'anthropic', 'gemini']:
-            return None
-
-        filtered_tools = getattr(func_calls, f'{provider}_tools_definition')  # Create a copy to avoid modifying original list
-        
-        def get_tool_name(tool):
-            # Handle direct name (anthropic/gemini style)
-            if "name" in tool:
-                return tool["name"]
-            # Handle nested name (openai style)
-            if "function" in tool and "name" in tool["function"]:
-                return tool["function"]["name"]
-            return None
-        
-        # Remove tools based on flags
-        if not search_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "google_search"]
-        
-        if not auxiliary_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "get_auxiliary_dataset"]
-            
-        if not feedback_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "request_user_context"]
-        
-        return filtered_tools
-    
-    def append_qa_pair(self, question, results):
-        # Define the custom operation identifier strings
-        custom_identifiers = [
-            "User requested to run the code to do a custom analysis of the activity with ID:",
-            "User manually edited your code, and requested to run it, and return the result."
-        ]
-        
-        # Remove all existing custom operation entries
-        self.qa_pairs = [
-            pair for pair in self.qa_pairs 
-            if not any(identifier in pair["task"] for identifier in custom_identifiers)
-        ]
-        
-        # Append the new QA pair
-        self.qa_pairs.append({"task": question, "result": results})
-
-    def format_qa_pairs(self, qa_pairs, max_qa_pairs=8):
-        # Format QA pairs for prompts
-        if not qa_pairs:
-            return "No previous analyses."
-        
-        # Trim qa_pairs first if it exceeds max_qa_pairs
-        if len(qa_pairs) > max_qa_pairs:
-            qa_pairs = qa_pairs[-max_qa_pairs:]  # Keep only the most recent pairs
-        
-        formatted_str = ["Previous Analyses:"]
-        
-        for i, pair in enumerate(qa_pairs, 1):
-            # Add question with minimal formatting
-            formatted_str.append(f"\n{i}. Task: {pair['task']}")
-            
-            # Format answer with minimal separators and line preservation
-            answer_lines = [line for line in pair['result'].split('\n') if line.strip()]
-            formatted_str.append('Result:\n' + '\n'.join(answer_lines))
-            
-            # Add minimal separator if not the last pair
-            if i < len(qa_pairs):
-                formatted_str.append("-" * 5)
-         
-        return '\n'.join(formatted_str)
-    
-    def format_tasks(self, tasks):
-        # Format tasks for prompts
-        if not tasks:
-            return "No previous tasks."
-        
-        formatted_str = ["Tasks:"]
-        
-        for i, task in enumerate(tasks, 1):
-            # Add task with minimal formatting
-            formatted_str.append(f"\n{i}. {task}")
-            
-            # Add minimal separator if not the last task
-            if i < len(tasks):
-                formatted_str.append("-" * 5)
-        
-        return '\n'.join(formatted_str)
-
-    def messages_content_maintenance(self, agent, messages):
-        if agent == 'Dataframe Inspector':
-            for msg in messages:
-                if msg.get('role') == 'user':
-                    content = msg.get('content', '')
-                    # Check if content is a list (image message format)
-                    if isinstance(content, list):
-                        # Extract only the text content from the message
-                        text_content = next((item.get('text', '') for item in content if item.get('type') == 'text'), '')
-                        # Replace the content with just the text and process it
-                        msg['content'] = self._remove_all_except_task_ontology_text(text_content)
-                    else:
-                        # Process regular text message
-                        msg['content'] = self._remove_all_except_task_ontology_text(content)
-        # Planner messages content maintenance
-        if agent == 'Planner' or agent == 'Theorist':
-            for msg in messages:
-                if msg.get('role') == 'user':
-                    content = msg.get('content', '')
-                    # Check if content is a list (image message format)
-                    if isinstance(content, list):
-                        # Extract only the text content from the message
-                        text_content = next((item.get('text', '') for item in content if item.get('type') == 'text'), '')
-                        # Replace the content with just the text and process it
-                        msg['content'] = self._remove_all_except_task_xml(text_content)
-                    else:
-                        # Process regular text message
-                        msg['content'] = self._remove_all_except_task_xml(content)
-
-        if agent == 'Code Executor':
-            for msg in messages:
-                if msg.get('role') == 'user':
-                    content = msg.get('content', '')
-                    # Check if content is a list (image message format)
-                    if isinstance(content, list):
-                        # Extract only the text content from the message
-                        text_content = next((item.get('text', '') for item in content if item.get('type') == 'text'), '')
-                        # Replace the content with just the text and process it
-                        if self.model_dict[models.get_model_name('Code Generator')[0]]['templ_formating'] == 'xml':
-                            msg['content'] = self._remove_all_except_task_xml(text_content)
-                        else:  # templ_formating is 'text'
-                            msg['content'] = self._remove_all_except_task_text(text_content)
-                    else:
-                        # Process regular text message
-                        if self.model_dict[models.get_model_name('Code Generator')[0]]['templ_formating'] == 'xml':
-                            msg['content'] = self._remove_all_except_task_xml(content)
-                        else:  # templ_formating is 'text'
-                            msg['content'] = self._remove_all_except_task_text(content)
-
-    def format_image_message(self, agent, message_content, image, provider, model):
-        # Format the message content with an image. 
-        # This replaces the last message content with the image and message content.
-        
-        if agent == 'Code Generator' or agent == 'Planner':
-            message_content = message_content
-        else:
-            message_content = self.plot_query.format(message_content)
-        
-        if model in self.multimodal_models:
-            if provider == 'anthropic':
-                return {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/png",
-                                "data": image,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": message_content
-                        }
-                    ]
-                }
-            elif provider == 'openai':
-                return {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{image}"
-                            }
-                        },
-                        {
-                            "type": "text",
-                            "text": message_content
-                        }
-                    ]
-                }
-            elif provider == 'gemini':
-                # For Gemini, we'll return a format that can be converted to types.ContentDict later
-                return {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_base64",
-                            "data": image,
-                            "mime_type": "image/png"
-                        },
-                        {
-                            "type": "text",
-                            "text": message_content
-                        }
-                    ]
-                }
-        else:
-            return {
-                "role": "user",
-                "content": message_content
-            }
-
-    def store_interaction(self, google_search_results=None, executed_code=None, code_exec_results=None, plot_jsons=None, qa_pairs=None, tasks=None):
-        # Store the interaction if store is available
-        if hasattr(self, 'interaction_store') and self.interaction_store is not None:
-            try:
-                messages = {
-                    'pre_eval_messages': self.pre_eval_messages,
-                    'select_analyst_messages': self.select_analyst_messages,
-                    'eval_messages': self.eval_messages,
-                    'df_inspector_messages': self.df_inspector_messages,
-                    'code_messages': self.code_messages,
-                    'plan_review_messages': self.plan_review_messages,
-                    'insight_messages': self.insight_messages
-                }
-                
-                # Collect all search triplets maintaining query-links relationship
-                search_results = {
-                    'search': {
-                        'searches': [] # List of search triplets
-                    }
-                }
-                
-                # Add search triplets if they exist
-                if google_search_results:
-                    for triplet in google_search_results:
-                        search_results['search']['searches'].append({
-                            'query': triplet['query'],
-                            'result': triplet['result'],
-                            'links': triplet['links']
-                        })
-                
-                # Combine search results with code execution results
-                tool_results = {
-                    'search': search_results['search'] if search_results['search']['searches'] else None,
-                    'code_exec': {
-                        'executed_code': executed_code,
-                        'code_exec_results': code_exec_results,
-                        'plot_jsons': plot_jsons if plot_jsons else [],
-                        'qa_pairs': qa_pairs if qa_pairs else [],
-                        'tasks': tasks if tasks else []
-                    }
-                }
-                
-                self.interaction_store.store_interaction(
-                    thread_id=str(self.thread_id),
-                    chain_id=str(self.chain_id),
-                    messages=messages,
-                    tool_results=tool_results
-                )
-            except storage_manager.StorageError as e:
-                self.output_manager.print_wrapper(f"Warning: Failed to store interaction: {e}")
+    # Methods moved to MessageManager:
+    # - append_qa_pair
+    # - format_qa_pairs
+    # - format_tasks
+    # - messages_content_maintenance
+    # - format_image_message
 
     ######################
     ### Eval Functions ###
@@ -580,7 +250,14 @@ class BambooAI:
 
         reasoning_effort = "medium"
 
-        tools = self.filter_tools(provider, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+        if provider == 'openai':
+            tools=self.message_manager.filter_tools(self.openai_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+        elif provider == 'anthropic':
+            tools=self.message_manager.filter_tools(self.anthropic_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+        elif provider == 'gemini':
+            tools=self.message_manager.filter_tools(self.gemini_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+        else:
+            tools=None
 
         # Call LLM API to evaluate the task
         if tools:
@@ -604,16 +281,24 @@ class BambooAI:
         # Format messages if image is provided
         if image is not None:
             last_message = eval_messages[-1]
-            formatted_message = self.format_image_message(
+            formatted_message = self.message_manager.format_image_message(
                 agent=agent,
                 message_content=last_message["content"],
                 image=image,
                 provider=provider,
-                model=using_model
+                model=using_model,
+                multimodal_models=self.multimodal_models
             )
             eval_messages[-1] = formatted_message
 
-        tools=self.filter_tools(provider, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        if provider == 'openai':
+            tools=self.message_manager.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        elif provider == 'anthropic':
+            tools=self.message_manager.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        elif provider == 'gemini':
+            tools=self.message_manager.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        else:
+            tools=None
 
         if tools:
             llm_response, tool_response = self.llm_stream(self.log_and_call_manager, self.output_manager, eval_messages, agent=agent, chain_id=self.chain_id, tools=tools, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
@@ -642,30 +327,31 @@ class BambooAI:
 
         ######## Select Expert ###########
         if image:
-            template = self.plot_query_routing.format(question)
+            template = self.message_manager.plot_query_routing.format(question)
         else:
-            template = self.expert_selector_user.format(question)
-        self.pre_eval_messages.append({"role": "user", "content": template})
-        select_expert_llm_response, expert,requires_dataset,confidence  = self.select_expert(self.pre_eval_messages) 
-        self.pre_eval_messages.append({"role": "assistant", "content": select_expert_llm_response})
+            template = self.message_manager.expert_selector_user.format(question)
+        self.message_manager.pre_eval_messages.append({"role": "user", "content": template})
+        select_expert_llm_response, expert,requires_dataset,confidence  = self.select_expert(self.message_manager.pre_eval_messages) 
+        self.message_manager.pre_eval_messages.append({"role": "assistant", "content": select_expert_llm_response})
 
         ######## Refine Expert Selection, and Formulate the task for the expert ###########
         if expert == 'Data Analyst':
-            self.select_analyst_messages.append({"role": "user", "content": self.analyst_selector_user.format(self.format_tasks(self.tasks),
-                                                                                                              None if self.df_id is None else df_columns, 
-                                                                                                              question)
-                                                                                                              })
+            self.message_manager.select_analyst_messages.append({"role": "user", "content": self.message_manager.analyst_selector_user.format(
+                self.message_manager.format_tasks(),
+                None if self.df_id is None else df_columns,
+                question
+            )})
             
-            select_analyst_llm_response, analyst, query_unknown, query_condition, intent_breakdown = self.select_analyst(self.select_analyst_messages)
+            select_analyst_llm_response, analyst, query_unknown, query_condition, intent_breakdown = self.select_analyst(self.message_manager.select_analyst_messages)
             self.user_intent = intent_breakdown
-            self.select_analyst_messages.append({"role": "assistant", "content": select_analyst_llm_response})
+            self.message_manager.select_analyst_messages.append({"role": "assistant", "content": select_analyst_llm_response})
 
             self.output_manager.display_results(chain_id=self.chain_id, query={"expert":analyst, "original_question": question, "unknown": query_unknown, "condition": query_condition, "requires_dataset": requires_dataset, "confidence": confidence, "intent_breakdown": intent_breakdown})
 
             if analyst == 'Data Analyst DF':
-                example_plan = self.default_example_plan_df
+                example_plan = self.message_manager.default_example_plan_df
             elif analyst == 'Data Analyst Generic':
-                example_plan = self.default_example_plan_gen
+                example_plan = self.message_manager.default_example_plan_gen
 
             # Retrieve the matching data_model, code and plan from the vector database if exists
             if self.vector_db:
@@ -695,8 +381,8 @@ class BambooAI:
                     self.data_model = self._extract_data_model(data_model)
                     dataframe_head = utils.inspect_dataframe(df=self.df, execution_mode=self.execution_mode, df_id=self.df_id, executor_client=self.api_client)
                     data_model_vis = utils.generate_model_graph(self.data_model)
-                    self.messages_maintenace(self.df_inspector_messages)
-                    self.messages_content_maintenance("Dataframe Inspector", self.df_inspector_messages)
+                    self.message_manager.messages_maintenance(self.df_inspector_messages)
+                    self.message_manager.messages_content_maintenance("Dataframe Inspector", self.df_inspector_messages, self.model_dict[models.get_model_name('Code Generator')[0]]['templ_formating'])
                     # Create a dictionary containing both the visualization and the YAML data
                     data_model_web = {
                         'visualization': data_model_vis,
@@ -711,62 +397,74 @@ class BambooAI:
                     self.data_model = None
 
                 if models.get_model_name("Planner")[0] not in self.reasoning_models:
-                    self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(utils.get_readable_date(), 
-                                                                                                      self.format_qa_pairs(self.qa_pairs), 
-                                                                                                      intent_breakdown, None if self.df_id is None else dataframe_head, 
-                                                                                                      f"```yaml\n{self.data_model}\n```", example_plan)
-                                                                                                      })
+                    self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.planner_user_df.format(
+                        utils.get_readable_date(),
+                        self.message_manager.format_qa_pairs(),
+                        intent_breakdown,
+                        None if self.df_id is None else dataframe_head,
+                        f"```yaml\n{self.data_model}\n```",
+                        example_plan
+                    )})
                 else:
-                    self.eval_messages.append({"role": "user", "content": self.planner_user_df_reasoning.format(utils.get_readable_date(), 
-                                                                                                                self.format_qa_pairs(self.qa_pairs), 
-                                                                                                                intent_breakdown, None if self.df_id is None else dataframe_head, 
-                                                                                                                f"```yaml\n{self.data_model}\n```")
-                                                                                                                })
+                    self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.planner_user_df_reasoning.format(
+                        utils.get_readable_date(),
+                        self.message_manager.format_qa_pairs(),
+                        intent_breakdown,
+                        None if self.df_id is None else dataframe_head,
+                        f"```yaml\n{self.data_model}\n```"
+                    )})
 
                 if not self.planning: 
-                    self.eval_messages.append({"role": "assistant", "content": "No content, as planning was disabled for this task"}) # We just add a dummy assistant message if planning is disabled, to maintain the conversation messages structure
+                    self.message_manager.eval_messages.append({"role": "assistant", "content": "No content, as planning was disabled for this task"}) # We just add a dummy assistant message if planning is disabled, to maintain the conversation messages structure
 
                 # Replace first dict in messages with a new system task. This is to distinguish between the two types of analysts
-                self.code_messages[0] = {"role": "system", "content": self.code_generator_system_df}
+                self.message_manager.code_messages[0] = {"role": "system", "content": self.message_manager.code_generator_system_df}
                 
             elif analyst == 'Data Analyst Generic':
                 if models.get_model_name("Planner")[0] not in self.reasoning_models:
-                    self.eval_messages.append({"role": "user", "content": self.planner_user_gen.format(utils.get_readable_date(), 
-                                                                                                       self.format_qa_pairs(self.qa_pairs), 
-                                                                                                       intent_breakdown, example_plan)
-                                                                                                       })
+                    self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.planner_user_gen.format(
+                        utils.get_readable_date(),
+                        self.message_manager.format_qa_pairs(),
+                        intent_breakdown,
+                        example_plan
+                    )})
                 else:
-                    self.eval_messages.append({"role": "user", "content": self.planner_user_gen_reasoning.format(utils.get_readable_date(), 
-                                                                                                                 self.format_qa_pairs(self.qa_pairs), 
-                                                                                                                 intent_breakdown)
-                                                                                                                 })
+                    self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.planner_user_gen_reasoning.format(
+                        utils.get_readable_date(),
+                        self.message_manager.format_qa_pairs(),
+                        intent_breakdown
+                    )})
 
                 if not self.planning:
-                    self.eval_messages.append({"role": "assistant", "content": "No content, as planning was disabled for this task"}) # We just add a dummy assistant message if planning is disabled, to maintain the conversation messages structure
+                    self.message_manager.eval_messages.append({"role": "assistant", "content": "No content, as planning was disabled for this task"}) # We just add a dummy assistant message if planning is disabled, to maintain the conversation messages structure
 
                 # Replace first dict in messages with a new system task. This is to distinguish between the two types of analysts
-                self.code_messages[0] = {"role": "system", "content": self.code_generator_system_gen}
+                self.message_manager.code_messages[0] = {"role": "system", "content": self.message_manager.code_generator_system_gen}
             agent = 'Planner'
 
         elif expert == 'Research Specialist':
-            self.eval_messages.append({"role": "user", "content": self.theorist_system.format(utils.get_readable_date(),
-                                                                                              None if self.df_id is None else df_columns, 
-                                                                                              self.last_code, self.format_qa_pairs(self.qa_pairs), 
-                                                                                              question)
-                                                                                              })
+            self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.theorist_system.format(
+                utils.get_readable_date(),
+                None if self.df_id is None else df_columns,
+                self.last_code,
+                self.message_manager.format_qa_pairs(),
+                question
+            )})
             agent = 'Theorist'
             self.output_manager.display_results(chain_id=self.chain_id, query={"expert":expert, "original_question": question, "unknown": query_unknown, "condition": query_condition, "requires_dataset": requires_dataset, "confidence": confidence, "intent_breakdown": intent_breakdown})
         else:
-            self.eval_messages.append({"role": "user", "content": self.theorist_system.format(utils.get_readable_date(), 
-                                                                                              None if self.df_id is None else df_columns, 
-                                                                                              self.last_code, self.format_qa_pairs(self.qa_pairs), 
-                                                                                              question)
-                                                                                              })
+            self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.theorist_system.format(
+                utils.get_readable_date(),
+                None if self.df_id is None else df_columns,
+                self.last_code,
+                self.message_manager.format_qa_pairs(),
+                question
+            )})
             agent = 'Theorist'
         
         if not analyst or (self.planning and  models.get_model_name("Code Generator")[0] not in self.reasoning_models): # If the analyst is not selected or the code generator model is not a reasoning model
-            task_eval,tool_response, full_response = self.task_eval(self.eval_messages, agent, image)
-            self.eval_messages.append({"role": "assistant", "content": full_response})
+            task_eval,tool_response, full_response = self.task_eval(self.message_manager.eval_messages, agent, image)
+            self.message_manager.eval_messages.append({"role": "assistant", "content": full_response})
             self.last_plan = task_eval
         else:
             task_eval = self.last_plan # If exists it will be included in the messages under header CONTEXT:. This is to pass Theorist output to coder if planning is disabled, or model is a reasoning model
@@ -774,8 +472,8 @@ class BambooAI:
             self.last_plan = None
 
         # Remove the oldest conversation and all tool calls, and dataset, plan, and code from the messages list
-        self.messages_maintenace(self.eval_messages)
-        self.messages_content_maintenance(agent, self.eval_messages)
+        self.message_manager.messages_maintenance(self.message_manager.eval_messages)
+        self.message_manager.messages_content_maintenance(agent, self.message_manager.eval_messages, self.model_dict[models.get_model_name('Code Generator')[0]]['templ_formating'])
 
         plan = task_eval
 
@@ -793,7 +491,7 @@ class BambooAI:
         # Handle the action parameter
         if action == 'reset':
             self.log_and_call_manager.consolidate_logs()
-            self.reset_messages_and_logs()
+            self.message_manager.reset_messages_and_logs(self)
             self.thread_id = None
             return
 
@@ -805,37 +503,7 @@ class BambooAI:
 
         # If chain_id is provided and different from current, restore the content of that chain to serve as the starting point
         if chain_id is not None and str(chain_id) != str(self.chain_id):
-            try:
-                if hasattr(self, 'interaction_store') and self.interaction_store is not None:
-                    restored_data = self.interaction_store.restore_interaction(
-                        thread_id=str(self.thread_id),
-                        chain_id=str(chain_id)
-                    )
-                    
-                    # Set the messages from restored data
-                    self.pre_eval_messages = restored_data['pre_eval_messages']
-                    self.select_analyst_messages = restored_data['select_analyst_messages']
-                    self.eval_messages = restored_data['eval_messages']
-                    self.df_inspector_messages = restored_data['df_inspector_messages']
-                    self.code_messages = restored_data['code_messages']
-                    self.plan_review_messages = restored_data['plan_review_messages']
-                    self.insight_messages = restored_data['insight_messages']
-
-                    # Restore code execution results
-                    self.code_exec_results = restored_data['code_exec_results']
-
-                    # Restore the last executed code
-                    self.last_code = restored_data['executed_code']
-
-                    # Restore the QA pairs
-                    self.qa_pairs = restored_data['qa_pairs']
-                    
-                    # Restore the tasks
-                    self.tasks = restored_data['tasks']
-                    
-            except storage_manager.StorageError as e:
-                self.output_manager.print_wrapper(f"Warning: Failed to restore chain {chain_id}: {e}")
-        
+            self.message_manager.restore_interaction(thread_id, chain_id)
         # Set the chain_id for the new chain that will either build on the restored chain, current chain, or start afresh
         self.chain_id = int(time.time())
 
@@ -850,18 +518,18 @@ class BambooAI:
                 self._process_question(question, image, user_code)
 
                 # Reset non-cumulative messages
-                self.reset_non_cumul_messages()
+                self.message_manager.reset_non_cumul_messages()
                 
                 if not is_web:
                     self.log_and_call_manager.consolidate_logs()
-                    self.reset_messages_and_logs()
+                    self.message_manager.reset_messages_and_logs(self)
                 return
             else:
                 # For CLI/Jupyter interactive mode
                 question = self.output_manager.display_user_input_prompt()
                 if question.strip().lower() == 'exit':
                     self.log_and_call_manager.consolidate_logs()
-                    self.reset_messages_and_logs()
+                    self.message_manager.reset_messages_and_logs(self)
                     break
                 # Process the question
                 self._process_question(question, image, user_code)
@@ -881,8 +549,8 @@ class BambooAI:
                 if not analyst:
                     self.output_manager.display_results(chain_id=self.chain_id, research=tool_response, answer=plan)
                     self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
-                    self.store_interaction(google_search_results=tool_response, code_exec_results=self.code_exec_results, executed_code=self.last_code, qa_pairs=self.qa_pairs, tasks=self.tasks)
-                    self.tasks.append(question)
+                    self.message_manager.store_interaction(self.thread_id, self.chain_id, google_search_results=tool_response, code_exec_results=self.code_exec_results, executed_code=self.last_code)
+                    self.message_manager.tasks.append(question)
                     return
                 else:
                     if self.planning and models.get_model_name("Code Generator")[0] not in self.reasoning_models:
@@ -896,29 +564,33 @@ class BambooAI:
             else:
                 self.output_manager.display_results(chain_id=self.chain_id, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df, api_client=self.api_client)
                 analyst = 'Data Analyst DF'
-                plan = None
-                tool_response = []
                 intent_breakdown = question
+                tool_response = []
+                plan = None
 
             if analyst == 'Data Analyst DF':
-                example_code = self.default_example_output_df
+                example_code = self.message_manager.default_example_output_df
             else:
-                example_code = self.default_example_output_gen
+                example_code = self.message_manager.default_example_output_gen
             
             if self.vector_db:
                 if self.retrieved_code is not None:
                     example_code = f"USE THIS CODE AS A BLUEPRINT FOR YOUR SOLUTION. FOLLOW ITS GENERAL STRUCTURE AND ALGORITHMS, BUT IF NECESSARY MODIFY AS APPROPRIATE FOR THE CURRENT TASK.\n```python\n{self.retrieved_code}\n```"
 
             # Call the generate_code() method to generate the code
-            code, llm_response = self.generate_code(analyst, intent_breakdown, plan, self.code_messages, example_code, image)
+            code, llm_response = self.generate_code(analyst, intent_breakdown, plan, self.message_manager.code_messages, example_code, image)
             code_type = 'llm'
             
             # We are returning the response from the LLM model to the user, as the code is not present, or can not be extracted
             if code is None or code == "":
                 self.output_manager.display_results(chain_id=self.chain_id, answer=llm_response)
                 self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
-                self.store_interaction(google_search_results=tool_response, code_exec_results=self.code_exec_results, executed_code=self.last_code, qa_pairs=self.qa_pairs, tasks=self.tasks)
-                self.tasks.append(intent_breakdown)
+                self.message_manager.store_interaction(
+                    self.thread_id, 
+                    self.chain_id, 
+                    google_search_results=tool_response, 
+                    code_exec_results=self.code_exec_results)
+                self.message_manager.tasks.append(intent_breakdown)
                 return
         else:
             analyst = 'User'
@@ -930,7 +602,8 @@ class BambooAI:
             code_type = 'user'
 
         # Call the execute_code() method to execute the code and summarise the results
-        answer, results, code, plot_jsons, error_corrections = self.execute_code(analyst, code, plan, intent_breakdown, self.code_messages, self.execution_mode, code_type)
+        answer, results, code, plot_jsons, error_corrections = self.execute_code(analyst, code, plan, intent_breakdown, self.message_manager.code_messages, self.execution_mode, code_type)
+        self.message_manager.last_code = code
 
         # Review and correct the plan for storage if there were code corrections or use the original plan
         reviewed_plan = None
@@ -979,16 +652,16 @@ class BambooAI:
         self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
 
         # Append the QA pair to the list of QA pairs
-        self.append_qa_pair(intent_breakdown, results)
+        self.message_manager.append_qa_pair(intent_breakdown, results)
 
         # Append Task to the list of tasks
-        self.tasks.append(intent_breakdown)
+        self.message_manager.tasks.append(intent_breakdown)
 
         # Reset the retrieved data
-        self.reset_retrieved_data()
+        self.message_manager.reset_retrieved_data(self)
 
         # Store the interaction
-        self.store_interaction(google_search_results=tool_response, plot_jsons=plot_jsons, code_exec_results=results, executed_code=code, qa_pairs=self.qa_pairs, tasks=self.tasks)
+        self.message_manager.store_interaction(self.thread_id, self.chain_id, google_search_results=tool_response, plot_jsons=plot_jsons, code_exec_results=results)
             
     ######################
     ### Code Functions ###
@@ -1020,7 +693,7 @@ class BambooAI:
             python_version=self.python_version,
             pandas_version=self.pandas_version,
             plotly_version=self.plotly_version,
-            previous_results=self.format_qa_pairs(self.qa_pairs),
+            previous_results=self.message_manager.format_qa_pairs(),
             example_code=example_code
         )
 
@@ -1034,16 +707,24 @@ class BambooAI:
         # Format messages if image is provided
         if image is not None:
             last_message = code_messages[-1]
-            formatted_message = self.format_image_message(
+            formatted_message = self.message_manager.format_image_message(
                 agent=agent,
                 message_content=last_message["content"],
                 image=image,
                 provider=provider,
-                model=using_model
+                model=using_model,
+                multimodal_models=self.multimodal_models
             )
             code_messages[-1] = formatted_message
 
-        tools=self.filter_tools(provider, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        if provider == 'openai':
+            tools=self.message_manager.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        elif provider == 'anthropic':
+            tools=self.message_manager.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        elif provider == 'gemini':
+            tools=self.message_manager.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        else:
+            tools=None
 
         # Call the LLM API or local model to generate the code
         if tools:
@@ -1067,7 +748,7 @@ class BambooAI:
 
         while error_corrections < self.MAX_ERROR_CORRECTIONS:
             # Remove the oldest conversation from the messages list
-            self.messages_maintenace(code_messages)
+            self.message_manager.messages_maintenance(code_messages)
 
             # Execute the code
             if code is not None:
@@ -1090,7 +771,7 @@ class BambooAI:
             code_messages = self._remove_examples(code_messages)
 
         # Remove dataset, plan, and code from the messages list
-        self.messages_content_maintenance(agent, code_messages)
+        self.message_manager.messages_content_maintenance(agent, code_messages, self.model_dict[models.get_model_name('Code Generator')[0]]['templ_formating'])
 
         # Store the results in a class variable so it can be appended to the subsequent messages list
         self.code_exec_results = results
@@ -1180,9 +861,9 @@ class BambooAI:
 
         # Initialize the messages list with a user message containing the task prompt
         if code is not None:
-            self.insight_messages = [{"role": "user", "content": self.solution_summarizer_custom_code_system.format(code, results)}]
+            self.insight_messages = [{"role": "user", "content": self.message_manager.solution_summarizer_custom_code_system.format(code, results)}]
         else:
-            self.insight_messages = [{"role": "user", "content": self.solution_summarizer_system.format(intent_breakdown, plan, results)}]
+            self.insight_messages = [{"role": "user", "content": self.message_manager.solution_summarizer_system.format(intent_breakdown, plan, results)}]
         
         using_model,provider = models.get_model_name(agent)
 
