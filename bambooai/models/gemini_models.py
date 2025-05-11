@@ -215,14 +215,6 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
                             "result": result_text.strip(),
                             "links": [links[idx] for idx in relevant_link_indices if idx < len(links)]
                         })
-                elif queries:
-                    answer_content_so_far = ''.join(answer_messages)
-                    for q in queries:
-                        search_triplet.append({
-                            "query": q,
-                            "result": answer_content_so_far.strip(),
-                            "links": links
-                        })
 
         end_time = time.time()
         elapsed_time = end_time - start_time

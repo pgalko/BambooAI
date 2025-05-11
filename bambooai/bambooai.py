@@ -567,6 +567,8 @@ class BambooAI:
                 intent_breakdown = question
                 tool_response = []
                 plan = None
+                tool_response = []
+                intent_breakdown = question
 
             if analyst == 'Data Analyst DF':
                 example_code = self.message_manager.default_example_output_df

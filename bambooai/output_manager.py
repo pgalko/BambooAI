@@ -98,14 +98,14 @@ class OutputManager:
 
     def display_formatted_search(self, triplets):
         if triplets:
-            markdown_content = f"## Research Findings:\n\n"
+            research_content = f"## Research Findings:\n\n"
             for triplet in triplets:
-                markdown_content += f"### Query: {triplet['query']}\n\n{triplet['result']}\n\n### Sources:\n"
+                research_content += f"### Query: {triplet['query']}\n\n{triplet['result']}\n\n### Sources:\n"
                 for link in triplet['links']:
-                    markdown_content += f"\nTitle: {link['title']}  \nLink: {link['link']}  \n\n"
+                    research_content += f"\nTitle: {link['title']}  \nLink: {link['link']}  \n\n"
 
             if self.is_notebook:
-                display(Markdown(markdown_content))
+                display(Markdown(research_content))
 
     # Display the header for the agent
     def display_tool_start(self, agent, model, chain_id=None):
