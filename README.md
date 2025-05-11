@@ -365,6 +365,11 @@ bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart r
 
 ## Web Application Setup
 
+Web UI screenshot (Interactive Workflow Map):
+
+<img width="2056" alt="Workflow Map Feature" src="https://github.com/user-attachments/assets/931d8a49-cf06-43df-b753-b4c26aa7c973" />
+
+
 ### Option 1: Using Docker (Recomended)
 
 BambooAI can be easily deployed using Docker, which provides a consistent environment regardless of your operating system or local setup.
