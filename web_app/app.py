@@ -735,7 +735,8 @@ def load_thread(thread_id, chain_id):
                     'tabContent': chain_data.get('tabContent', ''),
                     'contentOutput': chain_data.get('contentOutput', ''),
                     'streamOutput': chain_data.get('streamOutput', ''),
-                    'taskContents': chain_data.get('taskContents', {})
+                    'taskContents': chain_data.get('taskContents', {}),
+                    'queryText': chain_data.get('queryText', '')
                 }
                 
                 responses.append(response)

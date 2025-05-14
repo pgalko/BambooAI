@@ -104,6 +104,9 @@ Try it out on a basic example in Google Colab: [![Open In Colab](https://colab.r
     import pandas as pd
     from bambooai import BambooAI
 
+    import plotly.io as pio
+    pio.renderers.default = 'jupyterlab'
+
     df = pd.read_csv('titanic.csv')
     bamboo = BambooAI(df=df, planning=True, vector_db=False, search_tool=True)
     bamboo.pd_agent_converse()
@@ -353,6 +356,9 @@ This helps BambooAI understand complex data relationships and generate more accu
 import pandas as pd
 from bambooai import BambooAI
 
+import plotly.io as pio
+pio.renderers.default = 'jupyterlab'
+
 df = pd.read_csv('test_activity_data.csv')
 bamboo = BambooAI(df=df, search_tool=True, planning=True)
 bamboo.pd_agent_converse()
@@ -364,6 +370,11 @@ bamboo.pd_agent_converse("Calculate 30, 50, 75 and 90 percentiles of the heart r
 ```
 
 ## Web Application Setup
+
+Web UI screenshot (Interactive Workflow Map):
+
+<img width="2056" alt="Workflow Map Feature" src="https://github.com/user-attachments/assets/931d8a49-cf06-43df-b753-b4c26aa7c973" />
+
 
 ### Option 1: Using Docker (Recomended)
 
