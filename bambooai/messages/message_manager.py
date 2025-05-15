@@ -1,9 +1,9 @@
 import os
 import json
-from . import prompts
+from .. import prompts
 # from .bambooai import BambooAI
-from .output_manager import OutputManager
-from .storage_manager import SimpleInteractionStore, StorageError
+from ..output_manager import OutputManager
+from ..storage_manager import SimpleInteractionStore, StorageError
 
 class MessageManager:
     def __init__(self, output_manager: OutputManager, interaction_store, model_dict, reg_ex, max_conversations=5):
@@ -200,30 +200,6 @@ class MessageManager:
             messages.pop(1)
             messages.pop(1)
             self.output_manager.display_system_messages("Truncating messages")
-
-    def filter_tools(self, tools_list, search_enabled=False, auxiliary_enabled=False, feedback_enabled=False):
-        filtered_tools = tools_list.copy()  # Create a copy to avoid modifying original list
-
-        def get_tool_name(tool):
-            # Handle direct name (anthropic/gemini style)
-            if "name" in tool:
-                return tool["name"]
-            # Handle nested name (openai style)
-            if "function" in tool and "name" in tool["function"]:
-                return tool["function"]["name"]
-            return None
-
-        # Remove tools based on flags
-        if not search_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "google_search"]
-
-        if not auxiliary_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "get_auxiliary_dataset"]
-
-        if not feedback_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "request_user_context"]
-
-        return filtered_tools
 
     def append_qa_pair(self, question, results):
         # Define the custom operation identifier strings

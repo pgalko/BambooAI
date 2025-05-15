@@ -10,12 +10,12 @@ warnings.filterwarnings('ignore')
 try:
     # Attempt package-relative import
     from . import code_executor, models, template_formatting, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
-    from .message_manager import MessageManager
+    from .messages.message_manager import MessageManager
     from .messages.tools import filter_tools
 except ImportError:
     # Fall back to script-style import
     import code_executor, models, template_formatting, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
-    from message_manager import MessageManager
+    from bambooai.messages.message_manager import MessageManager
     from messages.tools import filter_tools
 
 class BambooAI:
