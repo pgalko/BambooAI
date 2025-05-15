@@ -1,9 +1,9 @@
 import os
 import json
-from .. import prompts
+from bambooai import prompts
 # from .bambooai import BambooAI
-from ..output_manager import OutputManager
-from ..storage_manager import SimpleInteractionStore, StorageError
+from bambooai.output_manager import OutputManager
+from bambooai.storage_manager import SimpleInteractionStore, StorageError
 
 class MessageManager:
     def __init__(self, output_manager: OutputManager, interaction_store, model_dict, reg_ex, max_conversations=5):

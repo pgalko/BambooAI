@@ -4,12 +4,7 @@ import queue
 import json
 import pandas as pd
 
-try:
-    # Attempt package-relative import
-    from . output_manager import OutputManager
-except ImportError:
-    # Fall back to script-style import
-    from output_manager import OutputManager
+from bambooai.output_manager import OutputManager
 
 class WebOutputManager(OutputManager):
     def __init__(self):
