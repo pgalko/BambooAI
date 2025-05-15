@@ -246,12 +246,8 @@ class BambooAI:
 
         reasoning_effort = "medium"
 
-        if provider == 'openai':
-            tools=filter_tools(search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
-        elif provider == 'anthropic':
-            tools=filter_tools(search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
-        elif provider == 'gemini':
-            tools=filter_tools(search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+        if provider in ['openai', 'anthropic', 'gemini']:
+            tools=filter_tools(provider, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
         else:
             tools=None
 
@@ -287,12 +283,8 @@ class BambooAI:
             )
             eval_messages[-1] = formatted_message
 
-        if provider == 'openai':
-            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
-        elif provider == 'anthropic':
-            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
-        elif provider == 'gemini':
-            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        if provider in ['openai', 'anthropic', 'gemini']:
+            tools=filter_tools(provider, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
         else:
             tools=None
 
@@ -715,12 +707,8 @@ class BambooAI:
             )
             code_messages[-1] = formatted_message
 
-        if provider == 'openai':
-            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
-        elif provider == 'anthropic':
-            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
-        elif provider == 'gemini':
-            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+        if provider in ['openai', 'anthropic', 'gemini']:
+            tools=filter_tools(provider, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
         else:
             tools=None
 
