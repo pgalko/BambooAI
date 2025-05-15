@@ -9,12 +9,14 @@ warnings.filterwarnings('ignore')
 
 try:
     # Attempt package-relative import
-    from . import code_executor, models, prompts, template_formatting, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
+    from . import code_executor, models, template_formatting, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
     from .message_manager import MessageManager
+    from .messages.tools import filter_tools
 except ImportError:
     # Fall back to script-style import
-    import code_executor, models, prompts, template_formatting, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
+    import code_executor, models, template_formatting, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
     from message_manager import MessageManager
+    from messages.tools import filter_tools
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -150,11 +152,6 @@ class BambooAI:
         self._remove_all_except_task_xml = reg_ex._remove_all_except_task_xml
         self._remove_all_except_task_ontology_text = reg_ex._remove_all_except_task_ontology_text
 
-        # Functions
-        self.openai_tools_definition = func_calls.openai_tools_definition
-        self.anthropic_tools_definition = func_calls.anthropic_tools_definition
-        self.gemini_tools_definition = func_calls.gemini_tools_definition
-
         # LLM calls
         self.llm_call = models.llm_call
         self.llm_stream = models.llm_stream
@@ -215,7 +212,6 @@ class BambooAI:
 
     # Methods moved to MessageManager:
     # - messages_maintenance
-    # - filter_tools
 
     # Methods moved to MessageManager:
     # - append_qa_pair
@@ -251,11 +247,11 @@ class BambooAI:
         reasoning_effort = "medium"
 
         if provider == 'openai':
-            tools=self.message_manager.filter_tools(self.openai_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+            tools=filter_tools(search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
         elif provider == 'anthropic':
-            tools=self.message_manager.filter_tools(self.anthropic_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+            tools=filter_tools(search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
         elif provider == 'gemini':
-            tools=self.message_manager.filter_tools(self.gemini_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+            tools=filter_tools(search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
         else:
             tools=None
 
@@ -292,11 +288,11 @@ class BambooAI:
             eval_messages[-1] = formatted_message
 
         if provider == 'openai':
-            tools=self.message_manager.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
         elif provider == 'anthropic':
-            tools=self.message_manager.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
         elif provider == 'gemini':
-            tools=self.message_manager.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
         else:
             tools=None
 
@@ -720,11 +716,11 @@ class BambooAI:
             code_messages[-1] = formatted_message
 
         if provider == 'openai':
-            tools=self.message_manager.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
         elif provider == 'anthropic':
-            tools=self.message_manager.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
         elif provider == 'gemini':
-            tools=self.message_manager.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=filter_tools(search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
         else:
             tools=None
 
