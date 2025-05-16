@@ -188,7 +188,7 @@ class BambooAI:
             'code_generator_user_gen_plan',
             'code_generator_user_gen_no_plan'
         ]
-        code_gen_template_dict = {name: getattr(self.message_manager, name) for name in code_gen_templates}
+        code_gen_template_dict = {name: getattr(self.prompts, name) for name in code_gen_templates}
         self.code_gen_prompt_generator = template_formatting.CodeGenPromptGenerator(code_gen_template_dict, self.model_dict)
 
 
@@ -425,7 +425,7 @@ class BambooAI:
             self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.theorist_system.format(
                 utils.get_readable_date(),
                 None if self.df_id is None else df_columns,
-                self.last_code,
+                self.message_manager.last_code,
                 self.message_manager.format_qa_pairs(),
                 question
             )})
@@ -435,7 +435,7 @@ class BambooAI:
             self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.theorist_system.format(
                 utils.get_readable_date(),
                 None if self.df_id is None else df_columns,
-                self.last_code,
+                self.message_manager.last_code,
                 self.message_manager.format_qa_pairs(),
                 question
             )})
@@ -528,7 +528,7 @@ class BambooAI:
                 if not analyst:
                     self.output_manager.display_results(chain_id=self.chain_id, research=tool_response, answer=plan)
                     self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
-                    self.message_manager.store_interaction(self.thread_id, self.chain_id, google_search_results=tool_response, code_exec_results=self.code_exec_results, executed_code=self.last_code)
+                    self.message_manager.store_interaction(self.thread_id, self.chain_id, google_search_results=tool_response, code_exec_results=self.code_exec_results)
                     self.message_manager.tasks.append(question)
                     return
                 else:
@@ -753,7 +753,7 @@ class BambooAI:
         # Store the results in a class variable so it can be appended to the subsequent messages list
         self.code_exec_results = results
         # Store the last generated code in a class variable so it can be appended to the subsequent messages list
-        self.last_code = code
+        self.message_manager.last_code = code
 
         plot_jsons = []
         for i, plot_data in enumerate(plot_images):

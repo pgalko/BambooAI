@@ -33,12 +33,7 @@ class ChatBot:
         return result
 
     def execute(self,log_and_call_manager, output_manager, chain_id, messages):
-        try:
-            # Attempt package-relative import
-            from . import models
-        except ImportError:
-            # Fall back to script-style import
-            import models
+        from bambooai import models
 
         self.completion = models.llm_stream(log_and_call_manager, output_manager, messages, agent=self.agent, chain_id=chain_id)
 

@@ -1,7 +1,6 @@
 import os
 import json
-from bambooai import prompts, reg_ex
-# from .bambooai import BambooAI
+from bambooai import reg_ex
 from bambooai.output_manager import OutputManager
 from bambooai.storage_manager import SimpleInteractionStore, StorageError
 from bambooai.service_registry import services
@@ -205,7 +204,7 @@ class MessageManager:
 
         return '\n'.join(formatted_str)
     
-    def messages_content_maintenance(self, agent, messages, model_template_formating):
+    def messages_content_maintenance(self, agent, messages, model_template_formatting):
         def _process_user_messages(messages, process_func):
             for msg in messages:
                 if msg.get('role') == 'user':
@@ -225,7 +224,7 @@ class MessageManager:
 
         elif agent == 'Code Executor':
             def code_executor_process_func(content):
-                if model_template_formating == 'xml':
+                if model_template_formatting == 'xml':
                     return reg_ex._remove_all_except_task_xml(content)
                 else:
                     return reg_ex._remove_all_except_task_text(content)
