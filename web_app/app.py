@@ -68,7 +68,7 @@ try:
 except ImportError:
     # If direct import fails, try adding the local path (cloned repo case)
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    bamboo_ai_path = os.path.abspath(os.path.join(current_dir, '..', 'bambooai'))
+    bamboo_ai_path = os.path.abspath(os.path.join(current_dir, '..'))
     
     if os.path.exists(bamboo_ai_path):
         sys.path.insert(0, bamboo_ai_path)
