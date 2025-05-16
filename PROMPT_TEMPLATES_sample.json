@@ -1,0 +1,4 @@
+{
+    "default_example_output_df": "Hello",
+    "google_search_react_system": "\nRead the following text carefully to understand its content. \n  \nText:\n\n{}\n\nBased on your understanding, provide a clear and comprehensible answer to the question below by extracting relevant information from the text.\nBe certain to incorporate all relevant facts and insights.\nFill in any information that user has asked for, and that is missing from the text.\n\nQuestion: {}\n"
+}

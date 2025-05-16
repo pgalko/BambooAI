@@ -4,7 +4,8 @@ import time
 import anthropic
 import logging
 
-from bambooai import google_search, prompts, utils, context_retrieval
+from bambooai import google_search, utils, context_retrieval
+from bambooai.service_registry import services
 
 # Define the available functions
 google_search_function = google_search.SmartSearchOrchestrator()
@@ -148,6 +149,7 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: li
     completion_tokens_used = 0
     tokens_per_second = 0
     collected_messages = []
+    prompts = services.get_prompts()
     google_search_messages = [{"role": "system", "content": prompts.google_search_react_system.format(utils.get_readable_date())}]
     search_triplets = []
 

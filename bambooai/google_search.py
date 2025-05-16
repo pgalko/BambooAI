@@ -12,6 +12,8 @@ import openai
 from google import genai
 from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 
+from bambooai.service_registry import services
+
 openai_client = openai.OpenAI()
 
 SEARCH_MODE = os.environ.get('WEB_SEARCH_MODE', 'google_ai')
@@ -267,27 +269,15 @@ class Reader:
     def __call__(self,log_and_call_manager,output_manager,chain_id,query, contexts):
         agent = 'Google Search Summarizer'
         text = ""
-        
-        try:
-            # Attempt package-relative import
-            from . import models, prompts
-        except ImportError:
-            # Fall back to script-style import
-            import models, prompts
+
+        from bambooai import models
+        prompts = services.get_prompts()
         
         # Construct prompt and messages
         for ctx in contexts:
             text += f'* {ctx}\n'
 
-        # Check if PROMPT_TEMPLATES.json exists and load the prompts from there. If not, use the default prompts.
-        if os.path.exists("PROMPT_TEMPLATES.json"):
-            # Load from JSON file
-            with open("PROMPT_TEMPLATES.json", "r") as f:
-                prompt_data = json.load(f)
-            prompt = prompt_data.get("google_search_summarizer_system", "")
-            prompt = prompt.format(text, query)
-        else:
-            prompt = prompts.google_search_summarizer_system.format(text, query)
+        prompt = prompts.google_search_summarizer_system.format(text, query)
             
         search_messages = [{"role": "user", "content": prompt}]
 
@@ -318,12 +308,7 @@ class Search:
 class GeminiSearch:
     def __init__(self):
 
-        try:
-            # Attempt package-relative import
-            from . import models
-        except ImportError:
-            # Fall back to script-style import
-            import models
+        from bambooai import models
         
         self.API_KEY = os.environ.get('GEMINI_API_KEY')
         self.gemini_client = genai.Client(api_key=self.API_KEY)

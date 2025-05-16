@@ -1,17 +1,18 @@
 import os
 import json
-from bambooai import prompts
+from bambooai import prompts, reg_ex
 # from .bambooai import BambooAI
 from bambooai.output_manager import OutputManager
 from bambooai.storage_manager import SimpleInteractionStore, StorageError
+from bambooai.service_registry import services
 
 class MessageManager:
-    def __init__(self, output_manager: OutputManager, interaction_store, model_dict, reg_ex, max_conversations=5):
+    def __init__(self, output_manager: OutputManager, interaction_store, model_dict, max_conversations=5):
         self.max_conversations = max_conversations
         self.output_manager = output_manager
         self.model_dict = model_dict
-        self.reg_ex = reg_ex
         self.interaction_store = interaction_store
+        self.prompts = services.get_prompts()
 
         # QA Pairs (a list of dictionaries containing "question/results of the code execution" pairs)
         self.qa_pairs = []
@@ -29,71 +30,15 @@ class MessageManager:
         except StorageError as e:
             # self.output_manager.print_wrapper(f"Warning: Failed to initialize interaction store: {e}")
             self.interaction_store = None
-        
-        self._init_prompt_templates()
 
         # Messages lists
-        self.pre_eval_messages = [{"role": "system", "content": self.expert_selector_system}]
-        self.select_analyst_messages = [{"role": "system", "content": self.analyst_selector_system}]
-        self.eval_messages = [{"role": "system", "content": self.planner_system}]
-        self.code_messages = [{"role": "system", "content": self.code_generator_system_df}]
-        self.df_inspector_messages = [{"role": "system", "content": self.dataframe_inspector_system}]
+        self.pre_eval_messages = [{"role": "system", "content": self.prompts.expert_selector_system}]
+        self.select_analyst_messages = [{"role": "system", "content": self.prompts.analyst_selector_system}]
+        self.eval_messages = [{"role": "system", "content": self.prompts.planner_system}]
+        self.code_messages = [{"role": "system", "content": self.prompts.code_generator_system_df}]
+        self.df_inspector_messages = [{"role": "system", "content": self.prompts.dataframe_inspector_system}]
         self.plan_review_messages = None
         self.insight_messages = None
-
-    def _init_prompt_templates(self):
-        # Prompts
-        # Define list of templates
-        templates = [
-            "default_example_output_df",
-            "default_example_output_gen",
-            "default_example_plan_df",
-            "default_example_plan_gen",
-            "expert_selector_system",
-            "expert_selector_user",
-            "analyst_selector_system",
-            "analyst_selector_user",
-            "planner_system",
-            "planner_user_gen",
-            "planner_user_df",
-            "planner_user_gen_reasoning",
-            "planner_user_df_reasoning",
-            "theorist_system",
-            "dataframe_inspector_system",
-            "dataframe_inspector_user",
-            "google_search_query_generator_system",
-            "google_search_react_system",
-            "code_generator_system_df",
-            "code_generator_system_gen",
-            "code_generator_user_df_plan",
-            "code_generator_user_df_no_plan",
-            "code_generator_user_gen_plan",
-            "code_generator_user_gen_no_plan",
-            "error_corector_system",
-            "error_corector_system_reasoning",
-            "error_corector_edited_system",
-            "error_corector_edited_system_reasoning",
-            "reviewer_system",
-            "solution_summarizer_system",
-            "solution_summarizer_custom_code_system",
-            "plot_query",
-            "plot_query_routing"
-        ]
-
-        prompt_data = {}
-
-        # Check if the JSON file exists
-        if os.path.exists("PROMPT_TEMPLATES.json"):
-            # Load from JSON file
-            with open("PROMPT_TEMPLATES.json", "r") as f:
-                prompt_data = json.load(f)
-
-        # Set templates to the values from the JSON file or the default values. This dynamicaly sets the object attributes.
-        # These attributes are part of the object's state and will exist as long as the object itself exists.
-        # The attributes can be called using self.<attribute_name> throughout the class.
-        for template in templates:
-            value = prompt_data.get(template, getattr(prompts, template, ""))
-            setattr(self, template, value)
 
     def restore_interaction(self, thread_id, chain_id):
         if self.interaction_store:
@@ -171,11 +116,11 @@ class MessageManager:
             )
 
     def reset_messages_and_logs(self, bambooai_instance):
-        self.pre_eval_messages = [{"role": "system", "content": self.expert_selector_system}]
-        self.select_analyst_messages = [{"role": "system", "content": self.analyst_selector_system}]
-        self.eval_messages = [{"role": "system", "content": self.planner_system}]
-        self.code_messages = [{"role": "system", "content": self.code_generator_system_df}]
-        self.df_inspector_messages = [{"role": "system", "content": self.dataframe_inspector_system}]
+        self.pre_eval_messages = [{"role": "system", "content": self.prompts.expert_selector_system}]
+        self.select_analyst_messages = [{"role": "system", "content": self.prompts.analyst_selector_system}]
+        self.eval_messages = [{"role": "system", "content": self.prompts.planner_system}]
+        self.code_messages = [{"role": "system", "content": self.prompts.code_generator_system_df}]
+        self.df_inspector_messages = [{"role": "system", "content": self.prompts.dataframe_inspector_system}]
         self.code_exec_results = None
 
         bambooai_instance.log_and_call_manager.clear_run_logs()
@@ -273,17 +218,17 @@ class MessageManager:
                         msg['content'] = process_func(content)
 
         if agent == 'Dataframe Inspector':
-            _process_user_messages(messages, self.reg_ex._remove_all_except_task_ontology_text)
+            _process_user_messages(messages, reg_ex._remove_all_except_task_ontology_text)
 
         elif agent in ('Planner', 'Theorist'):
-            _process_user_messages(messages, self.reg_ex._remove_all_except_task_xml)
+            _process_user_messages(messages, reg_ex._remove_all_except_task_xml)
 
         elif agent == 'Code Executor':
             def code_executor_process_func(content):
                 if model_template_formating == 'xml':
-                    return self.reg_ex._remove_all_except_task_xml(content)
+                    return reg_ex._remove_all_except_task_xml(content)
                 else:
-                    return self.reg_ex._remove_all_except_task_text(content)
+                    return reg_ex._remove_all_except_task_text(content)
             _process_user_messages(messages, code_executor_process_func)
 
     def format_image_message(self, agent, message_content, image, provider, model, multimodal_models):
@@ -293,7 +238,7 @@ class MessageManager:
         if agent == 'Code Generator' or agent == 'Planner':
             message_content = message_content
         else:
-            message_content = self.plot_query.format(message_content)
+            message_content = self.prompts.plot_query.format(message_content)
 
         if model in multimodal_models:
             if provider == 'anthropic':

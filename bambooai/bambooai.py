@@ -10,7 +10,9 @@ warnings.filterwarnings('ignore')
 # Attempt package-relative import
 from bambooai import code_executor, models, template_formatting, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
 from bambooai.messages.message_manager import MessageManager
+from bambooai.messages.prompts import Prompts
 from bambooai.messages.tools import filter_tools
+from bambooai.service_registry import services
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -21,7 +23,8 @@ class BambooAI:
                  df_ontology: str = None,
                  planning: bool = False,
                  webui: bool = False,
-                 df_id: str = None
+                 df_id: str = None,
+                 prompts_template: str = None
                  ):
         
         # Thread and chain identifiers
@@ -39,13 +42,19 @@ class BambooAI:
             self.output_manager.print_wrapper(f"Warning: Failed to initialize interaction store: {e}")
             interaction_store = None
 
+        # Prompts
+        if prompts_template:
+            self.prompts = Prompts(prompts_template)
+        else:
+            self.prompts = Prompts()
+        services.register_prompts(self.prompts)
+            
         # Message Manager
         self.message_manager = MessageManager(
             max_conversations = self.MAX_CONVERSATIONS,
             output_manager=self.output_manager,
             interaction_store=interaction_store,
             model_dict=None,  # Will be set after model_dict is initialized
-            reg_ex=reg_ex,
         )
 
         # Code execution and API client
@@ -134,18 +143,6 @@ class BambooAI:
         self.python_version = versions['python_version']
         self.plotly_version = versions['plotly_version']
 
-        # Regular expresions
-        self._extract_code = reg_ex._extract_code
-        self._extract_rank = reg_ex._extract_rank
-        self._extract_expert = reg_ex._extract_expert
-        self._extract_analyst = reg_ex._extract_analyst
-        self._extract_plan = reg_ex._extract_plan
-        self._extract_data_model = reg_ex._extract_data_model
-        self._remove_examples = reg_ex._remove_examples
-        self._remove_all_except_task_text = reg_ex._remove_all_except_task_text
-        self._remove_all_except_task_xml = reg_ex._remove_all_except_task_xml
-        self._remove_all_except_task_ontology_text = reg_ex._remove_all_except_task_ontology_text
-
         # LLM calls
         self.llm_call = models.llm_call
         self.llm_stream = models.llm_stream
@@ -229,7 +226,7 @@ class BambooAI:
 
         # Call OpenAI API to evaluate the task
         llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, pre_eval_messages, agent=agent,chain_id=self.chain_id, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
-        expert, requires_dataset, confidence = self._extract_expert(llm_response)
+        expert, requires_dataset, confidence = reg_ex._extract_expert(llm_response)
 
         return llm_response, expert, requires_dataset, confidence
     
@@ -252,7 +249,7 @@ class BambooAI:
             llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, select_analyst_messages, agent=agent, chain_id=self.chain_id, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
             tool_response = []
             
-        analyst, query_unknown, query_condition, intent_breakdown = self._extract_analyst(llm_response)
+        analyst, query_unknown, query_condition, intent_breakdown = reg_ex._extract_analyst(llm_response)
 
         return llm_response, analyst, query_unknown, query_condition, intent_breakdown
     
@@ -291,7 +288,7 @@ class BambooAI:
         #self.output_manager.display_formated_plan(llm_response)
 
         if agent == 'Planner':
-            response = self._extract_plan(llm_response)
+            response = reg_ex._extract_plan(llm_response)
         else:
             response = llm_response
             
@@ -309,16 +306,16 @@ class BambooAI:
 
         ######## Select Expert ###########
         if image:
-            template = self.message_manager.plot_query_routing.format(question)
+            template = self.prompts.plot_query_routing.format(question)
         else:
-            template = self.message_manager.expert_selector_user.format(question)
+            template = self.prompts.expert_selector_user.format(question)
         self.message_manager.pre_eval_messages.append({"role": "user", "content": template})
         select_expert_llm_response, expert,requires_dataset,confidence  = self.select_expert(self.message_manager.pre_eval_messages) 
         self.message_manager.pre_eval_messages.append({"role": "assistant", "content": select_expert_llm_response})
 
         ######## Refine Expert Selection, and Formulate the task for the expert ###########
         if expert == 'Data Analyst':
-            self.message_manager.select_analyst_messages.append({"role": "user", "content": self.message_manager.analyst_selector_user.format(
+            self.message_manager.select_analyst_messages.append({"role": "user", "content": self.prompts.analyst_selector_user.format(
                 self.message_manager.format_tasks(),
                 None if self.df_id is None else df_columns,
                 question
@@ -331,9 +328,9 @@ class BambooAI:
             self.output_manager.display_results(chain_id=self.chain_id, query={"expert":analyst, "original_question": question, "unknown": query_unknown, "condition": query_condition, "requires_dataset": requires_dataset, "confidence": confidence, "intent_breakdown": intent_breakdown})
 
             if analyst == 'Data Analyst DF':
-                example_plan = self.message_manager.default_example_plan_df
+                example_plan = self.prompts.default_example_plan_df
             elif analyst == 'Data Analyst Generic':
-                example_plan = self.message_manager.default_example_plan_gen
+                example_plan = self.prompts.default_example_plan_gen
 
             # Retrieve the matching data_model, code and plan from the vector database if exists
             if self.vector_db:
@@ -360,7 +357,7 @@ class BambooAI:
                                                                                      df_id=self.df_id, executor_client=self.api_client, messages=self.df_inspector_messages)
                     if df_inspector_messages:
                         self.df_inspector_messages = df_inspector_messages
-                    self.data_model = self._extract_data_model(data_model)
+                    self.data_model = reg_ex._extract_data_model(data_model)
                     dataframe_head = utils.inspect_dataframe(df=self.df, execution_mode=self.execution_mode, df_id=self.df_id, executor_client=self.api_client)
                     data_model_vis = utils.generate_model_graph(self.data_model)
                     self.message_manager.messages_maintenance(self.df_inspector_messages)
@@ -379,7 +376,7 @@ class BambooAI:
                     self.data_model = None
 
                 if models.get_model_name("Planner")[0] not in self.reasoning_models:
-                    self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.planner_user_df.format(
+                    self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.planner_user_df.format(
                         utils.get_readable_date(),
                         self.message_manager.format_qa_pairs(),
                         intent_breakdown,
@@ -388,7 +385,7 @@ class BambooAI:
                         example_plan
                     )})
                 else:
-                    self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.planner_user_df_reasoning.format(
+                    self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.planner_user_df_reasoning.format(
                         utils.get_readable_date(),
                         self.message_manager.format_qa_pairs(),
                         intent_breakdown,
@@ -400,18 +397,18 @@ class BambooAI:
                     self.message_manager.eval_messages.append({"role": "assistant", "content": "No content, as planning was disabled for this task"}) # We just add a dummy assistant message if planning is disabled, to maintain the conversation messages structure
 
                 # Replace first dict in messages with a new system task. This is to distinguish between the two types of analysts
-                self.message_manager.code_messages[0] = {"role": "system", "content": self.message_manager.code_generator_system_df}
+                self.message_manager.code_messages[0] = {"role": "system", "content": self.prompts.code_generator_system_df}
                 
             elif analyst == 'Data Analyst Generic':
                 if models.get_model_name("Planner")[0] not in self.reasoning_models:
-                    self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.planner_user_gen.format(
+                    self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.planner_user_gen.format(
                         utils.get_readable_date(),
                         self.message_manager.format_qa_pairs(),
                         intent_breakdown,
                         example_plan
                     )})
                 else:
-                    self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.planner_user_gen_reasoning.format(
+                    self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.planner_user_gen_reasoning.format(
                         utils.get_readable_date(),
                         self.message_manager.format_qa_pairs(),
                         intent_breakdown
@@ -421,11 +418,11 @@ class BambooAI:
                     self.message_manager.eval_messages.append({"role": "assistant", "content": "No content, as planning was disabled for this task"}) # We just add a dummy assistant message if planning is disabled, to maintain the conversation messages structure
 
                 # Replace first dict in messages with a new system task. This is to distinguish between the two types of analysts
-                self.message_manager.code_messages[0] = {"role": "system", "content": self.message_manager.code_generator_system_gen}
+                self.message_manager.code_messages[0] = {"role": "system", "content": self.prompts.code_generator_system_gen}
             agent = 'Planner'
 
         elif expert == 'Research Specialist':
-            self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.theorist_system.format(
+            self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.theorist_system.format(
                 utils.get_readable_date(),
                 None if self.df_id is None else df_columns,
                 self.last_code,
@@ -435,7 +432,7 @@ class BambooAI:
             agent = 'Theorist'
             self.output_manager.display_results(chain_id=self.chain_id, query={"expert":expert, "original_question": question, "unknown": query_unknown, "condition": query_condition, "requires_dataset": requires_dataset, "confidence": confidence, "intent_breakdown": intent_breakdown})
         else:
-            self.message_manager.eval_messages.append({"role": "user", "content": self.message_manager.theorist_system.format(
+            self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.theorist_system.format(
                 utils.get_readable_date(),
                 None if self.df_id is None else df_columns,
                 self.last_code,
@@ -553,9 +550,9 @@ class BambooAI:
                 intent_breakdown = question
 
             if analyst == 'Data Analyst DF':
-                example_code = self.message_manager.default_example_output_df
+                example_code = self.prompts.default_example_output_df
             else:
-                example_code = self.message_manager.default_example_output_gen
+                example_code = self.prompts.default_example_output_gen
             
             if self.vector_db:
                 if self.retrieved_code is not None:
@@ -715,7 +712,7 @@ class BambooAI:
         code_messages.append({"role": "assistant", "content": llm_response})
 
         # Extract the code from the API response
-        code = self._extract_code(llm_response,analyst,provider)
+        code = reg_ex._extract_code(llm_response,analyst,provider)
 
         return code, llm_response
 
@@ -748,7 +745,7 @@ class BambooAI:
                     break
 
             # Remove examples from the messages list to minimize the number of tokens used
-            code_messages = self._remove_examples(code_messages)
+            code_messages = reg_ex._remove_examples(code_messages)
 
         # Remove dataset, plan, and code from the messages list
         self.message_manager.messages_content_maintenance(agent, code_messages, self.model_dict[models.get_model_name('Code Generator')[0]]['templ_formating'])
@@ -786,14 +783,14 @@ class BambooAI:
         # Append the error message to the messages list
         if code_type == 'user' and error_corrections == 1:
             if self.model_dict[model]['templ_formating'] == 'xml':
-                code_messages.append({"role": "user", "content": self.error_corector_edited_system.format(code, error, self.python_version, self.pandas_version, self.plotly_version)})
+                code_messages.append({"role": "user", "content": self.prompts.error_corector_edited_system.format(code, error, self.python_version, self.pandas_version, self.plotly_version)})
             else: # templ_formating is 'text'
-                code_messages.append({"role": "user", "content": self.error_corector_edited_system_reasoning.format(code, error, self.python_version, self.pandas_version, self.plotly_version)})
+                code_messages.append({"role": "user", "content": self.prompts.error_corector_edited_system_reasoning.format(code, error, self.python_version, self.pandas_version, self.plotly_version)})
         else:
             if self.model_dict[model]['templ_formating'] == 'xml':
-                code_messages.append({"role": "user", "content": self.error_corector_system.format(error, self.python_version, self.pandas_version, self.plotly_version)})
+                code_messages.append({"role": "user", "content": self.prompts.error_corector_system.format(error, self.python_version, self.pandas_version, self.plotly_version)})
             else: # templ_formating is 'text'
-                code_messages.append({"role": "user", "content": self.error_corector_system_reasoning.format(error, self.python_version, self.pandas_version, self.plotly_version)})
+                code_messages.append({"role": "user", "content": self.prompts.error_corector_system_reasoning.format(error, self.python_version, self.pandas_version, self.plotly_version)})
 
         # Display the error message
         self.output_manager.display_error(error,chain_id=self.chain_id)
@@ -801,14 +798,14 @@ class BambooAI:
         #llm_response = self.llm_call(self.log_and_call_manager,code_messages,agent=agent, chain_id=self.chain_id)
         llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, code_messages, agent=agent, chain_id=self.chain_id, reasoning_models=self.reasoning_models)
         code_messages.append({"role": "assistant", "content": llm_response})
-        code = self._extract_code(llm_response,analyst,provider)
+        code = reg_ex._extract_code(llm_response,analyst,provider)
 
         return code, code_messages
 
     def review_plan(self,code, plan):
         agent = 'Reviewer'
         # Initialize the messages list with a user message containing the task prompt
-        self.plan_review_messages = [{"role": "user", "content": self.reviewer_system.format(code, plan)}]
+        self.plan_review_messages = [{"role": "user", "content": self.prompts.reviewer_system.format(code, plan)}]
 
         using_model,provider = models.get_model_name(agent)
 
@@ -818,7 +815,7 @@ class BambooAI:
 
         self.plan_review_messages.append({"role": "assistant", "content": llm_response})
 
-        reviewed_plan = self._extract_plan(llm_response)
+        reviewed_plan = reg_ex._extract_plan(llm_response)
         plan_vis = utils.generate_plan_graph(plan)
         # Create a dictionary containing both the visualization and the YAML data
         plan_web = {
@@ -841,9 +838,9 @@ class BambooAI:
 
         # Initialize the messages list with a user message containing the task prompt
         if code is not None:
-            self.insight_messages = [{"role": "user", "content": self.message_manager.solution_summarizer_custom_code_system.format(code, results)}]
+            self.insight_messages = [{"role": "user", "content": self.prompts.solution_summarizer_custom_code_system.format(code, results)}]
         else:
-            self.insight_messages = [{"role": "user", "content": self.message_manager.solution_summarizer_system.format(intent_breakdown, plan, results)}]
+            self.insight_messages = [{"role": "user", "content": self.prompts.solution_summarizer_system.format(intent_breakdown, plan, results)}]
         
         using_model,provider = models.get_model_name(agent)
 

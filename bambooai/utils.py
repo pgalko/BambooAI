@@ -10,6 +10,8 @@ import pkg_resources
 from typing import Optional, Union, Dict
 import unicodedata
 
+from bambooai.service_registry import services
+
 
 # Utility functions
 
@@ -117,16 +119,11 @@ def computeDataframeSample(df: pd.DataFrame,
 def inspect_dataframe(df, log_and_call_manager=None, output_manager=None, chain_id=None, query=None, execution_mode='local', df_ontology=None, df_id=None, executor_client=None, messages=[]):
     agent = "Dataframe Inspector"
     df_inspector_messages = messages
+    prompts = services.get_prompts()
 
     if log_and_call_manager:
         try:
-            # Import prompts module
-            try:
-                # Attempt package-relative import
-                from . import models, prompts
-            except ImportError:
-                # Fall back to script-style import
-                import models, prompts
+            from bambooai import models
             
             # Read ontology from the text file path provided in df_ontology
             ontology = ""

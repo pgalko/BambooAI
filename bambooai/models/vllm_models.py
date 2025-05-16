@@ -4,7 +4,8 @@ import time
 import openai
 import tiktoken
 
-from bambooai import google_search, prompts, utils, context_retrieval
+from bambooai import google_search, utils, context_retrieval
+from bambooai.service_registry import services
 
 google_search_function = google_search.SmartSearchOrchestrator()
 get_auxiliary_dataset = context_retrieval.get_auxiliary_dataset
@@ -71,6 +72,7 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
     collected_messages = []
     tool_calls = []
     search_triplets = []
+    prompts = services.get_prompts()
     google_search_messages = [{"role": "system", "content": prompts.google_search_react_system.format(utils.get_readable_date())}]
 
     tools = tools
