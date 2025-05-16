@@ -104,6 +104,9 @@ Try it out on a basic example in Google Colab: [![Open In Colab](https://colab.r
     import pandas as pd
     from bambooai import BambooAI
 
+    import plotly.io as pio
+    pio.renderers.default = 'jupyterlab'
+
     df = pd.read_csv('titanic.csv')
     bamboo = BambooAI(df=df, planning=True, vector_db=False, search_tool=True)
     bamboo.pd_agent_converse()
@@ -352,6 +355,9 @@ This helps BambooAI understand complex data relationships and generate more accu
 ```python
 import pandas as pd
 from bambooai import BambooAI
+
+import plotly.io as pio
+pio.renderers.default = 'jupyterlab'
 
 df = pd.read_csv('test_activity_data.csv')
 bamboo = BambooAI(df=df, search_tool=True, planning=True)
