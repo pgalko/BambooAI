@@ -21,7 +21,7 @@
     --error-color: #ff0000;
     --shadow-color: rgba(0, 0, 0, 0.1);
     --tool-call-bg: #f8f8f8;
-    --tool-call-border: #4c8caf;
+    --tool-call-border: #35c477;
     --tool-call-thinking-border: #35c477;
     --tool-call-text: #555555;
     --success-color: #35c477;
@@ -84,7 +84,7 @@
     --error-color: #ff6b6b;
     --shadow-color: rgba(0, 0, 0, 0.3);
     --tool-call-bg: #333333;
-    --tool-call-border: #87ceeb;
+    --tool-call-border: #50fa7b;
     --tool-call-thinking-border: #50fa7b;
     --tool-call-text: #b0b0b0;
     --success-color: #50fa7b;
@@ -546,42 +546,63 @@ body, html {
     flex-direction: column;
 }
 
+/* --- Tab Container: --- */
 .tab-container {
     display: flex;
     background-color: var(--bg-primary);
-    padding: 10px 10px 0 10px;
-    border-bottom: 2px solid transparent;
-    transition: border-bottom-color 0.3s;
+    padding: 10px 10px 0 10px; /* Keep top/side padding, bottom padding is effectively handled by tabs */
+    /*border-bottom: 1px solid var(--border-color); /* Subtle grayish border under the tab row */
+    transition: border-bottom-color 0.3s; /* Keep transition if you still want it, though it's now static */
 }
 
 .tab-container:not(:empty) {
-    border-bottom-color: var(--accent-color);
+    border-bottom: 1px solid var(--border-color); /* Apply the border only when the container has tabs */
 }
 
+/* --- Tab General Styling: Replaced --- */
 .tab {
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    font-size: 14px;
-    font-weight: bold;
+    background-color: transparent;
+    border-style: solid;
+    border-width: 1px;
     border-radius: 5px 5px 0 0;
+    padding: 10px 15px;
     margin-right: 5px;
+    margin-bottom: -1px; /* Crucial for overlapping the container's bottom border */
+    position: relative;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.3s, border-color 0.3s, background-color 0.3s;
+
+    /* Add this line to ensure tabs only take the width their content needs */
+    width: fit-content;
+
+    /* Ensure flex properties prevent unwanted growth (these are often defaults but explicit here) */
+    flex-grow: 0;
+    flex-shrink: 1; /* Allow shrinking if many tabs, can be 0 if you never want them to shrink */
 }
 
-.tab:hover {
-    background-color: var(--accent-color);
-}
-
+/* --- Active Tab Styling: Replaced --- */
 .tab.active {
-    background-color: var(--accent-color);
+    color: var(--accent-color); /* Accented text color */
+    border-color: var(--accent-color); /* Accented border for top, left, right */
+    border-bottom-color: var(--bg-primary); /* Bottom border matches content bg to "open" the tab */
+    background-color: var(--bg-primary); /* Background matches content area to blend in */
+    z-index: 1; /* Ensures the active tab is visually on top of the container's border */
 }
 
+/* --- Inactive Tab Styling: Replaced --- */
 .tab:not(.active) {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
+    color: var(--text-secondary); /* Subdued text color for inactive tabs */
+    border-color: var(--border-color); /* Subtle border for inactive tabs */
+    background-color: var(--bg-secondary); /* Slightly different background for inactive tabs */
+}
+
+/* --- Inactive Tab Hover Styling: New --- */
+.tab:not(.active):hover {
+    color: var(--accent-color); /* Accented text on hover */
+    border-color: var(--accent-hover); /* Border color changes to a hover accent */
+    background-color: var(--bg-tertiary); /* Slight background change on hover */
 }
 
 .tab-content {
@@ -754,30 +775,59 @@ body, html {
     max-width: 100%;
 }
 
+/* Main container for the tab-like "tool-start" */
 .tool-start {
-    background-color: var(--system-message-bg);
-    padding: 2px 4px;
-    margin-bottom: 1px;
-    border-radius: 4px;
-    font-size: 11px;
-    border-left: 2px solid var(--tool-call-thinking-border);
-    line-height: 0.5;
-}
-
-.tool-start .agent {
-    font-weight: bold;
-    color: var(--system-message-text);
     display: flex;
     align-items: center;
+    margin: 12px 0 6px 0; /* Vertical spacing: 12px top, 6px bottom. Horizontal 0. */
+    font-size: 11px;
+    line-height: 1.4; /* Improved readability */
+    color: var(--system-message-text); /* Default text color for children */
 }
 
+/* Horizontal lines on either side of the text */
+.tool-start::before,
+.tool-start::after {
+    content: "";
+    flex-grow: 1; /* Lines will expand to fill available space */
+    height: 1px;
+    background-color: var(--tool-call-thinking-border); /* Accent color for the lines */
+}
+
+/* Styling for the .agent div (first part of the "tab" text) */
+.tool-start .agent {
+    font-weight: bold; /* Kept from original */
+    color: var(--system-message-text); /* Kept from original, also set on parent */
+    display: flex; /* Kept from original for icon alignment */
+    align-items: center; /* Kept from original for icon alignment */
+    
+    padding-top: 1px;
+    padding-bottom: 1px;
+    padding-left: 8px;  /* Space between left line and start of agent text */
+    padding-right: 4px; /* Space between agent text and model text */
+    white-space: nowrap; /* Prevent text wrapping */
+    margin-bottom: 0; /* Ensure no extra bottom margin */
+}
+
+/* Styling for the SVG icon within .agent */
 .tool-start .agent svg {
-    margin-right: 4px;
+    margin-right: 4px; /* Kept from original */
+    /* Ensure SVG inherits color or set it explicitly if needed */
+    /* stroke: currentColor; /* Or var(--system-message-text); */
 }
 
+/* Styling for the .model div (second part of the "tab" text) */
 .tool-start .model {
-    color: var(--system-message-text);
-    padding-left: 2px;
+    color: var(--system-message-text); /* Kept from original, also set on parent */
+    
+    padding-top: 1px;
+    padding-bottom: 1px;
+    padding-left: 4px;  /* Space between agent text and model text */
+    padding-right: 8px; /* Space between model text and right line */
+    white-space: nowrap; /* Prevent text wrapping */
+}
+[data-theme="dark"] .tool-start {
+    opacity: 0.8; /* Or your desired value like 0.6, 0.75, etc. */
 }
 
 .tool-call {
@@ -1065,37 +1115,43 @@ body, html {
     justify-content: space-between;
 }
 
-#submitQuery,
-#newConversationBtn {
-    width: 32px;
-    height: 32px;
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
-    border-radius: 50%;
+#submitQuery {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+
+    /* Standardized appearance */
+    background-color: transparent;
+    border: 1px solid var(--accent-color);
+    border-radius: 50%; /* Circular */
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+    color: var(--accent-color); /* Icon color */
 }
 
-#submitQuery:hover,
-#newConversationBtn:hover {
-    background-color: var(--accent-hover);
-    transform: scale(1.05);
+#submitQuery svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor; /* Inherits color from #submitQuery (which is var(--accent-color)) */
+    fill: none;          /* Ensure outlined icon */
 }
 
-#submitQuery:active,
-#newConversationBtn:active {
+#submitQuery:hover {
+    background-color: var(--highlight-bg); /* Subtle background on hover */
+    color: var(--accent-hover);            /* Icon color change on hover */
+    border-color: var(--accent-hover);     /* Border color change on hover */
+    transform: scale(1.05); /* Keep existing hover transform if desired, or remove if only color change is wanted */
+}
+
+#submitQuery:active {
     transform: scale(0.95);
-}
 
-#submitQuery svg,
-#newConversationBtn svg {
-    stroke: white;
-    width: 16px;
-    height: 16px;
 }
 
 .tab-navigation {
@@ -1221,24 +1277,32 @@ body, html {
 }
 
 .submit-rank-btn {
-    display: inline-block;
-    width: 120px;
+    /* Standardized appearance */
+    background-color: transparent;
+    border: 1.5px solid var(--accent-color);
+    border-radius: 50%; /* Circular */
+    width: 36px;  /* Changed from 120px to be an icon button */
     height: 36px;
-    padding: 0;
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
+    display: flex; /* Was inline-block, flex is better for centering icon */
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s, transform 0.2s;
-    margin: 15px auto 0;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+    color: var(--accent-color); /* Icon color */
+    margin: 15px auto 0; /* Keeps its original margin */
+}
+
+.submit-rank-btn svg {
+    width: 18px; /* Standardized icon size, adjust if needed (was 16px) */
+    height: 18px;
+    stroke: currentColor; /* Inherits color */
+    fill: none; /* Ensure outlined icon */
+    /* SVG specific attributes like stroke-width are in its tag */
 }
 
 .submit-rank-btn:hover {
-    background-color: var(--accent-hover);
+    background-color: var(--highlight-bg);
 }
 
 .submit-rank-btn:active {
@@ -1246,15 +1310,14 @@ body, html {
 }
 
 .submit-rank-btn:disabled {
-    background-color: var(--text-tertiary);
+    border-color: var(--text-tertiary);
+    color: var(--text-tertiary);
+    background-color: transparent;
     cursor: not-allowed;
     transform: none;
 }
-
-.submit-rank-btn svg {
-    width: 16px;
-    height: 16px;
-    stroke: white;
+.submit-rank-btn:disabled:hover {
+    background-color: transparent;
 }
 
 .rank-status-message {
@@ -1377,7 +1440,7 @@ body, html {
 .selection-popup {
     position: fixed;
     background: var(--bg-primary);
-    border: 1px solid var(--accent-color);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     padding: 8px;
     box-shadow: 0 2px 10px var(--shadow-color);
@@ -1404,23 +1467,23 @@ body, html {
 }
 
 .selection-popup button {
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 50%; /* Circular */
     width: 32px;
     height: 32px;
-    min-width: 32px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    padding: 0;
+    min-width: 32px; /* Match width */
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+    color: var(--accent-color); /* Icon color */
 }
 
 .selection-popup button:hover {
-    background-color: var(--accent-hover);
+    background-color: var(--highlight-bg);
 }
 
 .selection-popup button:active {
@@ -1428,9 +1491,12 @@ body, html {
 }
 
 .selection-popup button svg {
-    width: 20px;
-    height: 20px;
-    fill: white;
+    width: 18px;
+    height: 18px;
+    /* Styles for the filled SVG to appear outlined */
+    fill: none;
+    stroke: currentColor; /* Inherits color */
+    stroke-width: 2; /* Define stroke-width for the path */
 }
 
 .highlight-overlay {
@@ -1503,26 +1569,31 @@ body, html {
 }
 
 .plot-query-submit {
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 50%; /* Circular */
     width: 32px;
     height: 32px;
-    border-radius: 4px;
-    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.plot-query-submit:hover {
-    background-color: var(--accent-hover);
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+    color: var(--accent-color); /* Icon color */
 }
 
 .plot-query-submit svg {
-    width: 20px;
-    height: 20px;
-    fill: white;
+    width: 18px;
+    height: 18px;
+    /* Styles for the filled SVG to appear outlined */
+    fill: none;
+    stroke: currentColor; /* Inherits color */
+    stroke-width: 2; /* Define stroke-width for the path */
+}
+
+.plot-query-submit:hover {
+    background-color: var(--highlight-bg);
 }
 
 .plot-content {
@@ -2744,6 +2815,19 @@ code.language-json {
     gap: 10px;
     margin: 15px 0;
     width: 100%;
+}
+
+/* --- Hide scrollbar for #streamOutput --- */
+
+/* For WebKit browsers (Chrome, Safari, Edge, Opera) */
+#streamOutput::-webkit-scrollbar {
+    display: none;
+}
+
+/* For Firefox */
+#streamOutput {
+    scrollbar-width: none;  /* Firefox 64+ */
+    -ms-overflow-style: none; /* Internet Explorer 10+ (and older Edge) */
 }
 
 /* Interactive Pill Style */
