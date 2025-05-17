@@ -50,6 +50,15 @@
     --mermaid-diagram-bg: #1E2730; /* Consistent across themes for contrast */
     --mermaid-primary-color: #384B5E;
     --mermaid-text-color: #C1DAFF;
+    --success-color-primary-bg: #e6f7ef; /* Light green background for light theme */
+    --success-color-auxiliary-bg: #e0f2e8; /* Slightly different light green for light theme */
+    --error-color-bg: #fff0f0; /* For error pills in light theme */
+    --bg-tertiary: #f5f5f7; /* Ensure this is defined */
+    --text-secondary: #666666; /* Ensure this is defined */
+    --border-color: #dddddd; /* Ensure this is defined */
+    --info-color: #2978b5;         /* Example: A distinct blue */
+    --info-color-bg: #eaf2f8;      /* Light blue background for light theme */
+    --info-color-hover-bg: #d5e5f1;/* Slightly darker for hover */
 }
 
 /* Dark theme */
@@ -101,6 +110,13 @@
     --highlight-bg: rgba(80, 250, 123, 0.3);
     --overlay-bg: rgba(0, 0, 0, 0.7);
     --warning-color: #ffb74d;
+    --success-color-primary: #50fa7b;
+    --success-color-auxiliary: #3dd688; /* Or another distinct accent for auxiliary if desired */
+    --error-color: #ff6b6b;
+    --bg-tertiary: #3a3a3a;
+    --text-secondary: #b0b0b0;
+    --border-color: #555555;
+    --info-color: #5dade2;
 }
 
 body, html {
@@ -317,32 +333,203 @@ body, html {
     color: var(--text-secondary);
 }
 
-#fileStatus {
-    font-size: 14px;
-    padding: 4px 0;
-    margin-left: 10px;
-    display: none;
+/* --- Dataset Status Pills --- */
+
+/* Container for all dataset status pills */
+#datasetStatusPillsContainer {
+    display: flex;
+    flex-wrap: wrap; /* Allows pills to wrap */
+    gap: 8px;        /* Space between pills */
+    padding: 0px 10px 5px 10px; /* Top padding 0, L/R/B padding */
+    margin-top: 2px;   /* Reduced margin from input box */
 }
 
-.file-status-message {
+/* Base individual pill style */
+.dataset-status-pill {
     display: flex;
     align-items: center;
-    gap: 8px;
-    color: var(--success-color);
+    padding: 6px 10px;
+    border-radius: 16px;
+    font-size: 13px;    /* Standardized from previous step */
+    font-style: italic; /* Standardized from previous step */
+    border: 1px solid transparent; /* Base, specific states will override */
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
 }
 
+/* Content within the pill (text + spinner) */
+.dataset-pill-content {
+    display: flex;
+    align-items: center;
+    gap: 6px; /* Space between text and spinner */
+    /* Transition for hover effects if applied directly here */
+    transition: opacity 0.2s ease; /* Example if you wanted text to fade slightly */
+}
+
+/* Clickable content area (for successfully loaded pills) */
+.clickable-pill-content {
+    cursor: pointer; /* Hand cursor on hover */
+    /* Transitions for hover effects are on the parent .dataset-status-pill or specific states */
+}
+
+/* Spinner style */
 .file-upload-spinner {
     width: 12px;
     height: 12px;
-    border: 2px solid var(--highlight-bg);
-    border-top-color: var(--accent-color);
+    border: 2px solid var(--highlight-bg); /* Track color */
+    border-top-color: currentColor; /* Spinner color matches text color of its state */
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
-
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Remove icon style */
+.dataset-pill-remove-icon {
+    margin-left: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+.dataset-pill-remove-icon svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2;
+    /* Stroke color will be set by specific pill states */
+}
+.dataset-status-pill:hover .dataset-pill-remove-icon { /* Show remove icon more clearly on pill hover */
+    opacity: 1;
+}
+
+/* --- Pill States (Loading, Success, Error) --- */
+
+/* Loading State (applies to both primary and auxiliary) */
+.dataset-status-pill.loading {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.dataset-status-pill.loading .dataset-pill-remove-icon {
+    display: none; /* Hide remove icon during loading */
+}
+
+/* Error State (applies to both primary and auxiliary) */
+.dataset-status-pill.error {
+    background-color: var(--error-color-bg);
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+.dataset-status-pill.error .dataset-pill-remove-icon svg {
+    stroke: var(--error-color);
+}
+.dataset-status-pill.error .clickable-pill-content { /* Errors are not clickable for preview */
+    cursor: default;
+}
+
+
+/* --- Primary Dataset Pill: Success State --- */
+.primary-dataset-pill.success {
+    background-color: var(--success-color-primary-bg);
+    color: var(--success-color-primary);
+    border-color: var(--success-color-primary);
+}
+.primary-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-primary);
+}
+
+.primary-dataset-pill.success:hover { /* Hover on the entire pill */
+     background-color: #d4f0e3; /* Slightly darker than --success-color-primary-bg for light theme */
+}
+
+
+/* Dark Theme Override for Primary Success Pill */
+[data-theme="dark"] .primary-dataset-pill.success {
+    background-color: transparent; /* No fill */
+    color: var(--success-color-primary);
+    border: 1px solid var(--success-color-primary);
+}
+[data-theme="dark"] .primary-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-primary);
+}
+/* Hover effect for Dark Theme Primary Success */
+[data-theme="dark"] .primary-dataset-pill.success:hover {
+    background-color: rgba(80, 250, 123, 0.08); /* Very subtle accent background on hover */
+    /* border-color: #70ff9b; /* Optional: slightly brighter border on hover */
+}
+
+
+/* --- Auxiliary Dataset Pill: Success State --- */
+.auxiliary-dataset-pill.success {
+    background-color: var(--success-color-auxiliary-bg);
+    color: var(--success-color-auxiliary);
+    border-color: var(--success-color-auxiliary);
+}
+.auxiliary-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-auxiliary);
+}
+/* Hover effect for Light Theme Auxiliary Success */
+.auxiliary-dataset-pill.success:hover { /* Hover on the entire pill */
+    background-color: #ccebde; /* Slightly darker than --success-color-auxiliary-bg for light theme */
+}
+
+/* Dark Theme Override for Auxiliary Success Pill */
+[data-theme="dark"] .auxiliary-dataset-pill.success {
+    background-color: transparent; /* No fill */
+    color: var(--success-color-auxiliary);
+    border: 1px solid var(--success-color-auxiliary);
+}
+[data-theme="dark"] .auxiliary-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-auxiliary);
+}
+/* Hover effect for Dark Theme Auxiliary Success */
+[data-theme="dark"] .auxiliary-dataset-pill.success:hover {
+    background-color: rgba(61, 214, 136, 0.08); /* Very subtle accent background for auxiliary on hover */
+    /* border-color: #5edc9c; /* Optional: slightly brighter border on hover */
+}
+
+/* --- Ontology Pill Styles --- */
+.ontology-dataset-pill.loading { /* Same as other loading pills */
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.ontology-dataset-pill.error { /* Same as other error pills */
+    background-color: var(--error-color-bg);
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+.ontology-dataset-pill.error .dataset-pill-remove-icon svg {
+    stroke: var(--error-color);
+}
+
+/* Success State for Ontology Pill - Light Theme */
+.ontology-dataset-pill.success {
+    background-color: var(--info-color-bg);
+    color: var(--info-color);
+    border-color: var(--info-color);
+}
+.ontology-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--info-color);
+}
+.ontology-dataset-pill.success:hover {
+    background-color: var(--info-color-hover-bg);
+}
+
+/* Success State for Ontology Pill - Dark Theme (No Fill) */
+[data-theme="dark"] .ontology-dataset-pill.success {
+    background-color: transparent;
+    color: var(--info-color); /* Use the dark theme info color for text */
+    border: 1px solid var(--info-color); /* Use the dark theme info color for border */
+}
+[data-theme="dark"] .ontology-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--info-color); /* Use the dark theme info color */
+}
+[data-theme="dark"] .ontology-dataset-pill.success:hover {
+    background-color: rgba(93, 173, 226, 0.1); /* Subtle hover using dark theme info color */
 }
 
 #contentOutput {
@@ -1757,6 +1944,33 @@ code.language-json {
     display: inline-block;
 }
 
+#uploadLimitMessage {
+    position: absolute;
+    bottom: calc(100% + 5px); /* Position it above the attach button */
+    left: 0;
+    /* Or, to center it relative to the button:
+    left: 50%;
+    transform: translateX(-50%);
+    */
+    background-color: var(--error-color-bg); /* Use error background for visibility */
+    color: var(--error-color);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;   /* Small and subtle */
+    font-style: italic;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    z-index: 1001; /* Above other elements but below menu if menu overlaps */
+    opacity: 0;    /* Hidden by default */
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    white-space: nowrap; /* Prevent message from wrapping if short */
+}
+
+#uploadLimitMessage.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
 .attach-menu {
     position: absolute;
     bottom: calc(100% + 10px);
@@ -2523,20 +2737,6 @@ code.language-json {
 #streamOutput .user-context-request .context-separator {
     margin: 0 0.25em;
 }
-
-.ontology-link { left: 70px; }
-.icon-button.ontology-link {
-    cursor: pointer;
-    color: var(--text-tertiary);
-    transition: all 0.2s ease;
-}
-.icon-button.ontology-link.active {
-    color: var(--accent-color);
-}
-.icon-button.ontology-link:hover {
-    transform: scale(1.05);
-}
-
 /* Interactive Pills Container */
 .interactive-pills-container {
     display: flex;
@@ -2823,4 +3023,16 @@ code.language-json {
 [data-theme="dark"] .keyboard-shortcut {
     background-color: rgba(255, 255, 255, 0.1);
     color: var(--text-secondary);
+}
+
+
+.auxiliary-status-item .file-status-message {
+    /* Inherits styles from .file-status-message */
+    /* You can add specific overrides if needed */
+    font-size: 13px; /* Slightly smaller if desired */
+}
+
+.aux-error-message { /* For the "max 3 datasets" error */
+    padding: 4px 0;
+    font-size: 14px;
 }

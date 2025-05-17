@@ -157,6 +157,7 @@ BambooAI accepts the following initialization parameters:
 ```python
 bamboo = BambooAI(
     df=None,                    # DataFrame to analyze
+    auxiliary_datasets=None,    # List of paths to auxiliary datasets
     max_conversations=4,        # Number of conversation pairs to keep in memory
     search_tool=False,          # Enable internet search capability
     planning=False,             # Enable planning agent for complex tasks
@@ -171,7 +172,12 @@ bamboo = BambooAI(
 
 - `df` (pd.DataFrame, optional)
   - Input dataframe for analysis
-  - If not provided, BambooAI will attempt to source data from the internet
+  - If not provided, BambooAI will attempt to source data from the internet or auxiliary datasets
+
+- `auxiliary_datasets` (list, default=None)
+  - List of paths to auxiliary datasets
+  - These will be incorporated into the solution as needed, and pulled when the code executes
+  - These are to complement the main dataframe
 
 - `max_conversations` (int, default=4)
   - Number of user-assistant conversation pairs to maintain in context
@@ -322,11 +328,46 @@ If you assign a model for an agent in `agent_configs` make sure that the model i
 }
 ```
 
+## Auxiliary Datasets
+
+BambooAI supports working with multiple datasets simultaneously, allowing for more comprehensive and contextual analysis. 
+The auxiliary datasets feature enables you to reference and incorporate additional data sources alongside your primary dataset.
+
+When you ask questions that might benefit from auxiliary data, BambooAI will:
+
+1. Analyze which datasets contain relevant information
+2. Load only the necessary datasets
+3. Join or cross-reference the data as needed
+4. Generate and execute code that properly handles the multi-dataset operations
+
+### How to Use
+
+```python
+from bambooai import BambooAI
+import pandas as pd
+
+# Load primary dataset
+main_df = pd.read_csv('main_data.csv')
+
+# Specify paths to auxiliary datasets
+auxiliary_paths = [
+    'path/to/supporting_data1.csv',
+    'path/to/supporting_data2.parquet',
+    'path/to/reference_data.csv'
+]
+
+# Initialize BambooAI with auxiliary datasets
+bamboo = BambooAI(
+    df=main_df,
+    auxiliary_datasets=auxiliary_paths,
+)
+```
+
 ## Dataframe Ontology
 
 BambooAI supports custom dataframe ontologies to improve analysis accuracy.
 
-### Quick Setup
+### How to Use
 
 ```python
 from bambooai import BambooAI
@@ -359,7 +400,12 @@ from bambooai import BambooAI
 import plotly.io as pio
 pio.renderers.default = 'jupyterlab'
 
-df = pd.read_csv('test_activity_data.csv')
+df = pd.read_csv('training_activity_data.csv')
+aux_data = [
+    'path/to/wellness_data.csv',
+    'path/to/nutrition_data.parquet',
+]
+
 bamboo = BambooAI(df=df, search_tool=True, planning=True)
 bamboo.pd_agent_converse()
 ```

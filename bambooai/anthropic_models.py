@@ -13,7 +13,6 @@ except ImportError:
 
 # Define the available functions
 google_search_function = google_search.SmartSearchOrchestrator()
-get_auxiliary_dataset = context_retrieval.get_auxiliary_dataset
 request_user_context = context_retrieval.request_user_context
 
 def init():
@@ -158,7 +157,6 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: li
 
     available_functions = {
         "google_search": google_search_function,
-        "get_auxiliary_dataset": get_auxiliary_dataset,
         "request_user_context": request_user_context
     }
 
@@ -209,13 +207,6 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: li
                         google_search_messages
                     )
                     add_triplet(function_args.get("search_query"), function_response, links)
-
-                elif function_name == "get_auxiliary_dataset":
-                    function_response = function_to_call(
-                        output_manager,
-                        chain_id,
-                        function_args.get("file_format")
-                    )
 
                 elif function_name == "request_user_context":
                     function_response = function_to_call(

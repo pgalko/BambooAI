@@ -18,6 +18,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import tempfile
+import csv
 
 
 app = Flask(__name__)
@@ -216,7 +217,6 @@ def upload_dataset():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
 
 #### DATAFRAME UTILITY ENDPOINTS ####
 
@@ -302,6 +302,193 @@ def get_dataframe_columns():
         return jsonify(columns_info)
     except Exception as e:
         return jsonify({'error': f'Error getting columns: {str(e)}'})
+    
+#### AUXILIARY FILE MANAGEMENT ENDPOINTS ####
+
+@app.route('/file_utils/upload_aux_dataset', methods=['POST'])
+def upload_aux_dataset_endpoint():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part in request'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    try:
+        # Ensure 'datasets' directory exists on the executor server
+        executor_datasets_dir = 'datasets'
+        os.makedirs(executor_datasets_dir, exist_ok=True)
+        
+        # Save the file to the executor's 'datasets' directory
+        filepath_on_executor = os.path.join(executor_datasets_dir, file.filename)
+        file.save(filepath_on_executor)
+        
+        log_info(f"Auxiliary dataset '{file.filename}' uploaded to '{filepath_on_executor}' on executor.")
+        
+        return jsonify({
+            'message': 'Auxiliary dataset uploaded successfully to executor.',
+            'filepath': filepath_on_executor # This path is on the executor server
+        }), 200
+        
+    except Exception as e:
+        log_info(f"Error uploading auxiliary dataset to executor: {str(e)}")
+        return jsonify({'error': f'Error uploading auxiliary dataset to executor: {str(e)}'}), 500
+
+@app.route('/file_utils/remove_aux_dataset', methods=['POST'])
+def remove_aux_dataset_endpoint():
+    data = request.json
+    file_path_on_executor = data.get('file_path')
+
+    if not file_path_on_executor:
+        return jsonify({'error': 'file_path is required'}), 400
+
+    try:
+        if os.path.exists(file_path_on_executor):
+            os.remove(file_path_on_executor)
+            log_info(f"Auxiliary dataset '{file_path_on_executor}' removed from executor.")
+            return jsonify({'message': 'Auxiliary dataset removed successfully from executor.'}), 200
+        else:
+            log_info(f"Auxiliary dataset '{file_path_on_executor}' not found on executor for removal.")
+            return jsonify({'error': 'File not found on executor.'}), 404
+            
+    except Exception as e:
+        log_info(f"Error removing auxiliary dataset from executor: {str(e)}")
+        return jsonify({'error': f'Error removing auxiliary dataset from executor: {str(e)}'}), 500
+    
+#### AUXILIARY FILE UTILITY ENDPOINTS ####
+
+@app.route('/file_utils/aux_datasets_to_string', methods=['POST'])
+def aux_datasets_to_string_endpoint():
+    data = request.json
+    file_paths = data.get('file_paths')
+    num_rows = data.get('num_rows', 5)
+
+    if not isinstance(file_paths, list):
+        return jsonify({'error': 'file_paths must be a list'}), 400
+    if not file_paths:
+        return jsonify({'data': "No auxiliary datasets provided."}) # Consistent with local
+
+    log_info(f"Processing aux_datasets_to_string for {len(file_paths)} files, num_rows={num_rows}")
+    
+    results_list = []
+    for i, path in enumerate(file_paths, 1):
+        file_ext = os.path.splitext(path)[1].lower()
+        try:
+            if not os.path.exists(path):
+                results_list.append(f"{i}.\nPath: {path}\nError: File not found")
+                continue
+
+            if file_ext == '.csv':
+                df = pd.read_csv(path, nrows=num_rows)
+            elif file_ext in ['.parquet', '.pq']:
+                parquet_file = pq.ParquetFile(path)
+                if parquet_file.num_row_groups > 0:
+                    df = parquet_file.read_row_group(0, columns=parquet_file.schema.names).to_pandas()
+                    if len(df) > num_rows:
+                        df = df.iloc[:num_rows]
+                else:
+                    df = pd.DataFrame(columns=parquet_file.schema.names)
+            else:
+                results_list.append(f"{i}.\nPath: {path}\nError: Unsupported file format")
+                continue
+            
+            buffer = io.StringIO()
+            with pd.option_context('display.max_columns', None, 
+                                  'display.width', None,
+                                  'display.max_colwidth', None):
+                df.to_string(buf=buffer, index=False)
+            results_list.append(f"{i}.\nPath: {path}\nHead:\n{buffer.getvalue()}")
+        except Exception as e:
+            log_info(f"Error processing {path} for aux_datasets_to_string: {str(e)}")
+            results_list.append(f"{i}.\nPath: {path}\nError: {str(e)}")
+            
+    return jsonify({'data': "\n\n".join(results_list)})
+
+@app.route('/file_utils/get_aux_datasets_columns', methods=['POST'])
+def get_aux_datasets_columns_endpoint():
+    data = request.json
+    file_paths = data.get('file_paths')
+
+    if not isinstance(file_paths, list):
+        return jsonify({'error': 'file_paths must be a list'}), 400
+    if not file_paths:
+        return jsonify({'data': "No auxiliary datasets provided."})
+
+    log_info(f"Processing get_aux_datasets_columns for {len(file_paths)} files")
+
+    results_list = []
+    for i, path in enumerate(file_paths, 1):
+        file_ext = os.path.splitext(path)[1].lower()
+        try:
+            if not os.path.exists(path):
+                results_list.append(f"{i}.\nPath: {path}\nError: File not found")
+                continue
+
+            if file_ext == '.csv':
+                with open(path, 'r', newline='', encoding='utf-8') as csvfile:
+                    reader = csv.reader(csvfile)
+                    columns = next(reader) 
+            elif file_ext in ['.parquet', '.pq']:
+                parquet_file = pq.ParquetFile(path)
+                columns = parquet_file.schema.names
+            else:
+                results_list.append(f"{i}.\nPath: {path}\nError: Unsupported file format")
+                continue
+            
+            columns_str = ", ".join(columns)
+            results_list.append(f"{i}.\nPath: {path}\nColumns:\n{columns_str}")
+        except StopIteration: # Handles empty CSV
+            results_list.append(f"{i}.\nPath: {path}\nError: CSV file is empty or has no header")
+        except Exception as e:
+            log_info(f"Error processing {path} for get_aux_datasets_columns: {str(e)}")
+            results_list.append(f"{i}.\nPath: {path}\nError: {str(e)}")
+            
+    return jsonify({'data': "\n\n".join(results_list)})
+
+@app.route('/file_utils/compute_aux_dataset_sample', methods=['POST'])
+def compute_aux_dataset_sample_endpoint():
+    data = request.json
+    file_paths = data.get('file_paths')
+    num_rows = data.get('num_rows', 100)
+
+    if not isinstance(file_paths, list):
+        return jsonify({'error': 'file_paths must be a list'}), 400
+    
+    log_info(f"Processing compute_aux_dataset_sample for {len(file_paths)} files, num_rows={num_rows}")
+
+    html_results = []
+    if not file_paths:
+        error_df = pd.DataFrame([{"Error": "No auxiliary dataset paths provided."}])
+        html_results.append(error_df.to_html(classes='dataframe', border=0, index=False))
+        return jsonify({'html_results': html_results})
+
+    for path in file_paths:
+        file_ext = os.path.splitext(path)[1].lower()
+        try:
+            if not os.path.exists(path):
+                df = pd.DataFrame([{"Error": f"File not found: {os.path.basename(path)}"}])
+            elif file_ext == '.csv':
+                df = pd.read_csv(path, nrows=num_rows)
+            elif file_ext in ['.parquet', '.pq']:
+                parquet_file = pq.ParquetFile(path)
+                if parquet_file.num_row_groups > 0:
+                    first_row_group_reader = parquet_file.reader.read_row_group(0)
+                    df = first_row_group_reader.to_pandas(use_threads=True)
+                    if len(df) > num_rows:
+                        df = df.head(num_rows)
+                else:
+                    df = pd.DataFrame([{"Info": f"Parquet file is empty: {os.path.basename(path)}"}])
+            else:
+                df = pd.DataFrame([{"Error": f"Unsupported file format: {file_ext}"}])
+            
+            html = df.to_html(classes='dataframe', border=0, index=False)
+            html_results.append(html)
+        except Exception as e:
+            log_info(f"Error processing {path} for compute_aux_dataset_sample: {str(e)}")
+            error_df = pd.DataFrame([{"Error": f"Failed to process {os.path.basename(path)}: {str(e)}"}])
+            html_results.append(error_df.to_html(classes='dataframe', border=0, index=False))
+            
+    return jsonify({'html_results': html_results})
     
 #### HELPER FUNCTIONS ####
 

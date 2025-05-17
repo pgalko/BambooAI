@@ -7,39 +7,6 @@ import logging
 # Configure logging for debugging
 logging.basicConfig(level=logging.WARNING,)
 logger = logging.getLogger(__name__)
-
-def get_auxiliary_dataset(output_manager, chain_id, format):
-    """
-    Returns path and head preview of the auxiliary dataset.
-    
-    Args:
-        format (str): Expected to be "csv"
-        
-    Returns:
-        dict: Contains either:
-            - 'path' to the dataset and 'head' preview, or
-            - 'error' message if something goes wrong
-    """
-
-    # Define path to the dataset
-    data_path = os.path.join("datasets", "auxiliary_dataset.csv")
-
-    output_manager.display_tool_info('get_auxiliary_dataset', f"path:{data_path}", chain_id=chain_id)
-
-    if not os.path.exists(data_path):
-        return f"Error: Dataset not found at path: {data_path}"
-
-    try:
-        # Read first few rows for preview
-        df = pd.read_csv(data_path)
-        head_preview = df.head().to_string()
-
-        response = f"Path: {data_path}\nPreview:\n{head_preview}\nFormat: {format}"
-
-        return response
-
-    except Exception as e:
-        return f"Error reading dataset: {str(e)}"
     
 def request_user_context(output_manager, chain_id, query_clarification, context_needed):
     """

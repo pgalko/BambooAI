@@ -12,7 +12,6 @@ except ImportError:
     import google_search, prompts, utils, context_retrieval
 
 google_search_function = google_search.SmartSearchOrchestrator()
-get_auxiliary_dataset = context_retrieval.get_auxiliary_dataset
 
 def init():
     API_KEY = os.environ.get('GEMINI_API_KEY')
@@ -80,7 +79,6 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
 
     available_functions = {
         "google_search": google_search_function,
-        "get_auxiliary_dataset": get_auxiliary_dataset
     }
 
     def add_triplet(query, result, links):
@@ -151,14 +149,7 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
                     messages=google_search_messages
                 )
                 add_triplet(function_args.get("search_query"), function_response, links)
-
-            elif function_name == "get_auxiliary_dataset":
-                function_response = function_to_call(
-                    output_manager,
-                    chain_id,
-                    function_args.get("file_format")
-                )
-            
+ 
             messages.append(
                 {
                     "tool_call_id": tool_call['id'],

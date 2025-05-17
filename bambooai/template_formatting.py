@@ -61,8 +61,8 @@ class CodeGenPromptGenerator:
             return 'code_generator_user_gen_plan' if use_plan else 'code_generator_user_gen_no_plan'
 
     def generate_prompt(self, analyst: str, planning: bool, model: str, reasoning_models: list, 
-                       plan_or_context: str, dataframe_head: str, data_model: str, 
-                       task: str, python_version: str, pandas_version: str, 
+                       plan_or_context: str, dataframe_head: str, auxiliary_datasets: str, 
+                       data_model: str, task: str, python_version: str, pandas_version: str, 
                        plotly_version: str, previous_results: str, example_code: str) -> str:
         """
         Main method to generate the complete prompt
@@ -82,6 +82,7 @@ class CodeGenPromptGenerator:
                 'plan' if use_plan else 'context'
             ),
             'dataframe': self.format_section(dataframe_head, formatting_style, 'dataframe'),
+            'auxiliary_datasets': self.format_section(auxiliary_datasets, formatting_style, 'auxiliary_datasets'),
             'data_model_and_helper_functions': self.format_section(data_model, formatting_style, 'data_model_and_helper_functions'),
             'task': self.format_section(task, formatting_style, 'task'),
             'python_version': self.format_section(python_version, formatting_style, 'python_version'),
@@ -99,6 +100,7 @@ class CodeGenPromptGenerator:
             args = [
                 formatted_sections['plan_context'],
                 formatted_sections['dataframe'],
+                formatted_sections['auxiliary_datasets'],
                 formatted_sections['data_model_and_helper_functions'],
                 formatted_sections['task'],
                 formatted_sections['python_version'],

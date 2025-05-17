@@ -2,7 +2,7 @@
 
 import requests
 import pandas as pd
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, List
 from datetime import datetime
 
 class ExecutorAPIClient:
@@ -127,4 +127,70 @@ class ExecutorAPIClient:
             
         except requests.RequestException as e:
             self.log_to_file(f"Failed to get columns via API: {str(e)}")
+            return None
+        
+    def aux_datasets_to_string(self, file_paths: List[str], num_rows: int = 5) -> Optional[str]:
+        """Call the executor API to get string representation of auxiliary datasets."""
+        self.log_to_file(f"Attempting to get aux datasets string for paths: {file_paths}, num_rows: {num_rows}")
+        try:
+            response = requests.post(
+                f"{self.base_url}/file_utils/aux_datasets_to_string",
+                json={'file_paths': file_paths, 'num_rows': num_rows}
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'error' in result:
+                self.log_to_file(f"Error getting aux datasets string: {result['error']}")
+                return None  # Or consider returning result['error'] to propagate the message
+                
+            self.log_to_file(f"Successfully got aux datasets string for paths: {file_paths}")
+            return result.get('data') # Expects {'data': 'output_string'}
+            
+        except requests.RequestException as e:
+            self.log_to_file(f"Failed to get aux datasets string via API: {str(e)}")
+            return None
+
+    def get_aux_datasets_columns(self, file_paths: List[str]) -> Optional[str]:
+        """Call the executor API to get column names of auxiliary datasets."""
+        self.log_to_file(f"Attempting to get aux datasets columns for paths: {file_paths}")
+        try:
+            response = requests.post(
+                f"{self.base_url}/file_utils/get_aux_datasets_columns",
+                json={'file_paths': file_paths}
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'error' in result:
+                self.log_to_file(f"Error getting aux datasets columns: {result['error']}")
+                return None
+                
+            self.log_to_file(f"Successfully got aux datasets columns for paths: {file_paths}")
+            return result.get('data') # Expects {'data': 'columns_string'}
+            
+        except requests.RequestException as e:
+            self.log_to_file(f"Failed to get aux datasets columns via API: {str(e)}")
+            return None
+
+    def compute_aux_dataset_sample(self, file_paths: List[str], num_rows: int = 100) -> Optional[List[str]]:
+        """Call the executor API to compute HTML samples of auxiliary datasets."""
+        self.log_to_file(f"Attempting to compute aux dataset sample for paths: {file_paths}, num_rows: {num_rows}")
+        try:
+            response = requests.post(
+                f"{self.base_url}/file_utils/compute_aux_dataset_sample",
+                json={'file_paths': file_paths, 'num_rows': num_rows}
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'error' in result:
+                self.log_to_file(f"Error computing aux dataset sample: {result['error']}")
+                return None
+                
+            self.log_to_file(f"Successfully computed aux dataset sample for paths: {file_paths}")
+            return result.get('html_results') # Expects {'html_results': ['html_string1', ...]}
+            
+        except requests.RequestException as e:
+            self.log_to_file(f"Failed to compute aux dataset sample via API: {str(e)}")
             return None

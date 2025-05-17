@@ -156,24 +156,35 @@
             
                                 <!-- New attach menu -->
                                 <div class="attach-menu">
-                                    <button class="attach-option computer-option" title="Upload from computer">
+                                    <button class="attach-option primary-dataset-option" title="Upload Primary Dataset">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                                            <line x1="8" y1="21" x2="16" y2="21"/>
-                                            <line x1="12" y1="17" x2="12" y2="21"/>
+                                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                            <polyline points="13 2 13 9 20 9"></polyline>
                                         </svg>
-                                        <span>Computer</span>
+                                        <span>Primary Dataset</span>
                                     </button>
-                                    <button class="attach-option cloud-option" title="Upload from cloud">
+                                    <button class="attach-option auxiliary-dataset-option" title="Upload Auxiliary Dataset">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                                            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                                            <polyline points="2 17 12 22 22 17"></polyline>
+                                            <polyline points="2 12 12 17 22 12"></polyline>
                                         </svg>
-                                        <span>Cloud</span>
+                                        <span>Auxiliary Dataset</span>
                                     </button>
+                                    <button class="attach-option ontology-upload-option" title="Upload/Manage Ontology">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                                        </svg>
+                                        <span>Ontology</span>
+                                    </button>
+                                    <div id="uploadLimitMessage" class="upload-limit-message"></div>
                                 </div>
                             </div>
             
-                            <input type="file" id="csvFile" accept=".csv,.parquet" style="display: none" />
+                            <input type="file" id="primaryFile" accept=".csv,.parquet" style="display: none" />
+                            <input type="file" id="auxiliaryFile" accept=".csv,.parquet" style="display: none" />
+                            <input type="file" id="ontologyUploadFile" accept=".ttl" style="display: none" />
                             
                             <!-- Planning brain -->
                             <button
@@ -215,31 +226,6 @@
                                     />
                                 </svg>
                             </button>
-
-                            <!-- Ontology link -->
-                            <button
-                            id="ontologySwitch"
-                            type="button"
-                            class="icon-button ontology-link"
-                            aria-checked="false"
-                            title="Select Ontology"
-                            >
-                            <svg
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            >
-                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                            </svg>
-                            </button>
-                            <!-- Hidden file input for ontology selection -->
-                            <input type="file" id="ontologyFile" accept=".ttl" style="display: none" />
                             
                             <!-- Guide me -->
                             <button
@@ -303,7 +289,7 @@
                 </div>
             
                 <!-- File status messages -->
-                <div id="fileStatus"></div>
+                <div id="datasetStatusPillsContainer"></div>
             </div>            
         </div>
         <div class="right-panel" id="rightPanel">

@@ -16,6 +16,7 @@ except ImportError:
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
+                 auxiliary_datasets: list = None,
                  max_conversations: int = 4,
                  vector_db: bool = False, 
                  search_tool: bool = False,
@@ -85,9 +86,16 @@ class BambooAI:
         # Check if the PINECONE_API_KEY and PINECONE_ENV environment variables are set if vector_db is True
         if vector_db:
             PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
-            
-            if PINECONE_API_KEY is None:
-                self.output_manager.print_wrapper("Warning: PINECONE_API_KEY or PINECONE_ENV environment variable not found. Disabling vector_db.", chain_id=self.chain_id)
+
+            if PINECONE_API_KEY is not None:
+                try:
+                    self.pinecone_wrapper = qa_retrieval.PineconeWrapper(output_manager=self.output_manager)
+                except Exception as e:
+                    self.output_manager.display_system_messages(f"Error initializing Pinecone")
+                    vector_db = False
+
+            else:
+                self.output_manager.display_system_messages("Warning: PINECONE_API_KEY environment variable not found. Disabling vector_db.")
                 vector_db = False
 
         self.MAX_ERROR_CORRECTIONS = 5
@@ -105,6 +113,9 @@ class BambooAI:
         self.df_ontology = df_ontology # Set the df_ontology mode. The argument takes the path to the ontology file.
         self.data_model = None # Stores details retrieved from the ontology
         self.df_id = df_id
+
+        # Auxiliary datasets
+        self.auxiliary_datasets = auxiliary_datasets if auxiliary_datasets is not None else []
 
         # User intent
         self.user_intent = None
@@ -242,7 +253,6 @@ class BambooAI:
         self.insight_messages = None
 
         # QA Retrieval
-        self.pinecone_wrapper = qa_retrieval.PineconeWrapper(output_manager=self.output_manager)
         self.similarity_threshold = 0.80
         self.retrieved_data_model = None
         self.retrieved_plan = None
@@ -250,9 +260,6 @@ class BambooAI:
 
         # Google Search
         self.search_tool = search_tool
-
-        # Auxiliary datasets. This flag is set to True when the user wants to use an auxiliary dataset to provide additional context to the main dataset.
-        self.auxiliary_dataset = False
 
         # Request user feedback during the conversation
         self.user_feedback = True
@@ -303,7 +310,7 @@ class BambooAI:
             messages.pop(1)
             self.output_manager.display_system_messages("Truncating messages")
 
-    def filter_tools(self, tools_list, search_enabled=False, auxiliary_enabled=False, feedback_enabled=False):
+    def filter_tools(self, tools_list, search_enabled=False, feedback_enabled=False):
         filtered_tools = tools_list.copy()  # Create a copy to avoid modifying original list
         
         def get_tool_name(tool):
@@ -318,9 +325,6 @@ class BambooAI:
         # Remove tools based on flags
         if not search_enabled:
             filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "google_search"]
-        
-        if not auxiliary_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "get_auxiliary_dataset"]
             
         if not feedback_enabled:
             filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "request_user_context"]
@@ -578,11 +582,11 @@ class BambooAI:
         reasoning_effort = "medium"
 
         if provider == 'openai':
-            tools=self.filter_tools(self.openai_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+            tools=self.filter_tools(self.openai_tools_definition, search_enabled=False, feedback_enabled=self.user_feedback)
         elif provider == 'anthropic':
-            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=False, feedback_enabled=self.user_feedback)
         elif provider == 'gemini':
-            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=False, auxiliary_enabled=False, feedback_enabled=self.user_feedback)
+            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=False, feedback_enabled=self.user_feedback)
         else:
             tools=None
 
@@ -618,11 +622,11 @@ class BambooAI:
             eval_messages[-1] = formatted_message
 
         if provider == 'openai':
-            tools=self.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=self.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         elif provider == 'anthropic':
-            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         elif provider == 'gemini':
-            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         else:
             tools=None
 
@@ -641,7 +645,7 @@ class BambooAI:
             
         return response, tool_response, llm_response
     
-    def taskmaster(self, question, df_columns, image=None):
+    def taskmaster(self, question, df_columns, aux_datasets_columns, image=None):
         '''Taskmaster function to select the expert, refine the expert selection, and formulate a task for the expert'''
         plan = None
         analyst = None
@@ -663,7 +667,8 @@ class BambooAI:
         ######## Refine Expert Selection, and Formulate the task for the expert ###########
         if expert == 'Data Analyst':
             self.select_analyst_messages.append({"role": "user", "content": self.analyst_selector_user.format(self.format_tasks(self.tasks),
-                                                                                                              None if self.df_id is None else df_columns, 
+                                                                                                              None if self.df_id is None else df_columns,
+                                                                                                              aux_datasets_columns, 
                                                                                                               question)
                                                                                                               })
             
@@ -700,7 +705,7 @@ class BambooAI:
                     query = intent_breakdown
                     data_model, df_inspector_messages = utils.inspect_dataframe(df=self.df, log_and_call_manager=self.log_and_call_manager, output_manager=self.output_manager, 
                                                                                      chain_id=self.chain_id, query=query, execution_mode=self.execution_mode, df_ontology=self.df_ontology, 
-                                                                                     df_id=self.df_id, executor_client=self.api_client, messages=self.df_inspector_messages)
+                                                                                     df_id=self.df_id, aux_file_paths=self.auxiliary_datasets, executor_client=self.api_client, messages=self.df_inspector_messages)
                     if df_inspector_messages:
                         self.df_inspector_messages = df_inspector_messages
                     self.data_model = self._extract_data_model(data_model)
@@ -724,13 +729,17 @@ class BambooAI:
                 if models.get_model_name("Planner")[0] not in self.reasoning_models:
                     self.eval_messages.append({"role": "user", "content": self.planner_user_df.format(utils.get_readable_date(), 
                                                                                                       self.format_qa_pairs(self.qa_pairs), 
-                                                                                                      intent_breakdown, None if self.df_id is None else dataframe_head, 
+                                                                                                      intent_breakdown, 
+                                                                                                      None if self.df_id is None else dataframe_head, 
+                                                                                                      utils.aux_datasets_to_string(file_paths=self.auxiliary_datasets,execution_mode=self.execution_mode,executor_client=self.api_client),
                                                                                                       f"```yaml\n{self.data_model}\n```", example_plan)
                                                                                                       })
                 else:
                     self.eval_messages.append({"role": "user", "content": self.planner_user_df_reasoning.format(utils.get_readable_date(), 
                                                                                                                 self.format_qa_pairs(self.qa_pairs), 
-                                                                                                                intent_breakdown, None if self.df_id is None else dataframe_head, 
+                                                                                                                intent_breakdown, 
+                                                                                                                None if self.df_id is None else dataframe_head,
+                                                                                                                utils.aux_datasets_to_string(file_paths=self.auxiliary_datasets,execution_mode=self.execution_mode,executor_client=self.api_client),
                                                                                                                 f"```yaml\n{self.data_model}\n```")
                                                                                                                 })
 
@@ -761,7 +770,8 @@ class BambooAI:
 
         elif expert == 'Research Specialist':
             self.eval_messages.append({"role": "user", "content": self.theorist_system.format(utils.get_readable_date(),
-                                                                                              None if self.df_id is None else df_columns, 
+                                                                                              None if self.df_id is None else df_columns,
+                                                                                              aux_datasets_columns, 
                                                                                               self.last_code, self.format_qa_pairs(self.qa_pairs), 
                                                                                               question)
                                                                                               })
@@ -769,7 +779,8 @@ class BambooAI:
             self.output_manager.display_results(chain_id=self.chain_id, query={"expert":expert, "original_question": question, "unknown": query_unknown, "condition": query_condition, "requires_dataset": requires_dataset, "confidence": confidence, "intent_breakdown": intent_breakdown})
         else:
             self.eval_messages.append({"role": "user", "content": self.theorist_system.format(utils.get_readable_date(), 
-                                                                                              None if self.df_id is None else df_columns, 
+                                                                                              None if self.df_id is None else df_columns,
+                                                                                              aux_datasets_columns,   
                                                                                               self.last_code, self.format_qa_pairs(self.qa_pairs), 
                                                                                               question)
                                                                                               })
@@ -886,9 +897,10 @@ class BambooAI:
                 self.output_manager.display_results(chain_id=self.chain_id, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df,api_client=self.api_client)
                 # Call the taskmaster method with the user's question if the exploratory mode is True
                 analyst, plan, tool_response, query_unknown, query_condition, intent_breakdown = self.taskmaster(question, 
-                                                                                                                             '' if self.df_id is None else utils.get_dataframe_columns(self.df, self.execution_mode, self.df_id, self.api_client), 
-                                                                                                                             image
-                                                                                                                             )
+                                                                                                                 '' if self.df_id is None else utils.get_dataframe_columns(self.df, self.execution_mode, self.df_id, self.api_client),
+                                                                                                                 utils.get_aux_datasets_columns(file_paths=self.auxiliary_datasets,execution_mode=self.execution_mode,executor_client=self.api_client),
+                                                                                                                 image
+                                                                                                                )
                 if not analyst:
                     self.output_manager.display_results(chain_id=self.chain_id, research=tool_response, answer=plan)
                     self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
@@ -1026,6 +1038,7 @@ class BambooAI:
             reasoning_models=self.reasoning_models,
             plan_or_context=plan,
             dataframe_head=dataframe_head,
+            auxiliary_datasets=utils.aux_datasets_to_string(file_paths=self.auxiliary_datasets,execution_mode=self.execution_mode,executor_client=self.api_client),
             data_model=data_model,
             task=intent_breakdown,
             python_version=self.python_version,
@@ -1055,11 +1068,11 @@ class BambooAI:
             code_messages[-1] = formatted_message
 
         if provider == 'openai':
-            tools=self.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=self.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         elif provider == 'anthropic':
-            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         elif provider == 'gemini':
-            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, auxiliary_enabled=self.auxiliary_dataset, feedback_enabled=self.user_feedback)
+            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         else:
             tools=None
 

@@ -730,6 +730,10 @@ DATAFRAME COLUMNS:
 
 {}
 
+AUXILIARY DATASETS:
+
+{}
+
 TASK:
 
 {}
@@ -766,8 +770,13 @@ You are a Research Specialist whose primary role is to educate users and provide
 
 Today's Date is: <current_date>{}</current_date>
 
-If the dataset was provided, here are the columns in the dataframe:
+If the dataframe was provided, here are the columns in the dataframe:
 <columns>{}</columns>
+
+If auxiliary datasets were provided, here are the details:
+<auxiliary_datasets>
+{}
+</auxiliary_datasets>
 
 Copy of the last executed code:
 <code_snippet>
@@ -796,10 +805,21 @@ You are an AI Ontologist tasked with extracting and structuring information from
 
 dataframe_inspector_user = """
 The user provided the following ontology describing the dataframe structure, relationships, and functions.
-Your job is to extract and structure the relevant information from the ontology to address the task provided by the user.
+Additionally, previews of the primary dataset and a list of auxiliary datasets are provided to aid in understanding the data sources.
+Your job is to extract and structure the relevant information from the ontology AND the dataset previews to address the task provided by the user.
 
 DATAFRAME ONTOLOGY:
 << ontology >>
+
+To help you understand the primary dataframe, here's a preview of its structure and contents. Please note that this is a simplified view, and the actual dataset may contain many more rows:
+
+DATAFRAME PREVIEW:
+<< dataframe_preview >>
+
+You also have access to the following auxiliary datasets. Use them as needed if they are relevant to your analysis:
+
+AUXILIARY DATASETS:
+<< auxiliary_datasets >> 
 
 TASK:
 << task >>
@@ -809,721 +829,199 @@ Create a YAML structure with:
 1. Metadata:
    - Task description
 
-2. Data Hierarchy (focusing on Activity domain complexity):
-   - Full Activity structure (Dataframe > Activity > Segment > Measurement)
-   - Container types and contents
-   - Grouping keys
-   - Derived objects and their roles
-   - Segment/lap structures and relationships
-   - If task-relevant: supplementary Wellness structures
+2. Data Hierarchy:
+   - For each top-level data structure in the ontology that represents a distinct data container (e.g., an individual of type Dataframe), and considering the provided DATAFRAME PREVIEW and AUXILIARY DATASETS:
+     - Identify a `dataset_source_identifier`. Use the primary dataset preview for the main source, and correlate auxiliary dataset names with relevant ontology individuals/classes. (e.g., "PrimaryActivityData", "WellnessData_Aux").
+     - Identify a `domain_label` for the conceptual domain this dataset primarily covers (e.g., "Activity Data", "Wellness Data").
+   - Detail the structure of the primary data domain(s) relevant to the task.
+   - Container types and their contents.
+   - Grouping keys for each level of the hierarchy.
+   - Derived objects and their roles.
+   - Structures of sub-entities or components.
+   - If task-relevant, include structures for any supplementary data domains from AUXILIARY DATASETS, ensuring they also have `dataset_source_identifier` and `domain_label`.
 
-3. Segments:
-   - Pre-existing vs computed segments
-   - Segmentation methods
-   - Measurement aggregations
-   - Identification and grouping
-   - Activity relationship
+3. Components / Sub-Entities (if applicable):
+   - Distinguish between pre-existing vs. computed/derived components.
+   - Methods for deriving or segmenting.
+   - Common measurement aggregations.
+   - Identification and grouping.
+   - Relationship to their parent entity/container.
 
 4. Keys:
-   - Name, associated object
-   - Grouping relationships
-   - Computation methods
+   - Name and associated object(s).
+   - Role in grouping or linking data (potentially across different `dataset_source_identifier`s, informed by previews and ontology).
+   - Computation methods if derived.
+   - Specify the `dataset_context` (which `dataset_source_identifier` it belongs to).
 
-5. Measurements:
-   - Properties: name, category, type, units, frequency
-   - Context: activity-level vs lap-level
-   - Derivation details if applicable
-   - Associated objects and relationships
+5. Measurements / Attributes:
+   - Properties: name, category, type, units, recording frequency/nature.
+   - Context: level in hierarchy and within which `dataset_source_identifier` (cross-reference with previews).
+   - Derivation details if applicable.
+   - Associated objects and relationships.
+   - Specify the `dataset_context`.
 
 6. Visualizations:
-   - Type and applicable objects
-   - Required measurements
-   - Computation functions
+   - Type of visualization.
+   - Applicable objects (specify if from a particular `dataset_source_identifier` or a merged result).
+   - Key measurements/attributes required.
+   - Associated computation functions.
 
 7. Functions:
    REQUIREMENTS:
-   - ONLY extract functions defined in ontology. If not present, do not invent!
-   - ONLY include functions needed for this task
-   - Extract VERBATIM from ontology
-   - NO modifications or additions
-   - NO invented functions
+   - ONLY extract functions defined in the ontology.
+   - ONLY include functions needed for this task.
+   - Extract VERBATIM from the ontology.
+   - NO modifications or additions.
+   - NO invented functions.
    
    For each function, you MUST verify:
-   1. Exists in ontology
-   2. Required for task
-   3. Copied exactly as defined
+   1. Exists in ontology.
+   2. Required for task.
+   3. Copied exactly as defined.
    
 8. Relationships:
-   - Type and cardinality
-   - Object connections
-   - Temporal aspects
-   - Cross-domain references if task-relevant
+   - Type and cardinality.
+   - Connections between objects/structures.
+   - If linking across different `dataset_source_identifier`s (as identified from DATAFRAME PREVIEW and AUXILIARY DATASETS), specify the keys and conditions for merging/joining. Use the ontology and data previews to confirm these links.
+   - Temporal aspects if relevant.
 
 Provide YAML structure between ```yaml ``` tags. No explanations.
 
 Key requirements:
-- Preserve Activity domain complexity
-- Extract functions verbatim
-- Include Wellness only if task-relevant
-- Maintain all hierarchical relationships
+- Preserve the complexity of the primary data domain(s).
+- Clearly identify distinct datasets using `dataset_source_identifier` based on ontology and provided dataset previews.
+- Use `domain_label` for conceptual grouping.
+- Extract functions verbatim.
+- Include supplementary data domains only if task-relevant.
+- Maintain all hierarchical relationships.
 
-Example Task 1:
-Calculate the average pace for each 100-meter segment of the most recent run. Plot the results on a bar chart, highlighting the fastest segment, and display the course of this run on a map.
-
-Example Output 1:
-```yaml
-metadata:
-  task: "Calculate the average pace for each 100-meter segment of the most recent run. Plot the results on a bar chart, highlighting the fastest segment, and display the course of this run on a map."
-
-data_hierarchy:
-  - name: ActivityDataframe
-    type: container
-    contains: 
-      - Activity
-    grouping_key: null
-    derived_objects:
-      - name: ActivityDataframeIndex
-        type: index
-        description: >
-          ActivityID-indexed summary providing a condensed view of Activities 
-          with aggregated metrics. Enables quick filtering and reference to 
-          detailed data in the original ActivityDataframe.
-        contains: 
-          - ActivitySummary
-        grouping_key: ActivityID
-        canBeComputedUsingFunction:
-          - computeDataframeIndex
-  - name: Activity
-    type: container
-    contains: 
-      - Segment
-      - ActivityMeasurement
-    grouping_key: ActivityID
-  - name: Segment
-    type: container
-    contains: 
-      - ActivityMeasurement
-    variants:
-      - name: Lap
-        type: pre-existing
-        identifier: LapID
-        grouping_key: LapID
-        present_in_dataset: true
-      - name: ComputedSegment
-        type: derived
-        identifier: SegmentID
-        grouping_key: SegmentID
-        present_in_dataset: false
-        canBeComputedUsingFunction:
-          - determineSegments
-    aggregations:
-      - name: segment_distance
-        measurement: Distance
-        method: Max
-      - name: average_pace
-        measurement: Pace
-        method: Average
-  - name: ActivityMeasurement
-    type: data
-    records_frequency: 1 Second
-    contains: null
-    grouping_key: Datetime
-    aggregations: []
-
-keys:
-  - name: ActivityID
-    associated_object: Activity
-    used_for_grouping: 
-      - Activity
-  - name: ActivityType
-    associated_object: Activity
-    used_for_grouping: 
-      - Activity
-    allowedValues: "Run","Swim","Ride"
-  - name: SegmentID
-    associated_object: Segment
-    used_for_grouping: 
-      - Segment
-    canBeComputedUsingFunction:
-      - determineSegments
-  - name: Datetime
-    associated_object: ActivityMeasurement
-    used_for_grouping: 
-      - ActivityMeasurement
-
-measurements:
-  - name: Datetime
-    category: Temporal
-    type: DirectlyMeasured
-    units: ISO 8601 format
-    present_in_dataset: true
-    recording_frequency: 1 Second
-    associated_object: ActivityMeasurement
-  - name: Speed
-    category: Mechanical
-    type: DirectlyMeasured
-    units: Meters per Second
-    present_in_dataset: true
-    recording_frequency: 1 Second
-    associated_object: ActivityMeasurement
-  - name: Distance
-    category: Geospatial
-    type: PreComputed
-    units: Meters
-    present_in_dataset: true
-    recording_frequency: 1 Second
-    associated_object: ActivityMeasurement
-    note: Cumulative
-  - name: Pace
-    category: Velocity
-    type: Derived
-    derived_from: 
-      - Speed
-      - ActivityType
-    units:
-      Run: Minutes per Kilometer
-      Swim: Minutes per 100 meters
-      Ride: Kilometers per Hour
-    present_in_dataset: false
-    recording_frequency: 1 Second
-    calculation_required: true
-    associated_object: ActivityMeasurement
-    canBeComputedUsingFunction:
-      - calculatePace
-  - name: Latitude
-    category: Geospatial
-    type: DirectlyMeasured
-    units: Degrees
-    present_in_dataset: true
-    recording_frequency: 1 Second
-    associated_object: ActivityMeasurement
-  - name: Longitude
-    category: Geospatial
-    type: DirectlyMeasured
-    units: Degrees
-    present_in_dataset: true
-    recording_frequency: 1 Second
-    associated_object: ActivityMeasurement
-
-visualizations:
-  - name: Plot2D
-    type: Plot2D
-    applies_to: 
-      - Activity
-      - ActivityDataframe
-      - ActivityDataframeIndex
-      - Segment
-    canBeComputedUsingFunction:
-      - Plot2DFunction
-  - name: MapPlot
-    type: Map
-    applies_to: Activity
-    requires:
-      - Latitude
-      - Longitude
-    canBeComputedUsingFunction:
-      - mapPlotFunction
-
-functions:
-  - name: computeDataframeIndex
-    type: indexing
-    applies_to: ActivityDataframe
-    computes:
-      - ActivityDataframeIndex
-    input:
-      - name: df
-        type: pandas.DataFrame
-      - name: order_by
-        type: str
-        optional: true
-      - name: ascending
-        type: bool
-        optional: true
-    output:
-      type: pandas.DataFrame
-    description: "Create an index of activities by computing summary statistics for each activity in the original ActivityDataframe. This index provides a condensed view of activities, enabling quick lookup and filtering based on various attributes, and serves as an efficient reference point for accessing detailed data in the original ActivityDataframe."
-    code: |
-      # Ensure Datetime is in datetime format
-      if df['Datetime'].dtype == 'object':
-          df['Datetime'] = pd.to_datetime(df['Datetime'], errors='coerce')
-
-      # Define aggregation functions
-      agg_functions = {
-          'ActivityType': 'first',
-          'Datetime': 'min',
-          'Distance': lambda x: np.abs(x.max() - x.min()),
-          'Latitude': 'first',
-          'Longitude': 'first',
-          'Elevation': 'mean',
-          'Speed': 'mean',
-          'Heartrate': 'mean',
-          'Cadence': 'mean',
-          'Power': 'mean',
-          'AirTemperature': 'mean',
-          'Gradient': 'mean',
-          'LapID': 'max',
-          'Calories': 'sum'
-      }
-
-      # Compute statistics for each activity
-      activity_stats = df.groupby('ActivityID').agg(agg_functions).reset_index()
-
-      # Calculate duration
-      activity_stats['Duration'] = df.groupby('ActivityID')['Datetime'].apply(
-          lambda x: (x.max() - x.min()).total_seconds()
-      ).values
-
-      # Rename columns
-      new_columns = [
-          'ActivityID', 'ActivityType', 'Datetime', 'Distance', 'StartLatitude',
-          'StartLongitude', 'AvgElevation', 'AvgSpeed', 'AvgHeartrate', 'AvgCadence',
-          'AvgPower', 'AvgAirTemperature', 'AvgGradient', 'NumberOfLaps', 'Calories', 'Duration'
-      ]
-      activity_stats.columns = new_columns
-
-      # Round numeric columns to 3 decimal places
-      numeric_cols = activity_stats.select_dtypes(include=[np.number]).columns
-      activity_stats[numeric_cols] = activity_stats[numeric_cols].round(3)
-
-      # Ensure NumberOfLaps is an integer
-      activity_stats['NumberOfLaps'] = activity_stats['NumberOfLaps'].fillna(0).astype(int)
-
-      # Sort the DataFrame based on the order_by parameter and ascending/descending option
-      return activity_stats.sort_values(by=order_by, ascending=ascending)
-
-  - name: determineSegments
-    type: segmentation
-    applies_to: Activity
-    computes:
-      - Segment
-      - SegmentID
-    input:
-      - name: df
-        type: pandas.DataFrame
-      - name: segment_type
-        type: str
-      - name: segment_distance
-        type: float
-      - name: segment_duration
-        type: int
-    output:
-      type: pandas.DataFrame
-    description: "Create segments based on either time or distance for data grouped by ActivityID. Segments that are not complete (don't match the full segment duration/distance) are marked as null."
-    code: |
-      # Ensure the datetime column is in datetime format
-      df['Datetime'] = pd.to_datetime(df['Datetime'])
-      
-      # Sort the DataFrame by ActivityID and Datetime
-      df = df.sort_values(by=['ActivityID', 'Datetime'])
-      
-      if segment_type == 'time':
-          # Group by ActivityID and calculate time-based segments
-          def process_time_group(group):
-              # Calculate total seconds for the activity
-              total_seconds = (group['Datetime'].max() - group['Datetime'].min()).total_seconds()
-              # Calculate number of complete segments
-              complete_segments = int(total_seconds // segment_duration)
-              
-              # Assign segment numbers
-              segment_seconds = (group['Datetime'] - group['Datetime'].min()).dt.total_seconds()
-              group['SegmentID'] = (segment_seconds // segment_duration).astype(int)
-              
-              # Set incomplete segments to null
-              group.loc[group['SegmentID'] >= complete_segments, 'SegmentID'] = np.nan
-              
-              return group
-          
-          df = df.groupby('ActivityID', group_keys=False).apply(process_time_group)
-      
-      elif segment_type == 'distance':
-          # Process each activity separately
-          def process_distance_group(group):
-              # Calculate total distance and complete segments
-              total_distance = group['Distance'].max()
-              complete_segments = int(total_distance // segment_distance)
-              
-              # Assign segment numbers
-              group['SegmentID'] = (group['Distance'] // segment_distance).astype(int)
-              
-              # Set incomplete segments to null
-              group.loc[group['SegmentID'] >= complete_segments, 'SegmentID'] = np.nan
-              
-              return group
-          
-          df = df.groupby('ActivityID', group_keys=False).apply(process_distance_group)
-      
-      else:
-          raise ValueError("segment_type must be either 'time' or 'distance'")
-      
-      return df
-
-  - name: calculatePace
-    type: calculation
-    applies_to: ActivityMeasurement
-    computes:
-      - Pace
-    input:
-      - name: df
-        type: pandas.DataFrame
-      - name: speed_col
-        type: str
-      - name: activity_col
-        type: str
-    output:
-      type: pandas.DataFrame
-    description: "Calculate Pace for various activities based on speed and activity type."
-    code: |
-      # Remove invalid speeds and activities
-      df = df[(df[speed_col] > 0) & df[activity_col].notna()].copy()
-
-      # Create masks for each activity type
-      run_mask = (df[activity_col].str.lower() == 'run')
-      swim_mask = (df[activity_col].str.lower() == 'swim')
-      ride_mask = (df[activity_col].str.lower() == 'ride')
-
-      # Calculate pace for each activity type
-      df['Pace'] = np.nan
-      df.loc[run_mask, 'Pace'] = 1000 / (df.loc[run_mask, speed_col] * 60)  # min/km
-      df.loc[swim_mask, 'Pace'] = 100 / (df.loc[swim_mask, speed_col] * 60)  # min/100m
-      df.loc[ride_mask, 'Pace'] = df.loc[ride_mask, speed_col] * 3.6  # km/h
-
-      # Remove rows with invalid pace values
-      df = df[df['Pace'].notna() & (df['Pace'] > 0)]
-
-      return df
-
-  - name: Plot2DFunction
-    type: visualization
-    applies_to:
-      - Activity
-      - ActivityDataframe
-      - ActivityDataframeIndex
-      - Segment
-    computes:
-      - Plot2D
-    input:
-      - name: df
-        type: pandas.DataFrame
-      - name: x
-        type: str
-      - name: y
-        type: str
-      - name: plot_type
-        type: str
-      - name: title
-        type: str
-        optional: true
-      - name: labels
-        type: dict
-        optional: true
-      - name: color
-        type: str
-        optional: true
-      - name: hover_data
-        type: list
-        optional: true
-    output:
-      type: plotly.graph_objects.Figure
-      description: "Interactive plot ready for display"
-    description: "Create an interactive 2D visualization for analyzing relationships between variables"
-    code: |
-      import pandas as pd
-      import plotly.express as px
-      
-      plot_func = getattr(px, plot_type)
-      fig = plot_func(
-          df, x=x, y=y,
-          title=title,
-          labels=labels,
-          color_discrete_sequence=[color],
-          hover_data=hover_data
-      )
-
-      fig.update_layout(
-          template='plotly_white',
-          dragmode='pan',
-          hovermode='closest',
-          autosize=True
-      )
-
-      fig.show()
-      
-  - name: mapPlotFunction
-    type: visualization
-    applies_to: Activity
-    computes:
-      - MapPlot
-    input:
-      - name: df
-        type: pandas.DataFrame
-      - name: longitude
-        type: str
-      - name: latitude
-        type: str
-      - name: zoom
-        type: int
-        optional: true
-      - name: style
-        type: str
-        optional: true
-      - name: point_size
-        type: int
-        optional: true
-      - name: opacity
-        type: float
-        optional: true
-      - name: marker_color
-        type: str
-        optional: true
-      - name: hover_data
-        type: list
-        optional: true
-    output:
-      type: plotly.graph_objects.Figure
-      description: "Interactive map figure ready for display"
-    description: "Create an interactive map plot from a DataFrame with longitude and latitude columns"
-    code: |
-      import pandas as pd
-      import plotly.express as px
-
-      fig = px.scatter_mapbox(
-          df,
-          lat=latitude,
-          lon=longitude,
-          zoom=zoom,
-          opacity=opacity,
-          size_max=point_size,
-          color_discrete_sequence=[marker_color],
-          hover_data=hover_data
-      )
-
-      fig.update_layout(
-          mapbox_style=style,
-          dragmode='pan',
-          hovermode='closest',
-          autosize=True,
-          mapbox=dict(
-              center=dict(
-                  lat=df[latitude].mean(),
-                  lon=df[longitude].mean()
-              )
-          )
-      )
-
-      fig.show()
-
-relationships:
-  - type: contains
-    from: ActivityDataframe
-    to: Activity
-    cardinality: one-to-many
-  - type: contains
-    from: Activity
-    to: Segment
-    cardinality: one-to-many
-  - type: contains
-    from: Activity
-    to: ActivityMeasurement
-    cardinality: one-to-many
-  - type: contains
-    from: Segment
-    to: ActivityMeasurement
-    cardinality: one-to-many
-  - type: groups
-    from: ActivityID
-    to: Activity
-  - type: groups
-    from: SegmentID
-    to: Segment
-  - type: groups
-    from: Datetime
-    to: ActivityMeasurement
-  - type: derives
-    from: ActivityDataframe
-    to: ActivityDataframeIndex
-    cardinality: one-to-one
-  - type: summarizes
-    from: ActivityDataframeIndex
-    to: Activity
-    cardinality: one-to-many
-```
-
-Example Task 2:
+Example Task 1 (Sports/Wellness):
 How many rides, runs, and swims did I do each month in 2019 compared to 2020? Check if higher training months affected my recovery by looking at my sleep and stress levels.
 
-Example Output 2:
+Example Output 1:
 ```yaml
 metadata:
   task: "How many rides, runs, and swims did I do each month in 2019 compared to 2020? Check if higher training months affected my recovery by looking at my sleep and stress levels."
 
 data_hierarchy:
-  - name: ActivityDataframe
+  - name: ActivityDataframe # Corresponds to the primary DATAFRAME PREVIEW
+    dataset_source_identifier: "PrimaryActivityDataset" # Confirmed by DATAFRAME PREVIEW
+    domain_label: "Activity Data"
     type: container
-    contains: 
+    description: "A container for multiple activities and coresponding measurements, organized as time series data."
+    contains:
       - Activity
     grouping_key: null
     derived_objects:
       - name: ActivityDataframeIndex
         type: index
-        description: >
-          ActivityID-indexed summary providing a condensed view of Activities 
-          with aggregated metrics. Enables quick filtering and reference to 
-          detailed data in the original ActivityDataframe.
-        contains: 
-          - ActivitySummary
+        description: "ActivityID-indexed summary providing a condensed view of Activities with aggregated metrics."
         grouping_key: ActivityID
         canBeComputedUsingFunction:
-          - computeDataframeIndex
-
+          - computeDataframeIndexFunction
   - name: Activity
     type: container
-    contains: 
+    description: "A single activity session, containing multiple rows of measurements at regular intervals."
+    contains:
       - ActivityMeasurement
     grouping_key: ActivityID
-
+    hasUniqueIdentifier: ActivityID
   - name: ActivityMeasurement
-    type: data
-    records_frequency: 1 Second
+    type: data_record
+    description: "A single value in the ActivityDataframe, representing measurements at a specific timestamp within an activity."
     contains: null
     grouping_key: Datetime
-    aggregations: []
-
-  - name: WellnessDataframe
+  - name: WellnessDataframe # Corresponds to an entry in AUXILIARY DATASETS
+    dataset_source_identifier: "AuxiliaryWellnessDataset" # Confirmed by AUXILIARY DATASETS list
+    domain_label: "Wellness Data"
     type: container
+    description: "A container of daily wellness metrics tracking various health-related indicators."
     contains:
       - WellnessMeasurement
     grouping_key: Date
-    description: >
-      Container of daily wellness metrics tracking various health-related indicators,
-      with each row representing a single day's measurements across multiple 
-      dimensions of well-being.
-
   - name: WellnessMeasurement
-    type: data
-    records_frequency: 1 Day
+    type: data_record
+    description: "A single value in the WellnessDataframe, representing measurements at a specific point in time (daily)."
     contains: null
     grouping_key: Date
-    aggregations: []
+
+components_sub_entities: []
 
 keys:
-  # Activity-related keys
   - name: ActivityID
     associated_object: Activity
-    used_for_grouping: 
-      - Activity
-      - ActivityMeasurement
-
+    dataset_context: "PrimaryActivityDataset"
+    role_in_grouping: Groups measurements for a single activity.
+    isPresentInDataset: true # Confirmed by DATAFRAME PREVIEW
   - name: ActivityType
-    associated_object: Activity
-    used_for_grouping: 
-      - Activity
-    allowedValues: "Run","Swim","Ride"
-
-  - name: Datetime
-    associated_object: ActivityMeasurement
-    type: Temporal
-    used_for_grouping: 
-      - ActivityMeasurement
+    associated_object: ActivityDataframeIndex
+    dataset_context: "PrimaryActivityDataset" # (via ActivityDataframeIndex)
+    role_in_grouping: Used to count activities by type.
+    allowedValues: ["Ride", "Run", "Swim"] # Confirmed by ontology and potentially preview
+    isPresentInDataset: true
+  - name: Datetime # From ActivityDataframeIndex (activity start time)
+    associated_object: ActivityDataframeIndex
+    dataset_context: "PrimaryActivityDataset" # (via ActivityDataframeIndex)
+    role_in_grouping: Used to group activities by month and year.
+    isPresentInDataset: true
     units: ISO 8601
-
-  # Wellness-related keys
-  - name: Date
+  - name: Date # From WellnessDataframe
     associated_object: WellnessMeasurement
-    type: Temporal
-    used_for_grouping:
-      - WellnessMeasurement
+    dataset_context: "AuxiliaryWellnessDataset"
+    role_in_grouping: Groups daily wellness metrics. Key for merging with activity data.
+    isPresentInDataset: true # Confirmed by auxiliary dataset preview (if provided) or ontology
     units: ISO 8601
+    hasRelation: ActivityDataframeIndex # From ontology, confirmed by potential join need
 
-measurements:
-  # Activity-related measurements
-  - name: Distance
-    category: Geospatial
-    type: PreComputed
-    units: Meters
-    present_in_dataset: true
-    recording_frequency: 1 Second
-    associated_object: ActivityMeasurement
-
-  - name: Speed
-    category: Mechanical
+measurements_attributes:
+  - name: ActivityType
+    category: Key
     type: DirectlyMeasured
-    units: Meters per Second
-    present_in_dataset: true
-    recording_frequency: 1 Second
-    associated_object: ActivityMeasurement
-
-  - name: Calories
-    category: Metabolic
-    type: Derived
-    units: cal (Calories)
-    present_in_dataset: true
-    recording_frequency: 1 Second
-    associated_object: ActivityMeasurement
-
-  # Wellness-related measurements
+    units: N/A
+    recording_frequency: Per Activity
+    context: ActivityDataframeIndex level
+    dataset_context: "PrimaryActivityDataset" # (via ActivityDataframeIndex)
+    associated_objects: [ActivityDataframeIndex]
+    isPresentInDataset: true
+  - name: Datetime
+    category: Temporal
+    type: DirectlyMeasured
+    units: ISO 8601
+    recording_frequency: Per Activity (start time)
+    context: ActivityDataframeIndex level
+    dataset_context: "PrimaryActivityDataset" # (via ActivityDataframeIndex)
+    associated_objects: [ActivityDataframeIndex]
+    isPresentInDataset: true
   - name: SleepDuration
     category: Wellness
     type: DirectlyMeasured
     units: Seconds
-    present_in_dataset: true
     recording_frequency: 1 Day
-    associated_object: WellnessMeasurement
-  
+    context: WellnessMeasurement level
+    dataset_context: "AuxiliaryWellnessDataset"
+    associated_objects: [WellnessMeasurement]
+    isPresentInDataset: true
   - name: AverageStress
     category: Wellness
     type: Derived
-    present_in_dataset: true
+    units: N/A
     recording_frequency: 1 Day
-    associated_object: WellnessMeasurement
-    
-  - name: DailySteps
-    category: Wellness
-    type: PreComputed
-    units: Steps
-    present_in_dataset: true
-    recording_frequency: 1 Day
-    associated_object: WellnessMeasurement
-    
-  - name: CaloriesBurnt
-    category: Metabolic
-    type: Derived
-    units: cal (Calories)
-    present_in_dataset: true
-    recording_frequency: 1 Day
-    associated_object: WellnessMeasurement
-    description: "Daily Calorie Expenditure"
+    context: WellnessMeasurement level
+    dataset_context: "AuxiliaryWellnessDataset"
+    associated_objects: [WellnessMeasurement]
+    isPresentInDataset: true
 
 visualizations:
-  - name: Plot2D
-    type: Plot2D
-    applies_to: 
-      - Activity
-      - ActivityDataframe
-      - WellnessDataframe
-      - ActivityDataframeIndex
-    canBeComputedUsingFunction:
-      - Plot2DFunction
+  - type: Plot2D
+    name: Plot2D
+    applicable_objects: [ActivityDataframeIndex, WellnessDataframe, MergedActivityWellnessData]
+    key_measurements_required: [Varies]
+    computation_function: Plot2DFunction
 
 functions:
-  # Activity-related functions
-  - name: computeDataframeIndex
-    type: indexing
-    applies_to: ActivityDataframe
-    computes:
-      - ActivityDataframeIndex
-    input:
-      - name: df
-        type: pandas.DataFrame
-      - name: order_by
-        type: str
-        optional: true
-      - name: ascending
-        type: bool
-        optional: true
-    output:
-      type: pandas.DataFrame
-    description: "Create an index of activities by computing summary statistics for each activity in the original ActivityDataframe. This index provides a condensed view of activities, enabling quick lookup and filtering based on various attributes, and serves as an efficient reference point for accessing detailed data in the original ActivityDataframe."
-    code: |
+  - name: computeDataframeIndexFunction
+    applicableToDataObject: ActivityDataframe # Applies to "PrimaryActivityDataset"
+    functionDefinition: |
       # Ensure Datetime is in datetime format
       if df['Datetime'].dtype == 'object':
           df['Datetime'] = pd.to_datetime(df['Datetime'], errors='coerce')
@@ -1571,46 +1069,13 @@ functions:
 
       # Sort the DataFrame based on the order_by parameter and ascending/descending option
       return activity_stats.sort_values(by=order_by, ascending=ascending)
-
-  # Visualization functions
+    rdfs_comment: "This function is used to create a high-level summary of athletic activities by generating a single-row-per-activity index containing key metrics like distance, duration, and averages, useful for activity browsing, filtering, and quick analytics without processing the full raw data."
   - name: Plot2DFunction
-    type: visualization
-    applies_to:
-      - Activity
-      - ActivityDataframe
-      - WellnessDataframe
-      - ActivityDataframeIndex
-    computes:
-      - Plot2D
-    input:
-      - name: df
-        type: pandas.DataFrame
-      - name: x
-        type: str
-      - name: y
-        type: str
-      - name: plot_type
-        type: str
-      - name: title
-        type: str
-        optional: true
-      - name: labels
-        type: dict
-        optional: true
-      - name: color
-        type: str
-        optional: true
-      - name: hover_data
-        type: list
-        optional: true
-    output:
-      type: plotly.graph_objects.Figure
-      description: "Interactive plot ready for display"
-    description: "Create an interactive 2D visualization for analyzing relationships between variables"
-    code: |
+    applicableToDataObject: [ActivityDataframeIndex, WellnessDataframe]
+    functionDefinition: |
       import pandas as pd
       import plotly.express as px
-      
+
       plot_func = getattr(px, plot_type)
       fig = plot_func(
           df, x=x, y=y,
@@ -1628,49 +1093,126 @@ functions:
       )
 
       fig.show()
+    rdfs_comment: "This function is used to create interactive 2D visualizations for analyzing relationships between variables, including time series analysis, categorical comparisons, statistical distributions, correlations and any other data exploration requiring single or multiple variables plotted against one or two axes."
 
 relationships:
-  # Activity internal relationships
-  - type: contains
-    from: ActivityDataframe
+  - type: containsActivity
+    from: ActivityDataframe # From "PrimaryActivityDataset"
     to: Activity
     cardinality: one-to-many
-    
-  - type: contains
-    from: Activity
-    to: ActivityMeasurement
+  - type: containsWellnessAggregate
+    from: WellnessDataframe # From "AuxiliaryWellnessDataset"
+    to: WellnessMeasurement
     cardinality: one-to-many
-    
-  - type: groups
-    from: ActivityID
-    to: Activity
-
-  - type: groups
-    from: Datetime
-    to: ActivityMeasurement
-    
-  - type: derives
-    from: ActivityDataframe
+  - type: derives (Implicit)
+    from: ActivityDataframe # Data from "PrimaryActivityDataset"
     to: ActivityDataframeIndex
     cardinality: one-to-one
+    computation_function: computeDataframeIndexFunction
+  - type: links_for_merge (Cross-Dataset)
+    from_dataset: "PrimaryActivityDataset" # Via ActivityDataframeIndex
+    from_key: "Datetime" # (needs aggregation to Date: YYYY-MM-DD)
+    to_dataset: "AuxiliaryWellnessDataset" # Via WellnessDataframe
+    to_key: "Date" # (already YYYY-MM-DD)
+    condition: "Join ActivityDataframeIndex (aggregated to daily/monthly) with WellnessDataframe on their respective date fields. Confirmed by ontology (:Date :hasRelation :ActivityDataframeIndex) and dataset previews showing compatible date/datetime columns."
+    description: "To compare activity metrics with wellness metrics on corresponding dates/periods."
+```
 
-  # Wellness internal relationships
+Example Task 2 (Wine Quality Dataset):
+Analyze the correlation between 'fixed acidity' and 'pH' for red wines with 'quality' score above 7. Plot this relationship.
+
+Example Output 2:
+```yaml
+metadata:
+  task: "Analyze the correlation between 'fixed acidity' and 'pH' for red wines with 'quality' score above 7. Plot this relationship."
+
+data_hierarchy:
+  - name: WineDataset # Corresponds to primary DATAFRAME PREVIEW
+    dataset_source_identifier: "PrimaryWineData" # Confirmed by DATAFRAME PREVIEW
+    domain_label: "Wine Quality Data"
+    type: container
+    description: "A dataset containing chemical properties and quality ratings of various wine samples."
+    contains:
+      - WineSample
+    grouping_key: null
+  - name: WineSample
+    type: data_record
+    description: "A single wine sample with its measured attributes and quality score."
+    contains: null
+    grouping_key: SampleID
+
+components_sub_entities:
+  - name: FilteredWineSelection
+    type: derived_subset
+    derivation_method: "Filtering WineDataset (from 'PrimaryWineData') based on WineType ('red') and quality (>7)."
+    identification: N/A
+    relationship_to_parent: subset_of_WineDataset
+
+keys:
+  - name: SampleID
+    associated_object: WineSample
+    dataset_context: "PrimaryWineData"
+    role_in_grouping: Uniquely identifies each wine sample.
+  - name: WineType
+    associated_object: WineSample
+    dataset_context: "PrimaryWineData"
+    role_in_grouping: Used for filtering samples by type.
+    allowedValues: ["red", "white"]
+
+measurements_attributes:
+  - name: fixed_acidity
+    category: ChemicalProperty
+    type: NumericalContinuous
+    units: "g/dm^3"
+    recording_frequency: PerSample
+    context: WineSample level
+    dataset_context: "PrimaryWineData"
+    associated_objects: [WineSample]
+  - name: pH
+    category: ChemicalProperty
+    type: NumericalContinuous
+    units: "pH scale"
+    recording_frequency: PerSample
+    context: WineSample level
+    dataset_context: "PrimaryWineData"
+    associated_objects: [WineSample]
+  - name: quality
+    category: SensoryEvaluation
+    type: OrdinalDiscrete
+    units: "score (0-10)"
+    recording_frequency: PerSample
+    context: WineSample level
+    dataset_context: "PrimaryWineData"
+    associated_objects: [WineSample]
+
+visualizations:
+  - type: Plot2D
+    name: ScatterPlot
+    applicable_objects: [FilteredWineSelection] # Derived from "PrimaryWineData"
+    key_measurements_required: [fixed_acidity, pH]
+    computation_function: GenericPlot2DFunction
+
+functions:
+  - name: GenericPlot2DFunction
+    applicableToDataObject: [WineDataset, FilteredWineSelection] # Data from "PrimaryWineData"
+    functionDefinition: |
+      import pandas as pd
+      import plotly.express as px
+      plot_func = getattr(px, plot_type) 
+      fig = plot_func(df, x=x_column, y=y_column, title=plot_title, labels=axis_labels, color_discrete_sequence=[plot_color], hover_data=hover_details)
+      fig.update_layout(template='plotly_white', dragmode='pan', hovermode='closest', autosize=True)
+      fig.show()
+    rdfs_comment: "A generic function to create 2D plots from data."
+
+relationships:
   - type: contains
-    from: WellnessDataframe
-    to: WellnessMeasurement
+    from: WineDataset # From "PrimaryWineData"
+    to: WineSample
     cardinality: one-to-many
-    
-  - type: groups
-    from: Date
-    to: WellnessMeasurement
-
-  # Cross-domain relationships
-  - type: references
-    from: ActivityDataframeIndex
-    to: WellnessDataframe
-    via: "ActivityDataframeIndex.Datetime maps to WellnessDataframe.Date"
-    cardinality: one-to-one
-    description: "Links daily activity summaries to wellness measurements by date"
+  - type: hasAttribute
+    from: WineSample # From "PrimaryWineData"
+    to: [fixed_acidity, pH, quality]
+    cardinality: one-to-many
 ```
 """
 ###########################################
@@ -1694,11 +1236,17 @@ Here is the task you need to analyze:
 {}
 </task>
 
-To help you understand the dataset, here's a preview of the dataframe:
+To help you understand the primary dataframe, here's a preview of its structure and contents. Please note that this is a simplified view, and the actual dataset may contain many more rows:
 
 <dataframe_preview>
 {}
 </dataframe_preview>
+
+You also have access to the following auxiliary datasets. Use them as needed if they are relevant to your analysis:
+
+<auxiliary_datasets>
+{}
+</auxiliary_datasets>
 
 The following data model and helper functions are crucial for your implementation. Make sure to incorporate these fully in your solution:
 
@@ -1820,7 +1368,6 @@ key_insights: "List of expected key findings"
 
 If you need additional information or data, you have access to the following tools:
   - google_search: Use this to search internet for additional information (Use sparingly, and always before you start developing your plan)
-  - get_auxiliary_dataset: Use this to get additional datasets that may be relevant to your analysis
   Call these with appropriate arguments to get the required data or information.
 
 Please begin your response with your Chain of Thought planning process, followed by the final YAML output enclosed within ```yaml``` tags.
@@ -1847,11 +1394,17 @@ Here is the task you need to analyze:
 {}
 </task>
 
-To help you understand the dataset, here's a preview of the dataframe. Please note that this is just a short excerpt, and the full dataset may contain many more rows with different values:
+To help you understand the primary dataframe, here's a preview of its structure and contents. Please note that this is a simplified view, and the actual dataset may contain many more rows:
 
 <dataframe_preview>
 {}
 </dataframe_preview>
+
+You also have access to the following auxiliary datasets. Use them as needed if they are relevant to your analysis:
+
+<auxiliary_datasets>
+{}
+</auxiliary_datasets>
 
 The following data model and helper functions are crucial for your implementation. Make sure to incorporate these fully in your solution:
 
@@ -1931,7 +1484,6 @@ key_insights:
 
 If you need additional information or data, you have access to the following tools:
   - google_search: Use this to search internet for additional information (Use sparingly, and always before you start developing your plan)
-  - get_auxiliary_dataset: Use this to get additional datasets that may be relevant to your analysis
   Call these with appropriate arguments to get the required data or information.
 
 Please begin your response with your planning process, followed by the final YAML output enclosed within ```yaml``` tags.
@@ -2167,7 +1719,11 @@ Here is the structured analysis plan or alternatively extra context if plan is n
 
 {}
 
-To give you an idea of the data structure you'll be working with, here's a preview of the DataFrame:
+To give you an idea of the data structure you'll be working with, here's a preview of the primary DataFrame:
+
+{}
+
+You also have access to the following auxiliary datasets. Use them as needed if they are relevant to your analysis:
 
 {}
 
@@ -2196,7 +1752,7 @@ Your task is to provide a COMPLETE, EXECUTABLE PYTHON SCRIPT that fully implemen
 Follow these key requirements:
 
 1. Start with necessary import statements (pandas, numpy, plotly, etc.).
-2. Perform specified data operations (segmentation, grouping, binning, aggregation).
+2. Perform specified data operations (merging, filtering, segmentation, grouping, binning, aggregation).
 3. Implement all analysis steps as outlined in the plan.
 4. Create required visualizations using Plotly with fig.show() for display.
 5. Generate the final output as specified, highlighting key insights.
@@ -2236,6 +1792,10 @@ To give you an idea of the data structure you'll be working with, here's a previ
 
 {}
 
+You also have access to the following auxiliary datasets. Use them as needed if they are relevant to your analysis:
+
+{}
+
 The following data model and helper functions are crucial for your implementation. Make sure to incorporate these fully in your solution:
 
 {}
@@ -2261,7 +1821,7 @@ Your job is to provide a COMPLETE, EXECUTABLE PYTHON SCRIPT that solves the give
 Follow these key requirements:
 
 1. Start with necessary import statements (pandas, numpy, plotly, etc.).
-2. Perform specified data operations (segmentation, grouping, binning, aggregation).
+2. Perform specified data operations (merging, filtering, segmentation, grouping, binning, aggregation).
 3. Implement all required analysis steps.
 4. Create required visualizations using Plotly with fig.show() for display.
 5. Generate the final output as specified, highlighting key insights.

@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import shutil
 import json
 import requests
 import threading
@@ -57,6 +58,26 @@ def cleanup_threads(debug_mode=False):
                 except Exception as e:
                     print(f"Failed to delete {ontology_file}: {str(e)}")
 
+def clear_datasets_folder():
+    datasets_dir = 'datasets'
+    if os.path.exists(datasets_dir):
+        try:
+            # Remove all files and subdirectories within datasets folder
+            for filename in os.listdir(datasets_dir):
+                file_path = os.path.join(datasets_dir, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    app.logger.error(f'Failed to delete {file_path}. Reason: {e}')
+            app.logger.info(f"Contents of '{datasets_dir}' folder cleared.")
+        except Exception as e:
+            app.logger.error(f"Error clearing '{datasets_dir}' folder: {str(e)}")
+    else:
+        app.logger.info(f"'{datasets_dir}' folder does not exist, no need to clear.")
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -81,6 +102,8 @@ except ImportError:
 # Get API URL from environment variable or use default
 EXECUTOR_API_BASE_URL = os.getenv('EXECUTOR_API_BASE_URL')
 EXECUTOR_API_UPLOAD_URL = f"{EXECUTOR_API_BASE_URL}/upload_dataset"
+EXECUTOR_API_UPLOAD_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/upload_aux_dataset" # New
+EXECUTOR_API_REMOVE_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/remove_aux_dataset" # New
 # Get execution mode from environment variable or default to 'local'
 GLOBAL_EXECUTION_MODE = os.getenv('EXECUTION_MODE', 'local')  # Default to 'local' if not set
 
@@ -110,9 +133,10 @@ def generate_dataframe_id() -> str:
 
 def get_bamboo_ai(session_id, df=None):
     """Factory function to create or retrieve BambooAI instances"""
-    prefs = user_preferences.get(session_id, {'planning': False, 'ontology_path': None})
+    prefs = user_preferences.get(session_id, {'planning': False, 'ontology_path': None, 'auxiliary_datasets': []})
     df_id = prefs.get('df_id')
     ontology_path = prefs.get('ontology_path', DF_ONTOLOGY)  # Default to constant if not set
+    aux_datasets = prefs.get('auxiliary_datasets', []) # Get auxiliary_datasets
 
     if session_id not in bamboo_ai_instances:
         bamboo_ai_instances[session_id] = BambooAI(
@@ -124,6 +148,7 @@ def get_bamboo_ai(session_id, df=None):
             vector_db=VECTOR_DB,
             df_ontology=ontology_path,
             df_id=df_id,
+            auxiliary_datasets=aux_datasets
         )
     return bamboo_ai_instances[session_id]
 
@@ -170,10 +195,11 @@ def load_parquet_with_datetime(file_path):
 
 def load_dataframe_to_bamboo_ai_instance(session_id, df=None, file=None, execution_mode='local'):
     new_df_id = generate_dataframe_id()
-    prefs = user_preferences.get(session_id, {'planning': False, 'ontology_path': None})
+    prefs = user_preferences.get(session_id, {'planning': False, 'ontology_path': None, 'auxiliary_datasets': []})
     prefs['df_id'] = new_df_id
     user_preferences[session_id] = prefs
     ontology_path = prefs.get('ontology_path', DF_ONTOLOGY)
+    aux_datasets = prefs.get('auxiliary_datasets', []) # Get auxiliary_datasets
 
     if execution_mode == 'api':
         if not file:
@@ -203,6 +229,7 @@ def load_dataframe_to_bamboo_ai_instance(session_id, df=None, file=None, executi
         vector_db=VECTOR_DB,
         df_ontology=ontology_path,
         df_id=new_df_id,
+        auxiliary_datasets=aux_datasets
     )
 
     df_index = utils.computeDataframeSample(
@@ -216,7 +243,33 @@ def load_dataframe_to_bamboo_ai_instance(session_id, df=None, file=None, executi
     return df_json, new_df_id
 
 def start_new_conversation(session_id):
-    prefs = user_preferences.get(session_id, {'planning': False, 'ontology_path': None})
+    # Clear the Datasets folder first
+    clear_datasets_folder()
+
+    prefs = user_preferences.get(session_id, {
+        'planning': False, 
+        'ontology_path': None, # Ensure default structure
+        'auxiliary_datasets': []
+    })
+    
+    # Clear auxiliary datasets list in user_preferences for the current session
+    prefs['auxiliary_datasets'] = []
+    
+    # Clear the ontology path in user_preferences
+    old_ontology_path = prefs.get('ontology_path')
+    if old_ontology_path and os.path.exists(old_ontology_path):
+        try:
+            os.remove(old_ontology_path)
+            app.logger.info(f"Removed old ontology file during new conversation: {old_ontology_path}")
+        except Exception as e:
+            app.logger.error(f"Failed to remove old ontology file {old_ontology_path} during new conversation: {str(e)}")
+    prefs['ontology_path'] = None 
+    
+    user_preferences[session_id] = prefs # Save updated prefs
+    
+    aux_datasets = prefs.get('auxiliary_datasets', [])
+    current_ontology_path = prefs.get('ontology_path', DF_ONTOLOGY)
+
     bamboo_ai_instances[session_id] = BambooAI(
         df=None,
         exploratory=EXPLORATORY,
@@ -224,12 +277,13 @@ def start_new_conversation(session_id):
         search_tool=SEARCH_TOOL,
         webui=WEBUI,
         vector_db=VECTOR_DB,
-        df_ontology=prefs.get('ontology_path', DF_ONTOLOGY),
+        df_ontology=current_ontology_path,
         df_id=None,
+        auxiliary_datasets=aux_datasets 
     )
 
     bamboo_ai_instances[session_id].pd_agent_converse(action='reset')
-    app.logger.info(f"BambooAI instance reset for session {session_id}")
+    app.logger.info(f"BambooAI instance reset for session {session_id}, auxiliary datasets list cleared, ontology cleared, and Datasets folder content cleared.")
     
     return jsonify({"message": "New conversation started"}), 200
 
@@ -238,7 +292,15 @@ def ensure_session():
     if 'session_id' not in session:
         session_id = str(uuid.uuid4())
         session['session_id'] = session_id
-        user_preferences[session_id] = {'planning': False}
+    
+    # Ensure default preferences are set for the session
+    session_id = session['session_id'] # Get it again in case it was just set
+    if session_id not in user_preferences:
+        user_preferences[session_id] = {
+            'planning': False,
+            'ontology_path': None,
+            'auxiliary_datasets': []
+        }
 
 @app.route('/')
 def index():
@@ -274,6 +336,7 @@ def update_planning():
                 vector_db=current_instance.vector_db,
                 df_ontology=current_instance.df_ontology,
                 df_id=current_instance.df_id if hasattr(current_instance, 'df_id') else None,
+                auxiliary_datasets=current_instance.auxiliary_datasets if hasattr(current_instance, 'auxiliary_datasets') else []
             )
             print(f"[DEBUG] Successfully updated BambooAI instance with planning={planning_enabled}")
         except Exception as e:
@@ -349,6 +412,7 @@ def update_ontology():
                 vector_db=current_instance.vector_db,
                 df_ontology=ontology_path if ontology_path else DF_ONTOLOGY,
                 df_id=current_instance.df_id if hasattr(current_instance, 'df_id') else None,
+                auxiliary_datasets=current_instance.auxiliary_datasets if hasattr(current_instance, 'auxiliary_datasets') else []
             )
             print(f"[DEBUG] Successfully updated BambooAI instance with ontology_path={ontology_path}")
         except Exception as e:
@@ -376,6 +440,7 @@ def get_ontology_state():
         'ontology_path': ontology_path
     })
 
+# Upload primary dataset endpoint
 @app.route('/upload', methods=['POST'])
 def upload_file():
     session_id = session['session_id']
@@ -428,52 +493,311 @@ def upload_file():
             os.remove(filepath)
     else:
         return jsonify({'message': 'Invalid file type'}), 400
+    
+# Remove primary dataset endpoint
+@app.route('/remove_primary_dataset', methods=['POST'])
+def remove_primary_dataset():
+    session_id = session.get('session_id')
+    if not session_id:
+        return jsonify({'message': 'Session not found.'}), 400
 
-@app.route('/load_cloud_data', methods=['POST'])
-def load_sample_data():
+    bamboo_ai_instance = bamboo_ai_instances.get(session_id)
+    prefs = user_preferences.get(session_id)
+
+    if not bamboo_ai_instance or bamboo_ai_instance.df_id is None:
+        return jsonify({'message': 'No primary dataset is currently loaded.'}), 400
+    
+    try:
+        # Re-instantiate BambooAI for the session without the primary df
+        # Keep auxiliary datasets if they exist
+        aux_datasets = prefs.get('auxiliary_datasets', []) if prefs else []
+        planning_pref = prefs.get('planning', False) if prefs else False
+        ontology_path_pref = prefs.get('ontology_path', DF_ONTOLOGY) if prefs else DF_ONTOLOGY
+
+        bamboo_ai_instances[session_id] = BambooAI(
+            df=None, # Explicitly set df to None
+            exploratory=EXPLORATORY,
+            planning=planning_pref,
+            search_tool=SEARCH_TOOL,
+            webui=WEBUI,
+            vector_db=VECTOR_DB,
+            df_ontology=ontology_path_pref,
+            df_id=None, # Clear df_id
+            auxiliary_datasets=aux_datasets
+        )
+        # Also clear df_id from user_preferences if it's stored there for the primary df
+        if prefs and 'df_id' in prefs:
+             del prefs['df_id']
+
+        user_preferences[session_id] = prefs # Save updated prefs
+
+        app.logger.info(f"Primary dataset removed and BambooAI instance reset for session {session_id}.")
+        return jsonify({'message': 'Primary dataset removed successfully.'}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error removing primary dataset for session {session_id}: {str(e)}")
+        return jsonify({'message': f'Error removing primary dataset: {str(e)}'}), 500
+
+@app.route('/upload_auxiliary_dataset', methods=['POST'])
+def upload_auxiliary_dataset():
     session_id = session['session_id']
-    bucket_name = '[Your Cloud Bucket Name]' # Replace with your bucket name
-    source_blob_name = '[File Name in Cloud Bucket]' # Replace with the file name in the bucket
-    _, destination_file_name = tempfile.mkstemp()
+    
+    if 'file' not in request.files:
+        return jsonify({'message': 'No file part in request for auxiliary dataset.'}), 400
+    file_to_upload = request.files['file'] # Renamed to avoid conflict if passed to another function
+    if file_to_upload.filename == '':
+        return jsonify({'message': 'No file selected for auxiliary dataset.'}), 400
+
+    prefs = user_preferences.get(session_id)
+    if not prefs:
+        prefs = {'planning': False, 'ontology_path': None, 'auxiliary_datasets': []}
+        user_preferences[session_id] = prefs
+    
+    aux_datasets_list = prefs.get('auxiliary_datasets', [])
+
+    if len(aux_datasets_list) >= 3:
+        return jsonify({'message': 'Maximum 3 auxiliary datasets allowed.'}), 400
+        
+    if file_to_upload and (file_to_upload.filename.endswith('.csv') or file_to_upload.filename.endswith('.parquet')):
+        filepath_to_store = "" # This will be the path stored in preferences
+
+        try:
+            if GLOBAL_EXECUTION_MODE == 'api':
+                if not EXECUTOR_API_UPLOAD_AUX_URL:
+                    return jsonify({'message': 'Executor API URL for aux upload not configured.'}), 500
+                
+                # Send file to executor API
+                files_for_executor = {'file': (file_to_upload.filename, file_to_upload.stream, file_to_upload.content_type)}
+                response = requests.post(EXECUTOR_API_UPLOAD_AUX_URL, files=files_for_executor)
+                response.raise_for_status()
+                
+                api_response_data = response.json()
+                if 'filepath' not in api_response_data:
+                    return jsonify({'message': 'Executor API did not return filepath for auxiliary dataset.'}), 500
+                
+                filepath_to_store = api_response_data['filepath']
+                message = f'Auxiliary dataset "{file_to_upload.filename}" successfully uploaded to executor.'
+
+            else: # Local mode
+                datasets_dir = 'datasets'
+                os.makedirs(datasets_dir, exist_ok=True)
+                
+                local_filepath = os.path.join(datasets_dir, file_to_upload.filename)
+                file_to_upload.save(local_filepath)
+                filepath_to_store = local_filepath
+                message = f'Auxiliary dataset "{file_to_upload.filename}" successfully uploaded locally.'
+
+            # Append to the list and update in user_preferences
+            if filepath_to_store not in aux_datasets_list:
+                aux_datasets_list.append(filepath_to_store)
+            user_preferences[session_id]['auxiliary_datasets'] = aux_datasets_list
+            
+            # Update BambooAI instance with the new list of auxiliary datasets
+            if session_id in bamboo_ai_instances:
+                current_instance = bamboo_ai_instances[session_id]
+                bamboo_ai_instances[session_id] = BambooAI(
+                    df=current_instance.df,
+                    exploratory=current_instance.exploratory,
+                    planning=prefs.get('planning', False),
+                    search_tool=current_instance.search_tool,
+                    webui=current_instance.webui,
+                    vector_db=current_instance.vector_db,
+                    df_ontology=prefs.get('ontology_path', DF_ONTOLOGY),
+                    df_id=current_instance.df_id,
+                    auxiliary_datasets=aux_datasets_list # Pass updated list
+                )
+                app.logger.info(f"BambooAI instance for session {session_id} updated with new auxiliary dataset list.")
+            
+            return jsonify({
+                'message': message,
+                'filepath': filepath_to_store, # This is the path that will be used later (local or remote)
+                'aux_dataset_count': len(aux_datasets_list)
+            }), 200
+
+        except requests.RequestException as e:
+            app.logger.error(f"Error communicating with executor API for aux upload: {str(e)}", exc_info=True)
+            return jsonify({'message': f'API communication error: {str(e)}'}), 500
+        except Exception as e:
+            app.logger.error(f"Error processing auxiliary dataset upload: {str(e)}", exc_info=True)
+            return jsonify({'message': f'Error processing auxiliary dataset: {str(e)}'}), 500
+    else:
+        return jsonify({'message': 'Invalid file type for auxiliary dataset. Must be .csv or .parquet.'}), 400
+    
+# Remove auxiliary dataset endpoint
+@app.route('/remove_auxiliary_dataset', methods=['POST'])
+def remove_auxiliary_dataset():
+    session_id = session.get('session_id')
+    if not session_id:
+        return jsonify({'message': 'Session not found.'}), 400
+
+    data = request.json
+    file_path_to_remove = data.get('file_path')
+
+    if not file_path_to_remove:
+        return jsonify({'message': 'File path is required to remove auxiliary dataset.'}), 400
+
+    prefs = user_preferences.get(session_id)
+    if not (prefs and 'auxiliary_datasets' in prefs and file_path_to_remove in prefs['auxiliary_datasets']):
+        return jsonify({'message': 'Dataset not found in session list.'}), 404
 
     try:
-        # Download the file from Google Cloud Storage
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(source_blob_name)
-        blob.download_to_filename(destination_file_name)
-        
-        if GLOBAL_EXECUTION_MODE == 'local':
-            # Only load DataFrame for local mode
-            df = load_parquet_with_datetime(destination_file_name)
-            df_json, df_id = load_dataframe_to_bamboo_ai_instance(
-                session_id=session_id,
-                df=df,
-                execution_mode=GLOBAL_EXECUTION_MODE
-            )
-        else:  # API mode
-            # Only pass file for API mode
-            with open(destination_file_name, 'rb') as f:
-                file = FileStorage(
-                    stream=f,
-                    filename='cloud_dataset.parquet',
-                    content_type='application/octet-stream'
-                )
-                df_json, df_id = load_dataframe_to_bamboo_ai_instance(
-                    session_id=session_id,
-                    file=file,
-                    execution_mode=GLOBAL_EXECUTION_MODE
-                )
+        if GLOBAL_EXECUTION_MODE == 'api':
+            if not EXECUTOR_API_REMOVE_AUX_URL:
+                return jsonify({'message': 'Executor API URL for aux removal not configured.'}), 500
             
-        return jsonify({
-            'message': 'Cloud dataset loaded',
-            'dataframe': df_json,
-            'df_id': df_id
-        }), 200
+            response = requests.post(EXECUTOR_API_REMOVE_AUX_URL, json={'file_path': file_path_to_remove})
+            response.raise_for_status() # Will raise an exception for 4xx/5xx errors
+            # Executor API handles actual file deletion. We trust its response.
+            app.logger.info(f"Request to remove auxiliary dataset '{file_path_to_remove}' sent to executor.")
+
+        else: # Local mode
+            # Security check for local mode
+            datasets_dir_abs = os.path.abspath('datasets')
+            requested_file_abs = os.path.abspath(file_path_to_remove)
+            if not requested_file_abs.startswith(datasets_dir_abs):
+                app.logger.warning(f"Attempt to remove file outside local datasets directory: {file_path_to_remove}")
+                return jsonify({'message': 'Invalid file path for local removal.'}), 403
+
+            if os.path.exists(file_path_to_remove):
+                os.remove(file_path_to_remove)
+                app.logger.info(f"Locally removed auxiliary dataset file: {file_path_to_remove}")
+            else:
+                app.logger.warning(f"Local auxiliary dataset file not found for removal, but removing from list: {file_path_to_remove}")
+
+        # Remove from preferences list (common for both modes)
+        prefs['auxiliary_datasets'].remove(file_path_to_remove)
+        user_preferences[session_id] = prefs
+
+        # Update BambooAI instance if it exists
+        if session_id in bamboo_ai_instances:
+            current_instance = bamboo_ai_instances[session_id]
+            bamboo_ai_instances[session_id] = BambooAI(
+                df=current_instance.df,
+                exploratory=current_instance.exploratory,
+                planning=prefs['planning'],
+                search_tool=current_instance.search_tool,
+                webui=current_instance.webui,
+                vector_db=current_instance.vector_db,
+                df_ontology=prefs.get('ontology_path', DF_ONTOLOGY),
+                df_id=current_instance.df_id,
+                auxiliary_datasets=prefs['auxiliary_datasets']
+            )
+            app.logger.info(f"BambooAI instance for session {session_id} updated after removing auxiliary dataset.")
+        
+        return jsonify({'message': f'Auxiliary dataset "{os.path.basename(file_path_to_remove)}" processed for removal.', 
+                        'remaining_aux_count': len(prefs['auxiliary_datasets'])}), 200
+
+    except requests.RequestException as e:
+        app.logger.error(f"Error communicating with executor API for aux removal: {str(e)}", exc_info=True)
+        return jsonify({'message': f'API communication error during removal: {str(e)}'}), 500
     except Exception as e:
-        return jsonify({'message': str(e)}), 500
-    finally:
-        os.remove(destination_file_name)
+        app.logger.error(f"Error removing auxiliary dataset '{file_path_to_remove}': {str(e)}", exc_info=True)
+        return jsonify({'message': f'Error removing dataset: {str(e)}'}), 500
+
+# This endpoint is specifically for the primary dataset preview  
+@app.route('/get_primary_dataset_preview', methods=['POST'])
+def get_primary_dataset_preview():
+    session_id = session.get('session_id')
+    if not session_id:
+        return jsonify({'message': 'Session not found.'}), 400
+
+    bamboo_ai_instance = bamboo_ai_instances.get(session_id)
+    if not bamboo_ai_instance or bamboo_ai_instance.df_id is None:
+        app.logger.info(f"Primary dataset preview requested for session {session_id}, but no DataFrame found.")
+        error_df = pd.DataFrame([{"Info": "No primary dataset is currently loaded or available."}])
+        df_html = error_df.to_html(classes='dataframe', border=0, index=False)
+        df_json_str = json.dumps({'type': 'dataframe', 'data': df_html})
+        return jsonify({'dataframe_html': df_json_str}), 200
+
+    try:
+        current_primary_df = bamboo_ai_instance.df
+        df_id = bamboo_ai_instance.df_id if hasattr(bamboo_ai_instance, 'df_id') else None
+        
+        # Determine execution mode for the preview.
+        preview_execution_mode = GLOBAL_EXECUTION_MODE
+        current_executor_client = executor_client
+
+        df_sample_for_preview = utils.computeDataframeSample(
+            df=current_primary_df,
+            execution_mode=preview_execution_mode,
+            df_id=df_id,
+            executor_client=current_executor_client
+        )
+        
+        df_html = df_sample_for_preview.to_html(classes='dataframe', border=0, index=False)
+        df_json_str = json.dumps({'type': 'dataframe', 'data': df_html})
+        return jsonify({'dataframe_html': df_json_str}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error generating primary dataset preview for session {session_id}: {str(e)}")
+        error_df = pd.DataFrame([{"Error": f"Could not generate preview for the primary dataset: {str(e)}"}])
+        df_html = error_df.to_html(classes='dataframe', border=0, index=False)
+        df_json_str = json.dumps({'type': 'dataframe', 'data': df_html})
+        return jsonify({'dataframe_html': df_json_str}), 200
+
+# This endpoint is specifically for auxiliary dataset previews
+@app.route('/get_dataset_preview', methods=['POST'])
+def get_dataset_preview():
+    session_id = session.get('session_id')
+    if not session_id:
+        return jsonify({'message': 'Session not found.'}), 400
+
+    data = request.json
+    file_path_to_preview = data.get('file_path')
+
+    if not file_path_to_preview:
+        return jsonify({'message': 'File path is required for auxiliary dataset preview.'}), 400
+
+    # 1. Authorization: Is this file_path a known auxiliary dataset for this session?
+    prefs = user_preferences.get(session_id)
+    if not (prefs and \
+            'auxiliary_datasets' in prefs and \
+            file_path_to_preview in prefs['auxiliary_datasets']):
+        
+        app.logger.warning(
+            f"Preview requested for unauthorized/unknown aux dataset: {file_path_to_preview} by session {session_id}"
+        )
+        error_df = pd.DataFrame([{"Error": f"File not authorized or not found for preview: {os.path.basename(file_path_to_preview)}"}])
+        df_html = error_df.to_html(classes='dataframe', border=0, index=False)
+        df_json_str = json.dumps({'type': 'dataframe', 'data': df_html})
+        # Return 200 with error in HTML as per existing pattern
+        return jsonify({'dataframe_html': df_json_str}), 200
+
+    # 2. Generate Preview (Delegates file existence checks to utils function based on execution_mode)
+    try:
+        html_list = utils.compute_aux_dataset_sample(
+            file_paths=[file_path_to_preview], # utils function expects a list
+            execution_mode=GLOBAL_EXECUTION_MODE,
+            executor_client=executor_client
+        )
+        
+        # Check if the result is valid
+        if html_list and isinstance(html_list, list) and len(html_list) > 0 and html_list[0]:
+            df_html = html_list[0]
+        else:
+            # This case covers API returning None, or local utils returning empty/None
+            app.logger.warning(
+                f"Failed to generate sample for {file_path_to_preview} (mode: {GLOBAL_EXECUTION_MODE}). Result: {html_list}"
+            )
+            error_message = f"Could not generate preview for {os.path.basename(file_path_to_preview)}. File might be inaccessible or empty."
+            if GLOBAL_EXECUTION_MODE == 'api' and html_list is None:
+                error_message = f"API failed to generate preview for {os.path.basename(file_path_to_preview)}."
+            
+            error_df = pd.DataFrame([{"Error": error_message}])
+            df_html = error_df.to_html(classes='dataframe', border=0, index=False)
+            
+        df_json_str = json.dumps({'type': 'dataframe', 'data': df_html})
+        return jsonify({'dataframe_html': df_json_str}), 200
+
+    except Exception as e:
+        app.logger.error(
+            f"Exception generating aux dataset preview for {file_path_to_preview} (mode: {GLOBAL_EXECUTION_MODE}): {str(e)}",
+            exc_info=True
+        )
+        error_df = pd.DataFrame([{"Error": f"Error generating preview for {os.path.basename(file_path_to_preview)}."}])
+        df_html = error_df.to_html(classes='dataframe', border=0, index=False)
+        df_json_str = json.dumps({'type': 'dataframe', 'data': df_html})
+        return jsonify({'dataframe_html': df_json_str}), 200
 
 @app.route('/query', methods=['POST'])
 def query():
@@ -919,9 +1243,13 @@ if __name__ == '__main__':
     os.makedirs('temp', exist_ok=True)
     os.makedirs(os.path.join('storage', 'favourites'), exist_ok=True)
     os.makedirs(os.path.join('storage', 'threads'), exist_ok=True)
+    os.makedirs('datasets', exist_ok=True)
     
     # Run thread cleanup
     cleanup_threads(debug_mode=args.debug)
+
+    # Clear datasets folder
+    clear_datasets_folder()
     
     # Start the Flask app
     app.run(host='0.0.0.0', port=5000, debug=False)

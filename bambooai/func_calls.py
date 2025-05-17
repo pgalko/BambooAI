@@ -21,24 +21,6 @@ openai_tools_definition = [
   {
     "type": "function",
     "function": {
-      "name": "get_auxiliary_dataset",
-      "description": "Retrieves path to and the preview (head) of a auxiliary dataset containing data that adds additional context to the main dataset.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-            "file_format": {
-                "type": "string",
-                "description": "Desired format for the dataset file",
-                "enum": ["csv"]
-            }
-        },
-        "required": ["file_format"]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
       "name": "request_user_context",
       "description": "Call this function whenever the user's query is ambiguous, incomplete, lacks specific details, or could benefit from additional context to provide a more accurate or tailored response. This includes cases where user intent is unclear, key information is missing, or assumptions might lead to suboptimal answers. The function prompts the user to provide clarification or supplementary details.",
       "parameters": {
@@ -82,21 +64,6 @@ anthropic_tools_definition = [
       }
    },
    {
-      "name": "get_auxiliary_dataset",
-      "description": "Retrieves path to and the preview (head) of a auxiliary dataset containing data that adds additional context to the main dataset.",
-      "input_schema": {
-          "type": "object",
-          "properties": {
-              "file_format": {
-                  "type": "string",
-                  "description": "Desired format for the dataset file",
-                  "enum": ["csv"]
-              }
-          },
-          "required": ["file_format"]
-      }
-   },
-   {
       "name": "request_user_context",
       "description": "Call this function whenever the user's query is ambiguous, incomplete, lacks specific details, or could benefit from additional context to provide a more accurate or tailored response. This includes cases where user intent is unclear, key information is missing, or assumptions might lead to suboptimal answers. The function prompts the user to provide clarification or supplementary details.",
       "input_schema": {
@@ -136,21 +103,6 @@ gemini_tools_definition = [
                 }
             },
             "required": ["search_query"]
-        }
-    },
-    {
-        "name": "get_auxiliary_dataset",
-        "description": "Retrieves path to and the preview (head) of a auxiliary dataset containing data that adds additional context to the main dataset.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "file_format": {
-                    "type": "string",
-                    "description": "Desired format for the dataset file",
-                    "enum": ["csv"]
-                }
-            },
-            "required": ["file_format"]
         }
     },
     {
