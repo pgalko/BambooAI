@@ -367,7 +367,9 @@ bamboo = BambooAI(
 
 BambooAI supports custom dataframe ontologies to improve analysis accuracy.
 
-[Ontology Integration Guide](https://github.com/pgalko/BambooAI/wiki/Dataframe-Ontology-Integration)
+[Ontology Integration Wiki](https://github.com/pgalko/BambooAI/wiki/Dataframe-Ontology-Integration)
+
+[Medium Blog Post](https://medium.com/@palogalko/knowledge-graph-driven-data-analysis-making-ai-speak-your-domains-language-b2200fd60413)
 
 ### How to Use
 
