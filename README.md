@@ -378,7 +378,7 @@ import pandas as pd
 # Initialize with ontology file path
 bamboo = BambooAI(
     df=your_dataframe,
-    df_ontology="path/to/ontology.txt"
+    df_ontology="path/to/ontology.ttl"
 )
 ```
 
