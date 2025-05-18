@@ -367,6 +367,8 @@ bamboo = BambooAI(
 
 BambooAI supports custom dataframe ontologies to improve analysis accuracy.
 
+[Ontology Integration Guide](https://github.com/pgalko/BambooAI/wiki/Dataframe-Ontology-Integration)
+
 ### How to Use
 
 ```python
@@ -389,6 +391,7 @@ The ontology file defines your data structure using RDF/OWL notation, including:
 - Individuals (specific instances)
 
 This helps BambooAI understand complex data relationships and generate more accurate code.
+
 
 ## Usage Examples
 
