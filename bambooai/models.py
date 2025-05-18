@@ -82,12 +82,7 @@ def get_model_name(agent):
 
 # Import models module based on provider
 def try_import(module_name):
-    try:
-        # Attempt package-relative import
-        module = importlib.import_module(f'.{module_name}','bambooai')
-    except ImportError:
-        # Fall back to script-style import
-        module = importlib.import_module(module_name)
+    module = importlib.import_module(f'.{module_name}','bambooai')
     return module
 
 def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: str = None):
