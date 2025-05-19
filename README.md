@@ -367,6 +367,10 @@ bamboo = BambooAI(
 
 BambooAI supports custom dataframe ontologies to improve analysis accuracy.
 
+[Ontology Integration Wiki](https://github.com/pgalko/BambooAI/wiki/Dataframe-Ontology-Integration)
+
+[Medium Blog Post](https://medium.com/@palogalko/knowledge-graph-driven-data-analysis-making-ai-speak-your-domains-language-b2200fd60413)
+
 ### How to Use
 
 ```python
@@ -376,7 +380,7 @@ import pandas as pd
 # Initialize with ontology file path
 bamboo = BambooAI(
     df=your_dataframe,
-    df_ontology="path/to/ontology.txt"
+    df_ontology="path/to/ontology.ttl"
 )
 ```
 
@@ -389,6 +393,7 @@ The ontology file defines your data structure using RDF/OWL notation, including:
 - Individuals (specific instances)
 
 This helps BambooAI understand complex data relationships and generate more accurate code.
+
 
 ## Usage Examples
 
@@ -586,22 +591,10 @@ Consolidated logs are stored in `logs/bambooai_consolidated_log.json` with 5MB s
 
 ## Performance Comparison
 
-### Test Case (May 3, 2024)
-Task: Titanic survival prediction model with visualizations
 
-#### OpenAI Assistants API Results
-- Execution Time: 77.12 seconds
-- Input Tokens: 7,128
-- Output Tokens: 1,215
-- Total Cost: $0.1077
+For detailed evaluation report, see: [Objective Assessment Report](https://github.com/user-attachments/files/20273296/Objective.Assessment.of.AI.Tools.for.Sports.Data.Analytics_.BambooAI.vs.Generic.LLMs.pdf)
 
-#### BambooAI Results
-- Execution Time: 47.39 seconds
-- Input Tokens: 722
-- Output Tokens: 931
-- Total Cost: $0.0353
 
-For detailed evaluation report, see: [Objective Assessment Report](https://github.com/user-attachments/files/16647425/Objective.Assessment.of.AI.Tools.for.Sports.Data.Analytics_.Maxwell-v2.vs.Generic.LLMs.pdf)
 
 ## Contributing
 Contributions are welcome via pull requests. Focus on maintaining code readability and conciseness.
