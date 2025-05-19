@@ -1,4 +1,5 @@
 import argparse
+import re
 import os
 import sys
 import shutil
@@ -89,7 +90,7 @@ try:
 except ImportError:
     # If direct import fails, try adding the local path (cloned repo case)
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    bamboo_ai_path = os.path.abspath(os.path.join(current_dir, '..', 'bambooai'))
+    bamboo_ai_path = os.path.abspath(os.path.join(current_dir, '..'))
     
     if os.path.exists(bamboo_ai_path):
         sys.path.insert(0, bamboo_ai_path)
@@ -1109,9 +1110,6 @@ def get_chain_preview(thread_id, chain_id):
         for field in content_fields:
             if field in chain_data and chain_data[field]:
                 content = chain_data[field]
-                
-                # Try different patterns for plotly data
-                import re
                 
                 # Pattern 1: Standard format
                 plotly_match = re.search(r'data-plotly-json=\\"(.*?)\\"\s', content)
