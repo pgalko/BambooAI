@@ -148,9 +148,6 @@ def _extract_rank(response: str) -> str:
     # Return the cleaned and extracted code
     return rank.strip()
 
-import re
-import yaml
-
 def _extract_expert(response: str) -> tuple:
     # Create a pattern to match any of the substrings
     pattern = r'Data Analyst|Research Specialist'

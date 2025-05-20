@@ -7,12 +7,7 @@ import warnings
 import json
 warnings.filterwarnings('ignore')
 
-try:
-    # Attempt package-relative import
-    from . import code_executor, models, prompts, template_formatting, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
-except ImportError:
-    # Fall back to script-style import
-    import code_executor, models, prompts, template_formatting, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
+from bambooai import code_executor, models, prompts, template_formatting, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,

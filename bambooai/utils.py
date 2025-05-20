@@ -282,13 +282,7 @@ def inspect_dataframe(df, log_and_call_manager=None, output_manager=None, chain_
 
     if log_and_call_manager:
         try:
-            # Import prompts module
-            try:
-                # Attempt package-relative import
-                from . import models, prompts
-            except ImportError:
-                # Fall back to script-style import
-                import models, prompts
+            from bambooai import models, prompts
 
             # Generate the DataFrame preview and auxiliary datasets preview
             primary_df_head = dataframe_to_string(df=df, execution_mode=execution_mode, df_id=df_id, executor_client=executor_client)

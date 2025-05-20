@@ -3,12 +3,7 @@ import os
 import time
 import openai
 
-try:
-    # Attempt package-relative import
-    from . import google_search, prompts, utils, context_retrieval
-except ImportError:
-    # Fall back to script-style import
-    import google_search, prompts, utils, context_retrieval
+from bambooai import google_search, prompts, utils, context_retrieval
 
 google_search_function = google_search.SmartSearchOrchestrator()
 request_user_context = context_retrieval.request_user_context
