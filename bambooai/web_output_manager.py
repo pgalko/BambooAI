@@ -4,12 +4,7 @@ import queue
 import json
 import pandas as pd
 
-try:
-    # Attempt package-relative import
-    from . output_manager import OutputManager
-except ImportError:
-    # Fall back to script-style import
-    from output_manager import OutputManager
+from bambooai.output_manager import OutputManager
 
 class WebOutputManager(OutputManager):
     def __init__(self):
@@ -102,12 +97,8 @@ class WebOutputManager(OutputManager):
             super().send_html_content(html_content, chain_id)
 
     def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None, query=None, data_model=None, research=None, plan=None, code=None, answer=None, plot_jsons=None, review=None, vector_db=False):
-        try:
-            # Attempt package-relative import
-            from . import utils
-        except ImportError:
-            # Fall back to script-style import
-            import utils
+        from bambooai import utils
+        
         if self.web_mode:
             if df_id is not None:
                 df_index = utils.computeDataframeSample(df=df,execution_mode=execution_mode, df_id=df_id, executor_client=api_client)
