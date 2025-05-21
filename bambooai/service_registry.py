@@ -1,3 +1,5 @@
+from bambooai.messages.prompts import Prompts
+
 OUTPUT_MANAGER_SERVICE = "output_manager"
 PROMPTS_SERVICE = "prompts_service"
 
@@ -15,5 +17,17 @@ class ServiceContainer:
 
     def list_services(self):
         return list(self._services.keys())
+    
+    def get_prompts(self) -> Prompts:
+        try:
+            prompts = self.get_service(PROMPTS_SERVICE)
+        except Exception as e:
+            print(f"Error retrieving prompts service: {e}")
+            prompts = Prompts()
+            self.register(PROMPTS_SERVICE, prompts)
+        return prompts
+    
+    def register_prompts(self, prompts: Prompts):
+        self.register(PROMPTS_SERVICE, prompts)
     
 services = ServiceContainer()
