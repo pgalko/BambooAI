@@ -7,7 +7,8 @@ import warnings
 import json
 warnings.filterwarnings('ignore')
 
-from bambooai import code_executor, models, prompts, template_formatting, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
+from bambooai import code_executor, models, prompts, template_formatting, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
+from bambooai.messages import tools_definition
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
@@ -210,11 +211,6 @@ class BambooAI:
         self._remove_all_except_task_xml = reg_ex._remove_all_except_task_xml
         self._remove_all_except_task_ontology_text = reg_ex._remove_all_except_task_ontology_text
 
-        # Functions
-        self.openai_tools_definition = func_calls.openai_tools_definition
-        self.anthropic_tools_definition = func_calls.anthropic_tools_definition
-        self.gemini_tools_definition = func_calls.gemini_tools_definition
-
         # LLM calls
         self.llm_call = models.llm_call
         self.llm_stream = models.llm_stream
@@ -304,27 +300,6 @@ class BambooAI:
             messages.pop(1)
             messages.pop(1)
             self.output_manager.display_system_messages("Truncating messages")
-
-    def filter_tools(self, tools_list, search_enabled=False, feedback_enabled=False):
-        filtered_tools = tools_list.copy()  # Create a copy to avoid modifying original list
-        
-        def get_tool_name(tool):
-            # Handle direct name (anthropic/gemini style)
-            if "name" in tool:
-                return tool["name"]
-            # Handle nested name (openai style)
-            if "function" in tool and "name" in tool["function"]:
-                return tool["function"]["name"]
-            return None
-        
-        # Remove tools based on flags
-        if not search_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "google_search"]
-            
-        if not feedback_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "request_user_context"]
-        
-        return filtered_tools
     
     def append_qa_pair(self, question, results):
         # Define the custom operation identifier strings
@@ -576,14 +551,10 @@ class BambooAI:
 
         reasoning_effort = "medium"
 
-        if provider == 'openai':
-            tools=self.filter_tools(self.openai_tools_definition, search_enabled=False, feedback_enabled=self.user_feedback)
-        elif provider == 'anthropic':
-            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=False, feedback_enabled=self.user_feedback)
-        elif provider == 'gemini':
-            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=False, feedback_enabled=self.user_feedback)
+        if provider in ['openai', 'anthropic', 'gemini']:
+            tools = tools_definition.filter_tools(provider, search_enabled=False, feedback_enabled=self.user_feedback)
         else:
-            tools=None
+            tools = None
 
         # Call LLM API to evaluate the task
         if tools:
@@ -616,14 +587,10 @@ class BambooAI:
             )
             eval_messages[-1] = formatted_message
 
-        if provider == 'openai':
-            tools=self.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
-        elif provider == 'anthropic':
-            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
-        elif provider == 'gemini':
-            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
+        if provider in ['openai', 'anthropic', 'gemini']:
+            tools = tools_definition.filter_tools(provider, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         else:
-            tools=None
+            tools = None
 
         if tools:
             llm_response, tool_response = self.llm_stream(self.log_and_call_manager, self.output_manager, eval_messages, agent=agent, chain_id=self.chain_id, tools=tools, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
@@ -1062,14 +1029,11 @@ class BambooAI:
             )
             code_messages[-1] = formatted_message
 
-        if provider == 'openai':
-            tools=self.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
-        elif provider == 'anthropic':
-            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
-        elif provider == 'gemini':
-            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
+        if provider in ['openai', 'anthropic', 'gemini']:
+            # Filter tools based on the selected provider and user feedback
+            tools = tools_definition.filter_tools(provider, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         else:
-            tools=None
+            tools = None
 
         # Call the LLM API or local model to generate the code
         if tools:
