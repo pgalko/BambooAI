@@ -12,6 +12,8 @@ import openai
 from google import genai
 from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 
+from bambooai.messages import prompts
+
 openai_client = openai.OpenAI()
 
 SEARCH_MODE = os.environ.get('WEB_SEARCH_MODE', 'google_ai')
@@ -263,21 +265,13 @@ class Reader:
         agent = 'Google Search Summarizer'
         text = ""
         
-        from bambooai import models, prompts
+        from bambooai import models
         
         # Construct prompt and messages
         for ctx in contexts:
             text += f'* {ctx}\n'
 
-        # Check if PROMPT_TEMPLATES.json exists and load the prompts from there. If not, use the default prompts.
-        if os.path.exists("PROMPT_TEMPLATES.json"):
-            # Load from JSON file
-            with open("PROMPT_TEMPLATES.json", "r") as f:
-                prompt_data = json.load(f)
-            prompt = prompt_data.get("google_search_summarizer_system", "")
-            prompt = prompt.format(text, query)
-        else:
-            prompt = prompts.google_search_summarizer_system.format(text, query)
+        prompt = prompts.google_search_summarizer_system.format(text, query)
             
         search_messages = [{"role": "user", "content": prompt}]
 

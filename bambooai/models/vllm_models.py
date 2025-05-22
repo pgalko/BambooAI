@@ -4,10 +4,10 @@ import time
 import openai
 import tiktoken
 
-from bambooai import google_search, prompts, utils, context_retrieval
+from bambooai import google_search, utils, context_retrieval
+from bambooai.messages import prompts
 
 google_search_function = google_search.SmartSearchOrchestrator()
-get_auxiliary_dataset = context_retrieval.get_auxiliary_dataset
 
 def init():
     openai_api_key = "EMPTY"
@@ -78,8 +78,7 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
     openai_client = init()
 
     available_functions = {
-        "google_search": google_search_function,
-        "get_auxiliary_dataset": get_auxiliary_dataset
+        "google_search": google_search_function
     }
 
     def add_triplet(query, result, links):

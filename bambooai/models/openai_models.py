@@ -3,7 +3,8 @@ import os
 import time
 import openai
 
-from bambooai import google_search, prompts, utils, context_retrieval
+from bambooai import google_search, utils, context_retrieval
+from bambooai.messages import prompts
 
 google_search_function = google_search.SmartSearchOrchestrator()
 request_user_context = context_retrieval.request_user_context
