@@ -19,10 +19,9 @@ class ServiceContainer:
         return list(self._services.keys())
     
     def get_prompts(self) -> Prompts:
-        try:
-            prompts = self.get_service(PROMPTS_SERVICE)
-        except Exception as e:
-            print(f"Error retrieving prompts service: {e}")
+        prompts = self.get_service(PROMPTS_SERVICE)
+        if prompts is None:
+            print(f"Prompts service not found, creating a new instance with default config.")
             prompts = Prompts()
             self.register(PROMPTS_SERVICE, prompts)
         return prompts
