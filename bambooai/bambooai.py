@@ -7,7 +7,8 @@ import warnings
 import json
 warnings.filterwarnings('ignore')
 
-from bambooai import code_executor, models, prompts, template_formatting, func_calls, qa_retrieval, reg_ex, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
+from bambooai import code_executor, models, template_formatting, qa_retrieval, log_manager, output_manager, web_output_manager, storage_manager, utils, executor_client
+from bambooai.messages import reg_ex, tools_definition
 from bambooai.messages.prompts import Prompts
 from bambooai.service_registry import services
 
@@ -147,23 +148,6 @@ class BambooAI:
         self.python_version = versions['python_version']
         self.plotly_version = versions['plotly_version']
 
-        # Regular expresions
-        self._extract_code = reg_ex._extract_code
-        self._extract_rank = reg_ex._extract_rank
-        self._extract_expert = reg_ex._extract_expert
-        self._extract_analyst = reg_ex._extract_analyst
-        self._extract_plan = reg_ex._extract_plan
-        self._extract_data_model = reg_ex._extract_data_model
-        self._remove_examples = reg_ex._remove_examples
-        self._remove_all_except_task_text = reg_ex._remove_all_except_task_text
-        self._remove_all_except_task_xml = reg_ex._remove_all_except_task_xml
-        self._remove_all_except_task_ontology_text = reg_ex._remove_all_except_task_ontology_text
-
-        # Functions
-        self.openai_tools_definition = func_calls.openai_tools_definition
-        self.anthropic_tools_definition = func_calls.anthropic_tools_definition
-        self.gemini_tools_definition = func_calls.gemini_tools_definition
-
         # LLM calls
         self.llm_call = models.llm_call
         self.llm_stream = models.llm_stream
@@ -253,27 +237,6 @@ class BambooAI:
             messages.pop(1)
             messages.pop(1)
             self.output_manager.display_system_messages("Truncating messages")
-
-    def filter_tools(self, tools_list, search_enabled=False, feedback_enabled=False):
-        filtered_tools = tools_list.copy()  # Create a copy to avoid modifying original list
-        
-        def get_tool_name(tool):
-            # Handle direct name (anthropic/gemini style)
-            if "name" in tool:
-                return tool["name"]
-            # Handle nested name (openai style)
-            if "function" in tool and "name" in tool["function"]:
-                return tool["function"]["name"]
-            return None
-        
-        # Remove tools based on flags
-        if not search_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "google_search"]
-            
-        if not feedback_enabled:
-            filtered_tools = [tool for tool in filtered_tools if get_tool_name(tool) != "request_user_context"]
-        
-        return filtered_tools
     
     def append_qa_pair(self, question, results):
         # Define the custom operation identifier strings
@@ -343,10 +306,10 @@ class BambooAI:
                         # Extract only the text content from the message
                         text_content = next((item.get('text', '') for item in content if item.get('type') == 'text'), '')
                         # Replace the content with just the text and process it
-                        msg['content'] = self._remove_all_except_task_ontology_text(text_content)
+                        msg['content'] = reg_ex._remove_all_except_task_ontology_text(text_content)
                     else:
                         # Process regular text message
-                        msg['content'] = self._remove_all_except_task_ontology_text(content)
+                        msg['content'] = reg_ex._remove_all_except_task_ontology_text(content)
         # Planner messages content maintenance
         if agent == 'Planner' or agent == 'Theorist':
             for msg in messages:
@@ -357,10 +320,10 @@ class BambooAI:
                         # Extract only the text content from the message
                         text_content = next((item.get('text', '') for item in content if item.get('type') == 'text'), '')
                         # Replace the content with just the text and process it
-                        msg['content'] = self._remove_all_except_task_xml(text_content)
+                        msg['content'] = reg_ex._remove_all_except_task_xml(text_content)
                     else:
                         # Process regular text message
-                        msg['content'] = self._remove_all_except_task_xml(content)
+                        msg['content'] = reg_ex._remove_all_except_task_xml(content)
 
         if agent == 'Code Executor':
             for msg in messages:
@@ -372,15 +335,15 @@ class BambooAI:
                         text_content = next((item.get('text', '') for item in content if item.get('type') == 'text'), '')
                         # Replace the content with just the text and process it
                         if self.model_dict[models.get_model_name('Code Generator')[0]]['templ_formating'] == 'xml':
-                            msg['content'] = self._remove_all_except_task_xml(text_content)
+                            msg['content'] = reg_ex._remove_all_except_task_xml(text_content)
                         else:  # templ_formating is 'text'
-                            msg['content'] = self._remove_all_except_task_text(text_content)
+                            msg['content'] = reg_ex._remove_all_except_task_text(text_content)
                     else:
                         # Process regular text message
                         if self.model_dict[models.get_model_name('Code Generator')[0]]['templ_formating'] == 'xml':
-                            msg['content'] = self._remove_all_except_task_xml(content)
+                            msg['content'] = reg_ex._remove_all_except_task_xml(content)
                         else:  # templ_formating is 'text'
-                            msg['content'] = self._remove_all_except_task_text(content)
+                            msg['content'] = reg_ex._remove_all_except_task_text(content)
 
     def format_image_message(self, agent, message_content, image, provider, model):
         # Format the message content with an image. 
@@ -524,7 +487,7 @@ class BambooAI:
 
         # Call OpenAI API to evaluate the task
         llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, pre_eval_messages, agent=agent,chain_id=self.chain_id, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
-        expert, requires_dataset, confidence = self._extract_expert(llm_response)
+        expert, requires_dataset, confidence = reg_ex._extract_expert(llm_response)
 
         return llm_response, expert, requires_dataset, confidence
     
@@ -535,14 +498,10 @@ class BambooAI:
 
         reasoning_effort = "medium"
 
-        if provider == 'openai':
-            tools=self.filter_tools(self.openai_tools_definition, search_enabled=False, feedback_enabled=self.user_feedback)
-        elif provider == 'anthropic':
-            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=False, feedback_enabled=self.user_feedback)
-        elif provider == 'gemini':
-            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=False, feedback_enabled=self.user_feedback)
+        if provider in ['openai', 'anthropic', 'gemini']:
+            tools = tools_definition.filter_tools(provider, search_enabled=False, feedback_enabled=self.user_feedback)
         else:
-            tools=None
+            tools = None
 
         # Call LLM API to evaluate the task
         if tools:
@@ -551,7 +510,7 @@ class BambooAI:
             llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, select_analyst_messages, agent=agent, chain_id=self.chain_id, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
             tool_response = []
             
-        analyst, query_unknown, query_condition, intent_breakdown = self._extract_analyst(llm_response)
+        analyst, query_unknown, query_condition, intent_breakdown = reg_ex._extract_analyst(llm_response)
 
         return llm_response, analyst, query_unknown, query_condition, intent_breakdown
     
@@ -575,14 +534,10 @@ class BambooAI:
             )
             eval_messages[-1] = formatted_message
 
-        if provider == 'openai':
-            tools=self.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
-        elif provider == 'anthropic':
-            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
-        elif provider == 'gemini':
-            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
+        if provider in ['openai', 'anthropic', 'gemini']:
+            tools = tools_definition.filter_tools(provider, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         else:
-            tools=None
+            tools = None
 
         if tools:
             llm_response, tool_response = self.llm_stream(self.log_and_call_manager, self.output_manager, eval_messages, agent=agent, chain_id=self.chain_id, tools=tools, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
@@ -593,7 +548,7 @@ class BambooAI:
         #self.output_manager.display_formated_plan(llm_response)
 
         if agent == 'Planner':
-            response = self._extract_plan(llm_response)
+            response = reg_ex._extract_plan(llm_response)
         else:
             response = llm_response
             
@@ -662,7 +617,7 @@ class BambooAI:
                                                                                      df_id=self.df_id, aux_file_paths=self.auxiliary_datasets, executor_client=self.api_client, messages=self.df_inspector_messages)
                     if df_inspector_messages:
                         self.df_inspector_messages = df_inspector_messages
-                    self.data_model = self._extract_data_model(data_model)
+                    self.data_model = reg_ex._extract_data_model(data_model)
                     dataframe_head = utils.inspect_dataframe(df=self.df, execution_mode=self.execution_mode, df_id=self.df_id, executor_client=self.api_client)
                     data_model_vis = utils.generate_model_graph(self.data_model)
                     self.messages_maintenace(self.df_inspector_messages)
@@ -1021,14 +976,11 @@ class BambooAI:
             )
             code_messages[-1] = formatted_message
 
-        if provider == 'openai':
-            tools=self.filter_tools(self.openai_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
-        elif provider == 'anthropic':
-            tools=self.filter_tools(self.anthropic_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
-        elif provider == 'gemini':
-            tools=self.filter_tools(self.gemini_tools_definition, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
+        if provider in ['openai', 'anthropic', 'gemini']:
+            # Filter tools based on the selected provider and user feedback
+            tools = tools_definition.filter_tools(provider, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         else:
-            tools=None
+            tools = None
 
         # Call the LLM API or local model to generate the code
         if tools:
@@ -1039,7 +991,7 @@ class BambooAI:
         code_messages.append({"role": "assistant", "content": llm_response})
 
         # Extract the code from the API response
-        code = self._extract_code(llm_response,analyst,provider)
+        code = reg_ex._extract_code(llm_response,analyst,provider)
 
         return code, llm_response
 
@@ -1072,7 +1024,7 @@ class BambooAI:
                     break
 
             # Remove examples from the messages list to minimize the number of tokens used
-            code_messages = self._remove_examples(code_messages)
+            code_messages = reg_ex._remove_examples(code_messages)
 
         # Remove dataset, plan, and code from the messages list
         self.messages_content_maintenance(agent, code_messages)
@@ -1125,7 +1077,7 @@ class BambooAI:
         #llm_response = self.llm_call(self.log_and_call_manager,code_messages,agent=agent, chain_id=self.chain_id)
         llm_response = self.llm_stream(self.log_and_call_manager, self.output_manager, code_messages, agent=agent, chain_id=self.chain_id, reasoning_models=self.reasoning_models)
         code_messages.append({"role": "assistant", "content": llm_response})
-        code = self._extract_code(llm_response,analyst,provider)
+        code = reg_ex._extract_code(llm_response,analyst,provider)
 
         return code, code_messages
 
@@ -1142,7 +1094,7 @@ class BambooAI:
 
         self.plan_review_messages.append({"role": "assistant", "content": llm_response})
 
-        reviewed_plan = self._extract_plan(llm_response)
+        reviewed_plan = reg_ex._extract_plan(llm_response)
         plan_vis = utils.generate_plan_graph(plan)
         # Create a dictionary containing both the visualization and the YAML data
         plan_web = {
