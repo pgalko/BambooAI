@@ -5,7 +5,7 @@ import openai
 import tiktoken
 
 from bambooai import google_search, utils
-from bambooai.service_registry import services
+from bambooai.messages import prompts
 
 google_search_function = google_search.SmartSearchOrchestrator()
 

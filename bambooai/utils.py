@@ -12,7 +12,10 @@ from typing import Optional, Union, Dict, List
 import unicodedata
 import pyarrow.parquet as pq
 import csv
-import logging # For better debugging
+import logging
+
+from bambooai import models
+from bambooai.messages import prompts
 
 # Configure basic logging
 logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
@@ -282,11 +285,6 @@ def inspect_dataframe(df, log_and_call_manager=None, output_manager=None, chain_
 
     if log_and_call_manager:
         try:
-            from bambooai import models
-            from bambooai.service_registry import services
-
-            prompts = services.get_prompts()
-
             # Generate the DataFrame preview and auxiliary datasets preview
             primary_df_head = dataframe_to_string(df=df, execution_mode=execution_mode, df_id=df_id, executor_client=executor_client)
             auxiliary_datasets_heads = aux_datasets_to_string(file_paths=aux_file_paths, execution_mode=execution_mode, executor_client=executor_client)

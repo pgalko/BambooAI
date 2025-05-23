@@ -12,6 +12,8 @@ import openai
 from google import genai
 from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 
+from bambooai.messages import prompts
+
 openai_client = openai.OpenAI()
 
 SEARCH_MODE = os.environ.get('WEB_SEARCH_MODE', 'google_ai')
@@ -264,9 +266,6 @@ class Reader:
         text = ""
         
         from bambooai import models
-        from bambooai.service_registry import services
-
-        prompts = services.get_prompts()
         
         # Construct prompt and messages
         for ctx in contexts:
