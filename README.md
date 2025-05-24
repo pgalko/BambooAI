@@ -164,7 +164,8 @@ bamboo = BambooAI(
     webui=False,                # Run as web application
     vector_db=False,            # Enable vector database for knowledge storage
     df_ontology=False,          # Use custom dataframe ontology
-    exploratory=True            # Enable expert selection for query handling
+    exploratory=True,           # Enable expert selection for query handling
+    custom_prompt_file=None     # Enable the use of custom/modified prompt templates
 )
 ```
 
@@ -210,6 +211,10 @@ bamboo = BambooAI(
 - `exploratory` (bool, default=True)
   - Enables expert selection for query handling
   - Chooses between Research Specialist and Data Analyst roles
+
+- `custom_prompt_file` (str, default=None)
+  - Enables users to provide custom prompt templates
+  - Requires path to the YAML file containing the templates
 
 ### LLM Configuration
 

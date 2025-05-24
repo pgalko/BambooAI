@@ -76,7 +76,7 @@ def convert_openai_to_llama2_completion(messages: list):
     #formatted_content = re.sub(r'Example Output:.*', '', formatted_content, flags=re.S)
     return formatted_content
 
-def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: str, local_model: str, temperature: str, max_tokens: str, tools: str=None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):
+def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: str, local_model: str, temperature: str, max_tokens: str, tools: str=None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):
     # (log_and_call_manager, output_manager, chain_id, messages, model, temperature, max_tokens, tools   
     total_tokens_used=0
 
