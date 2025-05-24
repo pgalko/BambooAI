@@ -4,7 +4,7 @@ import time
 import openai
 import tiktoken
 
-from bambooai import google_search, prompts, utils
+from bambooai import google_search, utils
 
 google_search_function = google_search.SmartSearchOrchestrator()
 
@@ -63,13 +63,13 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str, response
 
     return content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str,tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):  
+def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str,tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):  
     collected_chunks = []
     collected_messages = []
     reasoning_messages = []
     tool_calls = []
     search_triplets = []
-    google_search_messages = [{"role": "system", "content": prompts.google_search_react_system.format(utils.get_readable_date())}]
+    google_search_messages = [{"role": "system", "content": prompt_manager.google_search_react_system.format(utils.get_readable_date())}]
 
     tools = tools
 
@@ -138,6 +138,7 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
         function_args = json.loads(tool_call['function']['arguments'])
         google_search_messages.append({"role": "user", "content": function_args.get("search_query")})
         function_response, links = function_to_call(
+            prompt_manager,
             log_and_call_manager,
             output_manager, 
             chain_id,

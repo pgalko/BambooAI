@@ -115,7 +115,7 @@ def llm_call(messages: str, model_name: str, temperature: str, max_tokens: str, 
 
     return content, messages, prompt_tokens, completion_tokens, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: str, model_name: str, temperature: str, max_tokens: str, tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort: str = "medium"):
+def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: str, model_name: str, temperature: str, max_tokens: str, tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort: str = "medium"):
     answer_messages = []
     thinking_messages = []
     search_triplet = []

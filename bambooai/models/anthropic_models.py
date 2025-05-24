@@ -4,7 +4,7 @@ import time
 import anthropic
 import logging
 
-from bambooai import google_search, prompts, utils, context_retrieval
+from bambooai import google_search, utils, context_retrieval
 
 # Define the available functions
 google_search_function = google_search.SmartSearchOrchestrator()
@@ -141,13 +141,13 @@ def call_and_parse_stream(output_manager, collected_messages, tools, messages, s
     
     return messages, collected_messages, tool_calls, tool_use_block, text_block, prompt_tokens_used, completion_tokens_used
 
-def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: list, model: str, temperature: float, max_tokens: int, tools: list = [], response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"): 
+def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: list, model: str, temperature: float, max_tokens: int, tools: list = [], response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"): 
     total_tokens_used = 0
     prompt_tokens_used = 0
     completion_tokens_used = 0
     tokens_per_second = 0
     collected_messages = []
-    google_search_messages = [{"role": "system", "content": prompts.google_search_react_system.format(utils.get_readable_date())}]
+    google_search_messages = [{"role": "system", "content": prompt_manager.google_search_react_system.format(utils.get_readable_date())}]
     search_triplets = []
 
     available_functions = {
@@ -196,6 +196,7 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: li
                 if function_name == "google_search":
                     google_search_messages.append({"role": "user", "content": function_args.get("search_query")})
                     function_response, links = function_to_call(
+                        prompt_manager,
                         log_and_call_manager,
                         output_manager, 
                         chain_id,

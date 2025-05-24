@@ -44,7 +44,7 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str, response
 
     return content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str, tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):  
+def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str, tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):  
 
     collected_chunks = []
     collected_messages = []

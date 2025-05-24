@@ -118,7 +118,7 @@ def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: s
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
-def llm_stream(log_and_call_manager, output_manager, messages: str, agent: str = None, chain_id: str = None, tools:str = None, reasoning_models:list = None, reasoning_effort:str = "medium"):
+def llm_stream(prompt_manager, log_and_call_manager, output_manager, messages: str, agent: str = None, chain_id: str = None, tools:str = None, reasoning_models:list = None, reasoning_effort:str = "medium"):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
     # Initialize the LLM parameters
@@ -144,7 +144,7 @@ def llm_stream(log_and_call_manager, output_manager, messages: str, agent: str =
 
         # Call the appropriate function from the imported module
         function_name = provider_function_map[provider]
-        result = getattr(provider_module, function_name)(log_and_call_manager, output_manager, chain_id, messages, model, temperature, max_tokens, tools, response_format, reasoning_models, reasoning_effort)
+        result = getattr(provider_module, function_name)(prompt_manager, log_and_call_manager, output_manager, chain_id, messages, model, temperature, max_tokens, tools, response_format, reasoning_models, reasoning_effort)
         
         # Unpack the result
         if tools:

@@ -4,10 +4,9 @@ import time
 import openai
 import tiktoken
 
-from bambooai import google_search, prompts, utils, context_retrieval
+from bambooai import google_search, utils, context_retrieval
 
 google_search_function = google_search.SmartSearchOrchestrator()
-get_auxiliary_dataset = context_retrieval.get_auxiliary_dataset
 
 def init():
     openai_api_key = "EMPTY"
@@ -66,20 +65,19 @@ def llm_call(messages: str,model: str,temperature: str,max_tokens: str, response
 
     return content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str,tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):  
+def llm_stream(prompt_manager,  log_and_call_manager, output_manager, chain_id: str, messages: str,model: str,temperature: str,max_tokens: str,tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort:str = "medium"):  
     collected_chunks = []
     collected_messages = []
     tool_calls = []
     search_triplets = []
-    google_search_messages = [{"role": "system", "content": prompts.google_search_react_system.format(utils.get_readable_date())}]
+    google_search_messages = [{"role": "system", "content": prompt_manager.google_search_react_system.format(utils.get_readable_date())}]
 
     tools = tools
 
     openai_client = init()
 
     available_functions = {
-        "google_search": google_search_function,
-        "get_auxiliary_dataset": get_auxiliary_dataset
+        "google_search": google_search_function
     }
 
     def add_triplet(query, result, links):
@@ -140,19 +138,13 @@ def llm_stream(log_and_call_manager, output_manager, chain_id: str, messages: st
         if function_name == "google_search":
             google_search_messages.append({"role": "user", "content": function_args.get("search_query")})
             function_response, links = function_to_call(
+                prompt_manager,
                 log_and_call_manager,
                 output_manager, 
                 chain_id,
                 messages=google_search_messages
             )
             add_triplet(function_args.get("search_query"), function_response, links)
-
-        elif function_name == "get_auxiliary_dataset":
-            function_response = function_to_call(
-                output_manager,
-                chain_id,
-                function_args.get("file_format")
-            )
         
         messages.append(
             {
