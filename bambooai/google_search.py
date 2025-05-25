@@ -26,21 +26,22 @@ class ChatBot:
         self.agent = 'Google Search Executor'
         self.completion = None
         
-    def __call__(self, log_and_call_manager, output_manager, chain_id, messages):
-        result = self.execute(log_and_call_manager, output_manager, chain_id, messages)
+    def __call__(self, prompt_manager, log_and_call_manager, output_manager, chain_id, messages):
+        result = self.execute(prompt_manager, log_and_call_manager, output_manager, chain_id, messages)
         return result
 
-    def execute(self,log_and_call_manager, output_manager, chain_id, messages):
+    def execute(self,prompt_manager, log_and_call_manager, output_manager, chain_id, messages):
         from bambooai import models
         
-        self.completion = models.llm_stream(log_and_call_manager, output_manager, messages, agent=self.agent, chain_id=chain_id)
+        self.completion = models.llm_stream(prompt_manager, log_and_call_manager, output_manager, messages, agent=self.agent, chain_id=chain_id)
 
         return self.completion
 
 class SmartSearchOrchestrator:
     action_re = re.compile(r'^Action: (\w+): (.*)$')
 
-    def __init__(self, log_and_call_manager=None,output_manager=None,chain_id=None, messages=None):
+    def __init__(self, prompt_manager=None, log_and_call_manager=None,output_manager=None,chain_id=None, messages=None):
+        self.prompt_manager = prompt_manager
         self.log_and_call_manager = log_and_call_manager
         self.output_manager = output_manager
         self.chain_id = chain_id
@@ -55,7 +56,7 @@ class SmartSearchOrchestrator:
             "calculate": self.calculate,
 }
 
-    def perform_query(self, log_and_call_manager, output_manager, chain_id, messages, max_turns=MAX_ITERATIONS):
+    def perform_query(self, prompt_manager, log_and_call_manager, output_manager, chain_id, messages, max_turns=MAX_ITERATIONS):
         links = None
 
         if SEARCH_MODE == "google_ai":
@@ -63,7 +64,7 @@ class SmartSearchOrchestrator:
                 # Only initialize when needed
                 if not hasattr(self, 'gemini_search'):
                     self.gemini_search = GeminiSearch()
-                result, links = self.gemini_search(log_and_call_manager, output_manager, chain_id, messages)
+                result, links = self.gemini_search(prompt_manager, log_and_call_manager, output_manager, chain_id, messages)
             except Exception as e:
                 result = f"Error with Gemini search: {str(e)}"
                 output_manager.display_error(result, chain_id=chain_id)
@@ -73,7 +74,7 @@ class SmartSearchOrchestrator:
             next_prompt = messages
             while i < max_turns:
                 i += 1
-                result = self.chat_bot(log_and_call_manager, output_manager, chain_id, next_prompt)
+                result = self.chat_bot(prompt_manager, log_and_call_manager, output_manager, chain_id, next_prompt)
                 next_prompt.append({"role": "assistant", "content": result})
                 actions = [self.action_re.match(a) for a in result.split('\n') if self.action_re.match(a)]
                 if actions:
@@ -82,7 +83,7 @@ class SmartSearchOrchestrator:
                     if action not in self.known_actions:
                         raise Exception("Unknown action: {}: {}".format(action, action_input))
                     output_manager.display_tool_info(action, action_input, chain_id)
-                    observation, links = self.known_actions[action](log_and_call_manager, output_manager, chain_id, action_input)
+                    observation, links = self.known_actions[action](prompt_manager, log_and_call_manager, output_manager, chain_id, action_input)
                     #if links:
                         #for link in links:
                             #output_handler.print_wrapper(f"\nTitle: {link['title']}\nLink: {link['link']}")
@@ -93,8 +94,8 @@ class SmartSearchOrchestrator:
 
         return result, links
     
-    def __call__(self, log_and_call_manager, output_manager, chain_id, messages):
-        return self.perform_query(log_and_call_manager, output_manager, chain_id, messages)
+    def __call__(self, prompt_manager, log_and_call_manager, output_manager, chain_id, messages):
+        return self.perform_query(prompt_manager, log_and_call_manager, output_manager, chain_id, messages)
     
 ### SEARCH ACTIONS ###
 
@@ -259,29 +260,21 @@ class DocumentRetriever:
 
 # Define a class to generate an answer to a question based on a set of documents
 class Reader:
-    def __call__(self,log_and_call_manager,output_manager,chain_id,query, contexts):
+    def __call__(self, prompt_manager, log_and_call_manager,output_manager,chain_id,query, contexts):
         agent = 'Google Search Summarizer'
         text = ""
         
-        from bambooai import models, prompts
+        from bambooai import models
         
         # Construct prompt and messages
         for ctx in contexts:
             text += f'* {ctx}\n'
 
-        # Check if PROMPT_TEMPLATES.json exists and load the prompts from there. If not, use the default prompts.
-        if os.path.exists("PROMPT_TEMPLATES.json"):
-            # Load from JSON file
-            with open("PROMPT_TEMPLATES.json", "r") as f:
-                prompt_data = json.load(f)
-            prompt = prompt_data.get("google_search_summarizer_system", "")
-            prompt = prompt.format(text, query)
-        else:
-            prompt = prompts.google_search_summarizer_system.format(text, query)
+        prompt = prompt_manager.google_search_summarizer_system.format(text, query)
             
         search_messages = [{"role": "user", "content": prompt}]
 
-        llm_response = models.llm_stream(log_and_call_manager,output_manager, search_messages, agent=agent, chain_id=chain_id)
+        llm_response = models.llm_stream(prompt_manager, log_and_call_manager, output_manager, search_messages, agent=agent, chain_id=chain_id)
 
         return llm_response
     
@@ -295,14 +288,14 @@ class Search:
         search_query = re.sub('\'|"', '',  question).strip()
         return search_query
 
-    def __call__(self, log_and_call_manager, output_manager, chain_id, question):
+    def __call__(self, prompt_manager, log_and_call_manager, output_manager, chain_id, question):
         question = self._extract_search_query(question)
         with self.search_engine as engine:
             documents, top_links, direct_answer = engine(question)
             if direct_answer:
                 return direct_answer, None
             contexts = self.document_retriever(question, documents)
-            answer = self.reader(log_and_call_manager, output_manager, chain_id, question, contexts)
+            answer = self.reader(prompt_manager, log_and_call_manager, output_manager, chain_id, question, contexts)
         return answer, top_links
     
 class GeminiSearch:
@@ -365,7 +358,7 @@ class GeminiSearch:
 
         return answer, top_links     
     
-    def __call__(self, log_and_call_manager, output_manager, chain_id, messages):
+    def __call__(self, prompt_manager, log_and_call_manager, output_manager, chain_id, messages):
         search_query = self._extract_search_query(messages)
         output_manager.display_tool_info('google_ai_search', search_query, chain_id)
         response = self._call_gemini(search_query)
@@ -375,7 +368,7 @@ class GeminiSearch:
 ### END SEARCH ACTIONS ###
     
 class Calculator:
-    def __call__(self, log_and_call_manager, output_manager, chain_id, code):
+    def __call__(self, prompt_manager, log_and_call_manager, output_manager, chain_id, code):
         links = None
 
         try:

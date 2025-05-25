@@ -276,13 +276,13 @@ def compute_aux_dataset_sample(file_paths: List[str],
     
     return html_results
     
-def inspect_dataframe(df, log_and_call_manager=None, output_manager=None, chain_id=None, query=None, execution_mode='local', df_ontology=None, df_id=None, aux_file_paths=None, executor_client=None, messages=[]):
+def inspect_dataframe(df, prompt_manager=None, log_and_call_manager=None, output_manager=None, chain_id=None, query=None, execution_mode='local', df_ontology=None, df_id=None, aux_file_paths=None, executor_client=None, messages=[]):
     agent = "Dataframe Inspector"
     df_inspector_messages = messages
 
     if log_and_call_manager:
         try:
-            from bambooai import models, prompts
+            from bambooai import models
 
             # Generate the DataFrame preview and auxiliary datasets preview
             primary_df_head = dataframe_to_string(df=df, execution_mode=execution_mode, df_id=df_id, executor_client=executor_client)
@@ -306,11 +306,11 @@ def inspect_dataframe(df, log_and_call_manager=None, output_manager=None, chain_
                     template = template.replace(placeholder, value)
                 return template
 
-            prompt = inject_content(prompts.dataframe_inspector_user, ontology=ontology, dataframe_preview=primary_df_head, auxiliary_datasets=auxiliary_datasets_heads, task=query)
+            prompt = inject_content(prompt_manager.dataframe_inspector_user, ontology=ontology, dataframe_preview=primary_df_head, auxiliary_datasets=auxiliary_datasets_heads, task=query)
                 
             df_inspector_messages.append({"role": "user", "content": prompt})
 
-            llm_response = models.llm_stream(log_and_call_manager, output_manager, df_inspector_messages, agent=agent, chain_id=chain_id)
+            llm_response = models.llm_stream(prompt_manager, log_and_call_manager, output_manager, df_inspector_messages, agent=agent, chain_id=chain_id)
 
             if llm_response:
                 df_inspector_messages.append({"role": "assistant", "content": llm_response})
