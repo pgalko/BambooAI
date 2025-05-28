@@ -10,7 +10,7 @@ import uuid
 import glob
 import pandas as pd
 from queue import Queue, Empty
-from flask import Flask, request, jsonify, Response, render_template, session
+from flask import Flask, request, jsonify, Response, render_template, session, send_from_directory
 import tempfile
 from dotenv import load_dotenv
 from google.cloud import storage
@@ -61,23 +61,54 @@ def cleanup_threads(debug_mode=False):
 
 def clear_datasets_folder():
     datasets_dir = 'datasets'
-    if os.path.exists(datasets_dir):
+    generated_datasets_base_dir = os.path.join(datasets_dir, 'generated')
+    favorites_base_dir = os.path.join('storage', 'favourites')
+
+    # 1. Get favorite thread IDs
+    favorite_thread_ids = set()
+    if os.path.exists(favorites_base_dir):
         try:
-            # Remove all files and subdirectories within datasets folder
-            for filename in os.listdir(datasets_dir):
-                file_path = os.path.join(datasets_dir, filename)
-                try:
-                    if os.path.isfile(file_path) or os.path.islink(file_path):
-                        os.unlink(file_path)
-                    elif os.path.isdir(file_path):
-                        shutil.rmtree(file_path)
-                except Exception as e:
-                    app.logger.error(f'Failed to delete {file_path}. Reason: {e}')
-            app.logger.info(f"Contents of '{datasets_dir}' folder cleared.")
+            favorite_thread_ids = {
+                d for d in os.listdir(favorites_base_dir)
+                if os.path.isdir(os.path.join(favorites_base_dir, d))
+            }
+            app.logger.info(f"Favorite thread IDs for dataset cleanup: {list(favorite_thread_ids)}")
         except Exception as e:
-            app.logger.error(f"Error clearing '{datasets_dir}' folder: {str(e)}")
-    else:
+            app.logger.error(f"Error reading favorites directory {favorites_base_dir}: {e}")
+
+    if not os.path.exists(datasets_dir):
         app.logger.info(f"'{datasets_dir}' folder does not exist, no need to clear.")
+        return
+
+    # 2. Iterate through items in the main 'datasets' directory
+    try:
+        for item_name in os.listdir(datasets_dir):
+            item_path = os.path.join(datasets_dir, item_name)
+            try:
+                if os.path.isfile(item_path) or os.path.islink(item_path):
+                    # Delete all files directly under 'datasets/'
+                    os.unlink(item_path)
+                    app.logger.info(f"Deleted file: {item_path}")
+                elif os.path.isdir(item_path):
+                    # If the subdirectory is 'generated', process its contents
+                    if item_name == 'generated' and os.path.exists(generated_datasets_base_dir):
+                        app.logger.info(f"Processing 'generated' subdirectory: {generated_datasets_base_dir}")
+                        for generated_thread_id_dir_name in os.listdir(generated_datasets_base_dir):
+                            thread_specific_dir_path = os.path.join(generated_datasets_base_dir, generated_thread_id_dir_name)
+                            if os.path.isdir(thread_specific_dir_path):
+                                # This directory name is treated as the thread_id
+                                if generated_thread_id_dir_name not in favorite_thread_ids:
+                                    shutil.rmtree(thread_specific_dir_path)
+                                    app.logger.info(f"Deleted non-favorited generated dataset directory: {thread_specific_dir_path}")
+                                else:
+                                    app.logger.info(f"Kept favorited generated dataset directory: {thread_specific_dir_path}")
+                    elif item_name != 'generated':
+                        app.logger.warning(f"Skipping deletion of non-'generated' subdirectory: {item_path}. Adjust logic if this should be deleted.")
+            except Exception as e:
+                app.logger.error(f'Failed to process item {item_path}. Reason: {e}')
+        app.logger.info(f"Selective cleanup of '{datasets_dir}' folder completed.")
+    except Exception as e:
+        app.logger.error(f"Error listing contents of '{datasets_dir}': {str(e)}")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -103,8 +134,9 @@ except ImportError:
 # Get API URL from environment variable or use default
 EXECUTOR_API_BASE_URL = os.getenv('EXECUTOR_API_BASE_URL')
 EXECUTOR_API_UPLOAD_URL = f"{EXECUTOR_API_BASE_URL}/upload_dataset"
-EXECUTOR_API_UPLOAD_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/upload_aux_dataset" # New
-EXECUTOR_API_REMOVE_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/remove_aux_dataset" # New
+EXECUTOR_API_UPLOAD_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/upload_aux_dataset"
+EXECUTOR_API_REMOVE_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/remove_aux_dataset"
+EXECUTOR_API_DOWNLOAD_GENERATED_URL = f"{EXECUTOR_API_BASE_URL}/download_generated_dataset"
 # Get execution mode from environment variable or default to 'local'
 GLOBAL_EXECUTION_MODE = os.getenv('EXECUTION_MODE', 'local')  # Default to 'local' if not set
 
@@ -1230,6 +1262,76 @@ def submit_feedback():
     except Exception as e:
         app.logger.error(f'Error writing feedback to {feedback_file}: {str(e)}')
         return jsonify({'error': f'Failed to store feedback: {str(e)}'}), 500
+    
+@app.route('/download_generated_dataset', methods=['GET'])
+def download_generated_dataset():
+    file_path_param = request.args.get('path')
+
+    if not file_path_param:
+        app.logger.error("Download request missing 'path' parameter.")
+        return jsonify({'error': "Missing 'path' query parameter."}), 400
+
+    app.logger.info(f"Attempting to download generated dataset: {file_path_param} in mode: {GLOBAL_EXECUTION_MODE}")
+
+    if GLOBAL_EXECUTION_MODE == 'api':
+        if not EXECUTOR_API_DOWNLOAD_GENERATED_URL:
+            app.logger.error("Executor API URL for generated dataset download not configured.")
+            return jsonify({'error': 'Executor API URL for download not configured.'}), 500
+        try:
+            # Construct the full URL to the executor's download endpoint
+            executor_download_url = f"{EXECUTOR_API_DOWNLOAD_GENERATED_URL}?path={requests.utils.quote(file_path_param)}"
+            
+            app.logger.info(f"Fetching from executor API: {executor_download_url}")
+            
+            # Stream the response from the executor API
+            api_response = requests.get(executor_download_url, stream=True)
+            api_response.raise_for_status() # Raise an exception for HTTP errors
+
+            # Get filename for Content-Disposition
+            filename = os.path.basename(file_path_param)
+
+            # Create a streaming Flask response
+            def generate_file_stream():
+                for chunk in api_response.iter_content(chunk_size=8192):
+                    yield chunk
+            
+            # Try to get content type from executor's response, or default
+            content_type = api_response.headers.get('Content-Type', 'application/octet-stream')
+
+            return Response(generate_file_stream(),
+                            mimetype=content_type,
+                            headers={"Content-Disposition": f"attachment;filename={filename}"})
+
+        except requests.RequestException as e:
+            app.logger.error(f"Error fetching file from executor API: {str(e)}")
+            return jsonify({'error': f'Failed to fetch file from remote service: {str(e)}'}), 502 # Bad Gateway
+        except Exception as e:
+            app.logger.error(f"Unexpected error during API mode download: {str(e)}")
+            return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
+
+    else: # Local mode
+        base_download_dir = os.path.abspath(os.getcwd())
+        
+        requested_file_abs = os.path.abspath(os.path.join(base_download_dir, file_path_param))
+
+        allowed_prefix = os.path.abspath(os.path.join(base_download_dir, "datasets", "generated"))
+        
+        if not requested_file_abs.startswith(allowed_prefix):
+            app.logger.warning(f"Access denied for local download: {file_path_param}. Resolved path {requested_file_abs} is outside allowed prefix {allowed_prefix}.")
+            return jsonify({'error': 'Access denied or invalid file path.'}), 403
+        
+        if not os.path.exists(requested_file_abs) or not os.path.isfile(requested_file_abs):
+            app.logger.error(f"Local file not found for download: {requested_file_abs}")
+            return jsonify({'error': 'File not found.'}), 404
+
+        try:
+            # send_from_directory needs directory and filename separately
+            directory, filename = os.path.split(requested_file_abs)
+            app.logger.info(f"Serving local file: directory='{directory}', filename='{filename}'")
+            return send_from_directory(directory, filename, as_attachment=True)
+        except Exception as e:
+            app.logger.error(f"Error serving local file {file_path_param}: {str(e)}")
+            return jsonify({'error': f'Error serving file: {str(e)}'}), 500
 
 if __name__ == '__main__':
     # Simple command line argument for debug mode
@@ -1250,4 +1352,4 @@ if __name__ == '__main__':
     clear_datasets_folder()
     
     # Start the Flask app
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)

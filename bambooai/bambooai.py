@@ -835,9 +835,20 @@ class BambooAI:
             if self.vector_db:
                 if self.retrieved_code is not None:
                     example_code = f"USE THIS CODE AS A BLUEPRINT FOR YOUR SOLUTION. FOLLOW ITS GENERAL STRUCTURE AND ALGORITHMS, BUT IF NECESSARY MODIFY AS APPROPRIATE FOR THE CURRENT TASK.\n```python\n{self.retrieved_code}\n```"
+            
+            # Path to where the generated datasets will be stored.
+            generated_datasets_path =  os.path.join('datasets', 'generated', str(self.thread_id), str(self.chain_id))
 
             # Call the generate_code() method to generate the code
-            code, llm_response = self.generate_code(analyst, intent_breakdown, plan, self.code_messages, example_code, image)
+            code, llm_response = self.generate_code(
+                analyst, 
+                intent_breakdown, 
+                plan, 
+                self.code_messages, 
+                example_code, 
+                image=image, 
+                generated_datasets_path=generated_datasets_path
+            )
             code_type = 'llm'
             
             # We are returning the response from the LLM model to the user, as the code is not present, or can not be extracted
@@ -857,7 +868,7 @@ class BambooAI:
             code_type = 'user'
 
         # Call the execute_code() method to execute the code and summarise the results
-        answer, results, code, plot_jsons, error_corrections = self.execute_code(analyst, code, plan, intent_breakdown, self.code_messages, self.execution_mode, code_type)
+        answer, results, code, plot_jsons, error_corrections = self.execute_code(analyst, code, plan, intent_breakdown, self.code_messages, self.execution_mode, code_type, generated_datasets_path)
 
         # Review and correct the plan for storage if there were code corrections or use the original plan
         reviewed_plan = None
@@ -921,7 +932,7 @@ class BambooAI:
     ### Code Functions ###
     ######################
             
-    def generate_code(self, analyst, intent_breakdown, plan, code_messages, example_code, image=None):
+    def generate_code(self, analyst, intent_breakdown, plan, code_messages, example_code, image=None, generated_datasets_path=None):
         agent = 'Code Generator'
 
         reasoning_effort = "high" if self.planning else "medium"
@@ -936,6 +947,7 @@ class BambooAI:
 
         # Generate formatted prompt
         formatted_prompt = self.code_gen_prompt_generator.generate_prompt(
+            generated_datasets_path=generated_datasets_path,
             analyst=analyst,
             planning=self.planning,
             model=models.get_model_name(agent)[0],
@@ -990,7 +1002,7 @@ class BambooAI:
 
         return code, llm_response
 
-    def execute_code(self, analyst, code, plan, intent_breakdown, code_messages, execution_mode, code_type):
+    def execute_code(self, analyst, code, plan, intent_breakdown, code_messages, execution_mode, code_type, generated_datasets_path):
         agent = 'Code Executor'
         error_corrections = 0
         executor = self.executor
@@ -1005,7 +1017,7 @@ class BambooAI:
             if code is not None:
                 self.output_manager.display_tool_info('code_execution', f"exec(code,'df': pd.DataFrame) in {execution_mode} mode", chain_id=self.chain_id)
                 
-                new_df, new_results, error, new_plot_images = executor.execute(code, self.df, self.df_id)
+                new_df, new_results, error, new_plot_images, generated_datasets = executor.execute(code, self.df, self.df_id, generated_datasets_path)
                 
                 if error:
                     error_corrections += 1
@@ -1039,7 +1051,7 @@ class BambooAI:
                 'chain_id': self.chain_id
             }))
 
-        self.output_manager.display_results(chain_id=self.chain_id,code=code, plot_jsons=plot_jsons if self.webui else None)
+        self.output_manager.display_results(chain_id=self.chain_id,code=code, plot_jsons=plot_jsons if self.webui else None, generated_datasets=generated_datasets if generated_datasets else None)
         summary = self.summarise_solution(intent_breakdown, plan, results, code if code_type == 'user' else None)
 
         return summary, results, code, plot_jsons if self.webui else None, error_corrections

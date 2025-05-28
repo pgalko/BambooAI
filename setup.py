@@ -6,12 +6,16 @@ with open("README.md", "r") as fh:
 
 setup(
     name='bambooai',
-    version='0.4.06',
+    version='0.4.07',
     description='A lightweight library for working with pandas dataframes using natural language queries',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='Palo Galko',
     packages=find_packages(),
+    include_package_data=True,
+    package_data={
+        'bambooai': ['messages/default_prompts.yaml'],
+    },
     install_requires=[
         'openai',
         'tiktoken',

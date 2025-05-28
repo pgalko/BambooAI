@@ -1716,6 +1716,10 @@ code_generator_user_df_plan: |
 
   {}
 
+  If you need to generate final CSV datasets as results, save them using this exact path format, replacing only <descriptive_name> with a meaningful filename:
+
+  {}
+
   The following data model and helper functions are crucial for your implementation. Make sure to incorporate these fully in your solution:
 
   {}
@@ -1781,6 +1785,10 @@ code_generator_user_df_no_plan: |
   {}
 
   You also have access to the following auxiliary datasets. Use them as needed if they are relevant to your analysis:
+
+  {}
+
+  If you need to generate final CSV datasets as results, save them using this exact path format, replacing only <descriptive_name> with a meaningful filename:
 
   {}
 
@@ -1933,6 +1941,10 @@ code_generator_user_gen_plan: |
   6. Include print statements to display intermediate and final results.
   7. Add brief comments to explain key code sections.
 
+  If you need to generate final CSV datasets as results, save them using this exact path format, replacing only <descriptive_name> with a meaningful filename:
+
+  {}
+
   Provide a COMPLETE, EXECUTABLE PYTHON SCRIPT enclosed within ```python ``` tags. Do not omit any code for brevity or ask the user to fill in missing parts.
 
 code_generator_user_gen_no_plan: |
@@ -2024,6 +2036,10 @@ code_generator_user_gen_no_plan: |
   5. Generate the final output as specified, highlighting key results or insights.
   6. Include print statements to display intermediate and final results.
   7. Add brief comments to explain key code sections.
+
+  If you need to generate final CSV datasets as results, save them using this exact path format, replacing only <descriptive_name> with a meaningful filename:
+
+  {}
 
   Provide a COMPLETE, EXECUTABLE PYTHON SCRIPT enclosed within ```python ``` tags. Do not omit any code for brevity or ask the user to fill in missing parts.
 

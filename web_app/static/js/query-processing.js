@@ -122,6 +122,9 @@ function processChunk(chunk) {
                     }
                     console.log("Session IDs updated:", currentData);
                     streamOutputDiv.innerHTML += formatSessionIds(data);
+                }
+                else if (data.type === "generated_datasets") {
+                    streamOutputDiv.innerHTML += formatGeneratedDatasets(data.data);
                 } 
                 else if (data.tool_start) {
                     streamOutputDiv.innerHTML += formatToolStart(data.tool_start);
@@ -968,6 +971,62 @@ function formatToolStart(toolStart) {
                 <span>Agent: ${toolStart.agent}</span>
             </div>
             <div class="model">Model: ${toolStart.model}</div>
+        </div>
+    `;
+}
+
+function formatGeneratedDatasets(datasetsArray) {
+    const headerFileIcon = `
+        <svg class="file-icon-header" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+          <polyline points="13 2 13 9 20 9"></polyline>
+        </svg>
+    `;
+
+    if (!datasetsArray || datasetsArray.length === 0) {
+        return `
+            <div class="generated-datasets-container">
+                <h4 class="generated-datasets-header">
+                    ${headerFileIcon}
+                    <span>Generated Files</span>
+                </h4>
+                <ul class="generated-datasets-list">
+                    <li class="generated-dataset-item no-datasets-message">No datasets generated.</li>
+                </ul>
+            </div>`;
+    }
+
+    const downloadIconPill = `
+        <svg class="download-icon-pill" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+    `;
+
+    let listItemsHtml = datasetsArray.map(datasetPath => {
+        const filename = datasetPath.split('/').pop() || 'dataset_file';
+        const downloadUrl = `/download_generated_dataset?path=${encodeURIComponent(datasetPath)}`;
+
+        return `
+            <li class="generated-dataset-item">
+                <a href="${downloadUrl}" class="dataset-link" download="${filename}" title="Download ${filename}">
+                    ${downloadIconPill}
+                    <span class="dataset-path">${datasetPath}</span>
+                </a>
+            </li>
+        `;
+    }).join('');
+
+    return `
+        <div class="generated-datasets-container">
+            <h4 class="generated-datasets-header">
+                ${headerFileIcon}
+                <span>Generated Datasets</span>
+            </h4>
+            <ul class="generated-datasets-list">
+                ${listItemsHtml}
+            </ul>
         </div>
     `;
 }

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import io
 import os
 import sys
@@ -74,6 +74,7 @@ def execute_code():
     patch_code = data.get('patch_code')
     plots_dir = data.get('plots_dir')
     plot_format = data.get('plot_format')
+    generated_datasets_path = data.get('generated_datasets_path', [])
 
     log_info(f"Received execution request for DataFrame ID={df_id if df_id else 'None'}")
 
@@ -84,6 +85,14 @@ def execute_code():
     output_buffer = io.StringIO()
     plot_images = []
     generated_files = []
+
+    if generated_datasets_path is not None:
+        # Ensure that the directory exists
+        if not os.path.isdir(generated_datasets_path):
+            try:
+                os.makedirs(generated_datasets_path)
+            except Exception as e:
+                log_info(f"Error creating directory {generated_datasets_path}: {str(e)}")
 
     try:
         plt.close('all')
@@ -150,10 +159,28 @@ def execute_code():
                         log_info(f"Error processing plotly figure {file_path}: {str(e)}")
                         continue
 
+        # Iterate over generated_datasets_path directory for any generated datasets.    
+        if generated_datasets_path is not None:
+            generated_datasets = []
+            if os.path.isdir(generated_datasets_path):
+                for filename in os.listdir(generated_datasets_path):
+                    file_path = os.path.join(generated_datasets_path, filename)
+                    if os.path.isfile(file_path):
+                        generated_datasets.append(file_path)
+                # If the generated_datasets_path directory is empty, delete it.
+                if not generated_datasets:
+                    try:
+                        os.rmdir(generated_datasets_path)
+                    except OSError as e:
+                        log_info(f"Error removing empty directory {generated_datasets_path}: {str(e)}")
+            else:
+                log_info(f"Generated datasets path {generated_datasets_path} does not exist.")
+
         return jsonify({
             'results': output_buffer.getvalue(),
             'error': None,
-            'plot_images': plot_images
+            'plot_images': plot_images,
+            'generated_datasets': generated_datasets if generated_datasets else []
         })
 
     except Exception as error:
@@ -168,7 +195,8 @@ def execute_code():
         return jsonify({
             'results': None,
             'error': exec_traceback,
-            'plot_images': []
+            'plot_images': [],
+            'generated_datasets': []
         })
 
     finally:
@@ -489,6 +517,44 @@ def compute_aux_dataset_sample_endpoint():
             html_results.append(error_df.to_html(classes='dataframe', border=0, index=False))
             
     return jsonify({'html_results': html_results})
+
+#### GENERATED DATASET DOWNLOAD ENDPOINT ####
+
+@app.route('/download_generated_dataset', methods=['GET'])
+def download_generated_dataset_endpoint():
+    file_path_param = request.args.get('path')
+
+    if not file_path_param:
+        log_info("Download request for generated dataset missing 'path' parameter.")
+        return jsonify({'error': "Missing 'path' query parameter."}), 400
+
+    log_info(f"Attempting to serve generated dataset: {file_path_param}")
+    
+    # Get the absolute path of the executor's current working directory
+    executor_base_dir = os.path.abspath(os.getcwd())
+    
+    # Construct the full absolute path to the requested file
+    requested_file_abs = os.path.abspath(os.path.join(executor_base_dir, file_path_param))
+
+    # Define the allowed base directory for generated datasets on the executor
+    allowed_generated_prefix = os.path.abspath(os.path.join(executor_base_dir, "datasets", "generated"))
+
+    if not requested_file_abs.startswith(allowed_generated_prefix):
+        log_info(f"Access denied for generated dataset download: {file_path_param}. Resolved path {requested_file_abs} is outside allowed prefix {allowed_generated_prefix}.")
+        return jsonify({'error': 'Access denied or invalid file path for generated dataset.'}), 403
+    
+    if not os.path.exists(requested_file_abs) or not os.path.isfile(requested_file_abs):
+        log_info(f"Generated dataset file not found on executor: {requested_file_abs}")
+        return jsonify({'error': 'File not found on executor.'}), 404
+
+    try:
+        # send_from_directory needs the directory and the filename separately.
+        directory, filename = os.path.split(requested_file_abs)
+        log_info(f"Serving generated dataset from executor: directory='{directory}', filename='{filename}'")
+        return send_from_directory(directory, filename, as_attachment=True)
+    except Exception as e:
+        log_info(f"Error serving generated dataset {file_path_param} from executor: {str(e)}")
+        return jsonify({'error': f'Error serving file from executor: {str(e)}'}), 500
     
 #### HELPER FUNCTIONS ####
 
