@@ -25,7 +25,7 @@ class WebOutputManager(OutputManager):
         sys.stdout = sys.__stdout__
         self.capture_output.close()
 
-    def print_wrapper(self, message, end="\n", flush=False, chain_id=None):
+    def print_wrapper(self, message, end="\n", flush=False, chain_id=None, thought=False):
         formatted_message = str(message)
         if self.web_mode:
             if self.last_chunk_ended_with_newline and formatted_message.startswith("\n"):
@@ -37,9 +37,12 @@ class WebOutputManager(OutputManager):
                 self.last_chunk_ended_with_newline = False
             
             if formatted_message:
-                self.output_queue.put(json.dumps({"text": formatted_message, "chain_id": chain_id}))
+                if thought:
+                    self.output_queue.put(json.dumps({"thought": formatted_message, "chain_id": chain_id}))
+                else:
+                    self.output_queue.put(json.dumps({"text": formatted_message, "chain_id": chain_id}))
 
-        super().print_wrapper(formatted_message, end='', flush=flush, chain_id=chain_id)
+        super().print_wrapper(formatted_message, end='', flush=flush, chain_id=chain_id, thought=thought)
 
     def get_captured_output(self):
         output = self.capture_output.getvalue()

@@ -223,7 +223,7 @@ class OutputManager:
             self.print_wrapper(summary_text)
 
     # A wrapper for the print function. This can be used to add additional behaviors or formatting to the print function
-    def print_wrapper(self, message, end="\n", flush=False, chain_id=None):
+    def print_wrapper(self, message, end="\n", flush=False, chain_id=None, thought=False):
         # Add any additional behaviors or formatting here
         formatted_message = message
         

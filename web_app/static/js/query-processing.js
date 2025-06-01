@@ -123,6 +123,21 @@ function processChunk(chunk) {
                     console.log("Session IDs updated:", currentData);
                     streamOutputDiv.innerHTML += formatSessionIds(data);
                 }
+                else if (data.thought) {
+                    // Parse markdown and sanitize
+                    const markdownHtml = marked.parse(data.thought);
+                    
+                    // Find the current thinking tool call and add thought to its container
+                    if (currentToolCallId) {
+                        const toolCallElement = document.getElementById(currentToolCallId);
+                        if (toolCallElement && toolCallElement.classList.contains('thinking')) {
+                            const thoughtsContainer = toolCallElement.querySelector('.thoughts-container');
+                            if (thoughtsContainer) {
+                                thoughtsContainer.innerHTML += `<div class="thought-content">${markdownHtml}</div>`;
+                            }
+                        }
+                    }
+                }
                 else if (data.type === "generated_datasets") {
                     streamOutputDiv.innerHTML += formatGeneratedDatasets(data.data);
                 }
@@ -443,6 +458,30 @@ function completeToolCall(id, startTime) {
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
         completionMessage.textContent = `Completed in ${duration}s`;
         completionMessage.style.display = 'block';
+    }
+}
+
+function toggleThoughts(toolCallId) {
+    const toolCallElement = document.getElementById(toolCallId);
+    if (toolCallElement) {
+        const thoughtsContainer = toolCallElement.querySelector('.thoughts-container');
+        const chevronIcon = toolCallElement.querySelector('.chevron-icon');
+        
+        if (thoughtsContainer && chevronIcon) {
+            const isVisible = thoughtsContainer.style.display !== 'none';
+            
+            if (isVisible) {
+                // Collapsing - arrow points down
+                thoughtsContainer.style.display = 'none';
+                toolCallElement.classList.remove('expanded');
+                chevronIcon.style.transform = 'rotate(0deg)'; // Points down
+            } else {
+                // Expanding - arrow points up
+                thoughtsContainer.style.display = 'block';
+                toolCallElement.classList.add('expanded');
+                chevronIcon.style.transform = 'rotate(180deg)'; // Points up
+            }
+        }
     }
 }
 
@@ -949,6 +988,18 @@ function formatToolCall(toolCall) {
         </svg>
     `;
 
+    const chevronIcon = `
+    <svg class="chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(0deg);">
+        <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+   `;
+
+    const thoughtsToggle = isThinking ? `
+        <button class="thoughts-toggle" onclick="toggleThoughts('${id}')" title="Toggle thoughts">
+            ${chevronIcon}
+        </button>
+    ` : '';
+
     return `
         <div class="tool-call ${isThinking ? 'thinking' : ''}" id="${id}">
             <div class="tool-call-header">
@@ -960,8 +1011,10 @@ function formatToolCall(toolCall) {
                     <div class="spinner"></div>
                     <span>In progress...</span>
                 </span>
+                ${thoughtsToggle}
             </div>
             <div class="tool-call-input" title="${toolCall.input}">${toolCall.input}</div>
+            <div class="thoughts-container" style="display: none;"></div>
             <div class="completion-message" style="display: none;"></div>
         </div>
     `;

@@ -956,10 +956,15 @@ function initializeCodeEditor() {
             editorWrapper.querySelector('code').textContent;
 
         try {
-            // Clear existing plots before execution
-            const plotTab = document.getElementById('content-plot');
-            if (plotTab) {
-                plotTab.innerHTML = '';
+            // Clear previous output
+            const streamOutputDiv = document.getElementById('streamOutput');
+            if (streamOutputDiv) {
+                streamOutputDiv.innerHTML = '';
+            }
+            
+            // Clear all tabs
+            if (typeof clearAllTabs === 'function') {
+                clearAllTabs();
             }
 
             const response = await fetch('/query', {
@@ -980,13 +985,21 @@ function initializeCodeEditor() {
 
             while (true) {
                 const {done, value} = await reader.read();
-                if (done) break;
+                if (done) {
+                    console.log('Stream complete');
+                    if (typeof saveCurrentResponse === 'function') {
+                        saveCurrentResponse();
+                    }
+                    break;
+                }
+                const chunk = decoder.decode(value);
                 if (typeof processChunk === 'function') {
-                    processChunk(decoder.decode(value));
+                    processChunk(chunk);
                 }
             }
 
-            // Replace the current local storage response at its current index
+            // Replace the current response in localStorage at its current index
+            // This maintains the navigation history properly
             responses[currentResponseIndex] = {
                 tabContent: document.getElementById('tabContainer').innerHTML,
                 contentOutput: document.getElementById('contentOutput').innerHTML,

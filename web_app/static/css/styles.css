@@ -831,15 +831,22 @@ body, html {
 }
 
 .tool-call {
+    position: relative;
     background-color: var(--tool-call-bg);
     border-left: 2px solid var(--tool-call-border);
     margin: 1px 0 0 0;
-    padding: 2px 4px;
+    padding: 2px 4px 2px 4px; /* Keep original padding */
     border-radius: 4px;
     font-size: 11px;
     max-width: 300px;
     box-shadow: 0 1px 2px var(--shadow-color);
     line-height: 1;
+    transition: max-width 0.3s ease;
+    min-height: 24px; /* Ensure minimum height for the toggle */
+}
+
+.tool-call.expanded {
+    max-width: 30vw !important;
 }
 
 .tool-call.thinking {
@@ -3330,4 +3337,77 @@ code.language-json {
     background-color: var(--bg-tertiary);
     color: var(--code-text);
     border-color: var(--border-color);
+}
+
+/* Thought Content Styles */
+.thoughts-toggle {
+    position: absolute;
+    bottom: 2px; /* Reduced from 8px */
+    right: 4px;  /* Reduced from 8px */
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;  /* Reduced from 8px */
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary, #666);
+    transition: color 0.2s ease, background-color 0.2s ease;
+    z-index: 10; /* Ensure it's on top */
+}
+
+.thoughts-toggle:hover {
+    color: var(--accent-color, #35c477);
+    background: var(--background-secondary, rgba(53, 196, 119, 0.1));
+}
+
+.chevron-icon {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s ease;
+}
+
+.thoughts-container {
+    margin-top: 8px;
+    padding-left: 16px;
+    border-left: 2px solid var(--border-color, #eee);
+}
+
+.thought-content {
+    font-style: italic;
+    color: var(--text-secondary, #666);
+    background-color: var(--background-secondary, #f8f9fa);
+    padding: 4px 8px;
+    margin: 2px 0;
+    border-radius: 3px;
+    display: block;
+    font-size: 1.1em;
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    .thought-content {
+        color: var(--text-secondary);
+        background-color: var(--background-secondary);
+        border-left-color: var(--accent-color);
+    }
+}
+
+/* If your app uses a data-theme attribute instead */
+[data-theme="dark"] .thought-content {
+    color: var(--text-secondary);
+    background-color: var(--background-secondary);
+    border-left-color: var(--accent-color);
+}
+
+.tool-call.expanded {
+    width: 30vw !important; /* Your working expand style */
+    max-width: 30vw !important;
+}
+
+.thoughts-container {
+    margin-top: 8px;
+    padding-left: 16px;
+    border-left: 2px solid var(--border-color, #eee);
+    overflow: hidden; /* Prevents content from breaking layout during transition */
 }

@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='bambooai',
-    version='0.4.08',
+    version='0.4.09',
     description='A lightweight library for working with pandas dataframes using natural language queries',
     long_description=long_description,
     long_description_content_type="text/markdown",

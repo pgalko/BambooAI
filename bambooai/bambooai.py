@@ -823,6 +823,9 @@ class BambooAI:
         if self.webui:
             self.output_manager.send_chain_id(self.thread_id, self.chain_id, self.df_id) # Send the thread_id and chain_id for the new chain to the web interface
 
+        # Path to where the generated datasets will be stored.
+        generated_datasets_path =  os.path.join('datasets', 'generated', str(self.thread_id), str(self.chain_id))
+
         if user_code is None:
             if self.exploratory is True:
                 self.output_manager.display_results(chain_id=self.chain_id, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df,api_client=self.api_client)
@@ -862,9 +865,6 @@ class BambooAI:
             if self.vector_db:
                 if self.retrieved_code is not None:
                     example_code = self.prompts.semantic_memory_code_example.format(self.retrieved_similarity_score, self.retrieved_rank, self.retrieved_code)
-            
-            # Path to where the generated datasets will be stored.
-            generated_datasets_path =  os.path.join('datasets', 'generated', str(self.thread_id), str(self.chain_id))
 
             # Call the generate_code() method to generate the code
             code, llm_response = self.generate_code(
