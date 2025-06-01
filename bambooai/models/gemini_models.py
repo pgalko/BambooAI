@@ -171,6 +171,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 if part.text or part.thought is not None:
                     if part.thought:
                         thinking_messages.append(part.text)
+                        output_manager.print_wrapper(part.text, end='', flush=True, chain_id=chain_id)
                     elif part.text:
                         answer_messages.append(part.text)
                         output_manager.print_wrapper(part.text, end='', flush=True, chain_id=chain_id)
