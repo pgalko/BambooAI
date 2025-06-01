@@ -28,7 +28,7 @@ class OutputManager:
         self.is_notebook = 'ipykernel' in sys.modules
     
     # Display the complete results.
-    def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None, query=None, data_model=None, research=None, plan=None, code=None, answer=None, plot_jsons=None, review=None, vector_db=False, generated_datasets=None):
+    def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None, query=None, data_model=None, research=None, plan=None, code=None, answer=None, plot_jsons=None, review=None, vector_db=False, generated_datasets=None, semantic_search=None):
         self.display_formated_df(df)
         self.display_formatted_data_model(data_model)
         self.display_formatted_search(research)

@@ -7,7 +7,7 @@
     {"agent": "Planner", "details": {"model": "gemini-2.5-pro-preview-05-06", "provider":"gemini","max_tokens": 15000, "temperature": 0}},
     {"agent": "Code Generator", "details": {"model": "claude-3-5-sonnet-20241022", "provider":"anthropic","max_tokens": 8000, "temperature": 0}},
     {"agent": "Error Corrector", "details": {"model": "claude-3-5-sonnet-20241022", "provider":"anthropic","max_tokens": 8000, "temperature": 0}},
-    {"agent": "Reviewer", "details": {"model": "gemini-2.5-pro-preview-05-06", "provider":"gemini","max_tokens": 8000, "temperature": 0}},
+    {"agent": "Reviewer", "details": {"model": "gemini-2.5-flash-preview-05-20", "provider":"gemini","max_tokens": 8000, "temperature": 0}},
     {"agent": "Solution Summarizer", "details": {"model": "gemini-2.5-flash-preview-05-20", "provider":"gemini","max_tokens": 4000, "temperature": 0}},
     {"agent": "Google Search Executor", "details": {"model": "gemini-2.5-flash-preview-05-20", "provider":"gemini","max_tokens": 4000, "temperature": 0}},
     {"agent": "Google Search Summarizer", "details": {"model": "gemini-2.5-flash-preview-05-20", "provider":"gemini","max_tokens": 4000, "temperature": 0}}

@@ -135,6 +135,8 @@ class BambooAI:
 
         # Set the vector_db mode. This mode is True when you want the model to rank the generated code, and store the results above threshold in a vector database.
         self.vector_db = vector_db
+        self.retrieved_similarity_score = None  # Stores the similarity score of the retrieved data from the vector database
+        self.retrieved_rank = None
 
         # Set the exploratory mode. This mode is True when you want the model to evaluate the original user prompt and break it down in algorithm.
         self.exploratory = exploratory
@@ -230,6 +232,8 @@ class BambooAI:
         self.retrieved_data_model = None
         self.retrieved_plan = None
         self.retrieved_code = None
+        self.retrieved_similarity_score = None
+        self.retrieved_rank = None
 
     def messages_maintenace(self, messages):
         # Remove tool_calls messages from the messages list
@@ -491,6 +495,8 @@ class BambooAI:
         agent = 'Analyst Selector'
         using_model,provider = models.get_model_name(agent)
 
+        self.output_manager.display_tool_start(agent,using_model, chain_id=self.chain_id)
+
         reasoning_effort = "medium"
 
         if provider in ['openai', 'anthropic', 'gemini']:
@@ -505,9 +511,36 @@ class BambooAI:
             llm_response = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, select_analyst_messages, agent=agent, chain_id=self.chain_id, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
             tool_response = []
             
-        analyst, query_unknown, query_condition, intent_breakdown = reg_ex._extract_analyst(llm_response)
+        analyst, query_unknown, query_condition, data_descr, intent_breakdown = reg_ex._extract_analyst(llm_response)
 
-        return llm_response, analyst, query_unknown, query_condition, intent_breakdown
+        # Retrieve the matching data_model, code and plan from the vector database if exists
+        if self.vector_db:
+            self.output_manager.print_wrapper(f"I am now going to search the episodic memory for similar tasks to the current one. if I find a match, I will use the plan, data model and code from the previous task to help me with the current task.", chain_id=self.chain_id)
+            self.output_manager.display_tool_info('Semantic Search', f"Searching episodic memory for similar tasks", chain_id=self.chain_id)
+            vector_data = self.pinecone_wrapper.retrieve_matching_record(intent_breakdown, data_descr, similarity_threshold=self.similarity_threshold)
+            if vector_data:
+                self.retrieved_similarity_score = str(round(vector_data['score'] * 100, 1))
+                self.retrieved_rank = str(int(vector_data['metadata']['rank']))
+                self.retrieved_plan = vector_data['metadata']['plan']
+                self.retrieved_data_model = vector_data['metadata']['data_model']
+                self.retrieved_code = vector_data['metadata']['code']
+                if self.retrieved_plan == '':
+                    self.retrieved_plan = None
+                if self.retrieved_data_model == '':
+                    self.retrieved_data_model = None
+                if self.retrieved_code == '':
+                    self.retrieved_code = None
+
+                self.output_manager.display_results(chain_id=self.chain_id, 
+                                                    semantic_search={'id': vector_data['id'],
+                                                                     'similarity_score': self.retrieved_similarity_score,
+                                                                     'rank': self.retrieved_rank, 
+                                                                     'data': vector_data['metadata']['data_descr'], 
+                                                                     'matching_task': vector_data['metadata']['intent']})
+            else:   
+                self.output_manager.print_wrapper(f"I have not found a match in the episodic memory for the current task. I will continue with the current task without using any previous data.", chain_id=self.chain_id)
+
+        return llm_response, analyst, query_unknown, query_condition, data_descr, intent_breakdown
     
     def task_eval(self, eval_messages, agent, image=None):
         '''Call the Task Evaluator'''
@@ -556,6 +589,7 @@ class BambooAI:
         query_unknown = None
         query_condition = None
         requires_dataset = None
+        data_descr = None
         confidence = None
         intent_breakdown = None
 
@@ -576,33 +610,26 @@ class BambooAI:
                                                                                                               question)
                                                                                                               })
             
-            select_analyst_llm_response, analyst, query_unknown, query_condition, intent_breakdown = self.select_analyst(self.select_analyst_messages)
+            select_analyst_llm_response, analyst, query_unknown, query_condition, data_descr, intent_breakdown = self.select_analyst(self.select_analyst_messages)
             self.user_intent = intent_breakdown
             self.select_analyst_messages.append({"role": "assistant", "content": select_analyst_llm_response})
 
-            self.output_manager.display_results(chain_id=self.chain_id, query={"expert":analyst, "original_question": question, "unknown": query_unknown, "condition": query_condition, "requires_dataset": requires_dataset, "confidence": confidence, "intent_breakdown": intent_breakdown})
-
-            if analyst == 'Data Analyst DF':
-                example_plan = self.prompts.default_example_plan_df
-            elif analyst == 'Data Analyst Generic':
-                example_plan = self.prompts.default_example_plan_gen
-
-            # Retrieve the matching data_model, code and plan from the vector database if exists
-            if self.vector_db:
-                vector_data = self.pinecone_wrapper.retrieve_matching_record(query_unknown, query_condition, self.original_df_columns, similarity_threshold=self.similarity_threshold)
-                if vector_data:
-                    self.retrieved_plan = vector_data['metadata']['plan']
-                    self.retrieved_data_model = vector_data['metadata']['data_model']
-                    self.retrieved_code = vector_data['metadata']['code']
-                    if self.retrieved_plan == '':
-                        self.retrieved_plan = None
-                    if self.retrieved_data_model == '':
-                        self.retrieved_data_model = None
-                    if self.retrieved_code == '':
-                        self.retrieved_code = None
-
-                if self.retrieved_plan is not None:
-                    example_plan = f"USE THE FOLLOWING PLAN AS A BLUEPRINT FOR YOUR SOLUTION. FOLLOW ITS GENERAL STRUCTURE, BUT IF NECESSARY MODIFY OR EXPAND STEPS AS APPROPRIATE FOR THE CURRENT TASK:\n```yaml\n{self.retrieved_plan}\n```"
+            self.output_manager.display_results(chain_id=self.chain_id, query={"expert":analyst, 
+                                                                               "original_question": question, 
+                                                                               "unknown": query_unknown, 
+                                                                               "condition": query_condition, 
+                                                                               "requires_dataset": requires_dataset, 
+                                                                               "confidence": confidence, 
+                                                                               "intent_breakdown": intent_breakdown
+                                                                               })
+            
+            if self.retrieved_plan is not None:
+                example_plan = self.prompts.semantic_memory_plan_example.format(self.retrieved_similarity_score, self.retrieved_rank, self.retrieved_plan)
+            else:
+                if analyst == 'Data Analyst DF':
+                    example_plan = self.prompts.default_example_plan_df
+                elif analyst == 'Data Analyst Generic':
+                    example_plan = self.prompts.default_example_plan_gen
 
             if analyst == 'Data Analyst DF':
                 if self.df_ontology and self.retrieved_data_model is None: # Only inspect the dataframe using ontology if the data_model is not retrieved from the vector database
@@ -705,7 +732,7 @@ class BambooAI:
 
         plan = task_eval
 
-        return analyst, plan, tool_response, query_unknown, query_condition, intent_breakdown
+        return analyst, plan, tool_response, query_unknown, query_condition, data_descr, intent_breakdown
     
     #####################
     ### Main Function ###
@@ -800,7 +827,7 @@ class BambooAI:
             if self.exploratory is True:
                 self.output_manager.display_results(chain_id=self.chain_id, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df,api_client=self.api_client)
                 # Call the taskmaster method with the user's question if the exploratory mode is True
-                analyst, plan, tool_response, query_unknown, query_condition, intent_breakdown = self.taskmaster(question, 
+                analyst, plan, tool_response, query_unknown, query_condition, data_descr, intent_breakdown = self.taskmaster(question, 
                                                                                                                  '' if self.df_id is None else utils.get_dataframe_columns(self.df, self.execution_mode, self.df_id, self.api_client),
                                                                                                                  utils.get_aux_datasets_columns(file_paths=self.auxiliary_datasets,execution_mode=self.execution_mode,executor_client=self.api_client),
                                                                                                                  image
@@ -834,7 +861,7 @@ class BambooAI:
             
             if self.vector_db:
                 if self.retrieved_code is not None:
-                    example_code = f"USE THIS CODE AS A BLUEPRINT FOR YOUR SOLUTION. FOLLOW ITS GENERAL STRUCTURE AND ALGORITHMS, BUT IF NECESSARY MODIFY AS APPROPRIATE FOR THE CURRENT TASK.\n```python\n{self.retrieved_code}\n```"
+                    example_code = self.prompts.semantic_memory_code_example.format(self.retrieved_similarity_score, self.retrieved_rank, self.retrieved_code)
             
             # Path to where the generated datasets will be stored.
             generated_datasets_path =  os.path.join('datasets', 'generated', str(self.thread_id), str(self.chain_id))
@@ -884,10 +911,10 @@ class BambooAI:
             if self.webui:
                 # For web interface, always add the rank data to the output queue. This gives the user the option to rank the response even if the vector database is not enabled
                 rank_data = {
-                    "query_unknown": query_unknown,
-                    "query_condition": query_condition,
+                    "chain_id": self.chain_id,
+                    "intent_breakdown": intent_breakdown,
                     "plan": '' if reviewed_plan is None else reviewed_plan,
-                    "original_df_columns": '' if self.df_id is None else self.original_df_columns,
+                    "data_descr": '' if data_descr is None else data_descr,
                     "data_model": '' if self.data_model is None else self.data_model,
                     "code": code,
                     "current_rank": 0
@@ -904,10 +931,10 @@ class BambooAI:
 
                     # Add the question and answer pair to the QA retrieval index
                     self.pinecone_wrapper.add_record(
-                        query_unknown, 
-                        query_condition, 
+                        self.chain_id,
+                        intent_breakdown,
                         '' if reviewed_plan is None else reviewed_plan,
-                        '' if self.df_id is None else self.original_df_columns,
+                        '' if data_descr is None else data_descr,
                         '' if self.data_model is None else self.data_model,
                         code,
                         rank,
@@ -1015,7 +1042,7 @@ class BambooAI:
 
             # Execute the code
             if code is not None:
-                self.output_manager.display_tool_info('code_execution', f"exec(code,'df': pd.DataFrame) in {execution_mode} mode", chain_id=self.chain_id)
+                self.output_manager.display_tool_info('Code Execution', f"exec(code,'df': pd.DataFrame) in {execution_mode} mode", chain_id=self.chain_id)
                 
                 new_df, new_results, error, new_plot_images, generated_datasets = executor.execute(code, self.df, self.df_id, generated_datasets_path)
                 
@@ -1090,6 +1117,9 @@ class BambooAI:
 
     def review_plan(self,code, plan):
         agent = 'Reviewer'
+
+        reasoning_effort = "low"
+
         # Initialize the messages list with a user message containing the task prompt
         self.plan_review_messages = [{"role": "user", "content": self.prompts.reviewer_system.format(code, plan)}]
 
@@ -1097,7 +1127,7 @@ class BambooAI:
 
         self.output_manager.display_tool_start(agent,using_model, chain_id=self.chain_id)
 
-        llm_response = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, self.plan_review_messages, agent=agent, chain_id=self.chain_id)
+        llm_response = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, self.plan_review_messages, agent=agent, chain_id=self.chain_id, reasoning_models=self.reasoning_models, reasoning_effort=reasoning_effort)
 
         self.plan_review_messages.append({"role": "assistant", "content": llm_response})
 

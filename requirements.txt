@@ -8,7 +8,7 @@ seaborn
 plotly
 termcolor
 newspaper3k
-pinecone
+pinecone==6.0.2
 selenium
 google-generativeai
 google-genai

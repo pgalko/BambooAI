@@ -112,7 +112,7 @@ function processChunk(chunk) {
                 }
                 else if (data.type === "request_user_context") {
                     processUserContextRequest(data);
-                }                
+                }
                 else if (data.type === "id") {
                     if (data.chain_id) {
                         currentData.chain_id = data.chain_id;
@@ -125,7 +125,10 @@ function processChunk(chunk) {
                 }
                 else if (data.type === "generated_datasets") {
                     streamOutputDiv.innerHTML += formatGeneratedDatasets(data.data);
-                } 
+                }
+                else if (data.type === "semantic_search") {
+                    streamOutputDiv.innerHTML += formatSemanticSearch(data.data);
+                }
                 else if (data.tool_start) {
                     streamOutputDiv.innerHTML += formatToolStart(data.tool_start);
                 } else if (data.call_summary) {
@@ -147,6 +150,7 @@ function processChunk(chunk) {
                     }
                 } else if (data.text) {
                     finishToolCall();
+                    
                     // Ensure any XML tags that come in chunks are escaped
                     const escapedText = data.text
                         .replace(/</g, '&lt;')
@@ -333,11 +337,14 @@ function processUserContextRequest(data) {
         <div class="user-context-request">
             <div class="feedback-container">
                 <div class="feedback-header">
-                    <svg class="question-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M9 9C9 8.40666 9.17595 7.82664 9.50559 7.33329C9.83524 6.83994 10.3038 6.45543 10.852 6.22836C11.4002 6.0013 12.0033 5.94189 12.5853 6.05765C13.1672 6.1734 13.7018 7.45912 14.1213 6.87868C14.5409 7.29824 14.8266 7.83279 14.9424 8.41473C15.0581 8.99667 14.9987 9.59981 14.7716 10.148C14.5446 10.6962 14.1601 11.1648 13.6667 11.4944C13.1734 11.8241 12.5933 12 12 12V14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M12 17H12.01" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
+                    <div class="feedback-label">
+                        <svg class="question-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M12 17h.01" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span style="color: var(--accent-color)">Feedback needed:</span>
+                    </div>
                     <span class="context-text">${formattedQuery} (Context: ${data.context_needed})</span>
                 </div>
                 <form class="feedback-form" id="${formId}">
@@ -615,10 +622,9 @@ function submitRank() {
                             controller.close();
                             
                             // After vector DB response, check for favorites storage
-                            if (userRank >= 8) {
+                            if (userRank) {
                                 storeInFavorites(userRank, statusMessage, submitButton, starRating);
                             } else {
-                                // For ranks < 8, just close the modal after vector DB response
                                 setTimeout(() => {
                                     closeRankModal();
                                     document.getElementById('rankButton').style.display = 'none';
@@ -1027,6 +1033,74 @@ function formatGeneratedDatasets(datasetsArray) {
             <ul class="generated-datasets-list">
                 ${listItemsHtml}
             </ul>
+        </div>
+    `;
+}
+
+function formatSemanticSearch(data) {
+    const vectorIconMinimal = `
+        <svg class="vector-icon-minimal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+        </svg>
+     `;
+
+    const id = data?.id || 'N/A';
+    const similarityScore = data?.similarity_score || 'N/A';
+    const rank = data?.rank || 'N/A';
+    const matchingTask = data?.matching_task;
+    const additionalData = data?.data;
+
+    const escapeHTMLDirect = (text) => {
+        if (text === undefined || text === null) return '';
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+    };
+
+    let taskHtml = '';
+    if (matchingTask) {
+        taskHtml = `
+            <div class="ss-additional-info">
+                <span class="ss-info-label">Matching Task:</span>
+                <span class="ss-info-value">${escapeHTMLDirect(matchingTask)}</span>
+            </div>
+        `;
+    }
+
+    let dataHtml = '';
+    if (additionalData !== undefined && additionalData !== null) {
+        let dataDisplayValue;
+        if (typeof additionalData === 'object') {
+            try {
+                const jsonString = JSON.stringify(additionalData);
+                dataDisplayValue = jsonString.length > 100 ? jsonString.substring(0, 97) + '...' : jsonString;
+                dataDisplayValue = `<code class="ss-data-code-preview">${escapeHTMLDirect(dataDisplayValue)}</code>`;
+            } catch (e) {
+                dataDisplayValue = escapeHTMLDirect(String(additionalData));
+            }
+        } else {
+            dataDisplayValue = escapeHTMLDirect(String(additionalData));
+        }
+        dataHtml = `
+            <div class="ss-additional-info">
+                <span class="ss-info-label">Data:</span>
+                <span class="ss-info-value">${dataDisplayValue}</span>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="semantic-search-minimal">
+            <div class="vector-header">
+                ${vectorIconMinimal}
+                Relevant Memory Found
+            </div>
+            <div class="search-details">
+                Chain ID: ${escapeHTMLDirect(id)}, Similarity Score: ${escapeHTMLDirect(similarityScore)}%, Rank: ${escapeHTMLDirect(rank)}
+            </div>
+            ${taskHtml}
+            ${dataHtml}
         </div>
     `;
 }

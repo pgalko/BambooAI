@@ -156,7 +156,7 @@ user_preferences = {}
 EXPLORATORY = True
 SEARCH_TOOL = True
 WEBUI = True
-VECTOR_DB = False
+VECTOR_DB = bool(os.getenv('PINECONE_API_KEY'))
 DF_ONTOLOGY = None
 
 # Function to generate a unique DataFrame ID
@@ -888,19 +888,19 @@ def submit_rank():
     
     data = request.json
     user_rank = data.get('rank')
-    query_unknown = data.get('query_unknown')
-    query_condition = data.get('query_condition')
+    chain_id = data.get('chain_id')
+    intent_breakdown = data.get('intent_breakdown')
     plan = data.get('plan')
-    original_df_columns = data.get('original_df_columns')
+    data_descr = data.get('data_descr')
     data_model = data.get('data_model')
     code = data.get('code')
     
     if bamboo_ai_instance.vector_db:
         bamboo_ai_instance.pinecone_wrapper.add_record(
-            query_unknown, 
-            query_condition, 
+            chain_id,
+            intent_breakdown,
             plan, 
-            original_df_columns,
+            data_descr,
             data_model, 
             code, 
             user_rank, 
@@ -1183,8 +1183,16 @@ def get_chain_preview(thread_id, chain_id):
     
 @app.route('/delete_chain/<thread_id>/<chain_id>', methods=['DELETE'])
 def delete_chain(thread_id, chain_id):
-    """Delete a chain from the favorites directory"""
+    """Delete a chain from the favorites directory and vector db if applicable."""
     try:
+        session_id = session.get('session_id')
+        
+        # Delete from vector database if enabled
+        if session_id and session_id in bamboo_ai_instances:
+            bamboo_ai_instance = bamboo_ai_instances[session_id]
+            if bamboo_ai_instance.vector_db:           
+                bamboo_ai_instance.pinecone_wrapper.delete_record(chain_id)
+
         # Construct the path to the chain file
         chain_file = os.path.join('storage', 'favourites', thread_id, f'{chain_id}.json')
         
@@ -1352,4 +1360,4 @@ if __name__ == '__main__':
     clear_datasets_folder()
     
     # Start the Flask app
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)

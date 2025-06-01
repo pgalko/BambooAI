@@ -186,7 +186,8 @@ def _extract_analyst(response: str) -> tuple:
         query_unknown = data['unknown']
         query_condition = data['condition']
         intent_breakdown = data['intent_breakdown']
-        return analyst, query_unknown, query_condition, intent_breakdown
+        data_descr = data['data']
+        return analyst, query_unknown, query_condition, data_descr, intent_breakdown
     except (yaml.YAMLError, KeyError):
         # Fallback: try to match using regex if parsing fails or keys are missing
         match = re.search(pattern, response)

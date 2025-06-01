@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='bambooai',
-    version='0.4.07',
+    version='0.4.08',
     description='A lightweight library for working with pandas dataframes using natural language queries',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -27,7 +27,7 @@ setup(
         'plotly',
         'termcolor',
         'newspaper3k',
-        'pinecone',
+        'pinecone==6.0.2',
         'selenium',
         'google-generativeai',
         'google-genai',

@@ -779,7 +779,7 @@ body, html {
 .tool-start {
     display: flex;
     align-items: center;
-    margin: 12px 0 6px 0; /* Vertical spacing: 12px top, 6px bottom. Horizontal 0. */
+    margin: 1px 0 0 0; /* Vertical spacing: 1px top, 6px bottom. Horizontal 0. */
     font-size: 11px;
     line-height: 1.4; /* Improved readability */
     color: var(--system-message-text); /* Default text color for children */
@@ -833,7 +833,7 @@ body, html {
 .tool-call {
     background-color: var(--tool-call-bg);
     border-left: 2px solid var(--tool-call-border);
-    margin: 1px 0;
+    margin: 1px 0 0 0;
     padding: 2px 4px;
     border-radius: 4px;
     font-size: 11px;
@@ -1256,6 +1256,8 @@ body, html {
     padding: 2px;
 }
 
+.star-rating label[for="star6"],
+.star-rating label[for="star7"],
 .star-rating label[for="star8"],
 .star-rating label[for="star9"],
 .star-rating label[for="star10"] {
@@ -1270,7 +1272,7 @@ body, html {
 
 .knowledge-base-hint {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: var(--info-color);
     margin-top: 5px;
     font-weight: 400;
     opacity: 0.8;
@@ -2596,7 +2598,6 @@ code.language-json {
     border-color: var(--accent-color); /* #50fa7b in dark mode */
 }
 
-
 /* User Context Request Styles */
 #streamOutput .user-context-request {
     margin: 0; /* Prevent inherited margins */
@@ -2612,64 +2613,83 @@ code.language-json {
 
 /* Feedback container (encloses header, form, and message) */
 #streamOutput .user-context-request .feedback-container {
-    margin: 4px 0; /* Consistent margin around the container */
-    padding: 8px; /* Reduced padding for a tighter layout */
+    margin: 0.5rem 0; /* Match vector search margin */
+    padding: 15px; /* Match vector search padding */
     border: 1px solid var(--border-color);
-    border-left: 2px solid var(--accent-color); /* Added accent border */
     border-radius: 4px;
     background-color: var(--bg-secondary);
+    box-shadow: 0 1px 3px var(--shadow-color); /* Add shadow like vector search */
     display: flex;
     flex-direction: column;
-    gap: 6px; /* Tight gap between header, form, and message */
-    font-family: Arial, sans-serif; /* Ensure correct font */
-    font-weight: normal; /* Ensure normal weight */
-    color: var(--text-secondary); /* Match #streamOutput text color */
-    white-space: normal; /* Ensure normal text wrapping */
-    line-height: 1.5; /* Normalize line height */
-}
-
-/* Feedback header (with icon) */
-#streamOutput .user-context-request .feedback-header {
-    display: flex; /* Changed to flex to align icon and text */
-    align-items: center;
-    gap: 4px; /* Space between icon and text */
+    gap: 12px; /* Match vector search gaps */
     font-family: Arial, sans-serif;
     font-weight: normal;
-    color: var(--text-secondary); /* Match #streamOutput text color */
+    color: var(--text-secondary);
     white-space: normal;
-    margin-bottom: 0; /* Ensure consistent spacing */
+    line-height: 1.5;
 }
 
-/* Question mark icon */
+/* Feedback header (with icon) - Updated structure */
+#streamOutput .user-context-request .feedback-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* Match vector search gaps */
+    font-family: Arial, sans-serif;
+    font-weight: normal; /* Keep normal, let individual elements control weight */
+    color: var(--text-secondary);
+    white-space: normal;
+    margin-bottom: 0;
+}
+
+/* Container for icon + "Feedback needed:" on first line */
+#streamOutput .user-context-request .feedback-header .feedback-label {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Match vector search gap */
+    font-size: 14px; /* Add explicit font-size like vector search */
+    font-weight: 600; /* Add explicit font-weight like vector search */
+    color: var(--accent-color); /* Add explicit color like vector search */
+    padding-bottom: 8px; /* Move padding here */
+    border-bottom: 1px solid var(--border-color); /* Move border here */
+}
+
+
 #streamOutput .user-context-request .feedback-header .question-icon {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     stroke: var(--accent-color);
     fill: none;
     flex-shrink: 0;
 }
 
-/* Feedback text */
-#streamOutput .user-context-request .feedback-header .context-text {
-    font-family: Arial, sans-serif; /* Override monospace from #streamOutput */
-    font-size: 14px; /* Match Feedback Submitted */
-    color: var(--text-secondary); /* Match #streamOutput text color */
-    font-weight: normal; /* Ensure normal weight */
+/* "Feedback needed:" text in the label */
+#streamOutput .user-context-request .feedback-header .feedback-label span {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    color: var(--accent-color);
+    font-weight: 600; /* Match vector search weight */
     font-style: normal;
     text-decoration: none;
     white-space: normal;
     line-height: 1.5;
 }
 
-/* Style "Feedback needed:" in accent color */
-#streamOutput .user-context-request .feedback-header .context-text::before {
-    content: "Feedback needed: ";
-    color: var(--accent-color); /* Accent color for "Feedback needed:" */
+/* Feedback request text (the actual question/request) */
+#streamOutput .user-context-request .feedback-header .context-text {
     font-family: Arial, sans-serif;
-    font-size: 14px; /* Match Feedback Submitted */
-    font-weight: normal; /* Ensure normal weight */
+    font-size: 14px; /* Match original size */
+    color: var(--text-secondary);
+    font-weight: normal;
     font-style: normal;
     text-decoration: none;
+    white-space: normal;
+    line-height: 1.5;
+    margin-left: 0; /* Align with left edge */
+}
+
+/* Remove the ::before pseudo-element since we're restructuring */
+#streamOutput .user-context-request .feedback-header .context-text::before {
+    display: none;
 }
 
 /* Feedback form */
@@ -2679,7 +2699,7 @@ code.language-json {
     gap: 8px;
     font-family: Arial, sans-serif;
     font-weight: normal;
-    color: var(--text-secondary); /* Match #streamOutput text color */
+    color: var(--text-secondary);
     white-space: normal;
 }
 
@@ -2693,7 +2713,7 @@ code.language-json {
     font-size: 14px;
     font-weight: normal;
     background: transparent;
-    color: var(--text-secondary); /* Match #streamOutput text color */
+    color: var(--text-secondary);
     transition: border-color 0.2s;
     white-space: normal;
     line-height: 1.5;
@@ -2718,7 +2738,7 @@ code.language-json {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--accent-color); /* Theme accent for the button */
+    color: var(--accent-color);
     transition: color 0.2s;
     font-family: Arial, sans-serif;
     font-weight: normal;
@@ -2736,26 +2756,26 @@ code.language-json {
 }
 
 #streamOutput .user-context-request .feedback-submit:hover:not(:disabled) {
-    color: var(--accent-hover); /* Theme accent hover color */
+    color: var(--accent-hover);
 }
 
 /* Feedback message */
 #streamOutput .user-context-request .feedback-message {
     font-family: Arial, sans-serif;
-    font-size: 14px; /* Match Feedback Needed */
+    font-size: 14px;
     font-weight: normal;
-    color: var(--accent-color); /* Theme accent for the message */
+    color: var(--accent-color);
     white-space: normal;
     line-height: 1.5;
-    margin-top: 0; /* Consistent spacing */
+    margin-top: 0;
 }
 
 /* Submitted feedback text */
 #streamOutput .user-context-request .feedback-message .submitted-feedback {
-    font-size: 11px; /* Slightly smaller for distinction */
-    color: var(--text-secondary); /* Match the query/context text color */
-    display: block; /* Ensure it appears on a new line */
-    margin-top: 4px; /* Small spacing between "Feedback submitted!" and the feedback text */
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    display: block;
+    margin-top: 4px;
 }
 
 /* Additional CSS styles to improve the formatting of feedback text */
@@ -2808,14 +2828,6 @@ code.language-json {
 #streamOutput .user-context-request .context-separator {
     margin: 0 0.25em;
 }
-/* Interactive Pills Container */
-.interactive-pills-container {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 15px 0;
-    width: 100%;
-}
 
 /* --- Hide scrollbar for #streamOutput --- */
 
@@ -2828,6 +2840,15 @@ code.language-json {
 #streamOutput {
     scrollbar-width: none;  /* Firefox 64+ */
     -ms-overflow-style: none; /* Internet Explorer 10+ (and older Edge) */
+}
+
+/* Interactive Pills Container */
+.interactive-pills-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 15px 0;
+    width: 100%;
 }
 
 /* Interactive Pill Style */
@@ -3204,4 +3225,109 @@ code.language-json {
 #streamOutput .dataset-link .dataset-path {
     word-break: break-word;
     line-height: 1.3;
+}
+
+
+
+/* Vector Search Results Styles - Generated Datasets Style */
+#streamOutput .semantic-search-minimal {
+    margin: 0.5rem 0;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-secondary);
+    box-shadow: 0 1px 3px var(--shadow-color);
+    font-family: Arial, sans-serif;
+    white-space: normal;
+    line-height: 1.5;
+}
+
+/* Vector search header (similar to generated-datasets-header) */
+#streamOutput .semantic-search-minimal .vector-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-color);
+    margin-top: 0;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Vector icon in header */
+#streamOutput .semantic-search-minimal .vector-icon-minimal {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
+}
+
+/* Search details section */
+#streamOutput .semantic-search-minimal .search-details {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: normal;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+/* Additional info sections (Task and Data) */
+#streamOutput .semantic-search-minimal .ss-additional-info {
+    margin-bottom: 8px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+#streamOutput .semantic-search-minimal .ss-additional-info:last-child {
+    margin-bottom: 0;
+}
+
+#streamOutput .semantic-search-minimal .ss-info-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-right: 0.5em;
+}
+
+#streamOutput .semantic-search-minimal .ss-info-value {
+    color: var(--text-secondary);
+    font-weight: normal;
+}
+
+#streamOutput .semantic-search-minimal .ss-data-code-preview {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: var(--bg-tertiary);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-size: 13px;
+    color: var(--code-text);
+    border: 1px solid var(--border-color);
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] #streamOutput .semantic-search-minimal .vector-header {
+    color: var(--accent-color);
+    border-bottom-color: var(--border-color);
+}
+
+[data-theme="dark"] #streamOutput .semantic-search-minimal .search-details {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] #streamOutput .semantic-search-minimal .ss-info-label {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] #streamOutput .semantic-search-minimal .ss-info-value {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] #streamOutput .semantic-search-minimal .ss-data-code-preview {
+    background-color: var(--bg-tertiary);
+    color: var(--code-text);
+    border-color: var(--border-color);
 }

@@ -11,6 +11,7 @@ _DEFAULT_PROMPTS_FILENAME = "default_prompts.yaml"
 _EXPECTED_TEMPLATES = [
     "default_example_output_df", "default_example_output_gen",
     "default_example_plan_df", "default_example_plan_gen",
+    "semantic_memory_plan_example", "semantic_memory_code_example",
     "expert_selector_system", "expert_selector_user",
     "analyst_selector_system", "analyst_selector_user",
     "planner_system", "planner_user_gen", "planner_user_df",
