@@ -111,7 +111,23 @@ function processChunk(chunk) {
                     processHtmlContent(data.content);
                 }
                 else if (data.type === "request_user_context") {
-                    processUserContextRequest(data);
+                    // Find the most recent feedback request tool call and add to its container
+                    const feedbackElements = document.querySelectorAll('.tool-call.feedback-request');
+                    const latestFeedback = feedbackElements[feedbackElements.length - 1];
+                    
+                    if (latestFeedback) {
+                        const resultsContainer = latestFeedback.querySelector('.results-container');
+                        if (resultsContainer) {
+                            resultsContainer.innerHTML = formatFeedbackRequest(data);
+                            // Auto-expand feedback requests
+                            resultsContainer.style.display = 'block';
+                            latestFeedback.classList.add('expanded');
+                            const chevronIcon = latestFeedback.querySelector('.chevron-icon');
+                            if (chevronIcon) {
+                                chevronIcon.style.transform = 'rotate(180deg)';
+                            }
+                        }
+                    } 
                 }
                 else if (data.type === "id") {
                     if (data.chain_id) {
@@ -142,7 +158,34 @@ function processChunk(chunk) {
                     streamOutputDiv.innerHTML += formatGeneratedDatasets(data.data);
                 }
                 else if (data.type === "semantic_search") {
-                    streamOutputDiv.innerHTML += formatSemanticSearch(data.data);
+                    // Find the most recent semantic search tool call and add results to its container
+                    const semanticSearchElements = document.querySelectorAll('.tool-call.semantic-search');
+                    const latestSemanticSearch = semanticSearchElements[semanticSearchElements.length - 1];
+                    
+                    if (latestSemanticSearch) {
+                        const resultsContainer = latestSemanticSearch.querySelector('.results-container');
+                        if (resultsContainer) {
+                            resultsContainer.innerHTML = formatSemanticSearch(data.data);
+                        }
+                    } else {
+                        // Fallback to original behavior if no matching tool call found
+                        streamOutputDiv.innerHTML += formatSemanticSearch(data.data);
+                    }
+                }
+                else if (data.type === "code_exec_results") {
+                    // Find the most recent code execution tool call and add results to its container
+                    const codeExecElements = document.querySelectorAll('.tool-call.code-execution');
+                    const latestCodeExec = codeExecElements[codeExecElements.length - 1];
+                    
+                    if (latestCodeExec) {
+                        const resultsContainer = latestCodeExec.querySelector('.results-container');
+                        if (resultsContainer) {
+                            resultsContainer.innerHTML = formatCodeExecResults(data.data);
+                        }
+                    } else {
+                        // Fallback to original behavior if no matching tool call found
+                        streamOutputDiv.innerHTML += formatCodeExecResults(data.data);
+                    }
                 }
                 else if (data.tool_start) {
                     streamOutputDiv.innerHTML += formatToolStart(data.tool_start);
@@ -299,19 +342,10 @@ function processHtmlContent(content) {
     }
 }
 
-function processUserContextRequest(data) {
-    const streamOutputDiv = document.getElementById('streamOutput');
-    // Generate a unique ID for this specific form instance
+function formatFeedbackRequest(data) {
     const formId = `feedback-form-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     
-    console.log('Received feedback request:', {
-        query_clarification: data.query_clarification,
-        context_needed: data.context_needed,
-        chain_id: currentData.chain_id,
-        formId: formId
-    });
-    
-    // Format the query text for better readability
+    // Format the query text for better readability (handle numbered items and bullet points)
     let formattedQuery = data.query_clarification;
     
     // Check if the text contains numbered items or bullet points
@@ -326,15 +360,15 @@ function processUserContextRequest(data) {
         const formattedLines = lines.map(line => {
             // Check for numbered items (e.g., "1. Item")
             if (/^\s*\d+\.\s/.test(line)) {
-                return `<div class="list-item">${line}</div>`;
+                return `<div class="feedback-list-item">${line}</div>`;
             }
             // Check for bullet points (e.g., "- Item")
             else if (/^\s*-\s/.test(line)) {
-                return `<div class="list-item">${line}</div>`;
+                return `<div class="feedback-list-item">${line}</div>`;
             }
             // Regular lines
             else if (line.trim()) {
-                return `<div>${line}</div>`;
+                return `<div class="feedback-text-line">${line}</div>`;
             }
             // Empty lines
             return '';
@@ -343,94 +377,65 @@ function processUserContextRequest(data) {
         formattedQuery = formattedLines.join('');
     } else {
         // If no list items, just add paragraph breaks
-        formattedQuery = formattedQuery.replace(/\n\n/g, '</div><div>');
-        formattedQuery = `<div>${formattedQuery}</div>`;
+        formattedQuery = formattedQuery.replace(/\n\n/g, '</div><div class="feedback-text-line">');
+        formattedQuery = `<div class="feedback-text-line">${formattedQuery}</div>`;
     }
     
-    // Create the feedback container with the unique ID and formatted query
-    streamOutputDiv.innerHTML += `
-        <div class="user-context-request">
-            <div class="feedback-container">
-                <div class="feedback-header">
-                    <div class="feedback-label">
-                        <svg class="question-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="12" cy="12" r="10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M12 17h.01" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        <span style="color: var(--accent-color)">Feedback needed:</span>
-                    </div>
-                    <span class="context-text">${formattedQuery} (Context: ${data.context_needed})</span>
-                </div>
-                <form class="feedback-form" id="${formId}">
-                    <input type="text" class="feedback-input" placeholder="Enter your feedback here">
-                    <button type="submit" class="feedback-submit" aria-label="Submit feedback">
-                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                        </svg>
-                    </button>
-                </form>
-                <div class="feedback-message"></div>
-            </div>
+    const content = `
+        <div class="feedback-result-content">
+            <span class="feedback-label">Question:</span> ${formattedQuery}
+            <br><br>
+            <span class="feedback-label">Context:</span> ${data.context_needed}
+            
+            <form class="feedback-form-simple" id="${formId}">
+                <textarea class="feedback-input-simple" placeholder="Enter your feedback here" required rows="1"></textarea>
+                <button type="submit" class="feedback-submit-simple">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22,2 15,22 11,13 2,9"></polygon>
+                    </svg>
+                </button>
+            </form>
+            <div class="feedback-message-simple"></div>
         </div>
     `;
     
-    // Add some additional CSS styles for the formatted text
-    const styleId = 'feedback-formatting-styles';
-    if (!document.getElementById(styleId)) {
-        const style = document.createElement('style');
-        style.id = styleId;
-        style.textContent = `
-            #streamOutput .user-context-request .list-item {
-                margin-left: 1.5em;
-                position: relative;
-                padding-left: 0.5em;
-            }
-            
-            #streamOutput .user-context-request .context-text > div {
-                margin-bottom: 0.5em;
-            }
-            
-            #streamOutput .user-context-request .context-text > div:last-child {
-                margin-bottom: 0;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    // Add event listener for the form
+    // Add event listener
     setTimeout(() => {
         const form = document.getElementById(formId);
         if (form) {
-            // Use a closure to capture the original data and prevent scope issues
-            const queryData = {
-                queryClarification: data.query_clarification,
-                contextNeeded: data.context_needed
-            };
+            const textarea = form.querySelector('.feedback-input-simple');
+            
+            // Auto-resize functionality
+            function autoResize() {
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
+            }
+            
+            // Add input event listener for auto-resize
+            textarea.addEventListener('input', autoResize);
+            
+            // Initial resize
+            autoResize();
             
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
-                
-                // Get fresh input value from the form element
-                const input = this.querySelector('.feedback-input');
-                const feedback = input.value.trim();
+                const feedback = textarea.value.trim();
                 
                 if (!feedback) {
-                    console.warn('Feedback submission attempted with empty input');
                     alert('Please provide feedback before submitting.');
                     return;
                 }
                 
-                // Use the data captured in the closure
-                submitFeedback(feedback, queryData.queryClarification, queryData.contextNeeded, this);
+                submitFeedbackSimple(feedback, data.query_clarification, data.context_needed, this);
             });
             
-            // Focus the input field
-            form.querySelector('.feedback-input').focus();
-        } else {
-            console.error('Could not find form with ID:', formId);
+            // Focus the textarea
+            textarea.focus();
         }
     }, 0);
+    
+    return content;
 }
 
 //--------------------
@@ -461,25 +466,25 @@ function completeToolCall(id, startTime) {
     }
 }
 
-function toggleThoughts(toolCallId) {
+function toggleToolResults(toolCallId) {
     const toolCallElement = document.getElementById(toolCallId);
     if (toolCallElement) {
-        const thoughtsContainer = toolCallElement.querySelector('.thoughts-container');
+        const container = toolCallElement.querySelector('.thoughts-container, .results-container');
         const chevronIcon = toolCallElement.querySelector('.chevron-icon');
         
-        if (thoughtsContainer && chevronIcon) {
-            const isVisible = thoughtsContainer.style.display !== 'none';
+        if (container && chevronIcon) {
+            const isVisible = container.style.display !== 'none';
             
             if (isVisible) {
-                // Collapsing - arrow points down
-                thoughtsContainer.style.display = 'none';
+                // Collapsing
+                container.style.display = 'none';
                 toolCallElement.classList.remove('expanded');
-                chevronIcon.style.transform = 'rotate(0deg)'; // Points down
+                chevronIcon.style.transform = 'rotate(0deg)';
             } else {
-                // Expanding - arrow points up
-                thoughtsContainer.style.display = 'block';
+                // Expanding
+                container.style.display = 'block';
                 toolCallElement.classList.add('expanded');
-                chevronIcon.style.transform = 'rotate(180deg)'; // Points up
+                chevronIcon.style.transform = 'rotate(180deg)';
             }
         }
     }
@@ -489,9 +494,8 @@ function toggleThoughts(toolCallId) {
 //  FEEDBACK SYSTEM
 //--------------------
 
-function submitFeedback(feedback, queryClarification, contextNeeded, form) {
+function submitFeedbackSimple(feedback, queryClarification, contextNeeded, form) {
     if (!currentData.chain_id) {
-        console.error('Chain ID is missing:', currentData);
         alert('Error: Chain ID not set. Please try again.');
         return;
     }
@@ -502,38 +506,25 @@ function submitFeedback(feedback, queryClarification, contextNeeded, form) {
         query_clarification: queryClarification,
         context_needed: contextNeeded
     };
-    
-    console.log('Submitting feedback payload:', payload);
 
     fetch('/submit_feedback', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     })
     .then(response => {
-        console.log('Feedback submission response status:', response.status);
-        if (!response.ok) {
-            throw new Error(`HTTP error: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
         return response.json();
     })
     .then(data => {
-        console.log('Feedback submission successful:', data);
-        const container = form.closest('.feedback-container');
-        const messageDiv = container.querySelector('.feedback-message');
-        const safeHtml = document.createElement('div');
-        safeHtml.textContent = feedback;
-        messageDiv.innerHTML = `Feedback submitted!<br><span class="submitted-feedback">${safeHtml.innerHTML}</span>`;
-        form.querySelector('.feedback-input').disabled = true;
-        form.querySelector('.feedback-submit').disabled = true;
+        const messageDiv = form.parentElement.querySelector('.feedback-message-simple');
+        messageDiv.innerHTML = `Feedback submitted: "${feedback}"`;
+        form.querySelector('.feedback-input-simple').disabled = true;
+        form.querySelector('.feedback-submit-simple').disabled = true;
     })
     .catch(error => {
-        console.error('Feedback submission failed:', error);
-        const container = form.closest('.feedback-container');
-        const messageDiv = container.querySelector('.feedback-message');
-        messageDiv.textContent = 'Error submitting feedback: ' + error.message;
+        const messageDiv = form.parentElement.querySelector('.feedback-message-simple');
+        messageDiv.innerHTML = 'Error: ' + error.message;
         messageDiv.style.color = '#ff0000';
     });
 }
@@ -969,8 +960,12 @@ function closePopup() {
 //--------------------
 
 function formatToolCall(toolCall) {
-    const id = 'tool-call-' + Date.now(); // Generate a unique ID
+    const id = 'tool-call-' + Date.now();
     const isThinking = toolCall.action === "Thinking";
+    const isSemanticSearch = toolCall.action === "Semantic Search";
+    const isCodeExecution = toolCall.action === "Code Execution";
+    const isFeedbackRequest = toolCall.action === "Feedback Request";
+    const hasToggle = isThinking || isSemanticSearch || isCodeExecution || isFeedbackRequest;
     
     // Define icons
     const wrenchIcon = `
@@ -989,19 +984,21 @@ function formatToolCall(toolCall) {
     `;
 
     const chevronIcon = `
-    <svg class="chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(0deg);">
-        <polyline points="6 9 12 15 18 9"></polyline>
-    </svg>
-   `;
+        <svg class="chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(0deg);">
+            <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+    `;
 
-    const thoughtsToggle = isThinking ? `
-        <button class="thoughts-toggle" onclick="toggleThoughts('${id}')" title="Toggle thoughts">
+    const resultsToggle = hasToggle ? `
+        <button class="thoughts-toggle" onclick="toggleToolResults('${id}')" title="Toggle ${isThinking ? 'thoughts' : isFeedbackRequest ? 'feedback' : 'results'}">
             ${chevronIcon}
         </button>
     ` : '';
 
+    const containerClass = isThinking ? 'thoughts-container' : 'results-container';
+
     return `
-        <div class="tool-call ${isThinking ? 'thinking' : ''}" id="${id}">
+        <div class="tool-call ${isThinking ? 'thinking' : ''} ${isSemanticSearch ? 'semantic-search' : ''} ${isCodeExecution ? 'code-execution' : ''} ${isFeedbackRequest ? 'feedback-request' : ''}" id="${id}">
             <div class="tool-call-header">
                 <span class="tool-call-action" title="${toolCall.action}">
                     ${isThinking ? brainIcon : wrenchIcon}
@@ -1011,10 +1008,10 @@ function formatToolCall(toolCall) {
                     <div class="spinner"></div>
                     <span>In progress...</span>
                 </span>
-                ${thoughtsToggle}
+                ${resultsToggle}
             </div>
             <div class="tool-call-input" title="${toolCall.input}">${toolCall.input}</div>
-            <div class="thoughts-container" style="display: none;"></div>
+            <div class="${containerClass}" style="display: none;"></div>
             <div class="completion-message" style="display: none;"></div>
         </div>
     `;
@@ -1090,19 +1087,12 @@ function formatGeneratedDatasets(datasetsArray) {
     `;
 }
 
-function formatSemanticSearch(data) {
-    const vectorIconMinimal = `
-        <svg class="vector-icon-minimal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-        </svg>
-     `;
-
-    const id = data?.id || 'N/A';
-    const similarityScore = data?.similarity_score || 'N/A';
-    const rank = data?.rank || 'N/A';
-    const matchingTask = data?.matching_task;
-    const additionalData = data?.data;
-
+function formatCodeExecResults(data) {
+    // Handle empty or no results
+    if (!data) {
+        return `<div class="code-result-content">No execution results</div>`;
+    }
+    
     const escapeHTMLDirect = (text) => {
         if (text === undefined || text === null) return '';
         return String(text)
@@ -1111,51 +1101,79 @@ function formatSemanticSearch(data) {
             .replace(/>/g, "&gt;");
     };
 
-    let taskHtml = '';
-    if (matchingTask) {
-        taskHtml = `
-            <div class="ss-additional-info">
-                <span class="ss-info-label">Matching Task:</span>
-                <span class="ss-info-value">${escapeHTMLDirect(matchingTask)}</span>
-            </div>
-        `;
+    let content = '';
+    
+    // Handle different types of code execution results
+    if (data.output) {
+        content += `<span class="code-label">Output:</span><br>${escapeHTMLDirect(data.output)}`;
+    }
+    
+    if (data.error) {
+        if (content) content += '<br><br>';
+        content += `<span class="code-label error">Error:</span><br>${escapeHTMLDirect(data.error)}`;
+    }
+    
+    if (data.execution_time) {
+        if (content) content += '<br><br>';
+        content += `<span class="code-label">Execution Time:</span> ${escapeHTMLDirect(data.execution_time)}`;
+    }
+    
+    // If data is just a string, display it directly
+    if (typeof data === 'string') {
+        content = `<span class="code-label">Result:</span><br>${escapeHTMLDirect(data)}`;
     }
 
-    let dataHtml = '';
-    if (additionalData !== undefined && additionalData !== null) {
-        let dataDisplayValue;
-        if (typeof additionalData === 'object') {
-            try {
-                const jsonString = JSON.stringify(additionalData);
-                dataDisplayValue = jsonString.length > 100 ? jsonString.substring(0, 97) + '...' : jsonString;
-                dataDisplayValue = `<code class="ss-data-code-preview">${escapeHTMLDirect(dataDisplayValue)}</code>`;
-            } catch (e) {
+    return `<div class="code-result-content">${content || 'Execution completed'}</div>`;
+}
+
+function formatSemanticSearch(data) {
+    // Handle empty or no results
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+        return `<div class="search-result-content">No matches found</div>`;
+    }
+    
+    // Handle single result or array of results
+    const results = Array.isArray(data) ? data : [data];
+    
+    return results.map(result => {
+        const id = result?.id || 'N/A';
+        const similarityScore = result?.similarity_score || 'N/A';
+        const rank = result?.rank || 'N/A';
+        const matchingTask = result?.matching_task;
+        const additionalData = result?.data;
+
+        const escapeHTMLDirect = (text) => {
+            if (text === undefined || text === null) return '';
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+        };
+
+        let content = `<span class="search-label">Match Found:</span> ID: ${escapeHTMLDirect(id)}, Score: ${escapeHTMLDirect(similarityScore)}%, Rank: ${escapeHTMLDirect(rank)}`;
+        
+        if (matchingTask) {
+            content += `<br><br><span class="search-label">Task:</span> ${escapeHTMLDirect(matchingTask)}`;
+        }
+        
+        if (additionalData !== undefined && additionalData !== null) {
+            let dataDisplayValue;
+            if (typeof additionalData === 'object') {
+                try {
+                    const jsonString = JSON.stringify(additionalData);
+                    dataDisplayValue = jsonString.length > 100 ? jsonString.substring(0, 97) + '...' : jsonString;
+                    dataDisplayValue = `<code class="search-code">${escapeHTMLDirect(dataDisplayValue)}</code>`;
+                } catch (e) {
+                    dataDisplayValue = escapeHTMLDirect(String(additionalData));
+                }
+            } else {
                 dataDisplayValue = escapeHTMLDirect(String(additionalData));
             }
-        } else {
-            dataDisplayValue = escapeHTMLDirect(String(additionalData));
+            content += `<br><br><span class="search-label">Data:</span> ${dataDisplayValue}`;
         }
-        dataHtml = `
-            <div class="ss-additional-info">
-                <span class="ss-info-label">Data:</span>
-                <span class="ss-info-value">${dataDisplayValue}</span>
-            </div>
-        `;
-    }
 
-    return `
-        <div class="semantic-search-minimal">
-            <div class="vector-header">
-                ${vectorIconMinimal}
-                Relevant Memory Found
-            </div>
-            <div class="search-details">
-                Chain ID: ${escapeHTMLDirect(id)}, Similarity Score: ${escapeHTMLDirect(similarityScore)}%, Rank: ${escapeHTMLDirect(rank)}
-            </div>
-            ${taskHtml}
-            ${dataHtml}
-        </div>
-    `;
+        return `<div class="search-result-content">${content}</div>`;
+    }).join('');
 }
 
 function formatError(error) {

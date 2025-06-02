@@ -140,7 +140,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
 
     if reasoning_models and model_name in reasoning_models:
         config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True)
-        output_manager.display_tool_info('Thinking', f"Model {model_name} needs a moment to think...", chain_id=chain_id)
+        output_manager.display_tool_info('Thinking', f"Model needs a moment to think...", chain_id=chain_id)
 
     if tools:
         for tool in tools:

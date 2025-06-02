@@ -2605,236 +2605,219 @@ code.language-json {
     border-color: var(--accent-color); /* #50fa7b in dark mode */
 }
 
-/* User Context Request Styles */
-#streamOutput .user-context-request {
-    margin: 0; /* Prevent inherited margins */
-    padding: 0; /* Prevent inherited padding */
-    font-family: Arial, sans-serif; /* Reset inherited font-family */
-    font-weight: normal; /* Reset inherited font-weight */
-    color: var(--text-secondary); /* Match #streamOutput text color */
-    white-space: normal; /* Override white-space: pre-wrap from #streamOutput */
-    line-height: 1.5; /* Normalize line height */
-    font-style: normal; /* Prevent italic or other styles */
-    text-decoration: none; /* Prevent underlines or other decorations */
-}
+/* Feedback Results - Using your preferred styles with textarea support */
 
-/* Feedback container (encloses header, form, and message) */
-#streamOutput .user-context-request .feedback-container {
-    margin: 0.5rem 0; /* Match vector search margin */
-    padding: 15px; /* Match vector search padding */
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
+#streamOutput .feedback-result-content {
+    margin: 0;
+    padding: 0;
+    font-family: inherit !important; /* Use streamOutput's monospace font like semantic search */
+    font-weight: normal;
+    color: var(--text-secondary);
+    white-space: normal !important; /* Critical: Override streamOutput's pre-wrap */
+    line-height: 1.4;
+    font-style: italic; /* Match semantic search italic style */
     background-color: var(--bg-secondary);
-    box-shadow: 0 1px 3px var(--shadow-color); /* Add shadow like vector search */
-    display: flex;
-    flex-direction: column;
-    gap: 12px; /* Match vector search gaps */
-    font-family: Arial, sans-serif;
-    font-weight: normal;
-    color: var(--text-secondary);
-    white-space: normal;
-    line-height: 1.5;
-}
-
-/* Feedback header (with icon) - Updated structure */
-#streamOutput .user-context-request .feedback-header {
-    display: flex;
-    flex-direction: column;
-    gap: 8px; /* Match vector search gaps */
-    font-family: Arial, sans-serif;
-    font-weight: normal; /* Keep normal, let individual elements control weight */
-    color: var(--text-secondary);
-    white-space: normal;
-    margin-bottom: 0;
-}
-
-/* Container for icon + "Feedback needed:" on first line */
-#streamOutput .user-context-request .feedback-header .feedback-label {
-    display: flex;
-    align-items: center;
-    gap: 8px; /* Match vector search gap */
-    font-size: 14px; /* Add explicit font-size like vector search */
-    font-weight: 600; /* Add explicit font-weight like vector search */
-    color: var(--accent-color); /* Add explicit color like vector search */
-    padding-bottom: 8px; /* Move padding here */
-    border-bottom: 1px solid var(--border-color); /* Move border here */
-}
-
-
-#streamOutput .user-context-request .feedback-header .question-icon {
-    width: 18px;
-    height: 18px;
-    stroke: var(--accent-color);
-    fill: none;
-    flex-shrink: 0;
-}
-
-/* "Feedback needed:" text in the label */
-#streamOutput .user-context-request .feedback-header .feedback-label span {
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    color: var(--accent-color);
-    font-weight: 600; /* Match vector search weight */
-    font-style: normal;
-    text-decoration: none;
-    white-space: normal;
-    line-height: 1.5;
-}
-
-/* Feedback request text (the actual question/request) */
-#streamOutput .user-context-request .feedback-header .context-text {
-    font-family: Arial, sans-serif;
-    font-size: 14px; /* Match original size */
-    color: var(--text-secondary);
-    font-weight: normal;
-    font-style: normal;
-    text-decoration: none;
-    white-space: normal;
-    line-height: 1.5;
-    margin-left: 0; /* Align with left edge */
-}
-
-/* Remove the ::before pseudo-element since we're restructuring */
-#streamOutput .user-context-request .feedback-header .context-text::before {
-    display: none;
-}
-
-/* Feedback form */
-#streamOutput .user-context-request .feedback-form {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: Arial, sans-serif;
-    font-weight: normal;
-    color: var(--text-secondary);
-    white-space: normal;
-}
-
-/* Feedback input */
-#streamOutput .user-context-request .feedback-input {
-    flex: 1;
-    padding: 6px 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    font-weight: normal;
-    background: transparent;
-    color: var(--text-secondary);
-    transition: border-color 0.2s;
-    white-space: normal;
-    line-height: 1.5;
-}
-
-#streamOutput .user-context-request .feedback-input:focus {
-    outline: none;
-    border-color: var(--accent-color);
-}
-
-#streamOutput .user-context-request .feedback-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Feedback submit button */
-#streamOutput .user-context-request .feedback-submit {
-    padding: 6px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent-color);
-    transition: color 0.2s;
-    font-family: Arial, sans-serif;
-    font-weight: normal;
-}
-
-#streamOutput .user-context-request .feedback-submit svg {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
-}
-
-#streamOutput .user-context-request .feedback-submit:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-#streamOutput .user-context-request .feedback-submit:hover:not(:disabled) {
-    color: var(--accent-hover);
-}
-
-/* Feedback message */
-#streamOutput .user-context-request .feedback-message {
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    font-weight: normal;
-    color: var(--accent-color);
-    white-space: normal;
-    line-height: 1.5;
-    margin-top: 0;
-}
-
-/* Submitted feedback text */
-#streamOutput .user-context-request .feedback-message .submitted-feedback {
-    font-size: 0.9em;
-    color: var(--text-secondary);
+    padding: 4px 8px;
+    margin: 2px 0;
+    border-radius: 3px;
     display: block;
-    margin-top: 4px;
+    font-size: 1.1em; /* Match semantic search font size */
 }
 
-/* Additional CSS styles to improve the formatting of feedback text */
-#streamOutput .user-context-request .context-text {
-    font-family: Arial, sans-serif;
-    font-size: 14px;
+#streamOutput .feedback-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-style: normal; /* Labels are not italic */
+    font-family: inherit !important;
+    white-space: normal !important;
+}
+
+/* Reduce spacing between Question and Context to match semantic search */
+#streamOutput .feedback-result-content br + br {
+    display: none; /* Remove the double <br> spacing */
+}
+
+#streamOutput .feedback-result-content br {
+    line-height: 0.5; /* Reduce line height for single br */
+}
+
+/* Styling for formatted text lines */
+#streamOutput .feedback-text-line {
+    margin-bottom: 0.2em; /* Reduced from 0.5em to match semantic search */
+    font-family: inherit !important;
+    font-style: italic;
     color: var(--text-secondary);
-    font-weight: normal;
-    font-style: normal;
-    text-decoration: none;
-    white-space: normal;
-    line-height: 1.5;
-    display: flex;
-    flex-direction: column;
 }
 
-/* Styling for paragraph breaks */
-#streamOutput .user-context-request .context-text > div {
-    margin-bottom: 0.5em;
-}
-
-#streamOutput .user-context-request .context-text > div:last-child {
+#streamOutput .feedback-text-line:last-child {
     margin-bottom: 0;
 }
 
-/* Styling for list items */
-#streamOutput .user-context-request .list-item {
+/* Styling for list items (numbered and bullet points) */
+#streamOutput .feedback-list-item {
     margin-left: 1.5em;
     position: relative;
     padding-left: 0.5em;
-    display: block;
-}
-
-/* Add better spacing for numbered items */
-#streamOutput .user-context-request .list-item-numbered {
-    margin-left: 2em;
-    position: relative;
-    padding-left: 0;
-    display: block;
-}
-
-/* Add spacing between the prompt and context */
-#streamOutput .user-context-request .context-label {
-    margin-left: 0.5em;
+    margin-bottom: 0.2em; /* Reduced from 0.5em to match semantic search */
+    font-family: inherit !important;
+    font-style: italic;
     color: var(--text-secondary);
-    opacity: 0.8;
+    display: block;
 }
 
-/* Ensure consistent spacing after the main text and before the context */
-#streamOutput .user-context-request .context-separator {
-    margin: 0 0.25em;
+#streamOutput .feedback-list-item:last-child {
+    margin-bottom: 0;
 }
+
+#streamOutput .feedback-form-simple {
+    display: flex;
+    gap: 8px;
+    margin-top: 2px; /* Reduced from 8px to match semantic search spacing */
+    font-style: normal;
+    align-items: flex-start; /* Changed from center to flex-start for textarea */
+    font-family: inherit !important;
+    white-space: normal !important;
+}
+
+/* Updated for textarea with auto-resize */
+#streamOutput .feedback-input-simple {
+    flex: 1;
+    padding: 10px; /* Match main query input padding */
+    border: 1px solid var(--border-color);
+    border-radius: 8px; /* Match main query input border-radius */
+    font-size: 14px; /* Match main query input font-size */
+    background-color: var(--bg-primary); /* Match main query input background */
+    color: var(--text-primary);
+    font-family: inherit !important;
+    white-space: normal !important;
+    transition: border-color 0.2s ease; /* Add transition like main input */
+    
+    /* Textarea specific styles */
+    resize: none; /* Disable manual resize */
+    overflow-y: hidden; /* Hide scrollbar, let it auto-resize */
+    min-height: 40px; /* Minimum height to match single line */
+    max-height: 120px; /* Maximum height to prevent it getting too tall */
+    line-height: 1.4; /* Match container line-height */
+    word-wrap: break-word; /* Enable word wrapping */
+    box-sizing: border-box; /* Include padding in height calculations */
+}
+
+#streamOutput .feedback-input-simple:focus {
+    outline: none;
+    border-color: var(--accent-color); /* Match main query input focus */
+}
+
+#streamOutput .feedback-input-simple:hover {
+    border-color: var(--accent-color); /* Add hover effect like main input */
+}
+
+#streamOutput .feedback-input-simple:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Adjust submit button alignment for textarea */
+#streamOutput .feedback-submit-simple {
+    background-color: transparent;
+    border: 1px solid var(--accent-color);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+    color: var(--accent-color);
+    flex-shrink: 0;
+    font-family: inherit !important;
+    white-space: normal !important;
+    margin-top: 6px; /* Add small top margin to align with textarea text */
+}
+
+#streamOutput .feedback-submit-simple svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+}
+
+#streamOutput .feedback-submit-simple:hover:not(:disabled) {
+    background-color: var(--highlight-bg);
+    color: var(--accent-hover);
+    border-color: var(--accent-hover);
+    transform: scale(1.05);
+}
+
+#streamOutput .feedback-submit-simple:active {
+    transform: scale(0.95);
+}
+
+#streamOutput .feedback-submit-simple:disabled {
+    border-color: var(--text-tertiary);
+    color: var(--text-tertiary);
+    background-color: transparent;
+    cursor: not-allowed;
+    transform: none;
+}
+
+#streamOutput .feedback-submit-simple:disabled:hover {
+    background-color: transparent;
+}
+
+#streamOutput .feedback-message-simple {
+    margin-top: 4px; /* Reduced from 6px to match semantic search spacing */
+    font-size: 0.9em;
+    font-style: normal;
+    color: var(--accent-color);
+    font-family: inherit !important;
+    white-space: normal !important;
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    #streamOutput .feedback-result-content {
+        color: var(--text-secondary);
+        background-color: var(--bg-secondary);
+    }
+    
+    #streamOutput .feedback-label {
+        color: var(--text-primary);
+    }
+    
+    #streamOutput .feedback-text-line,
+    #streamOutput .feedback-list-item {
+        color: var(--text-secondary);
+    }
+    
+    #streamOutput .feedback-input-simple {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border-color: var(--border-color);
+    }
+}
+
+[data-theme="dark"] #streamOutput .feedback-result-content {
+    color: var(--text-secondary);
+    background-color: var(--bg-secondary);
+}
+
+[data-theme="dark"] #streamOutput .feedback-label {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] #streamOutput .feedback-text-line,
+[data-theme="dark"] #streamOutput .feedback-list-item {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] #streamOutput .feedback-input-simple {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
 
 /* --- Hide scrollbar for #streamOutput --- */
 
@@ -3234,109 +3217,53 @@ code.language-json {
     line-height: 1.3;
 }
 
-
-
-/* Vector Search Results Styles - Generated Datasets Style */
-#streamOutput .semantic-search-minimal {
-    margin: 0.5rem 0;
-    padding: 15px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background-color: var(--bg-secondary);
-    box-shadow: 0 1px 3px var(--shadow-color);
-    font-family: Arial, sans-serif;
-    white-space: normal;
-    line-height: 1.5;
-}
-
-/* Vector search header (similar to generated-datasets-header) */
-#streamOutput .semantic-search-minimal .vector-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--accent-color);
-    margin-top: 0;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-/* Vector icon in header */
-#streamOutput .semantic-search-minimal .vector-icon-minimal {
-    width: 16px;
-    height: 16px;
-    stroke: currentColor;
-    fill: none;
-    flex-shrink: 0;
-}
-
-/* Search details section */
-#streamOutput .semantic-search-minimal .search-details {
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    color: var(--text-secondary);
-    font-weight: normal;
-    margin-bottom: 12px;
-    line-height: 1.4;
-}
-
-/* Additional info sections (Task and Data) */
-#streamOutput .semantic-search-minimal .ss-additional-info {
-    margin-bottom: 8px;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.4;
-}
-
-#streamOutput .semantic-search-minimal .ss-additional-info:last-child {
-    margin-bottom: 0;
-}
-
-#streamOutput .semantic-search-minimal .ss-info-label {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-right: 0.5em;
-}
-
-#streamOutput .semantic-search-minimal .ss-info-value {
-    color: var(--text-secondary);
-    font-weight: normal;
-}
-
-#streamOutput .semantic-search-minimal .ss-data-code-preview {
-    font-family: 'Courier New', Courier, monospace;
-    background-color: var(--bg-tertiary);
-    padding: 0.2em 0.4em;
+/* Search Result Styles */
+.search-result-content {
+    font-style: italic;
+    color: var(--text-secondary, #666);
+    background-color: var(--background-secondary, #f8f9fa);
+    padding: 4px 8px;
+    margin: 2px 0;
     border-radius: 3px;
-    font-size: 13px;
-    color: var(--code-text);
-    border: 1px solid var(--border-color);
+    display: block;
+    font-size: 1.1em; /* Same as thought-content */
+    line-height: 1.4;
 }
 
-/* Dark theme adjustments */
-[data-theme="dark"] #streamOutput .semantic-search-minimal .vector-header {
-    color: var(--accent-color);
-    border-bottom-color: var(--border-color);
+.search-label {
+    font-weight: 600;
+    color: var(--text-primary, #333);
+    font-style: normal; /* Remove italic from labels */
 }
 
-[data-theme="dark"] #streamOutput .semantic-search-minimal .search-details {
+.search-code {
+    background: var(--code-background, rgba(0,0,0,0.1));
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-family: monospace;
+    font-size: 0.85em;
+    font-style: normal; /* Remove italic from code */
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    .search-result-content {
+        color: var(--text-secondary);
+        background-color: var(--background-secondary);
+    }
+    
+    .search-label {
+        color: var(--text-primary);
+    }
+}
+
+[data-theme="dark"] .search-result-content {
     color: var(--text-secondary);
+    background-color: var(--background-secondary);
 }
 
-[data-theme="dark"] #streamOutput .semantic-search-minimal .ss-info-label {
+[data-theme="dark"] .search-label {
     color: var(--text-primary);
-}
-
-[data-theme="dark"] #streamOutput .semantic-search-minimal .ss-info-value {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] #streamOutput .semantic-search-minimal .ss-data-code-preview {
-    background-color: var(--bg-tertiary);
-    color: var(--code-text);
-    border-color: var(--border-color);
 }
 
 /* Thought Content Styles */
@@ -3410,4 +3337,63 @@ code.language-json {
     padding-left: 16px;
     border-left: 2px solid var(--border-color, #eee);
     overflow: hidden; /* Prevents content from breaking layout during transition */
+}
+
+.results-container {
+    margin-top: 8px;
+    padding-left: 16px;
+    border-left: 2px solid var(--border-color, #eee);
+    overflow: hidden;
+}
+
+/* Code Result Styles */
+.code-result-content {
+    font-style: italic;
+    color: var(--text-secondary, #666);
+    background-color: var(--background-secondary, #f8f9fa);
+    padding: 4px 8px;
+    margin: 2px 0;
+    border-radius: 3px;
+    display: block;
+    font-size: 1.1em;
+    line-height: 1.4;
+}
+
+.code-label {
+    font-weight: 600;
+    color: var(--text-primary, #333);
+    font-style: normal;
+}
+
+.code-label.error {
+    color: var(--error-color, #dc3545);
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    .code-result-content {
+        color: var(--text-secondary);
+        background-color: var(--background-secondary);
+    }
+    
+    .code-label {
+        color: var(--text-primary);
+    }
+    
+    .code-label.error {
+        color: var(--error-color, #ff6b6b);
+    }
+}
+
+[data-theme="dark"] .code-result-content {
+    color: var(--text-secondary);
+    background-color: var(--background-secondary);
+}
+
+[data-theme="dark"] .code-label {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .code-label.error {
+    color: var(--error-color, #ff6b6b);
 }

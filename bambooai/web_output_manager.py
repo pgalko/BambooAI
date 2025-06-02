@@ -99,7 +99,13 @@ class WebOutputManager(OutputManager):
         else:
             super().send_html_content(html_content, chain_id)
 
-    def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None, query=None, data_model=None, research=None, plan=None, code=None, answer=None, plot_jsons=None, review=None, vector_db=False, generated_datasets=None, semantic_search=None):
+    def display_results(self, chain_id=None, execution_mode=None, 
+                        df_id=None, api_client=None, df=None, 
+                        query=None, data_model=None, research=None, 
+                        plan=None, code=None, answer=None, 
+                        plot_jsons=None, review=None, 
+                        vector_db=False, generated_datasets=None, 
+                        semantic_search=None, code_exec_results=None):
         from bambooai import utils
         
         if self.web_mode:
@@ -117,7 +123,8 @@ class WebOutputManager(OutputManager):
                 ('code', code),
                 ('answer', answer),
                 ('generated_datasets', generated_datasets),
-                ('semantic_search', semantic_search)
+                ('semantic_search', semantic_search),
+                ('code_exec_results', code_exec_results)
             ]:
                 if data:
                     json_data = json.dumps({'type': data_type, 'data': data, 'chain_id': chain_id})

@@ -537,7 +537,9 @@ class BambooAI:
                                                                      'rank': self.retrieved_rank, 
                                                                      'data': vector_data['metadata']['data_descr'], 
                                                                      'matching_task': vector_data['metadata']['intent']})
-            else:   
+            else:
+                self.output_manager.display_results(chain_id=self.chain_id, semantic_search=None)
+        else: 
                 self.output_manager.print_wrapper(f"I have not found a match in the episodic memory for the current task. I will continue with the current task without using any previous data.", chain_id=self.chain_id)
 
         return llm_response, analyst, query_unknown, query_condition, data_descr, intent_breakdown
@@ -1059,6 +1061,8 @@ class BambooAI:
 
             # Remove examples from the messages list to minimize the number of tokens used
             code_messages = reg_ex._remove_examples(code_messages)
+
+        self.output_manager.display_results(chain_id=self.chain_id,code_exec_results=results)
 
         # Remove dataset, plan, and code from the messages list
         self.messages_content_maintenance(agent, code_messages)
