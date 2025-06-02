@@ -2607,6 +2607,20 @@ code.language-json {
 
 /* Feedback Results - Using your preferred styles with textarea support */
 
+/* This is for backwards compatibility with old feedback elements */
+/*----------------------------------------------------------------------------------*/
+
+.user-context-request .feedback-container,
+.user-context-request .feedback-header,
+.user-context-request .feedback-form,
+.user-context-request .feedback-input,
+.user-context-request .feedback-submit,
+.user-context-request .feedback-message {
+    display: none !important;
+}
+
+/*-----------------------------------------------------------------------------------*/
+
 #streamOutput .feedback-result-content {
     margin: 0;
     padding: 0;
