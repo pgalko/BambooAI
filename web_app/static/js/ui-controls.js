@@ -7,6 +7,7 @@ function initializeUIControls() {
     
     initializeScrollBehavior();
     initializeMenuOverlay();
+    initializeSettingsMenu();
     initializePanelCollapse();
     initializeNavigationButtons();
     initializePlanningSwitch();
@@ -133,6 +134,24 @@ function toggleMenu(show) {
         }, 200); // Match this to your CSS transition duration
     }
 }
+
+function initializeSettingsMenu() {
+    const sweatstackOption = document.querySelector('.sweatstack-option');
+    
+    if (sweatstackOption) {
+        sweatstackOption.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleMenu(false);
+            handleSweatStack();
+        });
+    }
+}
+
+function handleSweatStack() {
+    console.log('SweatStack clicked');
+    alert('SweatStack integration coming soon!');
+}
+
 
 //--------------------
 //  PANEL COLLAPSE

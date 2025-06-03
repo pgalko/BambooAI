@@ -88,7 +88,6 @@ function handleTextSelection(e) {
         currentRange = selection.getRangeAt(0).cloneRange();
         console.log('New selection made:', selectedText);
         
-        createHighlightOverlay(currentRange);
         showPopupAtPosition(e.clientX, e.clientY);
         const selectionQuery = document.getElementById('selectionQuery');
         if (selectionQuery) {
@@ -105,37 +104,24 @@ function handleClickOutside(e) {
     const selectionPopup = document.getElementById('selectionPopup');
     if (!selectionPopup.contains(e.target) && e.target !== selectionPopup) {
         selectionPopup.style.display = 'none';
-        removeHighlights();
+        removeHighlights(); // This will clear the selection
         currentRange = null;
         selectedText = '';
     }
 }
 
 function createHighlightOverlay(range) {
-    removeHighlights();
-
-    const rects = range.getClientRects();
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
-
-    for (const rect of rects) {
-        const highlight = document.createElement('div');
-        highlight.className = 'highlight-overlay';
-        highlight.style.left = (rect.left + scrollX) + 'px';
-        highlight.style.top = (rect.top + scrollY) + 'px';
-        highlight.style.width = rect.width + 'px';
-        highlight.style.height = rect.height + 'px';
-        document.body.appendChild(highlight);
-        highlightElements.push(highlight);
-    }
+    // Re-select the stored range to restore browser highlighting
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    console.log('Browser selection restored');
 }
 
 function removeHighlights() {
-    highlightElements.forEach(element => {
-        if (element.parentNode) {
-            element.parentNode.removeChild(element);
-        }
-    });
+    // Clear the browser selection
+    const selection = window.getSelection();
+    selection.removeAllRanges();
     highlightElements = [];
 }
 
@@ -144,11 +130,17 @@ function showPopupAtPosition(x, y) {
     
     selectionPopup.style.display = 'block';
     
-    // Position popup near but not directly under the mouse
+    // Restore the selection after popup appears
+    if (currentRange) {
+        setTimeout(() => {
+            createHighlightOverlay(currentRange);
+        }, 0);
+    }
+    
+    // Position popup (rest of your existing code)
     const popupX = x + 10;
     const popupY = y + 10;
     
-    // Keep popup within viewport bounds
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const popupWidth = selectionPopup.offsetWidth;
@@ -162,11 +154,8 @@ function showPopupAtPosition(x, y) {
 }
 
 function handleScroll() {
-    if (selectedText && currentRange) {
-        createHighlightOverlay(currentRange);
-    } else {
-        removeHighlights();
-    }
+    // No need to update anything - browser handles scroll automatically
+    console.log('Browser selection moves with scroll automatically');
 }
 
 async function handleQuerySubmission(e) {
@@ -185,7 +174,10 @@ async function handleQuerySubmission(e) {
     }
     
     const queryWithContext = `${query}\n**Task Context:**\n${selectedText}`;
-    
+
+    // Store the query text in currentData for later use
+    currentData.queryText = queryWithContext;
+
     try {
         console.log('Sending fetch request...');
         const response = await fetch('/query', {
@@ -967,6 +959,8 @@ function initializeCodeEditor() {
                 clearAllTabs();
             }
 
+            currentData.queryText = 'Manually executed code';
+
             const response = await fetch('/query', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -997,19 +991,6 @@ function initializeCodeEditor() {
                     processChunk(chunk);
                 }
             }
-
-            // Replace the current response in localStorage at its current index
-            // This maintains the navigation history properly
-            responses[currentResponseIndex] = {
-                tabContent: document.getElementById('tabContainer').innerHTML,
-                contentOutput: document.getElementById('contentOutput').innerHTML,
-                streamOutput: document.getElementById('streamOutput').innerHTML,
-                chain_id: currentData.chain_id,
-                thread_id: currentData.thread_id
-            };
-
-            // Update localStorage
-            await localforage.setItem('responses', responses);
         } catch (error) {
             console.error('Error executing code:', error);
         }
@@ -1074,6 +1055,9 @@ function attachPlotQueryListeners(element) {
             
             const streamOutputDiv = document.getElementById('streamOutput');
             if (!streamOutputDiv) return;
+
+            // Store the query text in currentData for later use
+            currentData.queryText = queryInput.value;
             
             try {
                 // Clear previous output

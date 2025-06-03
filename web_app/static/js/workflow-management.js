@@ -345,12 +345,9 @@ function showWorkflowMap() {
         .then(({ svg }) => {
             workflowMapContainer.innerHTML = svg;
             
-            // Extract task and answer content for each node
+            // Extract task and original question for each node
             const nodeContents = responses.map((response, index) => {
-                return {
-                    task: extractTaskFromResponse(response),
-                    answer: extractAnswerFromResponse(response)
-                };
+                return extractTaskFromResponse(response);
             });
             
             // Extract plot data for each response (if available)
@@ -372,20 +369,21 @@ function showWorkflowMap() {
                             if (index >= 0 && index < responses.length) {
                                 const nodeContent = nodeContents[index];
                                 
-                                // Build the content HTML with task or answer fallback
+                                // Build the content HTML
                                 let contentHtml = '';
                                 
                                 if (nodeContent.task && nodeContent.task !== 'null' && nodeContent.task.trim() !== '') {
-                                    // If task is available and not "null", display it
+                                    // If task (intent_breakdown) is available and not "null", display it
                                     contentHtml = nodeContent.task;
-                                } else if (nodeContent.answer && 
-                                          nodeContent.answer !== 'No answer content available' && 
-                                          nodeContent.answer !== 'Answer content not found' && 
-                                          nodeContent.answer !== 'Error extracting answer') {
-                                    // Use answer as fallback, but no need for a label now since we have section headers
-                                    contentHtml = nodeContent.answer;
+                                } else if (nodeContent.originalQuestion && nodeContent.originalQuestion.trim() !== '') {
+                                    // Use original_question as fallback, truncated to 200 characters
+                                    if (nodeContent.originalQuestion.length > 200) {
+                                        contentHtml = nodeContent.originalQuestion.substring(0, 200) + '...';
+                                    } else {
+                                        contentHtml = nodeContent.originalQuestion;
+                                    }
                                 } else {
-                                    // If neither is available or both contain error messages
+                                    // If neither is available
                                     contentHtml = 'No content available for this node';
                                 }
                                 
@@ -480,52 +478,49 @@ function extractTaskFromResponse(response) {
         
         // Look for the Query tab content
         const queryTab = tempDiv.querySelector('#content-query');
-        if (!queryTab) return null;
+        if (!queryTab) return { task: null, originalQuestion: null };
+        
+        let task = null;
+        let originalQuestion = null;
         
         // Try to find the intent_breakdown text in the query tab
         const intentText = queryTab.innerHTML.match(/intent_breakdown:\s*"([^"]*)"/);
         if (intentText && intentText[1]) {
-            return intentText[1].trim();
+            task = intentText[1].trim();
         }
         
-        // Alternative: try to extract from YAML content
-        const yamlContent = queryTab.querySelector('.yaml-wrapper');
-        if (yamlContent) {
-            const yamlText = yamlContent.textContent;
-            const intentMatch = yamlText.match(/intent_breakdown:\s*"([^"]*)"/);
-            if (intentMatch && intentMatch[1]) {
-                return intentMatch[1].trim();
+        // Try to find the original_question text in the query tab
+        const originalQuestionText = queryTab.innerHTML.match(/original_question:\s*"([^"]*)"/);
+        if (originalQuestionText && originalQuestionText[1]) {
+            originalQuestion = originalQuestionText[1].trim();
+        }
+        
+        // If we didn't find them in HTML, try extracting from YAML content
+        if (!task || !originalQuestion) {
+            const yamlContent = queryTab.querySelector('.yaml-wrapper');
+            if (yamlContent) {
+                const yamlText = yamlContent.textContent;
+                
+                if (!task) {
+                    const intentMatch = yamlText.match(/intent_breakdown:\s*"([^"]*)"/);
+                    if (intentMatch && intentMatch[1]) {
+                        task = intentMatch[1].trim();
+                    }
+                }
+                
+                if (!originalQuestion) {
+                    const originalQuestionMatch = yamlText.match(/original_question:\s*"([^"]*)"/);
+                    if (originalQuestionMatch && originalQuestionMatch[1]) {
+                        originalQuestion = originalQuestionMatch[1].trim();
+                    }
+                }
             }
         }
         
-        return null; // Return null instead of error message for cleaner fallback logic
+        return { task, originalQuestion };
     } catch (error) {
-        console.error('Error extracting task information:', error);
-        return null;
-    }
-}
-
-function extractAnswerFromResponse(response) {
-    try {
-        // Create a temporary div to parse HTML content
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = response.contentOutput || '';
-        
-        // Look for the Answer tab content
-        const answerTab = tempDiv.querySelector('#content-answer');
-        if (!answerTab) return 'No answer content available';
-        
-        // Get the markdown content
-        const markdownContent = answerTab.querySelector('.markdown-content');
-        if (markdownContent) {
-            // Return the HTML content as in the original
-            return markdownContent.innerHTML;
-        }
-        
-        return 'Answer content not found';
-    } catch (error) {
-        console.error('Error extracting answer content:', error);
-        return 'Error extracting answer';
+        console.error('Error extracting task and original question:', error);
+        return { task: null, originalQuestion: null };
     }
 }
 

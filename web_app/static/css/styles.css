@@ -939,6 +939,7 @@ body, html {
     animation: spin 1s linear infinite;
 }
 
+/* Old Error Styles for bacward compatibility */
 .error-message {
     background-color: var(--error-bg);
     padding: 2px 4px;
@@ -965,6 +966,50 @@ body, html {
     color: var(--error-color);
     margin-top: 1px;
 }
+/*End Old Error Styles */
+
+/* Error styling for tool calls */
+.tool-call.tool-call-error {
+    border-left-color: var(--error-color) !important;
+}
+
+.tool-call.tool-call-error .tool-icon {
+    color: var(--error-color) !important;
+    stroke: var(--error-color) !important;
+}
+
+.tool-call.tool-call-error .tool-call-action {
+    color: var(--error-color) !important;
+}
+
+.tool-call.tool-call-error .completion-message {
+    color: var(--error-color) !important;
+}
+
+/* Red chevron hover for error tool calls */
+.tool-call.tool-call-error .thoughts-toggle:hover {
+    color: var(--error-color) !important;
+}
+
+/* Error-specific override for code-result-content */
+.code-result-content.error-result {
+    color: var(--error-color) !important;
+    font-family: 'Courier New', monospace;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .code-result-content.error-result {
+        color: var(--error-color) !important;
+    }
+}
+
+[data-theme="dark"] .code-result-content.error-result {
+    color: var(--error-color) !important;
+}
+
 
 .dataframe {
     border-collapse: collapse;
@@ -1508,11 +1553,16 @@ body, html {
     stroke-width: 2; /* Define stroke-width for the path */
 }
 
-.highlight-overlay {
-    position: fixed;
-    background-color: var(--highlight-bg);
-    pointer-events: none;
-    z-index: 1000;
+/* Customize the browser's native selection highlighting */
+::selection {
+    background-color: rgba(140, 231, 182, 0.3);
+    color: inherit; /* Keep original text color */
+}
+
+/* For Firefox */
+::-moz-selection {
+    background-color: rgba(140, 231, 182, 0.3);
+    color: inherit;
 }
 
 #selectionForm {
@@ -2622,8 +2672,6 @@ code.language-json {
 /*-----------------------------------------------------------------------------------*/
 
 #streamOutput .feedback-result-content {
-    margin: 0;
-    padding: 0;
     font-family: inherit !important; /* Use streamOutput's monospace font like semantic search */
     font-weight: normal;
     color: var(--text-secondary);
@@ -2631,8 +2679,8 @@ code.language-json {
     line-height: 1.4;
     font-style: italic; /* Match semantic search italic style */
     background-color: var(--bg-secondary);
-    padding: 4px 8px;
-    margin: 2px 0;
+    padding: 2px 4px;
+    margin: 1px 0;
     border-radius: 3px;
     display: block;
     font-size: 1.1em; /* Match semantic search font size */
@@ -2646,13 +2694,8 @@ code.language-json {
     white-space: normal !important;
 }
 
-/* Reduce spacing between Question and Context to match semantic search */
-#streamOutput .feedback-result-content br + br {
-    display: none; /* Remove the double <br> spacing */
-}
-
 #streamOutput .feedback-result-content br {
-    line-height: 0.5; /* Reduce line height for single br */
+    line-height: 0.2; /* Reduce line height for single br */
 }
 
 /* Styling for formatted text lines */
@@ -2686,7 +2729,7 @@ code.language-json {
 #streamOutput .feedback-form-simple {
     display: flex;
     gap: 8px;
-    margin-top: 2px; /* Reduced from 8px to match semantic search spacing */
+    margin-top: 16px; 
     font-style: normal;
     align-items: flex-start; /* Changed from center to flex-start for textarea */
     font-family: inherit !important;
@@ -2700,9 +2743,9 @@ code.language-json {
     border: 1px solid var(--border-color);
     border-radius: 8px; /* Match main query input border-radius */
     font-size: 14px; /* Match main query input font-size */
-    background-color: var(--bg-primary); /* Match main query input background */
+    background-color: transparent;
     color: var(--text-primary);
-    font-family: inherit !important;
+    font-family: Arial, sans-serif !important;
     white-space: normal !important;
     transition: border-color 0.2s ease; /* Add transition like main input */
     
@@ -2781,7 +2824,7 @@ code.language-json {
 }
 
 #streamOutput .feedback-message-simple {
-    margin-top: 4px; /* Reduced from 6px to match semantic search spacing */
+    margin-top: 6px;
     font-size: 0.9em;
     font-style: normal;
     color: var(--accent-color);
@@ -3410,4 +3453,198 @@ code.language-json {
 
 [data-theme="dark"] .code-label.error {
     color: var(--error-color, #ff6b6b);
+}
+
+/* --- Settings container --- */
+.settings-container {
+    position: relative;
+    display: inline-block;
+}
+
+.settings-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-tertiary) !important;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, transform 0.2s;
+}
+
+.settings-button svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+}
+
+.settings-button:hover {
+    color: var(--accent-color) !important;
+    transform: scale(1.1);
+}
+
+.settings-popup {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 10px);
+    right: auto;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color); /* Or a lighter version */
+    border-radius: 10px; /* Updated */
+    padding: 10px; /* Updated */
+    display: none;
+    flex-direction: column;
+    gap: 6px; /* Updated */
+    min-width: 190px; /* Slightly wider if padding increased */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.05); /* Updated */
+    z-index: 1002;
+}
+
+.settings-popup::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -10px;
+    width: 10px;
+    height: 100%;
+    background: transparent;
+}
+
+.settings-popup::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: -5px;
+    transform: rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--bg-tertiary);
+    border-left: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    border-right: none;
+    border-top: none;
+}
+
+.settings-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    width: 100%;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    text-decoration: none;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-weight: normal;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.settings-option:hover {
+    color: var(--accent-color);
+    background-color: rgba(128, 128, 128, 0.07);
+}
+
+.settings-option svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
+}
+
+.settings-option svg[fill="currentColor"] {
+    fill: currentColor;
+    stroke: none;
+}
+
+.settings-container:hover .settings-popup {
+    display: flex;
+}
+
+.integrations-menu-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.integrations-option {
+    justify-content: space-between;
+}
+
+.submenu-arrow {
+    margin-left: auto;
+    padding-left: 8px;
+    font-size: 1.1em;
+    color: var(--text-tertiary);
+    transition: color 0.2s;
+}
+
+.integrations-option:hover .submenu-arrow {
+    color: var(--accent-color);
+}
+
+.integrations-submenu {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 5px);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    display: none !important;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 160px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    z-index: 1003;
+}
+
+.integrations-submenu::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -5px;
+    width: 5px;
+    height: 100%;
+    background: transparent;
+}
+
+.integrations-submenu::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: -5px;
+    transform: rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--bg-tertiary);
+    border-left: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    border-right: none;
+    border-top: none;
+}
+
+.integrations-menu-item:hover .integrations-submenu,
+.integrations-submenu:hover {
+    display: flex !important;
+}
+
+.menu-popup .settings-container {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1001;
+}
+
+.menu-popup {
+    overflow: visible;
 }

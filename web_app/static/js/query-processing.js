@@ -198,8 +198,7 @@ function processChunk(chunk) {
                     toolCallStartTime = Date.now();
                     streamOutputDiv.innerHTML += formatToolCall(data.tool_call);
                 } else if (data.error) {
-                    finishToolCall();
-                    streamOutputDiv.innerHTML += formatError(data.error);
+                    updateToolCallWithError(data.error);
                 } else if (data.type && data.type !== 'end' && data.type !== 'id') {
                     finishToolCall();
                     console.log(`Right panel data detected: ${data.type}`, data);
@@ -384,7 +383,6 @@ function formatFeedbackRequest(data) {
     const content = `
         <div class="feedback-result-content">
             <span class="feedback-label">Question:</span> ${formattedQuery}
-            <br><br>
             <span class="feedback-label">Context:</span> ${data.context_needed}
             
             <form class="feedback-form-simple" id="${formId}">
@@ -489,6 +487,47 @@ function toggleToolResults(toolCallId) {
         }
     }
 }
+
+function updateToolCallWithError(errorMessage) {
+    if (currentToolCallId) {
+        const toolCallElement = document.getElementById(currentToolCallId);
+        if (toolCallElement && toolCallElement.classList.contains('code-execution')) {
+            // 1. Add error styling class
+            toolCallElement.classList.add('tool-call-error');
+            
+            // 2. Update the action text
+            const actionSpan = toolCallElement.querySelector('.tool-call-action');
+            if (actionSpan) {
+                // Keep the icon but change the text
+                const iconHtml = actionSpan.querySelector('.tool-icon').outerHTML;
+                actionSpan.innerHTML = `${iconHtml} Action: "Error Correction"`;
+            }
+            
+            // 3. Update the results container with error content
+            const resultsContainer = toolCallElement.querySelector('.results-container');
+            if (resultsContainer) {
+                resultsContainer.innerHTML = formatCodeExecError(errorMessage);
+                // Auto-expand to show the error
+                resultsContainer.style.display = 'block';
+                toolCallElement.classList.add('expanded');
+                const chevronIcon = toolCallElement.querySelector('.chevron-icon');
+                if (chevronIcon) {
+                    chevronIcon.style.transform = 'rotate(180deg)';
+                }
+            }
+            
+            // 4. Complete the tool call (remove spinner, show completion)
+            completeToolCall(currentToolCallId, toolCallStartTime);
+            currentToolCallId = null;
+            toolCallStartTime = null;
+        }
+    } else {
+        // Fallback: if no current tool call, use the original error display
+        const streamOutputDiv = document.getElementById('streamOutput');
+        streamOutputDiv.innerHTML += formatError(errorMessage);
+    }
+}
+
 
 //--------------------
 //  FEEDBACK SYSTEM
@@ -1176,8 +1215,7 @@ function formatSemanticSearch(data) {
     }).join('');
 }
 
-function formatError(error) {
-    // Escape HTML special characters to prevent XSS
+function formatCodeExecError(errorMessage) {
     const escapeHtml = (unsafe) => {
         return unsafe
             .replace(/&/g, "&amp;")
@@ -1185,15 +1223,10 @@ function formatError(error) {
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
-    }
+    };
 
-    return `
-        <div class="error-message">
-            <div class="error-title">Error during code execution:</div>
-            <div class="error-content">${escapeHtml(error)}</div>
-            <div class="error-footer">Attempting a correction...</div>
-        </div>
-    `;
+    // Use the same structure as regular code execution results
+    return `<div class="code-result-content error-result">${escapeHtml(errorMessage)}</div>`;
 }
 
 function formatSessionIds(data) {
