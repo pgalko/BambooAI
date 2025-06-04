@@ -9,8 +9,10 @@ import threading
 import uuid
 import glob
 import pandas as pd
+import sweatstack as ss
+from datetime import datetime, timedelta
 from queue import Queue, Empty
-from flask import Flask, request, jsonify, Response, render_template, session, send_from_directory
+from flask import Flask, request, jsonify, Response, render_template, session, send_from_directory, redirect, url_for
 import tempfile
 from dotenv import load_dotenv
 from google.cloud import storage
@@ -158,6 +160,10 @@ SEARCH_TOOL = True
 WEBUI = True
 VECTOR_DB = bool(os.getenv('PINECONE_API_KEY'))
 DF_ONTOLOGY = None
+
+# SweatStack OAuth configuration
+SWEATSTACK_CLIENT_ID = os.getenv('SWEATSTACK_CLIENT_ID')
+SWEATSTACK_CLIENT_SECRET = os.getenv('SWEATSTACK_CLIENT_SECRET')
 
 # Function to generate a unique DataFrame ID
 def generate_dataframe_id() -> str:
@@ -337,7 +343,11 @@ def ensure_session():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    common_context = {
+        'sweatstack_enabled': bool(SWEATSTACK_CLIENT_ID and SWEATSTACK_CLIENT_SECRET),
+        'sweatstack_authenticated': bool(session.get('sweatstack_access_token'))
+    }
+    return render_template('index.html', **common_context)
 
 # New endpoint to update planning preference
 @app.route('/update_planning', methods=['POST'])
@@ -1333,6 +1343,7 @@ def download_generated_dataset():
             app.logger.error(f"Error serving local file {file_path_param}: {str(e)}")
             return jsonify({'error': f'Error serving file: {str(e)}'}), 500
 
+
 # Endpoint to check if vector database is enabled      
 @app.route('/get_vector_db_status', methods=['GET'])
 def get_vector_db_status():
@@ -1367,6 +1378,134 @@ def search_threads():
     except Exception as e:
         app.logger.error(f"Error searching threads: {e}")
         return jsonify({'error': 'An error occurred during search'}), 500
+
+
+@app.route('/sweatstack/authorize', methods=['GET'])
+def sweatstack_authorize():
+    return redirect(f'https://app.sweatstack.no/oauth/authorize?client_id={SWEATSTACK_CLIENT_ID}&scope=data:read&redirect_uri={request.url_root}sweatstack/oauth-callback&prompt=none')
+
+
+@app.route('/sweatstack/oauth-callback', methods=['GET'])
+def sweatstack_callback():
+    code = request.args.get('code')
+    if not code:
+        return jsonify({'error': 'No code provided'}), 400
+
+    try:
+        response = requests.post(
+            'https://app.sweatstack.no/api/v1/oauth/token',
+            data={
+                'grant_type': 'authorization_code',
+                'code': code,
+                'client_id': SWEATSTACK_CLIENT_ID,
+                'client_secret': SWEATSTACK_CLIENT_SECRET,
+            },
+        )
+        response.raise_for_status()
+
+        token_data = response.json()
+        access_token = token_data.get('access_token')
+
+        session['sweatstack_access_token'] = access_token
+
+        return redirect(url_for('index'))
+
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f'Error exchanging SweatStack code for token: {str(e)}')
+        return jsonify({'error': 'Failed to exchange SweatStack code for token'}), 500
+
+
+@app.route('/sweatstack/load_data', methods=['POST'])
+def sweatstack_load_data():
+    """Load SweatStack data using stored access token"""
+    access_token = session.get('sweatstack_access_token')
+    if not access_token:
+        return jsonify({'error': 'Not authenticated with SweatStack'}), 401
+
+    try:
+        data = request.json
+        selected_sports = data.get('sports', ['cycling'])
+        selected_days = data.get('days', 90)
+
+        sweatstack_client = ss.Client(api_key=access_token)
+
+        df = sweatstack_client.get_longitudinal_data(
+            start=datetime.now() - timedelta(days=selected_days),
+            sports=selected_sports
+        )
+        # This is a transformation to make the dataframe (more) compatible with what BambooAI expects
+        df["datetime"] = df.index
+
+        session_id = session['session_id']
+        df_json, new_df_id = load_dataframe_to_bamboo_ai_instance(
+            session_id=session_id,
+            df=df,
+            execution_mode=GLOBAL_EXECUTION_MODE
+        )
+
+        return jsonify({
+            'message': 'SweatStack data loaded successfully',
+            'dataframe': df_json,
+            'df_id': new_df_id
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f'Error loading SweatStack data: {str(e)}')
+        return jsonify({'error': f'Failed to load SweatStack data: {str(e)}'}), 500
+
+
+@app.route('/sweatstack/logout', methods=['POST'])
+def sweatstack_logout():
+    """Logout from SweatStack by removing access token"""
+    session.pop('sweatstack_access_token', None)
+    return jsonify({'message': 'Logged out from SweatStack successfully'}), 200
+
+
+@app.route('/sweatstack/remove_data', methods=['POST'])
+def sweatstack_remove_data():
+    """Remove SweatStack data (which is loaded as primary dataset)"""
+    session_id = session.get('session_id')
+    if not session_id:
+        return jsonify({'error': 'No session ID found'}), 400
+
+    try:
+        bamboo_ai_instance = bamboo_ai_instances.get(session_id)
+        prefs = user_preferences.get(session_id)
+
+        if not bamboo_ai_instance or bamboo_ai_instance.df_id is None:
+            return jsonify({'message': 'No SweatStack data is currently loaded.'}), 400
+
+        # Re-instantiate BambooAI for the session without the primary df
+        # Keep auxiliary datasets if they exist
+        aux_datasets = prefs.get('auxiliary_datasets', []) if prefs else []
+        planning_pref = prefs.get('planning', False) if prefs else False
+        ontology_path_pref = prefs.get('ontology_path', DF_ONTOLOGY) if prefs else DF_ONTOLOGY
+
+        bamboo_ai_instances[session_id] = BambooAI(
+            df=None, # Explicitly set df to None
+            exploratory=EXPLORATORY,
+            planning=planning_pref,
+            search_tool=SEARCH_TOOL,
+            webui=WEBUI,
+            vector_db=VECTOR_DB,
+            df_ontology=ontology_path_pref,
+            df_id=None, # Clear df_id
+            auxiliary_datasets=aux_datasets
+        )
+
+        # Also clear df_id from user_preferences if it's stored there
+        if prefs and 'df_id' in prefs:
+             del prefs['df_id']
+
+        user_preferences[session_id] = prefs # Save updated prefs
+
+        app.logger.info(f"SweatStack data removed and BambooAI instance reset for session {session_id}.")
+        return jsonify({'message': 'SweatStack data removed successfully.'}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error removing SweatStack data for session {session_id}: {str(e)}")
+        return jsonify({'error': f'Error removing SweatStack data: {str(e)}'}), 500
+
 
 if __name__ == '__main__':
     # Simple command line argument for debug mode

@@ -8,6 +8,7 @@ function initializeFileManagement() {
     initializePrimaryDatasetUpload();
     initializeAuxiliaryDatasetUpload();
     initializeOntologyUpload();
+    initializeSweatStackDataOption();
     fetchInitialOntologyState();
     
     console.log('File management initialized');
@@ -291,8 +292,8 @@ function createOrUpdateDatasetPill(id, text, type, state, isLoading = false, ide
     pill.dataset.datasetType = type;
 
     pill.innerHTML = `
-        <span class="dataset-pill-content ${state === 'success' && type !== 'ontology' ? 'clickable-pill-content' : ''}"
-              title="${state === 'success' && type !== 'ontology' ? 'Click to view ' + text.split('(')[0] : (type === 'ontology' && state === 'success' ? identifier : text)}">
+        <span class="dataset-pill-content ${state === 'success' && type !== 'ontology' && type !== 'sweatstack' ? 'clickable-pill-content' : ''}"
+              title="${state === 'success' && type !== 'ontology' && type !== 'sweatstack' ? 'Click to view ' + text.split('(')[0] : (type === 'ontology' && state === 'success' ? identifier : text)}">
             <span>${text}</span>
             ${isLoading ? '<div class="file-upload-spinner"></div>' : ''}
         </span>
@@ -307,7 +308,7 @@ function createOrUpdateDatasetPill(id, text, type, state, isLoading = false, ide
     `;
 
     const contentSpan = pill.querySelector('.dataset-pill-content');
-    if (state === 'success' && contentSpan && type !== 'ontology') {
+    if (state === 'success' && contentSpan && type !== 'ontology' && type !== 'sweatstack') {
         contentSpan.addEventListener('click', handleDatasetPillClick);
     }
 
@@ -343,6 +344,10 @@ async function handleDatasetPillClick(event) {
         fetchBody = { file_path: identifier };
     } else if (datasetType === 'ontology') {
         console.log('Ontology pill clicked - no preview action.');
+        textSpan.textContent = originalPillText;
+        return;
+    } else if (datasetType === 'sweatstack') {
+        console.log('SweatStack pill clicked - no preview action (data already loaded as primary dataset).');
         textSpan.textContent = originalPillText;
         return;
     } else {
@@ -417,6 +422,7 @@ async function handleRemoveDatasetPill(event) {
     let fetchPayload = null;
     let isPrimaryRemoval = false;
     let isOntologyRemoval = false;
+    let isSweatStackRemoval = false;
 
     if (datasetType === 'primary') {
         fetchUrl = '/remove_primary_dataset';
@@ -431,6 +437,10 @@ async function handleRemoveDatasetPill(event) {
         formData.append('ontology_path', '');
         fetchPayload = formData;
         isOntologyRemoval = true;
+    } else if (datasetType === 'sweatstack') {
+        fetchUrl = '/sweatstack/remove_data';
+        fetchPayload = JSON.stringify({});
+        isSweatStackRemoval = true;
     } else {
         console.error('Cannot remove: Unknown dataset type or missing identifier.');
         if (pillContentSpan) pillContentSpan.textContent = originalText;
@@ -470,6 +480,17 @@ async function handleRemoveDatasetPill(event) {
             currentOntologyState.fileName = null;
             currentOntologyState.pillId = null;
             console.log(data.message);
+        } else if (isSweatStackRemoval) {
+            // Reset SweatStack state and clear dataset
+            removeSweatStackPill();
+            currentDatasetName = null;
+            if (typeof createOrUpdateTab === 'function') {
+                createOrUpdateTab('dataframe', '<div style="padding:10px; text-align:center; color:var(--text-secondary);">SweatStack data removed.</div>');
+                if (typeof activateTab === 'function') {
+                    activateTab('dataframe');
+                }
+            }
+            console.log(data.message);
         } else {
             auxiliaryDatasetCount = data.remaining_aux_count !== undefined ? data.remaining_aux_count : Math.max(0, auxiliaryDatasetCount - 1);
         }
@@ -502,4 +523,58 @@ function showUploadLimitMessage(message) {
         messageDiv.classList.remove('visible');
         limitMessageTimeout = null;
     }, 3000);
+}
+
+//--------------------
+//  SWEATSTACK DATA LOADING
+//--------------------
+
+function initializeSweatStackDataOption() {
+    const sweatstackDataButton = document.querySelector('.sweatstack-data-option');
+
+    if (!sweatstackDataButton) {
+        console.log('SweatStack data option not found (user may not be authenticated)');
+        return;
+    }
+
+    sweatstackDataButton.addEventListener('click', function() {
+        console.log('SweatStack data option clicked');
+        showSweatStackModal();
+    });
+}
+
+function createSweatStackPill(dataInfo) {
+    // Check if SweatStack data is already loaded
+    if (currentSweatStackState.isLoaded) {
+        showUploadLimitMessage('SweatStack data already loaded. Remove current data to load new.');
+        return;
+    }
+
+    const pillId = 'sweatstack-pill-' + Date.now();
+    const displayText = `SweatStack (${dataInfo.sports.join(', ')}, ${dataInfo.days} days) loaded`;
+
+    createOrUpdateDatasetPill(pillId, displayText, 'sweatstack', 'success', false, 'sweatstack_data');
+
+    // Update global state
+    currentSweatStackState.isLoaded = true;
+    currentSweatStackState.pillId = pillId;
+    currentSweatStackState.dataInfo = dataInfo;
+
+    console.log('SweatStack data pill created successfully');
+}
+
+function removeSweatStackPill() {
+    if (currentSweatStackState.pillId) {
+        const pill = document.getElementById(currentSweatStackState.pillId);
+        if (pill) {
+            pill.remove();
+        }
+
+        // Reset global state
+        currentSweatStackState.isLoaded = false;
+        currentSweatStackState.pillId = null;
+        currentSweatStackState.dataInfo = null;
+
+        console.log('SweatStack data pill removed');
+    }
 }

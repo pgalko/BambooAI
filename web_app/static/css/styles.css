@@ -532,6 +532,47 @@ body, html {
     background-color: rgba(93, 173, 226, 0.1); /* Subtle hover using dark theme info color */
 }
 
+/* --- SweatStack Dataset Pill Styles --- */
+.sweatstack-dataset-pill.loading { /* Same as other loading pills */
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.sweatstack-dataset-pill.error { /* Same as other error pills */
+    background-color: var(--error-color-bg);
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+.sweatstack-dataset-pill.error .dataset-pill-remove-icon svg {
+    stroke: var(--error-color);
+}
+
+/* Success State for SweatStack Pill - Light Theme */
+.sweatstack-dataset-pill.success {
+    background-color: var(--success-color-primary-bg); /* Use same green background as primary */
+    color: var(--success-color); /* Use standard success green */
+    border-color: var(--success-color);
+}
+.sweatstack-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color);
+}
+.sweatstack-dataset-pill.success:hover {
+    background-color: var(--success-color-auxiliary-bg); /* Slightly different green on hover */
+}
+
+/* Success State for SweatStack Pill - Dark Theme (No Fill) */
+[data-theme="dark"] .sweatstack-dataset-pill.success {
+    background-color: transparent;
+    color: var(--success-color-primary); /* Use primary success green for dark theme */
+    border: 1px solid var(--success-color-primary);
+}
+[data-theme="dark"] .sweatstack-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-primary);
+}
+[data-theme="dark"] .sweatstack-dataset-pill.success:hover {
+    background-color: rgba(80, 250, 123, 0.08); /* Same hover effect as primary pill */
+}
+
 #contentOutput {
     flex: 1;
     overflow-y: auto;
