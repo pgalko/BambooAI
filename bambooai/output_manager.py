@@ -134,6 +134,8 @@ class OutputManager:
             msg = 'I am going to assess and rank the answer, please wait...'
         elif agent == 'Solution Summarizer':
             msg = 'Summarizing the solution, please wait...'
+        elif agent == 'Analyst Selector':
+            msg = 'Selecting the analyst to best answer your query, please wait...'
         
 
         if self.is_notebook:
