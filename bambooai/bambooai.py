@@ -1061,8 +1061,11 @@ class BambooAI:
 
             # Remove examples from the messages list to minimize the number of tokens used
             code_messages = reg_ex._remove_examples(code_messages)
+            
+        if self.webui:
+            # If webui is enabled, we display the results of code execution using the output manager
+            self.output_manager.display_results(chain_id=self.chain_id, code_exec_results=results)
 
-        self.output_manager.display_results(chain_id=self.chain_id,code_exec_results=results)
 
         # Remove dataset, plan, and code from the messages list
         self.messages_content_maintenance(agent, code_messages)
