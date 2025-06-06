@@ -143,8 +143,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
 
     if reasoning_models and model_name in reasoning_models:
         config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_budget=thinking_budget)
-        output_manager.display_tool_info('Thinking', f"Model needs a moment to think...", chain_id=chain_id)
-        output_manager.display_system_messages(f"Using reasoning model: {model_name} with thinking budget: {thinking_budget} tokens")
+        output_manager.display_tool_info('Thinking', f"Thinking budget: {thinking_budget} tokens", chain_id=chain_id)
 
     if tools:
         for tool in tools:
@@ -167,10 +166,8 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         start_time = time.time()
         
         for chunk in response:
-            # Check for None candidates
-            if chunk.candidates is None:
-                output_manager.display_system_messages("Gemini API Warning: Received chunk with None candidates, skipping...")
-                continue  # Skip this chunk and proceed to the next one
+            if not chunk.candidates:
+                continue
             for part in chunk.candidates[0].content.parts:
                 if part.text or part.thought is not None:
                     if part.thought:
