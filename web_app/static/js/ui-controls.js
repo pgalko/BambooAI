@@ -114,6 +114,10 @@ function toggleMenu(show) {
     }
     
     if (show) {
+        const buttonRect = menuButton.getBoundingClientRect();
+        menuPopup.style.left = `${buttonRect.left}px`;
+        menuPopup.style.top = `${buttonRect.bottom + 5}px`; // Position 5px below the button
+        
         menuPopup.classList.add('active');
         menuPopup.style.display = 'flex';
         overlay.classList.add('active');
