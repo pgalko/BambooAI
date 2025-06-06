@@ -89,9 +89,10 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         }
         search_triplets.append(triplet)
 
-    def get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models=None, reasoning_effort="medium"):
+    def get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models=None, reasoning_effort="low"):
         if reasoning_models and model in reasoning_models:
             output_manager.display_tool_info('Thinking', f"Model needs a moment to think...", chain_id=chain_id)
+            output_manager.display_system_messages(f"Using reasoning model: {model} with reasoning effort: {reasoning_effort}")
             return openai_client.chat.completions.create(
                 model=model,
                 messages=messages,

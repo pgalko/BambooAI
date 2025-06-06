@@ -445,6 +445,20 @@ function finishToolCall() {
         completeToolCall(currentToolCallId, toolCallStartTime);
         currentToolCallId = null;
         toolCallStartTime = null;
+    } else {
+        // Fallback: find any active spinner and stop it
+        // Since we don't have the exact timing, estimate from visible spinners
+        const activeSpinners = document.querySelectorAll('.tool-call .spinner:not([style*="display: none"])');
+        activeSpinners.forEach(spinner => {
+            const toolCallElement = spinner.closest('.tool-call');
+            if (toolCallElement) {
+                const id = toolCallElement.id;
+                // Extract timestamp from ID if possible, or use current time
+                const idTimestamp = id.includes('tool-call-') ? parseInt(id.replace('tool-call-', '')) : Date.now();
+                const estimatedStartTime = idTimestamp || Date.now();
+                completeToolCall(id, estimatedStartTime);
+            }
+        });
     }
 }
 
@@ -491,35 +505,31 @@ function toggleToolResults(toolCallId) {
 function updateToolCallWithError(errorMessage) {
     if (currentToolCallId) {
         const toolCallElement = document.getElementById(currentToolCallId);
-        if (toolCallElement && toolCallElement.classList.contains('code-execution')) {
-            // 1. Add error styling class
-            toolCallElement.classList.add('tool-call-error');
-            
-            // 2. Update the action text
-            const actionSpan = toolCallElement.querySelector('.tool-call-action');
-            if (actionSpan) {
-                // Keep the icon but change the text
-                const iconHtml = actionSpan.querySelector('.tool-icon').outerHTML;
-                actionSpan.innerHTML = `${iconHtml} Action: "Error Correction"`;
-            }
-            
-            // 3. Update the results container with error content
-            const resultsContainer = toolCallElement.querySelector('.results-container');
-            if (resultsContainer) {
-                resultsContainer.innerHTML = formatCodeExecError(errorMessage);
-                // Auto-expand to show the error
-                resultsContainer.style.display = 'block';
-                toolCallElement.classList.add('expanded');
-                const chevronIcon = toolCallElement.querySelector('.chevron-icon');
-                if (chevronIcon) {
-                    chevronIcon.style.transform = 'rotate(180deg)';
-                }
-            }
-            
-            // 4. Complete the tool call (remove spinner, show completion)
-            completeToolCall(currentToolCallId, toolCallStartTime);
+        if (toolCallElement) {
+            // ALWAYS stop the spinner first
+            completeToolCall(currentToolCallId, toolCallStartTime || Date.now());
             currentToolCallId = null;
             toolCallStartTime = null;
+            
+            // THEN do special code-execution styling if applicable
+            if (toolCallElement.classList.contains('code-execution')) {
+                toolCallElement.classList.add('tool-call-error');
+                const actionSpan = toolCallElement.querySelector('.tool-call-action');
+                if (actionSpan) {
+                    const iconHtml = actionSpan.querySelector('.tool-icon').outerHTML;
+                    actionSpan.innerHTML = `${iconHtml} Action: "Error Correction"`;
+                }
+                const resultsContainer = toolCallElement.querySelector('.results-container');
+                if (resultsContainer) {
+                    resultsContainer.innerHTML = formatCodeExecError(errorMessage);
+                    resultsContainer.style.display = 'block';
+                    toolCallElement.classList.add('expanded');
+                    const chevronIcon = toolCallElement.querySelector('.chevron-icon');
+                    if (chevronIcon) {
+                        chevronIcon.style.transform = 'rotate(180deg)';
+                    }
+                }
+            }
         }
     } else {
         // Fallback: if no current tool call, use the original error display

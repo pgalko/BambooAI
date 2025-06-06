@@ -964,7 +964,7 @@ class BambooAI:
     def generate_code(self, analyst, intent_breakdown, plan, code_messages, example_code, image=None, generated_datasets_path=None):
         agent = 'Code Generator'
 
-        reasoning_effort = "high" if self.planning else "medium"
+        reasoning_effort = "high" if self.planning else "low"
         
         # Get dataframe info and data model
         if analyst == 'Data Analyst DF':
@@ -1125,12 +1125,15 @@ class BambooAI:
     def review_plan(self,code, plan):
         agent = 'Reviewer'
 
-        reasoning_effort = "low"
-
         # Initialize the messages list with a user message containing the task prompt
         self.plan_review_messages = [{"role": "user", "content": self.prompts.reviewer_system.format(code, plan)}]
 
         using_model,provider = models.get_model_name(agent)
+
+        if provider == 'gemini':
+            reasoning_effort = "minimal" # Flash tends to think for ever with higher budgets, so we use minimal reasoning effort to ground it.
+        else:
+            reasoning_effort = "low" # Minimal is not supported by OpenAI and Anthropic
 
         self.output_manager.display_tool_start(agent,using_model, chain_id=self.chain_id)
 
@@ -1157,8 +1160,6 @@ class BambooAI:
     def summarise_solution(self, intent_breakdown, plan, results, code=None):
         agent = 'Solution Summarizer'
 
-        reasoning_effort = "low"
-
         # Initialize the messages list with a user message containing the task prompt
         if code is not None:
             self.insight_messages = [{"role": "user", "content": self.prompts.solution_summarizer_custom_code_system.format(code, results)}]
@@ -1166,6 +1167,11 @@ class BambooAI:
             self.insight_messages = [{"role": "user", "content": self.prompts.solution_summarizer_system.format(intent_breakdown, plan, results)}]
         
         using_model,provider = models.get_model_name(agent)
+
+        if provider == 'gemini':
+            reasoning_effort = "minimal" # Flash tends to think for ever with higher budgets, so we use minimal reasoning effort to ground it.
+        else:
+            reasoning_effort = "low" # Minimal is not supported by OpenAI and Anthropic
 
         self.output_manager.display_tool_start(agent,using_model, chain_id=self.chain_id)
 

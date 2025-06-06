@@ -671,6 +671,7 @@ analyst_selector_system: |
     - The analysts you have access to are as follows:
       - **Data Analyst DF**: Select this expert if user provided a dataframe. The DataFrame 'df' is already defined and populated with necessary data.
       - **Data Analyst Generic**: Select this expert if user did not provide the dataframe or the task does not require one. If data availability is unclear, use `request_user_context()` to ask in a friendly way (e.g., "Is your data in a table or file we can work with?").
+    - Please note that both analysts are able to search the Internet.
 
   3. **Rephrase the Query**:
     - Rephrase the query to incorporate prior context, feedback, and clarifications from `request_user_context()`.
