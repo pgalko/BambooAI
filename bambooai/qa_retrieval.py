@@ -195,7 +195,7 @@ class PineconeWrapper:
             # As a final fallback, return the best intent match.
             return qualified_intent_matches[0]
 
-    def add_record(self, chain_id, intent_text, plan, data_descr, data_model, code, new_rank, similarity_threshold_for_semantic_match, percentage_of_distance_to_add=0.5):
+    def add_record(self, chain_id, intent_text, plan, data_descr, data_model, code, new_rank, similarity_threshold_for_semantic_match, percentage_of_distance_to_add=0.7):
         new_rank = int(new_rank)
         MIN_USER_RANK_TO_CONSIDER = 6
         
@@ -249,3 +249,39 @@ class PineconeWrapper:
         except Exception:
             if self.output_manager:
                 self.output_manager.display_system_messages(f"Failed to delete record with ID {record_id} from Pinecone index.")
+
+    def search_pinecone_for_results(self, query_text, top_k=10):
+        """
+        Vectorizes a query and returns the top_k matching results (ID and score) from Pinecone.
+        """
+        threshold = 0.2 # Minimum score threshold for results
+
+        if not self.index:
+            if self.output_manager:
+                self.output_manager.display_system_messages("Vector index is not available for search.")
+            return []
+        try:
+            # Vectorize the incoming query
+            vectorised_query = self.vectorize_intent(query_text)
+
+            # Query the vector db, asking for IDs and scores (which is the default)
+            results = self.index.query(
+                vector=vectorised_query,
+                top_k=top_k,
+                include_values=False,
+                include_metadata=False
+            )
+            
+            matches = results.get('matches', [])
+            # Create a list of objects, each containing the id and score
+            search_results = [
+                {'id': match['id'], 'score': match['score']} 
+                for match in matches if match['score'] > threshold
+            ]
+            
+            return search_results
+        except Exception as e:
+            # In case of an error during vectorization or query
+            if self.output_manager:
+                self.output_manager.display_system_messages(f"An error occurred during the search: {str(e)}")
+            return []

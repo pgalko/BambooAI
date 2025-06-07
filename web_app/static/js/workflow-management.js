@@ -622,28 +622,142 @@ function initializeThreadsUI() {
         return;
     }
     
-    // Check if threads section already exists (to avoid duplicating)
     if (document.querySelector('.threads-header')) {
         console.log('Threads UI already initialized, loading threads...');
-        // If UI exists, just load the threads
         loadThreadsList();
         return;
     }
     
-    // Create and append the divider and header
-    const dividerAndHeaderHTML = `
+    const uiHTML = `
         <hr class="menu-divider">
         <h3 class="threads-header">Checkpoints:</h3>
+        <div class="threads-search-container">
+            <input type="text" id="threadsSearchInput" class="threads-search-input" placeholder="Search memory...">
+            <button id="threadsSearchClear" class="threads-search-clear" style="display: none;" title="Clear search">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <button id="threadsSearchSubmit" class="threads-search-submit" title="Search">
+                <svg class="search-arrow-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                <div class="thread-search-spinner" style="display: none;"></div>
+            </button>
+        </div>
         <div id="threads-list" class="threads-list">
             <div class="thread-loading">Loading checkpoints...</div>
         </div>
     `;
     
-    menuPopup.insertAdjacentHTML('beforeend', dividerAndHeaderHTML);
+    menuPopup.insertAdjacentHTML('beforeend', uiHTML);
+
+    const searchInput = document.getElementById('threadsSearchInput');
+    const searchSubmit = document.getElementById('threadsSearchSubmit');
+    const searchClear = document.getElementById('threadsSearchClear');
+    const threadsList = document.getElementById('threads-list');
+
+    // Check if Vector DB is enabled and update UI accordingly
+    fetch('/get_vector_db_status')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.vector_db_enabled) {
+                searchInput.disabled = true;
+                searchSubmit.disabled = true;
+                searchInput.placeholder = 'Vector DB not enabled.';
+                searchInput.parentElement.classList.add('disabled');
+            }
+        });
+
+        const performSearch = () => {
+            const query = searchInput.value.trim();
+            if (!query) {
+                loadThreadsList();
+                return;
+            }
     
-    // Load threads from the backend after creating the UI
+            // Show spinner and disable button
+            searchSubmit.querySelector('.search-arrow-icon').style.display = 'none';
+            searchSubmit.querySelector('.thread-search-spinner').style.display = 'block';
+            searchSubmit.disabled = true;
+            searchInput.placeholder = 'Searching Memory...';
+    
+            fetch('/search_threads', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: query })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                // Here is the console log you requested
+                console.log('Search results:', data);
+    
+                // Adapt the logic to use the new `search_results` key
+                const searchResults = data.search_results;
+                const allContainers = threadsList.querySelectorAll('.thread-container');
+                
+                if (!searchResults || searchResults.length === 0) {
+                    threadsList.innerHTML = '<div class="no-threads">No matches found.</div>';
+                    return;
+                }
+    
+                allContainers.forEach(container => {
+                    container.style.display = 'none';
+                });
+    
+                const addedContainers = new Set();
+    
+                // Loop through the new array of objects
+                searchResults.forEach(result => {
+                    const id = result.id; // Extract the ID from each result object
+                    
+                    const matchingItem = threadsList.querySelector(`.thread-item[data-chain-id="${id}"]`);
+                    if (matchingItem) {
+                        const container = matchingItem.closest('.thread-container');
+                        
+                        if (container && !addedContainers.has(container)) {
+                            threadsList.appendChild(container);
+                            container.style.display = 'block';
+                            addedContainers.add(container);
+                        }
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Search failed:', error);
+                threadsList.innerHTML = `<div class="no-threads">Search failed: ${error.message}</div>`;
+            })
+            .finally(() => {
+                // Hide spinner and re-enable button
+                searchSubmit.querySelector('.search-arrow-icon').style.display = 'block';
+                searchSubmit.querySelector('.thread-search-spinner').style.display = 'none';
+                searchSubmit.disabled = false;
+                searchInput.placeholder = 'Search memory...';
+            });
+        };
+
+    searchInput.addEventListener('input', () => {
+        if (searchInput.value.length > 0) {
+            searchClear.style.display = 'flex';
+        } else {
+            searchClear.style.display = 'none';
+            loadThreadsList(); 
+        }
+    });
+
+    searchClear.addEventListener('click', () => {
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    searchSubmit.addEventListener('click', performSearch);
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            performSearch();
+        }
+    });
+    
     loadThreadsList();
-    
     console.log('Threads UI initialized');
 }
 

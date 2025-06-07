@@ -1341,6 +1341,41 @@ def download_generated_dataset():
             app.logger.error(f"Error serving local file {file_path_param}: {str(e)}")
             return jsonify({'error': f'Error serving file: {str(e)}'}), 500
 
+# Endpoint to check if vector database is enabled      
+@app.route('/get_vector_db_status', methods=['GET'])
+def get_vector_db_status():
+    """Endpoint to check if the vector database is enabled."""
+    return jsonify({'vector_db_enabled': VECTOR_DB})
+
+# Endpoint to search threads in the vector database
+@app.route('/search_threads', methods=['POST'])
+def search_threads():
+    """Receives a search query and returns matching results (ID and score) from Pinecone."""
+    if not VECTOR_DB:
+        return jsonify({'search_results': [], 'message': 'Vector DB not enabled.'}), 200
+
+    session_id = session.get('session_id')
+    if not session_id or session_id not in bamboo_ai_instances:
+        return jsonify({'error': 'Session not found or BambooAI not initialized'}), 400
+
+    data = request.json
+    query = data.get('query')
+    if not query:
+        return jsonify({'error': 'Query is required'}), 400
+
+    bamboo_ai_instance = bamboo_ai_instances[session_id]
+    
+    try:
+        if not hasattr(bamboo_ai_instance, 'pinecone_wrapper') or not bamboo_ai_instance.pinecone_wrapper.index:
+             return jsonify({'search_results': [], 'message': 'Vector DB not configured for this session.'}), 200
+
+        # Call the new function and adjust the key in the returned JSON
+        search_results = bamboo_ai_instance.pinecone_wrapper.search_pinecone_for_results(query_text=query, top_k=5)
+        return jsonify({'search_results': search_results})
+    except Exception as e:
+        app.logger.error(f"Error searching threads: {e}")
+        return jsonify({'error': 'An error occurred during search'}), 500
+
 if __name__ == '__main__':
     # Simple command line argument for debug mode
     parser = argparse.ArgumentParser(description='BambooAI Flask App')
