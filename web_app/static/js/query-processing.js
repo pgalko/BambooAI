@@ -504,33 +504,53 @@ function toggleToolResults(toolCallId) {
 
 function updateToolCallWithError(errorMessage) {
     if (currentToolCallId) {
-        const toolCallElement = document.getElementById(currentToolCallId);
-        if (toolCallElement) {
-            // ALWAYS stop the spinner first
-            completeToolCall(currentToolCallId, toolCallStartTime || Date.now());
-            currentToolCallId = null;
-            toolCallStartTime = null;
+        const attemptUpdate = (retries = 2) => {
+            const toolCallElement = document.getElementById(currentToolCallId);
             
-            // THEN do special code-execution styling if applicable
-            if (toolCallElement.classList.contains('code-execution')) {
-                toolCallElement.classList.add('tool-call-error');
-                const actionSpan = toolCallElement.querySelector('.tool-call-action');
-                if (actionSpan) {
-                    const iconHtml = actionSpan.querySelector('.tool-icon').outerHTML;
-                    actionSpan.innerHTML = `${iconHtml} Action: "Error Correction"`;
-                }
-                const resultsContainer = toolCallElement.querySelector('.results-container');
-                if (resultsContainer) {
-                    resultsContainer.innerHTML = formatCodeExecError(errorMessage);
-                    resultsContainer.style.display = 'block';
-                    toolCallElement.classList.add('expanded');
-                    const chevronIcon = toolCallElement.querySelector('.chevron-icon');
-                    if (chevronIcon) {
-                        chevronIcon.style.transform = 'rotate(180deg)';
+            // Check if element exists and has been properly initialized
+            if (toolCallElement && toolCallElement.querySelector('.tool-call-header')) {
+                // ALWAYS stop the spinner first
+                completeToolCall(currentToolCallId, toolCallStartTime || Date.now());
+                currentToolCallId = null;
+                toolCallStartTime = null;
+                
+                // THEN do special code-execution styling if applicable
+                if (toolCallElement.classList.contains('code-execution')) {
+                    toolCallElement.classList.add('tool-call-error');
+                    const actionSpan = toolCallElement.querySelector('.tool-call-action');
+                    if (actionSpan) {
+                        const iconHtml = actionSpan.querySelector('.tool-icon').outerHTML;
+                        actionSpan.innerHTML = `${iconHtml} Action: "Error Correction"`;
+                    }
+                    const resultsContainer = toolCallElement.querySelector('.results-container');
+                    if (resultsContainer) {
+                        resultsContainer.innerHTML = formatCodeExecError(errorMessage);
+                        resultsContainer.style.display = 'block';
+                        toolCallElement.classList.add('expanded');
+                        const chevronIcon = toolCallElement.querySelector('.chevron-icon');
+                        if (chevronIcon) {
+                            chevronIcon.style.transform = 'rotate(180deg)';
+                        }
                     }
                 }
+                return;
             }
-        }
+            
+            // Element not ready, retry if attempts remaining
+            if (retries > 0) {
+                setTimeout(() => attemptUpdate(retries - 1), 15);
+            } else {
+                // Fallback: reset state and use original error display
+                if (currentToolCallId) {
+                    currentToolCallId = null;
+                    toolCallStartTime = null;
+                }
+                const streamOutputDiv = document.getElementById('streamOutput');
+                streamOutputDiv.innerHTML += formatError(errorMessage);
+            }
+        };
+        
+        attemptUpdate();
     } else {
         // Fallback: if no current tool call, use the original error display
         const streamOutputDiv = document.getElementById('streamOutput');

@@ -688,10 +688,9 @@ function initializeThreadsUI() {
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                // Here is the console log you requested
+
                 console.log('Search results:', data);
     
-                // Adapt the logic to use the new `search_results` key
                 const searchResults = data.search_results;
                 const allContainers = threadsList.querySelectorAll('.thread-container');
                 
