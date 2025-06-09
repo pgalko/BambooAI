@@ -13,10 +13,13 @@ BambooAI is an open-source library that enables natural language-based data anal
 - [How It Works](#how-it-works)
 - [Configuration](#configuration)
   - [Parameters](#parameters)
-  - [LLM Configuration](#llm-configuration)
+  - [Agent and Model Configuration](#agent-and-model-configuration)
+- [Auxiliary Datasets](#auxiliary-datasets)
+- [Dataframe Ontology (Semantic Memory)](#dataframe-ontology-semantic-memory)
+- [Vector DB (Episodic Memory)](#vector-db-episodic-memory)
 - [Usage Examples](#usage-examples)
 - [Web Application Setup](#web-application-setup)
-  - [Using Docker (Recomended)](option-1-using-docker-recomended)
+  - [Using Docker (Recommended)](#option-1-using-docker-recommended)
   - [Using pip package](#option-2-using-pip-package)
   - [Using complete repository](#option-3-using-complete-repository) 
 - [Model Support](#model-support)
@@ -216,7 +219,7 @@ bamboo = BambooAI(
   - Enables users to provide custom prompt templates
   - Requires path to the YAML file containing the templates
 
-### LLM Configuration
+### Agent and Model Configuration
 
 BambooAI uses multi-agent system where different specialized agents handle specific aspects of the data analysis process. Each agent can be configured to use different LLM models and parameters based on their specific requirements.
 
@@ -368,9 +371,9 @@ bamboo = BambooAI(
 )
 ```
 
-## Dataframe Ontology
+## Dataframe Ontology (Semantic Memory)
 
-BambooAI supports custom dataframe ontologies to improve analysis accuracy.
+BambooAI supports custom ontologies to ground the agents within the specific domain of interest.
 
 [Ontology Integration Wiki](https://github.com/pgalko/BambooAI/wiki/Dataframe-Ontology-Integration)
 
@@ -399,6 +402,39 @@ The ontology file defines your data structure using RDF/OWL notation, including:
 
 This helps BambooAI understand complex data relationships and generate more accurate code.
 
+## Vector DB (Episodic Memory)
+
+BambooAI supports integration with vector database. The main putpose is to allow storage and retrieval of successfull analysis allowing the system to evolve and learn over time.
+
+[Medium Blog Post](https://medium.com/@palogalko/long-term-memory-in-ai-powered-sports-science-data-analysis-335777e06ac6)
+
+### How to Use
+
+```python
+from bambooai import BambooAI
+import pandas as pd
+
+# Initialize with ontology file path
+bamboo = BambooAI(
+    df=your_dataframe,
+    vector_db=True
+)
+```
+Requires an account with [Pinecone (free)](https://app.pinecone.io/), and the API key stored in the `.env`
+
+`PINECONE_API_KEY=<YOUR API KEY HERE>`
+
+### What It Does
+
+Upon successful analysis completion, user has an ability to rank and store the solution. 
+- The intent of the highly ranked solutions (>6) will be vectorised using the selected model, and stored in Pinecone vector DB together with the solution metadata
+- Metadata:
+  - Data Model
+  - Plan
+  - Code
+  - Rank
+- When a new task arives the system will query the vector index and retrieve the closes match that is above similarity threshold (0.8)
+- The saved solutions will serve as a reference for subsequent similar tasks guiding the relevant agents through the solving process. 
 
 ## Usage Examples
 
@@ -432,7 +468,7 @@ Web UI screenshot (Interactive Workflow Map):
 <img width="2056" alt="Workflow Map Feature" src="https://github.com/user-attachments/assets/931d8a49-cf06-43df-b753-b4c26aa7c973" />
 
 
-### Option 1: Using Docker (Recomended)
+### Option 1: Using Docker (Recommended)
 
 BambooAI can be easily deployed using Docker, which provides a consistent environment regardless of your operating system or local setup.
 
