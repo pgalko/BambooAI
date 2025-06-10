@@ -108,8 +108,6 @@ class PineconeWrapper:
         matches = results.get('matches', [])
 
         if not matches:
-            if self.output_manager:
-                self.output_manager.display_system_messages("I was unable to find a matching record in the vector db.")
             return None
 
         return matches
@@ -118,8 +116,6 @@ class PineconeWrapper:
         fetched_data = self.index.fetch(ids=[record_id])
         vector_data = fetched_data.get('vectors', {}).get(record_id, {})
         if not vector_data:
-            if self.output_manager:
-                self.output_manager.display_system_messages("No data found for this vector db id")
             return None
         return vector_data
 
@@ -204,8 +200,6 @@ class PineconeWrapper:
         strong_threshold = similarity_threshold_for_semantic_match + (remaining_distance * percentage_of_distance_to_add)
         
         if new_rank < MIN_USER_RANK_TO_CONSIDER:
-            if self.output_manager:
-                self.output_manager.display_system_messages(f"New rank {new_rank} is below threshold {MIN_USER_RANK_TO_CONSIDER}. Not adding record for chain ID {chain_id}.")
             return
 
         # Since chain_id is a timestamp, this ID will always be unique for new submissions.

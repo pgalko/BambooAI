@@ -844,8 +844,7 @@ def query():
 
     if user_code:
         user_input = "User manually edited your code, and requested to run it, and return the result."
-    
-    bamboo_ai_instance.output_manager.enable_web_mode()
+
     bamboo_ai_instance.output_manager.add_user_input(user_input)
     
     def run_bamboo_ai():
@@ -873,9 +872,6 @@ def query():
 
         # Ensure the thread has finished
         thread.join()
-        
-        # Disable web mode
-        bamboo_ai_instance.output_manager.disable_web_mode()
 
     return Response(generate(), mimetype='application/json')
 
@@ -883,8 +879,6 @@ def query():
 def submit_rank():
     session_id = session['session_id']
     bamboo_ai_instance = get_bamboo_ai(session_id)
-
-    bamboo_ai_instance.output_manager.enable_web_mode()
     
     data = request.json
     user_rank = data.get('rank')
@@ -917,8 +911,6 @@ def submit_rank():
                     yield output + '\n'
             except Empty:
                 pass  # Queue is empty, continue waiting
-        
-        bamboo_ai_instance.output_manager.disable_web_mode()
 
     return Response(generate(), mimetype='application/json')
 

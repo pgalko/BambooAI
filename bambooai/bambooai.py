@@ -48,7 +48,7 @@ class BambooAI:
         try:
             self.interaction_store = storage_manager.SimpleInteractionStore()
         except storage_manager.StorageError as e:
-            self.output_manager.print_wrapper(f"Warning: Failed to initialize interaction store: {e}")
+            self.output_manager.display_system_messages(f"Warning: Failed to initialize interaction store: {e}")
             self.interaction_store = None
 
         # Check if the OPENAI_API_KEY environment variable is set
@@ -62,7 +62,7 @@ class BambooAI:
                 
             if search_mode == 'google_ai':
                 if not os.getenv('GEMINI_API_KEY'):
-                    self.output_manager.print_wrapper(
+                    self.output_manager.display_system_messages(
                         "Warning: GEMINI_API_KEY environment variable not found. Disabling google_search.", 
                         chain_id=self.chain_id
                     )
@@ -70,7 +70,7 @@ class BambooAI:
                     
             elif search_mode == 'selenium':
                 if not os.getenv('SERPER_API_KEY'):
-                    self.output_manager.print_wrapper(
+                    self.output_manager.display_system_messages(
                         "Warning: SERPER_API_KEY environment variable not found. Disabling google_search.", 
                         chain_id=self.chain_id
                     )
@@ -469,7 +469,7 @@ class BambooAI:
                     tool_results=tool_results
                 )
             except storage_manager.StorageError as e:
-                self.output_manager.print_wrapper(f"Warning: Failed to store interaction: {e}")
+                self.output_manager.display_system_messages(f"Warning: Failed to store interaction: {e}")
 
     ######################
     ### Eval Functions ###

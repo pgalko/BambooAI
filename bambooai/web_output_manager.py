@@ -9,21 +9,11 @@ from bambooai.output_manager import OutputManager
 class WebOutputManager(OutputManager):
     def __init__(self):
         super().__init__()
-        self.web_mode = False
+        self.web_mode = True
         self.output_queue = queue.Queue()
         self.input_queue = queue.Queue()
         self.capture_output = StringIO()
         self.last_chunk_ended_with_newline = True
-
-    def enable_web_mode(self):
-        self.web_mode = True
-        self.capture_output = StringIO()
-        sys.stdout = self.capture_output
-
-    def disable_web_mode(self):
-        self.web_mode = False
-        sys.stdout = sys.__stdout__
-        self.capture_output.close()
 
     def print_wrapper(self, message, end="\n", flush=False, chain_id=None, thought=False):
         formatted_message = str(message)
@@ -41,8 +31,8 @@ class WebOutputManager(OutputManager):
                     self.output_queue.put(json.dumps({"thought": formatted_message, "chain_id": chain_id}))
                 else:
                     self.output_queue.put(json.dumps({"text": formatted_message, "chain_id": chain_id}))
-
-        super().print_wrapper(formatted_message, end='', flush=flush, chain_id=chain_id, thought=thought)
+        else:
+            super().print_wrapper(formatted_message, end='', flush=flush, chain_id=chain_id, thought=thought)
 
     def get_captured_output(self):
         output = self.capture_output.getvalue()
