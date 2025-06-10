@@ -1571,6 +1571,24 @@ body, html {
     gap: 8px;
 }
 
+.selected-text-display {
+    margin-top: 8px;
+    padding: 6px 8px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    max-width: 300px;
+    word-wrap: break-word;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.selected-text-display strong {
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
 .plot-container {
     width: 100%;
     overflow: hidden;
