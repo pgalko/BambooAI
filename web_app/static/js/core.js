@@ -26,6 +26,11 @@ let initialScrollTop = 0;
 let previewElement = null;
 let answerTabInteractive = false;
 let auxiliaryDatasetCount = 0;
+let currentSweatStackState = {
+    isLoaded: false,
+    pillId: null,
+    dataInfo: null
+};
 let currentOntologyState = {
     isActive: false,
     fileName: null, // Name of the uploaded ontology file
