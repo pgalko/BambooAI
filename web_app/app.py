@@ -165,6 +165,7 @@ DF_ONTOLOGY = None
 SWEATSTACK_CLIENT_ID = os.getenv('SWEATSTACK_CLIENT_ID')
 SWEATSTACK_CLIENT_SECRET = os.getenv('SWEATSTACK_CLIENT_SECRET')
 
+
 # Function to generate a unique DataFrame ID
 def generate_dataframe_id() -> str:
     df_id = str(uuid.uuid4())
@@ -325,6 +326,44 @@ def start_new_conversation(session_id):
     app.logger.info(f"BambooAI instance reset for session {session_id}, auxiliary datasets list cleared, ontology cleared, and Datasets folder content cleared.")
     
     return jsonify({"message": "New conversation started"}), 200
+
+
+def transform_sweatstack_longitudinal_data(df):
+    """
+    Transform SweatStack dataframe:
+    1. Convert activity_id to integers (incrementing from oldest to newest activity)
+    2. Convert timestamp to local time and rename to "datetime"
+    3. Add cumulative distance column calculated from duration × speed
+    4. Remove duration column
+    5. Sort columns by datetime, activity_id, sport, then other columns
+    """
+    # 1. Convert timestamp column to local time and rename to "datetime"
+    df["datetime"] = pd.to_datetime(df.index).tz_localize(None)  # Remove timezone info to convert to local time
+    df = df.reset_index(drop=True)  # Remove the original timestamp index
+
+    # 2. Convert activity_id column to integers (incrementing from oldest to newest activity)
+    df = df.sort_values('datetime')
+    unique_activities = df.groupby('activity_id')['datetime'].min().sort_values().index
+    activity_mapping = {old_id: new_id for new_id, old_id in enumerate(unique_activities, 1)}
+    df['activity_id'] = df['activity_id'].map(activity_mapping)
+
+    # 3. Add cumulative distance column calculated from duration × speed
+    if 'duration' in df.columns and 'speed' in df.columns:
+        df['distance_increment'] = df['duration'].dt.total_seconds() * df['speed']
+        df['distance'] = df.groupby('activity_id')['distance_increment'].cumsum()
+        df = df.drop('distance_increment', axis=1)
+
+    # 4. Remove duration column
+    df = df.drop('duration', axis=1)
+
+    # 5. Sort columns by datetime, activity_id, sport, then other columns
+    priority_columns = ['datetime', 'activity_id', 'sport']
+    existing_priority_columns = [col for col in priority_columns if col in df.columns]
+    other_columns = [col for col in df.columns if col not in priority_columns]
+    df = df[existing_priority_columns + sorted(other_columns)]
+
+    return df
+
 
 @app.before_request
 def ensure_session():
@@ -1436,8 +1475,8 @@ def sweatstack_load_data():
             start=datetime.now() - timedelta(days=selected_days),
             sports=selected_sports
         )
-        # This is a transformation to make the dataframe (more) compatible with what BambooAI expects
-        df["datetime"] = df.index
+
+        df = transform_sweatstack_longitudinal_data(df)
 
         session_id = session['session_id']
         df_json, new_df_id = load_dataframe_to_bamboo_ai_instance(
