@@ -28,10 +28,18 @@ function initializePrimaryDatasetUpload() {
     }
     
     primaryDatasetButton.addEventListener('click', function() {
+        // Check if primary dataset already exists
         if (currentDatasetName) {
             showUploadLimitMessage('Only 1 primary dataset allowed. Remove current to upload new.');
             return; 
         }
+        
+        // Check if SweatStack data is loaded
+        if (currentSweatStackState.isLoaded) {
+            showUploadLimitMessage('SweatStack data already loaded. Remove current to upload primary dataset.');
+            return;
+        }
+        
         primaryFileInput.click();
     });
     
@@ -74,6 +82,8 @@ function handlePrimaryFileUpload() {
     .catch(error => {
         console.error('Error uploading primary dataset:', error);
         createOrUpdateDatasetPill(pillId, `Error Primary: ${error.message}`, 'primary', 'error', false, null);
+        // Reset currentDatasetName on error
+        currentDatasetName = null;
     })
     .finally(() => {
         this.value = '';
@@ -292,8 +302,8 @@ function createOrUpdateDatasetPill(id, text, type, state, isLoading = false, ide
     pill.dataset.datasetType = type;
 
     pill.innerHTML = `
-        <span class="dataset-pill-content ${state === 'success' && type !== 'ontology' && type !== 'sweatstack' ? 'clickable-pill-content' : ''}"
-              title="${state === 'success' && type !== 'ontology' && type !== 'sweatstack' ? 'Click to view ' + text.split('(')[0] : (type === 'ontology' && state === 'success' ? identifier : text)}">
+        <span class="dataset-pill-content ${state === 'success' && type !== 'ontology' ? 'clickable-pill-content' : ''}"
+              title="${state === 'success' && type !== 'ontology' ? 'Click to view ' + text.split('(')[0] : (type === 'ontology' && state === 'success' ? identifier : text)}">
             <span>${text}</span>
             ${isLoading ? '<div class="file-upload-spinner"></div>' : ''}
         </span>
@@ -308,7 +318,7 @@ function createOrUpdateDatasetPill(id, text, type, state, isLoading = false, ide
     `;
 
     const contentSpan = pill.querySelector('.dataset-pill-content');
-    if (state === 'success' && contentSpan && type !== 'ontology' && type !== 'sweatstack') {
+    if (state === 'success' && contentSpan && type !== 'ontology') {
         contentSpan.addEventListener('click', handleDatasetPillClick);
     }
 
@@ -347,9 +357,8 @@ async function handleDatasetPillClick(event) {
         textSpan.textContent = originalPillText;
         return;
     } else if (datasetType === 'sweatstack') {
-        console.log('SweatStack pill clicked - no preview action (data already loaded as primary dataset).');
-        textSpan.textContent = originalPillText;
-        return;
+        fetchUrl = '/get_primary_dataset_preview';
+        fetchBody = {};
     } else {
         console.warn('Unknown dataset type or missing identifier.');
         textSpan.textContent = originalPillText;
@@ -539,17 +548,24 @@ function initializeSweatStackDataOption() {
 
     sweatstackDataButton.addEventListener('click', function() {
         console.log('SweatStack data option clicked');
+        
+        // Check if SweatStack data is already loaded
+        if (currentSweatStackState.isLoaded) {
+            showUploadLimitMessage('SweatStack data already loaded. Remove current to load new.');
+            return;
+        }
+        
+        // Check if primary dataset exists
+        if (currentDatasetName) {
+            showUploadLimitMessage('Primary dataset already loaded. Remove current to load SweatStack data.');
+            return;
+        }
+        
         showSweatStackModal();
     });
 }
 
 function createSweatStackPill(dataInfo) {
-    // Check if SweatStack data is already loaded
-    if (currentSweatStackState.isLoaded) {
-        showUploadLimitMessage('SweatStack data already loaded. Remove current data to load new.');
-        return;
-    }
-
     const pillId = 'sweatstack-pill-' + Date.now();
     const displayText = `SweatStack (${dataInfo.sports.join(', ')}, ${dataInfo.days} days) loaded`;
 

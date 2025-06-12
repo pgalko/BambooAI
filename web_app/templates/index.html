@@ -205,25 +205,19 @@
                                 </svg>
                             </button>
                             
-                            <!-- Guide me -->
+                            <!-- Grow Ideas -->
                             <button
-                            id="suggestQuestions"
-                            type="button"
-                            class="icon-button filter-icon suggest-questions disabled"
-                            title="Dig Deeper"
-                            >
-                            <svg
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            >
-                                <path d="M22 3H2l8 9.46V19a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2v-6.54L22 3z"/>
-                            </svg>
+                                id="suggestQuestions"
+                                type="button"
+                                class="icon-button filter-icon suggest-questions disabled"
+                                title="Grow New Ideas"
+                                >
+                                <!-- Icon from Tabler Icons (tabler.io) -->
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                    <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                    <path d="M12 20l0 -10"></path>
+                                </svg>
                             </button>
 
                             <!-- Rank Solution -->
@@ -408,126 +402,108 @@
 
     <!-- SweatStack Sports Selection Modal -->
     <div id="sweatstackModal" class="modal">
-        <div class="modal-content" style="width: 400px; max-width: 90%; text-align: left;">
+        <div class="modal-content">
             <button class="close" aria-label="Close">×</button>
-            <div style="text-align: center; margin-bottom: 15px;">
-                <img src="/static/image/sweatstack-favicon.svg" alt="SweatStack Logo" style="width: 32px; height: 32px; margin-right: 8px; vertical-align: middle;">
-                <h3 style="display: inline-block; margin: 0;">Connect to SweatStack</h3>
+            <div class="modal-header-section">
+                <img src="/static/image/sweatstack-favicon.svg" alt="SweatStack Logo">
+                <h3>Load Data from SweatStack</h3>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <h4 style="margin-bottom: 10px; color: var(--modal-text); font-size: 16px; font-weight: 500;">Select Sports:</h4>
+            <div class="modal-section">
+                <h4>Select Sports:</h4>
                 <div class="sports-selection">
-                    <label class="sport-option" style="display: block; margin-bottom: 8px; cursor: pointer;">
-                        <input type="checkbox" id="cycling-checkbox" value="cycling" checked style="margin-right: 8px;">
-                        <span style="color: var(--modal-text);">Cycling</span>
+                    <label class="sport-option">
+                        <input type="checkbox" id="cycling-checkbox" value="cycling" checked>
+                        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>Cycling</span>
                     </label>
-                    <label class="sport-option" style="display: block; margin-bottom: 8px; cursor: pointer;">
-                        <input type="checkbox" id="running-checkbox" value="running" style="margin-right: 8px;">
-                        <span style="color: var(--modal-text);">Running</span>
+                    <label class="sport-option">
+                        <input type="checkbox" id="running-checkbox" value="running">
+                        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>Running</span>
                     </label>
                 </div>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <h4 style="margin-bottom: 10px; color: var(--modal-text); font-size: 16px; font-weight: 500;">Time Window:</h4>
+            <div class="modal-section">
+                <h4>Time Window:</h4>
                 <div class="time-window-selection">
-                    <label class="time-option" style="display: block; margin-bottom: 8px; cursor: pointer;">
-                        <input type="radio" name="timeWindow" id="time-3months" value="90" checked style="margin-right: 8px;">
-                        <span style="color: var(--modal-text);">Last 3 months</span>
+                    <label class="time-option">
+                        <input type="radio" name="timeWindow" id="time-3months" value="90" checked>
+                        <span>Last 3 months</span>
                     </label>
-                    <label class="time-option" style="display: block; margin-bottom: 8px; cursor: pointer;">
-                        <input type="radio" name="timeWindow" id="time-1year" value="365" style="margin-right: 8px;">
-                        <span style="color: var(--modal-text);">Last year</span>
+                    <label class="time-option">
+                        <input type="radio" name="timeWindow" id="time-1year" value="365">
+                        <span>Last year</span>
                     </label>
-                    <label class="time-option" style="display: block; margin-bottom: 8px; cursor: pointer;">
-                        <input type="radio" name="timeWindow" id="time-2years" value="730" style="margin-right: 8px;">
-                        <span style="color: var(--modal-text);">Last 2 years</span>
+                    <label class="time-option">
+                        <input type="radio" name="timeWindow" id="time-2years" value="730">
+                        <span>Last 2 years</span>
                     </label>
                 </div>
-                <p style="color: var(--text-secondary); margin-top: 8px; font-style: italic; text-align: left;">
+                <p class="warning-note">
                     Note: Longer time windows may slow down the application due to longer loading and processing times.
                 </p>
             </div>
 
-            <button id="connectSweatstack" style="
-                background-color: var(--accent-color);
-                color: rgb(0, 0, 0);
-                border: none;
-                padding: 12px 24px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 18px;
-                font-weight: 500;
-                width: 100%;
-                transition: background-color 0.2s;
-            " onmouseover="this.style.backgroundColor='var(--accent-hover)'" onmouseout="this.style.backgroundColor='var(--accent-color)'" aria-label="Connect to SweatStack">
-                <strong>Connect to SweatStack</strong>
+            <button id="connectSweatstack" class="circular-button" title="Load Data from SwetStack" aria-label="Load Data from SweatStack">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m22 2-7 20-4-9-9-4Z" />
+                    <path d="M22 2 11 13" />
+                </svg>
             </button>
+            <div class="button-label">Load Data</div>
         </div>
     </div>
 
     <!-- SweatStack Configuration Required Modal -->
     <div id="sweatstackConfigModal" class="modal">
-        <div class="modal-content" style="width: 400px; max-width: 90%; text-align: left;">
+        <div class="modal-content">
             <button class="close" aria-label="Close">×</button>
-            <div style="text-align: center; margin-bottom: 15px;">
-                <img src="/static/image/sweatstack-favicon.svg" alt="SweatStack Logo" style="width: 32px; height: 32px; margin-right: 8px; vertical-align: middle;">
-                <h3 style="display: inline-block; margin: 0;">SweatStack Configuration Required</h3>
+            <div class="modal-header-section">
+                <img src="/static/image/sweatstack-favicon.svg" alt="SweatStack Logo">
+                <h3>SweatStack Configuration Required</h3>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <p style="color: var(--modal-text); line-height: 1.5;">
-                    Set SWEATSTACK_CLIENT_ID and SWEATSTACK_CLIENT_SECRET environment variables. Get API credentials at <a href="https://app.sweatstack.no/settings/api" target="_blank" rel="noopener noreferrer" style="color: var(--accent-color); text-decoration: none;">https://app.sweatstack.no/settings/api</a>
+            <div class="modal-section">
+                <p>
+                    Set SWEATSTACK_CLIENT_ID and SWEATSTACK_CLIENT_SECRET environment variables. 
+                    Get API credentials at <a href="https://app.sweatstack.no/settings/api" target="_blank" rel="noopener noreferrer">https://app.sweatstack.no/settings/api</a>
                 </p>
             </div>
 
-            <button onclick="document.getElementById('sweatstackConfigModal').style.display='none'" style="
-                background-color: var(--accent-color);
-                color: rgb(0, 0, 0);
-                border: none;
-                padding: 12px 24px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 16px;
-                font-weight: 500;
-                width: 100%;
-                transition: background-color 0.2s;
-            " onmouseover="this.style.backgroundColor='var(--accent-hover)'" onmouseout="this.style.backgroundColor='var(--accent-color)'" aria-label="Close">
-                <strong>OK</strong>
+            <button onclick="document.getElementById('sweatstackConfigModal').style.display='none'" class="circular-button" title="Close" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
             </button>
+            <div class="button-label">OK</div>
         </div>
     </div>
 
     <!-- SweatStack Authenticated Modal -->
     <div id="sweatstackAuthenticatedModal" class="modal">
-        <div class="modal-content" style="width: 400px; max-width: 90%; text-align: left;">
+        <div class="modal-content">
             <button class="close" aria-label="Close">×</button>
-            <div style="text-align: center; margin-bottom: 15px;">
-                <img src="/static/image/sweatstack-favicon.svg" alt="SweatStack Logo" style="width: 32px; height: 32px; margin-right: 8px; vertical-align: middle;">
-                <h3 style="display: inline-block; margin: 0;">SweatStack Connected</h3>
+            <div class="modal-header-section">
+                <img src="/static/image/sweatstack-favicon.svg" alt="SweatStack Logo">
+                <h3>SweatStack Connected</h3>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <p style="color: var(--modal-text); line-height: 1.5;">
+            <div class="modal-section">
+                <p>
                     You are already authenticated with SweatStack. You can load data using the attach menu or disconnect from your account.
                 </p>
             </div>
 
-            <button id="logoutSweatstack" style="
-                background-color: var(--accent-color);
-                color: rgb(0, 0, 0);
-                border: none;
-                padding: 12px 24px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 16px;
-                font-weight: 500;
-                width: 100%;
-                transition: background-color 0.2s;
-            " onmouseover="this.style.backgroundColor='var(--accent-hover)'" onmouseout="this.style.backgroundColor='var(--accent-color)'" aria-label="Logout from SweatStack">
-                <strong>Disconnect</strong>
+            <button id="logoutSweatstack" class="circular-button" title="Disconnect from SweatStack" aria-label="Logout from SweatStack">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
             </button>
+            <div class="button-label">Disconnect</div>
         </div>
     </div>
 

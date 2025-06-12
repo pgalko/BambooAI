@@ -573,6 +573,316 @@ body, html {
     background-color: rgba(80, 250, 123, 0.08); /* Same hover effect as primary pill */
 }
 
+/* --- SweatStack Modal Styles (Final Compact Version) --- */
+
+/* Base for all SweatStack modals - reduced padding */
+#sweatstackModal .modal-content,
+#sweatstackConfigModal .modal-content,
+#sweatstackAuthenticatedModal .modal-content {
+    background-color: var(--modal-bg);
+    color: var(--modal-text);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow-color);
+    width: 360px; /* Standardized width */
+    max-width: 90%;
+    text-align: left;
+    padding: 20px;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+/* General Header for all modals */
+.modal-header-section {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    justify-content: center; /* Center all headers */
+}
+
+.modal-header-section img {
+    display: none; /* Hide icon from all three modals */
+}
+
+.modal-header-section h3 {
+    color: var(--accent-color); /* Use accent color for all headers */
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+/* --- Specific styles for the Data Selection Modal --- */
+
+#sweatstackModal .modal-content {
+    padding: 16px; /* Even tighter padding */
+}
+
+/* Section container with a subtle, enclosing border */
+#sweatstackModal .modal-section {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+/* Section title styling */
+#sweatstackModal h4 {
+    margin: 0 0 8px 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Selection options container */
+#sweatstackModal .sports-selection,
+#sweatstackModal .time-window-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* Individual selection option */
+#sweatstackModal .sport-option,
+#sweatstackModal .time-option {
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+#sweatstackModal .sport-option:hover,
+#sweatstackModal .time-option:hover {
+    background-color: var(--bg-tertiary);
+}
+
+#sweatstackModal .sport-option input,
+#sweatstackModal .time-option input {
+    margin-right: 8px;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-color);
+}
+
+#sweatstackModal .sport-option span,
+#sweatstackModal .time-option span {
+    color: var(--modal-text);
+    font-size: 14px;
+}
+
+/* Warning Note - No left border, styled to match sections */
+#sweatstackModal .warning-note {
+    color: var(--text-secondary) !important;
+    font-style: italic;
+    font-size: 12px;
+    margin: 8px 0 0 0 !important;
+    padding: 8px;
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+/* Final button - reduced top margin */
+#sweatstackModal .circular-button {
+    margin-top: 12px;
+}
+
+/* --- Styles for other modals (Config, Authenticated) --- */
+
+#sweatstackConfigModal p,
+#sweatstackAuthenticatedModal p {
+    color: var(--modal-text);
+    line-height: 1.5;
+    margin-bottom: 16px;
+    font-size: 14px;
+    text-align: center; /* Center the text content */
+}
+
+#sweatstackConfigModal a {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+#sweatstackConfigModal a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+/* --- Shared Helper Classes (Buttons, Labels) --- */
+
+.circular-button {
+    background-color: transparent;
+    color: var(--accent-color);
+    border: 1.5px solid var(--accent-color);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+    margin: 16px auto 0;
+}
+
+.circular-button:hover:not(:disabled) {
+    background-color: var(--highlight-bg);
+    color: var(--accent-hover);
+    border-color: var(--accent-hover);
+    transform: scale(1.05);
+}
+
+.circular-button:active {
+    transform: scale(0.95);
+}
+
+.circular-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    border-color: var(--text-tertiary);
+    color: var(--text-tertiary);
+}
+
+.circular-button:disabled:hover {
+    background-color: transparent;
+    transform: none;
+    color: var(--text-tertiary);
+    border-color: var(--text-tertiary);
+}
+
+.circular-button svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+}
+
+.button-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 6px;
+    font-weight: 400;
+}
+
+[data-theme="dark"] .button-label {
+    color: var(--text-secondary);
+}
+
+/* --- Generic Toast System --- */
+
+.summary-popup.system-message {
+    background-color: var(--system-message-bg);
+    border: 1px solid var(--system-message-text);
+    color: var(--system-message-text);
+    border-radius: 6px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    padding-right: 40px; /* Creates space on the right for the close button */
+}
+
+.summary-popup.system-message pre {
+    color: var(--system-message-text);
+    background-color: transparent;
+    margin: 0;
+    padding: 0;
+    font-family: inherit;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.summary-popup.system-message .close-button {
+    color: var(--system-message-text);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.summary-popup.system-message .close-button:hover {
+    opacity: 1;
+    color: var(--accent-color);
+}
+
+[data-theme="dark"] .summary-popup.system-message {
+    background-color: var(--system-message-bg);
+    border-color: var(--system-message-text);
+}
+
+[data-theme="dark"] .summary-popup.system-message pre,
+[data-theme="dark"] .summary-popup.system-message .close-button {
+    color: var(--system-message-text);
+}
+
+/* --- Modern Pill-Style Controls with Checkmark Indicator --- */
+
+/* Hide the original radio/checkbox inputs */
+#sweatstackModal .sport-option input,
+#sweatstackModal .time-option input {
+    opacity: 0;
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+/* The container for the pills */
+#sweatstackModal .sports-selection,
+#sweatstackModal .time-window-selection {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    border: none;
+    padding: 0;
+    background-color: transparent;
+}
+
+/* Style each option as an individual pill */
+#sweatstackModal .sport-option,
+#sweatstackModal .time-option {
+    display: flex; /* This is key for aligning the icon and text */
+    align-items: center;
+    flex-grow: 0;
+    padding: 6px 12px;
+    border: 1.5px solid var(--border-color);
+    border-radius: 20px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 14px;
+    cursor: pointer;
+    background-color: transparent; /* Explicitly no background */
+    transition: all 0.2s ease;
+}
+
+/* The checkmark icon is hidden by default */
+#sweatstackModal .check-icon {
+    display: none;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    stroke: currentColor; /* Inherits the color from the parent label */
+}
+
+/* Hover state for non-selected pills */
+#sweatstackModal .sport-option:not(.selected):hover,
+#sweatstackModal .time-option:not(.selected):hover {
+    border-color: var(--accent-hover);
+    color: var(--accent-color);
+}
+
+/* The selected state: changes border/text color and shows the checkmark */
+#sweatstackModal .sport-option.selected,
+#sweatstackModal .time-option.selected {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    background-color: transparent; /* NO FILL */
+}
+
+/* This rule makes the checkmark visible when the pill is selected */
+#sweatstackModal .selected .check-icon {
+    display: inline-block;
+}
+
 #contentOutput {
     flex: 1;
     overflow-y: auto;
@@ -2375,8 +2685,8 @@ code.language-json {
 
 /* Logo styling */
 .menu-logo {
-    width: 100px;
-    height: 50px; 
+    width: 120px;
+    height: 80px; 
     display: block;
     margin: 10px auto; /* Center it at the top */
     align-self: flex-start; /* Align to the left edge */

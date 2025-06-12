@@ -252,7 +252,7 @@ function initializeSweatStackModal() {
 
                 // Show success toast
                 if (typeof showGenericToast === 'function') {
-                    showGenericToast('SweatStack data successfully loaded!', 3000);
+                    showGenericToast('SweatStack data loaded!', 3000);
                 }
 
                 // Create SweatStack pill
@@ -300,6 +300,45 @@ function initializeSweatStackModal() {
         });
     });
 }
+
+function setupSegmentedControls(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+
+    const inputs = modal.querySelectorAll('.sports-selection input, .time-window-selection input');
+
+    function updateSelection() {
+        // Handle radio buttons (single choice)
+        const radioGroups = {};
+        modal.querySelectorAll('input[type="radio"]').forEach(radio => {
+            if (!radioGroups[radio.name]) {
+                radioGroups[radio.name] = [];
+            }
+            radioGroups[radio.name].push(radio);
+        });
+
+        for (const name in radioGroups) {
+            radioGroups[name].forEach(radio => {
+                radio.parentElement.classList.toggle('selected', radio.checked);
+            });
+        }
+
+        // Handle checkboxes (multiple choice)
+        modal.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.parentElement.classList.toggle('selected', checkbox.checked);
+        });
+    }
+
+    inputs.forEach(input => {
+        input.addEventListener('change', updateSelection);
+    });
+
+    // Set initial state on modal open
+    updateSelection();
+}
+
+// Initialize for the SweatStack modal
+setupSegmentedControls('sweatstackModal');
 
 function initializeSweatStackConfigModal() {
     const modal = document.getElementById('sweatstackConfigModal');

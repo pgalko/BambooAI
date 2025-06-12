@@ -1378,7 +1378,10 @@ def search_threads():
     except Exception as e:
         app.logger.error(f"Error searching threads: {e}")
         return jsonify({'error': 'An error occurred during search'}), 500
-
+    
+# ----------------------
+# SweatStack Integration
+# ----------------------
 
 @app.route('/sweatstack/authorize', methods=['GET'])
 def sweatstack_authorize():
