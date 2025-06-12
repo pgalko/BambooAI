@@ -27,6 +27,7 @@ function initializeSelectionPopup() {
             </svg>
         </button>
         </form>
+        <div id="selectedTextDisplay" class="selected-text-display" style="display: none;"></div>
     </div>
     `;
 
@@ -81,6 +82,12 @@ function initializeTextSelection() {
 //--------------------
 
 function handleTextSelection(e) {
+    // Check if code is being edited
+    const editButton = document.querySelector('#content-code .edit-button');
+    if (editButton && editButton.hasAttribute('data-editing')) {
+        return; // Don't handle text selection when editing code
+    }
+    
     const selection = window.getSelection();
     selectedText = selection.toString().trim();
     
@@ -98,8 +105,17 @@ function handleTextSelection(e) {
 }
 
 function handleClickOutside(e) {
+    // Check if code is being edited
+    const editButton = document.querySelector('#content-code .edit-button');
+    if (editButton && editButton.hasAttribute('data-editing')) {
+        return; // Don't interfere when editing code
+    }
+    
     if (e.target.closest('#content-plot')) return;
-    if (e.target.closest('#selectionForm') || e.target.closest('#selectionRunButton')) return;
+    
+    if (e.target.closest('#selectionForm') || 
+        e.target.closest('#selectionRunButton') || 
+        e.target.closest('#selectionQuery')) return;
     
     const selectionPopup = document.getElementById('selectionPopup');
     if (!selectionPopup.contains(e.target) && e.target !== selectionPopup) {
@@ -108,14 +124,6 @@ function handleClickOutside(e) {
         currentRange = null;
         selectedText = '';
     }
-}
-
-function createHighlightOverlay(range) {
-    // Re-select the stored range to restore browser highlighting
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    console.log('Browser selection restored');
 }
 
 function removeHighlights() {
@@ -127,30 +135,32 @@ function removeHighlights() {
 
 function showPopupAtPosition(x, y) {
     const selectionPopup = document.getElementById('selectionPopup');
+    const selectedTextDisplay = document.getElementById('selectedTextDisplay');
     
     selectionPopup.style.display = 'block';
     
-    // Restore the selection after popup appears
-    if (currentRange) {
-        setTimeout(() => {
-            createHighlightOverlay(currentRange);
-        }, 0);
+    // Display the selected text below the input
+    if (selectedText && selectedTextDisplay) {
+        selectedTextDisplay.style.display = 'block';
+        selectedTextDisplay.innerHTML = `<strong>Selected:</strong> "${selectedText.length > 100 ? selectedText.substring(0, 200) + '...' : selectedText}"`;
     }
     
-    // Position popup (rest of your existing code)
-    const popupX = x + 10;
-    const popupY = y + 10;
-    
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const popupWidth = selectionPopup.offsetWidth;
-    const popupHeight = selectionPopup.offsetHeight;
-    
-    const finalX = Math.min(popupX, viewportWidth - popupWidth - 10);
-    const finalY = Math.min(popupY, viewportHeight - popupHeight - 10);
-    
-    selectionPopup.style.left = finalX + 'px';
-    selectionPopup.style.top = finalY + 'px';
+    // Position popup (after content is set so size calculations are accurate)
+    setTimeout(() => {
+        const popupX = x + 10;
+        const popupY = y + 10;
+        
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const popupWidth = selectionPopup.offsetWidth;
+        const popupHeight = selectionPopup.offsetHeight;
+        
+        const finalX = Math.min(popupX, viewportWidth - popupWidth - 10);
+        const finalY = Math.min(popupY, viewportHeight - popupHeight - 10);
+        
+        selectionPopup.style.left = finalX + 'px';
+        selectionPopup.style.top = finalY + 'px';
+    }, 0);
 }
 
 function handleScroll() {

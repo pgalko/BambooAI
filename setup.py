@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='bambooai',
-    version='0.4.12',
+    version='0.4.17',
     description='A lightweight library for working with pandas dataframes using natural language queries',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -24,7 +24,7 @@ setup(
         'pyarrow',
         'matplotlib',
         'seaborn',
-        'plotly',
+        'plotly==6.0.1',
         'termcolor',
         'newspaper3k',
         'pinecone==6.0.2',

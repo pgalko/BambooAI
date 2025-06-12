@@ -14,6 +14,7 @@ function initializeUIControls() {
     initializeSuggestQuestions();
     initializeTextareaResize();
     initializeKeyboardShortcuts();
+    initializeGenericToast();
     
     console.log('UI controls initialized');
 }
@@ -114,6 +115,10 @@ function toggleMenu(show) {
     }
     
     if (show) {
+        const buttonRect = menuButton.getBoundingClientRect();
+        menuPopup.style.left = `${buttonRect.left}px`;
+        menuPopup.style.top = `${buttonRect.bottom + 5}px`; // Position 5px below the button
+        
         menuPopup.classList.add('active');
         menuPopup.style.display = 'flex';
         overlay.classList.add('active');
@@ -145,11 +150,267 @@ function initializeSettingsMenu() {
             handleSweatStack();
         });
     }
+
+    initializeSweatStackModal();
+    initializeSweatStackConfigModal();
+    initializeSweatStackAuthenticatedModal();
 }
 
 function handleSweatStack() {
-    console.log('SweatStack clicked');
-    alert('SweatStack integration coming soon!');
+    const sweatstackOption = document.querySelector('.sweatstack-option');
+    const isEnabled = sweatstackOption && sweatstackOption.getAttribute('data-enabled') === 'true';
+
+    if (!isEnabled) {
+        showSweatStackConfigModal();
+        return;
+    }
+
+    // Check if user is already authenticated
+    fetch('/sweatstack/load_data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}) // Empty request to check auth status
+    })
+    .then(response => {
+        if (response.status === 401) {
+            // Not authenticated, trigger OAuth directly with default settings
+            window.location.href = '/sweatstack/authorize?sports=cycling&days=90';
+        } else {
+            // Already authenticated, show authenticated modal
+            showSweatStackAuthenticatedModal();
+        }
+    })
+    .catch(error => {
+        console.error('Error checking SweatStack auth status:', error);
+        // Default to OAuth flow on error
+        window.location.href = '/sweatstack/authorize?sports=cycling&days=90';
+    });
+}
+
+function initializeSweatStackModal() {
+    const modal = document.getElementById('sweatstackModal');
+    const closeButton = modal.querySelector('.close');
+    const connectButton = document.getElementById('connectSweatstack');
+
+    if (!modal || !closeButton || !connectButton) {
+        console.warn('SweatStack modal elements not found');
+        return;
+    }
+
+    closeButton.addEventListener('click', function() {
+        hideSweatStackModal();
+    });
+
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            hideSweatStackModal();
+        }
+    });
+
+    connectButton.addEventListener('click', function() {
+        const selectedSports = getSelectedSports();
+        if (selectedSports.length === 0) {
+            alert('Please select at least one sport.');
+            return;
+        }
+
+        const selectedTimeWindow = getSelectedTimeWindow();
+
+        // Show loading toast
+        if (typeof showGenericToast === 'function') {
+            showGenericToast('SweatStack data loading...', 0); // No auto-hide
+        }
+
+        // First try to load data (if already authenticated)
+        fetch('/sweatstack/load_data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                sports: selectedSports,
+                days: selectedTimeWindow
+            })
+        })
+        .then(response => {
+            if (response.status === 401) {
+                // Not authenticated, redirect to OAuth
+                window.location.href = `/sweatstack/authorize`;
+            } else if (response.ok) {
+                // Already authenticated, data loaded successfully
+                return response.json();
+            } else {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+        })
+        .then(data => {
+            if (data) {
+                console.log('SweatStack data loaded successfully:', data.message);
+                hideSweatStackModal();
+
+                // Show success toast
+                if (typeof showGenericToast === 'function') {
+                    showGenericToast('SweatStack data successfully loaded!', 3000);
+                }
+
+                // Create SweatStack pill
+                if (typeof createSweatStackPill === 'function') {
+                    const dataInfo = {
+                        sports: selectedSports,
+                        days: selectedTimeWindow
+                    };
+                    createSweatStackPill(dataInfo);
+                }
+
+                // Update UI to show the loaded dataset
+                if (data.dataframe) {
+                    try {
+                        const dfData = JSON.parse(data.dataframe);
+                        if (typeof createOrUpdateTab === 'function') {
+                            createOrUpdateTab('dataframe', dfData.data);
+                            if (typeof activateTab === 'function') {
+                                activateTab('dataframe');
+                            }
+                        }
+
+                        // Update global dataset name
+                        if (typeof window !== 'undefined') {
+                            currentDatasetName = `SweatStack Data (${selectedSports.join(', ')})`;
+                        }
+                    } catch (error) {
+                        console.error('Error parsing SweatStack dataframe:', error);
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading SweatStack data:', error);
+
+            // Hide loading toast and show error toast
+            if (typeof closeGenericToast === 'function') {
+                closeGenericToast();
+            }
+            if (typeof showGenericToast === 'function') {
+                showGenericToast('Failed to load SweatStack data. Please try again.', 5000);
+            } else {
+                alert('Failed to load SweatStack data. Please try again.');
+            }
+        });
+    });
+}
+
+function initializeSweatStackConfigModal() {
+    const modal = document.getElementById('sweatstackConfigModal');
+    const closeButton = modal.querySelector('.close');
+
+    if (!modal || !closeButton) {
+        console.warn('SweatStack config modal elements not found');
+        return;
+    }
+
+    closeButton.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
+
+function initializeSweatStackAuthenticatedModal() {
+    const modal = document.getElementById('sweatstackAuthenticatedModal');
+    const closeButton = modal.querySelector('.close');
+    const logoutButton = document.getElementById('logoutSweatstack');
+
+    if (!modal || !closeButton || !logoutButton) {
+        console.warn('SweatStack authenticated modal elements not found');
+        return;
+    }
+
+    closeButton.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+
+    logoutButton.addEventListener('click', function() {
+        fetch('/sweatstack/logout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            modal.style.display = 'none';
+            // Refresh the page to update the UI state
+            window.location.reload();
+        })
+        .catch(error => {
+            console.error('Error logging out from SweatStack:', error);
+            modal.style.display = 'none';
+        });
+    });
+}
+
+function showSweatStackModal() {
+    const modal = document.getElementById('sweatstackModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function showSweatStackConfigModal() {
+    const modal = document.getElementById('sweatstackConfigModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function showSweatStackAuthenticatedModal() {
+    const modal = document.getElementById('sweatstackAuthenticatedModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function hideSweatStackModal() {
+    const modal = document.getElementById('sweatstackModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function getSelectedSports() {
+    const cyclingCheckbox = document.getElementById('cycling-checkbox');
+    const runningCheckbox = document.getElementById('running-checkbox');
+    const selectedSports = [];
+
+    if (cyclingCheckbox && cyclingCheckbox.checked) {
+        selectedSports.push('cycling');
+    }
+
+    if (runningCheckbox && runningCheckbox.checked) {
+        selectedSports.push('running');
+    }
+
+    return selectedSports;
+}
+
+function getSelectedTimeWindow() {
+    const timeRadios = document.querySelectorAll('input[name="timeWindow"]:checked');
+    if (timeRadios.length > 0) {
+        return parseInt(timeRadios[0].value);
+    }
+    return 90; // Default to 3 months
 }
 
 
@@ -444,5 +705,85 @@ async function handleNewConversation() {
     } catch (error) {
         console.error('Error starting new conversation:', error);
         alert('Error starting new conversation: ' + error.message);
+    }
+}
+
+//--------------------
+//  GENERIC TOAST SYSTEM
+//--------------------
+
+function initializeGenericToast() {
+    const toast = document.getElementById('summaryPopup');
+    const closeButton = toast.querySelector('.close-button');
+
+    if (!toast || !closeButton) {
+        console.warn('Generic toast elements not found');
+        return;
+    }
+
+    closeButton.addEventListener('click', closeGenericToast);
+
+    // Prevent auto-hide when hovering over the toast
+    toast.addEventListener('mouseenter', function() {
+        if (popupTimeout) {
+            clearTimeout(popupTimeout);
+            popupTimeout = null;
+        }
+    });
+
+    // Restart auto-hide timer when leaving the toast
+    toast.addEventListener('mouseleave', function() {
+        startToastTimer();
+    });
+}
+
+function showGenericToast(message, duration = 5000) {
+    const toast = document.getElementById('summaryPopup');
+    const toastContent = document.getElementById('summaryContent');
+
+    if (!toast || !toastContent) {
+        console.error('Generic toast elements not found');
+        return;
+    }
+
+    if (popupTimeout) {
+        clearTimeout(popupTimeout);
+        popupTimeout = null;
+    }
+
+    toastContent.innerHTML = message;
+
+    toast.className = 'summary-popup';
+    toast.classList.add('system-message');
+
+    toast.style.display = 'block';
+
+    if (duration > 0) {
+        popupTimeout = setTimeout(() => {
+            closeGenericToast();
+        }, duration);
+    }
+}
+
+function startToastTimer(duration = 5000) {
+    if (popupTimeout) {
+        clearTimeout(popupTimeout);
+    }
+
+    popupTimeout = setTimeout(() => {
+        closeGenericToast();
+    }, duration);
+}
+
+function closeGenericToast() {
+    const toast = document.getElementById('summaryPopup');
+
+    if (toast) {
+        toast.style.display = 'none';
+    }
+
+    if (popupTimeout) {
+        clearTimeout(popupTimeout);
+        popupTimeout = null;
     }
 }

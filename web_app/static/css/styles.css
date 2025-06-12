@@ -532,6 +532,47 @@ body, html {
     background-color: rgba(93, 173, 226, 0.1); /* Subtle hover using dark theme info color */
 }
 
+/* --- SweatStack Dataset Pill Styles --- */
+.sweatstack-dataset-pill.loading { /* Same as other loading pills */
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.sweatstack-dataset-pill.error { /* Same as other error pills */
+    background-color: var(--error-color-bg);
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+.sweatstack-dataset-pill.error .dataset-pill-remove-icon svg {
+    stroke: var(--error-color);
+}
+
+/* Success State for SweatStack Pill - Light Theme */
+.sweatstack-dataset-pill.success {
+    background-color: var(--success-color-primary-bg); /* Use same green background as primary */
+    color: var(--success-color); /* Use standard success green */
+    border-color: var(--success-color);
+}
+.sweatstack-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color);
+}
+.sweatstack-dataset-pill.success:hover {
+    background-color: var(--success-color-auxiliary-bg); /* Slightly different green on hover */
+}
+
+/* Success State for SweatStack Pill - Dark Theme (No Fill) */
+[data-theme="dark"] .sweatstack-dataset-pill.success {
+    background-color: transparent;
+    color: var(--success-color-primary); /* Use primary success green for dark theme */
+    border: 1px solid var(--success-color-primary);
+}
+[data-theme="dark"] .sweatstack-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-primary);
+}
+[data-theme="dark"] .sweatstack-dataset-pill.success:hover {
+    background-color: rgba(80, 250, 123, 0.08); /* Same hover effect as primary pill */
+}
+
 #contentOutput {
     flex: 1;
     overflow-y: auto;
@@ -1571,6 +1612,24 @@ body, html {
     gap: 8px;
 }
 
+.selected-text-display {
+    margin-top: 8px;
+    padding: 6px 8px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    max-width: 300px;
+    word-wrap: break-word;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.selected-text-display strong {
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
 .plot-container {
     width: 100%;
     overflow: hidden;
@@ -2238,8 +2297,6 @@ code.language-json {
 
 .menu-popup {
     position: absolute;
-    top: calc(100% + 10px);
-    max-height: calc(100vh - 80px);
     overflow-y: auto;
     left: 0;
     background: var(--bg-tertiary);
@@ -2256,28 +2313,6 @@ code.language-json {
     box-shadow: 0 4px 12px var(--shadow-color);
     z-index: 1000;
     transition: all 0.3s ease;
-}
-
-.menu-popup::before {
-    content: '';
-    position: absolute;
-    top: -10px;
-    left: 0;
-    width: 100%;
-    height: 10px;
-}
-
-.menu-popup::after {
-    content: '';
-    position: absolute;
-    top: -5px;
-    left: 16px;
-    transform: rotate(-45deg);
-    width: 10px;
-    height: 10px;
-    background: var(--bg-tertiary);
-    border-left: 1px solid var(--border-color);
-    border-top: 1px solid var(--border-color);
 }
 
 .menu-option {
@@ -2374,6 +2409,89 @@ code.language-json {
     margin-bottom: 40px;
     scrollbar-width: none;
     -ms-overflow-style: none;
+}
+
+/* --- Threads Search Box (New) --- */
+.threads-search-container {
+    position: relative;
+    margin: 8px 15px 12px 15px; /* Spacing below header */
+    display: flex;
+    align-items: center;
+}
+
+.threads-search-input {
+    flex-grow: 1;
+    width: 100%;
+    padding: 8px 64px 8px 12px; /* Right padding for two buttons */
+    font-size: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 18px; /* Pill shape */
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.threads-search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.threads-search-input::placeholder {
+    color: var(--text-tertiary);
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.threads-search-submit,
+.threads-search-clear {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: transparent;
+    border: none;
+    border-radius: 50%; /* Circular */
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.threads-search-submit {
+    right: 4px;
+}
+
+.threads-search-clear {
+    right: 34px;
+}
+
+.threads-search-submit:hover,
+.threads-search-clear:hover {
+    color: var(--accent-color);
+    background-color: var(--highlight-bg);
+}
+
+.threads-search-container.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.thread-search-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--text-tertiary);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 .threads-list::-webkit-scrollbar {
