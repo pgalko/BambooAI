@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='bambooai',
-    version='0.4.17',
+    version='0.4.18',
     description='A lightweight library for working with pandas dataframes using natural language queries',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -46,7 +46,8 @@ setup(
         'scipy',
         'scikit-learn',
         'geopandas',
-        'yfinance'
+        'yfinance',
+        'sweatstack'
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
