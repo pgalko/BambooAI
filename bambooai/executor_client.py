@@ -15,10 +15,13 @@ class ExecutorAPIClient:
         with open('code_executor.log', 'a') as f:
             f.write(f"[INFO] {timestamp} - {message}\n")
 
-    def execute_code(self, code: str, df_id: Optional[str] = None, 
+    def execute_code(self, code: str, 
+                    df_id: Optional[str] = None, 
                     patch_code: Optional[str] = None,
                     plots_dir: Optional[str] = None,
-                    plot_format: Optional[str] = None) -> Dict[str, Any]:
+                    plot_format: Optional[str] = None,
+                    generated_datasets_path: Optional[list] = None) -> Dict[str, Any]:
+    
         """Execute code via the executor API"""
         self.log_to_file(f"Starting API execution with DataFrame ID={df_id}")
         
@@ -27,7 +30,8 @@ class ExecutorAPIClient:
             'df_id': df_id,
             'patch_code': patch_code,
             'plots_dir': plots_dir,
-            'plot_format': plot_format
+            'plot_format': plot_format,
+            'generated_datasets_path': generated_datasets_path
         }
 
         try:
@@ -39,12 +43,14 @@ class ExecutorAPIClient:
             has_results = bool(api_result.get('results'))
             has_error = bool(api_result.get('error'))
             num_plots = len(api_result.get('plot_images', []))
+            num_datasets = len(api_result.get('generated_datasets', []))
             
             self.log_to_file(
                 f"Received API response - "
                 f"Results: {'Yes' if has_results else 'No'}, "
                 f"Errors: {'Yes' if has_error else 'No'}, "
-                f"Plots: {num_plots}"
+                f"Plots: {num_plots}, "
+                f"Generated Datasets: {num_datasets}"
             )
 
             return api_result
@@ -54,7 +60,8 @@ class ExecutorAPIClient:
             return {
                 'results': None,
                 'error': str(e),
-                'plot_images': []
+                'plot_images': [],
+                'generated_datasets': []
             }
         
     def compute_dataframe_sample(self, df_id: str, order_by: str = 'Datetime', ascending: bool = False) -> Optional[pd.DataFrame]:

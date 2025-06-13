@@ -28,7 +28,7 @@ class OutputManager:
         self.is_notebook = 'ipykernel' in sys.modules
     
     # Display the complete results.
-    def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None, query=None, data_model=None, research=None, plan=None, code=None, answer=None, plot_jsons=None, review=None, vector_db=False):
+    def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None, query=None, data_model=None, research=None, plan=None, code=None, answer=None, plot_jsons=None, review=None, vector_db=False, generated_datasets=None, semantic_search=None):
         self.display_formated_df(df)
         self.display_formatted_data_model(data_model)
         self.display_formatted_search(research)
@@ -36,6 +36,7 @@ class OutputManager:
         self.display_formated_code(code)
         self.display_formated_answer(answer)
         self.display_formated_review(vector_db, review)
+        self.display_generated_datasets(generated_datasets)
 
     def send_html_content(self, html_content, chain_id=None):
         """Display HTML content directly in the notebook"""
@@ -107,6 +108,13 @@ class OutputManager:
             if self.is_notebook:
                 display(Markdown(research_content))
 
+    def display_generated_datasets(self, generated_datasets):
+        if generated_datasets:
+            if self.is_notebook:
+                display(Markdown(f"## Generated Files:\n\n"))
+                for dataset in generated_datasets:
+                    display(Markdown(f"- File: {dataset}\n"))
+
     # Display the header for the agent
     def display_tool_start(self, agent, model, chain_id=None):
         color = self.color_tool_header
@@ -126,6 +134,8 @@ class OutputManager:
             msg = 'I am going to assess and rank the answer, please wait...'
         elif agent == 'Solution Summarizer':
             msg = 'Summarizing the solution, please wait...'
+        elif agent == 'Analyst Selector':
+            msg = 'Selecting the analyst to best answer your query, please wait...'
         
 
         if self.is_notebook:
@@ -215,7 +225,7 @@ class OutputManager:
             self.print_wrapper(summary_text)
 
     # A wrapper for the print function. This can be used to add additional behaviors or formatting to the print function
-    def print_wrapper(self, message, end="\n", flush=False, chain_id=None):
+    def print_wrapper(self, message, end="\n", flush=False, chain_id=None, thought=False):
         # Add any additional behaviors or formatting here
         formatted_message = message
         

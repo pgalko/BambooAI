@@ -532,6 +532,47 @@ body, html {
     background-color: rgba(93, 173, 226, 0.1); /* Subtle hover using dark theme info color */
 }
 
+/* --- SweatStack Dataset Pill Styles --- */
+.sweatstack-dataset-pill.loading { /* Same as other loading pills */
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.sweatstack-dataset-pill.error { /* Same as other error pills */
+    background-color: var(--error-color-bg);
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+.sweatstack-dataset-pill.error .dataset-pill-remove-icon svg {
+    stroke: var(--error-color);
+}
+
+/* Success State for SweatStack Pill - Light Theme */
+.sweatstack-dataset-pill.success {
+    background-color: var(--success-color-primary-bg); /* Use same green background as primary */
+    color: var(--success-color); /* Use standard success green */
+    border-color: var(--success-color);
+}
+.sweatstack-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color);
+}
+.sweatstack-dataset-pill.success:hover {
+    background-color: var(--success-color-auxiliary-bg); /* Slightly different green on hover */
+}
+
+/* Success State for SweatStack Pill - Dark Theme (No Fill) */
+[data-theme="dark"] .sweatstack-dataset-pill.success {
+    background-color: transparent;
+    color: var(--success-color-primary); /* Use primary success green for dark theme */
+    border: 1px solid var(--success-color-primary);
+}
+[data-theme="dark"] .sweatstack-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-primary);
+}
+[data-theme="dark"] .sweatstack-dataset-pill.success:hover {
+    background-color: rgba(80, 250, 123, 0.08); /* Same hover effect as primary pill */
+}
+
 #contentOutput {
     flex: 1;
     overflow-y: auto;
@@ -779,7 +820,7 @@ body, html {
 .tool-start {
     display: flex;
     align-items: center;
-    margin: 12px 0 6px 0; /* Vertical spacing: 12px top, 6px bottom. Horizontal 0. */
+    margin: 1px 0 0 0; /* Vertical spacing: 1px top, 6px bottom. Horizontal 0. */
     font-size: 11px;
     line-height: 1.4; /* Improved readability */
     color: var(--system-message-text); /* Default text color for children */
@@ -831,15 +872,22 @@ body, html {
 }
 
 .tool-call {
+    position: relative;
     background-color: var(--tool-call-bg);
     border-left: 2px solid var(--tool-call-border);
-    margin: 1px 0;
-    padding: 2px 4px;
+    margin: 1px 0 0 0;
+    padding: 2px 4px 2px 4px; /* Keep original padding */
     border-radius: 4px;
     font-size: 11px;
     max-width: 300px;
     box-shadow: 0 1px 2px var(--shadow-color);
     line-height: 1;
+    transition: max-width 0.3s ease;
+    min-height: 24px; /* Ensure minimum height for the toggle */
+}
+
+.tool-call.expanded {
+    max-width: 30vw !important;
 }
 
 .tool-call.thinking {
@@ -932,6 +980,7 @@ body, html {
     animation: spin 1s linear infinite;
 }
 
+/* Old Error Styles for bacward compatibility */
 .error-message {
     background-color: var(--error-bg);
     padding: 2px 4px;
@@ -958,6 +1007,50 @@ body, html {
     color: var(--error-color);
     margin-top: 1px;
 }
+/*End Old Error Styles */
+
+/* Error styling for tool calls */
+.tool-call.tool-call-error {
+    border-left-color: var(--error-color) !important;
+}
+
+.tool-call.tool-call-error .tool-icon {
+    color: var(--error-color) !important;
+    stroke: var(--error-color) !important;
+}
+
+.tool-call.tool-call-error .tool-call-action {
+    color: var(--error-color) !important;
+}
+
+.tool-call.tool-call-error .completion-message {
+    color: var(--error-color) !important;
+}
+
+/* Red chevron hover for error tool calls */
+.tool-call.tool-call-error .thoughts-toggle:hover {
+    color: var(--error-color) !important;
+}
+
+/* Error-specific override for code-result-content */
+.code-result-content.error-result {
+    color: var(--error-color) !important;
+    font-family: 'Courier New', monospace;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .code-result-content.error-result {
+        color: var(--error-color) !important;
+    }
+}
+
+[data-theme="dark"] .code-result-content.error-result {
+    color: var(--error-color) !important;
+}
+
 
 .dataframe {
     border-collapse: collapse;
@@ -1256,6 +1349,8 @@ body, html {
     padding: 2px;
 }
 
+.star-rating label[for="star6"],
+.star-rating label[for="star7"],
 .star-rating label[for="star8"],
 .star-rating label[for="star9"],
 .star-rating label[for="star10"] {
@@ -1270,7 +1365,7 @@ body, html {
 
 .knowledge-base-hint {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: var(--info-color);
     margin-top: 5px;
     font-weight: 400;
     opacity: 0.8;
@@ -1499,17 +1594,40 @@ body, html {
     stroke-width: 2; /* Define stroke-width for the path */
 }
 
-.highlight-overlay {
-    position: fixed;
-    background-color: var(--highlight-bg);
-    pointer-events: none;
-    z-index: 1000;
+/* Customize the browser's native selection highlighting */
+::selection {
+    background-color: rgba(140, 231, 182, 0.3);
+    color: inherit; /* Keep original text color */
+}
+
+/* For Firefox */
+::-moz-selection {
+    background-color: rgba(140, 231, 182, 0.3);
+    color: inherit;
 }
 
 #selectionForm {
     display: flex;
     flex: 1;
     gap: 8px;
+}
+
+.selected-text-display {
+    margin-top: 8px;
+    padding: 6px 8px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    max-width: 300px;
+    word-wrap: break-word;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.selected-text-display strong {
+    color: var(--accent-color);
+    font-weight: 500;
 }
 
 .plot-container {
@@ -2179,8 +2297,6 @@ code.language-json {
 
 .menu-popup {
     position: absolute;
-    top: calc(100% + 10px);
-    max-height: calc(100vh - 80px);
     overflow-y: auto;
     left: 0;
     background: var(--bg-tertiary);
@@ -2197,28 +2313,6 @@ code.language-json {
     box-shadow: 0 4px 12px var(--shadow-color);
     z-index: 1000;
     transition: all 0.3s ease;
-}
-
-.menu-popup::before {
-    content: '';
-    position: absolute;
-    top: -10px;
-    left: 0;
-    width: 100%;
-    height: 10px;
-}
-
-.menu-popup::after {
-    content: '';
-    position: absolute;
-    top: -5px;
-    left: 16px;
-    transform: rotate(-45deg);
-    width: 10px;
-    height: 10px;
-    background: var(--bg-tertiary);
-    border-left: 1px solid var(--border-color);
-    border-top: 1px solid var(--border-color);
 }
 
 .menu-option {
@@ -2315,6 +2409,89 @@ code.language-json {
     margin-bottom: 40px;
     scrollbar-width: none;
     -ms-overflow-style: none;
+}
+
+/* --- Threads Search Box (New) --- */
+.threads-search-container {
+    position: relative;
+    margin: 8px 15px 12px 15px; /* Spacing below header */
+    display: flex;
+    align-items: center;
+}
+
+.threads-search-input {
+    flex-grow: 1;
+    width: 100%;
+    padding: 8px 64px 8px 12px; /* Right padding for two buttons */
+    font-size: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 18px; /* Pill shape */
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.threads-search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.threads-search-input::placeholder {
+    color: var(--text-tertiary);
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.threads-search-submit,
+.threads-search-clear {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: transparent;
+    border: none;
+    border-radius: 50%; /* Circular */
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.threads-search-submit {
+    right: 4px;
+}
+
+.threads-search-clear {
+    right: 34px;
+}
+
+.threads-search-submit:hover,
+.threads-search-clear:hover {
+    color: var(--accent-color);
+    background-color: var(--highlight-bg);
+}
+
+.threads-search-container.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.thread-search-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--text-tertiary);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 .threads-list::-webkit-scrollbar {
@@ -2596,226 +2773,226 @@ code.language-json {
     border-color: var(--accent-color); /* #50fa7b in dark mode */
 }
 
+/* Feedback Results - Using your preferred styles with textarea support */
 
-/* User Context Request Styles */
-#streamOutput .user-context-request {
-    margin: 0; /* Prevent inherited margins */
-    padding: 0; /* Prevent inherited padding */
-    font-family: Arial, sans-serif; /* Reset inherited font-family */
-    font-weight: normal; /* Reset inherited font-weight */
-    color: var(--text-secondary); /* Match #streamOutput text color */
-    white-space: normal; /* Override white-space: pre-wrap from #streamOutput */
-    line-height: 1.5; /* Normalize line height */
-    font-style: normal; /* Prevent italic or other styles */
-    text-decoration: none; /* Prevent underlines or other decorations */
+/* This is for backwards compatibility with old feedback elements */
+/*----------------------------------------------------------------------------------*/
+
+.user-context-request .feedback-container,
+.user-context-request .feedback-header,
+.user-context-request .feedback-form,
+.user-context-request .feedback-input,
+.user-context-request .feedback-submit,
+.user-context-request .feedback-message {
+    display: none !important;
 }
 
-/* Feedback container (encloses header, form, and message) */
-#streamOutput .user-context-request .feedback-container {
-    margin: 4px 0; /* Consistent margin around the container */
-    padding: 8px; /* Reduced padding for a tighter layout */
-    border: 1px solid var(--border-color);
-    border-left: 2px solid var(--accent-color); /* Added accent border */
-    border-radius: 4px;
-    background-color: var(--bg-secondary);
-    display: flex;
-    flex-direction: column;
-    gap: 6px; /* Tight gap between header, form, and message */
-    font-family: Arial, sans-serif; /* Ensure correct font */
-    font-weight: normal; /* Ensure normal weight */
-    color: var(--text-secondary); /* Match #streamOutput text color */
-    white-space: normal; /* Ensure normal text wrapping */
-    line-height: 1.5; /* Normalize line height */
-}
+/*-----------------------------------------------------------------------------------*/
 
-/* Feedback header (with icon) */
-#streamOutput .user-context-request .feedback-header {
-    display: flex; /* Changed to flex to align icon and text */
-    align-items: center;
-    gap: 4px; /* Space between icon and text */
-    font-family: Arial, sans-serif;
+#streamOutput .feedback-result-content {
+    font-family: inherit !important; /* Use streamOutput's monospace font like semantic search */
     font-weight: normal;
-    color: var(--text-secondary); /* Match #streamOutput text color */
-    white-space: normal;
-    margin-bottom: 0; /* Ensure consistent spacing */
-}
-
-/* Question mark icon */
-#streamOutput .user-context-request .feedback-header .question-icon {
-    width: 16px;
-    height: 16px;
-    stroke: var(--accent-color);
-    fill: none;
-    flex-shrink: 0;
-}
-
-/* Feedback text */
-#streamOutput .user-context-request .feedback-header .context-text {
-    font-family: Arial, sans-serif; /* Override monospace from #streamOutput */
-    font-size: 14px; /* Match Feedback Submitted */
-    color: var(--text-secondary); /* Match #streamOutput text color */
-    font-weight: normal; /* Ensure normal weight */
-    font-style: normal;
-    text-decoration: none;
-    white-space: normal;
-    line-height: 1.5;
-}
-
-/* Style "Feedback needed:" in accent color */
-#streamOutput .user-context-request .feedback-header .context-text::before {
-    content: "Feedback needed: ";
-    color: var(--accent-color); /* Accent color for "Feedback needed:" */
-    font-family: Arial, sans-serif;
-    font-size: 14px; /* Match Feedback Submitted */
-    font-weight: normal; /* Ensure normal weight */
-    font-style: normal;
-    text-decoration: none;
-}
-
-/* Feedback form */
-#streamOutput .user-context-request .feedback-form {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: Arial, sans-serif;
-    font-weight: normal;
-    color: var(--text-secondary); /* Match #streamOutput text color */
-    white-space: normal;
-}
-
-/* Feedback input */
-#streamOutput .user-context-request .feedback-input {
-    flex: 1;
-    padding: 6px 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    font-weight: normal;
-    background: transparent;
-    color: var(--text-secondary); /* Match #streamOutput text color */
-    transition: border-color 0.2s;
-    white-space: normal;
-    line-height: 1.5;
-}
-
-#streamOutput .user-context-request .feedback-input:focus {
-    outline: none;
-    border-color: var(--accent-color);
-}
-
-#streamOutput .user-context-request .feedback-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Feedback submit button */
-#streamOutput .user-context-request .feedback-submit {
-    padding: 6px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent-color); /* Theme accent for the button */
-    transition: color 0.2s;
-    font-family: Arial, sans-serif;
-    font-weight: normal;
-}
-
-#streamOutput .user-context-request .feedback-submit svg {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
-}
-
-#streamOutput .user-context-request .feedback-submit:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-#streamOutput .user-context-request .feedback-submit:hover:not(:disabled) {
-    color: var(--accent-hover); /* Theme accent hover color */
-}
-
-/* Feedback message */
-#streamOutput .user-context-request .feedback-message {
-    font-family: Arial, sans-serif;
-    font-size: 14px; /* Match Feedback Needed */
-    font-weight: normal;
-    color: var(--accent-color); /* Theme accent for the message */
-    white-space: normal;
-    line-height: 1.5;
-    margin-top: 0; /* Consistent spacing */
-}
-
-/* Submitted feedback text */
-#streamOutput .user-context-request .feedback-message .submitted-feedback {
-    font-size: 11px; /* Slightly smaller for distinction */
-    color: var(--text-secondary); /* Match the query/context text color */
-    display: block; /* Ensure it appears on a new line */
-    margin-top: 4px; /* Small spacing between "Feedback submitted!" and the feedback text */
-}
-
-/* Additional CSS styles to improve the formatting of feedback text */
-#streamOutput .user-context-request .context-text {
-    font-family: Arial, sans-serif;
-    font-size: 14px;
     color: var(--text-secondary);
-    font-weight: normal;
-    font-style: normal;
-    text-decoration: none;
-    white-space: normal;
-    line-height: 1.5;
-    display: flex;
-    flex-direction: column;
+    white-space: normal !important; /* Critical: Override streamOutput's pre-wrap */
+    line-height: 1.4;
+    font-style: italic; /* Match semantic search italic style */
+    background-color: var(--bg-secondary);
+    padding: 2px 4px;
+    margin: 1px 0;
+    border-radius: 3px;
+    display: block;
+    font-size: 1.1em; /* Match semantic search font size */
 }
 
-/* Styling for paragraph breaks */
-#streamOutput .user-context-request .context-text > div {
-    margin-bottom: 0.5em;
+#streamOutput .feedback-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-style: normal; /* Labels are not italic */
+    font-family: inherit !important;
+    white-space: normal !important;
 }
 
-#streamOutput .user-context-request .context-text > div:last-child {
+#streamOutput .feedback-result-content br {
+    line-height: 0.2; /* Reduce line height for single br */
+}
+
+/* Styling for formatted text lines */
+#streamOutput .feedback-text-line {
+    margin-bottom: 0.2em; /* Reduced from 0.5em to match semantic search */
+    font-family: inherit !important;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+#streamOutput .feedback-text-line:last-child {
     margin-bottom: 0;
 }
 
-/* Styling for list items */
-#streamOutput .user-context-request .list-item {
+/* Styling for list items (numbered and bullet points) */
+#streamOutput .feedback-list-item {
     margin-left: 1.5em;
     position: relative;
     padding-left: 0.5em;
-    display: block;
-}
-
-/* Add better spacing for numbered items */
-#streamOutput .user-context-request .list-item-numbered {
-    margin-left: 2em;
-    position: relative;
-    padding-left: 0;
-    display: block;
-}
-
-/* Add spacing between the prompt and context */
-#streamOutput .user-context-request .context-label {
-    margin-left: 0.5em;
+    margin-bottom: 0.2em; /* Reduced from 0.5em to match semantic search */
+    font-family: inherit !important;
+    font-style: italic;
     color: var(--text-secondary);
-    opacity: 0.8;
+    display: block;
 }
 
-/* Ensure consistent spacing after the main text and before the context */
-#streamOutput .user-context-request .context-separator {
-    margin: 0 0.25em;
+#streamOutput .feedback-list-item:last-child {
+    margin-bottom: 0;
 }
-/* Interactive Pills Container */
-.interactive-pills-container {
+
+#streamOutput .feedback-form-simple {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 15px 0;
-    width: 100%;
+    gap: 8px;
+    margin-top: 16px; 
+    font-style: normal;
+    align-items: flex-start; /* Changed from center to flex-start for textarea */
+    font-family: inherit !important;
+    white-space: normal !important;
 }
+
+/* Updated for textarea with auto-resize */
+#streamOutput .feedback-input-simple {
+    flex: 1;
+    padding: 10px; /* Match main query input padding */
+    border: 1px solid var(--border-color);
+    border-radius: 8px; /* Match main query input border-radius */
+    font-size: 14px; /* Match main query input font-size */
+    background-color: transparent;
+    color: var(--text-primary);
+    font-family: Arial, sans-serif !important;
+    white-space: normal !important;
+    transition: border-color 0.2s ease; /* Add transition like main input */
+    
+    /* Textarea specific styles */
+    resize: none; /* Disable manual resize */
+    overflow-y: hidden; /* Hide scrollbar, let it auto-resize */
+    min-height: 40px; /* Minimum height to match single line */
+    max-height: 120px; /* Maximum height to prevent it getting too tall */
+    line-height: 1.4; /* Match container line-height */
+    word-wrap: break-word; /* Enable word wrapping */
+    box-sizing: border-box; /* Include padding in height calculations */
+}
+
+#streamOutput .feedback-input-simple:focus {
+    outline: none;
+    border-color: var(--accent-color); /* Match main query input focus */
+}
+
+#streamOutput .feedback-input-simple:hover {
+    border-color: var(--accent-color); /* Add hover effect like main input */
+}
+
+#streamOutput .feedback-input-simple:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Adjust submit button alignment for textarea */
+#streamOutput .feedback-submit-simple {
+    background-color: transparent;
+    border: 1px solid var(--accent-color);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+    color: var(--accent-color);
+    flex-shrink: 0;
+    font-family: inherit !important;
+    white-space: normal !important;
+    margin-top: 6px; /* Add small top margin to align with textarea text */
+}
+
+#streamOutput .feedback-submit-simple svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+}
+
+#streamOutput .feedback-submit-simple:hover:not(:disabled) {
+    background-color: var(--highlight-bg);
+    color: var(--accent-hover);
+    border-color: var(--accent-hover);
+    transform: scale(1.05);
+}
+
+#streamOutput .feedback-submit-simple:active {
+    transform: scale(0.95);
+}
+
+#streamOutput .feedback-submit-simple:disabled {
+    border-color: var(--text-tertiary);
+    color: var(--text-tertiary);
+    background-color: transparent;
+    cursor: not-allowed;
+    transform: none;
+}
+
+#streamOutput .feedback-submit-simple:disabled:hover {
+    background-color: transparent;
+}
+
+#streamOutput .feedback-message-simple {
+    margin-top: 6px;
+    font-size: 0.9em;
+    font-style: normal;
+    color: var(--accent-color);
+    font-family: inherit !important;
+    white-space: normal !important;
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    #streamOutput .feedback-result-content {
+        color: var(--text-secondary);
+        background-color: var(--bg-secondary);
+    }
+    
+    #streamOutput .feedback-label {
+        color: var(--text-primary);
+    }
+    
+    #streamOutput .feedback-text-line,
+    #streamOutput .feedback-list-item {
+        color: var(--text-secondary);
+    }
+    
+    #streamOutput .feedback-input-simple {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border-color: var(--border-color);
+    }
+}
+
+[data-theme="dark"] #streamOutput .feedback-result-content {
+    color: var(--text-secondary);
+    background-color: var(--bg-secondary);
+}
+
+[data-theme="dark"] #streamOutput .feedback-label {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] #streamOutput .feedback-text-line,
+[data-theme="dark"] #streamOutput .feedback-list-item {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] #streamOutput .feedback-input-simple {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
 
 /* --- Hide scrollbar for #streamOutput --- */
 
@@ -2828,6 +3005,15 @@ code.language-json {
 #streamOutput {
     scrollbar-width: none;  /* Firefox 64+ */
     -ms-overflow-style: none; /* Internet Explorer 10+ (and older Edge) */
+}
+
+/* Interactive Pills Container */
+.interactive-pills-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 15px 0;
+    width: 100%;
 }
 
 /* Interactive Pill Style */
@@ -3119,4 +3305,464 @@ code.language-json {
 .aux-error-message { /* For the "max 3 datasets" error */
     padding: 4px 0;
     font-size: 14px;
+}
+
+/* --- Generated Datasets (in streamOutput) --- */
+#streamOutput .generated-datasets-container {
+    margin: 1rem 0;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-secondary);
+    box-shadow: 0 1px 3px var(--shadow-color);
+    font-family: Arial, sans-serif;
+    white-space: normal;
+    line-height: 1.5;
+}
+
+#streamOutput .generated-datasets-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-color);
+    margin-top: 0;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#streamOutput .generated-datasets-header .file-icon-header {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    flex-shrink: 0;
+}
+
+#streamOutput .generated-datasets-list {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+#streamOutput .generated-dataset-item.no-datasets-message {
+    font-style: italic;
+    color: var(--text-secondary);
+    font-size: 14px;
+    padding: 8px 0;
+}
+
+#streamOutput .dataset-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    max-width: 100%;
+}
+
+#streamOutput .dataset-link:hover {
+    background: var(--link-hover-bg);
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+#streamOutput .dataset-link .download-icon-pill {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    flex-shrink: 0;
+}
+
+#streamOutput .dataset-link .dataset-path {
+    word-break: break-word;
+    line-height: 1.3;
+}
+
+/* Search Result Styles */
+.search-result-content {
+    font-style: italic;
+    color: var(--text-secondary, #666);
+    background-color: var(--background-secondary, #f8f9fa);
+    padding: 4px 8px;
+    margin: 2px 0;
+    border-radius: 3px;
+    display: block;
+    font-size: 1.1em; /* Same as thought-content */
+    line-height: 1.4;
+}
+
+.search-label {
+    font-weight: 600;
+    color: var(--text-primary, #333);
+    font-style: normal; /* Remove italic from labels */
+}
+
+.search-code {
+    background: var(--code-background, rgba(0,0,0,0.1));
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-family: monospace;
+    font-size: 0.85em;
+    font-style: normal; /* Remove italic from code */
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    .search-result-content {
+        color: var(--text-secondary);
+        background-color: var(--background-secondary);
+    }
+    
+    .search-label {
+        color: var(--text-primary);
+    }
+}
+
+[data-theme="dark"] .search-result-content {
+    color: var(--text-secondary);
+    background-color: var(--background-secondary);
+}
+
+[data-theme="dark"] .search-label {
+    color: var(--text-primary);
+}
+
+/* Thought Content Styles */
+.thoughts-toggle {
+    position: absolute;
+    bottom: 2px; /* Reduced from 8px */
+    right: 4px;  /* Reduced from 8px */
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;  /* Reduced from 8px */
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary, #666);
+    transition: color 0.2s ease, background-color 0.2s ease;
+    z-index: 10; /* Ensure it's on top */
+}
+
+.thoughts-toggle:hover {
+    color: var(--accent-color, #35c477);
+    background: var(--background-secondary, rgba(53, 196, 119, 0.1));
+}
+
+.chevron-icon {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s ease;
+}
+
+.thoughts-container {
+    margin-top: 8px;
+    padding-left: 16px;
+    border-left: 2px solid var(--border-color, #eee);
+}
+
+.thought-content {
+    font-style: italic;
+    color: var(--text-secondary, #666);
+    background-color: var(--background-secondary, #f8f9fa);
+    padding: 4px 8px;
+    margin: 2px 0;
+    border-radius: 3px;
+    display: block;
+    font-size: 1.1em;
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    .thought-content {
+        color: var(--text-secondary);
+        background-color: var(--background-secondary);
+        border-left-color: var(--accent-color);
+    }
+}
+
+/* If your app uses a data-theme attribute instead */
+[data-theme="dark"] .thought-content {
+    color: var(--text-secondary);
+    background-color: var(--background-secondary);
+    border-left-color: var(--accent-color);
+}
+
+.tool-call.expanded {
+    width: 30vw !important; /* Your working expand style */
+    max-width: 30vw !important;
+}
+
+.thoughts-container {
+    margin-top: 8px;
+    padding-left: 16px;
+    border-left: 2px solid var(--border-color, #eee);
+    overflow: hidden; /* Prevents content from breaking layout during transition */
+}
+
+.results-container {
+    margin-top: 8px;
+    padding-left: 16px;
+    border-left: 2px solid var(--border-color, #eee);
+    overflow: hidden;
+}
+
+/* Code Result Styles */
+.code-result-content {
+    font-style: italic;
+    color: var(--text-secondary, #666);
+    background-color: var(--background-secondary, #f8f9fa);
+    padding: 4px 8px;
+    margin: 2px 0;
+    border-radius: 3px;
+    display: block;
+    font-size: 1.1em;
+    line-height: 1.4;
+}
+
+.code-label {
+    font-weight: 600;
+    color: var(--text-primary, #333);
+    font-style: normal;
+}
+
+.code-label.error {
+    color: var(--error-color, #dc3545);
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    .code-result-content {
+        color: var(--text-secondary);
+        background-color: var(--background-secondary);
+    }
+    
+    .code-label {
+        color: var(--text-primary);
+    }
+    
+    .code-label.error {
+        color: var(--error-color, #ff6b6b);
+    }
+}
+
+[data-theme="dark"] .code-result-content {
+    color: var(--text-secondary);
+    background-color: var(--background-secondary);
+}
+
+[data-theme="dark"] .code-label {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .code-label.error {
+    color: var(--error-color, #ff6b6b);
+}
+
+/* --- Settings container --- */
+.settings-container {
+    position: relative;
+    display: inline-block;
+}
+
+.settings-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-tertiary) !important;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, transform 0.2s;
+}
+
+.settings-button svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+}
+
+.settings-button:hover {
+    color: var(--accent-color) !important;
+    transform: scale(1.1);
+}
+
+.settings-popup {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 10px);
+    right: auto;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color); /* Or a lighter version */
+    border-radius: 10px; /* Updated */
+    padding: 10px; /* Updated */
+    display: none;
+    flex-direction: column;
+    gap: 6px; /* Updated */
+    min-width: 190px; /* Slightly wider if padding increased */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.05); /* Updated */
+    z-index: 1002;
+}
+
+.settings-popup::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -10px;
+    width: 10px;
+    height: 100%;
+    background: transparent;
+}
+
+.settings-popup::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: -5px;
+    transform: rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--bg-tertiary);
+    border-left: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    border-right: none;
+    border-top: none;
+}
+
+.settings-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    width: 100%;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    text-decoration: none;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-weight: normal;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.settings-option:hover {
+    color: var(--accent-color);
+    background-color: rgba(128, 128, 128, 0.07);
+}
+
+.settings-option svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
+}
+
+.settings-option svg[fill="currentColor"] {
+    fill: currentColor;
+    stroke: none;
+}
+
+.settings-container:hover .settings-popup {
+    display: flex;
+}
+
+.integrations-menu-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.integrations-option {
+    justify-content: space-between;
+}
+
+.submenu-arrow {
+    margin-left: auto;
+    padding-left: 8px;
+    font-size: 1.1em;
+    color: var(--text-tertiary);
+    transition: color 0.2s;
+}
+
+.integrations-option:hover .submenu-arrow {
+    color: var(--accent-color);
+}
+
+.integrations-submenu {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 5px);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    display: none !important;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 160px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    z-index: 1003;
+}
+
+.integrations-submenu::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -5px;
+    width: 5px;
+    height: 100%;
+    background: transparent;
+}
+
+.integrations-submenu::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: -5px;
+    transform: rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--bg-tertiary);
+    border-left: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    border-right: none;
+    border-top: none;
+}
+
+.integrations-menu-item:hover .integrations-submenu,
+.integrations-submenu:hover {
+    display: flex !important;
+}
+
+.menu-popup .settings-container {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1001;
+}
+
+.menu-popup {
+    overflow: visible;
 }

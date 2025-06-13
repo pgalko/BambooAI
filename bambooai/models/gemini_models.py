@@ -115,13 +115,16 @@ def llm_call(messages: str, model_name: str, temperature: str, max_tokens: str, 
 
     return content, messages, prompt_tokens, completion_tokens, total_tokens_used, elapsed_time, tokens_per_second
 
-def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: str, model_name: str, temperature: str, max_tokens: str, tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort: str = "medium"):
+def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: str, model_name: str, temperature: str, max_tokens: str, tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort: str = None):
     answer_messages = []
     thinking_messages = []
     search_triplet = []
     search_html = None
 
     client = init()
+    
+    # Set thinking budget based on reasoning effort. Default to minimal if not specified. As of 06/06 "none" only works for Flash.
+    thinking_budget = {"high": 8000, "medium": 4000, "low": 2000, "minimal": 128, "none": 0}.get(reasoning_effort, 128)
 
     gemini_messages, system_instruction = convert_openai_to_gemini(messages)
 
@@ -139,8 +142,8 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
     }
 
     if reasoning_models and model_name in reasoning_models:
-        config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True)
-        output_manager.display_tool_info('Thinking', f"Model {model_name} needs a moment to think...", chain_id=chain_id)
+        config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_budget=thinking_budget)
+        output_manager.display_tool_info('Thinking', f"Thinking budget: {thinking_budget} tokens", chain_id=chain_id)
 
     if tools:
         for tool in tools:
@@ -163,14 +166,13 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         start_time = time.time()
         
         for chunk in response:
-            # Check for None candidates
-            if chunk.candidates is None:
-                output_manager.display_system_messages("Gemini API Warning: Received chunk with None candidates, skipping...")
-                continue  # Skip this chunk and proceed to the next one
+            if not chunk.candidates:
+                continue
             for part in chunk.candidates[0].content.parts:
                 if part.text or part.thought is not None:
                     if part.thought:
                         thinking_messages.append(part.text)
+                        output_manager.print_wrapper(part.text, end='', flush=True, chain_id=chain_id, thought=True)
                     elif part.text:
                         answer_messages.append(part.text)
                         output_manager.print_wrapper(part.text, end='', flush=True, chain_id=chain_id)

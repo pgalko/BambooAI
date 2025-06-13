@@ -9,23 +9,13 @@ from bambooai.output_manager import OutputManager
 class WebOutputManager(OutputManager):
     def __init__(self):
         super().__init__()
-        self.web_mode = False
+        self.web_mode = True
         self.output_queue = queue.Queue()
         self.input_queue = queue.Queue()
         self.capture_output = StringIO()
         self.last_chunk_ended_with_newline = True
 
-    def enable_web_mode(self):
-        self.web_mode = True
-        self.capture_output = StringIO()
-        sys.stdout = self.capture_output
-
-    def disable_web_mode(self):
-        self.web_mode = False
-        sys.stdout = sys.__stdout__
-        self.capture_output.close()
-
-    def print_wrapper(self, message, end="\n", flush=False, chain_id=None):
+    def print_wrapper(self, message, end="\n", flush=False, chain_id=None, thought=False):
         formatted_message = str(message)
         if self.web_mode:
             if self.last_chunk_ended_with_newline and formatted_message.startswith("\n"):
@@ -37,9 +27,12 @@ class WebOutputManager(OutputManager):
                 self.last_chunk_ended_with_newline = False
             
             if formatted_message:
-                self.output_queue.put(json.dumps({"text": formatted_message, "chain_id": chain_id}))
-
-        super().print_wrapper(formatted_message, end='', flush=flush, chain_id=chain_id)
+                if thought:
+                    self.output_queue.put(json.dumps({"thought": formatted_message, "chain_id": chain_id}))
+                else:
+                    self.output_queue.put(json.dumps({"text": formatted_message, "chain_id": chain_id}))
+        else:
+            super().print_wrapper(formatted_message, end='', flush=flush, chain_id=chain_id, thought=thought)
 
     def get_captured_output(self):
         output = self.capture_output.getvalue()
@@ -96,7 +89,13 @@ class WebOutputManager(OutputManager):
         else:
             super().send_html_content(html_content, chain_id)
 
-    def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None, query=None, data_model=None, research=None, plan=None, code=None, answer=None, plot_jsons=None, review=None, vector_db=False):
+    def display_results(self, chain_id=None, execution_mode=None, 
+                        df_id=None, api_client=None, df=None, 
+                        query=None, data_model=None, research=None, 
+                        plan=None, code=None, answer=None, 
+                        plot_jsons=None, review=None, 
+                        vector_db=False, generated_datasets=None, 
+                        semantic_search=None, code_exec_results=None):
         from bambooai import utils
         
         if self.web_mode:
@@ -112,7 +111,10 @@ class WebOutputManager(OutputManager):
                 ('research', research),
                 ('plan', plan),
                 ('code', code),
-                ('answer', answer)
+                ('answer', answer),
+                ('generated_datasets', generated_datasets),
+                ('semantic_search', semantic_search),
+                ('code_exec_results', code_exec_results)
             ]:
                 if data:
                     json_data = json.dumps({'type': data_type, 'data': data, 'chain_id': chain_id})
@@ -159,7 +161,7 @@ class WebOutputManager(OutputManager):
         else:
             super().display_tool_info(action, action_input, chain_id)
 
-    def display_system_messages(self, message):
+    def display_system_messages(self, message, chain_id=None):
         if self.web_mode:
             self.output_queue.put(json.dumps({'system_message': message}))
         else:

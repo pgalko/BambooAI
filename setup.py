@@ -6,12 +6,16 @@ with open("README.md", "r") as fh:
 
 setup(
     name='bambooai',
-    version='0.4.06',
+    version='0.4.17',
     description='A lightweight library for working with pandas dataframes using natural language queries',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='Palo Galko',
     packages=find_packages(),
+    include_package_data=True,
+    package_data={
+        'bambooai': ['messages/default_prompts.yaml'],
+    },
     install_requires=[
         'openai',
         'tiktoken',
@@ -20,10 +24,10 @@ setup(
         'pyarrow',
         'matplotlib',
         'seaborn',
-        'plotly',
+        'plotly==6.0.1',
         'termcolor',
         'newspaper3k',
-        'pinecone',
+        'pinecone==6.0.2',
         'selenium',
         'google-generativeai',
         'google-genai',

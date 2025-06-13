@@ -9,8 +9,10 @@ import threading
 import uuid
 import glob
 import pandas as pd
+import sweatstack as ss
+from datetime import datetime, timedelta
 from queue import Queue, Empty
-from flask import Flask, request, jsonify, Response, render_template, session
+from flask import Flask, request, jsonify, Response, render_template, session, send_from_directory, redirect, url_for
 import tempfile
 from dotenv import load_dotenv
 from google.cloud import storage
@@ -61,23 +63,54 @@ def cleanup_threads(debug_mode=False):
 
 def clear_datasets_folder():
     datasets_dir = 'datasets'
-    if os.path.exists(datasets_dir):
+    generated_datasets_base_dir = os.path.join(datasets_dir, 'generated')
+    favorites_base_dir = os.path.join('storage', 'favourites')
+
+    # 1. Get favorite thread IDs
+    favorite_thread_ids = set()
+    if os.path.exists(favorites_base_dir):
         try:
-            # Remove all files and subdirectories within datasets folder
-            for filename in os.listdir(datasets_dir):
-                file_path = os.path.join(datasets_dir, filename)
-                try:
-                    if os.path.isfile(file_path) or os.path.islink(file_path):
-                        os.unlink(file_path)
-                    elif os.path.isdir(file_path):
-                        shutil.rmtree(file_path)
-                except Exception as e:
-                    app.logger.error(f'Failed to delete {file_path}. Reason: {e}')
-            app.logger.info(f"Contents of '{datasets_dir}' folder cleared.")
+            favorite_thread_ids = {
+                d for d in os.listdir(favorites_base_dir)
+                if os.path.isdir(os.path.join(favorites_base_dir, d))
+            }
+            app.logger.info(f"Favorite thread IDs for dataset cleanup: {list(favorite_thread_ids)}")
         except Exception as e:
-            app.logger.error(f"Error clearing '{datasets_dir}' folder: {str(e)}")
-    else:
+            app.logger.error(f"Error reading favorites directory {favorites_base_dir}: {e}")
+
+    if not os.path.exists(datasets_dir):
         app.logger.info(f"'{datasets_dir}' folder does not exist, no need to clear.")
+        return
+
+    # 2. Iterate through items in the main 'datasets' directory
+    try:
+        for item_name in os.listdir(datasets_dir):
+            item_path = os.path.join(datasets_dir, item_name)
+            try:
+                if os.path.isfile(item_path) or os.path.islink(item_path):
+                    # Delete all files directly under 'datasets/'
+                    os.unlink(item_path)
+                    app.logger.info(f"Deleted file: {item_path}")
+                elif os.path.isdir(item_path):
+                    # If the subdirectory is 'generated', process its contents
+                    if item_name == 'generated' and os.path.exists(generated_datasets_base_dir):
+                        app.logger.info(f"Processing 'generated' subdirectory: {generated_datasets_base_dir}")
+                        for generated_thread_id_dir_name in os.listdir(generated_datasets_base_dir):
+                            thread_specific_dir_path = os.path.join(generated_datasets_base_dir, generated_thread_id_dir_name)
+                            if os.path.isdir(thread_specific_dir_path):
+                                # This directory name is treated as the thread_id
+                                if generated_thread_id_dir_name not in favorite_thread_ids:
+                                    shutil.rmtree(thread_specific_dir_path)
+                                    app.logger.info(f"Deleted non-favorited generated dataset directory: {thread_specific_dir_path}")
+                                else:
+                                    app.logger.info(f"Kept favorited generated dataset directory: {thread_specific_dir_path}")
+                    elif item_name != 'generated':
+                        app.logger.warning(f"Skipping deletion of non-'generated' subdirectory: {item_path}. Adjust logic if this should be deleted.")
+            except Exception as e:
+                app.logger.error(f'Failed to process item {item_path}. Reason: {e}')
+        app.logger.info(f"Selective cleanup of '{datasets_dir}' folder completed.")
+    except Exception as e:
+        app.logger.error(f"Error listing contents of '{datasets_dir}': {str(e)}")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -103,8 +136,9 @@ except ImportError:
 # Get API URL from environment variable or use default
 EXECUTOR_API_BASE_URL = os.getenv('EXECUTOR_API_BASE_URL')
 EXECUTOR_API_UPLOAD_URL = f"{EXECUTOR_API_BASE_URL}/upload_dataset"
-EXECUTOR_API_UPLOAD_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/upload_aux_dataset" # New
-EXECUTOR_API_REMOVE_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/remove_aux_dataset" # New
+EXECUTOR_API_UPLOAD_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/upload_aux_dataset"
+EXECUTOR_API_REMOVE_AUX_URL = f"{EXECUTOR_API_BASE_URL}/file_utils/remove_aux_dataset"
+EXECUTOR_API_DOWNLOAD_GENERATED_URL = f"{EXECUTOR_API_BASE_URL}/download_generated_dataset"
 # Get execution mode from environment variable or default to 'local'
 GLOBAL_EXECUTION_MODE = os.getenv('EXECUTION_MODE', 'local')  # Default to 'local' if not set
 
@@ -124,8 +158,12 @@ user_preferences = {}
 EXPLORATORY = True
 SEARCH_TOOL = True
 WEBUI = True
-VECTOR_DB = False
+VECTOR_DB = bool(os.getenv('PINECONE_API_KEY'))
 DF_ONTOLOGY = None
+
+# SweatStack OAuth configuration
+SWEATSTACK_CLIENT_ID = os.getenv('SWEATSTACK_CLIENT_ID')
+SWEATSTACK_CLIENT_SECRET = os.getenv('SWEATSTACK_CLIENT_SECRET')
 
 # Function to generate a unique DataFrame ID
 def generate_dataframe_id() -> str:
@@ -305,7 +343,11 @@ def ensure_session():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    common_context = {
+        'sweatstack_enabled': bool(SWEATSTACK_CLIENT_ID and SWEATSTACK_CLIENT_SECRET),
+        'sweatstack_authenticated': bool(session.get('sweatstack_access_token'))
+    }
+    return render_template('index.html', **common_context)
 
 # New endpoint to update planning preference
 @app.route('/update_planning', methods=['POST'])
@@ -812,8 +854,7 @@ def query():
 
     if user_code:
         user_input = "User manually edited your code, and requested to run it, and return the result."
-    
-    bamboo_ai_instance.output_manager.enable_web_mode()
+
     bamboo_ai_instance.output_manager.add_user_input(user_input)
     
     def run_bamboo_ai():
@@ -841,9 +882,6 @@ def query():
 
         # Ensure the thread has finished
         thread.join()
-        
-        # Disable web mode
-        bamboo_ai_instance.output_manager.disable_web_mode()
 
     return Response(generate(), mimetype='application/json')
 
@@ -851,24 +889,22 @@ def query():
 def submit_rank():
     session_id = session['session_id']
     bamboo_ai_instance = get_bamboo_ai(session_id)
-
-    bamboo_ai_instance.output_manager.enable_web_mode()
     
     data = request.json
     user_rank = data.get('rank')
-    query_unknown = data.get('query_unknown')
-    query_condition = data.get('query_condition')
+    chain_id = data.get('chain_id')
+    intent_breakdown = data.get('intent_breakdown')
     plan = data.get('plan')
-    original_df_columns = data.get('original_df_columns')
+    data_descr = data.get('data_descr')
     data_model = data.get('data_model')
     code = data.get('code')
     
     if bamboo_ai_instance.vector_db:
         bamboo_ai_instance.pinecone_wrapper.add_record(
-            query_unknown, 
-            query_condition, 
+            chain_id,
+            intent_breakdown,
             plan, 
-            original_df_columns,
+            data_descr,
             data_model, 
             code, 
             user_rank, 
@@ -885,8 +921,6 @@ def submit_rank():
                     yield output + '\n'
             except Empty:
                 pass  # Queue is empty, continue waiting
-        
-        bamboo_ai_instance.output_manager.disable_web_mode()
 
     return Response(generate(), mimetype='application/json')
 
@@ -1151,8 +1185,16 @@ def get_chain_preview(thread_id, chain_id):
     
 @app.route('/delete_chain/<thread_id>/<chain_id>', methods=['DELETE'])
 def delete_chain(thread_id, chain_id):
-    """Delete a chain from the favorites directory"""
+    """Delete a chain from the favorites directory and vector db if applicable."""
     try:
+        session_id = session.get('session_id')
+        
+        # Delete from vector database if enabled
+        if session_id and session_id in bamboo_ai_instances:
+            bamboo_ai_instance = bamboo_ai_instances[session_id]
+            if bamboo_ai_instance.vector_db:           
+                bamboo_ai_instance.pinecone_wrapper.delete_record(chain_id)
+
         # Construct the path to the chain file
         chain_file = os.path.join('storage', 'favourites', thread_id, f'{chain_id}.json')
         
@@ -1230,6 +1272,240 @@ def submit_feedback():
     except Exception as e:
         app.logger.error(f'Error writing feedback to {feedback_file}: {str(e)}')
         return jsonify({'error': f'Failed to store feedback: {str(e)}'}), 500
+    
+@app.route('/download_generated_dataset', methods=['GET'])
+def download_generated_dataset():
+    file_path_param = request.args.get('path')
+
+    if not file_path_param:
+        app.logger.error("Download request missing 'path' parameter.")
+        return jsonify({'error': "Missing 'path' query parameter."}), 400
+
+    app.logger.info(f"Attempting to download generated dataset: {file_path_param} in mode: {GLOBAL_EXECUTION_MODE}")
+
+    if GLOBAL_EXECUTION_MODE == 'api':
+        if not EXECUTOR_API_DOWNLOAD_GENERATED_URL:
+            app.logger.error("Executor API URL for generated dataset download not configured.")
+            return jsonify({'error': 'Executor API URL for download not configured.'}), 500
+        try:
+            # Construct the full URL to the executor's download endpoint
+            executor_download_url = f"{EXECUTOR_API_DOWNLOAD_GENERATED_URL}?path={requests.utils.quote(file_path_param)}"
+            
+            app.logger.info(f"Fetching from executor API: {executor_download_url}")
+            
+            # Stream the response from the executor API
+            api_response = requests.get(executor_download_url, stream=True)
+            api_response.raise_for_status() # Raise an exception for HTTP errors
+
+            # Get filename for Content-Disposition
+            filename = os.path.basename(file_path_param)
+
+            # Create a streaming Flask response
+            def generate_file_stream():
+                for chunk in api_response.iter_content(chunk_size=8192):
+                    yield chunk
+            
+            # Try to get content type from executor's response, or default
+            content_type = api_response.headers.get('Content-Type', 'application/octet-stream')
+
+            return Response(generate_file_stream(),
+                            mimetype=content_type,
+                            headers={"Content-Disposition": f"attachment;filename={filename}"})
+
+        except requests.RequestException as e:
+            app.logger.error(f"Error fetching file from executor API: {str(e)}")
+            return jsonify({'error': f'Failed to fetch file from remote service: {str(e)}'}), 502 # Bad Gateway
+        except Exception as e:
+            app.logger.error(f"Unexpected error during API mode download: {str(e)}")
+            return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
+
+    else: # Local mode
+        base_download_dir = os.path.abspath(os.getcwd())
+        
+        requested_file_abs = os.path.abspath(os.path.join(base_download_dir, file_path_param))
+
+        allowed_prefix = os.path.abspath(os.path.join(base_download_dir, "datasets", "generated"))
+        
+        if not requested_file_abs.startswith(allowed_prefix):
+            app.logger.warning(f"Access denied for local download: {file_path_param}. Resolved path {requested_file_abs} is outside allowed prefix {allowed_prefix}.")
+            return jsonify({'error': 'Access denied or invalid file path.'}), 403
+        
+        if not os.path.exists(requested_file_abs) or not os.path.isfile(requested_file_abs):
+            app.logger.error(f"Local file not found for download: {requested_file_abs}")
+            return jsonify({'error': 'File not found.'}), 404
+
+        try:
+            # send_from_directory needs directory and filename separately
+            directory, filename = os.path.split(requested_file_abs)
+            app.logger.info(f"Serving local file: directory='{directory}', filename='{filename}'")
+            return send_from_directory(directory, filename, as_attachment=True)
+        except Exception as e:
+            app.logger.error(f"Error serving local file {file_path_param}: {str(e)}")
+            return jsonify({'error': f'Error serving file: {str(e)}'}), 500
+
+
+# Endpoint to check if vector database is enabled      
+@app.route('/get_vector_db_status', methods=['GET'])
+def get_vector_db_status():
+    """Endpoint to check if the vector database is enabled."""
+    return jsonify({'vector_db_enabled': VECTOR_DB})
+
+# Endpoint to search threads in the vector database
+@app.route('/search_threads', methods=['POST'])
+def search_threads():
+    """Receives a search query and returns matching results (ID and score) from Pinecone."""
+    if not VECTOR_DB:
+        return jsonify({'search_results': [], 'message': 'Vector DB not enabled.'}), 200
+
+    session_id = session.get('session_id')
+    if not session_id or session_id not in bamboo_ai_instances:
+        return jsonify({'error': 'Session not found or BambooAI not initialized'}), 400
+
+    data = request.json
+    query = data.get('query')
+    if not query:
+        return jsonify({'error': 'Query is required'}), 400
+
+    bamboo_ai_instance = bamboo_ai_instances[session_id]
+    
+    try:
+        if not hasattr(bamboo_ai_instance, 'pinecone_wrapper') or not bamboo_ai_instance.pinecone_wrapper.index:
+             return jsonify({'search_results': [], 'message': 'Vector DB not configured for this session.'}), 200
+
+        # Call the new function and adjust the key in the returned JSON
+        search_results = bamboo_ai_instance.pinecone_wrapper.search_pinecone_for_results(query_text=query, top_k=5)
+        return jsonify({'search_results': search_results})
+    except Exception as e:
+        app.logger.error(f"Error searching threads: {e}")
+        return jsonify({'error': 'An error occurred during search'}), 500
+
+
+@app.route('/sweatstack/authorize', methods=['GET'])
+def sweatstack_authorize():
+    return redirect(f'https://app.sweatstack.no/oauth/authorize?client_id={SWEATSTACK_CLIENT_ID}&scope=data:read&redirect_uri={request.url_root}sweatstack/oauth-callback&prompt=none')
+
+
+@app.route('/sweatstack/oauth-callback', methods=['GET'])
+def sweatstack_callback():
+    code = request.args.get('code')
+    if not code:
+        return jsonify({'error': 'No code provided'}), 400
+
+    try:
+        response = requests.post(
+            'https://app.sweatstack.no/api/v1/oauth/token',
+            data={
+                'grant_type': 'authorization_code',
+                'code': code,
+                'client_id': SWEATSTACK_CLIENT_ID,
+                'client_secret': SWEATSTACK_CLIENT_SECRET,
+            },
+        )
+        response.raise_for_status()
+
+        token_data = response.json()
+        access_token = token_data.get('access_token')
+
+        session['sweatstack_access_token'] = access_token
+
+        return redirect(url_for('index'))
+
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f'Error exchanging SweatStack code for token: {str(e)}')
+        return jsonify({'error': 'Failed to exchange SweatStack code for token'}), 500
+
+
+@app.route('/sweatstack/load_data', methods=['POST'])
+def sweatstack_load_data():
+    """Load SweatStack data using stored access token"""
+    access_token = session.get('sweatstack_access_token')
+    if not access_token:
+        return jsonify({'error': 'Not authenticated with SweatStack'}), 401
+
+    try:
+        data = request.json
+        selected_sports = data.get('sports', ['cycling'])
+        selected_days = data.get('days', 90)
+
+        sweatstack_client = ss.Client(api_key=access_token)
+
+        df = sweatstack_client.get_longitudinal_data(
+            start=datetime.now() - timedelta(days=selected_days),
+            sports=selected_sports
+        )
+        # This is a transformation to make the dataframe (more) compatible with what BambooAI expects
+        df["datetime"] = df.index
+
+        session_id = session['session_id']
+        df_json, new_df_id = load_dataframe_to_bamboo_ai_instance(
+            session_id=session_id,
+            df=df,
+            execution_mode=GLOBAL_EXECUTION_MODE
+        )
+
+        return jsonify({
+            'message': 'SweatStack data loaded successfully',
+            'dataframe': df_json,
+            'df_id': new_df_id
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f'Error loading SweatStack data: {str(e)}')
+        return jsonify({'error': f'Failed to load SweatStack data: {str(e)}'}), 500
+
+
+@app.route('/sweatstack/logout', methods=['POST'])
+def sweatstack_logout():
+    """Logout from SweatStack by removing access token"""
+    session.pop('sweatstack_access_token', None)
+    return jsonify({'message': 'Logged out from SweatStack successfully'}), 200
+
+
+@app.route('/sweatstack/remove_data', methods=['POST'])
+def sweatstack_remove_data():
+    """Remove SweatStack data (which is loaded as primary dataset)"""
+    session_id = session.get('session_id')
+    if not session_id:
+        return jsonify({'error': 'No session ID found'}), 400
+
+    try:
+        bamboo_ai_instance = bamboo_ai_instances.get(session_id)
+        prefs = user_preferences.get(session_id)
+
+        if not bamboo_ai_instance or bamboo_ai_instance.df_id is None:
+            return jsonify({'message': 'No SweatStack data is currently loaded.'}), 400
+
+        # Re-instantiate BambooAI for the session without the primary df
+        # Keep auxiliary datasets if they exist
+        aux_datasets = prefs.get('auxiliary_datasets', []) if prefs else []
+        planning_pref = prefs.get('planning', False) if prefs else False
+        ontology_path_pref = prefs.get('ontology_path', DF_ONTOLOGY) if prefs else DF_ONTOLOGY
+
+        bamboo_ai_instances[session_id] = BambooAI(
+            df=None, # Explicitly set df to None
+            exploratory=EXPLORATORY,
+            planning=planning_pref,
+            search_tool=SEARCH_TOOL,
+            webui=WEBUI,
+            vector_db=VECTOR_DB,
+            df_ontology=ontology_path_pref,
+            df_id=None, # Clear df_id
+            auxiliary_datasets=aux_datasets
+        )
+
+        # Also clear df_id from user_preferences if it's stored there
+        if prefs and 'df_id' in prefs:
+             del prefs['df_id']
+
+        user_preferences[session_id] = prefs # Save updated prefs
+
+        app.logger.info(f"SweatStack data removed and BambooAI instance reset for session {session_id}.")
+        return jsonify({'message': 'SweatStack data removed successfully.'}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error removing SweatStack data for session {session_id}: {str(e)}")
+        return jsonify({'error': f'Error removing SweatStack data: {str(e)}'}), 500
+
 
 if __name__ == '__main__':
     # Simple command line argument for debug mode

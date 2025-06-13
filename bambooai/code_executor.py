@@ -75,21 +75,28 @@ pio.show = show
         with open(LOG_FILE, 'a') as f:
             f.write(f"[INFO] {timestamp} - {message}\n")
 
-    def execute(self, code, df=None, df_id=None):
+    def execute(self, code, df=None, df_id=None, generated_datasets_path=None):
         # Store the original DataFrame for resetting if needed
         self._original_df = df.copy() if df is not None else None
 
         if self.mode == 'local':
-            return self._execute_local(code, df)
+            return self._execute_local(code, df, generated_datasets_path)
         elif self.mode == 'api':
-            return self._execute_via_api_client(code, df, df_id)
+            return self._execute_via_api_client(code, df, df_id, generated_datasets_path)
         else:
             raise ValueError("Invalid mode. Choose 'local' or 'api'.")
         
-    def _execute_local(self, code, df=None):
+    def _execute_local(self, code, df=None, generated_datasets_path=None):
         output_buffer = io.StringIO()
         plot_images = []
         generated_files = []
+
+        if generated_datasets_path is not None:
+            if not os.path.isdir(generated_datasets_path):
+                try:
+                    os.makedirs(generated_datasets_path)
+                except Exception as e:
+                    self.log_to_file(f"Error creating directory {generated_datasets_path}: {str(e)}")
 
         try:
             plt.close('all')
@@ -154,21 +161,37 @@ pio.show = show
 
             results = output_buffer.getvalue()
 
-            return result_df, results, None, plot_images
+            # Iterate over generated_datasets_path directory for any generated datasets.
+            if generated_datasets_path is not None:
+                generated_datasets = []
+                if os.path.isdir(generated_datasets_path):
+                    for filename in os.listdir(generated_datasets_path):
+                        file_path = os.path.join(generated_datasets_path, filename)
+                        if os.path.isfile(file_path):
+                            generated_datasets.append(file_path)
+                    if not generated_datasets:
+                        try:
+                            os.rmdir(generated_datasets_path)
+                        except OSError as e:
+                            self.log_to_file(f"Error removing empty directory {generated_datasets_path}: {str(e)}")
+                else:
+                    self.log_to_file(f"Generated datasets path {generated_datasets_path} does not exist.")
+
+            return result_df, results, None, plot_images, generated_datasets
 
         except Exception as error:
             exc_type, exc_value, tb = sys.exc_info()
             full_traceback = traceback.format_exc()
             exec_traceback = self.filter_exec_traceback(code, full_traceback, exc_type.__name__, str(exc_value))
 
-            return self._original_df, None, exec_traceback, []
+            return self._original_df, None, exec_traceback, [], []
 
         finally:
             if self.webui:
                 plt.close('all')
             output_buffer.close()
 
-    def _execute_via_api_client(self, code, df=None, df_id=None):
+    def _execute_via_api_client(self, code, df=None, df_id=None, generated_datasets_path=None):
         """Execute code via executor API client"""
         try:
             response = self.api_client.execute_code(
@@ -176,14 +199,16 @@ pio.show = show
                 df_id=df_id,
                 patch_code=self.patch_code,
                 plots_dir=self.plots_dir,
-                plot_format=self.plot_format
+                plot_format=self.plot_format,
+                generated_datasets_path=generated_datasets_path
             )
             
             return (
                 df,  # Return original df reference
                 response.get('results'),
                 response.get('error'),
-                response.get('plot_images', [])
+                response.get('plot_images', []),
+                response.get('generated_datasets', [])
             )
             
         except Exception as e:

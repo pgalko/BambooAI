@@ -1,7 +1,7 @@
 # prompts.py
 
 ###########################################
-### DEFAULTY EXAMPLES #####################
+### DEFAULT EXAMPLES #####################
 ###########################################
 
 default_example_output_df: |
@@ -566,11 +566,61 @@ default_example_plan_gen: |
   ```
 
 ###########################################
+### SEMANTIC MEMORY EXAMPLES ##############
+###########################################
+
+semantic_memory_plan_example: |
+  --- LEARNING FROM PREVIOUS ANALYSIS ---
+  Task similarity: {}% | User satisfaction: {}/10
+
+  Based on these metrics, apply the following guidance:
+
+  Similarity guidance:
+  - If 95-100%: Near-identical task. Reuse the plan's structure directly, focusing on refinements and optimizations for the current context.
+  - If 90-94%: Highly similar task. Maintain the core approach while adjusting for specific differences in data schema or requirements.
+  - If 85-89%: Moderately similar task. Extract key patterns and methodologies, but redesign components to fit current objectives.
+  - If 80-84%: Loosely similar task. Use as inspiration for general approach, but expect significant adaptations for current needs.
+
+  Satisfaction guidance:
+  - If 9-10: Exceptional past performance. Preserve successful patterns, analysis style, and presentation elements that users valued highly.
+  - If 7-8: Strong past performance. Build upon this solid foundation while exploring modest enhancements in clarity or depth.
+  - If 6: Acceptable baseline. Focus on improvements in insight quality, visualization effectiveness, or analytical depth to achieve higher user satisfaction.
+
+  Relevant Previous Plan:
+  ```yaml
+  {}
+  ```
+
+semantic_memory_code_example: |
+  --- LEARNING FROM PREVIOUS ANALYSIS ---
+  Task similarity: {}% | User satisfaction: {}/10
+
+  Based on these metrics, apply the following guidance:
+
+  Similarity guidance:
+  - If 95-100%: Near-identical task. Reuse the code's structure directly, focusing on refinements and optimizations for the current context.
+  - If 90-94%: Highly similar task. Maintain the core approach while adjusting for specific differences in data schema or requirements.
+  - If 85-89%: Moderately similar task. Extract key patterns and methodologies, but redesign components to fit current objectives.
+  - If 80-84%: Loosely similar task. Use as inspiration for general approach, but expect significant adaptations for current needs.
+
+  Satisfaction guidance:
+  - If 9-10: Exceptional past performance. Preserve successful patterns, analysis style, and presentation elements that users valued highly.
+  - If 7-8: Strong past performance. Build upon this solid foundation while exploring modest enhancements in clarity or depth.
+  - If 6: Acceptable baseline. Focus on improvements in insight quality, visualization effectiveness, or analytical depth to achieve higher user satisfaction.
+
+  Relevant Previous Code:
+  ```python
+  {}
+  ```
+
+###########################################
 ### EXPERT SELECTOR AGENT PROMPTS #########
 ###########################################
 
 expert_selector_system: |
   You are a classification expert, and your job is to classify the given task, and select the expert best suited to solve the task.
+
+  **IMPORTANT: Consider the full conversation context to understand the user's current intent, especially when they're referencing previous work.**
 
   1. Determine whether the solution will require an access to a dataset that contains various data, related to the question.
 
@@ -580,21 +630,117 @@ expert_selector_system: |
 
     - A 'Data Analyst' that can deal with any questions that can be directly solved with code, or relate to the code developed during the conversation.
     - A 'Research Specialist' that can answer questions on any subject that do not require coding, incorporating tools like Google search and LLM as needed.
-
-    If the user asks you to procced, execute or solve the task, you should select the Data Analyst. If the user asks you to explain, educate, reason or provide insights, you should select the Research Specialist.
+    
+    **Classification Guidelines:**
+    - If the user asks you to proceed, execute, solve, run, implement, modify, change, update, fix, or perform any task requiring code execution → select Data Analyst
+    - If the user asks you to explain, educate, reason, describe, clarify, or provide insights without execution → select Research Specialist
+    - **Watch for disguised execution requests**: Words like "visualize", "show", "illustrate", "demonstrate", "create", "generate", "plot", "chart" often require code execution even when framed as explanatory requests → select Data Analyst
+    - When in doubt, consider: "Is the user asking me to DO/CREATE/MODIFY something with code/data, or purely EXPLAIN a concept without creating anything?"
 
   3. State your level of confidence that if presented with this task, you would be able to solve it accurately and factually correctly on a scale from 0 to 10. Output a single integer.
 
+  **Use conversation history to understand whether the user wants action/modification or pure explanation.**
+
   Formulate your response as a YAML string, with 3 fields {requires_dataset (true or false), expert, confidence}. Always enclose the YAML string within ```yaml tags
 
-  Example Query:
-  How many rows are there in this dataset ?
+  Example Query 1:
+  How many rows are there in this dataset?
 
-  Example Output:
+  Example Output 1:
   ```yaml
   requires_dataset: true
   expert: "Data Analyst"
-  confidence: "<estimate your confidence in your abilities to solve the task on a scale from 0 to 10>"
+  confidence: 9
+  ```
+
+  Example Query 2:
+  What is machine learning and how does it differ from traditional programming?
+
+  Example Output 2:
+  ```yaml
+  requires_dataset: false
+  expert: "Research Specialist"
+  confidence: 9
+  ```
+
+  Example Query 3:
+  Can you modify the previous chart to show monthly trends instead of yearly?
+
+  Example Output 3:
+  ```yaml
+  requires_dataset: true
+  expert: "Data Analyst"
+  confidence: 8
+  ```
+
+  Example Query 4:
+  What are the latest trends in renewable energy adoption globally?
+
+  Example Output 4:
+  ```yaml
+  requires_dataset: false
+  expert: "Research Specialist"
+  confidence: 7
+  ```
+
+  Example Query 5:
+  I am not sure that I understand the relation between fibonacci ratio and golden ratio. Maybe you could illustrate using a visualisation.
+
+  Example Output 5:
+  ```yaml
+  requires_dataset: false
+  expert: "Data Analyst"
+  confidence: 8
+  ```
+
+  Example Query 6:
+  What are the key differences between supervised and unsupervised learning approaches?
+
+  Example Output 6:
+  ```yaml
+  requires_dataset: false
+  expert: "Research Specialist"
+  confidence: 9
+  ```
+
+  Example Query 7:
+  Can you show me how to implement a simple linear regression model?
+
+  Example Output 7:
+  ```yaml
+  requires_dataset: false
+  expert: "Data Analyst"
+  confidence: 9
+  ```
+
+  Example Query 8:
+  How do I interpret the statistical significance of these results?
+
+  Example Output 8:
+  ```yaml
+  requires_dataset: false
+  expert: "Research Specialist"
+  confidence: 8
+  ```
+
+  Example Query 9:
+  Show me a comparison of sales performance across different regions.
+
+  Example Output 9:
+  ```yaml
+  requires_dataset: true
+  expert: "Data Analyst"
+  confidence: 9
+  ```
+
+  Example Query 10:
+  What are the ethical considerations when working with personal data in machine learning?
+
+  Example Output 10:
+  ```yaml
+  requires_dataset: false
+  expert: "Research Specialist"
+  confidence: 9
   ```
 
 expert_selector_user: |
@@ -623,6 +769,7 @@ analyst_selector_system: |
     - The analysts you have access to are as follows:
       - **Data Analyst DF**: Select this expert if user provided a dataframe. The DataFrame 'df' is already defined and populated with necessary data.
       - **Data Analyst Generic**: Select this expert if user did not provide the dataframe or the task does not require one. If data availability is unclear, use `request_user_context()` to ask in a friendly way (e.g., "Is your data in a table or file we can work with?").
+    - Please note that both analysts are able to search the Internet.
 
   3. **Rephrase the Query**:
     - Rephrase the query to incorporate prior context, feedback, and clarifications from `request_user_context()`.
@@ -651,7 +798,7 @@ analyst_selector_system: |
   ```yaml
   analyst: "Data Analyst DF"
   unknown: "Pace and heartrate values per 1-kilometer segment"
-  data: "Pandas Dataframe 'df'"
+  data: "Main dataframe 'df' with athletic activity data"
   condition: "Segment the cumulative distance data into 1-kilometer intervals; plot pace on a bar chart with heartrate on a secondary y-axis"
   intent_breakdown: "The user wants to analyze activity data by dividing it into segments of 1 kilometer based on cumulative distance. For each segment, they want to calculate and visualize both the pace and heartrate, using a dual-axis bar chart."
   ```
@@ -663,7 +810,7 @@ analyst_selector_system: |
   ```yaml
   analyst: "Data Analyst DF"
   unknown: "Pace and heartrate for each 1-kilometer segment displayed accurately"
-  data: "Pandas Dataframe 'df'"
+  data: "Main dataframe 'df' with athletic activity data"
   condition: "Segment the data using the cumulative distance so that each segment represents 1 kilometer; then calculate pace and heartrate per segment, and plot pace on a bar chart with heartrate on a secondary y-axis"
   intent_breakdown: "The user has provided feedback that the previous output was incorrect because it did not account for the fact that the distance is cumulative. The revised task requires using the cumulative distance to accurately divide the data into 1-kilometer segments. For each segment, the pace must be calculated and visualized on a bar chart, while heartrate is shown on a secondary y-axis."
   ```
@@ -688,7 +835,7 @@ analyst_selector_system: |
   ```yaml
   analyst: "Data Analyst DF"
   unknown: "Basic EDA on distance and heartrate"
-  data: "Pandas Dataframe 'df'"
+  data: "Main dataframe 'df' with athletic activity data"
   condition: "Conduct basic exploratory data analysis (EDA) focusing on distance and heartrate"
   intent_breakdown: "The user wants to conduct a basic exploratory data analysis (EDA) on their dataset, specifically focusing on the distance and heartrate variables. They are looking for insights or visualizations related to these two metrics."
   ```
@@ -1716,6 +1863,10 @@ code_generator_user_df_plan: |
 
   {}
 
+  If you need to generate final CSV datasets as results, save them using this exact path format, replacing only <descriptive_name> with a meaningful filename:
+
+  {}
+
   The following data model and helper functions are crucial for your implementation. Make sure to incorporate these fully in your solution:
 
   {}
@@ -1781,6 +1932,10 @@ code_generator_user_df_no_plan: |
   {}
 
   You also have access to the following auxiliary datasets. Use them as needed if they are relevant to your analysis:
+
+  {}
+
+  If you need to generate final CSV datasets as results, save them using this exact path format, replacing only <descriptive_name> with a meaningful filename:
 
   {}
 
@@ -1933,6 +2088,10 @@ code_generator_user_gen_plan: |
   6. Include print statements to display intermediate and final results.
   7. Add brief comments to explain key code sections.
 
+  If you need to generate final CSV datasets as results, save them using this exact path format, replacing only <descriptive_name> with a meaningful filename:
+
+  {}
+
   Provide a COMPLETE, EXECUTABLE PYTHON SCRIPT enclosed within ```python ``` tags. Do not omit any code for brevity or ask the user to fill in missing parts.
 
 code_generator_user_gen_no_plan: |
@@ -2024,6 +2183,10 @@ code_generator_user_gen_no_plan: |
   5. Generate the final output as specified, highlighting key results or insights.
   6. Include print statements to display intermediate and final results.
   7. Add brief comments to explain key code sections.
+
+  If you need to generate final CSV datasets as results, save them using this exact path format, replacing only <descriptive_name> with a meaningful filename:
+
+  {}
 
   Provide a COMPLETE, EXECUTABLE PYTHON SCRIPT enclosed within ```python ``` tags. Do not omit any code for brevity or ask the user to fill in missing parts.
 

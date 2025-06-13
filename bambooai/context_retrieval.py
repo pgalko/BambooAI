@@ -22,6 +22,12 @@ def request_user_context(output_manager, chain_id, query_clarification, context_
         str: The user's feedback or a default message if timed out.
     """
 
+    output_manager.display_tool_info(
+        'Feedback Request',
+        f"The model needs clarification on your query",
+        chain_id=chain_id
+    )
+
     # Send feedback request to UI or CLI, depending on the mode
     feedback = output_manager.request_user_feedback(
                     chain_id=chain_id,
@@ -35,6 +41,7 @@ def request_user_context(output_manager, chain_id, query_clarification, context_
     
     # Running in web mode
     # Construct feedback file path
+
     feedback_file = os.path.join('temp', f'feedback_{chain_id}.json')
 
     # Poll for feedback
