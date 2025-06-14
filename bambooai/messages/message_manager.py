@@ -1,13 +1,14 @@
-from bambooai .messages import reg_ex
+from bambooai.messages import reg_ex
 from bambooai.output_manager import OutputManager
 from bambooai.storage_manager import SimpleInteractionStore, StorageError
 
 class MessageManager:
-    def __init__(self, prompts, output_manager: OutputManager, model_dict, max_conversations=4):
+    def __init__(self, prompts, output_manager: OutputManager, multimodal_models, max_conversations):
         # self.max_conversations = max_conversations
         self.MAX_CONVERSATIONS = (max_conversations*2) - 1
         self.output_manager = output_manager
-        self.model_dict = model_dict
+        self.prompts = prompts
+        self.multimodal_models = multimodal_models
 
         self.plan_review_messages = None
         self.insight_messages = None
@@ -27,7 +28,7 @@ class MessageManager:
         # Last generated plan
         self.last_plan = None
 
-        self.reset_messages(prompts)
+        self.reset_messages(self.prompts)
         self.reset_non_cumul_messages()
 
         # Storage
@@ -159,11 +160,11 @@ class MessageManager:
         
         # Trim qa_pairs first if it exceeds max_qa_pairs
         if len(self.qa_pairs) > max_qa_pairs:
-            qa_pairs = self.qa_pairs[-max_qa_pairs:]  # Keep only the most recent pairs
+            self.qa_pairs = self.qa_pairs[-max_qa_pairs:]  # Keep only the most recent pairs
         
         formatted_str = ["Previous Analyses:"]
         
-        for i, pair in enumerate(qa_pairs, 1):
+        for i, pair in enumerate(self.qa_pairs, 1):
             # Add question with minimal formatting
             formatted_str.append(f"\n{i}. Task: {pair['task']}")
             
@@ -172,7 +173,7 @@ class MessageManager:
             formatted_str.append('Result:\n' + '\n'.join(answer_lines))
             
             # Add minimal separator if not the last pair
-            if i < len(qa_pairs):
+            if i < len(self.qa_pairs):
                 formatted_str.append("-" * 5)
          
         return '\n'.join(formatted_str)

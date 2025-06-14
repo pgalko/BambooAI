@@ -168,12 +168,31 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         for chunk in response:
             if not chunk.candidates:
                 continue
-            for part in chunk.candidates[0].content.parts:
-                if part.text or part.thought is not None:
-                    if part.thought:
+            
+            candidate = chunk.candidates[0]
+            
+            # Check if content exists and is not None
+            if not hasattr(candidate, 'content') or candidate.content is None:
+                continue
+            
+            # Check if parts exists and is not None
+            if not hasattr(candidate.content, 'parts') or candidate.content.parts is None:
+                continue
+            
+            for part in candidate.content.parts:
+                # Check if part has the expected attributes
+                if not hasattr(part, 'text') and not hasattr(part, 'thought'):
+                    continue
+                    
+                # Check if either text or thought has content
+                has_text = hasattr(part, 'text') and part.text
+                has_thought = hasattr(part, 'thought') and part.thought is not None
+                
+                if has_text or has_thought:
+                    if has_thought:
                         thinking_messages.append(part.text)
                         output_manager.print_wrapper(part.text, end='', flush=True, chain_id=chain_id, thought=True)
-                    elif part.text:
+                    elif has_text:
                         answer_messages.append(part.text)
                         output_manager.print_wrapper(part.text, end='', flush=True, chain_id=chain_id)
 
@@ -196,13 +215,14 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 if hasattr(metadata, 'search_entry_point') and metadata.search_entry_point is not None and hasattr(metadata.search_entry_point, 'rendered_content'):
                     search_html = metadata.search_entry_point.rendered_content
                 
-                if hasattr(metadata, 'grounding_supports') and metadata.grounding_supports:
-                    supports = metadata.grounding_supports
-                    num_queries = len(queries) if queries else 1
-                    supports_per_query = max(1, len(supports) // num_queries)
+                # Only process if we have both grounding_supports AND queries
+                if (hasattr(metadata, 'grounding_supports') and metadata.grounding_supports and 
+                    queries is not None):
                     
-                    query_list = queries if queries else [messages]
-                    for i, q in enumerate(query_list):
+                    supports = metadata.grounding_supports
+                    supports_per_query = max(1, len(supports) // len(queries))
+                    
+                    for i, q in enumerate(queries):
                         start_idx = i * supports_per_query
                         end_idx = min((i + 1) * supports_per_query, len(supports))
                         relevant_supports = supports[start_idx:end_idx]

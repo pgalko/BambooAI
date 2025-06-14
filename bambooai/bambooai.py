@@ -150,7 +150,9 @@ class BambooAI:
 
         self.message_manager = MessageManager(output_manager=self.output_manager,
                                                prompts=self.prompts,
-                                               model_dict=self.model_dict)
+                                               multimodal_models=self.multimodal_models,
+                                               max_conversations=max_conversations,
+                                               )
 
         # QA Retrieval
         self.similarity_threshold = 0.80
@@ -441,7 +443,7 @@ class BambooAI:
             agent = 'Theorist'
         
         if not analyst or (self.planning and  models.get_model_name("Code Generator")[0] not in self.reasoning_models): # If the analyst is not selected or the code generator model is not a reasoning model
-            task_eval,tool_response, full_response = self.task_eval(self.message_manager.eval_messages, agent, image)
+            task_eval, tool_response, full_response = self.task_eval(self.message_manager.eval_messages, agent, image)
             self.message_manager.eval_messages.append({"role": "assistant", "content": full_response})
             self.message_manager.last_plan = task_eval
         else:
@@ -535,8 +537,8 @@ class BambooAI:
                 if not analyst:
                     self.output_manager.display_results(chain_id=self.chain_id, research=tool_response, answer=plan)
                     self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
-                    self.message_manager.store_interaction(self.thread_id, self.chain_id, google_search_results=tool_response, code_exec_results=self.message_manager.code_exec_results, executed_code=self.message_manager.last_code, qa_pairs=self.message_manager.qa_pairs, tasks=self.message_manager.tasks)
                     self.message_manager.tasks.append(question)
+                    self.message_manager.store_interaction(self.thread_id, self.chain_id, google_search_results=tool_response, code_exec_results=self.message_manager.code_exec_results, executed_code=self.message_manager.last_code, qa_pairs=self.message_manager.qa_pairs, tasks=self.message_manager.tasks)
                     return
                 else:
                     if self.planning and models.get_model_name("Code Generator")[0] not in self.reasoning_models:
@@ -579,8 +581,8 @@ class BambooAI:
             if code is None or code == "":
                 self.output_manager.display_results(chain_id=self.chain_id, answer=llm_response)
                 self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
-                self.message_manager.store_interaction(self.thread_id, self.chain_id, google_search_results=tool_response, code_exec_results=self.message_manager.code_exec_results, executed_code=self.message_manager.last_code, qa_pairs=self.message_manager.qa_pairs, tasks=self.message_manager.tasks)
                 self.message_manager.tasks.append(intent_breakdown)
+                self.message_manager.store_interaction(self.thread_id, self.chain_id, google_search_results=tool_response, code_exec_results=self.message_manager.code_exec_results, executed_code=self.message_manager.last_code, qa_pairs=self.message_manager.qa_pairs, tasks=self.message_manager.tasks)
                 return
         else:
             analyst = 'User'
