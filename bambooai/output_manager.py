@@ -196,7 +196,7 @@ class OutputManager:
         else:
             cprint(f"\n--Performing Action {action}: \"{action_input}\"", self.color_usr_input_rank)
 
-    def display_system_messages(self, message):
+    def display_system_messages(self, message, chain_id=None):
         if self.is_notebook:
             display(HTML(f'<span style="color:{self.color_usr_input_rank};">-- info: \"{message}\"</span>'))
             time.sleep(1)

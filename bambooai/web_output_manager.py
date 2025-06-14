@@ -165,7 +165,7 @@ class WebOutputManager(OutputManager):
         if self.web_mode:
             self.output_queue.put(json.dumps({'system_message': message}))
         else:
-            super().display_system_messages(message)
+            super().display_system_messages(message, chain_id)
 
     def display_call_summary(self, summary_text):
         if self.web_mode:
