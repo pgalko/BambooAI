@@ -56,16 +56,14 @@ class BambooAI:
             if search_mode == 'google_ai':
                 if not os.getenv('GEMINI_API_KEY'):
                     self.output_manager.display_system_messages(
-                        "Warning: GEMINI_API_KEY environment variable not found. Disabling google_search.", 
-                        chain_id=self.chain_id
+                        "Warning: GEMINI_API_KEY environment variable not found. Disabling google_search."
                     )
                     return False
                     
             elif search_mode == 'selenium':
                 if not os.getenv('SERPER_API_KEY'):
                     self.output_manager.display_system_messages(
-                        "Warning: SERPER_API_KEY environment variable not found. Disabling google_search.", 
-                        chain_id=self.chain_id
+                        "Warning: SERPER_API_KEY environment variable not found. Disabling google_search."
                     )
                     return False
                     
@@ -184,7 +182,7 @@ class BambooAI:
     ######################
 
     def reset_messages_and_logs(self):
-        self.message_manager.reset_messages()
+        self.message_manager.reset_messages(self.prompts)
         self.log_and_call_manager.clear_run_logs()
 
     def reset_retrieved_data(self):
