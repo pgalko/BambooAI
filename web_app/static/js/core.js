@@ -133,23 +133,26 @@ function configureMarkdown() {
 
 function initializeThemeToggle() {
     const themeToggle = document.getElementById('themeToggle');
-    const html = document.documentElement; // Use <html> for data-theme
+    const html = document.documentElement;
     const sunIcon = themeToggle.querySelector('.sun-icon');
     const moonIcon = themeToggle.querySelector('.moon-icon');
-    const logo = document.querySelector('.menu-logo'); // Reference to the logo
+    const themeLabel = themeToggle.querySelector('.theme-label');
+    const logo = document.querySelector('.menu-logo');
     
     // Check for saved theme preference
     const savedTheme = localStorage.getItem('theme') || 'light';
     if (savedTheme === 'dark') {
         html.setAttribute('data-theme', 'dark');
-        sunIcon.style.display = 'none';
-        moonIcon.style.display = 'block';
-        logo.src = '/static/image/logo_dark.svg'; // Set dark logo
+        sunIcon.style.display = 'block';  // Show SUN icon when you can switch to LIGHT
+        moonIcon.style.display = 'none';
+        themeLabel.textContent = 'Light Theme'; // Show what you can switch TO
+        logo.src = '/static/image/logo_dark.svg';
     } else {
         html.setAttribute('data-theme', 'light');
-        sunIcon.style.display = 'block';
-        moonIcon.style.display = 'none';
-        logo.src = '/static/image/logo_light.svg'; // Set light logo
+        sunIcon.style.display = 'none';
+        moonIcon.style.display = 'block';  // Show MOON icon when you can switch to DARK
+        themeLabel.textContent = 'Dark Theme'; // Show what you can switch TO
+        logo.src = '/static/image/logo_light.svg';
     }
 
     themeToggle.addEventListener('click', () => {
@@ -158,14 +161,12 @@ function initializeThemeToggle() {
         
         html.setAttribute('data-theme', newTheme);
         
-        // Toggle icons
-        sunIcon.style.display = newTheme === 'dark' ? 'none' : 'block';
-        moonIcon.style.display = newTheme === 'dark' ? 'block' : 'none';
-
-        // Switch logo
+        sunIcon.style.display = newTheme === 'dark' ? 'block' : 'none';  // Show SUN when you can switch to LIGHT
+        moonIcon.style.display = newTheme === 'dark' ? 'none' : 'block';  // Show MOON when you can switch to DARK
+        themeLabel.textContent = newTheme === 'dark' ? 'Light Theme' : 'Dark Theme'; // Show what you can switch TO next
+        
         logo.src = newTheme === 'dark' ? '/static/image/logo_dark.svg' : '/static/image/logo_light.svg';
         
-        // Save preference
         localStorage.setItem('theme', newTheme);
     });
 }

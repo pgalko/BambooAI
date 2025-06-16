@@ -20,7 +20,7 @@ flask
 ipython
 nbformat
 python-dotenv
-lxml[html_clean]
+lxml_html_clean
 gunicorn
 google-cloud-storage
 statsmodels

@@ -889,10 +889,13 @@ def query():
     thread_id = request.json['thread_id']
     chain_id = request.json['chain_id']
     image = request.json.get('image')
-    user_code= request.json.get('user_code')
+    user_code = request.json.get('user_code')
+    branching_cv = request.json.get('branching_cv')
 
     if user_code:
         user_input = "User manually edited your code, and requested to run it, and return the result."
+    elif branching_cv:
+        user_input = bamboo_ai_instance.prompts.ideas_explorer.format(branching_cv, branching_cv)
 
     bamboo_ai_instance.output_manager.add_user_input(user_input)
     

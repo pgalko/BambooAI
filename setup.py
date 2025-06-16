@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='bambooai',
-    version='0.4.19',
+    version='0.4.20',
     description='A lightweight library for working with pandas dataframes using natural language queries',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -39,7 +39,7 @@ setup(
         'ipython',
         'nbformat',
         'python-dotenv',
-        'lxml[html_clean]',
+        'lxml_html_clean',
         'gunicorn',
         'google-cloud-storage',
         'statsmodels',
@@ -49,6 +49,7 @@ setup(
         'yfinance',
         'sweatstack'
     ],
+    python_requires=">=3.10",
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: MIT License',

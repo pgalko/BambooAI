@@ -308,11 +308,18 @@ function showWorkflowMap() {
             queryText = queryText.substring(0, 27) + '...';
         }
         
+        // Check if this is a branching node
+        const isBranchingNode = queryText.toLowerCase().includes('user requested variations');
+        
         // Format node text with query and chain ID
         const nodeText = `${queryText}<br>Chain ID: ${response.chain_id || 'N/A'}`;
         
-        // Add node to diagram
-        diagram += `    ${nodeId}["${nodeText}"]\n`;
+        // Use different node shapes: rectangles for normal, rounded rectangles for branching
+        if (isBranchingNode) {
+            diagram += `    ${nodeId}{{"${nodeText}"}}\n`; // Hexagon shape
+        } else {
+            diagram += `    ${nodeId}["${nodeText}"]\n`; // Rectangle shape
+        }
     });
     
     // Add edges for parent-child relationships
@@ -322,7 +329,15 @@ function showWorkflowMap() {
                 r.chain_id === response.parentChainId);
             
             if (parentIndex >= 0) {
-                diagram += `    node${parentIndex} --> node${index}\n`;
+                // Check if this is a branching node
+                let queryText = response.queryText || 'No query';
+                const isBranchingNode = queryText.toLowerCase().includes('user requested variations');
+                
+                if (isBranchingNode) {
+                    diagram += `    node${parentIndex} -->|"Fork"| node${index}\n`;
+                } else {
+                    diagram += `    node${parentIndex} --> node${index}\n`;
+                }
             }
         }
     });
@@ -383,8 +398,16 @@ function showWorkflowMap() {
                                         contentHtml = nodeContent.originalQuestion;
                                     }
                                 } else {
-                                    // If neither is available
-                                    contentHtml = 'No content available for this node';
+                                    // Check if this is a branching node
+                                    const response = responses[index];
+                                    let queryText = response?.queryText || 'No query';
+                                    const isBranchingNode = queryText.toLowerCase().includes('user requested variations');
+                                    
+                                    if (isBranchingNode) {
+                                        contentHtml = 'Generated 5 questions that explore variations of our current inquiry. Each question should represent a small mutation in the problem space - subtle shifts that may reveal profound insights.';
+                                    } else {
+                                        contentHtml = 'No content available for this node';
+                                    }
                                 }
                                 
                                 // Update the task content area

@@ -940,6 +940,52 @@ theorist_system: |
   Remember to tailor your response appropriately based on whether there is relevant previous context or not.
 
 ###########################################
+### EXPLORE IDEAS #########################
+###########################################
+
+ideas_explorer: |
+  Generate 5 questions that explore variations of our current inquiry. Each question should represent a small mutation in the problem space - subtle shifts that may reveal profound insights.
+
+  Variation Level: {}
+  
+  Level descriptions (in ascending order from lovest variation to the highest):
+  Level 1: Refine focus - adjust scope, granularity, or specific parameters within the same inquiry
+  Level 2: Shift angle - examine the same subject from a different perspective or framework  
+  Level 3: Test boundaries - explore what happens at the edges of our current assumptions
+  Level 4: Blend elements - combine two aspects from our current exploration in a new way
+  Level 5: Follow emergence - pursue interesting patterns that appeared unexpectedly in our investigation
+
+  Your task: Generate 5 different variations, ALL at Level {}. Each question should explore a different aspect while maintaining the same variation distance from the original inquiry.
+
+  Guidelines for generating variations:
+  - Each variation should be ONE STEP away from the current inquiry
+  - Maintain clear connection to the existing conversation context and any data present
+  - Small changes often reveal large insights - prefer subtle over dramatic
+  - Build variations from elements already present in our discussion
+  - Each question should feel like a natural "what if we considered this slightly differently?"
+  - Preserve the investigative thread while gently pulling in new directions
+
+  Consider how discovery actually works:
+  - Profound insights emerge from minor adjustments in perspective
+  - The most valuable questions are often hiding just outside our current view
+  - Progress happens through accumulation of small exploratory steps
+  - The adjacent possible is always only one step away
+
+  Ground it in the context of the conversation so far, and the given dataset. Format the response as a numbered markdown list.
+  The Task is routed to the Research Specialist, and the response will be formatted as follows:
+
+  1. **question_title:**
+  question
+  2. **question_title:**
+  question
+  3. **question_title:**
+  question
+  4. **question_title:**
+  question
+  5. **question_title:**
+  question
+
+###########################################
 ### DATAFRAME INSPECTOR AGENT PROMPTS #####
 ###########################################
 

@@ -618,36 +618,56 @@ function initializePlanningSwitch() {
 
 function initializeSuggestQuestions() {
     const suggestQuestions = document.getElementById('suggestQuestions');
+    const branchingSliderPopup = document.getElementById('branchingSliderPopup');
+    const branchingIcons = document.querySelectorAll('.branching-icon');
     
     if (!suggestQuestions) {
         console.warn('Suggest questions element not found');
         return;
     }
     
-    suggestQuestions.addEventListener('click', function() {
-        const queryInput = document.getElementById('queryInput');
-        if (!queryInput) return;
-        
-        queryInput.value = `
-            What should I ask next? Give 5 possible lines of inquiry to delve deeper into the topic, and analyse the given data further. Ground it in the context of the conversation so far, and the given dataset. Format the response as a numbered markdown list.
-            The Task is routed to the Research Specialist, and the response will be formatted as follows:
-
-            1. **question_title:**
-            question
-            2. **question_title:**
-            question
-            3. **question_title:**
-            question
-            4. **question_title:**
-            question
-            5. **question_title:**
-            question
-        `;
-        
-        if (typeof handleQuerySubmit === 'function') {
-            handleQuerySubmit();
-        }
-        answerTabInteractive = true;
+    // Show popup on hover
+    suggestQuestions.addEventListener('mouseenter', function() {
+        branchingSliderPopup.style.display = 'flex';
+    });
+    
+    // Hide popup when leaving both button and popup
+    suggestQuestions.addEventListener('mouseleave', function() {
+        setTimeout(() => {
+            if (!branchingSliderPopup.matches(':hover') && !suggestQuestions.matches(':hover')) {
+                branchingSliderPopup.style.display = 'none';
+            }
+        }, 100);
+    });
+    
+    branchingSliderPopup.addEventListener('mouseleave', function() {
+        setTimeout(() => {
+            if (!branchingSliderPopup.matches(':hover') && !suggestQuestions.matches(':hover')) {
+                branchingSliderPopup.style.display = 'none';
+            }
+        }, 100);
+    });
+    
+    // Handle icon clicks
+    branchingIcons.forEach(icon => {
+        icon.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const branchingCvValue = parseInt(this.getAttribute('data-value'));
+            const queryInput = document.getElementById('queryInput');
+            
+            if (!queryInput) return;
+            
+            // Clear the input and submit with selected branching_cv
+            queryInput.value = 'User requested variations of the enquiry';
+            
+            if (typeof handleQuerySubmit === 'function') {
+                handleQuerySubmit({branching_cv: branchingCvValue});
+            }
+            answerTabInteractive = true;
+            
+            // Hide the popup after submission
+            branchingSliderPopup.style.display = 'none';
+        });
     });
 }
 

@@ -76,17 +76,6 @@
                         </svg>
                     </button>
                 </div>
-                <div class="theme-toggle-container">
-                    <button id="themeToggle" class="icon-button theme-toggle" title="Toggle theme" aria-label="Toggle theme">
-                        <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="5"/>
-                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                        </svg>
-                        <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
-                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                        </svg>
-                    </button>
-                </div>
             </div>
             <div class="content-area">
                 <div id="streamOutput"></div>
@@ -220,6 +209,45 @@
                                 </svg>
                             </button>
 
+                            <!-- Branching CV Icons Popup -->
+                            <div id="branchingSliderPopup" class="branching-slider-popup">
+                                <button class="branching-icon" data-value="5" title="Follow emergence - pursue interesting patterns that appeared unexpectedly in our investigation">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                                <button class="branching-icon" data-value="4" title="Blend elements - combine two aspects from our current exploration in a new way">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                                <button class="branching-icon" data-value="3" title="Test boundaries - explore what happens at the edges of our current assumptions">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                                <button class="branching-icon" data-value="2" title="Shift angle - examine the same subject from a different perspective or framework">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                                <button class="branching-icon" data-value="1" title="Refine focus - adjust scope, granularity, or specific parameters within the same inquiry">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                            </div>
+
                             <!-- Rank Solution -->
                             <button id="rankButton" type="button" class="icon-button rank-icon" title="Save Memory" style="display: none;">
                                 <svg
@@ -287,6 +315,18 @@
             </button>
             
             <div class="settings-popup">
+                <!-- Theme toggle first - simplified -->
+                <button id="themeToggle" class="settings-option theme-toggle-option">
+                    <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/>
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    <span class="theme-label">Light Theme</span>
+                </button>
+            
                 <div class="integrations-menu-item">
                     <button class="settings-option integrations-option">
                         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

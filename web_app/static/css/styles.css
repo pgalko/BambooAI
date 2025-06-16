@@ -1836,6 +1836,116 @@ body, html {
     opacity: 0.8;
 }
 
+/* Branching CV Icons Popup */
+.branching-slider-popup {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 70px; /* Positioned to align with suggest questions button */
+    background: var(--dropdown-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 4px;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 40px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    z-index: 1000;
+}
+
+.branching-slider-popup::before {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 0;
+    width: 100%;
+    height: 10px;
+}
+
+.branching-slider-popup::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 20px;
+    transform: rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--dropdown-bg);
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.branching-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+/* Size scaling from smallest to largest */
+.branching-icon[data-value="1"] svg {
+    width: 14px;
+    height: 14px;
+}
+
+.branching-icon[data-value="2"] svg {
+    width: 16px;
+    height: 16px;
+}
+
+.branching-icon[data-value="3"] svg {
+    width: 18px;
+    height: 18px;
+}
+
+.branching-icon[data-value="4"] svg {
+    width: 20px;
+    height: 20px;
+}
+
+.branching-icon[data-value="5"] svg {
+    width: 22px;
+    height: 22px;
+}
+
+.branching-icon svg {
+    stroke: currentColor;
+    fill: none;
+    transition: all 0.2s;
+}
+
+.branching-icon:hover {
+    background: var(--bg-tertiary);
+    color: var(--accent-color);
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .branching-slider-popup {
+    background: var(--dropdown-bg);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .branching-slider-popup::after {
+    background: var(--dropdown-bg);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .branching-icon {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .branching-icon:hover {
+    color: var(--accent-color);
+    background: var(--bg-tertiary);
+}
+
 .switch-container {
     display: flex;
     align-items: center;
@@ -2958,32 +3068,39 @@ code.language-json {
     color: var(--text-tertiary);
 }
 
-/* Theme Toggle Styles */
-.theme-toggle-container {
-    display: inline-block;
-    margin-left: 10px;
-}
-
-.theme-toggle {
-    background: none;
-    border: none;
-    padding: 4px;
-    cursor: pointer;
-    color: var(--accent-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.2s;
-}
-
-.theme-toggle:hover {
-    transform: scale(1.1);
-}
-
-.theme-toggle svg {
+/* Theme Toggle in Settings Menu - Match existing menu items exactly */
+.theme-toggle-option .sun-icon,
+.theme-toggle-option .moon-icon {
     width: 20px;
     height: 20px;
     stroke: currentColor;
+    /* Remove any margin - let the default gap: 8px from .menu-option handle spacing */
+}
+
+.theme-toggle-option .theme-label {
+    font-size: 14px; /* Match other menu item text */
+}
+
+/* Hide old theme toggle container */
+.theme-toggle-container {
+    display: none;
+}
+
+/* Fix submenu trigger - be very specific */
+.integrations-menu-item .integrations-option:hover + .integrations-submenu,
+.integrations-submenu:hover {
+    display: flex !important;
+}
+
+/* Ensure the general hover rule doesn't apply to other elements */
+.integrations-menu-item:hover .integrations-submenu {
+    display: none !important;
+}
+
+/* Only show submenu when hovering specifically over the integrations option or the submenu itself */
+.integrations-menu-item .integrations-option:hover + .integrations-submenu,
+.integrations-menu-item .integrations-submenu:hover {
+    display: flex !important;
 }
 
 /* Search Results Styles */
@@ -3530,7 +3647,7 @@ code.language-json {
     margin-top: 0; /* Remove top margin */
 }
 
-#workflowMapContainer g.node:hover rect {
+#workflowMapContainer g.node:hover * {
     stroke: var(--accent-color) !important;
     stroke-width: 1px !important;
 }
@@ -3894,7 +4011,7 @@ code.language-json {
     border: none;
     padding: 0;
     cursor: pointer;
-    color: var(--text-tertiary) !important;
+    color: var(--text-secondary) !important;
     width: 28px;
     height: 28px;
     display: flex;

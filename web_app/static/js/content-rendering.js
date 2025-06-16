@@ -259,6 +259,11 @@ async function handleQuerySubmission(e) {
 //--------------------
 
 function createOrUpdateTab(type, data, id = null, format = null) {
+    // Skip creating query tab entirely if answerTabInteractive is true
+    if (type === 'query' && answerTabInteractive) {
+        return;
+    }
+
     const tabContainer = document.getElementById('tabContainer');
     const contentOutput = document.getElementById('contentOutput');
     let tab = document.getElementById(`tab-${type}`);
@@ -269,7 +274,11 @@ function createOrUpdateTab(type, data, id = null, format = null) {
         tab = document.createElement('div');
         tab.id = `tab-${type}`;
         tab.className = 'tab';
-        tab.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+
+        // Change "Answer" to "Explore" if answerTabInteractive is true
+        const tabName = (type === 'answer' && answerTabInteractive) ? 'Explore' : type.charAt(0).toUpperCase() + type.slice(1);
+        tab.textContent = tabName;
+
         tab.onclick = () => activateTab(type);
         tabContainer.appendChild(tab);
 
@@ -377,7 +386,10 @@ async function updateTabContent(type, data, id = null, format = null) {
             break;
         case 'answer': {
             console.log('Processing answer case');
-            content = `<h3>${type.charAt(0).toUpperCase() + type.slice(1)}:</h3>`;
+
+            // Change header text based on answerTabInteractive
+            const headerText = answerTabInteractive ? 'Explore' : type.charAt(0).toUpperCase() + type.slice(1);
+            content = `<h3>${headerText}:</h3>`;
             
             // First protect LaTeX content
             const { text: protectedContent, placeholders } = protectLatexDelimiters(data);

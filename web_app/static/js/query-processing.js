@@ -26,10 +26,12 @@ function initializeMainQuerySubmission() {
     }
 }
 
-function handleQuerySubmit() {
+function handleQuerySubmit(options = {}) {
+    const { branching_cv } = options;
     const queryInput = document.getElementById('queryInput');
     const query = queryInput.value.trim();
-    if (!query) {
+    
+    if (!query && !branching_cv) {
         return;
     }
 
@@ -48,16 +50,24 @@ function handleQuerySubmit() {
     // Reset the height of the textarea
     queryInput.style.height = 'auto';
 
+    // Prepare the request body
+    const requestBody = {
+        query: query,
+        chain_id: currentData.chain_id,
+        thread_id: currentData.thread_id
+    };
+
+    // Add optional parameters if provided
+    if (branching_cv) {
+        requestBody.branching_cv = branching_cv;
+    }
+
     fetch('/query', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            query: query,
-            chain_id: currentData.chain_id,
-            thread_id: currentData.thread_id
-        }),
+        body: JSON.stringify(requestBody),
     })
     .then(response => {
         if (!response.ok) {
