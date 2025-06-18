@@ -343,8 +343,8 @@ def transform_sweatstack_longitudinal_data(df):
 
     # 2. Convert activity_id column to integers (incrementing from oldest to newest activity)
     df = df.sort_values('datetime')
-    unique_activities = df.groupby('activity_id')['datetime'].min().sort_values().index
-    activity_mapping = {old_id: new_id for new_id, old_id in enumerate(unique_activities, 1)}
+    unique_activities = df.groupby('activity_id')['datetime'].min().sort_values()
+    activity_mapping = {old_id: new_id for new_id, old_id in enumerate(unique_activities.index, 1)}
     df['activity_id'] = df['activity_id'].map(activity_mapping)
 
     # 3. Add cumulative distance column calculated from duration × speed
@@ -361,6 +361,9 @@ def transform_sweatstack_longitudinal_data(df):
     existing_priority_columns = [col for col in priority_columns if col in df.columns]
     other_columns = [col for col in df.columns if col not in priority_columns]
     df = df[existing_priority_columns + sorted(other_columns)]
+    
+    # 6. Sort by datetime in descending order
+    df = df.sort_values('datetime', ascending=False)
 
     return df
 
