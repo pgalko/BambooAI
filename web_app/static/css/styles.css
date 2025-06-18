@@ -4193,3 +4193,215 @@ code.language-json {
 .menu-popup {
     overflow: visible;
 }
+
+/* PDF Export Styles */
+
+/* Button */
+.tab-header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.tab-header-container h3 {
+    margin: 0;
+}
+
+.pdf-export-btn {
+    background: transparent;
+    border: 1px solid var(--error-color);
+    border-radius: 4px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--error-color);
+    font-size: 14px;
+    font-weight: 300;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.pdf-export-btn:hover:not(:disabled) {
+    background-color: var(--shadow-color) !important;
+    border-color: var(--error-color) !important;
+    color: var(--error-color) !important;
+    transform: scale(1.02) !important;
+}
+
+.pdf-export-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.pdf-export-btn:disabled:hover {
+    background: transparent;
+    color: var(--error-color);
+}
+
+.pdf-export-btn .pdf-icon {
+    flex-shrink: 0;
+}
+
+.pdf-export-btn .pdf-text {
+    font-family: inherit;
+}
+
+.pdf-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--error-color);
+    border-top: 2px solid transparent;
+    border-radius: 50%;
+    animation: pdf-spin 1s linear infinite;
+}
+
+@keyframes pdf-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+[data-theme="dark"] .pdf-export-btn {
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+
+[data-theme="dark"] .pdf-export-btn:hover:not(:disabled) {
+    background-color: var(--error-color);
+    color: white;
+}
+
+[data-theme="dark"] .pdf-spinner {
+    border-color: var(--error-color);
+    border-top-color: transparent;
+}
+
+/* PDF Document Styling */
+.pdf-render-wrapper { 
+    font-family: Arial, sans-serif !important; 
+    font-size: 14px !important;
+    color: #000000 !important; 
+    line-height: 1.5 !important; 
+    background-color: #ffffff !important; 
+}
+.pdf-render-wrapper h1 { 
+    font-size: 20px !important; 
+    font-weight: bold; 
+    color: #000000 !important; 
+    margin-bottom: 8px; 
+    page-break-after: avoid !important;
+}
+.pdf-render-wrapper h2 { 
+    font-size: 18px !important; 
+    font-weight: bold; 
+    margin-top: 20px; 
+    margin-bottom: 5px; 
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+}
+.pdf-render-wrapper h3 { 
+    font-size: 16px !important; 
+    font-weight: bold; 
+    margin-top: 15px; 
+    margin-bottom: 5px; 
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+}
+.pdf-render-wrapper .timestamp { 
+    font-size: 10px !important; 
+    color: #666666 !important; 
+    margin-bottom: 20px; 
+    border-bottom: 1px solid #cccccc; 
+    padding-bottom: 10px; 
+}
+
+.pdf-render-wrapper table { 
+    border-collapse: collapse; 
+    width: 100%; 
+    margin: 20px 0; 
+    page-break-inside: avoid !important; 
+}
+
+.pdf-render-wrapper th, .pdf-render-wrapper td { 
+    border: 1px solid #cccccc; 
+    padding: 10px; 
+    text-align: left; 
+    font-size: 14px !important;
+    page-break-inside: avoid !important;
+}
+
+.pdf-render-wrapper th { 
+    background-color: #E0E0E0 !important;
+    color: #000000 !important;
+    font-weight: bold; 
+}
+
+.pdf-render-wrapper tbody tr:nth-child(even) { 
+    background-color: #f9f9f9 !important; 
+}
+
+.pdf-render-wrapper pre { 
+    background-color: #f5f5f5; 
+    padding: 10px; 
+    border-radius: 3px; 
+    font-family: monospace !important; 
+    font-size: 12px !important; 
+    page-break-inside: avoid !important; 
+    white-space: pre-wrap; 
+    word-wrap: break-word; 
+}
+.pdf-render-wrapper code { 
+    font-family: monospace !important; 
+}
+.pdf-render-wrapper .katex { 
+    font-size: 1.1em !important; 
+}
+.pdf-render-wrapper p, .pdf-render-wrapper blockquote { 
+    page-break-inside: avoid !important; 
+    margin-bottom: 10px; 
+    orphans: 2; 
+    widows: 2; 
+}
+
+/* Enhanced bullet point styles for 'text' mode */
+.pdf-render-wrapper ul, .pdf-render-wrapper ol { 
+    padding-left: 20px !important; 
+    margin-left: 0px !important; 
+    margin-bottom: 15px !important;
+    page-break-inside: auto !important; /* Allow breaking within lists */
+}
+
+.pdf-render-wrapper li { 
+    margin-bottom: 8px !important;
+    page-break-inside: avoid !important;
+    orphans: 2 !important;
+    widows: 2 !important;
+    position: relative !important;
+    padding-left: 0 !important;
+}
+
+/* Force bullet points to display properly */
+.pdf-render-wrapper ul li {
+    list-style-type: disc !important;
+    display: list-item !important;
+}
+
+.pdf-render-wrapper ol li {
+    list-style-type: decimal !important;
+    display: list-item !important;
+}
+
+.pdf-render-wrapper li::marker {
+    color: #000000 !important;
+}
+
+/* Remove any custom bullet styling that might interfere */
+.pdf-render-wrapper li::before { 
+    content: none !important; 
+    display: none !important; 
+}

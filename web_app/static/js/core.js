@@ -210,6 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof initializeQueryProcessing === 'function') initializeQueryProcessing();
     if (typeof initializeContentRendering === 'function') initializeContentRendering();
     if (typeof initializeWorkflowManagement === 'function') initializeWorkflowManagement();
+    if (typeof initializePDFExport === 'function') initializePDFExport();
     
     console.log('All modules initialized');
 });

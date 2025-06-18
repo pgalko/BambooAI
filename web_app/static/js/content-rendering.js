@@ -420,11 +420,16 @@ async function updateTabContent(type, data, id = null, format = null) {
                     
                     // Add event listeners to the interactive pills if they exist
                     attachPillEventListeners(contentElement);
+                    
+                    // Add PDF export button to answer tab
+                    if (typeof handleAnswerTabUpdate === 'function') {
+                        handleAnswerTabUpdate();
+                    }
                 }
             }, 100);
             
             break;
-        }   
+        }
         default:
             console.log(`Unknown data type: ${type}`);
             return;
