@@ -333,10 +333,11 @@ def transform_sweatstack_longitudinal_data(df):
     """
     Transform SweatStack dataframe:
     1. Convert activity_id to integers (incrementing from oldest to newest activity per athlete)
-    2. Convert timestamp to local time and rename to "datetime"
-    3. Add cumulative distance column calculated from duration × speed
-    4. Remove duration column
-    5. Sort columns by athlete_id, datetime, activity_id, sport, then other columns
+    2. Convert athlete_id to integers (incrementing from first appearance)
+    3. Convert timestamp to local time and rename to "datetime"
+    4. Add cumulative distance column calculated from duration × speed
+    5. Remove duration column
+    6. Sort columns by athlete_id, datetime, activity_id, sport, then other columns
     """
     # 1. Convert timestamp column to local time and rename to "datetime"
     df["datetime"] = pd.to_datetime(df.index).tz_localize(None)  # Remove timezone info to convert to local time
@@ -358,6 +359,11 @@ def transform_sweatstack_longitudinal_data(df):
 
         # Apply mapping using both athlete_id and activity_id
         df['activity_id'] = df.apply(lambda row: activity_mapping.get((row['athlete_id'], row['activity_id']), row['activity_id']), axis=1)
+
+        # Convert athlete_id to integers (incrementing from first appearance)
+        unique_athletes = sorted(df['athlete_id'].unique())
+        athlete_mapping = {old_id: new_id for new_id, old_id in enumerate(unique_athletes, 1)}
+        df['athlete_id'] = df['athlete_id'].map(athlete_mapping)
     else:
         # Single user scenario
         unique_activities = df.groupby('activity_id')['datetime'].min().sort_values()
