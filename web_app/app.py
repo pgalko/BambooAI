@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from google.cloud import storage
 from werkzeug.datastructures import FileStorage
 
+
 def cleanup_threads(debug_mode=False):
     """
     Clean up thread JSON files and temporary ontology files that don't have matching IDs in favorites.
@@ -331,40 +332,59 @@ def start_new_conversation(session_id):
 def transform_sweatstack_longitudinal_data(df):
     """
     Transform SweatStack dataframe:
-    1. Convert activity_id to integers (incrementing from oldest to newest activity)
+    1. Convert activity_id to integers (incrementing from oldest to newest activity per athlete)
     2. Convert timestamp to local time and rename to "datetime"
     3. Add cumulative distance column calculated from duration × speed
     4. Remove duration column
-    5. Sort columns by datetime, activity_id, sport, then other columns
+    5. Sort columns by athlete_id, datetime, activity_id, sport, then other columns
     """
     # 1. Convert timestamp column to local time and rename to "datetime"
     df["datetime"] = pd.to_datetime(df.index).tz_localize(None)  # Remove timezone info to convert to local time
     df = df.reset_index(drop=True)  # Remove the original timestamp index
 
-    # 2. Convert activity_id column to integers (incrementing from oldest to newest activity)
+    # 2. Convert activity_id column to integers (incrementing from oldest to newest activity per athlete)
     df = df.sort_values('datetime')
-    unique_activities = df.groupby('activity_id')['datetime'].min().sort_values()
-    activity_mapping = {old_id: new_id for new_id, old_id in enumerate(unique_activities.index, 1)}
-    df['activity_id'] = df['activity_id'].map(activity_mapping)
+
+    # Check if we have athlete_id column (multi-user scenario)
+    if 'athlete_id' in df.columns:
+        # Create unique activity IDs per athlete
+        unique_activities = df.groupby(['athlete_id', 'activity_id'])['datetime'].min().sort_values()
+        activity_mapping = {}
+
+        for athlete_id in df['athlete_id'].unique():
+            athlete_activities = unique_activities[athlete_id]
+            for new_id, (old_id, _) in enumerate(athlete_activities.items(), 1):
+                activity_mapping[(athlete_id, old_id)] = new_id
+
+        # Apply mapping using both athlete_id and activity_id
+        df['activity_id'] = df.apply(lambda row: activity_mapping.get((row['athlete_id'], row['activity_id']), row['activity_id']), axis=1)
+    else:
+        # Single user scenario
+        unique_activities = df.groupby('activity_id')['datetime'].min().sort_values()
+        activity_mapping = {old_id: new_id for new_id, old_id in enumerate(unique_activities.index, 1)}
+        df['activity_id'] = df['activity_id'].map(activity_mapping)
 
     # 3. Add cumulative distance column calculated from duration × speed
     if 'duration' in df.columns and 'speed' in df.columns:
         df['distance_increment'] = df['duration'].dt.total_seconds() * df['speed']
-        df['distance'] = df.groupby('activity_id')['distance_increment'].cumsum()
+
+        # Calculate cumulative distance per activity (and per athlete if multi-user)
+        if 'athlete_id' in df.columns:
+            df['distance'] = df.groupby(['athlete_id', 'activity_id'])['distance_increment'].cumsum()
+        else:
+            df['distance'] = df.groupby('activity_id')['distance_increment'].cumsum()
+
         df = df.drop('distance_increment', axis=1)
 
     # 4. Remove duration column
     df = df.drop('duration', axis=1)
 
-    # 5. Sort columns by datetime, activity_id, sport, then other columns
-    priority_columns = ['datetime', 'activity_id', 'sport']
+    # 5. Sort columns by athlete_id, datetime, activity_id, sport, then other columns
+    priority_columns = ['athlete_id', 'datetime', 'activity_id', 'sport']
     existing_priority_columns = [col for col in priority_columns if col in df.columns]
     other_columns = [col for col in df.columns if col not in priority_columns]
     df = df[existing_priority_columns + sorted(other_columns)]
     
-    # 6. Sort by datetime in descending order
-    df = df.sort_values('datetime', ascending=False)
-
     return df
 
 
@@ -387,7 +407,9 @@ def ensure_session():
 def index():
     common_context = {
         'sweatstack_enabled': bool(SWEATSTACK_CLIENT_ID and SWEATSTACK_CLIENT_SECRET),
-        'sweatstack_authenticated': bool(session.get('sweatstack_access_token'))
+        'sweatstack_authenticated': bool(session.get('sweatstack_access_token')),
+        'sweatstack_metrics': [m for m in ss.Metric if m not in [ss.Metric.duration, ss.Metric.lap, ss.Metric.lactate, ss.Metric.rpe, ss.Metric.notes]],
+        'sweatstack_default_metrics': [ss.Metric.power, ss.Metric.speed, ss.Metric.heart_rate]
     }
     return render_template('index.html', **common_context)
 
@@ -1430,7 +1452,7 @@ def search_threads():
 
 @app.route('/sweatstack/authorize', methods=['GET'])
 def sweatstack_authorize():
-    return redirect(f'https://app.sweatstack.no/oauth/authorize?client_id={SWEATSTACK_CLIENT_ID}&scope=data:read&redirect_uri={request.url_root}sweatstack/oauth-callback&prompt=none')
+    return redirect(f'https://app.sweatstack.no/oauth/authorize?client_id={SWEATSTACK_CLIENT_ID}&scope=data:read,profile&redirect_uri={request.url_root}sweatstack/oauth-callback&prompt=none')
 
 
 @app.route('/sweatstack/oauth-callback', methods=['GET'])
@@ -1463,6 +1485,34 @@ def sweatstack_callback():
         return jsonify({'error': 'Failed to exchange SweatStack code for token'}), 500
 
 
+@app.route('/sweatstack/get_users', methods=['GET'])
+def sweatstack_get_users():
+    """Get available SweatStack users"""
+    access_token = session.get('sweatstack_access_token')
+    if not access_token:
+        return jsonify({'error': 'Not authenticated with SweatStack'}), 401
+
+    try:
+        sweatstack_client = ss.Client(api_key=access_token)
+
+        accessible_users = sweatstack_client.get_users()
+        current_user = sweatstack_client.get_userinfo()
+
+        formatted_users = []
+        for user in accessible_users:
+            formatted_users.append({
+                'id': user.id,
+                'name': user.display_name,
+                'is_current': user.id == current_user.sub
+            })
+
+        return jsonify({'users': formatted_users}), 200
+
+    except Exception as e:
+        app.logger.error(f'Error fetching SweatStack users: {str(e)}')
+        return jsonify({'error': f'Failed to fetch users: {str(e)}'}), 500
+
+
 @app.route('/sweatstack/load_data', methods=['POST'])
 def sweatstack_load_data():
     """Load SweatStack data using stored access token"""
@@ -1472,22 +1522,45 @@ def sweatstack_load_data():
 
     try:
         data = request.json
-        selected_sports = data.get('sports', ['cycling'])
-        selected_days = data.get('days', 90)
+        selected_sports = data['sports']
+        selected_days = data['days']
+        selected_metrics = data['metrics']
+        selected_users = data['users']
 
         sweatstack_client = ss.Client(api_key=access_token)
 
-        df = sweatstack_client.get_longitudinal_data(
-            start=datetime.now() - timedelta(days=selected_days),
-            sports=selected_sports
-        )
+        all_dfs = []
 
-        df = transform_sweatstack_longitudinal_data(df)
+        for user_id in selected_users:
+            try:
+                delegated_client = sweatstack_client.delegated_client(user_id)
+
+                df = delegated_client.get_longitudinal_data(
+                    start=datetime.now() - timedelta(days=selected_days),
+                    sports=selected_sports,
+                    metrics=selected_metrics,
+                )
+
+                df['athlete_id'] = user_id
+                user_info = delegated_client.get_user(user_id)
+                df['athlete_name'] = user_info.display_name
+
+                all_dfs.append(df)
+
+            except Exception as e:
+                app.logger.warning(f'Error loading data for user {user_id}: {str(e)}')
+                # Continue with other users
+
+        if not all_dfs:
+            return jsonify({'error': 'No data could be loaded for any selected users'}), 400
+
+        combined_df = pd.concat(all_dfs, ignore_index=False)
+        combined_df = transform_sweatstack_longitudinal_data(combined_df)
 
         session_id = session['session_id']
         df_json, new_df_id = load_dataframe_to_bamboo_ai_instance(
             session_id=session_id,
-            df=df,
+            df=combined_df,
             execution_mode=GLOBAL_EXECUTION_MODE
         )
 

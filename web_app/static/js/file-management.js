@@ -567,7 +567,13 @@ function initializeSweatStackDataOption() {
 
 function createSweatStackPill(dataInfo) {
     const pillId = 'sweatstack-pill-' + Date.now();
-    const displayText = `SweatStack (${dataInfo.sports.join(', ')}, ${dataInfo.days} days) loaded`;
+
+    const userCount = dataInfo.users ? dataInfo.users.length : 1;
+    const userText = userCount === 1 ? '1 user' : `${userCount} users`;
+    const metricCount = dataInfo.metrics ? dataInfo.metrics.length : 0;
+    const metricText = metricCount === 1 ? '1 metric' : `${metricCount} metrics`;
+
+    const displayText = `SweatStack (${dataInfo.sports.join(', ')}, ${userText}, ${metricText}, ${dataInfo.days} days) loaded`;
 
     createOrUpdateDatasetPill(pillId, displayText, 'sweatstack', 'success', false, 'sweatstack_data');
 

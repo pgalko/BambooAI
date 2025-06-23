@@ -449,50 +449,74 @@
                 <h3>Load Data from SweatStack</h3>
             </div>
 
-            <div class="modal-section">
-                <h4>Select Sports:</h4>
-                <div class="sports-selection">
-                    <label class="sport-option">
-                        <input type="checkbox" id="cycling-checkbox" value="cycling" checked>
-                        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        <span>Cycling</span>
-                    </label>
-                    <label class="sport-option">
-                        <input type="checkbox" id="running-checkbox" value="running">
-                        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        <span>Running</span>
-                    </label>
+            <div class="modal-sections-container">
+                <div class="modal-section">
+                    <h4>Select Sports:</h4>
+                    <div class="sports-selection">
+                        <label class="sport-option">
+                            <input type="checkbox" id="cycling-checkbox" value="cycling" checked>
+                            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span>Cycling</span>
+                        </label>
+                        <label class="sport-option">
+                            <input type="checkbox" id="running-checkbox" value="running">
+                            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span>Running</span>
+                        </label>
+                    </div>
                 </div>
-            </div>
 
-            <div class="modal-section">
-                <h4>Time Window:</h4>
-                <div class="time-window-selection">
-                    <label class="time-option">
-                        <input type="radio" name="timeWindow" id="time-3months" value="90" checked>
-                        <span>Last 3 months</span>
-                    </label>
-                    <label class="time-option">
-                        <input type="radio" name="timeWindow" id="time-1year" value="365">
-                        <span>Last year</span>
-                    </label>
-                    <label class="time-option">
-                        <input type="radio" name="timeWindow" id="time-2years" value="730">
-                        <span>Last 2 years</span>
-                    </label>
+                <div class="modal-section">
+                    <h4>Select Metrics:</h4>
+                    <div class="metrics-selection">
+                        {% for metric in sweatstack_metrics %}
+                        <label class="metric-option">
+                            <input type="checkbox" id="{{ metric.value }}-checkbox" value="{{ metric.value }}" {% if metric in sweatstack_default_metrics %}checked{% endif %}>
+                            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span>{{ metric.value.replace('_', ' ') }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h4>Select Users:</h4>
+                    <div class="users-selection" id="users-selection">
+                        <div class="loading-spinner">Loading users...</div>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h4>Time Window:</h4>
+                    <div class="time-window-selection">
+                        <label class="time-option">
+                            <input type="radio" name="timeWindow" id="time-3months" value="90" checked>
+                            <span>Last 3 months</span>
+                        </label>
+                        <label class="time-option">
+                            <input type="radio" name="timeWindow" id="time-1year" value="365">
+                            <span>Last year</span>
+                        </label>
+                        <label class="time-option">
+                            <input type="radio" name="timeWindow" id="time-2years" value="730">
+                            <span>Last 2 years</span>
+                        </label>
+                    </div>
                 </div>
                 <p class="warning-note">
-                    Note: Longer time windows may slow down the application due to longer loading and processing times.
+                    Note: More metrics and longer time windows may slow down the application due to longer loading and processing times.
                 </p>
             </div>
 
-            <button id="connectSweatstack" class="circular-button" title="Load Data from SwetStack" aria-label="Load Data from SweatStack">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m22 2-7 20-4-9-9-4Z" />
-                    <path d="M22 2 11 13" />
-                </svg>
-            </button>
-            <div class="button-label">Load Data</div>
+            <div class="modal-footer">
+                <button id="connectSweatstack" class="circular-button" title="Load Data from SwetStack" aria-label="Load Data from SweatStack">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m22 2-7 20-4-9-9-4Z" />
+                        <path d="M22 2 11 13" />
+                    </svg>
+                </button>
+                <div class="button-label">Load Data</div>
+            </div>
         </div>
     </div>
 
