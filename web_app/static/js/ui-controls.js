@@ -209,6 +209,12 @@ function initializeSweatStackModal() {
         }
     });
 
+    // Initialize metric selection handling
+    initializeMetricSelection();
+
+    // Initialize sport selection handling  
+    initializeSportSelection();
+
     connectButton.addEventListener('click', function() {
         const selectedSports = getSelectedSports();
         if (selectedSports.length === 0) {
@@ -216,7 +222,24 @@ function initializeSweatStackModal() {
             return;
         }
 
+        const selectedMetrics = getSelectedMetrics();
+        if (selectedMetrics.length === 0) {
+            alert('Please select at least one metric.');
+            return;
+        }
+
+        const selectedUsers = getSelectedUsers();
+        if (selectedUsers.length === 0) {
+            alert('Please select at least one user.');
+            return;
+        }
+
         const selectedTimeWindow = getSelectedTimeWindow();
+
+        // Disable the button to prevent multiple clicks
+        connectButton.disabled = true;
+        connectButton.style.opacity = '0.6';
+        connectButton.style.cursor = 'not-allowed';
 
         // Show loading toast
         if (typeof showGenericToast === 'function') {
@@ -231,12 +254,14 @@ function initializeSweatStackModal() {
             },
             body: JSON.stringify({
                 sports: selectedSports,
+                metrics: selectedMetrics,
+                users: selectedUsers,
                 days: selectedTimeWindow
             })
         })
         .then(response => {
             if (response.status === 401) {
-                // Not authenticated, redirect to OAuth
+                // Not authenticated, redirect to OAuth (button will be reset on page reload)
                 window.location.href = `/sweatstack/authorize`;
             } else if (response.ok) {
                 // Already authenticated, data loaded successfully
@@ -250,6 +275,11 @@ function initializeSweatStackModal() {
                 console.log('SweatStack data loaded successfully:', data.message);
                 hideSweatStackModal();
 
+                // Re-enable the button
+                connectButton.disabled = false;
+                connectButton.style.opacity = '1';
+                connectButton.style.cursor = 'pointer';
+
                 // Show success toast
                 if (typeof showGenericToast === 'function') {
                     showGenericToast('SweatStack data loaded!', 3000);
@@ -259,6 +289,8 @@ function initializeSweatStackModal() {
                 if (typeof createSweatStackPill === 'function') {
                     const dataInfo = {
                         sports: selectedSports,
+                        metrics: selectedMetrics,
+                        users: selectedUsers,
                         days: selectedTimeWindow
                     };
                     createSweatStackPill(dataInfo);
@@ -287,6 +319,11 @@ function initializeSweatStackModal() {
         })
         .catch(error => {
             console.error('Error loading SweatStack data:', error);
+
+            // Re-enable the button
+            connectButton.disabled = false;
+            connectButton.style.opacity = '1';
+            connectButton.style.cursor = 'pointer';
 
             // Hide loading toast and show error toast
             if (typeof closeGenericToast === 'function') {
@@ -404,6 +441,89 @@ function showSweatStackModal() {
     const modal = document.getElementById('sweatstackModal');
     if (modal) {
         modal.style.display = 'flex';
+        
+        // Re-initialize selections each time modal opens to ensure they work
+        setTimeout(() => {
+            initializeMetricSelection();
+            initializeSportSelection();
+        }, 100);
+        
+        // Fetch users when modal opens
+        fetchSweatStackUsers();
+    }
+}
+
+async function fetchSweatStackUsers() {
+    const usersContainer = document.getElementById('users-selection');
+    if (!usersContainer) return;
+
+    usersContainer.innerHTML = '<div class="loading-spinner">Loading users...</div>';
+
+    try {
+        const response = await fetch('/sweatstack/get_users');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        usersContainer.innerHTML = '';
+
+        if (data.users && data.users.length > 0) {
+            data.users.forEach((user, index) => {
+                const userOption = document.createElement('label');
+                userOption.className = 'user-option';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `user-${user.id}`;
+                checkbox.value = user.id;
+
+                if (user.is_current || index === 0) {
+                    checkbox.checked = true;
+                }
+
+                const checkIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                checkIcon.setAttribute('class', 'check-icon');
+                checkIcon.setAttribute('viewBox', '0 0 24 24');
+                checkIcon.setAttribute('fill', 'none');
+                checkIcon.setAttribute('stroke', 'currentColor');
+                checkIcon.setAttribute('stroke-width', '3');
+                checkIcon.setAttribute('stroke-linecap', 'round');
+                checkIcon.setAttribute('stroke-linejoin', 'round');
+                checkIcon.innerHTML = '<polyline points="20 6 9 17 4 12"></polyline>';
+
+                const span = document.createElement('span');
+                span.textContent = user.name || user.username || `User ${user.id}`;
+
+                userOption.appendChild(checkbox);
+                userOption.appendChild(checkIcon);
+                userOption.appendChild(span);
+
+                usersContainer.appendChild(userOption);
+            });
+
+            usersContainer.addEventListener('change', function(e) {
+                if (e.target.type === 'checkbox') {
+                    const label = e.target.closest('.user-option');
+                    if (label) {
+                        label.classList.toggle('selected', e.target.checked);
+                    }
+                }
+            });
+
+            usersContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
+                const label = checkbox.closest('.user-option');
+                if (label) {
+                    label.classList.add('selected');
+                }
+            });
+        } else {
+            usersContainer.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">No users found</p>';
+        }
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        usersContainer.innerHTML = '<p style="color: var(--error-color); font-size: 14px;">Error loading users</p>';
     }
 }
 
@@ -444,12 +564,118 @@ function getSelectedSports() {
     return selectedSports;
 }
 
+function getSelectedMetrics() {
+    const metricCheckboxes = document.querySelectorAll('.metrics-selection input[type="checkbox"]:checked');
+    const selectedMetrics = [];
+    
+    metricCheckboxes.forEach(checkbox => {
+        selectedMetrics.push(checkbox.value);
+    });
+
+    return selectedMetrics;
+}
+
+function getSelectedUsers() {
+    const userCheckboxes = document.querySelectorAll('.users-selection input[type="checkbox"]:checked');
+    const selectedUsers = [];
+
+    userCheckboxes.forEach(checkbox => {
+        selectedUsers.push(checkbox.value);
+    });
+
+    return selectedUsers;
+}
+
 function getSelectedTimeWindow() {
     const timeRadios = document.querySelectorAll('input[name="timeWindow"]:checked');
     if (timeRadios.length > 0) {
         return parseInt(timeRadios[0].value);
     }
     return 90; // Default to 3 months
+}
+
+function initializeMetricSelection() {
+    const metricsContainer = document.querySelector('.metrics-selection');
+    if (!metricsContainer) return;
+
+    // Attach individual click listeners to each metric option
+    const metricOptions = metricsContainer.querySelectorAll('.metric-option');
+
+    metricOptions.forEach((metricOption) => {
+        // Remove any existing listeners
+        const existingListener = metricOption._clickListener;
+        if (existingListener) {
+            metricOption.removeEventListener('click', existingListener);
+        }
+
+        const clickListener = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const checkbox = metricOption.querySelector('input[type="checkbox"]');
+            if (!checkbox) return;
+            
+            // Toggle the checkbox
+            checkbox.checked = !checkbox.checked;
+            
+            // Update the visual state
+            metricOption.classList.toggle('selected', checkbox.checked);
+        };
+
+        // Store reference and add listener
+        metricOption._clickListener = clickListener;
+        metricOption.addEventListener('click', clickListener);
+    });
+
+    // Initialize selected class for pre-checked metrics
+    metricsContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
+        const label = checkbox.closest('.metric-option');
+        if (label) {
+            label.classList.add('selected');
+        }
+    });
+}
+
+function initializeSportSelection() {
+    const sportsContainer = document.querySelector('.sports-selection');
+    if (!sportsContainer) return;
+
+    // Attach individual click listeners to each sport option
+    const sportOptions = sportsContainer.querySelectorAll('.sport-option');
+
+    sportOptions.forEach((sportOption) => {
+        // Remove any existing listeners
+        const existingListener = sportOption._clickListener;
+        if (existingListener) {
+            sportOption.removeEventListener('click', existingListener);
+        }
+
+        const clickListener = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const checkbox = sportOption.querySelector('input[type="checkbox"]');
+            if (!checkbox) return;
+            
+            // Toggle the checkbox
+            checkbox.checked = !checkbox.checked;
+            
+            // Update the visual state
+            sportOption.classList.toggle('selected', checkbox.checked);
+        };
+
+        // Store reference and add listener
+        sportOption._clickListener = clickListener;
+        sportOption.addEventListener('click', clickListener);
+    });
+
+    // Initialize selected class for pre-checked sports
+    sportsContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
+        const label = checkbox.closest('.sport-option');
+        if (label) {
+            label.classList.add('selected');
+        }
+    });
 }
 
 

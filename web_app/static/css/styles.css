@@ -613,7 +613,19 @@ body, html {
 /* --- Specific styles for the Data Selection Modal --- */
 
 #sweatstackModal .modal-content {
-    padding: 16px; /* Even tighter padding */
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh; /* Limit modal height */
+    overflow: hidden;
+}
+
+/* Create a scrollable container for the sections */
+#sweatstackModal .modal-sections-container {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 8px; /* Space for scrollbar */
+    margin: 10px 0;
 }
 
 /* Section container with a subtle, enclosing border */
@@ -622,6 +634,17 @@ body, html {
     border-radius: 6px;
     padding: 10px;
     margin-bottom: 10px;
+}
+
+/* Fixed button container */
+#sweatstackModal .modal-footer {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
 }
 
 /* Section title styling */
@@ -636,14 +659,33 @@ body, html {
 
 /* Selection options container */
 #sweatstackModal .sports-selection,
+#sweatstackModal .metrics-selection,
+#sweatstackModal .users-selection,
 #sweatstackModal .time-window-selection {
     display: flex;
     flex-direction: column;
     gap: 2px;
 }
 
+/* Metrics and users selection specific styles */
+#sweatstackModal .metrics-selection {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+
+#sweatstackModal .users-selection {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 8px;
+}
+
 /* Individual selection option */
 #sweatstackModal .sport-option,
+#sweatstackModal .metric-option,
+#sweatstackModal .user-option,
 #sweatstackModal .time-option {
     padding: 4px 6px;
     border-radius: 4px;
@@ -651,11 +693,15 @@ body, html {
 }
 
 #sweatstackModal .sport-option:hover,
+#sweatstackModal .metric-option:hover,
+#sweatstackModal .user-option:hover,
 #sweatstackModal .time-option:hover {
     background-color: var(--bg-tertiary);
 }
 
 #sweatstackModal .sport-option input,
+#sweatstackModal .metric-option input,
+#sweatstackModal .user-option input,
 #sweatstackModal .time-option input {
     margin-right: 8px;
     width: 16px;
@@ -664,6 +710,8 @@ body, html {
 }
 
 #sweatstackModal .sport-option span,
+#sweatstackModal .metric-option span,
+#sweatstackModal .user-option span,
 #sweatstackModal .time-option span {
     color: var(--modal-text);
     font-size: 14px;
@@ -819,6 +867,8 @@ body, html {
 
 /* Hide the original radio/checkbox inputs */
 #sweatstackModal .sport-option input,
+#sweatstackModal .metric-option input,
+#sweatstackModal .user-option input,
 #sweatstackModal .time-option input {
     opacity: 0;
     position: absolute;
@@ -837,8 +887,32 @@ body, html {
     background-color: transparent;
 }
 
+/* Override for metrics and users containers */
+#sweatstackModal .metrics-selection {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    border: none;
+    padding: 0;
+    background-color: transparent;
+}
+
+#sweatstackModal .users-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    background-color: var(--bg-tertiary);
+}
+
 /* Style each option as an individual pill */
 #sweatstackModal .sport-option,
+#sweatstackModal .metric-option,
+#sweatstackModal .user-option,
 #sweatstackModal .time-option {
     display: flex; /* This is key for aligning the icon and text */
     align-items: center;
@@ -865,6 +939,8 @@ body, html {
 
 /* Hover state for non-selected pills */
 #sweatstackModal .sport-option:not(.selected):hover,
+#sweatstackModal .metric-option:not(.selected):hover,
+#sweatstackModal .user-option:not(.selected):hover,
 #sweatstackModal .time-option:not(.selected):hover {
     border-color: var(--accent-hover);
     color: var(--accent-color);
@@ -872,6 +948,8 @@ body, html {
 
 /* The selected state: changes border/text color and shows the checkmark */
 #sweatstackModal .sport-option.selected,
+#sweatstackModal .metric-option.selected,
+#sweatstackModal .user-option.selected,
 #sweatstackModal .time-option.selected {
     border-color: var(--accent-color);
     color: var(--accent-color);
@@ -881,6 +959,46 @@ body, html {
 /* This rule makes the checkmark visible when the pill is selected */
 #sweatstackModal .selected .check-icon {
     display: inline-block;
+}
+
+/* Loading spinner for users section */
+#sweatstackModal .loading-spinner {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    padding: 20px;
+}
+
+/* Responsive design for smaller screens */
+@media (max-height: 600px) {
+    #sweatstackModal .modal-content {
+        max-height: 95vh;
+    }
+    
+    #sweatstackModal .modal-sections-container {
+        max-height: 300px;
+    }
+    
+    #sweatstackModal .modal-section {
+        margin-bottom: 8px;
+        padding: 8px;
+    }
+}
+
+@media (max-height: 500px) {
+    #sweatstackModal .modal-sections-container {
+        max-height: 250px;
+    }
+    
+    #sweatstackModal .modal-section {
+        margin-bottom: 6px;
+        padding: 6px;
+    }
+    
+    #sweatstackModal h4 {
+        margin: 0 0 6px 0;
+        font-size: 14px;
+    }
 }
 
 #contentOutput {
