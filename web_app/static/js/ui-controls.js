@@ -189,6 +189,45 @@ function handleSweatStack() {
     });
 }
 
+function showModalMessage(message, type = 'default') {
+    const messageElement = document.getElementById('modal-message');
+    if (!messageElement) return;
+    
+    // Remove existing type classes
+    messageElement.classList.remove('success-message', 'error-message', 'loading-message');
+    
+    // Add appropriate class and update text
+    switch(type) {
+        case 'loading':
+            messageElement.classList.add('loading-message');
+            messageElement.textContent = message;
+            break;
+        case 'success':
+            messageElement.classList.add('success-message');
+            messageElement.textContent = '✓ ' + message;
+            break;
+        case 'error':
+            messageElement.classList.add('error-message');
+            messageElement.textContent = '✗ ' + message;
+            break;
+        default:
+            messageElement.innerHTML = message; // Use innerHTML for the default warning note
+    }
+}
+
+function setButtonLoading(isLoading) {
+    const connectButton = document.getElementById('connectSweatstack');
+    if (!connectButton) return;
+    
+    if (isLoading) {
+        connectButton.classList.add('loading');
+        connectButton.disabled = true;
+    } else {
+        connectButton.classList.remove('loading');
+        connectButton.disabled = false;
+    }
+}
+
 function initializeSweatStackModal() {
     const modal = document.getElementById('sweatstackModal');
     const closeButton = modal.querySelector('.close');
@@ -218,34 +257,28 @@ function initializeSweatStackModal() {
     connectButton.addEventListener('click', function() {
         const selectedSports = getSelectedSports();
         if (selectedSports.length === 0) {
-            alert('Please select at least one sport.');
+            showModalMessage('Please select at least one sport.', 'error');
             return;
         }
-
+    
         const selectedMetrics = getSelectedMetrics();
         if (selectedMetrics.length === 0) {
-            alert('Please select at least one metric.');
+            showModalMessage('Please select at least one metric.', 'error');
             return;
         }
-
+    
         const selectedUsers = getSelectedUsers();
         if (selectedUsers.length === 0) {
-            alert('Please select at least one user.');
+            showModalMessage('Please select at least one user.', 'error');
             return;
         }
-
+    
         const selectedTimeWindow = getSelectedTimeWindow();
-
-        // Disable the button to prevent multiple clicks
-        connectButton.disabled = true;
-        connectButton.style.opacity = '0.6';
-        connectButton.style.cursor = 'not-allowed';
-
-        // Show loading toast
-        if (typeof showGenericToast === 'function') {
-            showGenericToast('SweatStack data loading...', 0); // No auto-hide
-        }
-
+    
+        // Set loading state
+        setButtonLoading(true);
+        showModalMessage('Loading SweatStack data...', 'loading');
+    
         // First try to load data (if already authenticated)
         fetch('/sweatstack/load_data', {
             method: 'POST',
@@ -273,18 +306,18 @@ function initializeSweatStackModal() {
         .then(data => {
             if (data) {
                 console.log('SweatStack data loaded successfully:', data.message);
-                hideSweatStackModal();
-
-                // Re-enable the button
-                connectButton.disabled = false;
-                connectButton.style.opacity = '1';
-                connectButton.style.cursor = 'pointer';
-
-                // Show success toast
-                if (typeof showGenericToast === 'function') {
-                    showGenericToast('SweatStack data loaded!', 3000);
-                }
-
+                
+                // Reset button and show success
+                setButtonLoading(false);
+                showModalMessage('Data loaded successfully!', 'success');
+    
+                // Auto-hide modal after 2 seconds
+                setTimeout(() => {
+                    hideSweatStackModal();
+                    // Reset message back to default when modal closes
+                    showModalMessage('Note: More metrics and longer time windows may slow down the application due to longer loading and processing times.');
+                }, 2000);
+    
                 // Create SweatStack pill
                 if (typeof createSweatStackPill === 'function') {
                     const dataInfo = {
@@ -295,7 +328,7 @@ function initializeSweatStackModal() {
                     };
                     createSweatStackPill(dataInfo);
                 }
-
+    
                 // Update UI to show the loaded dataset
                 if (data.dataframe) {
                     try {
@@ -306,7 +339,7 @@ function initializeSweatStackModal() {
                                 activateTab('dataframe');
                             }
                         }
-
+    
                         // Update global dataset name
                         if (typeof window !== 'undefined') {
                             currentDatasetName = `SweatStack Data (${selectedSports.join(', ')})`;
@@ -319,21 +352,10 @@ function initializeSweatStackModal() {
         })
         .catch(error => {
             console.error('Error loading SweatStack data:', error);
-
-            // Re-enable the button
-            connectButton.disabled = false;
-            connectButton.style.opacity = '1';
-            connectButton.style.cursor = 'pointer';
-
-            // Hide loading toast and show error toast
-            if (typeof closeGenericToast === 'function') {
-                closeGenericToast();
-            }
-            if (typeof showGenericToast === 'function') {
-                showGenericToast('Failed to load SweatStack data. Please try again.', 5000);
-            } else {
-                alert('Failed to load SweatStack data. Please try again.');
-            }
+    
+            // Reset button and show error
+            setButtonLoading(false);
+            showModalMessage('Failed to load data. Please try again.', 'error');
         });
     });
 }

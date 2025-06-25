@@ -583,7 +583,7 @@ body, html {
     color: var(--modal-text);
     border: 1px solid var(--border-color);
     box-shadow: 0 4px 12px var(--shadow-color);
-    width: 360px; /* Standardized width */
+    width: 520px; /* Increased from 360px */
     max-width: 90%;
     text-align: left;
     padding: 20px;
@@ -821,46 +821,17 @@ body, html {
     color: var(--text-secondary);
 }
 
-/* --- Generic Toast System --- */
-
-.summary-popup.system-message {
-    background-color: var(--system-message-bg);
-    border: 1px solid var(--system-message-text);
-    color: var(--system-message-text);
-    border-radius: 6px;
-    box-shadow: 0 2px 10px var(--shadow-color);
-    padding-right: 40px; /* Creates space on the right for the close button */
+.circular-button.loading {
+    pointer-events: none;
 }
 
-.summary-popup.system-message pre {
-    color: var(--system-message-text);
-    background-color: transparent;
-    margin: 0;
-    padding: 0;
-    font-family: inherit;
-    white-space: pre-wrap;
-    word-wrap: break-word;
+.circular-button.loading svg {
+    animation: spin 1s linear infinite;
 }
 
-.summary-popup.system-message .close-button {
-    color: var(--system-message-text);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-}
-
-.summary-popup.system-message .close-button:hover {
-    opacity: 1;
-    color: var(--accent-color);
-}
-
-[data-theme="dark"] .summary-popup.system-message {
-    background-color: var(--system-message-bg);
-    border-color: var(--system-message-text);
-}
-
-[data-theme="dark"] .summary-popup.system-message pre,
-[data-theme="dark"] .summary-popup.system-message .close-button {
-    color: var(--system-message-text);
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 /* --- Modern Pill-Style Controls with Checkmark Indicator --- */
@@ -879,18 +850,27 @@ body, html {
 /* The container for the pills */
 #sweatstackModal .sports-selection,
 #sweatstackModal .time-window-selection {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid; /* Changed from flex */
     gap: 8px;
     border: none;
     padding: 0;
     background-color: transparent;
 }
 
+/* Sports: 3 columns */
+#sweatstackModal .sports-selection {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* Time Window: 3 columns */
+#sweatstackModal .time-window-selection {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
 /* Override for metrics and users containers */
 #sweatstackModal .metrics-selection {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr; /* Changed from 1fr 1fr to 1fr 1fr 1fr */
     gap: 8px;
     border: none;
     padding: 0;
@@ -898,9 +878,9 @@ body, html {
 }
 
 #sweatstackModal .users-selection {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    display: grid; /* Changed from flex */
+    grid-template-columns: 1fr 1fr 1fr; /* Changed to 3 columns */
+    gap: 8px; /* Increased from 4px for better spacing */
     max-height: 200px;
     overflow-y: auto;
     border: 1px solid var(--border-color);
@@ -999,6 +979,48 @@ body, html {
         margin: 0 0 6px 0;
         font-size: 14px;
     }
+}
+
+/* --- Generic Toast System --- */
+
+.summary-popup.system-message {
+    background-color: var(--system-message-bg);
+    border: 1px solid var(--system-message-text);
+    color: var(--system-message-text);
+    border-radius: 6px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    padding-right: 40px; /* Creates space on the right for the close button */
+}
+
+.summary-popup.system-message pre {
+    color: var(--system-message-text);
+    background-color: transparent;
+    margin: 0;
+    padding: 0;
+    font-family: inherit;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.summary-popup.system-message .close-button {
+    color: var(--system-message-text);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.summary-popup.system-message .close-button:hover {
+    opacity: 1;
+    color: var(--accent-color);
+}
+
+[data-theme="dark"] .summary-popup.system-message {
+    background-color: var(--system-message-bg);
+    border-color: var(--system-message-text);
+}
+
+[data-theme="dark"] .summary-popup.system-message pre,
+[data-theme="dark"] .summary-popup.system-message .close-button {
+    color: var(--system-message-text);
 }
 
 #contentOutput {

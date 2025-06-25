@@ -88,6 +88,28 @@ class ExecutorAPIClient:
         except requests.RequestException as e:
             self.log_to_file(f"Failed to compute index via API: {str(e)}")
             return None
+        
+    def dataframe_summary_to_string(self, df_id: str) -> Optional[str]:
+        """Call the executor API to get DataFrame summary"""
+        self.log_to_file(f"Attempting to get summary for df_id={df_id}")
+        try:
+            response = requests.post(
+                f"{self.base_url}/df_utils/df_summary",
+                json={'df_id': df_id}
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'error' in result:
+                self.log_to_file(f"Error getting summary: {result['error']}")
+                return None
+                
+            self.log_to_file(f"Successfully got summary for df_id={df_id}")
+            return result['data']
+            
+        except requests.RequestException as e:
+            self.log_to_file(f"Failed to get summary via API: {str(e)}")
+            return None
 
     def dataframe_to_string(self, df_id: str, num_rows: int = 5) -> Optional[str]:
         """Call the executor API to convert DataFrame to string"""

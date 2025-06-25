@@ -16,125 +16,128 @@ default_example_output_df: |
   import plotly.graph_objects as go
   import numpy as np
 
-  def computeDataframeIndex(df, order_by='Datetime', ascending=False):
-      # Ensure Datetime is in datetime format
-      if df['Datetime'].dtype == 'object':
-          df['Datetime'] = pd.to_datetime(df['Datetime'], errors='coerce')
+  def compute_dataframe_index_function(df, order_by='datetime', ascending=False):
+      # Ensure datetime is in datetime format
+      if df['datetime'].dtype == 'object':
+          df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
 
-      # Define aggregation functions
-      agg_functions = {
-          'ActivityType': 'first',
-          'Datetime': 'min',
-          'Distance': lambda x: np.abs(x.max() - x.min()),
-          'Latitude': 'first',
-          'Longitude': 'first',
-          'Elevation': 'mean',
-          'Speed': 'mean',
-          'Heartrate': 'mean',
-          'Cadence': 'mean',
-          'Power': 'mean',
-          'AirTemperature': 'mean',
-          'Gradient': 'mean',
-          'LapID': 'max',
-          'Calories': 'sum'
+      # Define aggregation functions - only include columns that exist
+      all_agg_functions = {
+          'sport': 'first',
+          'datetime': 'min',
+          'distance': lambda x: np.abs(x.max() - x.min()),
+          'latitude': 'first',
+          'longitude': 'first',
+          'elevation': 'mean',
+          'speed': 'mean',
+          'heart_rate': 'mean',
+          'cadence': 'mean',
+          'power': 'mean',
+          'lap_id': 'max',
       }
+      
+      agg_functions = {col: func for col, func in all_agg_functions.items() if col in df.columns}
 
       # Compute statistics for each activity
-      activity_stats = df.groupby('ActivityID').agg(agg_functions).reset_index()
+      activity_stats = df.groupby('activity_id').agg(agg_functions).reset_index()
 
       # Calculate duration
-      activity_stats['Duration'] = df.groupby('ActivityID')['Datetime'].apply(
+      activity_stats['duration'] = df.groupby('activity_id')['datetime'].apply(
           lambda x: (x.max() - x.min()).total_seconds()
       ).values
 
-      # Rename columns
-      new_columns = [
-          'ActivityID', 'ActivityType', 'Datetime', 'Distance', 'StartLatitude',
-          'StartLongitude', 'AvgElevation', 'AvgSpeed', 'AvgHeartrate', 'AvgCadence',
-          'AvgPower', 'AvgAirTemperature', 'AvgGradient', 'NumberOfLaps', 'Calories', 'Duration'
-      ]
-      activity_stats.columns = new_columns
+      # Create column mapping for renaming - only for existing columns
+      column_mapping = {
+          'sport': 'sport', 'datetime': 'datetime', 'distance': 'distance',
+          'latitude': 'start_latitude', 'longitude': 'start_longitude',
+          'elevation': 'avg_elevation', 'speed': 'avg_speed', 'heart_rate': 'avg_heartrate',
+          'cadence': 'avg_cadence', 'power': 'avg_power', 'lap_id': 'number_of_laps'
+      }
+      
+      # Rename only existing columns
+      rename_dict = {col: column_mapping[col] for col in activity_stats.columns if col in column_mapping}
+      activity_stats = activity_stats.rename(columns=rename_dict)
 
       # Round numeric columns to 3 decimal places
       numeric_cols = activity_stats.select_dtypes(include=[np.number]).columns
       activity_stats[numeric_cols] = activity_stats[numeric_cols].round(3)
 
-      # Ensure NumberOfLaps is an integer
-      activity_stats['NumberOfLaps'] = activity_stats['NumberOfLaps'].fillna(0).astype(int)
+      # Ensure number_of_laps is an integer if it exists
+      if 'number_of_laps' in activity_stats.columns:
+          activity_stats['number_of_laps'] = activity_stats['number_of_laps'].fillna(0).astype(int)
 
-      # Sort the DataFrame based on the order_by parameter and ascending/descending option
       return activity_stats.sort_values(by=order_by, ascending=ascending)
 
-  # Define the calculatePaceFunction
-  def calculatePaceFunction(df, speed_col, activity_type_col):
+  # Define the calculate_pace_function
+  def calculate_pace_function(df, speed_col, activity_type_col):
       df = df[(df[speed_col] > 0) & (df[activity_type_col].str.lower() == 'run')].copy()
-      df['Pace'] = 1000 / (df[speed_col] * 60)  # min/km for runs
-      return df[df['Pace'].notna() & (df['Pace'] > 0)]
+      df['pace'] = 1000 / (df[speed_col] * 60)  # min/km for runs
+      return df[df['pace'].notna() & (df['pace'] > 0)]
 
-  # Define determineSegments function for segmentation
-  def determineSegments(df, segment_type='distance', segment_distance=1000, segment_duration=1200):
-      df = df.sort_values(by=['ActivityID', 'Datetime'])
+  # Define determine_segments_function for segmentation
+  def determine_segments_function(df, segment_type='distance', segment_distance=1000, segment_duration=1200):
+      df = df.sort_values(by=['activity_id', 'datetime'])
       
       if segment_type == 'distance':
           def process_distance_group(group):
-              total_distance = group['Distance'].max()
+              total_distance = group['distance'].max()
               complete_segments = int(total_distance // segment_distance)
-              group['SegmentID'] = (group['Distance'] // segment_distance).astype(int)
-              group.loc[group['SegmentID'] >= complete_segments, 'SegmentID'] = np.nan
+              group['segment_id'] = (group['distance'] // segment_distance).astype(int)
+              group.loc[group['segment_id'] >= complete_segments, 'segment_id'] = np.nan
               return group
           
-          df = df.groupby('ActivityID', group_keys=False).apply(process_distance_group)
+          df = df.groupby('activity_id', group_keys=False).apply(process_distance_group)
       
       return df
     
   # The dataframe 'df' is already defined and populated with necessary data
 
   # Step 1: Activity Indexation
-  activities_summary = computeDataframeIndex(df, order_by='Datetime', ascending=False)
-  most_recent_run = activities_summary[activities_summary['ActivityType'] == 'Run'].iloc[0]
+  activities_summary = compute_dataframe_index_function(df, order_by='datetime', ascending=False)
+  most_recent_run = activities_summary[activities_summary['sport'] == 'running.road'].iloc[0]
 
-  # Get the ActivityID of the most recent run
-  activity_id = most_recent_run['ActivityID']
+  # Get the activity_id of the most recent run
+  activity_id = most_recent_run['activity_id']
 
-  # Step 2: Detailed Run Data Retrieval
-  recent_run = df[df['ActivityID'].isin([activity_id])]
+  # Step 2: Detailed running.road Data Retrieval
+  recent_run = df[df['activity_id'].isin([activity_id])]
 
   # Step 3: Pace Calculation
-  recent_run = calculatePaceFunction(recent_run, 'Speed', 'ActivityType')
+  recent_run = calculate_pace_function(recent_run, 'speed', 'sport')
 
   # Step 4: Segmentation
-  segmented_run = determineSegments(recent_run, segment_type='distance', segment_distance=100)
+  segmented_run = determine_segments_function(recent_run, segment_type='distance', segment_distance=100)
 
-  # Step 5: Pace Aggregation
-  segment_pace = segmented_run.groupby('SegmentID')['Pace'].mean().reset_index()
+  # Step 5: pace Aggregation
+  segment_pace = segmented_run.groupby('segment_id')['pace'].mean().reset_index()
 
   # Identify the fastest segment (lowest pace)
-  fastest_segment = segment_pace.loc[segment_pace['Pace'].idxmin()]
+  fastest_segment = segment_pace.loc[segment_pace['pace'].idxmin()]
 
   # Create the Plotly visualization
   fig = go.Figure()
 
   # Add bar chart
   fig.add_trace(go.Bar(
-      x=segment_pace['SegmentID'],
-      y=segment_pace['Pace'],
-      marker_color=['red' if i == fastest_segment['SegmentID'] else 'skyblue' 
-                  for i in segment_pace['SegmentID']],
-      name='Pace'
+      x=segment_pace['segment_id'],
+      y=segment_pace['pace'],
+      marker_color=['red' if i == fastest_segment['segment_id'] else 'skyblue' 
+                  for i in segment_pace['segment_id']],
+      name='pace'
   ))
 
   # Update layout
   fig.update_layout(
-      title=f'Average Pace per 100m Segment (ActivityID: {{activity_id}})',
+      title=f'Average pace per 100m segment (activity_id: {{activity_id}})',
       xaxis_title='Segment Number',
-      yaxis_title='Pace (min/km)',
+      yaxis_title='pace (min/km)',
       showlegend=False,
       template='plotly_white',
       annotations=[
           dict(
-              x=fastest_segment['SegmentID'],
-              y=fastest_segment['Pace'],
-              text=f"Fastest: {fastest_segment['Pace']:.2f} min/km",
+              x=fastest_segment['segment_id'],
+              y=fastest_segment['pace'],
+              text=f"Fastest: {fastest_segment['pace']:.2f} min/km",
               showarrow=True,
               arrowhead=1,
               yshift=10
@@ -150,9 +153,9 @@ default_example_output_df: |
 
   # Output statistics
   print(f"Activity ID: {{activity_id}}")
-  print(f"Fastest segment: Segment {fastest_segment['SegmentID']} with pace {fastest_segment['Pace']:.2f} min/km")
-  print(f"Slowest segment: Segment {segment_pace['SegmentID'].iloc[-1]} with pace {segment_pace['Pace'].max():.2f} min/km")
-  print(f"Average pace across all segments: {segment_pace['Pace'].mean():.2f} min/km")
+  print(f"Fastest segment: segment {fastest_segment['segment_id']} with pace {fastest_segment['pace']:.2f} min/km")
+  print(f"Slowest segment: segment {segment_pace['segment_id'].iloc[-1]} with pace {segment_pace['pace'].max():.2f} min/km")
+  print(f"Average pace across all segments: {segment_pace['pace'].mean():.2f} min/km")
   ```
 
   Example Task 2:
@@ -166,67 +169,70 @@ default_example_output_df: |
   import plotly.graph_objects as go
   import numpy as np
 
-  def computeDataframeIndex(df, order_by='Datetime', ascending=False):
-      # Ensure Datetime is in datetime format
-      if df['Datetime'].dtype == 'object':
-          df['Datetime'] = pd.to_datetime(df['Datetime'], errors='coerce')
+  def compute_dataframe_index_function(df, order_by='datetime', ascending=False):
+      # Ensure datetime is in datetime format
+      if df['datetime'].dtype == 'object':
+          df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
 
-      # Define aggregation functions
-      agg_functions = {
-          'ActivityType': 'first',
-          'Datetime': 'min',
-          'Distance': lambda x: np.abs(x.max() - x.min()),
-          'Latitude': 'first',
-          'Longitude': 'first',
-          'Elevation': 'mean',
-          'Speed': 'mean',
-          'Heartrate': 'mean',
-          'Cadence': 'mean',
-          'Power': 'mean',
-          'AirTemperature': 'mean',
-          'Gradient': 'mean',
-          'LapID': 'max',
-          'Calories': 'sum'
+      # Define aggregation functions - only include columns that exist
+      all_agg_functions = {
+          'sport': 'first',
+          'datetime': 'min',
+          'distance': lambda x: np.abs(x.max() - x.min()),
+          'latitude': 'first',
+          'longitude': 'first',
+          'elevation': 'mean',
+          'speed': 'mean',
+          'heart_rate': 'mean',
+          'cadence': 'mean',
+          'power': 'mean',
+          'lap_id': 'max',
       }
+      
+      agg_functions = {col: func for col, func in all_agg_functions.items() if col in df.columns}
 
       # Compute statistics for each activity
-      activity_stats = df.groupby('ActivityID').agg(agg_functions).reset_index()
+      activity_stats = df.groupby('activity_id').agg(agg_functions).reset_index()
 
       # Calculate duration
-      activity_stats['Duration'] = df.groupby('ActivityID')['Datetime'].apply(
+      activity_stats['duration'] = df.groupby('activity_id')['datetime'].apply(
           lambda x: (x.max() - x.min()).total_seconds()
       ).values
 
-      # Rename columns
-      new_columns = [
-          'ActivityID', 'ActivityType', 'Datetime', 'Distance', 'StartLatitude',
-          'StartLongitude', 'AvgElevation', 'AvgSpeed', 'AvgHeartrate', 'AvgCadence',
-          'AvgPower', 'AvgAirTemperature', 'AvgGradient', 'NumberOfLaps', 'Calories', 'Duration'
-      ]
-      activity_stats.columns = new_columns
+      # Create column mapping for renaming - only for existing columns
+      column_mapping = {
+          'sport': 'sport', 'datetime': 'datetime', 'distance': 'distance',
+          'latitude': 'start_latitude', 'longitude': 'start_longitude',
+          'elevation': 'avg_elevation', 'speed': 'avg_speed', 'heart_rate': 'avg_heartrate',
+          'cadence': 'avg_cadence', 'power': 'avg_power', 'lap_id': 'number_of_laps'
+      }
+      
+      # Rename only existing columns
+      rename_dict = {col: column_mapping[col] for col in activity_stats.columns if col in column_mapping}
+      activity_stats = activity_stats.rename(columns=rename_dict)
 
       # Round numeric columns to 3 decimal places
       numeric_cols = activity_stats.select_dtypes(include=[np.number]).columns
       activity_stats[numeric_cols] = activity_stats[numeric_cols].round(3)
 
-      # Ensure NumberOfLaps is an integer
-      activity_stats['NumberOfLaps'] = activity_stats['NumberOfLaps'].fillna(0).astype(int)
+      # Ensure number_of_laps is an integer if it exists
+      if 'number_of_laps' in activity_stats.columns:
+          activity_stats['number_of_laps'] = activity_stats['number_of_laps'].fillna(0).astype(int)
 
-      # Sort the DataFrame based on the order_by parameter and ascending/descending option
       return activity_stats.sort_values(by=order_by, ascending=ascending)
 
-  # Step 1: Activity Indexation
-  activities_summary = computeDataframeIndex(df, order_by='Datetime', ascending=True)
+  # Step 1: activity Indexation
+  activities_summary = compute_dataframe_index_function(df, order_by='datetime', ascending=True)
 
-  # Step 2: 2021 Run Data Filtering
+  # Step 2: 2021 running.road Data Filtering
   runs_2021 = activities_summary[
-      (activities_summary['Datetime'].dt.year == 2021) &
-      (activities_summary['ActivityType'] == 'Run')
+      (activities_summary['datetime'].dt.year == 2021) &
+      (activities_summary['sport'] == 'running.road')
   ]
 
   # Step 3: Monthly Aggregation
-  monthly_runs = runs_2021.groupby(runs_2021['Datetime'].dt.to_period('M')).size().reset_index(name='Count')
-  monthly_runs['Month'] = monthly_runs['Datetime'].dt.strftime('%B')
+  monthly_runs = runs_2021.groupby(runs_2021['datetime'].dt.to_period('M')).size().reset_index(name='Count')
+  monthly_runs['Month'] = monthly_runs['datetime'].dt.strftime('%B')
 
   # Find the month with most runs
   max_runs_month = monthly_runs.loc[monthly_runs['Count'].idxmax()]
@@ -267,7 +273,7 @@ default_example_output_df: |
   fig.show()
 
   # Output
-  print("Monthly Run Counts in 2021:")
+  print("Monthly running.road Counts in 2021:")
   print(monthly_runs[['Month', 'Count']])
   print(f"\nTotal number of runs in 2021: {monthly_runs['Count'].sum()}")
   print(f"Month with highest number of runs: {max_runs_month['Month']} ({max_runs_month['Count']} runs)")
@@ -347,7 +353,7 @@ default_example_output_gen: |
       # Update layout
       fig.update_layout(
           title=f'Stock Price Trend for {{symbol}}',
-          xaxis_title='Date',
+          xaxis_title='date',
           yaxis_title='Price ($)',
           template='plotly_white',
           hovermode='x unified',
@@ -387,76 +393,76 @@ default_example_plan_df: |
 
   ```yaml
   problem_reflection:
-    goal: "Calculate average pace for each 100 meter segment of the most recent Run and plot results"
-    key_inputs: ["ActivityID", "ActivityType", "SegmentID", "Datetime", "Distance", "Speed"]
+    goal: "Calculate average pace for each 100 meter segment of the most recent running.road and plot results"
+    key_inputs: ["activity_id", "sport", "segment_id", "datetime", "distance", "speed"]
     main_output: "Bar chart of average pace per segment, highlighting the fastest segment"
-    constraints: "Focus on the most recent Run activity"
+    constraints: "Focus on the most recent running.road activity"
 
   dataset_comprehension:
     structure: 
       - "Hierarchical timeseries data with nested structure:"
-      - "Dataframe"
-      - "  └─ Activity (grouped by ActivityID)"
-      - "      └─ Segment (ComputedSegment of 100 meters)"
-      - "          └─ Measurement (grouped by Datetime)"
+      - "dataframe"
+      - "  └─ activity (grouped by activity_id)"
+      - "      └─ segment (computed_segment of 100 meters)"
+      - "          └─ measurement (grouped by datetime)"
     key_variables:
-      - "ActivityID: Unique identifier for each activity"
-      - "ActivityType: Type of activity (e.g., Run)"
-      - "SegmentID: Unique identifier for each 100m segment"
-      - "Datetime: Timestamp of each measurement (ISO 8601 format)"
-      - "Distance: Cumulative distance in meters"
-      - "Speed: Speed in meters per second"
+      - "activity_id: Unique identifier for each activity"
+      - "sport: Type of activity (e.g., running.road)"
+      - "segment_id: Unique identifier for each 100m segment"
+      - "datetime: Timestamp of each measurement (ISO 8601 format)"
+      - "distance: Cumulative distance in meters"
+      - "speed: speed in meters per second"
     relationships:
-      - "Each Activity contains multiple ComputedSegments"
-      - "Each ComputedSegment contains multiple Measurements"
+      - "Each activity contains multiple computed_segments"
+      - "Each computed_segment contains multiple measurements"
     aggregations:
-      - "segment_duration: Duration of each 100m Segment"
-      - "average_pace: Average Pace for each Segment"
+      - "segment_duration: Duration of each 100m segment"
+      - "average_pace: Average pace for each segment"
     potential_issues: 
-      - "Pace needs to be calculated from Speed"
+      - "pace needs to be calculated from speed"
       - "Ensuring exact 100m segments may require interpolation"
 
   data_operations:
-    - "Generate DataframeIndex using computeDataframeIndex function"
-    - "Filter the most recent Run activity from the DataframeIndex"
-    - "Retrieve detailed data for the most recent Run"
-    - "Create 100 meter ComputedSegments using determineSegments function"
-    - "Calculate Pace for each measurement"
+    - "Generate data_frame_index using compute_dataframe_index_function function"
+    - "Filter the most recent running.road activity from the data_frame_index"
+    - "Retrieve detailed data for the most recent running.road"
+    - "Create 100 meter computed_segments using determine_segments_function function"
+    - "Calculate pace for each measurement"
     - "Aggregate average pace for each segment"
 
   analysis_steps:
     - step: "Activity Indexation"
-      purpose: "Generate summary statistics and identify the most recent Run"
+      purpose: "Generate summary statistics and identify the most recent running.road"
       actions: 
-        - "Use computeDataframeIndex function to generate index of all activities"
-        - "Filter for Run activities and identify the most recent"
-      expected_outcome: "DataframeIndex with the most recent Run identified"
+        - "Use compute_dataframe_index_function function to generate index of all activities"
+        - "Filter for running.road activities and identify the most recent"
+      expected_outcome: "data_frame_index with the most recent running.road identified"
 
-    - step: "Detailed Run Data Retrieval"
-      purpose: "Get detailed data for the most recent Run"
-      actions: ["Filter original DataFrame for the ActivityID of the most recent Run"]
-      expected_outcome: "DataFrame with detailed measurements for the most recent Run"
+    - step: "Detailed running.road Data Retrieval"
+      purpose: "Get detailed data for the most recent running.road"
+      actions: ["Filter original DataFrame for the activity_id of the most recent running.road"]
+      expected_outcome: "DataFrame with detailed measurements for the most recent running.road"
 
     - step: "Segmentation"
-      purpose: "Create 100 meter ComputedSegments"
-      actions: ["Use determineSegments function to create segments"]
-      expected_outcome: "DataFrame with ComputedSegments for the Run"
+      purpose: "Create 100 meter computed_segments"
+      actions: ["Use determine_segments_function function to create segments"]
+      expected_outcome: "DataFrame with computed_segments for the running.road"
 
-    - step: "Pace Calculation"
-      purpose: "Calculate Pace for each measurement"
-      actions: ["Use calculatePaceFunction to calculate running Pace (minutes per kilometer)"]
-      expected_outcome: "DataFrame with additional Pace column"
+    - step: "pace Calculation"
+      purpose: "Calculate pace for each measurement"
+      actions: ["Use calculate_pace_function to calculate running pace (minutes per kilometer)"]
+      expected_outcome: "DataFrame with additional pace column"
 
-    - step: "Pace Aggregation"
+    - step: "pace Aggregation"
       purpose: "Calculate average pace for each segment"
-      actions: ["Group by SegmentID and calculate mean Pace"]
-      formula: "Average Pace = Σ(Pace) / Number of Measurements"
+      actions: ["Group by segment_id and calculate mean pace"]
+      formula: "Average pace = Σ(pace) / Number of measurements"
       expected_outcome: "DataFrame with average pace per segment"
 
   visualization:
     - plot1:
         type: "Bar plot"
-        title: "Average Pace per 100m Segment"
+        title: "Average pace per 100m segment"
         x_axis: "Segment number"
         y_axis: "Average pace (min/km)"
         color_scheme: "Green with red highlight for fastest segment"
@@ -501,11 +507,11 @@ default_example_plan_df: |
       - "Identify fastest and slowest segments"
       - "Calculate overall average pace for the run"
       - "Observe pace variations across the run"
-      - "Include ActivityID and date in the output"
+      - "Include activity_id and date in the output"
 
   error_handling:
-    - "Ensure proper Datetime format"
-    - "Handle potential missing or infinite values in Pace calculation"
+    - "Ensure proper datetime format"
+    - "Handle potential missing or infinite values in pace calculation"
     - "Validate segment distances to ensure they're close to 100 meters"
   ```
 
@@ -797,9 +803,9 @@ analyst_selector_system: |
   **Example Output 1**:
   ```yaml
   analyst: "Data Analyst DF"
-  unknown: "Pace and heartrate values per 1-kilometer segment"
+  unknown: "pace and heartrate values per 1-kilometer segment"
   data: "Main dataframe 'df' with athletic activity data"
-  condition: "Segment the cumulative distance data into 1-kilometer intervals; plot pace on a bar chart with heartrate on a secondary y-axis"
+  condition: "segment the cumulative distance data into 1-kilometer intervals; plot pace on a bar chart with heartrate on a secondary y-axis"
   intent_breakdown: "The user wants to analyze activity data by dividing it into segments of 1 kilometer based on cumulative distance. For each segment, they want to calculate and visualize both the pace and heartrate, using a dual-axis bar chart."
   ```
 
@@ -809,9 +815,9 @@ analyst_selector_system: |
   **Example Output 2**:
   ```yaml
   analyst: "Data Analyst DF"
-  unknown: "Pace and heartrate for each 1-kilometer segment displayed accurately"
+  unknown: "pace and heartrate for each 1-kilometer segment displayed accurately"
   data: "Main dataframe 'df' with athletic activity data"
-  condition: "Segment the data using the cumulative distance so that each segment represents 1 kilometer; then calculate pace and heartrate per segment, and plot pace on a bar chart with heartrate on a secondary y-axis"
+  condition: "segment the data using the cumulative distance so that each segment represents 1 kilometer; then calculate pace and heartrate per segment, and plot pace on a bar chart with heartrate on a secondary y-axis"
   intent_breakdown: "The user has provided feedback that the previous output was incorrect because it did not account for the fact that the distance is cumulative. The revised task requires using the cumulative distance to accurately divide the data into 1-kilometer segments. For each segment, the pace must be calculated and visualized on a bar chart, while heartrate is shown on a secondary y-axis."
   ```
 
@@ -860,30 +866,30 @@ analyst_selector_system: |
   ```yaml
   analyst: "Data Analyst DF"
   unknown: "Corrected chart with distance on x-axis and heartrate on y-axis"
-  data: "Pandas Dataframe 'df'"
+  data: "Pandas dataframe 'df'"
   condition: "Correct the chart to have distance on the x-axis and heartrate on the y-axis"
   intent_breakdown: "The user has provided feedback that the chart is incorrect. They want to correct the chart so that the x-axis represents distance and the y-axis represents heartrate."
 
   Never ask for feedback directly, alway use the `request_user_context()` function to ask for clarifications or feedback!
 
 analyst_selector_user: |
-  PREVIOUS TASKS:
-
+  <previous_tasks>
   {}
+  </previous_tasks>
 
-  DATAFRAME COLUMNS:
-
+  <primary_dataset_summary>
   {}
+  </primary_dataset_summary>
 
-  AUXILIARY DATASETS:
-
+  <auxiliary_datasets>
   {}
+  </auxiliary_datasets>
 
-  TASK:
-
+  <task>
   {}
+  </task>
 
-  If the dataframe was provided, always select the 'Data Analyst DF' for the current task. Only select 'Data Analyst Generic' if the section 'DATAFRAME COLUMNS' has no content!
+  If the dataframe was provided, always select the 'Data Analyst DF' for the current task. Only select 'Data Analyst Generic' if the section '<primary_dataset_summary>' has no content!
 
 ###########################################
 ### THEORIST AGENT PROMPTS ################
@@ -912,7 +918,7 @@ theorist_system: |
 
   6. You have access to google search tool that you can call upon. Use it wisely, mostly when user specifically asks for it as it costs money and takes time.
 
-  Today's Date is: <current_date>{}</current_date>
+  Today's date is: <current_date>{}</current_date>
 
   If the dataframe was provided, here are the columns in the dataframe:
   <columns>{}</columns>
@@ -1019,9 +1025,9 @@ dataframe_inspector_user: |
     - Task description
 
   2. Data Hierarchy:
-    - For each top-level data structure in the ontology that represents a distinct data container (e.g., an individual of type Dataframe), and considering the provided DATAFRAME PREVIEW and AUXILIARY DATASETS:
+    - For each top-level data structure in the ontology that represents a distinct data container (e.g., an individual of type dataframe), and considering the provided DATAFRAME PREVIEW and AUXILIARY DATASETS:
       - Identify a `dataset_source_identifier`. Use the primary dataset preview for the main source, and correlate auxiliary dataset names with relevant ontology individuals/classes. (e.g., "PrimaryActivityData", "WellnessData_Aux").
-      - Identify a `domain_label` for the conceptual domain this dataset primarily covers (e.g., "Activity Data", "Wellness Data").
+      - Identify a `domain_label` for the conceptual domain this dataset primarily covers (e.g., "activity Data", "Wellness Data").
     - Detail the structure of the primary data domain(s) relevant to the task.
     - Container types and their contents.
     - Grouping keys for each level of the hierarchy.
@@ -1042,7 +1048,7 @@ dataframe_inspector_user: |
     - Computation methods if derived.
     - Specify the `dataset_context` (which `dataset_source_identifier` it belongs to).
 
-  5. Measurements / Attributes:
+  5. measurements / Attributes:
     - Properties: name, category, type, units, recording frequency/nature.
     - Context: level in hierarchy and within which `dataset_source_identifier` (cross-reference with previews).
     - Derivation details if applicable.
@@ -1093,174 +1099,177 @@ dataframe_inspector_user: |
     task: "How many rides, runs, and swims did I do each month in 2019 compared to 2020? Check if higher training months affected my recovery by looking at my sleep and stress levels."
 
   data_hierarchy:
-    - name: ActivityDataframe # Corresponds to the primary DATAFRAME PREVIEW
+    - name: activity_dataframe # Corresponds to the primary DATAFRAME PREVIEW
       dataset_source_identifier: "PrimaryActivityDataset" # Confirmed by DATAFRAME PREVIEW
       domain_label: "Activity Data"
       type: container
       description: "A container for multiple activities and coresponding measurements, organized as time series data."
       contains:
-        - Activity
+        - activity
       grouping_key: null
       derived_objects:
-        - name: ActivityDataframeIndex
+        - name: activity_dataframe_index
           type: index
-          description: "ActivityID-indexed summary providing a condensed view of Activities with aggregated metrics."
-          grouping_key: ActivityID
+          description: "activity_id indexed summary providing a condensed view of Activities with aggregated metrics."
+          grouping_key: activity_id
           canBeComputedUsingFunction:
-            - computeDataframeIndexFunction
-    - name: Activity
+            - compute_dataframe_index_function
+    - name: activity
       type: container
       description: "A single activity session, containing multiple rows of measurements at regular intervals."
       contains:
-        - ActivityMeasurement
-      grouping_key: ActivityID
-      hasUniqueIdentifier: ActivityID
-    - name: ActivityMeasurement
+        - activity_measurement
+      grouping_key: activity_id
+      hasUniqueIdentifier: activity_id
+    - name: activity_measurement
       type: data_record
-      description: "A single value in the ActivityDataframe, representing measurements at a specific timestamp within an activity."
+      description: "A single value in the activity_dataframe, representing measurements at a specific timestamp within an activity."
       contains: null
-      grouping_key: Datetime
-    - name: WellnessDataframe # Corresponds to an entry in AUXILIARY DATASETS
+      grouping_key: datetime
+    - name: wellness_dataframe # Corresponds to an entry in AUXILIARY DATASETS
       dataset_source_identifier: "AuxiliaryWellnessDataset" # Confirmed by AUXILIARY DATASETS list
       domain_label: "Wellness Data"
       type: container
       description: "A container of daily wellness metrics tracking various health-related indicators."
       contains:
-        - WellnessMeasurement
-      grouping_key: Date
-    - name: WellnessMeasurement
+        - wellness_measurement
+      grouping_key: date
+    - name: wellness_measurement
       type: data_record
-      description: "A single value in the WellnessDataframe, representing measurements at a specific point in time (daily)."
+      description: "A single value in the wellness_dataframe, representing measurements at a specific point in time (daily)."
       contains: null
-      grouping_key: Date
+      grouping_key: date
 
   components_sub_entities: []
 
   keys:
-    - name: ActivityID
-      associated_object: Activity
+    - name: activity_id
+      associated_object: activity
       dataset_context: "PrimaryActivityDataset"
       role_in_grouping: Groups measurements for a single activity.
       isPresentInDataset: true # Confirmed by DATAFRAME PREVIEW
-    - name: ActivityType
-      associated_object: ActivityDataframeIndex
-      dataset_context: "PrimaryActivityDataset" # (via ActivityDataframeIndex)
+    - name: sport
+      associated_object: activity_dataframe_index
+      dataset_context: "PrimaryActivityDataset" # (via activity_dataframe_index)
       role_in_grouping: Used to count activities by type.
-      allowedValues: ["Ride", "Run", "Swim"] # Confirmed by ontology and potentially preview
+      allowedValues: ["Ride", "running.road", "Swim"] # Confirmed by ontology and potentially preview
       isPresentInDataset: true
-    - name: Datetime # From ActivityDataframeIndex (activity start time)
-      associated_object: ActivityDataframeIndex
-      dataset_context: "PrimaryActivityDataset" # (via ActivityDataframeIndex)
+    - name: datetime # From activity_dataframe_index (activity start time)
+      associated_object: activity_dataframe_index
+      dataset_context: "PrimaryActivityDataset" # (via activity_dataframe_index)
       role_in_grouping: Used to group activities by month and year.
       isPresentInDataset: true
       units: ISO 8601
-    - name: Date # From WellnessDataframe
-      associated_object: WellnessMeasurement
+    - name: date # From wellness_dataframe
+      associated_object: wellness_measurement
       dataset_context: "AuxiliaryWellnessDataset"
       role_in_grouping: Groups daily wellness metrics. Key for merging with activity data.
       isPresentInDataset: true # Confirmed by auxiliary dataset preview (if provided) or ontology
       units: ISO 8601
-      hasRelation: ActivityDataframeIndex # From ontology, confirmed by potential join need
+      hasRelation: activity_dataframe_index # From ontology, confirmed by potential join need
 
   measurements_attributes:
-    - name: ActivityType
+    - name: sport
       category: Key
       type: DirectlyMeasured
       units: N/A
-      recording_frequency: Per Activity
-      context: ActivityDataframeIndex level
-      dataset_context: "PrimaryActivityDataset" # (via ActivityDataframeIndex)
-      associated_objects: [ActivityDataframeIndex]
+      recording_frequency: Per activity
+      context: activity_dataframe_index level
+      dataset_context: "PrimaryActivityDataset" # (via activity_dataframe_index)
+      associated_objects: [activity_dataframe_index]
       isPresentInDataset: true
-    - name: Datetime
+    - name: datetime
       category: Temporal
       type: DirectlyMeasured
       units: ISO 8601
-      recording_frequency: Per Activity (start time)
-      context: ActivityDataframeIndex level
-      dataset_context: "PrimaryActivityDataset" # (via ActivityDataframeIndex)
-      associated_objects: [ActivityDataframeIndex]
+      recording_frequency: Per activity (start time)
+      context: activity_dataframe_index level
+      dataset_context: "PrimaryActivityDataset" # (via activity_dataframe_index)
+      associated_objects: [activity_dataframe_index]
       isPresentInDataset: true
-    - name: SleepDuration
+    - name: sleep_duration
       category: Wellness
       type: DirectlyMeasured
       units: Seconds
       recording_frequency: 1 Day
-      context: WellnessMeasurement level
+      context: wellness_measurement level
       dataset_context: "AuxiliaryWellnessDataset"
-      associated_objects: [WellnessMeasurement]
+      associated_objects: [wellness_measurement]
       isPresentInDataset: true
-    - name: AverageStress
+    - name: average_stress
       category: Wellness
       type: Derived
       units: N/A
       recording_frequency: 1 Day
-      context: WellnessMeasurement level
+      context: wellness_measurement level
       dataset_context: "AuxiliaryWellnessDataset"
-      associated_objects: [WellnessMeasurement]
+      associated_objects: [wellness_measurement]
       isPresentInDataset: true
 
   visualizations:
-    - type: Plot2D
-      name: Plot2D
-      applicable_objects: [ActivityDataframeIndex, WellnessDataframe, MergedActivityWellnessData]
+    - type: plot_2d
+      name: plot_2d
+      applicable_objects: [activity_dataframe_index, wellness_dataframe, MergedActivityWellnessData]
       key_measurements_required: [Varies]
-      computation_function: Plot2DFunction
+      computation_function: plot_2d_function
 
   functions:
-    - name: computeDataframeIndexFunction
-      applicableToDataObject: ActivityDataframe # Applies to "PrimaryActivityDataset"
+    - name: compute_dataframe_index_function
+      applicableToDataObject: activity_dataframe # Applies to "PrimaryActivityDataset"
       functionDefinition: |
-        # Ensure Datetime is in datetime format
-        if df['Datetime'].dtype == 'object':
-            df['Datetime'] = pd.to_datetime(df['Datetime'], errors='coerce')
+        # Ensure datetime is in datetime format
+        if df['datetime'].dtype == 'object':
+            df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
 
-        # Define aggregation functions
-        agg_functions = {
-            'ActivityType': 'first',
-            'Datetime': 'min',
-            'Distance': lambda x: np.abs(x.max() - x.min()),
-            'Latitude': 'first',
-            'Longitude': 'first',
-            'Elevation': 'mean',
-            'Speed': 'mean',
-            'Heartrate': 'mean',
-            'Cadence': 'mean',
-            'Power': 'mean',
-            'AirTemperature': 'mean',
-            'Gradient': 'mean',
-            'LapID': 'max',
-            'Calories': 'sum'
+        # Define aggregation functions - only include columns that exist
+        all_agg_functions = {
+            'sport': 'first',
+            'datetime': 'min',
+            'distance': lambda x: np.abs(x.max() - x.min()),
+            'latitude': 'first',
+            'longitude': 'first',
+            'elevation': 'mean',
+            'speed': 'mean',
+            'heart_rate': 'mean',
+            'cadence': 'mean',
+            'power': 'mean',
+            'lap_id': 'max',
         }
+        
+        agg_functions = {col: func for col, func in all_agg_functions.items() if col in df.columns}
 
         # Compute statistics for each activity
-        activity_stats = df.groupby('ActivityID').agg(agg_functions).reset_index()
+        activity_stats = df.groupby('activity_id').agg(agg_functions).reset_index()
 
         # Calculate duration
-        activity_stats['Duration'] = df.groupby('ActivityID')['Datetime'].apply(
+        activity_stats['duration'] = df.groupby('activity_id')['datetime'].apply(
             lambda x: (x.max() - x.min()).total_seconds()
         ).values
 
-        # Rename columns
-        new_columns = [
-            'ActivityID', 'ActivityType', 'Datetime', 'Distance', 'StartLatitude',
-            'StartLongitude', 'AvgElevation', 'AvgSpeed', 'AvgHeartrate', 'AvgCadence',
-            'AvgPower', 'AvgAirTemperature', 'AvgGradient', 'NumberOfLaps', 'Calories', 'Duration'
-        ]
-        activity_stats.columns = new_columns
+        # Create column mapping for renaming - only for existing columns
+        column_mapping = {
+            'sport': 'sport', 'datetime': 'datetime', 'distance': 'distance',
+            'latitude': 'start_latitude', 'longitude': 'start_longitude',
+            'elevation': 'avg_elevation', 'speed': 'avg_speed', 'heart_rate': 'avg_heartrate',
+            'cadence': 'avg_cadence', 'power': 'avg_power', 'lap_id': 'number_of_laps'
+        }
+        
+        # Rename only existing columns
+        rename_dict = {col: column_mapping[col] for col in activity_stats.columns if col in column_mapping}
+        activity_stats = activity_stats.rename(columns=rename_dict)
 
         # Round numeric columns to 3 decimal places
         numeric_cols = activity_stats.select_dtypes(include=[np.number]).columns
         activity_stats[numeric_cols] = activity_stats[numeric_cols].round(3)
 
-        # Ensure NumberOfLaps is an integer
-        activity_stats['NumberOfLaps'] = activity_stats['NumberOfLaps'].fillna(0).astype(int)
+        # Ensure number_of_laps is an integer if it exists
+        if 'number_of_laps' in activity_stats.columns:
+            activity_stats['number_of_laps'] = activity_stats['number_of_laps'].fillna(0).astype(int)
 
-        # Sort the DataFrame based on the order_by parameter and ascending/descending option
         return activity_stats.sort_values(by=order_by, ascending=ascending)
       rdfs_comment: "This function is used to create a high-level summary of athletic activities by generating a single-row-per-activity index containing key metrics like distance, duration, and averages, useful for activity browsing, filtering, and quick analytics without processing the full raw data."
-    - name: Plot2DFunction
-      applicableToDataObject: [ActivityDataframeIndex, WellnessDataframe]
+    - name: plot_2d_function
+      applicableToDataObject: [activity_dataframe_index, wellness_dataframe]
       functionDefinition: |
         import pandas as pd
         import plotly.express as px
@@ -1286,24 +1295,24 @@ dataframe_inspector_user: |
 
   relationships:
     - type: containsActivity
-      from: ActivityDataframe # From "PrimaryActivityDataset"
-      to: Activity
+      from: activity_dataframe # From "PrimaryActivityDataset"
+      to: activity
       cardinality: one-to-many
     - type: containsWellnessAggregate
-      from: WellnessDataframe # From "AuxiliaryWellnessDataset"
-      to: WellnessMeasurement
+      from: wellness_dataframe # From "AuxiliaryWellnessDataset"
+      to: wellness_measurement
       cardinality: one-to-many
     - type: derives (Implicit)
-      from: ActivityDataframe # Data from "PrimaryActivityDataset"
-      to: ActivityDataframeIndex
+      from: activity_dataframe # Data from "PrimaryActivityDataset"
+      to: activity_dataframe_index
       cardinality: one-to-one
-      computation_function: computeDataframeIndexFunction
+      computation_function: compute_dataframe_index_function
     - type: links_for_merge (Cross-Dataset)
-      from_dataset: "PrimaryActivityDataset" # Via ActivityDataframeIndex
-      from_key: "Datetime" # (needs aggregation to Date: YYYY-MM-DD)
-      to_dataset: "AuxiliaryWellnessDataset" # Via WellnessDataframe
-      to_key: "Date" # (already YYYY-MM-DD)
-      condition: "Join ActivityDataframeIndex (aggregated to daily/monthly) with WellnessDataframe on their respective date fields. Confirmed by ontology (:Date :hasRelation :ActivityDataframeIndex) and dataset previews showing compatible date/datetime columns."
+      from_dataset: "PrimaryActivityDataset" # Via activity_dataframe_index
+      from_key: "datetime" # (needs aggregation to date: YYYY-MM-DD)
+      to_dataset: "AuxiliaryWellnessDataset" # Via wellness_dataframe
+      to_key: "date" # (already YYYY-MM-DD)
+      condition: "Join activity_dataframe_index (aggregated to daily/monthly) with wellness_dataframe on their respective date fields. Confirmed by ontology (:date :hasRelation :activity_dataframe_index) and dataset previews showing compatible date/datetime columns."
       description: "To compare activity metrics with wellness metrics on corresponding dates/periods."
   ```
 
@@ -1375,7 +1384,7 @@ dataframe_inspector_user: |
       associated_objects: [WineSample]
 
   visualizations:
-    - type: Plot2D
+    - type: plot_2d
       name: ScatterPlot
       applicable_objects: [FilteredWineSelection] # Derived from "PrimaryWineData"
       key_measurements_required: [fixed_acidity, pH]
@@ -2477,7 +2486,7 @@ google_search_react_system: |
   google_search:
   e.g. google_search: Popularity of the Python programming language in 2022
   Returns a summary of a Google Search
-  Today's Date is: {}
+  Today's date is: {}
 
   Use Google Search ONLY if you dont know the answer to the question!
 

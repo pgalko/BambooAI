@@ -307,7 +307,7 @@ class BambooAI:
             
         return response, tool_response, llm_response
     
-    def taskmaster(self, question, df_columns, aux_datasets_columns, image=None):
+    def taskmaster(self, question, df_summary, aux_datasets_columns, image=None):
         '''Taskmaster function to select the expert, refine the expert selection, and formulate a task for the expert'''
         plan = None
         analyst = None
@@ -330,7 +330,7 @@ class BambooAI:
         ######## Refine Expert Selection, and Formulate the task for the expert ###########
         if expert == 'Data Analyst':
             self.message_manager.select_analyst_messages.append({"role": "user", "content": self.prompts.analyst_selector_user.format(self.message_manager.format_tasks(),
-                                                                                                              None if self.df_id is None else df_columns,
+                                                                                                              None if self.df_id is None else df_summary,
                                                                                                               aux_datasets_columns, 
                                                                                                               question)
                                                                                                               })
@@ -347,6 +347,10 @@ class BambooAI:
                                                                                "confidence": confidence, 
                                                                                "intent_breakdown": intent_breakdown
                                                                                })
+            
+            # Select Analyst messages maintenance
+            self.message_manager.messages_maintenace(self.message_manager.select_analyst_messages)
+            self.message_manager.messages_content_maintenance("Analyst Selector", self.message_manager.select_analyst_messages, self.model_dict[models.get_model_name('Code Generator')[0]]['templ_formating'])
             
             if self.retrieved_plan is not None:
                 example_plan = self.prompts.semantic_memory_plan_example.format(self.retrieved_similarity_score, self.retrieved_rank, self.retrieved_plan)
@@ -426,7 +430,7 @@ class BambooAI:
 
         elif expert == 'Research Specialist':
             self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.theorist_system.format(utils.get_readable_date(),
-                                                                                              None if self.df_id is None else df_columns,
+                                                                                              None if self.df_id is None else df_summary,
                                                                                               aux_datasets_columns, 
                                                                                               self.message_manager.last_code, self.message_manager.format_qa_pairs(), 
                                                                                               question)
@@ -435,7 +439,7 @@ class BambooAI:
             self.output_manager.display_results(chain_id=self.chain_id, query={"expert":expert, "original_question": question, "unknown": query_unknown, "condition": query_condition, "requires_dataset": requires_dataset, "confidence": confidence, "intent_breakdown": intent_breakdown})
         else:
             self.message_manager.eval_messages.append({"role": "user", "content": self.prompts.theorist_system.format(utils.get_readable_date(), 
-                                                                                              None if self.df_id is None else df_columns,
+                                                                                              None if self.df_id is None else df_summary,
                                                                                               aux_datasets_columns,   
                                                                                               self.message_manager.last_code, self.message_manager.format_qa_pairs(), 
                                                                                               question)
@@ -530,7 +534,7 @@ class BambooAI:
                 self.output_manager.display_results(chain_id=self.chain_id, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df,api_client=self.api_client)
                 # Call the taskmaster method with the user's question if the exploratory mode is True
                 analyst, plan, tool_response, query_unknown, query_condition, data_descr, intent_breakdown = self.taskmaster(question, 
-                                                                                                                 '' if self.df_id is None else utils.get_dataframe_columns(self.df, self.execution_mode, self.df_id, self.api_client),
+                                                                                                                 '' if self.df_id is None else utils.dataframe_summary_to_string(self.df, self.execution_mode, self.df_id, self.api_client),
                                                                                                                  utils.get_aux_datasets_columns(file_paths=self.auxiliary_datasets,execution_mode=self.execution_mode,executor_client=self.api_client),
                                                                                                                  image
                                                                                                                 )

@@ -308,6 +308,49 @@ def dataframe_to_string_endpoint():
             'error': f'Error converting to string: {str(e)}',
             'data': df.iloc[first_row:last_row].to_string(index=False)
         })
+    
+# This endpoint returns the DataFrame summary as a JSON object
+@app.route('/df_utils/df_summary', methods=['POST'])
+def dataframe_summary_endpoint():
+    data = request.json
+    df_id = data.get('df_id')
+    
+    if not df_id:
+        return jsonify({'error': 'No df_id provided'}), 400
+        
+    df = df_cache.get(df_id)
+    if df is None:
+        return jsonify({'error': 'DataFrame not found in cache'}), 404
+        
+    try:
+        # Local summary generation (same logic as Option B)
+        result = []
+        for col in df.columns:
+            missing = df[col].isnull().sum()
+            missing_info = f" missing={missing}" if missing > 0 else ""
+            
+            if pd.api.types.is_numeric_dtype(df[col]):
+                vals = df[col].dropna()
+                if len(vals) > 0:
+                    result.append(f"{col}: numeric(n={len(vals)}) range={vals.min():.1f}-{vals.max():.1f} mean={vals.mean():.1f}{missing_info}")
+                else:
+                    result.append(f"{col}: numeric all_missing")
+            else:
+                unique_count = df[col].nunique()
+                # Show top 3 values if reasonable number of categories
+                if unique_count <= 10:
+                    top_vals = df[col].value_counts().head(3).index.tolist()
+                    samples = f" values=[{', '.join(str(v) for v in top_vals)}]"
+                else:
+                    samples = f" samples=[{', '.join(str(v) for v in df[col].dropna().head(2))}...]"
+                
+                result.append(f"{col}: categorical(n={df[col].count()}) unique={unique_count}{samples}{missing_info}")
+        
+        summary_string = '\n'.join(result)
+        return jsonify({'data': summary_string})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error generating summary: {str(e)}'})
 
 # This returns the df columns as a JSON object
 @app.route('/df_utils/df_columns', methods=['POST'])

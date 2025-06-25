@@ -49,44 +49,88 @@ def get_package_versions():
     
     return versions
 
+def dataframe_summary_to_string(df: pd.DataFrame,
+                execution_mode: str = 'local',
+                df_id: Optional[str] = None,
+                executor_client=None) -> str:
+    """Dataset summary with sample values for LLM context"""
+    
+    if execution_mode == 'api' and df_id is not None:
+        result = executor_client.dataframe_summary_to_string(df_id)
+        if result is not None:
+            return result
+    
+    # Local execution
+    result = []
+    for col in df.columns:
+        missing = df[col].isnull().sum()
+        missing_info = f" missing={missing}" if missing > 0 else ""
+        
+        if pd.api.types.is_numeric_dtype(df[col]):
+            vals = df[col].dropna()
+            if len(vals) > 0:
+                result.append(f"{col}: numeric(n={len(vals)}) range={vals.min():.1f}-{vals.max():.1f} mean={vals.mean():.1f}{missing_info}")
+            else:
+                result.append(f"{col}: numeric all_missing")
+        else:
+            unique_count = df[col].nunique()
+            # Show top 3 values if reasonable number of categories
+            if unique_count <= 10:
+                top_vals = df[col].value_counts().head(3).index.tolist()
+                samples = f" values=[{', '.join(str(v) for v in top_vals)}]"
+            else:
+                samples = f" samples=[{', '.join(str(v) for v in df[col].dropna().head(2))}...]"
+            
+            result.append(f"{col}: categorical(n={df[col].count()}) unique={unique_count}{samples}{missing_info}")
+    
+    return '\n'.join(result)
+
+
 def dataframe_to_string(df: pd.DataFrame, 
                        num_rows: int = 5,
                        execution_mode: str = 'local',
                        df_id: Optional[str] = None,
                        executor_client=None) -> str:
     """
-    Convert a DataFrame head to a string either locally or via executor API.
-    Returns string representation of the DataFrame (5 rows).
+    Convert a DataFrame head and summary to a complete string for LLM context.
+    Returns formatted string with both head and summary.
     """
     
     if execution_mode == 'api' and df_id is not None:
-        result = executor_client.dataframe_to_string(df_id, num_rows)
-        if result is not None:
-            return result
+        head_result = executor_client.dataframe_to_string(df_id, num_rows)
+        summary_result = executor_client.dataframe_summary_to_string(df_id)
+        
+        if head_result is not None and summary_result is not None:
+            return f"DF Head:\n{head_result}\n\nDF Summary:\n{summary_result}"
     
-    first_row = 25 # Start at the n'th row, to eliminate any inconsitencies in the first few rows
+    # Local execution
+    first_row = 25  # Start at the n'th row, to eliminate any inconsistencies in the first few rows
     # Ensure we don't exceed the DataFrame length
     if first_row + num_rows*2 > len(df):
-        first_row = 1 # Start from the first row as the default
+        first_row = 1  # Start from the first row as the default
 
     last_row = first_row + num_rows
 
     try:
-        # Set display options to show all columns
+        # Get head string
         with pd.option_context('display.max_columns', None, 
                             'display.width', None,
                             'display.max_colwidth', None):
-            # Create a string buffer and write the DataFrame to it
             buffer = io.StringIO()
             df.iloc[first_row:last_row].to_string(buf=buffer, index=False)
-            
-            # Get the string value and reset the buffer
-            df_string = buffer.getvalue()
+            head_string = buffer.getvalue()
             buffer.close()
         
-        return df_string
+        # Get summary string
+        summary_string = dataframe_summary_to_string(df, execution_mode, df_id, executor_client)
+        
+        # Combine both
+        return f"DF Head:\n{head_string}\n\nDF Summary:\n{summary_string}"
+        
     except:
-        return df.iloc[first_row:last_row].to_string(index=False)
+        head_string = df.iloc[first_row:last_row].to_string(index=False)
+        summary_string = dataframe_summary_to_string(df, execution_mode, df_id, executor_client)
+        return f"DF Head:\n{head_string}\n\nDF Summary:\n{summary_string}"
     
 def aux_datasets_to_string(file_paths: List[str],
                            num_rows: int = 5,

@@ -210,7 +210,7 @@ class MessageManager:
         if agent == 'Dataframe Inspector':
             _process_user_messages(messages, reg_ex._remove_all_except_task_ontology_text)
 
-        elif agent in ('Planner', 'Theorist'):
+        elif agent in ('Planner', 'Theorist', 'Analyst Selector'):
             _process_user_messages(messages, reg_ex._remove_all_except_task_xml)
 
         elif agent == 'Code Executor':

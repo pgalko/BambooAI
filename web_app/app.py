@@ -330,15 +330,6 @@ def start_new_conversation(session_id):
 
 
 def transform_sweatstack_longitudinal_data(df):
-    """
-    Transform SweatStack dataframe:
-    1. Convert activity_id to integers (incrementing from oldest to newest activity per athlete)
-    2. Convert athlete_id to integers (incrementing from first appearance)
-    3. Convert timestamp to local time and rename to "datetime"
-    4. Add cumulative distance column calculated from duration × speed
-    5. Remove duration column
-    6. Sort columns by athlete_id, datetime, activity_id, sport, then other columns
-    """
     # 1. Convert timestamp column to local time and rename to "datetime"
     df["datetime"] = pd.to_datetime(df.index).tz_localize(None)  # Remove timezone info to convert to local time
     df = df.reset_index(drop=True)  # Remove the original timestamp index
@@ -385,7 +376,12 @@ def transform_sweatstack_longitudinal_data(df):
     # 4. Remove duration column
     df = df.drop('duration', axis=1)
 
-    # 5. Sort columns by athlete_id, datetime, activity_id, sport, then other columns
+    # 5. Convert semicircles to degrees for GPS coordinates
+    for col in ['longitude', 'latitude']:
+        if col in df.columns:
+            df[col] = df[col].where(df[col].isna(), df[col] * (180 / 2**31))
+
+    # 6. Sort columns by athlete_id, datetime, activity_id, sport, then other columns
     priority_columns = ['athlete_id', 'datetime', 'activity_id', 'sport']
     existing_priority_columns = [col for col in priority_columns if col in df.columns]
     other_columns = [col for col in df.columns if col not in priority_columns]
