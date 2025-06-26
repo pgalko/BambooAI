@@ -4,27 +4,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
-LOG_DIR = 'logs'
-RUN_LOG_FILE_PATH = os.path.join(LOG_DIR, 'bambooai_run_log.json')
-CONSOLIDATED_LOG_FILE_PATH = os.path.join(LOG_DIR, 'consolidated_logs.json')
-
-# Create the logs directory if it doesn't exist
-if not os.path.exists(LOG_DIR):
-    os.makedirs(LOG_DIR)
-
-# Initialize the JSON logger
-logger = logging.getLogger('bambooai_json_logger')
-logger.setLevel(logging.INFO)
-logger.propagate = False
-
-# Remove all handlers associated with the logger object.
-for handler in logger.handlers:
-    logger.removeHandler(handler)
-
-# Initialize the Rotating File Handler for JSON log
-handler = RotatingFileHandler(CONSOLIDATED_LOG_FILE_PATH, maxBytes=5*1024*1024, backupCount=3)  # 5 MB
-logger.addHandler(handler)
-
 # The purpose of this class is to provide a custom JSON encoder that can serialize custom objects that come as a part of Anthropic API tool use responses.
 class FlexibleJSONEncoder(JSONEncoder):
     def default(self, obj):
@@ -42,9 +21,25 @@ class FlexibleJSONEncoder(JSONEncoder):
         return obj_dict
 
 class LogAndCallManager:
-    def __init__(self, token_cost_dict):
+    def __init__(self, token_cost_dict, user_id: str = None):
         self.token_summary = {}
         self.token_cost_dict = token_cost_dict
+
+        self.log_dir = os.path.join('logs', user_id) if user_id else 'logs'
+        os.makedirs(self.log_dir, exist_ok=True)
+
+        self.run_log_file_path = os.path.join(self.log_dir, 'bambooai_run_log.json')
+        self.consolidated_log_file_path = os.path.join(self.log_dir, 'consolidated_logs.json')
+
+        self.logger = logging.getLogger(f'bambooai_json_logger_{user_id}')
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+
+        for handler in list(self.logger.handlers):
+            self.logger.removeHandler(handler)
+
+        handler = RotatingFileHandler(self.consolidated_log_file_path, maxBytes=5*1024*1024, backupCount=3)
+        self.logger.addHandler(handler)
         
     def update_token_summary(self, chain_id, prompt_tokens, completion_tokens, total_tokens, elapsed_time, cost):
         if chain_id not in self.token_summary:
@@ -109,7 +104,7 @@ class LogAndCallManager:
         }
         # Load existing JSON logs from file
         try:
-            with open(RUN_LOG_FILE_PATH, 'r') as json_file:
+            with open(self.run_log_file_path, 'r') as json_file:
                 file_content = json_file.read()
                 if not file_content:
                     existing_json_logs = []
@@ -122,22 +117,22 @@ class LogAndCallManager:
         existing_json_logs.append(json_entry)
         
         # Write the updated JSON logs back to the file
-        with open(RUN_LOG_FILE_PATH, 'w') as json_file:
+        with open(self.run_log_file_path, 'w') as json_file:
             json.dump(existing_json_logs, json_file, indent=2, cls=FlexibleJSONEncoder)
 
 
     def consolidate_logs(self):     
         # Read the existing original JSON log file
-        if os.path.exists(RUN_LOG_FILE_PATH):
-            with open(RUN_LOG_FILE_PATH, 'r') as json_file:
+        if os.path.exists(self.run_log_file_path):
+            with open(self.run_log_file_path, 'r') as json_file:
                 existing_json_logs = json.load(json_file)
         else:
             existing_json_logs = []
         
         # Read the existing consolidated JSON log file
         consolidated_logs = {}
-        if os.path.exists(CONSOLIDATED_LOG_FILE_PATH):
-            with open(CONSOLIDATED_LOG_FILE_PATH, 'r') as json_file:
+        if os.path.exists(self.consolidated_log_file_path):
+            with open(self.consolidated_log_file_path, 'r') as json_file:
                 file_content = json_file.read()
                 if file_content.strip():
                     consolidated_logs = json.loads(file_content)
@@ -192,7 +187,7 @@ class LogAndCallManager:
                 consolidated_logs[chain_id]['chain_summary'] = summary
         
         # Write the updated consolidated logs back to the file
-        with open(CONSOLIDATED_LOG_FILE_PATH, 'w') as json_file:
+        with open(self.consolidated_log_file_path, 'w') as json_file:
             json.dump(consolidated_logs, json_file, indent=2, cls=FlexibleJSONEncoder)
 
     def clear_run_logs(self):
@@ -200,7 +195,7 @@ class LogAndCallManager:
         self.token_summary.clear()
 
         # Clear the original log file
-        with open(RUN_LOG_FILE_PATH, 'w') as json_file:
+        with open(self.run_log_file_path, 'w') as json_file:
             json.dump([], json_file, indent=2, cls=FlexibleJSONEncoder)
 
 

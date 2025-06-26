@@ -18,6 +18,14 @@ from dotenv import load_dotenv
 from google.cloud import storage
 from werkzeug.datastructures import FileStorage
 
+# Temporary hardcoded user identifier
+USER_ID = "demo_user"
+
+
+def user_path(root, *paths):
+    """Helper to build a user-specific path."""
+    return os.path.join(root, USER_ID, *paths)
+
 
 def cleanup_threads(debug_mode=False):
     """
@@ -29,14 +37,14 @@ def cleanup_threads(debug_mode=False):
         return
     
     # Get favorite thread IDs from directory names
-    favorites_dir = os.path.join('storage', 'favourites')
+    favorites_dir = user_path('storage', 'favourites')
     favorite_thread_ids = set()
     if os.path.exists(favorites_dir):
         favorite_thread_ids = {d for d in os.listdir(favorites_dir) 
                              if os.path.isdir(os.path.join(favorites_dir, d))}
     
     # Delete thread files that don't match favorite IDs
-    threads_dir = os.path.join('storage', 'threads')
+    threads_dir = user_path('storage', 'threads')
     if os.path.exists(threads_dir):
         thread_files = glob.glob(os.path.join(threads_dir, '*.json'))
         for thread_file in thread_files:
@@ -49,7 +57,7 @@ def cleanup_threads(debug_mode=False):
                     print(f"Failed to delete {thread_id}: {str(e)}")
     
     # Clean up temporary ontology files for non-existent sessions
-    temp_dir = 'temp'
+    temp_dir = user_path('temp')
     if os.path.exists(temp_dir):
         ontology_files = glob.glob(os.path.join(temp_dir, '*_*.ttl'))
         active_sessions = set(user_preferences.keys())
@@ -63,9 +71,9 @@ def cleanup_threads(debug_mode=False):
                     print(f"Failed to delete {ontology_file}: {str(e)}")
 
 def clear_datasets_folder():
-    datasets_dir = 'datasets'
+    datasets_dir = user_path('datasets')
     generated_datasets_base_dir = os.path.join(datasets_dir, 'generated')
-    favorites_base_dir = os.path.join('storage', 'favourites')
+    favorites_base_dir = user_path('storage', 'favourites')
 
     # 1. Get favorite thread IDs
     favorite_thread_ids = set()
@@ -182,6 +190,7 @@ def get_bamboo_ai(session_id, df=None):
     if session_id not in bamboo_ai_instances:
         bamboo_ai_instances[session_id] = BambooAI(
             df=df,
+            user_id=USER_ID,
             exploratory=EXPLORATORY,
             planning=prefs['planning'],
             search_tool=SEARCH_TOOL,
@@ -263,6 +272,7 @@ def load_dataframe_to_bamboo_ai_instance(session_id, df=None, file=None, executi
 
     bamboo_ai_instances[session_id] = BambooAI(
         df=df,
+        user_id=USER_ID,
         exploratory=EXPLORATORY,
         planning=prefs['planning'],
         search_tool=SEARCH_TOOL,
@@ -313,6 +323,7 @@ def start_new_conversation(session_id):
 
     bamboo_ai_instances[session_id] = BambooAI(
         df=None,
+        user_id=USER_ID,
         exploratory=EXPLORATORY,
         planning=prefs['planning'],
         search_tool=SEARCH_TOOL,
@@ -438,6 +449,7 @@ def update_planning():
         try:
             bamboo_ai_instances[session_id] = BambooAI(
                 df=current_instance.df if hasattr(current_instance, 'df') else None,
+                user_id=USER_ID,
                 exploratory=current_instance.exploratory,
                 planning=planning_enabled,  # Use the new state
                 search_tool=current_instance.search_tool,
@@ -484,7 +496,7 @@ def update_ontology():
             return jsonify({'message': 'No selected file'}), 400
         if file and file.filename.endswith('.ttl'):
             # Save file temporarily
-            temp_dir = 'temp'
+            temp_dir = user_path('temp')
             os.makedirs(temp_dir, exist_ok=True)
             temp_file = os.path.join(temp_dir, f"{session_id}_{file.filename}")
             file.save(temp_file)
@@ -514,6 +526,7 @@ def update_ontology():
         try:
             bamboo_ai_instances[session_id] = BambooAI(
                 df=current_instance.df if hasattr(current_instance, 'df') else None,
+                user_id=USER_ID,
                 exploratory=current_instance.exploratory,
                 planning=prefs['planning'],
                 search_tool=current_instance.search_tool,
@@ -561,7 +574,7 @@ def upload_file():
         return jsonify({'message': 'No selected file'}), 400
         
     if file and (file.filename.endswith('.csv') or file.filename.endswith('.parquet')):
-        filepath = os.path.join('temp', f"{session_id}_{file.filename}")
+        filepath = os.path.join(user_path('temp'), f"{session_id}_{file.filename}")
         file.save(filepath)
 
         try:
@@ -625,6 +638,7 @@ def remove_primary_dataset():
 
         bamboo_ai_instances[session_id] = BambooAI(
             df=None, # Explicitly set df to None
+            user_id=USER_ID,
             exploratory=EXPLORATORY,
             planning=planning_pref,
             search_tool=SEARCH_TOOL,
@@ -688,9 +702,9 @@ def upload_auxiliary_dataset():
                 message = f'Auxiliary dataset "{file_to_upload.filename}" successfully uploaded to executor.'
 
             else: # Local mode
-                datasets_dir = 'datasets'
+                datasets_dir = user_path('datasets')
                 os.makedirs(datasets_dir, exist_ok=True)
-                
+
                 local_filepath = os.path.join(datasets_dir, file_to_upload.filename)
                 file_to_upload.save(local_filepath)
                 filepath_to_store = local_filepath
@@ -706,6 +720,7 @@ def upload_auxiliary_dataset():
                 current_instance = bamboo_ai_instances[session_id]
                 bamboo_ai_instances[session_id] = BambooAI(
                     df=current_instance.df,
+                    user_id=USER_ID,
                     exploratory=current_instance.exploratory,
                     planning=prefs.get('planning', False),
                     search_tool=current_instance.search_tool,
@@ -761,7 +776,7 @@ def remove_auxiliary_dataset():
 
         else: # Local mode
             # Security check for local mode
-            datasets_dir_abs = os.path.abspath('datasets')
+            datasets_dir_abs = os.path.abspath(user_path('datasets'))
             requested_file_abs = os.path.abspath(file_path_to_remove)
             if not requested_file_abs.startswith(datasets_dir_abs):
                 app.logger.warning(f"Attempt to remove file outside local datasets directory: {file_path_to_remove}")
@@ -782,6 +797,7 @@ def remove_auxiliary_dataset():
             current_instance = bamboo_ai_instances[session_id]
             bamboo_ai_instances[session_id] = BambooAI(
                 df=current_instance.df,
+                user_id=USER_ID,
                 exploratory=current_instance.exploratory,
                 planning=prefs['planning'],
                 search_tool=current_instance.search_tool,
@@ -1012,7 +1028,7 @@ def store_favourite():
         task = data.get('task', '')  # Extract task field with empty default
 
         # Create directory path for favourites
-        favourites_dir = os.path.join('storage', 'favourites', str(thread_id))
+        favourites_dir = user_path('storage', 'favourites', str(thread_id))
         os.makedirs(favourites_dir, exist_ok=True)
 
         # Create filename using chain_id
@@ -1048,7 +1064,7 @@ def get_threads():
     """Get list of all saved threads with all their chains."""
     try:
         # Get the favorites directory
-        favourites_dir = os.path.join('storage', 'favourites')
+        favourites_dir = user_path('storage', 'favourites')
         
         if not os.path.exists(favourites_dir):
             app.logger.warning(f"Favorites directory does not exist: {favourites_dir}")
@@ -1140,7 +1156,7 @@ def load_thread(thread_id, chain_id):
         app.logger.info(f"Loading thread {thread_id} with chain {chain_id}")
         
         # Path to the thread directory
-        thread_path = os.path.join('storage', 'favourites', thread_id)
+        thread_path = user_path('storage', 'favourites', thread_id)
             
         # Get a chain file with the specified chain_id
         chain_files = glob.glob(os.path.join(thread_path, f'{chain_id}.json'))
@@ -1197,7 +1213,7 @@ def get_chain_preview(thread_id, chain_id):
     """Get a preview image or plotly data for a specific chain."""
     try:
         # Path to the chain file
-        chain_file = os.path.join('storage', 'favourites', thread_id, f'{chain_id}.json')
+        chain_file = user_path('storage', 'favourites', thread_id, f'{chain_id}.json')
         
         if not os.path.exists(chain_file):
             return jsonify({'error': 'Chain file not found'}), 404
@@ -1265,7 +1281,7 @@ def delete_chain(thread_id, chain_id):
                 bamboo_ai_instance.pinecone_wrapper.delete_record(chain_id)
 
         # Construct the path to the chain file
-        chain_file = os.path.join('storage', 'favourites', thread_id, f'{chain_id}.json')
+        chain_file = user_path('storage', 'favourites', thread_id, f'{chain_id}.json')
         
         # Check if the file exists
         if not os.path.exists(chain_file):
@@ -1275,7 +1291,7 @@ def delete_chain(thread_id, chain_id):
         os.remove(chain_file)
         
         # Check if the thread directory is now empty
-        thread_dir = os.path.join('storage', 'favourites', thread_id)
+        thread_dir = user_path('storage', 'favourites', thread_id)
         remaining_files = glob.glob(os.path.join(thread_dir, '*.json'))
         
         # If empty, remove the directory too
@@ -1312,7 +1328,7 @@ def submit_feedback():
         return jsonify({'error': 'Missing required fields'}), 400
 
     # Construct feedback file path
-    feedback_file = os.path.join('temp', f'feedback_{chain_id}.json')
+    feedback_file = os.path.join(user_path('temp'), f'feedback_{chain_id}.json')
 
     # Load existing feedback or initialize empty list
     feedback_list = []
@@ -1393,7 +1409,7 @@ def download_generated_dataset():
         
         requested_file_abs = os.path.abspath(os.path.join(base_download_dir, file_path_param))
 
-        allowed_prefix = os.path.abspath(os.path.join(base_download_dir, "datasets", "generated"))
+        allowed_prefix = os.path.abspath(os.path.join(base_download_dir, user_path("datasets", "generated")))
         
         if not requested_file_abs.startswith(allowed_prefix):
             app.logger.warning(f"Access denied for local download: {file_path_param}. Resolved path {requested_file_abs} is outside allowed prefix {allowed_prefix}.")
@@ -1606,6 +1622,7 @@ def sweatstack_remove_data():
 
         bamboo_ai_instances[session_id] = BambooAI(
             df=None, # Explicitly set df to None
+            user_id=USER_ID,
             exploratory=EXPLORATORY,
             planning=planning_pref,
             search_tool=SEARCH_TOOL,
@@ -1637,10 +1654,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     # Ensure directories exist
-    os.makedirs('temp', exist_ok=True)
-    os.makedirs(os.path.join('storage', 'favourites'), exist_ok=True)
-    os.makedirs(os.path.join('storage', 'threads'), exist_ok=True)
-    os.makedirs('datasets', exist_ok=True)
+    for base in ['temp', 'iframe_figures', 'logs', 'datasets', 'storage']:
+        os.makedirs(user_path(base), exist_ok=True)
+
+    os.makedirs(user_path('storage', 'favourites'), exist_ok=True)
+    os.makedirs(user_path('storage', 'threads'), exist_ok=True)
     
     # Run thread cleanup
     cleanup_threads(debug_mode=args.debug)
