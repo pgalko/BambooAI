@@ -178,6 +178,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
             elif function_name == "request_user_context":
                 function_response = function_to_call(
                     output_manager,
+                    log_and_call_manager,
                     chain_id,
                     function_args.get("query_clarification"),
                     function_args.get("context_needed")

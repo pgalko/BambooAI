@@ -8,7 +8,7 @@ import logging
 logging.basicConfig(level=logging.WARNING,)
 logger = logging.getLogger(__name__)
     
-def request_user_context(output_manager, chain_id, query_clarification, context_needed):
+def request_user_context(output_manager, log_and_call_manager, chain_id, query_clarification, context_needed):
     """
     Requests user feedback and waits for the response.
     
@@ -41,8 +41,8 @@ def request_user_context(output_manager, chain_id, query_clarification, context_
     
     # Running in web mode
     # Construct feedback file path
-
-    feedback_file = os.path.join('temp', f'feedback_{chain_id}.json')
+    user_id = log_and_call_manager.user_id
+    feedback_file = os.path.join('temp', user_id,f'feedback_{chain_id}.json') if user_id else os.path.join('temp', f'feedback_{chain_id}.json')
 
     # Poll for feedback
     timeout = 300  # 5 minutes

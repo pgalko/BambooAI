@@ -24,14 +24,15 @@ class LogAndCallManager:
     def __init__(self, token_cost_dict, user_id: str = None):
         self.token_summary = {}
         self.token_cost_dict = token_cost_dict
+        self.user_id = user_id
 
-        self.log_dir = os.path.join('logs', user_id) if user_id else 'logs'
+        self.log_dir = os.path.join('logs', self.user_id) if self.user_id else 'logs'
         os.makedirs(self.log_dir, exist_ok=True)
 
         self.run_log_file_path = os.path.join(self.log_dir, 'bambooai_run_log.json')
         self.consolidated_log_file_path = os.path.join(self.log_dir, 'consolidated_logs.json')
 
-        self.logger = logging.getLogger(f'bambooai_json_logger_{user_id}')
+        self.logger = logging.getLogger(f'bambooai_json_logger_{self.user_id}')
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
 
