@@ -13,6 +13,7 @@ from bambooai.messages.prompts import PromptManager
 
 class BambooAI:
     def __init__(self, df: pd.DataFrame = None,
+                 user_id: str = None,
                  auxiliary_datasets: list = None,
                  max_conversations: int = 4,
                  vector_db: bool = False, 
@@ -25,6 +26,9 @@ class BambooAI:
                  custom_prompt_file: str = None
                  ):
         
+        # User identifier
+        self.user_id = user_id
+
         # Thread and chain identifiers
         self.thread_id = None
         self.chain_id = None
@@ -37,9 +41,12 @@ class BambooAI:
         self.execution_mode = os.getenv('EXECUTION_MODE', 'local')
         self.executor_api_url = os.getenv('EXECUTOR_API_BASE_URL', None)
         self.api_client = executor_client.ExecutorAPIClient(base_url=self.executor_api_url)
-        self.executor = code_executor.CodeExecutor(webui=self.webui, 
-                                                   mode=self.execution_mode,
-                                                   api_client=self.api_client)
+        self.executor = code_executor.CodeExecutor(
+            webui=self.webui,
+            mode=self.execution_mode,
+            api_client=self.api_client,
+            user_id=self.user_id,
+        )
 
         # Web search mode
         self.search_mode = os.getenv('WEB_SEARCH_MODE', 'google_ai')
@@ -130,7 +137,10 @@ class BambooAI:
         # Model dictionary containing model capabilities, template formatting and tokens cost
         self.model_dict = models.get_model_properties()
         
-        self.log_and_call_manager = log_manager.LogAndCallManager(self.model_dict)
+        self.log_and_call_manager = log_manager.LogAndCallManager(
+            self.model_dict,
+            user_id=self.user_id,
+        )
 
         # Model capabilities
         self.reasoning_models = [
@@ -148,11 +158,13 @@ class BambooAI:
         # Prompt manager
         self.prompts = PromptManager(custom_prompt_file_path=custom_prompt_file)
 
-        self.message_manager = MessageManager(output_manager=self.output_manager,
-                                               prompts=self.prompts,
-                                               multimodal_models=self.multimodal_models,
-                                               max_conversations=max_conversations,
-                                               )
+        self.message_manager = MessageManager(
+            output_manager=self.output_manager,
+            prompts=self.prompts,
+            multimodal_models=self.multimodal_models,
+            max_conversations=max_conversations,
+            user_id=self.user_id,
+        )
 
         # QA Retrieval
         self.similarity_threshold = 0.80
@@ -527,7 +539,7 @@ class BambooAI:
             self.output_manager.send_chain_id(self.thread_id, self.chain_id, self.df_id) # Send the thread_id and chain_id for the new chain to the web interface
 
         # Path to where the generated datasets will be stored.
-        generated_datasets_path =  os.path.join('datasets', 'generated', str(self.thread_id), str(self.chain_id))
+        generated_datasets_path = os.path.join('datasets', self.user_id or '', 'generated', str(self.thread_id), str(self.chain_id))
 
         if user_code is None:
             if self.exploratory is True:

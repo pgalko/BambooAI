@@ -41,7 +41,7 @@ class StorageError(Exception):
     pass
 
 class SimpleInteractionStore:
-    def __init__(self, storage_dir: str = None):
+    def __init__(self, storage_dir: str = None, user_id: str = None):
         """
         Initialize the interaction store with a storage directory.
         
@@ -50,8 +50,8 @@ class SimpleInteractionStore:
                         'storage' directory in the current working directory
         """
         if storage_dir is None:
-            # Create storage directory in the current working directory
-            self.storage_dir = Path(os.getcwd()) / 'storage'
+            base = Path(os.getcwd()) / 'storage'
+            self.storage_dir = base / user_id if user_id else base
         else:
             self.storage_dir = Path(storage_dir).resolve()
 

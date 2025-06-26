@@ -3,7 +3,7 @@ from bambooai.output_manager import OutputManager
 from bambooai.storage_manager import SimpleInteractionStore, StorageError
 
 class MessageManager:
-    def __init__(self, prompts, output_manager: OutputManager, multimodal_models, max_conversations):
+    def __init__(self, prompts, output_manager: OutputManager, multimodal_models, max_conversations, user_id: str = None):
         # self.max_conversations = max_conversations
         self.MAX_CONVERSATIONS = (max_conversations*2) - 1
         self.output_manager = output_manager
@@ -33,7 +33,7 @@ class MessageManager:
 
         # Storage
         try:
-            self.interaction_store = SimpleInteractionStore()
+            self.interaction_store = SimpleInteractionStore(user_id=user_id)
         except StorageError as e:
             self.output_manager.print_wrapper(f"Warning: Failed to initialize interaction store: {e}")
             self.interaction_store = None

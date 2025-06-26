@@ -13,10 +13,12 @@ import zlib
 from datetime import datetime
 
 class CodeExecutor:
-    def __init__(self, webui=False, mode='local', api_client=None):
+    def __init__(self, webui=False, mode='local', api_client=None, user_id=None):
         self.webui = webui
         self.mode = mode
-        self.plots_dir = "iframe_figures"
+        self.plots_dir = os.path.join("iframe_figures", user_id) if user_id else "iframe_figures"
+        self.log_dir = os.path.join('logs', user_id) if user_id else 'logs'
+        os.makedirs(self.log_dir, exist_ok=True)
         self.original_df = None
 
         self.api_client = api_client
@@ -68,7 +70,7 @@ pio.show = show
     def log_to_file(self, message):
         """Write log message to file with timestamp"""
 
-        LOG_DIR = 'logs'
+        LOG_DIR = self.log_dir
         LOG_FILE = os.path.join(LOG_DIR, 'code_executor.log')
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
