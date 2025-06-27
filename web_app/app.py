@@ -421,7 +421,7 @@ def index():
     common_context = {
         'sweatstack_enabled': bool(SWEATSTACK_CLIENT_ID and SWEATSTACK_CLIENT_SECRET),
         'sweatstack_authenticated': bool(session.get('sweatstack_access_token')),
-        'sweatstack_metrics': [m for m in ss.Metric if m not in [ss.Metric.duration, ss.Metric.lap, ss.Metric.lactate, ss.Metric.rpe, ss.Metric.notes]],
+        'sweatstack_metrics': [m for m in ss.Metric if m not in [ss.Metric.duration, ss.Metric.lactate, ss.Metric.rpe, ss.Metric.notes]],
         'sweatstack_default_metrics': [ss.Metric.power, ss.Metric.speed, ss.Metric.heart_rate]
     }
     return render_template('index.html', **common_context)
