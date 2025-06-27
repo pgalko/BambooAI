@@ -1541,9 +1541,11 @@ def sweatstack_load_data():
     try:
         data = request.json
         selected_sports = data['sports']
-        selected_days = data['days']
         selected_metrics = data['metrics']
         selected_users = data['users']
+
+        start_date = datetime.strptime(data['start_date'], '%Y-%m-%d')
+        end_date = datetime.strptime(data['end_date'], '%Y-%m-%d')
 
         sweatstack_client = ss.Client(api_key=access_token)
 
@@ -1554,7 +1556,8 @@ def sweatstack_load_data():
                 delegated_client = sweatstack_client.delegated_client(user_id)
 
                 df = delegated_client.get_longitudinal_data(
-                    start=datetime.now() - timedelta(days=selected_days),
+                    start=start_date,
+                    end=end_date,
                     sports=selected_sports,
                     metrics=selected_metrics,
                 )
