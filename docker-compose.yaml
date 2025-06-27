@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: bambooai-webapp
     ports:
-      - "5000:5000"
+      - "5001:5000"
     volumes:
       # Mount local configuration files
       - ./web_app/.env:/app/web_app/.env
