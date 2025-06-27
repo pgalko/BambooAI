@@ -217,14 +217,22 @@ function showModalMessage(message, type = 'default') {
 
 function setButtonLoading(isLoading) {
     const connectButton = document.getElementById('connectSweatstack');
+    const buttonLabel = connectButton?.parentElement?.querySelector('.button-label');
+    
     if (!connectButton) return;
     
     if (isLoading) {
         connectButton.classList.add('loading');
         connectButton.disabled = true;
+        if (buttonLabel) {
+            buttonLabel.textContent = 'Loading Data...';
+        }
     } else {
         connectButton.classList.remove('loading');
         connectButton.disabled = false;
+        if (buttonLabel) {
+            buttonLabel.textContent = 'Load Data';
+        }
     }
 }
 
@@ -273,7 +281,7 @@ function initializeSweatStackModal() {
             return;
         }
     
-        const selectedTimeWindow = getSelectedTimeWindow();
+        const dateRange = getSelectedDateRange();
     
         // Set loading state
         setButtonLoading(true);
@@ -289,7 +297,9 @@ function initializeSweatStackModal() {
                 sports: selectedSports,
                 metrics: selectedMetrics,
                 users: selectedUsers,
-                days: selectedTimeWindow
+                days: dateRange.days,
+                start_date: dateRange.start,
+                end_date: dateRange.end
             })
         })
         .then(response => {
@@ -324,7 +334,9 @@ function initializeSweatStackModal() {
                         sports: selectedSports,
                         metrics: selectedMetrics,
                         users: selectedUsers,
-                        days: selectedTimeWindow
+                        days: dateRange.days,
+                        start_date: dateRange.start,
+                        end_date: dateRange.end
                     };
                     createSweatStackPill(dataInfo);
                 }
@@ -360,44 +372,6 @@ function initializeSweatStackModal() {
     });
 }
 
-function setupSegmentedControls(modalId) {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-
-    const inputs = modal.querySelectorAll('.sports-selection input, .time-window-selection input');
-
-    function updateSelection() {
-        // Handle radio buttons (single choice)
-        const radioGroups = {};
-        modal.querySelectorAll('input[type="radio"]').forEach(radio => {
-            if (!radioGroups[radio.name]) {
-                radioGroups[radio.name] = [];
-            }
-            radioGroups[radio.name].push(radio);
-        });
-
-        for (const name in radioGroups) {
-            radioGroups[name].forEach(radio => {
-                radio.parentElement.classList.toggle('selected', radio.checked);
-            });
-        }
-
-        // Handle checkboxes (multiple choice)
-        modal.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-            checkbox.parentElement.classList.toggle('selected', checkbox.checked);
-        });
-    }
-
-    inputs.forEach(input => {
-        input.addEventListener('change', updateSelection);
-    });
-
-    // Set initial state on modal open
-    updateSelection();
-}
-
-// Initialize for the SweatStack modal
-setupSegmentedControls('sweatstackModal');
 
 function initializeSweatStackConfigModal() {
     const modal = document.getElementById('sweatstackConfigModal');
@@ -464,6 +438,9 @@ function showSweatStackModal() {
     if (modal) {
         modal.style.display = 'flex';
         
+        // Initialize date pickers with default values
+        initializeDatePickers();
+        
         // Re-initialize selections each time modal opens to ensure they work
         setTimeout(() => {
             initializeMetricSelection();
@@ -473,6 +450,37 @@ function showSweatStackModal() {
         // Fetch users when modal opens
         fetchSweatStackUsers();
     }
+}
+
+function initializeDatePickers() {
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    
+    if (!startDateInput || !endDateInput) return;
+    
+    // Set end date to today
+    const today = new Date();
+    endDateInput.value = today.toISOString().split('T')[0];
+    
+    // Set start date to 3 months ago
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    startDateInput.value = threeMonthsAgo.toISOString().split('T')[0];
+    
+    // Add validation
+    startDateInput.addEventListener('change', function() {
+        if (endDateInput.value && this.value > endDateInput.value) {
+            showModalMessage('Start date must be before end date.', 'error');
+            this.value = endDateInput.value;
+        }
+    });
+    
+    endDateInput.addEventListener('change', function() {
+        if (startDateInput.value && this.value < startDateInput.value) {
+            showModalMessage('End date must be after start date.', 'error');
+            this.value = startDateInput.value;
+        }
+    });
 }
 
 async function fetchSweatStackUsers() {
@@ -608,12 +616,34 @@ function getSelectedUsers() {
     return selectedUsers;
 }
 
-function getSelectedTimeWindow() {
-    const timeRadios = document.querySelectorAll('input[name="timeWindow"]:checked');
-    if (timeRadios.length > 0) {
-        return parseInt(timeRadios[0].value);
+function getSelectedDateRange() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    if (!startDate || !endDate) {
+        // Default to last 3 months if dates not selected
+        const end = new Date();
+        const start = new Date();
+        start.setMonth(start.getMonth() - 3);
+        
+        return {
+            start: start.toISOString().split('T')[0],
+            end: end.toISOString().split('T')[0],
+            days: 90
+        };
     }
-    return 90; // Default to 3 months
+    
+    // Calculate days between dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return {
+        start: startDate,
+        end: endDate,
+        days: diffDays
+    };
 }
 
 function initializeMetricSelection() {

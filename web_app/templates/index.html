@@ -487,20 +487,16 @@
                 </div>
 
                 <div class="modal-section">
-                    <h4>Time Window:</h4>
-                    <div class="time-window-selection">
-                        <label class="time-option">
-                            <input type="radio" name="timeWindow" id="time-3months" value="90" checked>
-                            <span>Last 3 months</span>
-                        </label>
-                        <label class="time-option">
-                            <input type="radio" name="timeWindow" id="time-1year" value="365">
-                            <span>Last year</span>
-                        </label>
-                        <label class="time-option">
-                            <input type="radio" name="timeWindow" id="time-2years" value="730">
-                            <span>Last 2 years</span>
-                        </label>
+                    <h4>Date Range:</h4>
+                    <div class="date-range-selection">
+                        <div class="date-input-group">
+                            <label for="startDate">Start Date:</label>
+                            <input type="date" id="startDate" name="startDate" class="date-input">
+                        </div>
+                        <div class="date-input-group">
+                            <label for="endDate">End Date:</label>
+                            <input type="date" id="endDate" name="endDate" class="date-input">
+                        </div>
                     </div>
                 </div>
                 <p id="modal-message" class="warning-note">

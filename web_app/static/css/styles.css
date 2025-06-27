@@ -661,7 +661,8 @@ body, html {
 #sweatstackModal .sports-selection,
 #sweatstackModal .metrics-selection,
 #sweatstackModal .users-selection,
-#sweatstackModal .time-window-selection {
+#sweatstackModal .time-window-selection,
+#sweatstackModal .date-range-selection {
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -717,11 +718,59 @@ body, html {
     font-size: 14px;
 }
 
+/* Date range selection specific styles */
+#sweatstackModal .date-range-selection {
+    gap: 12px;
+}
+
+#sweatstackModal .date-input-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+}
+
+#sweatstackModal .date-input-group label {
+    color: var(--modal-text);
+    font-size: 14px;
+    font-weight: 500;
+    min-width: 80px;
+}
+
+#sweatstackModal .date-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-secondary);
+    color: var(--modal-text);
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+#sweatstackModal .date-input:hover {
+    border-color: var(--accent-color);
+    background-color: var(--bg-tertiary);
+}
+
+#sweatstackModal .date-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    background-color: var(--bg-primary);
+}
+
+/* Date input calendar icon styling */
+#sweatstackModal .date-input::-webkit-calendar-picker-indicator {
+    filter: invert(0.8);
+    cursor: pointer;
+}
+
 /* Warning Note - No left border, styled to match sections */
 #sweatstackModal .warning-note {
     color: var(--text-secondary) !important;
     font-style: italic;
-    font-size: 12px;
+    font-size: 14px;
     margin: 8px 0 0 0 !important;
     padding: 8px;
     background-color: transparent;
