@@ -578,7 +578,7 @@ Prerequisites:
    python app.py
    ```
 
-Access web interface at http://localhost:5001
+Access web interface at http://localhost:5000 (5001 if using Docker)
 
 ## Model Support
 
