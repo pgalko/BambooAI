@@ -32,6 +32,16 @@ import plotly.io as pio
 original_show = pio.show
 def show(fig, *args, **kwargs):
     fig.update_layout(template='plotly_dark', dragmode='pan', hovermode='closest', autosize=True)
+
+    # Force override template again (this will fix most issues)
+    fig.layout.template = 'plotly_dark'
+    
+    # Quick fix for legend and annotations
+    if fig.layout.legend:
+        fig.layout.legend.bgcolor = 'rgba(0,0,0,0.3)'
+    for ann in fig.layout.annotations or []:
+        ann.bgcolor = 'rgba(0,0,0,0.3)'
+        
     filename = f'{_plots_dir}/figure_{id(fig)}.html'
     fig.write_html(filename)
     _generated_files.append(filename)
@@ -41,7 +51,18 @@ pio.show = show
 import plotly.io as pio
 original_show = pio.show
 def show(fig, *args, **kwargs):
+    # Apply basic settings
     fig.update_layout(template='plotly_dark', dragmode='pan', hovermode='closest', autosize=True)
+    
+    # Force override template again (this will fix most issues)
+    fig.layout.template = 'plotly_dark'
+    
+    # Quick fix for legend and annotations
+    if fig.layout.legend:
+        fig.layout.legend.bgcolor = 'rgba(0,0,0,0.3)'
+    for ann in fig.layout.annotations or []:
+        ann.bgcolor = 'rgba(0,0,0,0.3)'
+    
     filename = f'{_plots_dir}/figure_{id(fig)}.json'
     fig.write_json(filename)
     _generated_files.append(filename)
