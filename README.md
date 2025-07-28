@@ -64,7 +64,7 @@ https://github.com/user-attachments/assets/59ef810c-80d8-4ef1-8edf-82ba64178b85
 ### Sports Data Analysis (Web UI)
 Example of various sports data analysis queries:
 
-https://github.com/user-attachments/assets/21185939-31d2-46c9-b81a-21066ca99d10
+https://github.com/user-attachments/assets/7b9c9cd6-56e3-46ee-a6c6-c32324a0c5ef
 
 ## Installation
 
