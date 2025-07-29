@@ -2,6 +2,8 @@
 
 <img width="100" alt="BambooAI Logo" src="images/logo.png" />
 
+https://bambooai.org
+
 BambooAI is an open-source library that enables natural language-based data analysis using Large Language Models (LLMs). It works with both local datasets and can fetch data from external sources and APIs.
 
 ## Table of Contents
@@ -655,6 +657,10 @@ Access the project's full interactive documentation:
 - Exercise caution with code execution
 - Monitor token usage
 - Development is ongoing
+
+## Contact
+
+palo@bambooai.io
 
 ## Todo
 
