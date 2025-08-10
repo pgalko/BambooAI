@@ -15,6 +15,8 @@
   "model_properties": {
     "gpt-4.1": {"capability":"base","multimodal":"true", "templ_formating":"text", "prompt_tokens": 0.002, "completion_tokens": 0.008},
     "gpt-4.1-mini": {"capability":"base", "multimodal":"true","templ_formating":"text", "prompt_tokens": 0.0004, "completion_tokens": 0.0016},
+    "gpt-5": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00125, "completion_tokens": 0.010},
+    "gpt-5-mini": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00025, "completion_tokens": 0.002},
     "o4-mini": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.0011, "completion_tokens": 0.0044},
     "o3": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.002, "completion_tokens": 0.008},
     "o3-pro": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.02, "completion_tokens": 0.08},
@@ -37,6 +39,8 @@
     "/mnt/c/Users/pgalk/vllm/models/DeepSeek-R1-Distill-Qwen-14B": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
     "deepseek-r1-distill-llama-70b": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
     "deepseek-r1:32b": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
-    "deepseek-ai/deepseek-r1": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00}
+    "deepseek-ai/deepseek-r1": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
+    "openai/gpt-oss-120b": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00015, "completion_tokens": 0.00075},
+    "moonshotai/kimi-k2-instruct": {"capability":"base", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.003}
   }
 }

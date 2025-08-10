@@ -234,7 +234,7 @@ class BambooAI:
 
         reasoning_effort = "medium"
 
-        if provider in ['openai', 'anthropic', 'gemini']:
+        if provider in ['openai', 'anthropic', 'gemini', 'groq']:
             tools = tools_definition.filter_tools(provider, search_enabled=False, feedback_enabled=self.user_feedback)
         else:
             tools = None
@@ -299,7 +299,7 @@ class BambooAI:
             )
             eval_messages[-1] = formatted_message
 
-        if provider in ['openai', 'anthropic', 'gemini']:
+        if provider in ['openai', 'anthropic', 'gemini', 'groq']:
             tools = tools_definition.filter_tools(provider, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         else:
             tools = None
@@ -725,7 +725,7 @@ class BambooAI:
             )
             code_messages[-1] = formatted_message
 
-        if provider in ['openai', 'anthropic', 'gemini']:
+        if provider in ['openai', 'anthropic', 'gemini', 'groq']:
             # Filter tools based on the selected provider and user feedback
             tools = tools_definition.filter_tools(provider, search_enabled=self.search_tool, feedback_enabled=self.user_feedback)
         else:
