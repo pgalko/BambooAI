@@ -985,7 +985,7 @@ def submit_rank():
     code = data.get('code')
     
     if bamboo_ai_instance.vector_db:
-        bamboo_ai_instance.pinecone_wrapper.add_record(
+        bamboo_ai_instance.vector_db_wrapper.add_record(
             chain_id,
             intent_breakdown,
             plan, 
@@ -1278,7 +1278,7 @@ def delete_chain(thread_id, chain_id):
         if session_id and session_id in bamboo_ai_instances:
             bamboo_ai_instance = bamboo_ai_instances[session_id]
             if bamboo_ai_instance.vector_db:           
-                bamboo_ai_instance.pinecone_wrapper.delete_record(chain_id)
+                bamboo_ai_instance.vector_db_wrapper.delete_record(chain_id)
 
         # Construct the path to the chain file
         chain_file = user_path('storage', 'favourites', thread_id, f'{chain_id}.json')
@@ -1454,11 +1454,11 @@ def search_threads():
     bamboo_ai_instance = bamboo_ai_instances[session_id]
     
     try:
-        if not hasattr(bamboo_ai_instance, 'pinecone_wrapper') or not bamboo_ai_instance.pinecone_wrapper.index:
+        if not hasattr(bamboo_ai_instance, 'vector_db_wrapper') or not bamboo_ai_instance.vector_db:
              return jsonify({'search_results': [], 'message': 'Vector DB not configured for this session.'}), 200
 
         # Call the new function and adjust the key in the returned JSON
-        search_results = bamboo_ai_instance.pinecone_wrapper.search_pinecone_for_results(query_text=query, top_k=5)
+        search_results = bamboo_ai_instance.vector_db_wrapper.search_for_results(query_text=query, top_k=5)
         return jsonify({'search_results': search_results})
     except Exception as e:
         app.logger.error(f"Error searching threads: {e}")

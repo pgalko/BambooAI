@@ -79,19 +79,32 @@ class BambooAI:
         # Validate search tool
         search_tool = validate_search_tool(self, search_tool, self.search_mode)
         
-        # Check if the PINECONE_API_KEY and PINECONE_ENV environment variables are set if vector_db is True
         if vector_db:
-            PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
-
-            if PINECONE_API_KEY is not None:
-                try:
-                    self.pinecone_wrapper = qa_retrieval.PineconeWrapper(output_manager=self.output_manager)
-                except Exception as e:
-                    self.output_manager.display_system_messages(f"Error initializing Pinecone")
+            vector_db_type = os.getenv('VECTOR_DB_TYPE', 'pinecone')  # Default to pinecone for backward compatibility
+            
+            if vector_db_type.lower() == 'pinecone':
+                PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
+                if PINECONE_API_KEY is not None:
+                    try:
+                        self.pinecone_wrapper = qa_retrieval.PineconeWrapper(output_manager=self.output_manager)
+                        self.vector_db_wrapper = self.pinecone_wrapper
+                    except Exception as e:
+                        self.output_manager.display_system_messages(f"Error initializing Pinecone: {str(e)}")
+                        vector_db = False
+                else:
+                    self.output_manager.display_system_messages("Warning: PINECONE_API_KEY environment variable not found. Disabling vector_db.")
                     vector_db = False
-
+                    
+            elif vector_db_type.lower() == 'qdrant':
+                try:
+                    self.qdrant_wrapper = qa_retrieval.QdrantWrapper(output_manager=self.output_manager)
+                    self.vector_db_wrapper = self.qdrant_wrapper
+                except Exception as e:
+                    self.output_manager.display_system_messages(f"Error initializing Qdrant: {str(e)}")
+                    vector_db = False
+                    
             else:
-                self.output_manager.display_system_messages("Warning: PINECONE_API_KEY environment variable not found. Disabling vector_db.")
+                self.output_manager.display_system_messages(f"Warning: Unsupported vector database type '{vector_db_type}'. Supported types: 'pinecone', 'qdrant'. Disabling vector_db.")
                 vector_db = False
 
         self.MAX_ERROR_CORRECTIONS = 5
@@ -252,7 +265,7 @@ class BambooAI:
         if self.vector_db:
             self.output_manager.print_wrapper(f"I am now going to search the episodic memory for similar tasks to the current one. if I find a match, I will use the plan, data model and code from the previous task to help me with the current task.", chain_id=self.chain_id)
             self.output_manager.display_tool_info('Semantic Search', f"Searching episodic memory for similar tasks", chain_id=self.chain_id)
-            vector_data = self.pinecone_wrapper.retrieve_matching_record(intent_breakdown, data_descr, similarity_threshold=self.similarity_threshold)
+            vector_data = self.vector_db_wrapper.retrieve_matching_record(intent_breakdown, data_descr, similarity_threshold=self.similarity_threshold)
             if vector_data:
                 self.retrieved_similarity_score = str(round(vector_data['score'] * 100, 1))
                 self.retrieved_rank = str(int(vector_data['metadata']['rank']))
@@ -645,7 +658,7 @@ class BambooAI:
                         rank = 0
 
                     # Add the question and answer pair to the QA retrieval index
-                    self.pinecone_wrapper.add_record(
+                    self.vector_db_wrapper.add_record(
                         self.chain_id,
                         intent_breakdown,
                         '' if reviewed_plan is None else reviewed_plan,

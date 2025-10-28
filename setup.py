@@ -47,7 +47,8 @@ setup(
         'scikit-learn',
         'geopandas',
         'yfinance',
-        'sweatstack'
+        'sweatstack',
+        'qdrant-client'
     ],
     python_requires=">=3.10",
     classifiers=[
