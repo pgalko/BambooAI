@@ -9,6 +9,7 @@ plotly
 termcolor
 newspaper3k
 pinecone==6.0.2
+qdrant-client
 selenium
 google-generativeai
 google-genai

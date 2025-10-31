@@ -422,14 +422,29 @@ bamboo = BambooAI(
     vector_db=True
 )
 ```
-Requires an account with [Pinecone (free)](https://app.pinecone.io/), and the API key stored in the `.env`
+Supports both Pinecone and Qdrant vector databases. Configure your choice using environment variables:
 
-`PINECONE_API_KEY=<YOUR API KEY HERE>`
+**For Pinecone:**
+Requires an account with [Pinecone (free)](https://app.pinecone.io/), and the API key stored in the `.env`:
+```
+VECTOR_DB_TYPE=pinecone
+PINECONE_API_KEY=<YOUR API KEY HERE>
+PINECONE_CLOUD=aws
+PINECONE_REGION=us-east-1
+```
+
+**For Qdrant:**
+Can use either local Qdrant instance or Qdrant Cloud. Configure in `.env`:
+```
+VECTOR_DB_TYPE=qdrant
+QDRANT_URL=http://localhost:6333  # For local Qdrant
+QDRANT_API_KEY=<YOUR API KEY HERE>  # Optional for local, required for cloud
+```
 
 ### What It Does
 
 Upon successful analysis completion, user has an ability to rank and store the solution. 
-- The intent of the highly ranked solutions (>6) will be vectorised using the selected model, and stored in Pinecone vector DB together with the solution metadata
+- The intent of the highly ranked solutions (>6) will be vectorised using the selected model, and stored in the configured vector database (Pinecone or Qdrant) together with the solution metadata
 - Metadata:
   - Data Model
   - Plan
