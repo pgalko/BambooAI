@@ -30,3 +30,4 @@ scikit-learn
 geopandas
 yfinance
 sweatstack
+setuptools
