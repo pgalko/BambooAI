@@ -167,7 +167,7 @@ user_preferences = {}
 EXPLORATORY = True
 SEARCH_TOOL = True
 WEBUI = True
-VECTOR_DB = bool(os.getenv('PINECONE_API_KEY'))
+VECTOR_DB = bool(os.getenv('PINECONE_API_KEY')) or bool(os.getenv('QDRANT_URL'))
 DF_ONTOLOGY = None
 
 # SweatStack OAuth configuration
