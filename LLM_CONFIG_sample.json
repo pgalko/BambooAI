@@ -41,6 +41,8 @@
     "deepseek-r1:32b": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
     "deepseek-ai/deepseek-r1": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
     "openai/gpt-oss-120b": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00015, "completion_tokens": 0.00075},
-    "moonshotai/kimi-k2-instruct": {"capability":"base", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.003}
+    "moonshotai/kimi-k2-instruct": {"capability":"base", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.003},
+    "MiniMax-M2.7": {"capability":"base", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.005},
+    "MiniMax-M2.7-highspeed": {"capability":"base", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.005}
   }
 }

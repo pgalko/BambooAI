@@ -100,7 +100,8 @@ def llm_call(log_and_call_manager, messages: str, agent: str = None, chain_id: s
         'anthropic': 'llm_call',
         'mistral': 'llm_call',
         'openrouter': 'llm_call',
-        "deepseek": 'llm_call'
+        "deepseek": 'llm_call',
+        "minimax": 'llm_call'
     }
 
     if provider in provider_function_map:
@@ -135,7 +136,8 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, messages: s
         'anthropic': 'llm_stream',
         'mistral': 'llm_stream',
         'openrouter': 'llm_stream',
-        "deepseek": 'llm_stream'
+        "deepseek": 'llm_stream',
+        "minimax": 'llm_stream'
     }
 
     if provider in provider_function_map:

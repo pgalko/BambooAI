@@ -270,7 +270,9 @@ The LLM configuration is stored in `LLM_CONFIG.json`. Here's the complete config
     "/mnt/c/Users/pgalk/vllm/models/DeepSeek-R1-Distill-Qwen-14B": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
     "deepseek-r1-distill-llama-70b": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
     "deepseek-r1:32b": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
-    "deepseek-ai/deepseek-r1": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00}
+    "deepseek-ai/deepseek-r1": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
+    "MiniMax-M2.7": {"capability":"base", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.005},
+    "MiniMax-M2.7-highspeed": {"capability":"base", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.005}
   }
 }
 ```
@@ -334,6 +336,19 @@ If you assign a model for an agent in `agent_configs` make sure that the model i
     "provider": "vllm",
     "max_tokens": 2000,
     "temperature": 0
+  }
+}
+```
+
+3. **Using MiniMax:**
+```json
+{
+  "agent": "Code Generator",
+  "details": {
+    "model": "MiniMax-M2.7",
+    "provider": "minimax",
+    "max_tokens": 8000,
+    "temperature": 0.1
   }
 }
 ```
@@ -607,6 +622,7 @@ Access web interface at http://localhost:5000 (5001 if using Docker)
 - Mistral
 - DeepSeek
 - OpenRouter
+- MiniMax
 
 ### Local Models
 - Ollama (all models)
