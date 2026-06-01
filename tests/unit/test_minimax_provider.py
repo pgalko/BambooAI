@@ -250,6 +250,9 @@ class TestLlmConfigSample:
         with open(path, "r") as f:
             return json.load(f)
 
+    def test_m3_in_config(self, config):
+        assert "MiniMax-M3" in config["model_properties"]
+
     def test_m27_in_config(self, config):
         assert "MiniMax-M2.7" in config["model_properties"]
 
@@ -257,10 +260,9 @@ class TestLlmConfigSample:
         assert "MiniMax-M2.7-highspeed" in config["model_properties"]
 
     def test_properties_structure(self, config):
-        for name in ["MiniMax-M2.7", "MiniMax-M2.7-highspeed"]:
+        for name in ["MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.7-highspeed"]:
             props = config["model_properties"][name]
             assert props["capability"] == "base"
-            assert props["multimodal"] == "false"
             assert props["templ_formating"] == "text"
             assert "prompt_tokens" in props
             assert "completion_tokens" in props

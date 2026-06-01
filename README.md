@@ -271,6 +271,7 @@ The LLM configuration is stored in `LLM_CONFIG.json`. Here's the complete config
     "deepseek-r1-distill-llama-70b": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
     "deepseek-r1:32b": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
     "deepseek-ai/deepseek-r1": {"capability":"reasoning", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.00, "completion_tokens": 0.00},
+    "MiniMax-M3": {"capability":"base", "multimodal":"true","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.005},
     "MiniMax-M2.7": {"capability":"base", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.005},
     "MiniMax-M2.7-highspeed": {"capability":"base", "multimodal":"false","templ_formating":"text", "prompt_tokens": 0.001, "completion_tokens": 0.005}
   }
@@ -345,7 +346,7 @@ If you assign a model for an agent in `agent_configs` make sure that the model i
 {
   "agent": "Code Generator",
   "details": {
-    "model": "MiniMax-M2.7",
+    "model": "MiniMax-M3",
     "provider": "minimax",
     "max_tokens": 8000,
     "temperature": 0.1
