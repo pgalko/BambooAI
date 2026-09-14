@@ -13,6 +13,12 @@ let containerStatusData = {
 
 let isExecuting = false;
 const STATUS_TEXT = { ready: 'Ready', execution: 'Executing', spawning: 'Starting', restarting: 'Restarting', failed: 'Failed', offline: 'Offline' };
+// the self-hosted edition (2026-09-14): the kernel on this machine reads 'Local', an executor named in .env 'Docker'
+function readyText(d) {
+    if (d && d.status === 'ready' && d.tier === 'local') return 'Local';
+    if (d && d.status === 'ready' && d.tier === 'docker') return 'Docker';
+    return STATUS_TEXT[d && d.status] || (d && d.status) || 'Offline';
+}
 let isRestarting = false;
 let restartJobId = null;
 let statusPollingInterval = null;
@@ -232,10 +238,7 @@ function updateStatusUI() {
         'offline': 'Offline'
     };
     
-    statusText.textContent = statusTextMap[containerStatusData.status] || 'Offline';
-    // the self-hosted edition (2026-09-14): the kernel on this machine, or one executor named in .env
-    if (containerStatusData.status === 'ready' && containerStatusData.tier === 'local') statusText.textContent = 'Local';
-    if (containerStatusData.status === 'ready' && containerStatusData.tier === 'docker') statusText.textContent = 'Docker';
+    statusText.textContent = readyText(containerStatusData);
 }
 
 function updateStatusTooltip() {
@@ -436,7 +439,7 @@ window.containerStatus = {
         const el = document.getElementById('containerStatus'); const txt = el && el.querySelector('.container-status-text');
         if (el && !isRestarting) {
             if (executing) { el.className = 'container-status status-execution'; if (txt) txt.textContent = 'Executing'; }
-            else if (containerStatusData && containerStatusData.status) { el.className = `container-status status-${containerStatusData.status}`; if (txt) txt.textContent = STATUS_TEXT[containerStatusData.status] || containerStatusData.status; }
+            else if (containerStatusData && containerStatusData.status) { el.className = `container-status status-${containerStatusData.status}`; if (txt) txt.textContent = readyText(containerStatusData); }
         }
         // Update tooltip when execution state changes
         updateStatusTooltip();

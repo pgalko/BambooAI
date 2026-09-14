@@ -150,6 +150,9 @@ def main():
             page.click("#nextResponse")
             wait_text(page, "#chainPosition", "chain 3 of 3", 10000)
             wait_run_end(page, 3)
+            chip_after = page.inner_text("#containerStatusText")
+            check("after runs the chip still reads " + {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute] + " (the execution branch uses the same text rule)",
+                  chip_after == {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute], chip_after)
             page.wait_for_timeout(1200)                       # the old code opened the map 500 ms after an Adaptive run ended
             map_open = page.evaluate("() => { const m = document.getElementById('workflowMapModal'); return !!m && getComputedStyle(m).display !== 'none'; }")
             check("the thread map stays closed when an Adaptive run ends (v65)", not map_open, map_open)
