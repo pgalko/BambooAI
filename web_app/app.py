@@ -195,6 +195,9 @@ STREAM_HEARTBEAT_SECONDS = float(os.getenv("STREAM_HEARTBEAT_SECONDS", "15"))
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET')
+# Two instances on one host (a hosted service and a self-hosted test on another port, 2026-09-14) share a
+# browser's cookies, since cookies are per hostname: give each its own session cookie name in .env.
+app.config['SESSION_COOKIE_NAME'] = os.getenv('SESSION_COOKIE_NAME', 'session')
 
 # Register the blueprints
 app.register_blueprint(llm_config_bp)
