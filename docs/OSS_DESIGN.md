@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v0.5, 2026-09-14 (v0.1-v0.4 the same day). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v0.6, 2026-09-14 (v0.1-v0.5 the same day). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -83,7 +83,8 @@ statement by statement against the code.
   stands, scanned for secrets, without the schema. The private `main` is reset to the same snapshot
   with the old history kept on `history-pre-oss` (private only). From that commit on, both remotes
   carry identical commits. *Reason:* pushing the private history publishes every past commit.
-- **D17. Delivery is a git patch series, applied once, on the box.** `git am`, the battery,
+- **D17. Delivery is a git patch series, applied once, on the box.** `git am --keep-cr` (five files
+  are CRLF; without the flag a patch touching them does not apply), the battery,
   restart, commit, push to the private remote. The Mac clone pulls from the private remote and pushes
   to the public one; it never applies the series a second time. Template edits on the box are commits
   by the maintainer, not local drift. The deploy-package engine (md5s, anchors, transforms) retires
@@ -189,6 +190,11 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
 - Tests: the stack in local mode needs no executor process; the e2e story runs unchanged.
 - **Done when:** the field-trial story completes end to end on the kernel in a subprocess, and
   again against a plain Docker executor.
+- **Status 2026-09-14: done** (commits `5886a6a`, `e1d4cb1`, `ed2e046`). Learned on the way: the
+  local reproduction run used `exec()` inside the web app's process (v1's design) - it now runs in a
+  kernel subprocess; the plotly capture is optional there. Phase 1's dev-box test found that
+  `webapp_gunicorn.conf.py` loads `/etc/bambooai/*.env` itself (so `bambooai serve` will not use
+  it) and that the per-user folders belong to whoever runs the process - both for phase 4.
 
 ### Phase 3 — data: the SQLite backend (D6, D9-D13)
 - `auth/supabase_client.py` becomes a facade over two backends selected by the presence of
