@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v0.4, 2026-09-14 (v0.1-v0.3 the same day). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v0.5, 2026-09-14 (v0.1-v0.4 the same day). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -175,6 +175,10 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   stack tests the open-source edition for real, next to the hosted one.
 - **Done when:** with only `AUTH_MODE=single`, `EXECUTION_MODE=api` and a model key in `.env`,
   the page loads, the gate runs workspace -> executor -> ready, and a question is answered.
+- **Status 2026-09-14: done** (commits `fe35aef`, `2e2be56`, `2e33466`). Learned on the way: the
+  Supabase and Stripe SDK imports had to become optional (the self-hosted edition does not
+  install them - a packaging fact for phase 4); the dialog and the integration grid assumed the
+  hosted tiers. The executor still comes through the orchestrator in this phase.
 
 ### Phase 2 — compute: the local kernel (D5, D27)
 - `EXECUTION_MODE=local` reachable from the web app: `get_bamboo_ai` builds the instance without
