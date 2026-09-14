@@ -23,6 +23,13 @@ async function initializeAuth() {
         authConfig = await response.json();
         console.log('Auth: Config loaded:', authConfig);
         
+        if (authConfig.mode === 'single') {
+            // the self-hosted edition (docs/OSS_DESIGN.md D4): one person, the local identity the server
+            // reports, no Auth0 SDK, no sign-in stage - straight to the workspace
+            console.log('Auth: single-user mode as', authConfig.user && authConfig.user.name);
+            completeAuthentication(authConfig.user || { sub: 'local|local', name: 'local' });
+            return;
+        }
         if (!authConfig.auth_enabled) {
             throw new Error('Authentication is required but not configured');
         }
@@ -289,6 +296,11 @@ function updateAuthUI(user) {
 
     const tooltip = user ? `Log out ${user.name || user.email}` : 'Log out';
     
+    if (authConfig?.mode === 'single') {          // nobody to log out: the identity is the machine's
+        authContainer.style.display = 'none';
+        updateAuthLogoutButton(false, tooltip);
+        return;
+    }
     if (!authConfig?.auth_enabled) {
         authContainer.style.display = 'none';
         updateAuthLogoutButton(true, tooltip);

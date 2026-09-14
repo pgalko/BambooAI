@@ -364,8 +364,10 @@ async function loadCurrentSubscription() {
                 }
                 
                 // Update UI
-                document.querySelector(`input[name="model-tier"][value="${subscriptionState.modelTier}"]`).checked = true;
-                document.querySelector(`input[name="compute-tier"][value="${subscriptionState.computeTier}"]`).checked = true;
+                const modelRadio = document.querySelector(`input[name="model-tier"][value="${subscriptionState.modelTier}"]`);
+                if (modelRadio) modelRadio.checked = true;
+                const computeRadio = document.querySelector(`input[name="compute-tier"][value="${subscriptionState.computeTier}"]`);
+                if (computeRadio) computeRadio.checked = true;          // the self-hosted edition's 'local' compute has no card
                 
                 // Handle managed tier preference loading
                 if (subscriptionState.modelTier === 'managed') {
@@ -582,7 +584,25 @@ async function checkSubscriptionOnLoad() {
     }
 }
 
+// The self-hosted edition (docs/OSS_DESIGN.md D7, O7): no funds, no tiers, no prices - the level comes from
+// BAMBOO_LEVEL in .env until it can be saved locally (phase 3). The dialog keeps the Models and Integrations
+// tabs and hides what belongs to the hosted service.
+function applyLocalEditionToDialog() {
+    if (!(typeof authConfig !== 'undefined' && authConfig && authConfig.mode === 'single')) return;   // auth.js's top-level `let`
+    const modal = document.getElementById('subscriptionModal');
+    if (!modal || modal.classList.contains('edition-local')) return;
+    modal.classList.add('edition-local');
+    const sub = modal.querySelector('.ui-dlg-h .sub');
+    if (sub) sub.textContent = 'single-user edition: the level is set by BAMBOO_LEVEL in .env; model keys are read from .env';
+    const funds = modal.querySelector('.subscription-tab[data-tab="funds"]'); if (funds) funds.style.display = 'none';
+    const compute = modal.querySelector('.subscription-tab[data-tab="compute"]'); if (compute) compute.style.display = 'none';
+    modal.querySelectorAll('.tier-price, .balance-info, #addFundsBtn, #saveSubscription, .subscription-footer').forEach(e => { e.style.display = 'none'; });
+    const seg = modal.querySelector('#modelConfigSection'); if (seg) { seg.style.pointerEvents = 'none'; seg.title = 'set by BAMBOO_LEVEL in .env'; }
+    const freeInput = modal.querySelector('input[name="model-tier"][value="free"]'); const free = freeInput && freeInput.closest('.tier-option'); if (free) free.style.display = 'none';
+}
+
 function showSubscriptionModal(mandatory = false) {
+    applyLocalEditionToDialog();
     console.log('Showing subscription modal...', mandatory ? '(MANDATORY)' : '(optional)');
     const modal = document.getElementById('subscriptionModal');
     if (modal) {
@@ -642,8 +662,10 @@ function generateIntegrationGrid() {
     const access = {
         'free': [true, false, false],
         'plus': [true, true, false],
-        'pro': [true, true, true]
+        'pro': [true, true, true],
+        'local': [true, true, true]          // the self-hosted edition: your own machine, every period
     };
+    if (!access[computeTier]) computeTier = 'local';
     
     let html = '<table class="integration-table"><thead><tr><th>Provider</th>';
     periods.forEach(p => html += `<th>${p}</th>`);
