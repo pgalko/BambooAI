@@ -19,6 +19,9 @@ class SupabaseClient:
     def _initialize_client(self):
         """Initialize Supabase client with service role key"""
         try:
+            if os.getenv('AUTH_MODE', 'none') == 'single':      # the self-hosted edition writes no usage rows to Supabase
+                logger.info("single-user mode: Supabase not used")
+                return
             supabase_url = os.getenv('SUPABASE_URL')
             supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
             

@@ -88,9 +88,17 @@ def main():
         import fake_supabase
         sys.modules["supabase"] = fake_supabase
     else:
-        # the local edition: nothing stands in for Supabase; the app's own local answers are what is tested
-        for k in ("SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
-            os.environ.pop(k, None)
+        # the local edition: nothing stands in for Supabase; the app's own local answers are what is tested.
+        # STACK_STRAY_SUPABASE=1 leaves hosted-looking keys IN the environment (a .env lying next to the app,
+        # as found on the dev box on 2026-09-14): single mode must still never call out.
+        if os.environ.get("STACK_STRAY_SUPABASE") == "1":
+            os.environ.update({"SUPABASE_URL": "http://supabase.stray", "SUPABASE_KEY": "stray", "SUPABASE_SERVICE_ROLE_KEY": "stray"})
+            import fake_supabase
+            fake_supabase.RPC.clear()                          # any call would now fail loudly, as it did on the box
+            sys.modules["supabase"] = fake_supabase
+        else:
+            for k in ("SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
+                os.environ.pop(k, None)
         os.environ["LLM_CONFIG_ENCRYPTION_KEY"] = "local-stack"
 
     # the SweatStack SDK: the index route iterates ss.Metric, which the generic stub cannot do

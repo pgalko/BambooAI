@@ -30,6 +30,11 @@ BAMBOO_LEVEL = os.getenv('BAMBOO_LEVEL', 'performance')
 
 
 def supabase_configured() -> bool:
+    """Supabase is used only in the hosted edition. AUTH_MODE=single never talks to it, whatever the
+    environment holds: a local identity cannot exist in its users table, and a .env with hosted keys
+    lying next to the app (load_dotenv reads it) must not make the single-user edition call home."""
+    if os.getenv('AUTH_MODE', 'none') == 'single':
+        return False
     return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
 
 
@@ -116,7 +121,7 @@ def get_service_client() -> Client:
     """Get service role client for admin operations (bypasses RLS)"""
     global _service_client
     
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+    if not supabase_configured():                    # the backstop: single mode never builds a client, whatever the env holds
         raise Exception("Supabase service role credentials not configured")
     
     # Always create a fresh client to avoid connection issues
@@ -1216,6 +1221,8 @@ def get_tier_limits(category: str = None) -> dict:
 
 def get_user_compute_tier(bamboo_user_id: str) -> str:
     """Get user's compute tier"""
+    if not supabase_configured():
+        return 'free'                                # until phase 2 the executor still comes through the orchestrator: its smallest tier
     try:
         res = _rpc("get_compute_tier", {"p_bamboo_user_id": bamboo_user_id})
         # res.data is already the string 'free', 'plus', or 'pro'
@@ -1308,6 +1315,8 @@ def can_execute_chain(auth0_id: str) -> dict:
     """
     if not validate_user_access(auth0_id):
         return {"ok": False, "error": "unauthorized"}
+    if not supabase_configured():                    # the self-hosted edition: your own machine, always allowed, no charge
+        return {"ok": True, "data": {"allowed": True, "reason": "local", "compute_tier": "local", "query_cost": 0.0, "balance": 0.0}}
 
     try:
         auth0_full, bamboo_short = _normalize_ids(auth0_id)
@@ -1340,6 +1349,8 @@ def increment_queries_counter(auth0_id: str) -> dict:
     """
     if not validate_user_access(auth0_id):
         return {"ok": False, "error": "unauthorized"}
+    if not supabase_configured():
+        return {"ok": True, "data": {"queries_used": None}}
 
     try:
         auth0_full, bamboo_short = _normalize_ids(auth0_id)
