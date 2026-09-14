@@ -26,3 +26,7 @@ docs/history/
 tools/deploy/
 # the local stack's downloaded browser libraries
 tools/stack/browser/vendor/
+
+# the self-hosted edition's database (BAMBOO_DATA_DIR or the working folder)
+bambooai.sqlite
+bambooai.sqlite-*
