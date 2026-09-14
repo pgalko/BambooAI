@@ -106,7 +106,12 @@ except ImportError:
 # Dynamic orchestration configuration
 APP_PORT = int(os.getenv('APP_PORT', 5001))
 ORCHESTRATOR_API_URL = os.getenv('ORCHESTRATOR_API_URL', 'http://localhost:8080')
-GLOBAL_EXECUTION_MODE = 'api'  # Always use API mode with dynamic containers
+# The compute seam (docs/OSS_DESIGN.md D5, D27; 2026-09-14). EXECUTION_MODE:
+#   api   - an executor container: through the orchestrator (the hosted edition), or, with
+#           EXECUTOR_API_BASE_URL set, that one executor directly (a `docker run` of the image);
+#   local - the kernel in a subprocess on this machine, no executor (the self-hosted default).
+GLOBAL_EXECUTION_MODE = os.getenv('EXECUTION_MODE', 'api')
+DIRECT_EXECUTOR_URL = (os.getenv('EXECUTOR_API_BASE_URL') or '').rstrip('/') or None
 
 # SSL Configuration
 SSL_ENABLED = os.getenv('SSL_ENABLED', 'false').lower() == 'true'
@@ -116,8 +121,28 @@ SSL_KEY_PATH = os.getenv('SSL_KEY_PATH')
 # Initialize container orchestrator
 container_orchestrator = ContainerOrchestrator(ORCHESTRATOR_API_URL)
 
+def _executor_urls(base_url: str) -> dict:
+    return {
+        'EXECUTOR_API_BASE_URL': base_url,
+        'EXECUTOR_API_UPLOAD_URL': f"{base_url}/upload_dataset",
+        'EXECUTOR_API_UPLOAD_AUX_URL': f"{base_url}/file_utils/upload_aux_dataset",
+        'EXECUTOR_API_REMOVE_AUX_URL': f"{base_url}/file_utils/remove_aux_dataset",
+        'EXECUTOR_API_DOWNLOAD_GENERATED_URL': f"{base_url}/download_generated_dataset"
+    }
+
+
+def executor_base_url(user_id: str):
+    """The executor this user's instance talks to: None in local mode (the kernel runs here)."""
+    urls = get_dynamic_executor_urls(user_id)
+    return urls['EXECUTOR_API_BASE_URL'] if urls else None
+
+
 def get_dynamic_executor_urls(user_id: str) -> dict:
     """Get dynamic executor URLs for a specific user"""
+    if GLOBAL_EXECUTION_MODE == 'local':
+        return None                                   # no executor: the kernel runs in a subprocess here
+    if DIRECT_EXECUTOR_URL:
+        return _executor_urls(DIRECT_EXECUTOR_URL)    # one executor, named in .env, no orchestrator
     try:
         user_compute_tier = get_user_compute_tier(user_id)
 
@@ -152,7 +177,7 @@ def get_executor_client(user_id: str):
 def update_user_activity(user_id: str):
     """Update user activity in orchestrator"""
     try:
-        if ORCHESTRATOR_API_URL:
+        if ORCHESTRATOR_API_URL and GLOBAL_EXECUTION_MODE == 'api' and not DIRECT_EXECUTOR_URL:   # only the orchestrated path has an idle reaper
             response = requests.post(
                 f"{ORCHESTRATOR_API_URL}/activity/{user_id}", 
                 timeout=3
@@ -315,8 +340,9 @@ def get_bamboo_ai(session_id, df=None):
     api_keys = {} # This is a placeholder, for possible future use if we want to pass specific user API keys to BambooAI
     user_id = get_user_id()
     
-    # Create new BambooAI instance if it doesn't exist or if executor URL has changed
-    if session_id not in bamboo_ai_instances or bamboo_ai_instances[session_id].executor_api_url != get_dynamic_executor_urls(user_id)['EXECUTOR_API_BASE_URL']:
+    # Create new BambooAI instance if it doesn't exist or if executor URL has changed (None in local mode)
+    base_url = executor_base_url(user_id)
+    if session_id not in bamboo_ai_instances or bamboo_ai_instances[session_id].executor_api_url != base_url:
         logger.info(f"Creating new BambooAI instance for session {session_id}, user {user_id}. Reason: {'new instance' if session_id not in bamboo_ai_instances else 'executor URL changed'}")
         
         # Clean up stale instance if it exists
@@ -334,7 +360,8 @@ def get_bamboo_ai(session_id, df=None):
             df_id=prefs['df_id'],
             auxiliary_datasets=prefs['auxiliary_datasets'],
             api_keys=api_keys,
-            executor_api_url=get_dynamic_executor_urls(get_user_id())['EXECUTOR_API_BASE_URL']
+            executor_api_url=base_url,
+            execution_mode=GLOBAL_EXECUTION_MODE
         )
 
     return bamboo_ai_instances[session_id]
@@ -482,6 +509,8 @@ def load_dataframe_to_bamboo_ai_instance(session_id, df=None, file=None, executi
     
     # Update the df_id in the BambooAI instance in case it was not recreated
     bamboo_ai_instances[session_id].df_id = prefs.get('df_id')
+    if df is not None:                                # local mode: the frame lives in the instance, not in an executor
+        bamboo_ai_instances[session_id].df = df
     # the analyst sees the file's name in its DATA header (2026-09-07): identity from the file, not a web search
     try:
         bamboo_ai_instances[session_id].df_name = getattr(file, 'filename', None) or getattr(df, 'attrs', {}).get('name') or ''

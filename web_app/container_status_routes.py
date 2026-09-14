@@ -24,12 +24,33 @@ def init_container_status_integration(app, **dependencies):
     # Register the blueprint
     app.register_blueprint(container_status_bp)
 
+def _direct_executor_status(base_url: str) -> dict:
+    """One executor named in .env (a docker run of the image): its own /health is the status."""
+    try:
+        import requests
+        r = requests.get(f"{base_url}/health", timeout=3)
+        if r.ok:
+            info = r.json() if r.headers.get('content-type', '').startswith('application/json') else {}
+            return {'status': 'ready', 'tier': 'docker', 'url': base_url, 'build': info.get('build')}
+        return {'status': 'failed', 'tier': 'docker', 'url': base_url, 'error': f"health {r.status_code}"}
+    except Exception as e:                                       # noqa: BLE001
+        return {'status': 'failed', 'tier': 'docker', 'url': base_url, 'error': str(e)}
+
+
 @container_status_bp.route('/api/container/status', methods=['GET'])
 @requires_auth
 def get_container_status():
     """Get container status for current user via orchestrator"""
     try:
         user_id = container_status_bp.get_user_id()
+
+        # the compute seam (docs/OSS_DESIGN.md D5): no executor in local mode; a direct executor answers for itself
+        mode = os.getenv('EXECUTION_MODE', 'api')
+        direct = (os.getenv('EXECUTOR_API_BASE_URL') or '').rstrip('/')
+        if mode == 'local':
+            return jsonify({'status': 'ready', 'tier': 'local', 'user_id': user_id}), 200
+        if direct:
+            return jsonify(dict(_direct_executor_status(direct), user_id=user_id)), 200
         
         # Use the centralized orchestrator client
         status_data = container_status_bp.container_orchestrator.get_container_status(user_id)
@@ -48,6 +69,8 @@ def get_container_status():
 def restart_container():
     """Restart container for current user via orchestrator"""
     try:
+        if os.getenv('EXECUTION_MODE', 'api') == 'local' or os.getenv('EXECUTOR_API_BASE_URL'):
+            return jsonify({'success': False, 'message': 'No container to restart in this edition: the kernel runs here, or the executor is the one named in .env'}), 200
         session_id = session.get('session_id')
         user_id = container_status_bp.get_user_id()
 

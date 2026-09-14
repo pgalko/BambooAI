@@ -51,14 +51,14 @@ class BambooAI:
                  webui: bool = False,
                  df_id: str = None,
                  custom_prompt_file: str = None,
-                 executor_api_url: str = None):
+                 executor_api_url: str = None, execution_mode: str = None):
         self.user_id = user_id
         self.api_keys = api_keys if api_keys is not None else {}
         self.thread_id = None
         self.chain_id = None
         self.webui = webui
         self.output_manager = web_output_manager.WebOutputManager() if webui else output_manager.OutputManager()
-        self.execution_mode = os.getenv('EXECUTION_MODE', 'local')
+        self.execution_mode = execution_mode or os.getenv('EXECUTION_MODE', 'local')   # the app passes its own (2026-09-14)
         self.executor_api_url = executor_api_url
         self.api_client = executor_client.ExecutorAPIClient(base_url=self.executor_api_url) if self.executor_api_url else None
         # the executor runs the reproduction script exactly as the old pipeline ran its

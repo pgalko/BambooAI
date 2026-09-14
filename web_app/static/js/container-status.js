@@ -233,6 +233,9 @@ function updateStatusUI() {
     };
     
     statusText.textContent = statusTextMap[containerStatusData.status] || 'Offline';
+    // the self-hosted edition (2026-09-14): the kernel on this machine, or one executor named in .env
+    if (containerStatusData.status === 'ready' && containerStatusData.tier === 'local') statusText.textContent = 'Local';
+    if (containerStatusData.status === 'ready' && containerStatusData.tier === 'docker') statusText.textContent = 'Docker';
 }
 
 function updateStatusTooltip() {
