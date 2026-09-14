@@ -115,109 +115,68 @@ pio.show = show
             raise ValueError("Invalid mode. Choose 'local' or 'api'.")
         
     def _execute_local(self, code, df=None, generated_datasets_path=None):
-        output_buffer = io.StringIO()
-        plot_images = []
-        generated_files = []
-
+        """The reproduction run on this machine (docs/OSS_DESIGN.md D5, 2026-09-14): a fresh
+        PersistentKernel in a subprocess, the same kernel the analysis runs in, with the frame
+        loaded and the plotly capture the executor uses. Never exec() in the web app's process:
+        a runaway script would stall or crash the server. Returns (df, results, error,
+        plot_images, generated_datasets) like the executor path."""
+        import base64
+        import glob
+        import shutil
+        import tempfile
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if os.path.join(here, 'delve') not in sys.path:
+            sys.path.insert(0, os.path.join(here, 'delve'))
+        from kernel import PersistentKernel
+        plot_images, generated_datasets = [], []
+        tmp = tempfile.mkdtemp(prefix="bamboo_replay_")
+        plots_dir = os.path.join(tmp, "plots")
+        os.makedirs(plots_dir, exist_ok=True)
         if generated_datasets_path is not None:
-            if not os.path.isdir(generated_datasets_path):
-                try:
-                    os.makedirs(generated_datasets_path)
-                except Exception as e:
-                    self.log_to_file(f"Error creating directory {generated_datasets_path}: {str(e)}")
-
+            os.makedirs(generated_datasets_path, exist_ok=True)
+        prelude = f"import os\n_plots_dir = {plots_dir!r}\n_generated_files = []\n"
+        # the plotly capture is optional here: a machine without plotly still reproduces prints and matplotlib figures
+        patch = ""
+        if self.webui:
+            patch = "try:\n" + "".join("    " + line + "\n" for line in self.patch_code.splitlines()) + "except ImportError:\n    pass\n"
+        script = prelude + patch + "\n" + code
+        kernel = None
         try:
-            plt.close('all')
-            with redirect_stdout(output_buffer):
-
-                local_vars = {
-                    'df': df,
-                    '_plots_dir': self.plots_dir,
-                    '_generated_files': generated_files
-                }
-                
-                # Only apply patch if in webui mode
-                if self.webui:
-                    exec(self.patch_code + code, local_vars)
-                else:
-                    exec(code, local_vars)
-                    
-                result_df = local_vars['df']
-
-                if self.webui:
-                    # Handle matplotlib figures
-                    figs = [plt.figure(i) for i in plt.get_fignums()]
-                    for fig in figs:
-                        if len(fig.axes) > 0:
-                            buf = io.BytesIO()
-                            fig.savefig(buf, format='png')
-                            buf.seek(0)
-                            plot_images.append({
-                                    'data': base64.b64encode(buf.getvalue()).decode('utf-8'),
-                                    'format': 'png'
-                                })
-                            buf.close()
-                        plt.close(fig)
-                    
-                    # Handle plotly figures
-                    if os.path.isdir(self.plots_dir):
-                        # Only process files we generated
-                        for file_path in sorted(generated_files):
-                            try:
-                                # First try UTF-8
-                                try:
-                                    with open(file_path, 'r', encoding='utf-8') as f:
-                                        file_content = f.read()
-                                except UnicodeDecodeError:
-                                    # If UTF-8 fails, read as latin-1 and encode back to UTF-8
-                                    with open(file_path, 'r', encoding='latin-1') as f:
-                                        raw_content = f.read()
-                                        # Convert to UTF-8
-                                        file_content = raw_content.encode('utf-8', errors='replace').decode('utf-8')
-                                
-                                # Validate JSON can be parsed before adding to plot_images
-                                if self.plot_format == 'json':
-                                    json.loads(file_content)  # This will raise an exception if JSON is invalid
-                                    
-                                plot_images.append({
-                                    'data': file_content,
-                                    'format': self.plot_format
-                                })
-                            except Exception as e:
-                                logger.error(f"Error reading file {file_path}: {str(e)}")
-                                continue  # Skip this file and continue with others
-
-            results = output_buffer.getvalue()
-
-            # Iterate over generated_datasets_path directory for any generated datasets.
-            if generated_datasets_path is not None:
-                generated_datasets = []
-                if os.path.isdir(generated_datasets_path):
-                    for filename in os.listdir(generated_datasets_path):
-                        file_path = os.path.join(generated_datasets_path, filename)
-                        if os.path.isfile(file_path):
-                            generated_datasets.append(file_path)
-                    if not generated_datasets:
-                        try:
-                            os.rmdir(generated_datasets_path)
-                        except OSError as e:
-                            self.log_to_file(f"Error removing empty directory {generated_datasets_path}: {str(e)}")
-                else:
-                    self.log_to_file(f"Generated datasets path {generated_datasets_path} does not exist.")
-
-            return result_df, results, None, plot_images, generated_datasets
-
-        except Exception as error:
-            exc_type, exc_value, tb = sys.exc_info()
-            full_traceback = traceback.format_exc()
-            exec_traceback = self.filter_exec_traceback(code, full_traceback, exc_type.__name__, str(exc_value))
-
-            return self._original_df, None, exec_traceback, [], []
-
+            kernel = PersistentKernel(df=df)
+            stdout, error, plots = kernel.execute(script, analysis_dir=os.path.join(tmp, "analysis"))
+            for path in plots or []:                                    # matplotlib figures the kernel saved
+                try:
+                    with open(path, "rb") as fh:
+                        plot_images.append({'data': base64.b64encode(fh.read()).decode('utf-8'), 'format': 'png'})
+                except Exception as e:                                  # noqa: BLE001
+                    logger.error(f"Error reading figure {path}: {e}")
+            for path in sorted(glob.glob(os.path.join(plots_dir, "figure_*"))):   # plotly figures via the patch
+                try:
+                    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                        content = fh.read()
+                    if self.plot_format == 'json':
+                        json.loads(content)
+                    plot_images.append({'data': content, 'format': self.plot_format})
+                except Exception as e:                                  # noqa: BLE001
+                    logger.error(f"Error reading figure {path}: {e}")
+            if generated_datasets_path is not None and os.path.isdir(generated_datasets_path):
+                generated_datasets = [os.path.join(generated_datasets_path, f) for f in os.listdir(generated_datasets_path)
+                                      if os.path.isfile(os.path.join(generated_datasets_path, f))]
+                if not generated_datasets:
+                    try:
+                        os.rmdir(generated_datasets_path)
+                    except OSError:
+                        pass
+            return df, stdout or "", (error or None), plot_images, generated_datasets
+        except Exception as e:                                          # noqa: BLE001
+            return df, None, str(e), [], []
         finally:
-            if self.webui:
-                plt.close('all')
-            output_buffer.close()
+            if kernel is not None:
+                try:
+                    kernel.cleanup()
+                except Exception:                                       # noqa: BLE001
+                    pass
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def _execute_via_api_client(self, code, df=None, df_id=None, generated_datasets_path=None, output_manager=None, kill_signal=None, persist_df=True, timeout=None):
         """Execute code via executor API client"""
@@ -245,7 +204,7 @@ pio.show = show
             
         except Exception as e:
             self.log_to_file(f"Error executing via API client: {str(e)}")
-            return df, None, str(e), []
+            return df, None, str(e), [], []
 
     def _serialize_df(self, df):
         buffer = io.BytesIO()
