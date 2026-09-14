@@ -51,11 +51,14 @@ def wait_text(page, selector, text, timeout=180000):
 
 
 def main():
+    edition = "local" if "--edition" in sys.argv and sys.argv[sys.argv.index("--edition") + 1] == "local" else "hosted"
     vendor.prepare(fetch=False)
-    workdir = tempfile.mkdtemp(prefix="bamboo_e2e_")
+    workdir = tempfile.mkdtemp(prefix=f"bamboo_e2e_{edition}_")
     mod = harness_models.load("field_trial")
     q1, q2 = mod.QUESTIONS[0], mod.QUESTIONS[1]
-    with Stack(workdir=workdir, scenario="field_trial", fresh=True, auto_ports=True) as st:
+    USER = "local" if edition == "local" else "localuser"        # BAMBOO_USER in the local edition; the Auth0 stand-in's id in the hosted one
+    print(f"edition: {edition}")
+    with Stack(workdir=workdir, scenario="field_trial", fresh=True, auto_ports=True, edition=edition) as st:
         with sync_playwright() as pw:
             b, page, logs = open_page(pw, st.app_url)
             navs, starts = [], []
@@ -173,7 +176,7 @@ def main():
 
         # what landed on disk, in the app's own layout under the stack's web app working directory
         wa = os.path.join(workdir, "webapp")
-        threads = glob.glob(os.path.join(wa, "storage", "localuser", "threads", "*.json"))
+        threads = glob.glob(os.path.join(wa, "storage", USER, "threads", "*.json"))
         check("one notebook thread file stored under storage/<user>/threads", len(threads) == 1, threads)
         nb = json.load(open(threads[0])) if threads else {"runs": {}}
         runs = list(nb["runs"].values())
@@ -181,9 +184,9 @@ def main():
               len(runs) == 3 and all(r["status"] == "answered" and r["replay_status"] == "reproduced" for r in runs),
               [(r["status"], r["replay_status"]) for r in runs])
         check("the second run's parent is the first", len(runs) >= 2 and runs[1]["parent"] == runs[0]["id"])
-        favs = glob.glob(os.path.join(wa, "storage", "localuser", "favourites", "*", "*.json"))
+        favs = glob.glob(os.path.join(wa, "storage", USER, "favourites", "*", "*.json"))
         check("Save wrote the favourites (one file per chain of the thread)", len(favs) == 3, favs)
-        pack = os.path.join(wa, "memory", "localuser", "memory_pack.yaml")
+        pack = os.path.join(wa, "memory", USER, "memory_pack.yaml")
         check("Save at 7 ran the write pass: the memory pack holds the distilled candidate card",
               os.path.exists(pack) and "within_soil_plot_level_contrast" in open(pack).read(), pack)
         calls = st.orchestrator_calls()

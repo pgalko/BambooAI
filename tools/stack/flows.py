@@ -119,10 +119,17 @@ def stages(log):
     return out
 
 
+class _NoStack:
+    """A stand-in context for flows that do not apply to an edition."""
+    def __enter__(self): return None
+    def __exit__(self, *a): return False
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
     ap.add_argument("--delay", type=float, default=6.0, help="seconds the fake orchestrator takes to start an executor")
+    ap.add_argument("--edition", choices=("hosted", "local"), default="hosted")
     a = ap.parse_args()
     from playwright.sync_api import sync_playwright
     vendor.prepare(fetch=False)
@@ -130,7 +137,7 @@ def main():
     os.environ["STACK_SPAWN_DELAY"] = str(a.delay)
     os.environ.pop("STACK_SPAWN_FAIL", None)
 
-    with Stack(workdir=os.path.join("/tmp", "bamboo_flows"), fresh=True, auto_ports=True) as st:
+    with Stack(workdir=os.path.join("/tmp", "bamboo_flows"), fresh=True, auto_ports=True, edition=a.edition) as st:
         with sync_playwright() as pw:
             b, page, logs = open_page(pw, st.app_url)
             install_sampler(page)
@@ -145,7 +152,8 @@ def main():
             check("login: the pill was visible from the first sample", log and log[0]["visible"], log[:2])
             check("login: ONE document load - no reload into ?new=true", len(ctr.navs) == 1 and "new=true" not in page.url, (ctr.navs, page.url))
             check("login: the initialise call once, /new_conversation once", ctr.count("initialize") == 1 and ctr.count("new_conversation") == 1, ctr.reqs)
-            check("login: each stage once, in order (sign-in may be too quick to sample)", seq[-3:] == ["workspace", "executor", "ready"] and len(seq) == len(set(seq)), seq)
+            check("login: each stage once, in order (the console shows the workspace stage even when too quick to sample)",
+                  seq[-2:] == ["executor", "ready"] and len(seq) == len(set(seq)) and any("stage workspace" in c for c in ctr.console), (seq, ctr.console[:3]))
             check("login: the page was inert until the gate released", all(r["inert"] for r in log if not r["released"]) and not log[-1]["inert"], log)
             spawns = [c for c in st.orchestrator_calls() if c["kind"] == "spawn"]
             check("login: the executor was started (a spawn reached the orchestrator)", len(spawns) > calls_before, spawns)
@@ -187,7 +195,8 @@ def main():
             seq = stages(log)
             check("refresh: ONE document load, the initialise call once, /new_conversation once, no ?new=true",
                   len(ctr.navs) == 1 and ctr.count("initialize") == 1 and ctr.count("new_conversation") == 1 and "new=true" not in page.url, (ctr.navs, ctr.reqs))
-            check("refresh: each stage once, in order", seq[-3:] == ["workspace", "executor", "ready"] and len(seq) == len(set(seq)), seq)
+            check("refresh: each stage once, in order (the console shows the workspace stage even when too quick to sample)",
+                  seq[-2:] == ["executor", "ready"] and len(seq) == len(set(seq)) and any("stage workspace" in c for c in ctr.console), (seq, ctr.console[:3]))
             check("refresh: the pill was up and the page inert until ready", any(r["inert"] for r in log) and log[-1]["released"], log[:4])
             check("refresh: the workspace start saw a 'reload' navigation", any("fresh load (reload)" in c for c in ctr.console), ctr.console[:4])
             page.evaluate("""() => { document.getElementById('queryInput').focus(); }""")
@@ -196,39 +205,42 @@ def main():
             check("no page errors and no 5xx across the three flows", not errs, errs[:3])
             b.close()
 
-    # ---- 4. a first visit (no session cookie) and the page after a logout (signed out), on the same stack
-    with Stack(workdir=os.path.join("/tmp", "bamboo_flows_auth"), fresh=True, auto_ports=True) as st:
-        with sync_playwright() as pw:
-            from browse import SIGNED_OUT_COOKIE
-            b, page, logs = open_page(pw, st.app_url, cookies=[])
-            install_sampler(page)
-            ctr = Counters(page)
-            page.goto(st.app_url)
-            page.wait_for_function("() => window.WorkspaceGate && WorkspaceGate.state().open === false && document.querySelector('.container').inert === false", timeout=90000)
-            log = gate_log(page)
-            check("first visit (no session cookie): the pill never showed 'Signing you in' - it waited, hidden, for the sign-in to complete",
-                  all(r["stage"] != "signin" for r in log if r["visible"]) and any("no session hint" in c for c in ctr.console), log[:2])
-            seq = stages(log)
-            check("first visit: once the shell appears the pill runs workspace -> executor -> ready as usual", seq[-3:] == ["workspace", "executor", "ready"], seq)
-            check("first visit: the console says why the pill waited", any("no session hint" in c for c in ctr.console), ctr.console[:3])
-            b.close()
+    # ---- 4. a first visit (no session cookie) and the page after a logout (signed out), on the same stack (hosted edition only)
+    with (Stack(workdir=os.path.join("/tmp", "bamboo_flows_auth"), fresh=True, auto_ports=True) if a.edition == "hosted" else _NoStack()) as st:
+        with (sync_playwright() if st is not None else _NoStack()) as pw:
+          if st is None:
+            pass
+          else:
+              from browse import SIGNED_OUT_COOKIE
+              b, page, logs = open_page(pw, st.app_url, cookies=[])
+              install_sampler(page)
+              ctr = Counters(page)
+              page.goto(st.app_url)
+              page.wait_for_function("() => window.WorkspaceGate && WorkspaceGate.state().released === true && WorkspaceGate.state().open === false", timeout=90000)
+              log = gate_log(page)
+              check("first visit (no session cookie): the pill never showed 'Signing you in' - it waited, hidden, for the sign-in to complete",
+                    all(r["stage"] != "signin" for r in log if r["visible"]) and any("no session hint" in c for c in ctr.console), log[:2])
+              seq = stages(log)
+              check("first visit: once the shell appears the pill runs workspace -> executor -> ready as usual", seq[-3:] == ["workspace", "executor", "ready"], seq)
+              check("first visit: the console says why the pill waited", any("no session hint" in c for c in ctr.console), ctr.console[:3])
+              b.close()
 
-            b, page, logs = open_page(pw, st.app_url, cookies=[SIGNED_OUT_COOKIE])
-            install_sampler(page)
-            page.goto(st.app_url)
-            page.wait_for_selector("#authScreen", state="visible", timeout=60000)
-            page.wait_for_timeout(800)
-            page.screenshot(path=os.path.join(a.out, "signed_out_login_screen.png"))
-            gate_vis = page.evaluate("() => { const g = document.getElementById('workspaceGate'); return !!g && !g.classList.contains('hidden') && getComputedStyle(g).display !== 'none'; }")
-            btn = page.evaluate("() => { const b = document.querySelector('#authScreen button'); return b ? (b.getClientRects().length > 0) : false; }")
-            check("signed out (after a logout): the sign-in screen shows, the pill does not, and the Sign In button is usable", not gate_vis and btn, (gate_vis, btn))
-            st_ = page.evaluate("WorkspaceGate.state()")
-            check("signed out: the gate never showed and is not blocking (open=false, stage still signin)", st_["open"] is False and st_["stage"] == "signin", st_)
-            b.close()
+              b, page, logs = open_page(pw, st.app_url, cookies=[SIGNED_OUT_COOKIE])
+              install_sampler(page)
+              page.goto(st.app_url)
+              page.wait_for_selector("#authScreen", state="visible", timeout=60000)
+              page.wait_for_timeout(800)
+              page.screenshot(path=os.path.join(a.out, "signed_out_login_screen.png"))
+              gate_vis = page.evaluate("() => { const g = document.getElementById('workspaceGate'); return !!g && !g.classList.contains('hidden') && getComputedStyle(g).display !== 'none'; }")
+              btn = page.evaluate("() => { const b = document.querySelector('#authScreen button'); return b ? (b.getClientRects().length > 0) : false; }")
+              check("signed out (after a logout): the sign-in screen shows, the pill does not, and the Sign In button is usable", not gate_vis and btn, (gate_vis, btn))
+              st_ = page.evaluate("WorkspaceGate.state()")
+              check("signed out: the gate never showed and is not blocking (open=false, stage still signin)", st_["open"] is False and st_["stage"] == "signin", st_)
+              b.close()
 
     # ---- 5. a failing start on a second stack
     os.environ["STACK_SPAWN_FAIL"] = "1"
-    with Stack(workdir=os.path.join("/tmp", "bamboo_flows_fail"), fresh=True, auto_ports=True) as st:
+    with Stack(workdir=os.path.join("/tmp", "bamboo_flows_fail"), fresh=True, auto_ports=True, edition=a.edition) as st:
         with sync_playwright() as pw:
             b, page, logs = open_page(pw, st.app_url)
             install_sampler(page)

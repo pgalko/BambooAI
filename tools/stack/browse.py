@@ -253,6 +253,7 @@ def main():
     ap.add_argument("--name", default="state")
     ap.add_argument("--width", type=int, default=1440)
     ap.add_argument("--height", type=int, default=900)
+    ap.add_argument("--edition", choices=("hosted", "local"), default="hosted")
     a = ap.parse_args()
 
     from playwright.sync_api import sync_playwright
@@ -264,7 +265,7 @@ def main():
         stack = None
         app_url, dataset, scenario_name = f"http://127.0.0.1:{st['ports']['app']}", st["dataset"], st["scenario"]
     else:
-        stack = Stack(workdir=a.workdir, scenario=a.scenario, fresh=True, auto_ports=True).start()
+        stack = Stack(workdir=a.workdir, scenario=a.scenario, fresh=True, auto_ports=True, edition=a.edition).start()
         app_url, dataset, scenario_name = stack.app_url, stack.dataset, a.scenario
     import harness_models
     mod = harness_models.load(scenario_name)

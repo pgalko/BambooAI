@@ -57,6 +57,9 @@ def main():
     ap.add_argument("--workdir", default=os.path.join("/tmp", "bamboo_stack", "webapp"))
     ap.add_argument("--scenario", default="field_trial")
     ap.add_argument("--fresh", action="store_true", help="wipe the working directory first (config, storage, memory)")
+    ap.add_argument("--edition", choices=("hosted", "local"), default="hosted",
+                    help="hosted: Auth0 and Supabase stand-ins as on the box; local: the self-hosted edition for real - "
+                         "AUTH_MODE=single, no Supabase, no Auth0 (docs/OSS_DESIGN.md)")
     a = ap.parse_args()
 
     if a.fresh and os.path.isdir(a.workdir):
@@ -66,7 +69,8 @@ def main():
     os.chdir(a.workdir)
 
     os.environ.update({
-        "AUTH_MODE": "auth0", "AUTH0_DOMAIN": "local.test", "AUTH0_CLIENT_ID": "local", "AUTH0_API_AUDIENCE": "local",
+        "AUTH_MODE": "auth0" if a.edition == "hosted" else "single", "AUTH0_DOMAIN": "local.test", "AUTH0_CLIENT_ID": "local", "AUTH0_API_AUDIENCE": "local",
+        "BAMBOO_USER": "local", "BAMBOO_LEVEL": "performance",
         "FLASK_SECRET": "local-stack-secret", "ORCHESTRATOR_API_URL": f"http://127.0.0.1:{a.orchestrator_port}",
         "EXECUTION_MODE": "api", "BAMBOO_MEMORY_DIR": os.path.join(a.workdir, "memory"),
         "SYNTHESIS_INFOGRAPHIC": os.environ.get("SYNTHESIS_INFOGRAPHIC", "false"),
@@ -74,15 +78,20 @@ def main():
     })
     for k in ("STRIPE_SECRET_KEY", "OPENROUTER_API_KEY"):
         os.environ.pop(k, None)
-    # the Supabase stand-in (tools/stack/fake_supabase.py): the app's own client code builds it from these
-    os.environ.update({"SUPABASE_URL": "http://supabase.local", "SUPABASE_KEY": "local", "SUPABASE_SERVICE_ROLE_KEY": "local",
-                       "LLM_CONFIG_ENCRYPTION_KEY": "local-stack"})
-
     sys.path[:0] = [ROOT, os.path.join(ROOT, "delve"), os.path.join(ROOT, "web_app"), HERE]
     import sandbox
     faked = sandbox.install()                 # only packages that are not installed; nothing on a full venv
-    import fake_supabase
-    sys.modules["supabase"] = fake_supabase
+    if a.edition == "hosted":
+        # the Supabase stand-in (tools/stack/fake_supabase.py): the app's own client code builds it from these
+        os.environ.update({"SUPABASE_URL": "http://supabase.local", "SUPABASE_KEY": "local", "SUPABASE_SERVICE_ROLE_KEY": "local",
+                           "LLM_CONFIG_ENCRYPTION_KEY": "local-stack"})
+        import fake_supabase
+        sys.modules["supabase"] = fake_supabase
+    else:
+        # the local edition: nothing stands in for Supabase; the app's own local answers are what is tested
+        for k in ("SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
+            os.environ.pop(k, None)
+        os.environ["LLM_CONFIG_ENCRYPTION_KEY"] = "local-stack"
 
     # the SweatStack SDK: the index route iterates ss.Metric, which the generic stub cannot do
     import enum
@@ -98,15 +107,15 @@ def main():
     scenario = harness_models.load(a.scenario)
     sys.modules["bambooai.models.vllm_models"] = harness_models
 
-    # the Auth0 check, for the browser stand-in's fixed token
+    # the Auth0 check, for the browser stand-in's fixed token (hosted edition only; single mode needs none)
     import auth.auth_handler as ah
-
-    def validate(token):
-        if token != TOKEN:
-            raise ValueError("not the local stack's token")
-        return {"sub": USER_SUB, "email": "local@stack", "name": "Local Stack"}
-    ah.validate_auth0_token = validate
-    ah.ensure_user_exists = lambda payload: None
+    if a.edition == "hosted":
+        def validate(token):
+            if token != TOKEN:
+                raise ValueError("not the local stack's token")
+            return {"sub": USER_SUB, "email": "local@stack", "name": "Local Stack"}
+        ah.validate_auth0_token = validate
+        ah.ensure_user_exists = lambda payload: None
 
     # the web-search seam
     import bambooai.google_search as gs
@@ -120,7 +129,7 @@ def main():
 
     import app as webapp                                     # the real web_app/app.py
     from werkzeug.serving import make_server
-    print(f"[webapp] real app; scenario {a.scenario}; workdir {a.workdir}; orchestrator {os.environ['ORCHESTRATOR_API_URL']}; "
+    print(f"[webapp] real app ({a.edition} edition); scenario {a.scenario}; workdir {a.workdir}; orchestrator {os.environ['ORCHESTRATOR_API_URL']}; "
           f"port {a.port}; faked packages: {faked or 'none'}", flush=True)
     make_server("127.0.0.1", a.port, webapp.app, threaded=True).serve_forever()
 

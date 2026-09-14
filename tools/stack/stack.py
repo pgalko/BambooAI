@@ -89,8 +89,8 @@ def _wait(url, ok, timeout=60, what=""):
 
 class Stack:
     def __init__(self, workdir=DEFAULT_WORKDIR, scenario="field_trial", executor_port=5055, orchestrator_port=5056,
-                 app_port=5001, auto_ports=False, fresh=False, detached=False, pause=0.0):
-        self.workdir, self.scenario, self.fresh, self.detached, self.pause = workdir, scenario, fresh, detached, pause
+                 app_port=5001, auto_ports=False, fresh=False, detached=False, pause=0.0, edition="hosted"):
+        self.workdir, self.scenario, self.fresh, self.detached, self.pause, self.edition = workdir, scenario, fresh, detached, pause, edition
         self.executor_port = free_port() if auto_ports else executor_port
         self.orchestrator_port = free_port() if auto_ports else orchestrator_port
         self.app_port = free_port() if auto_ports else app_port
@@ -129,14 +129,14 @@ class Stack:
         self._spawn("orchestrator", [os.path.join(HERE, "fake_orchestrator.py"), "--port", str(self.orchestrator_port),
                                      "--executor-port", str(self.executor_port)])
         web = [os.path.join(HERE, "webapp_launcher.py"), "--port", str(self.app_port), "--orchestrator-port",
-               str(self.orchestrator_port), "--workdir", os.path.join(self.workdir, "webapp"), "--scenario", self.scenario]
+               str(self.orchestrator_port), "--workdir", os.path.join(self.workdir, "webapp"), "--scenario", self.scenario, "--edition", self.edition]
         if self.fresh:
             web.append("--fresh")
         self._spawn("webapp", web)
         try:
             _wait(f"{self.executor_url}/health", lambda r: r.ok and r.json().get("status") == "healthy", 90, "executor")
             _wait(f"{self.orchestrator_url}/health", lambda r: r.ok, 30, "orchestrator")
-            _wait(f"{self.app_url}/api/auth/status", lambda r: r.ok and r.json().get("auth_enabled") is True, 90, "web app")
+            _wait(f"{self.app_url}/api/auth/status", lambda r: r.ok and "auth_enabled" in r.json(), 90, "web app")
         except Exception:
             self.stop()
             raise
@@ -195,9 +195,10 @@ def main():
     ap.add_argument("--fresh", action="store_true")
     ap.add_argument("--auto-ports", action="store_true")
     ap.add_argument("--pause", type=float, default=0.0, help="seconds the scripted analyst 'thinks' before each turn (to watch a run)")
+    ap.add_argument("--edition", choices=("hosted", "local"), default="hosted", help="hosted (stand-ins for Auth0/Supabase) or the self-hosted edition")
     a = ap.parse_args()
     if a.cmd == "up":
-        st = Stack(workdir=a.workdir, scenario=a.scenario, fresh=a.fresh, auto_ports=a.auto_ports, detached=True, pause=a.pause).start()
+        st = Stack(workdir=a.workdir, scenario=a.scenario, fresh=a.fresh, auto_ports=a.auto_ports, detached=True, pause=a.pause, edition=a.edition).start()
         print(f"web app      {st.app_url}\norchestrator {st.orchestrator_url}\nexecutor     {st.executor_url}\n"
               f"dataset      {st.dataset}\nlogs         {os.path.join(a.workdir, 'logs')}/")
     elif a.cmd == "down":
