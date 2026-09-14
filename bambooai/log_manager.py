@@ -50,9 +50,10 @@ class LogAndCallManager:
         handler = RotatingFileHandler(self.consolidated_log_file_path, maxBytes=5*1024*1024, backupCount=3)
         self.logger.addHandler(handler)
         
-        # Initialize Supabase client if AUTH_MODE is auth0
+        # The usage writer: Supabase in the hosted edition, the local store in the self-hosted one (phase 3);
+        # SupabaseClient picks the backend from AUTH_MODE itself.
         self.supabase_client = None
-        if os.getenv('AUTH_MODE') == 'auth0':
+        if os.getenv('AUTH_MODE') in ('auth0', 'single'):
             try:
                 from bambooai.db.supabase_client import SupabaseClient
                 self.supabase_client = SupabaseClient()
@@ -317,8 +318,8 @@ class LogAndCallManager:
                                 elapsed_time, cost, grounding_fee, image_fee,
                                 cached_tokens, cache_write_tokens, cache_savings)
         
-        # DB write with thread_id check
-        if os.getenv('AUTH_MODE') == 'auth0' and self.user_id:
+        # DB write with thread_id check (the local store in single mode, phase 3)
+        if os.getenv('AUTH_MODE') in ('auth0', 'single') and self.user_id:
             if not self.thread_id:
                 print(f"thread_id not available, skipping DB write for chain: {chain_id}")
             else:

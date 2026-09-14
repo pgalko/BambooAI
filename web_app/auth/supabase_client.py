@@ -109,6 +109,9 @@ def get_supabase_client() -> Client:
     """Get Supabase client instance with user context for RLS"""
     global _supabase_client
     
+    if not supabase_configured():                    # the self-hosted edition: the same local store
+        from bambooai.db import local_store
+        return local_store.client()
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise Exception("Supabase credentials not configured")
     
@@ -121,8 +124,9 @@ def get_service_client() -> Client:
     """Get service role client for admin operations (bypasses RLS)"""
     global _service_client
     
-    if not supabase_configured():                    # the backstop: single mode never builds a client, whatever the env holds
-        raise Exception("Supabase service role credentials not configured")
+    if not supabase_configured():                    # the self-hosted edition: SQLite behind the same shape (phase 3)
+        from bambooai.db import local_store
+        return local_store.client()
     
     # Always create a fresh client to avoid connection issues
     _service_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -157,14 +161,14 @@ def get_user_llm_config(auth0_id: str) -> dict:
     
     if not validate_user_access(auth0_id):
         return {"error": "Unauthorized access"}
-    if not supabase_configured():
-        return BAMBOO_LEVEL if BAMBOO_LEVEL in ("cost", "performance", "max") else "performance"
     
     try:
         service_client = get_service_client()
         result = service_client.table('llm_config').select('*').eq('auth0_id', auth0_id).execute()
         
         if not result.data:
+            if not supabase_configured():             # the self-hosted edition: BAMBOO_LEVEL until the dialog saves a level
+                return BAMBOO_LEVEL if BAMBOO_LEVEL in ("cost", "performance", "max") else "performance"
             preference = 'free'  # Default to free if no config
             return preference
         
@@ -1089,6 +1093,8 @@ def set_user_subscription(auth0_id: str, model_tier: str, compute_tier: str,
     if not validate_user_access(auth0_id):
         return {"ok": False, "error": "unauthorized"}
 
+    if not supabase_configured():                    # the self-hosted edition: no subscription to keep; the level is saved separately
+        return {"ok": True, "data": dict(LOCAL_SUBSCRIPTION, model_tier=model_tier or "managed")}
     try:
         auth0_full, bamboo_short = _normalize_ids(auth0_id)
         

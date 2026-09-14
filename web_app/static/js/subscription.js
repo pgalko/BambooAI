@@ -584,20 +584,20 @@ async function checkSubscriptionOnLoad() {
     }
 }
 
-// The self-hosted edition (docs/OSS_DESIGN.md D7, O7): no funds, no tiers, no prices - the level comes from
-// BAMBOO_LEVEL in .env until it can be saved locally (phase 3). The dialog keeps the Models and Integrations
-// tabs and hides what belongs to the hosted service.
+// The self-hosted edition (docs/OSS_DESIGN.md D7, O7): no funds, no tiers, no prices. The dialog keeps the
+// Models and Integrations tabs and hides what belongs to the hosted service; the level is saved in the local
+// store (phase 3), BAMBOO_LEVEL being the default before the first save.
 function applyLocalEditionToDialog() {
     if (!(typeof authConfig !== 'undefined' && authConfig && authConfig.mode === 'single')) return;   // auth.js's top-level `let`
     const modal = document.getElementById('subscriptionModal');
     if (!modal || modal.classList.contains('edition-local')) return;
     modal.classList.add('edition-local');
     const sub = modal.querySelector('.ui-dlg-h .sub');
-    if (sub) sub.textContent = 'single-user edition: the level is set by BAMBOO_LEVEL in .env; model keys are read from .env';
+    if (sub) sub.textContent = 'single-user edition: pick a level and save; model keys are read from .env';
     const funds = modal.querySelector('.subscription-tab[data-tab="funds"]'); if (funds) funds.style.display = 'none';
     const compute = modal.querySelector('.subscription-tab[data-tab="compute"]'); if (compute) compute.style.display = 'none';
-    modal.querySelectorAll('.tier-price, .balance-info, #addFundsBtn, #saveSubscription, .subscription-footer').forEach(e => { e.style.display = 'none'; });
-    const seg = modal.querySelector('#modelConfigSection'); if (seg) { seg.style.pointerEvents = 'none'; seg.title = 'set by BAMBOO_LEVEL in .env'; }
+    modal.querySelectorAll('.tier-price, .balance-info, #addFundsBtn').forEach(e => { e.style.display = 'none'; });
+    // the level is saved in the local store (phase 3): the segment and Save stay usable; BAMBOO_LEVEL is only the first default
     const freeInput = modal.querySelector('input[name="model-tier"][value="free"]'); const free = freeInput && freeInput.closest('.tier-option'); if (free) free.style.display = 'none';
 }
 

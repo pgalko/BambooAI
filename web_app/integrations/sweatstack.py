@@ -35,8 +35,8 @@ def get_sweatstack_context():
     # Check session first
     if session.get('sweatstack_access_token') or session.get('sweatstack_token_data'):
         is_authenticated = True
-    # Check database if authenticated
-    elif AUTH_MODE == 'auth0':
+    # Check database if authenticated (the local store in single mode, phase 3)
+    elif AUTH_MODE in ('auth0', 'single'):
         try:
             auth0_id = get_current_user_id()
             if auth0_id:
@@ -239,7 +239,7 @@ def authorize():
 def oauth_callback():
     """Handle SweatStack OAuth callback - stores complete token data in session"""
     # Check auth mode and validate accordingly
-    if AUTH_MODE == 'auth0':
+    if AUTH_MODE in ('auth0', 'single'):
         # In Auth0 mode, validate that this is a legitimate callback
         if not session.get('session_id'):
             sweatstack_bp.logger.warning('SweatStack callback attempted without session')
