@@ -1,0 +1,484 @@
+categories:
+  - category: Activity Overview and Basic Statistics
+    questions:
+      coach_athlete:
+        - question: Calculate my monthly riding volume (total distance, number of activities, and total moving time) for each month in 2025. Also compute the percentage of time spent above 200W from the primary dataframe for each month and show how this "quality volume" metric changed across Q1 vs Q2 vs Q3.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Compare my average weekly training stress (power_load) between the first half and second half of 2025. Additionally, from the primary dataframe, calculate the weekly time spent in each power zone (Z1: <55% FTP, Z2: 55-75%, Z3: 75-90%, Z4: 90-105%, Z5: >105% ) and plot both metrics as stacked time series.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: For months where my average chronic training load (CTL) exceeded 100, compare my average ride distance AND the average percentage of each ride spent at threshold power (90-105% of FTP) versus months where CTL was below 80. Use the primary dataframe for the threshold calculation.
+          datasets: [primary_df, activity_summary, wellness_data]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: From the primary dataframe, compute the total elevation gain per ride by summing positive altitude changes between consecutive points. Compare this calculated elevation to the elevation_gain_m in activity_summary. Show rides where the discrepancy exceeds 10% and investigate potential causes.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      technical:
+        - question: Calculate the coefficient of variation for power output at 1-second resolution within each ride longer than 80km, then aggregate to get monthly CV trends. Compare this intra-ride variability metric to the variability_index from activity_summary. Are they correlated?
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: From the primary dataframe, calculate instantaneous gradient using altitude change over distance change (with appropriate smoothing to reduce noise). Create histograms of power output binned by gradient category (descent <-3%, flat -3% to 3%, moderate climb 3-6%, steep >6%). Show the power distributions for each gradient category.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      search_enabled:
+        - question: Research the concept of "Training Impulse" (TRIMP) and its various calculation methods (Banister, Edwards, Lucia). Implement the Lucia TRIMP method using heart rate zones from my primary dataframe, then compare my calculated weekly TRIMP values to the hr_load values in activity_summary across all of 2025.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+
+  - category: Performance Trends and Progression
+    questions:
+      coach_athlete:
+        - question: Using the primary dataframe, compute my best 5-second, 1-minute, 5-minute, and 20-minute power outputs for each ride. Track how these "power bests" evolved month-over-month throughout 2025. Identify which duration showed the most improvement.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 1
+          score: 1
+          
+        - question: Calculate efficiency factor (NP/avg HR) from activity_summary for rides >60km, but also compute a "real-time efficiency" metric from the primary dataframe as rolling 10-minute power divided by rolling 10-minute HR. Compare how the peak real-time efficiency within each ride correlates with the overall efficiency factor.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: From the primary dataframe, identify all maximal efforts (segments where power exceeded 700W for at least 30 consecutive data points). Track the frequency and average duration of these efforts month-over-month. Has my ability to sustain high-power efforts improved?
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Compute and plot a mean-maximal power curve using the primary dataframe for each quarter of 2025 (durations from 5 seconds to 60 minutes). Calculate the percentage improvement at key durations (30s, 1min, 5min, 20min) between Q1 and the most recent quarter.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      technical:
+        - question: Implement a fatigue resistance metric by comparing best 20-minute power in the first half of each long ride (>80km) versus the second half, using the primary dataframe. Conduct time series analysis on this metric to identify if my fatigue resistance shows seasonal patterns or progressive improvement.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      search_enabled:
+        - question: Research the concept of Performance Management Chart (PMC) and the relationship between CTL, ATL, and TSB. Using my wellness data, create a PMC chart for 2025. Then, from the primary dataframe, compute my best 20-minute power for each week and overlay it on the PMC to identify if peak performances align with optimal TSB windows.
+          datasets: [primary_df, wellness_data]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+
+  - category: Interval and Segment Analysis
+    questions:
+      coach_athlete:
+        - question: From the primary dataframe, extract all continuous segments where power was between 280-320W (sweet spot zone) for at least 5 minutes. For each qualifying segment, calculate average HR, cadence, and HR drift (last 2 min avg HR minus first 2 min avg HR). Plot segment duration vs HR drift colored by month.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Using the activity_intervals data, identify rides with more than 4 laps where normalized power exceeded 300W. For these rides, extract the corresponding 1Hz data from primary_df and calculate the power standard deviation within each lap. Which lap position typically shows highest power variability?
+          datasets: [primary_df, activity_intervals, activity_summary]
+          join_required: true
+          able_to_solve: false
+          corrections: 0
+          score: 0
+          
+        - question: From the primary dataframe, implement a "match burning" detector - identify segments where power exceeded 450W for at least 20 seconds followed by power dropping below 150W within 30 seconds. Count these "matches" per ride and correlate with total ride distance and normalized power from activity_summary.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Extract rolling 20-minute segments from the primary dataframe with step size of 5 minutes. For segments where average power exceeded (FTP), calculate the normalized power using the standard NP formula (30-second rolling average, 4th power, mean, 4th root). Plot the distribution of these segment NPs by quarter.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 1
+          score: 1
+          
+      technical:
+        - question: Implement a rolling window analysis on the primary dataframe to find the best 1, 5, 10, 20, and 60-minute power outputs within each ride. Then perform a Pareto efficiency analysis to identify rides that were "Pareto optimal" (not dominated by another ride at any duration). How many Pareto optimal rides do I have per month?
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 1
+          score: 1
+          
+      search_enabled:
+        - question: Research the concept of Critical Power (CP) and W' (W prime) using the 3-parameter CP model. From the primary dataframe, extract my best efforts at durations of 3, 5, 10, and 20 minutes for each month. Fit the CP model to estimate CP and W' monthly, and analyze how these parameters evolved throughout 2025.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+
+  - category: Environmental and Contextual Impact
+    questions:
+      coach_athlete:
+        - question: From the primary dataframe, calculate instantaneous gradient and bin into categories. For each temperature range (<10°C, 10-20°C, >20°C), compute the average power output at each gradient category. Create a heatmap showing power as a function of both temperature and gradient.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 1
+          score: 1
+          
+        - question: Using lap-level wind data from activity_intervals, identify laps with headwind_percent > 60% vs tailwind_percent > 60%. Join with primary_df to extract the second-by-second data for these laps. Compare the power and speed distributions between headwind and tailwind conditions.
+          datasets: [primary_df, activity_intervals]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: From the primary dataframe, identify climbing segments (sustained gradient > 4% for at least 2 minutes). For each climbing segment, calculate power-to-weight ratio, VAM (vertical ascent meters per hour), and average gradient. Rank my top 20 climbs by VAM.
+          datasets: [primary_df, wellness_data]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Analyze the relationship between cadence and power output at different gradients using the primary dataframe. For flat terrain (-1% to 1%), moderate climbs (3-5%), and steep climbs (>6%), show the cadence-power relationship. Do I naturally shift to lower cadence on climbs?
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      technical:
+        - question: Build a multiple regression model predicting instantaneous power from the primary dataframe using gradient, speed, cadence, heart rate, and temperature as features. Calculate feature importances and residuals. Identify rides or segments where actual power significantly exceeded predicted power (potential tailwind or drafting situations).
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      search_enabled:
+        - question: Research the relationship between altitude and power output due to reduced air density. Using my primary dataframe, analyze if my power output differs systematically at different altitudes (binned by 25m intervals). Account for gradient as a confounding variable by comparing only flat segments across altitude bands.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+
+  - category: Physiological Response and Efficiency
+    questions:
+      coach_athlete:
+        - question: From the primary dataframe, calculate the power-to-HR ratio at each second. For each ride, track how this ratio changes over time by computing 10-minute rolling averages. Quantify the typical "cardiac drift" (percentage decline in power/HR ratio from first to last third of ride) for long rides (>80km) and compare across months.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Using the primary dataframe, identify steady-state segments (power CV < 10% over 5+ minutes). For these segments, calculate the HR-power relationship. Has my HR at a given power output (e.g., 200W) decreased over the course of 2025, indicating improved fitness?
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: From the primary dataframe, analyze cadence-power coupling. For each ride, calculate the correlation between cadence and power. Identify rides with unusually low correlation (<0.3) and investigate - do these correspond to interval sessions or variable terrain?
+          datasets: [primary_df, activity_intervals]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: On days where HRV was below my median (from wellness data), extract the corresponding ride data from primary_df. Compare the HR response to power on low-HRV days vs high-HRV days by calculating the average HR at power bins 150-180W, 180-210W, 210-240W, 240-270W, 270-300, 300-330, 330-360, >360).
+          datasets: [primary_df, wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 1
+          score: 1
+          
+      technical:
+        - question: Implement the standard aerobic decoupling calculation from the primary dataframe. Split each ride >60min into halves, calculate efficiency factor (avg power / avg HR) for each half, and compute decoupling as (EF1 - EF2) / EF1 * 100. Compare this calculated value to aerobic_decoupling in activity_summary. Analyze discrepancies.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      search_enabled:
+        - question: Research the concept of "lactate threshold" detection from power and heart rate data. Implement a method to estimate lactate threshold power from my primary dataframe by analyzing the HR-power relationship inflection point. Track estimated LT changes across 2025 and compare to my stated FTP.
+          datasets: [primary_df, activity_summary]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+
+  - category: Workout Structure and Pacing
+    questions:
+      coach_athlete:
+        - question: From the primary dataframe, divide each ride >80km into 10 equal-distance segments. Calculate normalized power for each segment. Classify each ride's pacing strategy as negative split (last 3 segments avg NP > first 3), positive split (opposite), or even (within 5%). Show the distribution of strategies by month.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Using the primary dataframe, detect "surges" - moments where power increased by >50% within 5 seconds and was sustained >600W for at least 10 seconds. Map surge locations (lat/lon) across all rides. Are there recurring locations (within 100m) where I frequently surge?
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: From the primary dataframe, calculate the time spent in each power zone for each ride. Compute the "polarization index" as (time in Z1 + time in Z5) / total time. Compare polarization index between weekday and weekend rides, and correlate with ride duration from activity_summary.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: For rides with >5 laps in activity_intervals, calculate the lap-to-lap power variability (standard deviation of lap average powers). Join with primary_df to also compute the within-lap power variability (average of each lap's power SD). Which metric better predicts overall ride performance (NP)?
+          datasets: [primary_df, activity_intervals, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      technical:
+        - question: Implement a pacing strategy classifier using k-means clustering (k=4) on the power profile of each ride >60min. Use features extracted from primary_df - normalized power of each quartile of the ride, power coefficient of variation, and number of efforts >400W. Characterize each cluster and track cluster membership over time.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      search_enabled:
+        - question: Research the concept of "Quadrant Analysis" in cycling (plotting cadence vs circumferential pedal velocity). Using my primary dataframe, create quadrant analysis plots for a sample of rides from each quarter. Analyze if my pedaling characteristics (time in each quadrant) have shifted over the year.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+
+  - category: Comparative Analysis
+    questions:
+      coach_athlete:
+        - question: From the primary dataframe, calculate instantaneous gradient and identify all climbing segments (>3% for >1min) and descent segments (<-3% for >1min). Compare my average power, cadence, and HR on climbs vs descents. Also compute time spent coasting (power <30W) during descents.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Compare weekend vs weekday rides across multiple metrics. From activity_summary get distance, NP, and training_load. From primary_df calculate percentage of time >threshold (FTP), number of high-power surges (>550W for >10s), and time in Z5. Are weekends more "quality" focused?
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Using the primary dataframe, compare my performance on repeated route segments. Identify GPS coordinates that appear in multiple rides (cluster lat/lon points within 50m). For segments I've ridden 5+ times, compare power and speed across attempts. Have I improved on familiar segments?
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: true
+          corrections: 1
+          score: 1
+          
+        - question: From activity_intervals, identify the fastest and slowest laps (by average_speed) for each ride. Extract the corresponding 1Hz data from primary_df and compare power, cadence, HR, and gradient distributions between fastest and slowest laps. What characterizes my fast laps?
+          datasets: [primary_df, activity_intervals]
+          join_required: true
+          able_to_solve: true
+          corrections: 1
+          score: 1
+          
+      technical:
+        - question: Conduct a paired analysis comparing the first and second half of all long rides (>80km). From the primary dataframe, calculate for each half- NP, avg HR, time above threshold, cadence variability, and power-HR ratio. Use paired t-tests to identify which metrics show significant degradation in the second half.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      search_enabled:
+        - question: Research the concept of "Training Stress Score" (TSS) calculation from power data. Using the primary dataframe and FTP, calculate TSS for each ride and compare to the power_load values in activity_summary. Investigate any systematic differences in how these metrics are computed.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+
+  - category: Predictive Modeling and Performance Optimization
+    questions:
+      coach_athlete:
+        - question: From the primary dataframe, extract features for each ride- best 5min power, time in Z4-Z5, average gradient, total elevation gain, and power variability. Combined with wellness metrics (CTL, fatigue, sleep_quality) from the day, build a model to predict normalized power. Which features dominate?
+          datasets: [primary_df, activity_summary, wellness_data]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: Using the primary dataframe, calculate how much my average power decreases per 1000m of elevation gain within the same ride. Control for ride duration and temperature. Has this "elevation penalty" improved over the course of 2025?
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+        - question: From the primary dataframe, extract the power curve (best efforts from 10s to 30min) for each ride. Use these as features to cluster rides into "type" (endurance, tempo, threshold, VO2max focused). Correlate ride types with subsequent CTL changes from wellness data - which ride types most efficiently build fitness?
+          datasets: [primary_df, wellness_data]
+          join_required: true
+          able_to_solve: true
+          corrections: 0
+          score: 1
+          
+      technical:
+        - question: Use gradient boosting to predict whether a ride will have normalized power above my median, using features from wellness data (prior day's HRV, sleep, fatigue, resting HR, CTL, ATL) and ride characteristics from the first 10 minutes of primary_df data (avg power, avg HR, temperature). Can early-ride data improve predictions?
+          datasets: [primary_df, wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 1
+
+      search_enabled:
+        - question: Research the "dose-response" relationship in endurance training and the concept of fitness-fatigue models. Using my data, implement a simple fitness-fatigue model where fitness responds to training load with a 42-day time constant and fatigue with a 7-day constant. Compare model predictions of performance to actual weekly best 20-min power from primary_df.
+          datasets: [primary_df, wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+# FINISHED HERE  
+  - category: Geographic and Route Analysis
+    questions:
+      coach_athlete:
+        - question: From the primary dataframe, cluster all GPS points using DBSCAN to identify frequently visited locations. For clusters with >500 data points (indicating regular routes), calculate my average power, speed, and HR across all visits. Show these "hot spots" on a map colored by average power.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+        - question: Find my longest ride by distance and extract its 1Hz data. Identify the fastest 30-minute segment by rolling average speed. Plot the entire ride's HR as a time series, highlighting the fastest segment. Create a second plot showing the route on a map with the fastest segment in a different color.
+          datasets: [primary_df, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+        - question: From the primary dataframe, detect all significant climbs (elevation gain >50m with avg gradient >3%). For each climb, calculate length, average gradient, average power, VAM, and time. Create a "climb catalog" and identify my PR (best power) on climbs I've done multiple times.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+        - question: Using GPS data from primary_df, calculate the bearing (direction) at each point. Correlate bearing with power output to identify if I have directional performance patterns (e.g., consistently lower power when heading into prevailing wind direction). Cross-reference with wind data from activity_intervals.
+          datasets: [primary_df, activity_intervals]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+      technical:
+        - question: Implement automatic segment detection from the primary dataframe by identifying points where gradient or power changes significantly (change point detection). Classify segments as climb, descent, flat, or effort. Create a ride summary showing segment sequence, and compare segment patterns across rides.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+      search_enabled:
+        - question: Research the FIETS index or similar climb difficulty scoring systems. Using the primary dataframe, calculate a difficulty score for each detected climb based on length, gradient, and gradient variability. Rank my top 20 most difficult climbs attempted in 2025 and show my power output on each.
+          datasets: [primary_df]
+          join_required: false
+          able_to_solve: null
+          corrections: 0
+          score: 0
+
+  - category: Recovery and Readiness Analysis
+    questions:
+      coach_athlete:
+        - question: On days following high training loads (power_load > 100), extract the next day's ride from primary_df (if any). Compare HR at equivalent power outputs (use power bins) between post-hard-day rides and post-easy-day rides. Does accumulated fatigue elevate my HR response?
+          datasets: [primary_df, wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+        - question: Using wellness data, identify days where HRV dropped by >15% from the 7-day rolling average. Extract rides from these "compromised" days from primary_df and compare power distributions, time above threshold, and HR-power relationships to rides on "normal" HRV days.
+          datasets: [primary_df, wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+        - question: Calculate my "recovery signature" from the primary dataframe. After hard efforts (>300W for >30s), how quickly does my HR return to baseline? Compute the HR recovery rate for all such efforts and track if this metric improves with higher CTL from wellness data.
+          datasets: [primary_df, wellness_data]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+        - question: Track ramp rate from wellness data and identify "overreaching" periods (ramp rate >5 for 3+ consecutive days). From primary_df, compare performance metrics (best 20-min power, power variability, HR-power ratio) during overreaching periods vs normal periods. Is there a performance cost?
+          datasets: [primary_df, wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+      technical:
+        - question: Build a random forest classifier to predict "quality" rides (top 25% by normalized power) using prior-day features from wellness (HRV, sleep, fatigue, soreness, resting HR, CTL, ATL, ramp_rate) and early-ride features from primary_df (first 15 min avg power, HR, cadence). Report accuracy, precision, recall, and feature importances.
+          datasets: [primary_df, wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+        - question: Perform Granger causality analysis between daily training load (from activity_summary) and next-day HRV (from wellness data) to determine the optimal lag and causal relationship strength. Also test reverse causality (does HRV predict next-day training load?).
+          datasets: [wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+      search_enabled:
+        - question: Research the concept of "functional overreaching" vs "non-functional overreaching" in endurance training. Using my wellness data trends (HRV, resting HR, fatigue scores) and performance data from primary_df (best powers at various durations), identify if any periods in 2025 showed signs of non-functional overreaching and subsequent recovery.
+          datasets: [primary_df, wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0
+          
+        - question: Look up the relationship between Heart Rate Variability (HRV) and parasympathetic recovery. Analyze my post-ride HRV recovery by comparing morning HRV on days following different training loads. Correlate with performance metrics extracted from primary_df to determine my individual HRV-performance relationship.
+          datasets: [primary_df, wellness_data, activity_summary]
+          join_required: true
+          able_to_solve: null
+          corrections: 0
+          score: 0

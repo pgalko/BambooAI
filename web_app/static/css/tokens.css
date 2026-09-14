@@ -1,0 +1,232 @@
+/* tokens.css - every variable the interface uses; the only file where a colour is written (2026-09-08).
+   Loaded first. Dark theme in :root, light theme under [data-theme="light"]. */
+
+:root {
+    /* Primary backgrounds - Deep blacks like your auth screen */
+    --bg-primary: #181818;
+    --bg-secondary: #242424;
+    --bg-tertiary: #343434;
+    --bg-quaternary: #404040;
+    
+    /* Text colors - High contrast whites and greys */
+    --text-primary: rgba(255, 255, 255, 0.7);
+    --text-secondary: rgba(255, 255, 255, 0.6);
+    --text-tertiary: rgba(255, 255, 255, 0.5);
+    --text-quaternary: rgba(255, 255, 255, 0.4);
+    --text-stream: rgba(255, 255, 255, 0.2);
+    --text-overlay: rgba(255, 255, 255, 0.7);
+    
+    /* Border colors - More visible borders */
+    --border-color: rgba(255, 255, 255, 0.12);
+    --border-secondary: rgba(255, 255, 255, 0.18);
+    --border-tertiary: rgba(255, 255, 255, 0.25);
+    
+    /* Accent colors */
+    --accent-color: #50fa7b;
+    --accent-hover: #3dd688;
+    --accent-bg: rgba(80, 250, 123, 0.05);
+    --accent-bg-hover: rgba(80, 250, 123, 0.1);
+    --accent-border: rgba(80, 250, 123, 0.2);
+    --accent-replay: #1E90FF;
+    
+    /* Code highlighting */
+    --code-bg: #181818;
+    --code-text: #ffffff;
+    --code-keyword: #50fa7b;
+    --code-string: rgba(255, 255, 255, 0.8);
+    --code-comment: rgba(255, 255, 255, 0.4);
+    
+    /* YAML specific colors */
+    --yaml-bg: #181818;
+    --yaml-key: #d1bd98;
+    --yaml-value: #9fe0c8;
+    
+    /* Status colors with transparency support */
+    --error-bg: rgba(255, 107, 107, 0.05);
+    --error-color: #ff6b6b;
+    --success-color: #50fa7b;
+    --success-color-primary: #50fa7b;
+    --success-color-auxiliary: #3dd688;
+    --warning-color: #ffb74d;
+    --info-color: #5dade2;
+    
+    /* Glassmorphism and blur effects */
+    --glass-bg: rgba(255, 255, 255, 0.02);
+    --glass-border: rgba(255, 255, 255, 0.05);
+    --backdrop-blur: blur(10px);
+    
+    /* Shadows - Deep and subtle */
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --shadow-heavy: 0 20px 60px rgba(0, 0, 0, 0.3);
+    --shadow-medium: 0 8px 24px rgba(0, 0, 0, 0.2);
+    --shadow-light: 0 4px 12px rgba(0, 0, 0, 0.1);
+    
+    /* Data display */
+    --mermaid-bg: #1a1a1a;
+    --dataframe-header-bg: #2a2a2a;
+    --dataframe-header-text: #ffffff;
+    --dataframe-even-row: rgba(255, 255, 255, 0.02);
+    --dataframe-hover: rgba(255, 255, 255, 0.05);
+    --cache-manager-accent: #a855f7;
+    
+    /* Interactive elements */
+    --dropdown-bg: #1a1a1a;
+    --modal-bg: #1a1a1a;
+    --modal-text: #ffffff;
+    --overlay-bg: rgba(0, 0, 0, 1);
+    
+    /* Scrollbars */
+    --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+    --scrollbar-track: transparent;
+    
+    /* Special UI elements */
+    --star-inactive: rgba(255, 255, 255, 0.2);
+    --highlight-bg: rgba(80, 250, 123, 0.15);
+    --link-hover-bg: rgba(255, 255, 255, 0.05);
+    
+    /* System and research elements */
+    --system-message-bg: #242424;
+    --system-message-text: #50fa7b;
+    --summary-popup-bg: #242424;
+    --summary-popup-border: rgba(80, 250, 123, 0.3);
+    --summary-popup-text: #50fa7b;
+    --research-item-bg: #242424;
+    --research-header: #ffffff;
+}
+
+[data-theme="light"] {
+    /* Light theme */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f8f8;
+    --bg-tertiary: #f5f5f7;
+    --text-primary:    #2b2b2b;
+    --text-secondary:  #555555;
+    --text-tertiary:   #777777;
+    --text-quaternary: #919191;
+    --text-stream:     #b0b0b0;
+    --text-overlay: rgba(0, 0, 0, 0.7);
+    --border-color: #dddddd;
+    --accent-color: #1f9a56;
+    --accent-hover: #2a9d5d;
+    --accent-replay: #0064FF;
+    --code-bg: #ffffff;
+    --code-text: #333333;
+    --code-keyword: #229922; /* Brighter green for keywords */
+    --code-string: #727272;
+    --code-comment: #999999;
+    --yaml-bg: #ffffff;
+    --yaml-key: #35c477;
+    --yaml-value: #2e8b57;
+    --error-bg: #fff0f0;
+    --error-color: #ff0000;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --mermaid-bg: #f5f5f5;
+    --dataframe-header-bg: #f8f9fa;
+    --dataframe-header-text: #2c3e50;
+    --dataframe-even-row: #fafafa;
+    --dataframe-hover: #f5f9ff;
+    --cache-manager-accent: #9333ea; /* Purple for cache manager text */
+    --dropdown-bg: #ffffff;
+    --modal-bg: #f8f8f8;
+    --modal-text: #444444;
+    --star-inactive: #cccccc;
+    --summary-popup-bg: #e6ffe6;
+    --summary-popup-border: #99ff99;
+    --summary-popup-text: #006400;
+    --system-message-bg: #f0f8f0;
+    --system-message-text: #1a8a4a;;
+    --research-item-bg: #f9f9f9;
+    --research-header: #2c3e50;
+    --link-hover-bg: #f0f8f4;
+    --scrollbar-thumb: #d1d1d1;
+    --scrollbar-track: #f1f1f1;
+    --highlight-bg: rgba(53, 196, 119, 0.2);
+    --overlay-bg: rgba(255, 255, 255, 1);
+    --warning-color: #ff9800;
+    --mermaid-diagram-bg: #1a1a1a; /* Consistent across themes for contrast */
+    --mermaid-primary-color: #384B5E;
+    --mermaid-text-color: #C1DAFF;
+    --success-color: #35c477;
+    --success-color-primary: #35c477;
+    --success-color-auxiliary: #2a9d5d;
+    --success-color-primary-bg: #e6f7ef; /* Light green background for light theme */
+    --success-color-auxiliary-bg: #e0f2e8; /* Slightly different light green for light theme */
+    --error-color-bg: #fff0f0; /* For error pills in light theme */
+    --bg-tertiary: #f5f5f7; /* Ensure this is defined */
+    --text-secondary: #666666; /* Ensure this is defined */
+    --border-color: #dddddd; /* Ensure this is defined */
+    --info-color: #2978b5;         /* Example: A distinct blue */
+    --info-color-bg: #eaf2f8;      /* Light blue background for light theme */
+    --info-color-hover-bg: #d5e5f1;/* Slightly darker for hover */
+}
+
+/* ---- design tokens added 2026-09-08 (the redesign): semantic colours, type scale, radii, spacing ---- */
+:root {
+    /* the four meanings a colour may carry, and nothing else */
+    --c-model: var(--accent-color);          /* the analyst's own turns; success */
+    --c-kernel: var(--yaml-key);             /* cells, outputs, data */
+    --c-lookup: var(--accent-replay);        /* searches, look-ups, sources */
+    --c-fail: var(--error-color);            /* failures, dangerous actions */
+    /* type */
+    --font-ui: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: 'Courier New', Courier, monospace;
+    --fs-body: 13px;
+    --fs-meta: 12px;
+    --fs-small: 11px;
+    --fs-title: 14px;
+    --fs-page: 17px;
+    /* radii and spacing */
+    --r-1: 4px;
+    --r-2: 6px;
+    --r-3: 10px;
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    /* surfaces */
+    --shadow-dialog: 0 20px 60px rgba(0, 0, 0, 0.45);
+    --scrim: rgba(0, 0, 0, 0.55);
+    --chip-model-border: rgba(80, 250, 123, 0.4);
+    --chip-fail-border: rgba(255, 107, 107, 0.5);
+    --chip-kernel-border: rgba(209, 189, 152, 0.45);
+}
+[data-theme="light"] {
+    --shadow-dialog: 0 20px 60px rgba(0, 0, 0, 0.18);
+    --scrim: rgba(0, 0, 0, 0.35);
+    --c-kernel: #a67c2e;                     /* light: the kernel's sand must not collapse onto the model's green (--yaml-key is green in light) */
+    --chip-kernel-border: rgba(166, 124, 46, 0.45);
+}
+
+/* ---- variables that other stylesheets referenced without anyone defining them (2026-09-08) ----
+   Undefined, the browser dropped the whole declaration; defined here, the rules take effect. */
+:root {
+    --auto-explore-color: #a3244a;                 /* the Adaptive mode's colour (from auto-explore.css) */
+    --auto-explore-hover: #8b1e3f;
+    --auto-explore-bg: rgba(163, 36, 74, 0.12);
+    --tc-accent: var(--accent-color);              /* the legacy tool-call blocks (tool-call-styles.css) */
+    --tc-accent-bg: rgba(80, 250, 123, 0.04);
+    --tc-error: var(--error-color);
+    --tc-error-bg: rgba(255, 107, 107, 0.06);
+    --accent-rgb: 80, 250, 123;                    /* rgba(var(--accent-rgb), a) in subscription.css */
+    --border-rgb: 255, 255, 255;
+    --accent-color-rgb: 80, 250, 123;              /* the integration forms */
+    --error-color-rgb: 255, 107, 107;
+    --error-hover: #ff5252;
+    --success-color-bg: rgba(80, 250, 123, 0.08);
+    --warning-color-bg: rgba(209, 189, 152, 0.12);
+    --labels-height: 300px;
+    --menu-top-offset: 60px;
+}
+[data-theme="light"] {
+    --tc-accent: #1a8a4a;
+    --tc-accent-bg: rgba(26, 138, 74, 0.05);
+    --tc-error-bg: rgba(255, 0, 0, 0.05);
+    --accent-rgb: 53, 196, 119;
+    --border-rgb: 0, 0, 0;
+    --accent-color-rgb: 53, 196, 119;
+    --error-color-rgb: 255, 0, 0;
+    --error-hover: #e00000;
+    --success-color-bg: rgba(53, 196, 119, 0.10);
+    --warning-color-bg: rgba(53, 196, 119, 0.08);
+}

@@ -1,0 +1,1866 @@
+/* _retired.css - rules moved out of styles.css on 2026-09-08 because no template or script names their classes.
+   NOT linked from the page. Kept for a while in case a saved favourite or a rare state still wants one; then deleted. */
+
+.guide-icon { left: 70px; }
+
+/* --- Ontology Pill Styles --- */
+.ontology-dataset-pill.loading { /* Same as other loading pills */
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.ontology-dataset-pill.error { /* Same as other error pills */
+    background-color: var(--error-color-bg);
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+.ontology-dataset-pill.error .dataset-pill-remove-icon svg {
+    stroke: var(--error-color);
+}
+
+/* Success State for Ontology Pill - Light Theme */
+.ontology-dataset-pill.success {
+    background-color: var(--info-color-bg);
+    color: var(--info-color);
+    border-color: var(--info-color);
+}
+.ontology-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--info-color);
+}
+.ontology-dataset-pill.success:hover {
+    background-color: var(--info-color-hover-bg);
+}
+
+/* Success State for Ontology Pill - Dark Theme (No Fill) */
+[data-theme="dark"] .ontology-dataset-pill.success {
+    background-color: transparent;
+    color: var(--info-color); /* Use the dark theme info color for text */
+    border: 1px solid var(--info-color); /* Use the dark theme info color for border */
+}
+[data-theme="dark"] .ontology-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--info-color); /* Use the dark theme info color */
+}
+[data-theme="dark"] .ontology-dataset-pill.success:hover {
+    background-color: rgba(93, 173, 226, 0.1); /* Subtle hover using dark theme info color */
+}
+
+/* General Header for all modals */
+.modal-header-section {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    justify-content: center; /* Center all headers */
+}
+
+.modal-header-section img {
+    display: none; /* Hide icon from all three modals */
+}
+
+.modal-header-section h3 {
+    color: var(--accent-color); /* Use accent color for all headers */
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.activity-row-processing {
+    background-color: var(--highlight-bg) !important;
+}
+
+.activity-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--accent-color);
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+}
+
+.links-header {
+    font-size: 1.2em;
+    color: var(--text-secondary);
+    margin-top: 15px;
+    margin-bottom: 10px;
+}
+
+.links-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.link-item {
+    margin-bottom: 10px;
+}
+
+.link-title {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.link-title:hover {
+    text-decoration: underline;
+}
+
+.link-url {
+    display: block;
+    font-size: 0.9em;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+}
+
+.top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50px;
+    background-color: inherit;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    justify-content: flex-start;
+    border-bottom: none;
+    box-shadow: none;
+}
+
+.panel-content {
+    flex: 1;
+    overflow-y: auto;
+    margin-top: 50px;
+    background-color: inherit;
+    position: relative;
+    z-index: 1;
+}
+
+.top-panel {
+    background-color: inherit;
+    height: 57px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--border-color);
+    justify-content: space-between;
+}
+
+.switch-row {
+    padding: 0 2px;
+    margin-top: 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.switch-container {
+    display: flex;
+    align-items: center;
+    padding: 0 5px;
+}
+
+.code-editor {
+    width: 100%;
+    min-height: 200px;
+    padding: 1rem;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    border: 1px solid var(--border-color);
+    border-radius: 0 0 4px 4px;
+    resize: vertical;
+    background-color: var(--code-bg);
+    color: var(--code-text);
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.code-editor:focus {
+    outline: none;
+    background-color: var(--bg-secondary);
+    border-color: var(--accent-color);
+}
+
+.top-panel-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.stream-container {
+    position: relative;
+}
+
+.menu-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+}
+
+/* Group action pills together */
+.action-pills-group {
+    display: flex;
+    gap: 8px;
+    margin-left: 8px;
+}
+
+/* --- Threads Search Box (New) --- */
+.threads-search-container {
+    position: relative;
+    margin: 8px 15px 12px 15px; /* Spacing below header */
+    display: flex;
+    align-items: center;
+}
+
+.threads-search-input {
+    flex-grow: 1;
+    width: 100%;
+    padding: 8px 64px 8px 12px; /* Right padding for two buttons */
+    font-size: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 18px; /* Pill shape */
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.threads-search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.threads-search-input::placeholder {
+    color: var(--text-tertiary);
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.threads-search-input:disabled {
+    background-color: rgba(255, 140, 0, 0.1); /* Light orange background */
+    color: #ff8c00; /* Orange text */
+    font-style: italic;
+    border-color: #ff8c00; /* Orange border */
+}
+
+/* Also disable the submit button when filtering */
+.threads-search-submit:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* When filter is active, make clear button orange-themed */
+.threads-search-input:disabled ~ .threads-search-clear {
+    color: #ff8c00; /* Orange color instead of default */
+}
+
+.threads-search-input:disabled ~ .threads-search-clear:hover {
+    color: #ff8c00; /* Keep orange on hover */
+    background-color: rgba(255, 140, 0, 0.2); /* Light orange background on hover */
+}
+
+/* Keep the submit button visually consistent when disabled */
+.threads-search-input:disabled ~ .threads-search-submit {
+    color: #ff8c00;
+    opacity: 0.3;
+}
+
+.threads-search-submit,
+.threads-search-clear {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: transparent;
+    border: none;
+    border-radius: 50%; /* Circular */
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.threads-search-submit {
+    right: 4px;
+}
+
+.threads-search-clear {
+    right: 34px;
+}
+
+.threads-search-submit:hover,
+.threads-search-clear:hover {
+    color: var(--accent-color);
+    background-color: var(--highlight-bg);
+}
+
+.threads-search-container.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.thread-search-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--text-tertiary);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* Hide old theme toggle container */
+.theme-toggle-container {
+    display: none;
+}
+
+
+.auxiliary-status-item .file-status-message {
+    /* Inherits styles from .file-status-message */
+    /* You can add specific overrides if needed */
+    font-size: 13px; /* Slightly smaller if desired */
+}
+
+.aux-error-message { /* For the "max 3 datasets" error */
+    padding: 4px 0;
+    font-size: 14px;
+}.scroll-indicator {
+    position: absolute;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 40px;
+    background: var(--overlay-bg);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    font-size: 24px;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s;
+}
+.scroll-indicator.visible {
+    opacity: 0.3;
+}
+
+
+/* ======== container-status.css (retired 2026-09-08; its live rules were folded into shell/dialogs/tabs) ======== */
+/* Container Status Indicator */
+.container-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: default;
+    transition: all 0.3s ease;
+    background: transparent;
+    border: none;
+    position: relative;
+}
+
+.container-status-icon {
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.container-status-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.container-status-text {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Status colors — only thing that changes per status */
+.status-ready    { color: var(--success-color); }
+.status-spawning { color: var(--warning-color); }
+.status-restarting { color: var(--warning-color); }
+.status-execution  { color: var(--info-color); }
+.status-failed   { color: var(--error-color); }
+.status-offline  { color: var(--text-tertiary); }
+
+/* Pulse animation for active states */
+.status-spawning .container-status-icon,
+.status-restarting .container-status-icon,
+.status-execution .container-status-icon {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Hover */
+.container-status:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+/* Tooltip */
+.container-status-tooltip {
+    position: fixed;
+    padding: 12px 16px;
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+    z-index: 2147483647;
+    min-width: 120px;
+    max-width: 200px;
+    visibility: hidden;
+    transition: visibility 0.2s ease;
+    pointer-events: auto;
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.tooltip-content {
+    margin-bottom: 8px;
+    white-space: pre-line;
+}
+
+/* Restart button */
+.container-restart-button {
+    display: inline-block;
+    padding: 4px 12px;
+    background-color: transparent;
+    color: var(--accent-color);
+    border: 1px solid var(--accent-color);
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.container-restart-button:hover {
+    background-color: var(--accent-bg-hover);
+    transform: scale(1.05);
+}
+
+.container-restart-button:active {
+    transform: scale(0.95);
+}
+
+.status-container {
+    display: flex;
+    align-items: center;
+}
+
+/* ======== auto-explore.css (retired 2026-09-08; its live rules were folded into shell/dialogs/tabs) ======== */
+/* variables moved to tokens.css (2026-09-08) */
+
+/* Iterations Pill */
+.auto-explore-params {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    padding: 2px 6px;
+    height: 18px;
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    gap: 4px;
+}
+
+[data-theme="dark"] .auto-explore-params {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.auto-explore-params .iter-label {
+    color: var(--text-tertiary);
+    margin-right: 2px;
+}
+
+.auto-explore-params .iter-value {
+    min-width: 16px;
+    text-align: center;
+    color: var(--auto-explore-color);
+    font-weight: 600;
+}
+
+.auto-explore-params .iter-btn {
+    cursor: pointer;
+    color: var(--text-tertiary);
+    font-weight: bold;
+    font-size: 14px;
+    line-height: 1;
+    user-select: none;
+    transition: color 0.15s;
+}
+
+.auto-explore-params .iter-btn:hover {
+    color: var(--auto-explore-color);
+}
+
+/* Submit Button Icons - Default State */
+#submitQuery .globe-icon,
+#submitQuery .stop-icon {
+    display: none;
+}
+
+/* Auto-explore Ready State (cherry/globe) */
+#submitQuery.auto-explore-active .airplane-icon {
+    display: none;
+}
+
+#submitQuery.auto-explore-active .globe-icon {
+    display: block;
+}
+
+#submitQuery.auto-explore-active .stop-icon {
+    display: none;
+}
+
+#submitQuery.auto-explore-active {
+    border-color: var(--auto-explore-color);
+    color: var(--auto-explore-color);
+}
+
+#submitQuery.auto-explore-active:hover {
+    background-color: var(--auto-explore-bg);
+    border-color: var(--auto-explore-hover);
+    color: var(--auto-explore-hover);
+}
+
+/* Auto-explore Running State (cherry/stop) */
+#submitQuery.auto-explore-running .airplane-icon,
+#submitQuery.auto-explore-running .globe-icon {
+    display: none;
+}
+
+#submitQuery.auto-explore-running .stop-icon {
+    display: block;
+}
+
+#submitQuery.auto-explore-running {
+    border-color: var(--auto-explore-color);
+    color: var(--auto-explore-color);
+}
+
+#submitQuery.auto-explore-running:hover {
+    background-color: var(--auto-explore-bg);
+    border-color: var(--auto-explore-hover);
+    color: var(--auto-explore-hover);
+}
+
+/* Auto-explore indicator above query input */
+.auto-explore-indicator {
+    position: absolute;
+    top: -20px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--auto-explore-color);
+    background: var(--bg-primary);
+    padding: 0 6px;
+    z-index: 10;
+    font-style: italic;
+    user-select: none;
+}
+
+.auto-explore-indicator svg {
+    flex-shrink: 0;
+}
+
+.auto-explore-indicator.running svg {
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ------------------------------ */
+/* Needs to Stay */
+/* ------------------------------ */
+.iteration-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: var(--bg-secondary, #f5f5f5);
+    border-radius: 6px;
+    border-left: 2px solid var(--auto-explore-color, #007bff);
+}
+
+.iteration-badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    background: var(--bg-secondary, #f5f5f5);
+    border: 2px solid var(--auto-explore-color, #007bff);
+    color: var(--auto-explore-color, #007bff);
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.iteration-question {
+    font-size: 12px;
+    color: var(--text-secondary, #666);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;  /* Allow flex item to shrink below content size */
+    flex: 1;       /* Take remaining space */
+}
+
+/* Chain ID References in Synthesis */
+.chain-ref {
+    color: var(--accent-color);
+    cursor: pointer;
+    font-weight: 500;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.85em;
+    transition: background-color 0.2s ease;
+    position: relative;
+}
+
+.chain-ref:hover {
+    background-color: var(--accent-bg-hover);
+    text-decoration: underline;
+}
+
+/* Tooltip container */
+.chain-ref-tooltip {
+    position: fixed;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    font-weight: 400;
+    width: 250px;
+    white-space: normal;
+    word-wrap: break-word;
+    box-shadow: var(--shadow-medium);
+    border: 1px solid var(--border-secondary);
+    z-index: 10000;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.chain-ref-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+
+/* Figure citations in the synthesis answer (2026-08-29). Read as
+   content, hint as a link: the caption keeps the text colour and the
+   accent rides only in the underline, the hover, and the arrival
+   pulse - a full-accent bold caption would overpower the page. Family
+   styling mirrors .chain-ref above. --accent-bg is a complete rgba()
+   value in this theme, so translucent accent comes from color-mix on
+   --accent-color (theme-correct in both modes). */
+.figure-ref,
+.figure-ref:visited {
+    color: inherit;
+    cursor: pointer;
+    border-radius: 3px;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, var(--accent-color) 45%, transparent);
+    text-underline-offset: 3px;
+    transition: background-color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+.figure-ref:hover {
+    background-color: var(--accent-bg-hover);
+    text-decoration-color: var(--accent-color);
+}
+
+.figure-ref em {
+    opacity: 0.7;
+    font-size: 0.9em;
+}
+
+/* The arrival pulse on the figure the citation points at. */
+.plot-highlight {
+    animation: figure-ref-pulse 1.6s ease-out;
+}
+
+@keyframes figure-ref-pulse {
+    0%   { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 55%, transparent); }
+    100% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent-color) 0%, transparent); }
+}
+
+
+/* ======== graph-controls.css (retired 2026-09-08; its live rules were folded into shell/dialogs/tabs) ======== */
+/* ==========================================================================
+   GRAPH CONTROLS — Shared zoom + fullscreen controls
+   Used by: Workflow Graph, Diagram Tab (Mermaid ontology graphs)
+   ========================================================================== */
+
+
+/* ── Zoom control bar ─────────────────────────────────── */
+
+.gc-controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 2px 3px;
+    z-index: 10;
+    filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.15));
+}
+
+.gc-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.gc-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+}
+
+.gc-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+
+.gc-btn-reset {
+    margin-left: 2px;
+    border-left: 1px solid var(--border-color);
+    padding-left: 4px;
+    border-radius: 0 4px 4px 0;
+}
+
+.gc-zoom-level {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    min-width: 30px;
+    text-align: center;
+    user-select: none;
+    letter-spacing: 0.3px;
+}
+
+[data-theme="dark"] .gc-controls {
+    background: #1e1e1e;
+    border-color: #3a3a3a;
+    filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.5));
+}
+
+[data-theme="dark"] .gc-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    color: #cccccc;
+}
+
+[data-theme="dark"] .gc-btn-reset {
+    border-left-color: #3a3a3a;
+}
+
+
+/* ── Fullscreen button ────────────────────────────────── */
+
+.gc-fullscreen-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 6px;
+    z-index: 10;
+    transition: background 0.15s, color 0.15s, filter 0.15s;
+    filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.15));
+}
+
+.gc-fullscreen-btn:hover {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .gc-fullscreen-btn {
+    background: #1e1e1e;
+    border-color: #3a3a3a;
+    filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.5));
+}
+
+[data-theme="dark"] .gc-fullscreen-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #cccccc;
+}
+
+
+/* ── Fullscreen overlay ───────────────────────────────── */
+
+.gc-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10000;
+    background: var(--bg-primary, #0e0e0e);
+    flex-direction: column;
+}
+
+.gc-overlay.visible {
+    display: flex;
+}
+
+.gc-overlay-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 6px;
+    z-index: 10;
+    transition: color 0.15s, background 0.15s;
+    filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.3));
+}
+
+.gc-overlay-close:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.gc-overlay-body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 60px 40px 24px 40px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.gc-overlay-body > * {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.gc-overlay-content {
+    transition: transform 0.15s ease;
+    transform-origin: 0 0;
+    width: 100%;
+    min-width: 0;
+}
+
+/* SVG inside overlay — fit within viewport at 100% zoom */
+.gc-overlay-content svg {
+    width: 100% !important;
+    height: calc(100vh - 100px) !important;
+    max-width: 100% !important;
+}
+
+/* Zoom controls inside overlay need adjusted positioning */
+.gc-overlay > .gc-controls {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 10001;
+}
+
+[data-theme="dark"] .gc-overlay {
+    background: #0e0e0e;
+}
+
+[data-theme="dark"] .gc-overlay-close {
+    border-color: #3a3a3a;
+    background: #1e1e1e;
+}
+
+[data-theme="dark"] .gc-overlay-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #cccccc;
+}
+
+
+/* ==========================================================================
+   Diagram container — Mermaid ontology graph rendering
+   ========================================================================== */
+
+.diagram-container {
+    position: relative;
+    overflow: auto;
+    min-height: 200px;
+    max-height: 45vh;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    margin-bottom: 12px;
+    padding: 46px 10px 10px 10px;
+}
+
+.diagram-container .mermaid-view {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    width: 100%;
+    height: 100%;
+}
+
+.diagram-container .mermaid-view .mermaid {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+/* SVG fills the box, preserveAspectRatio="meet" scales to fit */
+.diagram-container .mermaid-view svg {
+    width: 100% !important;
+    height: calc(45vh - 60px) !important;
+    max-width: 100% !important;
+}
+
+[data-theme="dark"] .diagram-container {
+    background: #141414;
+    border-color: #3a3a3a;
+}
+
+/* YAML block below diagram — match container width and borders */
+.diagram-container + .markdown-content {
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.diagram-container + .markdown-content pre {
+    margin: 0;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 6px;
+}
+
+[data-theme="dark"] .diagram-container + .markdown-content pre {
+    border-color: #3a3a3a !important;
+}
+
+/* ======== labels.css (retired 2026-09-08; its live rules were folded into shell/dialogs/tabs) ======== */
+/* labels.css */
+/**
+ * Styles for Labels Management Module
+ * Updated to avoid conflicts with rank modal
+ */
+
+/* Labels Header - inherits from .menu-option */
+.menu-option.labels-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px;
+    gap: 8px;
+    font-weight: bold;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Ensure the span has the same properties as other menu options */
+.menu-option.labels-header span {
+    font-size: 14px;
+    flex: 1;
+    text-align: left;
+}
+
+/* Add Label Button - aligned with the row */
+.add-label-btn {
+    background: transparent;
+    border: 1px solid var(--text-tertiary);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s ease;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.add-label-btn:hover {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+    background: var(--highlight-bg);
+    transform: scale(1.05);
+}
+
+.add-label-btn:active {
+    transform: scale(0.95);
+}
+
+.add-label-btn svg {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    stroke-width: 2.5;
+}
+
+/* Labels List */
+.labels-list {
+    padding: 4px 8px 4px 36px;
+    min-height: 100px; /* Minimum height */
+    max-height: var(--labels-height, 300px) !important; /* Use !important to override existing rule */
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    margin-top: 0;
+    transition: max-height 0.1s ease; /* Smooth resize */
+}
+
+.labels-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.labels-list::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+.labels-list::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+}
+
+/* Label Items */
+.label-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    margin: 2px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+    font-size: 14px;
+    position: relative;
+}
+
+.label-item:hover {
+    background: var(--link-hover-bg);
+    color: var(--accent-color);
+}
+
+.label-item .label-icon {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    flex-shrink: 0;
+}
+
+.label-item .label-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Delete Label Button */
+.label-delete-btn {
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    opacity: 0;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.label-item:hover .label-delete-btn {
+    opacity: 0.6;
+}
+
+.label-delete-btn:hover {
+    opacity: 1 !important;
+    color: var(--error-color);
+    background: rgba(255, 107, 107, 0.1);
+}
+
+.label-delete-btn svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+}
+
+/* Messages */
+.labels-loading,
+.no-labels-message {
+    padding: 8px 12px;
+    text-align: left;
+    color: var(--text-tertiary);
+    font-style: italic;
+    font-size: 13px;
+    margin: 0;
+}
+
+/* Label Modal - Using unique class names to avoid conflicts with rank modal */
+.label-modal-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.label-modal-dialog {
+    width: 400px;
+    max-width: 90%;
+    padding: 16px;
+    background: var(--bg-primary);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    position: relative;
+}
+
+.label-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.label-modal-header h3 {
+    color: var(--accent-color);
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.label-modal-body {
+    padding: 0;
+    margin-bottom: 12px;
+}
+
+.label-modal-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    margin: 0;
+}
+
+.label-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s;
+    line-height: 1;
+    padding: 0;
+}
+
+.label-modal-close:hover {
+    color: var(--text-primary);
+}
+
+/* Label Input Field */
+.label-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s ease;
+    box-sizing: border-box;
+}
+
+.label-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.label-input::placeholder {
+    color: var(--text-tertiary);
+    font-style: italic;
+}
+
+.label-input-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    text-align: right;
+}
+
+/* Create button - assuming you have these styles elsewhere */
+.label-modal-footer .circular-button {
+    margin-top: 8px;
+}
+
+.label-modal-footer .button-label {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* Loading state for create button */
+.circular-button.loading svg {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .label-item {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .label-item:hover {
+    background: var(--link-hover-bg);
+    color: var(--accent-color);
+}
+
+[data-theme="dark"] .label-input {
+    background: var(--bg-primary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .label-modal-dialog {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .label-modal-dialog {
+        width: 90%;
+        max-width: 360px;
+    }
+    
+    .labels-list {
+        max-height: 200px;
+    }
+}
+
+/* Label icon positioning */
+/* Label icon positioning - updated without border */
+.thread-label-icon {
+    position: absolute;
+    top: 10px;
+    right: 40px; /* Space for delete button */
+    background: transparent;
+    border: none; /* Removed border */
+    border-radius: 4px;
+    padding: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-tertiary);
+}
+
+.thread-label-icon.labeled {
+    /* Removed border-color, just change icon color */
+    color: var(--accent-color);
+}
+
+.thread-label-icon:hover {
+    background: var(--highlight-bg);
+    transform: scale(1.05);
+}
+
+/* Label display in card - works for both parent and child items */
+.thread-label-display {
+    display: block;
+    font-size: 12px;
+    color: #ff8c00; /* Orange color */
+    margin-bottom: 3px;
+    font-weight: 500;
+}
+
+/* Ensure proper spacing for child chains with labels */
+.chain-item .thread-label-display {
+    margin-top: 2px; /* Small spacing after timestamp */
+}
+
+/* Label selector dropdown */
+.label-selector-dropdown {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 4px;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    min-width: 150px;
+    max-width: 250px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.label-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    color: var(--text-primary);
+    transition: background 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.label-option:hover {
+    background: var(--link-hover-bg);
+    color: var(--accent-color);
+}
+
+.label-option.selected {
+    background: var(--highlight-bg);
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
+.label-separator {
+    height: 1px;
+    background: var(--border-color);
+    margin: 4px 0;
+}
+
+/* ======== auth.css (retired 2026-09-08; its live rules were folded into shell/dialogs/tabs) ======== */
+/* Authentication Screen Styles - Matching Website Theme */
+
+/* Base auth screen */
+.auth-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #0a0a0a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: #ffffff;
+    font-size: 14px; /* Base font size for scaling */
+}
+
+/* Animated background */
+.auth-background-animation {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background: radial-gradient(circle at 20% 80%, #2a2a2a 0%, #0a0a0a 50%);
+}
+
+.auth-floating-particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.auth-particle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: rgba(80, 250, 123, 0.6);
+    border-radius: 50%;
+    animation: auth-float 20s infinite ease-in-out;
+    filter: blur(0.5px);
+    box-shadow: 0 0 4px rgba(80, 250, 123, 0.3);
+}
+
+@keyframes auth-float {
+    0% {
+        transform: translateY(100vh) translateX(0);
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+    }
+    90% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-40px) translateX(40px);
+        opacity: 0;
+    }
+}
+
+/* Main content container */
+.auth-content {
+    text-align: center;
+    z-index: 1;
+}
+
+/* Logo styling */
+.auth-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 40px;
+}
+
+.auth-logo img {
+    height: 46px;
+    filter: brightness(0) invert(1);
+}
+
+.auth-logo span {
+    background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Auth card */
+.auth-card {
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 48px 36px;
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 420px;
+    width: 90%;
+    margin: 0 auto;
+}
+
+/* Titles and text */
+.auth-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.auth-subtitle {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+
+/* Waitlist notice */
+.auth-waitlist-notice {
+    background: rgba(80, 250, 123, 0.05);
+    border: 1px solid rgba(80, 250, 123, 0.2);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 32px;
+}
+
+.auth-waitlist-notice p {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.auth-waitlist-link {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.auth-waitlist-link:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+/* Sign in button */
+.auth-signin-button {
+    padding: 16px 32px;
+    background: transparent;
+    border: 2px solid var(--accent-color);
+    border-radius: 24px;
+    color: var(--accent-color);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    letter-spacing: 0.5px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    background: rgba(80, 250, 123, 0.05);
+    min-height: 44px;
+}
+
+.auth-signin-button:before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(80, 250, 123, 0.15);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth-signin-button:hover:before {
+    width: 300px;
+    height: 300px;
+}
+
+.auth-signin-button:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(80, 250, 123, 0.25);
+    border-color: var(--accent-hover);
+    background: rgba(80, 250, 123, 0.08);
+}
+
+/* Loading spinner */
+.auth-spinner-container {
+    margin: 24px 0;
+    display: flex;
+    justify-content: center;
+}
+
+.auth-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(80, 250, 123, 0.2);
+    border-top: 3px solid var(--accent-color);
+    border-radius: 50%;
+    animation: auth-spin 1s linear infinite;
+}
+
+@keyframes auth-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error states */
+.auth-error {
+    border-color: rgba(255, 107, 107, 0.3);
+}
+
+.auth-error-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 16px;
+    background: rgba(255, 107, 107, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-error-icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: var(--error-color);
+}
+
+.auth-error-message {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    background: rgba(255, 107, 107, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 107, 107, 0.2);
+}
+
+.auth-retry-button {
+    padding: 14px 28px;
+    background: transparent;
+    border: 2px solid var(--error-color);
+    border-radius: 24px;
+    color: var(--error-color);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    letter-spacing: 0.5px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    background: rgba(255, 107, 107, 0.05);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+}
+
+.auth-retry-button svg {
+    width: 16px;
+    height: 16px;
+}
+
+.auth-retry-button:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(255, 107, 107, 0.25);
+    background: rgba(255, 107, 107, 0.08);
+}
+
+/* Existing auth container styles for main app */
+#authContainer {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    padding: 0 1rem;
+}
+
+.auth-button {
+    padding: 8px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    min-width: 70px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    min-height: 36px;
+}
+
+.auth-button:hover {
+    background: rgba(80, 250, 123, 0.1);
+    border-color: rgba(80, 250, 123, 0.3);
+    color: var(--accent-color);
+    transform: translateY(-1px);
+}
+
+.auth-login {
+    background: rgba(80, 250, 123, 0.05);
+    border-color: rgba(80, 250, 123, 0.2);
+    color: var(--accent-color);
+}
+
+.auth-login:hover {
+    background: rgba(80, 250, 123, 0.1);
+    border-color: var(--accent-color);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .auth-logo {
+        font-size: 20px;
+        gap: 8px;
+        margin-bottom: 32px;
+    }
+
+    .auth-logo img {
+        height: 36px;
+    }
+
+    .auth-card {
+        padding: 32px 24px;
+        border-radius: 24px;
+        width: 95%;
+    }
+
+    .auth-title {
+        font-size: 24px;
+        margin-bottom: 12px;
+    }
+
+    .auth-subtitle {
+        font-size: 15px;
+        margin-bottom: 24px;
+    }
+
+    .auth-signin-button {
+        padding: 14px 24px;
+        font-size: 14px;
+    }
+
+    .auth-retry-button {
+        padding: 12px 20px;
+        font-size: 13px;
+    }
+
+    .auth-spinner {
+        width: 28px;
+        height: 28px;
+    }
+
+    .auth-error-icon {
+        width: 40px;
+        height: 40px;
+    }
+
+    .auth-error-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .auth-error-message {
+        font-size: 13px;
+    }
+
+    #authContainer {
+        padding: 0 8px;
+    }
+    
+    .auth-button {
+        padding: 6px 12px;
+        font-size: 12px;
+        min-width: 60px;
+        min-height: 32px;
+    }
+}
+
+/* Make the button the positioning context */
+.settings-option[data-tooltip] {
+    position: relative;
+}
+
+/* Tooltip positioned to the right of the specific button */
+.settings-option[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 0;
+    left: 100%;
+    background: #333;
+    color: white;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-left: 10px;
+    pointer-events: none;
+}
+
+/* ======== the history drawer (retired 2026-09-08; its parts live in the rail and the Workflows dialog) ======== */
+/* ---- the history drawer (the old menu popup; the script opens it with inline left/top, which the drawer overrides) ----
+   One grid for every row: a 14px icon column at 12px, text at 34px, 32px rows. */
+.menu-popup > * { flex-shrink: 0; }   /* a column flex with overflow: the rows must not shrink */
+.menu-popup { transition: none !important; animation: none !important; }
+.menu-popup:not(.active) { display: none !important; }   /* the script leaves display:flex inline after closing; the class is the state */
+.menu-popup.active { display: flex !important; }
+.menu-popup, .menu-popup.active { position: fixed; left: 46px !important; top: 40px !important; bottom: 0; width: 320px; min-width: 0; max-height: none; padding: 8px 0; border: none; border-right: 1px solid var(--border-color); border-radius: 0; background: var(--bg-primary); box-shadow: 12px 0 30px rgba(0, 0, 0, 0.25); display: flex; flex-direction: column; gap: 0; overflow: auto; z-index: 1000; }
+.menu-popup .menu-option { display: flex; align-items: center; gap: 0; height: 32px; padding: 0 12px; margin: 0; border: none; border-radius: 0; background: none; box-shadow: none; color: var(--text-secondary); font-family: var(--font-ui); font-size: 12.5px; font-weight: 400; text-align: left; cursor: pointer; width: 100%; box-sizing: border-box; transition: none; }
+.menu-popup .menu-option span { font-size: 12.5px; font-weight: 400; color: inherit; }
+.menu-popup .menu-option:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.menu-popup .menu-option svg { width: 14px; height: 14px; margin-right: 8px; fill: none; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+.menu-popup .menu-option .keyboard-shortcut { margin-left: auto; font-size: 10px; color: var(--text-quaternary); font-family: var(--font-mono); background: none; border: none; padding: 0; }
+.menu-popup .menu-option.labels-header { margin-top: 10px; height: 28px; font-size: var(--fs-small); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; cursor: default; }
+.menu-popup .menu-option.labels-header span { font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+.menu-popup .labels-header:hover { background: none; color: var(--text-tertiary); }
+.menu-popup .add-label-btn { margin-left: auto; width: 20px; height: 20px; border: none; border-radius: 4px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.menu-popup .add-label-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.menu-popup .add-label-btn svg { width: 12px; height: 12px; margin: 0; }
+.menu-popup .labels-list { max-height: none !important; height: auto !important; flex: 0 0 auto; padding: 0 !important; margin: 0 !important; overflow: visible; resize: none; }
+.menu-popup .labels-list .label-item { display: flex; align-items: center; height: 30px; padding: 0 12px !important; margin: 0 !important; border: none; border-radius: 0; background: none !important; box-shadow: none; font-size: 12.5px; font-weight: 400; color: var(--text-secondary); cursor: pointer; transition: none; }
+.menu-popup .labels-list .label-item:hover { background: var(--bg-tertiary) !important; }
+.menu-popup .labels-list .label-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.menu-popup .labels-list .label-item .label-icon { width: 14px; height: 14px; margin-right: 8px; color: var(--c-kernel); flex-shrink: 0; }
+.menu-popup .labels-list .label-item .label-name { font-size: 12.5px; font-weight: 400; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-popup .labels-list .label-item .label-delete-btn { margin-left: auto; width: 20px; height: 20px; border: none; background: none; color: var(--text-quaternary); display: grid; place-items: center; cursor: pointer; opacity: 0; padding: 0; }
+.menu-popup .labels-list .label-item:hover .label-delete-btn { opacity: 1; }
+.menu-popup .labels-list .label-item .label-delete-btn:hover { color: var(--c-fail); }
+.menu-popup .labels-list .label-item .label-delete-btn svg { width: 12px; height: 12px; }
+.menu-popup .no-labels-message, .menu-popup .thread-loading, .menu-popup .no-threads { height: 30px; display: flex; align-items: center; padding: 0 12px; font-size: var(--fs-meta); color: var(--text-quaternary); }
+.menu-popup .menu-divider { height: 1px; background: var(--border-color); margin: 8px 0; }
+.menu-popup .threads-header { margin: 2px 0 0; height: 28px; display: flex; align-items: center; padding: 0 12px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; background: none; border: none; }
+.menu-overlay.active { top: 40px; left: 46px; background: var(--scrim); }
+/* the saved threads (built by workflow-management.js): one bordered row per thread, no nested frame */
+.menu-popup .threads-list { display: flex; flex-direction: column; gap: 0; padding: 0; margin: 0; max-height: none; overflow: visible; background: none; border: none; box-shadow: none; }
+.menu-popup .thread-container { border: none; border-top: 1px solid var(--border-color); border-radius: 0; background: none; margin: 0; padding: 0; box-shadow: none; }
+.menu-popup .thread-item { display: block; position: relative; padding: 8px 64px 8px 12px; margin: 0; border: none; border-radius: 0; background: none; box-shadow: none; transition: none; cursor: pointer; }
+.menu-popup .thread-item:hover { background: var(--bg-tertiary); transform: none; box-shadow: none; border: none; }
+.menu-popup .thread-timestamp, .menu-popup .thread-id, .menu-popup .thread-dataset-name, .menu-popup .thread-label-display { display: inline-block; font-size: var(--fs-small); color: var(--text-quaternary); font-family: var(--font-ui); font-weight: 400; margin: 0 8px 2px 0; padding: 0; background: none; border: none; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+.menu-popup .thread-label-display { color: var(--c-kernel); }
+.menu-popup .thread-task { font-size: 12.5px; font-weight: 400; color: var(--text-primary); line-height: 1.4; margin: 3px 0 0; padding: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.menu-popup .thread-label-icon { position: absolute; right: 34px; top: 7px; width: 22px; height: 22px; border: none; background: none; color: var(--text-quaternary); cursor: pointer; display: grid; place-items: center; padding: 0; }
+.menu-popup .thread-label-icon.labeled { color: var(--c-kernel); }
+.menu-popup .thread-label-icon svg { width: 13px; height: 13px; }
+.menu-popup .thread-toggle { position: absolute; right: 8px; top: 7px; width: 22px; height: 22px; border: none; background: none; color: var(--text-tertiary); cursor: pointer; display: grid; place-items: center; padding: 0; }
+.menu-popup .thread-toggle svg { width: 13px; height: 13px; }
+.menu-popup .thread-delete-btn { position: absolute; right: 8px; bottom: 7px; width: 22px; height: 22px; border: none; background: none; color: var(--text-quaternary); cursor: pointer; display: grid; place-items: center; opacity: 0; padding: 0; }
+.menu-popup .thread-item:hover .thread-delete-btn { opacity: 1; }
+.menu-popup .thread-delete-btn:hover { color: var(--c-fail); }
+.menu-popup .thread-delete-btn svg { width: 13px; height: 13px; }
+.menu-popup .chains-container { border-top: 1px solid var(--border-color); padding: 0 0 0 12px; }
+.menu-popup .chains-container.hidden { display: none; }
+.menu-popup .chain-preview, .menu-popup .plotly-preview-container { display: none; }
+.label-selector-dropdown { min-width: 180px; padding: 4px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); font-family: var(--font-ui); font-size: 12.5px; }
+.label-selector-dropdown .label-option { padding: 6px 10px; border-radius: 4px; color: var(--text-secondary); cursor: pointer; }
+.label-selector-dropdown .label-option:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.label-selector-dropdown .label-option.selected { color: var(--c-kernel); }
+.label-selector-dropdown .label-separator { height: 1px; background: var(--border-color); margin: 4px 0; }
+

@@ -1,0 +1,146 @@
+import os
+import requests
+from datetime import datetime
+from flask import Blueprint, request, jsonify, session
+from auth import requires_auth
+import gc
+
+# Create the blueprint
+container_status_bp = Blueprint('container_status', __name__)
+
+def init_container_status_integration(app, **dependencies):
+    """Initialize container status integration with the main app and dependencies"""
+    # Store dependencies for use in routes
+    container_status_bp.user_preferences = dependencies['user_preferences']
+    container_status_bp.bamboo_ai_instances = dependencies['bamboo_ai_instances']
+    container_status_bp.get_user_id = dependencies['get_user_id']
+    container_status_bp.get_bamboo_ai = dependencies['get_bamboo_ai']
+    container_status_bp.cleanup_and_remove_bamboo_instance = dependencies['cleanup_and_remove_bamboo_instance']
+    container_status_bp.get_dynamic_executor_urls = dependencies['get_dynamic_executor_urls']
+    container_status_bp.logger = dependencies['logger']
+    container_status_bp.container_orchestrator = dependencies['container_orchestrator']
+    container_status_bp.get_user_compute_tier = dependencies['get_user_compute_tier']
+    
+    # Register the blueprint
+    app.register_blueprint(container_status_bp)
+
+@container_status_bp.route('/api/container/status', methods=['GET'])
+@requires_auth
+def get_container_status():
+    """Get container status for current user via orchestrator"""
+    try:
+        user_id = container_status_bp.get_user_id()
+        
+        # Use the centralized orchestrator client
+        status_data = container_status_bp.container_orchestrator.get_container_status(user_id)
+        
+        return jsonify(status_data), 200
+            
+    except Exception as e:
+        container_status_bp.logger.error(f"Container status check failed: {str(e)}")
+        return jsonify({
+            'status': 'offline', 
+            'error': str(e)
+        }), 200
+
+@container_status_bp.route('/api/container/restart', methods=['POST'])
+@requires_auth
+def restart_container():
+    """Restart container for current user via orchestrator"""
+    try:
+        session_id = session.get('session_id')
+        user_id = container_status_bp.get_user_id()
+
+        user_compute_tier = container_status_bp.get_user_compute_tier(user_id)
+        
+        # Step 1: Send kill signal to the BambooAI instance
+        if session_id in container_status_bp.bamboo_ai_instances:
+            instance = container_status_bp.bamboo_ai_instances[session_id]
+            instance.kill_signal = True
+            
+            # Optional: Log the kill signal
+            container_status_bp.logger.info(f"Kill signal sent to BambooAI instance for session {session_id}")
+            
+            # Give the instance a moment to recognize the kill signal
+            # This is crucial to allow running threads to exit cleanly
+            import time
+            time.sleep(0.5)  # 500ms should be enough for most operations to check the flag
+        
+        # Step 2: Restart the container via orchestrator
+        result = container_status_bp.container_orchestrator.restart_container(user_id, user_compute_tier)
+        
+        # Step 3: Handle session cleanup only if restart was successful
+        if result.get('status') == 'success':
+            # Clear any uploads from user preferences
+            prefs = container_status_bp.user_preferences.get(session_id)
+            if prefs:
+                prefs['auxiliary_datasets'] = []
+                prefs['ontology_path'] = None
+                prefs['df_id'] = None
+                
+                # Cleanup with timeout protection
+                try:
+                    # Set a timeout for cleanup operation
+                    import threading
+                    cleanup_complete = threading.Event()
+                    cleanup_error = [None]  # Use list to store error in thread
+                    
+                    def cleanup_with_timeout():
+                        try:
+                            container_status_bp.cleanup_and_remove_bamboo_instance(session_id)
+                            cleanup_complete.set()
+                        except Exception as e:
+                            cleanup_error[0] = e
+                            cleanup_complete.set()
+                    
+                    cleanup_thread = threading.Thread(target=cleanup_with_timeout)
+                    cleanup_thread.start()
+                    
+                    # Wait max 3 seconds for cleanup
+                    if not cleanup_complete.wait(timeout=3.0):
+                        container_status_bp.logger.warning(
+                            f"Cleanup timeout for session {session_id}, proceeding anyway"
+                        )
+                    elif cleanup_error[0]:
+                        container_status_bp.logger.error(
+                            f"Error during cleanup for session {session_id}: {cleanup_error[0]}"
+                        )
+                    
+                except Exception as e:
+                    container_status_bp.logger.error(
+                        f"Failed to cleanup BambooAI instance for session {session_id}: {e}"
+                    )
+                    # Continue anyway - don't fail the restart because of cleanup issues
+
+                # Update preferences
+                container_status_bp.user_preferences[session_id] = prefs
+                
+                # Create new instance
+                try:
+                    container_status_bp.bamboo_ai_instances[session_id] = container_status_bp.get_bamboo_ai(session_id)
+                    container_status_bp.logger.info(
+                        f"New BambooAI instance created for session {session_id}"
+                    )
+                except Exception as e:
+                    container_status_bp.logger.error(
+                        f"Failed to create new BambooAI instance: {e}"
+                    )
+                    # Return partial success - container restarted but instance creation failed
+                    return jsonify({
+                        'status': 'partial_success',
+                        'message': 'Container restarted but instance creation failed',
+                        'error': str(e)
+                    }), 207  # 207 Multi-Status
+
+            return jsonify(result), 200
+        else:
+            # Return error response
+            status_code = 500 if result.get('status') == 'error' else 200
+            return jsonify(result), status_code
+            
+    except Exception as e:
+        container_status_bp.logger.error(f"Container restart failed for user {user_id}: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500

@@ -1,0 +1,28 @@
+__pycache__/
+.env
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/*
+web_app/temp/*
+web_app/iframe_figures/*
+web_app/storage/*
+web_app/logs/*
+web_app/memory/*
+web_app/datasets/*
+web_app/config/*
+orchestration/logs/*
+.DS_Store
+LLM_CONFIG.json
+docker_image_build_and_push.sh# test-battery residue (thread files and run logs the suites write)
+tests/delve_planner/storage/*
+tests/delve_planner/logs/*
+logs/*
+# kept on the box, never pushed (D14, phase 0 of docs/OSS_DESIGN.md)
+web_app/db_schema.sql
+docs/history/
+tools/deploy/
+# the local stack's downloaded browser libraries
+tools/stack/browser/vendor/

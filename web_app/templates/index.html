@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BambooAI Lab</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.0.18/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.1/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+    <link rel="icon" type="image/svg+xml" href="/static/image/favicon.svg" id="favicon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.1/styles/github.min.css">
+
+    <!-- Core application styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tool-call-styles.css') }}">
+
+    <!-- Integration modules -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dialogs.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/shell.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pane.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tabs.css') }}">
+
+    <!-- LocalForage dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
+
+    <!-- KaTeX dependencies -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <!-- Configure marked to handle LaTeX safely -->
+    <script>
+    // Configure marked to not escape our LaTeX delimiters
+    const renderer = new marked.Renderer();
+    const originalCode = renderer.code.bind(renderer);
+
+    renderer.code = function(code, language) {
+        if (language === 'math' || language === 'latex') {
+            return code;  // Don't wrap in code blocks
+        }
+        return originalCode(code, language);
+    };
+
+    marked.setOptions({
+        renderer: renderer,
+        breaks: true,
+        gfm: true,
+        headerIds: false,
+        mangle: false,
+        sanitize: false,
+        smartLists: true,
+        smartypants: false
+    });
+    </script>
+        
+    <!-- CodeMirror Core -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+
+    <!-- CodeMirror Theme -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+
+    <!-- CodeMirror Python Mode -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
+
+</head>
+<body>
+    <!-- the workspace gate (2026-09-09): shown from the first paint until the executor is Ready; workspace-gate.js drives it -->
+    <div id="workspaceGate" class="ws-gate" role="status" aria-live="polite" aria-busy="true">
+        <div class="ws-pill-wrap">
+            <div class="ws-pill"><span class="ws-ring"></span><span class="ws-text">Signing you in</span><span class="ws-dots"><i class="busy"></i><i></i><i></i><i></i></span></div>
+            <div class="ws-caption" hidden></div>
+            <div class="ws-actions" hidden><button type="button" class="ui-btn sm" id="wsGateRefresh">Refresh page</button></div>
+        </div>
+    </div>
+    <div class="container">
+        <header class="topbar">
+            <div class="brand"><span class="brand-name">BambooAI</span><img src="/static/image/logo_light.svg" alt="" class="menu-logo" style="display:none"></div>
+            <div id="datasetStatusPillsContainer"></div>
+            <span class="sp"></span>
+            <div class="tab-navigation"><button id="prevResponse" class="nav-arrow" disabled title="Previous chain">‹</button><span id="chainPosition" class="chain-position"></span><button id="nextResponse" class="nav-arrow" disabled title="Next chain">›</button></div>
+            <button id="rankButton" type="button" class="icon-button rank-icon" data-tip="Save this chain" style="display: none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span class="rank-label">Save</span></button>
+            <div id="containerStatus" class="container-status status-offline">
+            <span id="containerStatusIcon" class="container-status-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+            </span>
+            <span id="containerStatusText" class="container-status-text">Offline</span>
+            </div>
+            <div id="authContainer" class="auth-container"></div>
+
+        </header>
+        <div class="panes">
+        <nav class="rail" aria-label="Navigation">
+            <button id="railNewButton" class="rb" data-tip="New workflow (⌘K)" aria-label="New workflow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></button>
+            <div id="workflowManagerPill" class="workflow-manager-pill rb" data-tip="Saved workflows"><span class="workflow-manager-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></span><span class="workflow-manager-text">Workflows</span></div>
+            <div id="datasetManagerPill" class="dataset-manager-pill rb" data-tip="Dataset cache"><span class="dataset-manager-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg></span><span class="dataset-manager-text">Dataset Cache</span></div>
+            <div id="memoryReviewPill" class="memory-review-pill rb" style="display:none;" data-tip="Memory"><span class="memory-review-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></span><span class="memory-review-text">Memory<span id="memoryReviewBadge" class="memory-review-badge" style="display:none;"></span></span></div>
+            <button id="railMapButton" class="rb" data-tip="Thread map (⌘M)" aria-label="Thread map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><rect x="8.5" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v3h11V9M12 12v3"/></svg></button>
+            <span class="rail-gap"></span>
+            <div class="settings-container" data-tip="Settings">
+            <button class="settings-button" aria-label="Settings">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            </button>
+
+            <!-- Settings Popup -->
+            <div class="settings-popup">
+            <!-- Theme toggle first - simplified -->
+            <button id="themeToggle" class="settings-option theme-toggle-option">
+            <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+            <span class="theme-label">Light Theme</span>
+            </button>
+
+            <!-- Subscription option is now the main configuration option -->
+            <button class="settings-option subscription-option">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="10" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <span>Account & Billing</span>
+            </button>
+
+            <button class="settings-option usage-tracking-option">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 20V10"/>
+            <path d="M12 20V4"/>
+            <path d="M6 20v-6"/>
+            </svg>
+            <span>Usage</span>
+            </button>
+
+            <div class="integrations-menu-item">
+            <button class="settings-option integrations-option">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="8" cy="8" r="6"></circle>
+            <circle cx="16" cy="16" r="6"></circle>
+            </svg>
+            <span>Integrations</span>
+            <span class="submenu-arrow">›</span>
+            </button>
+            <div class="integrations-submenu">
+            <button class="settings-option sweatstack-option" data-enabled="{{ sweatstack_enabled|lower }}">
+            <img src="/static/image/sweatstack-favicon.svg" width="20" height="20" alt="SweatStack">
+            <span>SweatStack</span>
+            </button>
+            <button class="settings-option intervals-option" data-enabled="{{ intervals_enabled|lower }}">
+            <img src="/static/image/intervals-favicon.png" width="20" height="20" alt="Intervals">
+            <span>Intervals ICU</span>
+            </button>
+            <button class="settings-option endura-option" data-enabled="{{ endura_enabled|lower }}">
+            <img src="/static/image/endura-favicon.png" width="20" height="20" alt="Endura">
+            <span>Endura</span>
+            </button>
+            </div>
+            </div>
+
+            <a href="https://github.com/pgalko/BambooAI" target="_blank" rel="noopener noreferrer" class="settings-option">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="none">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            <span>Project Page</span>
+            </a>
+
+            <!-- Auth0 Logout Button (only show when authenticated) -->
+            <button id="authLogoutButton" class="settings-option auth-logout-option" style="display: none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Logout</span>
+            </button>
+            </div>
+            </div>
+        </nav>
+        <button id="collapseButton" class="collapse-button" aria-label="Toggle left panel">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+        </button>
+        <div class="left-panel" id="leftPanel">
+            <div class="content-area">
+                <div id="streamOutput"></div>
+            </div>           
+            <div class="input-area">
+                <div class="input-row">
+                    <div class="textarea-container">
+                        <textarea
+                            id="queryInput"
+                            placeholder="Enter your query here"
+                        ></textarea>
+                    
+                        <div class="icon-row">
+                            <!-- Paperclip with menu -->
+                            <div class="attach-menu-container">
+                                <button
+                                    id="uploadButton"
+                                    type="button"
+                                    class="icon-button attach-icon"
+                                    title="Attach dataset"
+                                >
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path
+                                            d="M21.44 11.05l-9.19 9.19a6 6 0 0 1
+                                               -8.49-8.49l8.57-8.57A4 4 0 1 1
+                                               18 8.84l-8.59 8.57a2 2 0 0 1
+                                               -2.83-2.83l8.49-8.48"
+                                        />
+                                    </svg>
+                                </button>
+            
+                                <!-- New attach menu -->
+                                <div class="attach-menu">
+                                    <button class="attach-option primary-dataset-option" title="Upload Primary Dataset">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                            <polyline points="13 2 13 9 20 9"></polyline>
+                                        </svg>
+                                        <span>Primary Dataset</span>
+                                    </button>
+                                    <button class="attach-option auxiliary-dataset-option" title="Upload Auxiliary Dataset">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                                            <polyline points="2 17 12 22 22 17"></polyline>
+                                            <polyline points="2 12 12 17 22 12"></polyline>
+                                        </svg>
+                                        <span>Auxiliary Dataset</span>
+                                    </button>
+                                    <button class="attach-option sweatstack-data-option" title="Load SweatStack Data">
+                                        <img src="/static/image/sweatstack-favicon.svg" width="20" height="20" alt="SweatStack">
+                                        <span>SweatStack</span>
+                                    </button>
+                                    <button class="attach-option intervals-data-option" title="Load Intervals ICU Data">
+                                        <img src="/static/image/intervals-favicon.png" width="20" height="20" alt="Intervals ICU">
+                                        <span>Intervals ICU</span>
+                                    </button>
+                                    <button class="attach-option endura-data-option" title="Load Endura Data">
+                                        <img src="/static/image/endura-favicon.png" width="20" height="20" alt="Endura">
+                                        <span>Endura</span>
+                                    </button>
+                                    <div id="uploadLimitMessage" class="upload-limit-message"></div>
+                                </div>
+                            </div>
+            
+                            <input type="file" id="primaryFile" accept=".csv, .parquet, .json, .xlsx" style="display: none" />
+                            <input type="file" id="auxiliaryFile" accept=".csv, .parquet, .json, .xlsx" style="display: none" />
+                            
+                            <!-- Mode: hover the brain for Quick | Deep | Adaptive (2026-09-05) -->
+                            <button id="modeSwitch" type="button" class="icon-button planning-brain active" data-mode="deep" title="Mode: Deep">
+<svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path
+                                        d="M9.5 2A2.5 2.5 0 0 1
+                                            12 4.5v15a2.5 2.5 0 0 1
+                                            -4.96.44 2.5 2.5 0 0 1
+                                            -2.96-3.08 3 3 0 0 1
+                                            -.34-5.58 2.5 2.5 0 0 1
+                                            1.32-4.24 2.5 2.5 0 0 1
+                                            1.98-3A2.5 2.5 0 0 1
+                                            9.5 2Z"
+                                    />
+                                    <path
+                                        d="M14.5 2A2.5 2.5 0 0 0
+                                            12 4.5v15a2.5 2.5 0 0 0
+                                            4.96.44 2.5 2.5 0 0 0
+                                            2.96-3.08 3 3 0 0 0
+                                            .34-5.58 2.5 2.5 0 0 0
+                                            -1.32-4.24 2.5 2.5 0 0
+                                            0 -1.98-3A2.5 2.5 0 0
+                                            0 14.5 2Z"
+                                    />
+                                </svg>
+                            </button>
+                            <div id="modeSliderPopup" class="branching-slider-popup mode-popup">
+                                <button class="mode-option" data-mode="quick" title="Quick - one shot: a script and a short answer">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                                    <span>Quick</span>
+                                </button>
+                                <button class="mode-option active" data-mode="deep" title="Deep - the analyst works through the question in up to ~15 turns">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg>
+                                    <span>Deep</span>
+                                </button>
+                                <button class="mode-option" data-mode="adaptive" title="Adaptive - a long exploration with periodic self-review">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/><path d="M2.5 22v-6h6"/><path d="M2.66 8.43a10 10 0 1 1 .57 8.38"/></svg>
+                                    <span>Adaptive</span>
+                                </button>
+                                <div class="mode-params" id="modeParams">
+                                    <span class="iter-label" title="each step is about eight analyst turns, with a self-review every eight">Depth:</span>
+                                    <span class="iter-btn iter-minus" role="button" tabindex="0">−</span>
+                                    <span class="iter-value" id="iterationsValue">3</span>
+                                    <span class="iter-btn iter-plus" role="button" tabindex="0">+</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Grow Ideas -->
+                            <button
+                                id="suggestQuestions"
+                                type="button"
+                                class="icon-button filter-icon suggest-questions disabled"
+                                title="Grow New Ideas"
+                                >
+                                <!-- Icon from Tabler Icons (tabler.io) -->
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                    <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                    <path d="M12 20l0 -10"></path>
+                                </svg>
+                            </button>
+
+                            <!-- Branching CV Icons Popup -->
+                            <div id="branchingSliderPopup" class="branching-slider-popup">
+                                <button class="branching-icon" data-value="5" title="Follow emergence - pursue interesting patterns that appeared unexpectedly in our investigation">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                                <button class="branching-icon" data-value="4" title="Blend elements - combine two aspects from our current exploration in a new way">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                                <button class="branching-icon" data-value="3" title="Test boundaries - explore what happens at the edges of our current assumptions">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                                <button class="branching-icon" data-value="2" title="Shift angle - examine the same subject from a different perspective or framework">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                                <button class="branching-icon" data-value="1" title="Refine focus - adjust scope, granularity, or specific parameters within the same inquiry">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
+                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
+                                        <path d="M12 20l0 -10"></path>
+                                    </svg>
+                                </button>
+                            </div>
+
+                        </div>
+                    
+                        <!-- Submit button -->
+                        <button id="submitQuery" class="submit-button" aria-label="Submit query">
+                            <svg class="airplane-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m22 2-7 20-4-9-9-4Z" />
+                                <path d="M22 2 11 13" />
+                            </svg>
+                            <svg class="globe-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <!-- the adaptive loop glyph (class name kept for CSS stability) -->
+                                <path d="M21.5 2v6h-6"/>
+                                <path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/>
+                                <path d="M2.5 22v-6h6"/>
+                                <path d="M2.66 8.43a10 10 0 1 1 .57 8.38"/>
+                            </svg>
+                            <svg class="stop-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="6" y="6" width="12" height="12" rx="2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            
+            </div>            
+        </div>
+        <div class="right-panel" id="rightPanel">
+            <div class="tab-container" id="tabContainer"></div><!-- the chain navigation lives in the top bar (2026-09-08) -->
+            <div id="contentOutput"></div>
+        </div>
+        </div><!-- /panes -->
+    </div>
+
+
+    <!-- Rank Modal -->
+    <div id="rankModal" class="modal ui-modal">
+        <div class="modal-content rank-modal-content ui-dlg sm">
+            <div class="ui-dlg-h">
+                <div><div class="title">Save this chain</div><div class="sub">to your saved workflows; a rating of 5 or more also adds it to your private memory</div></div>
+                <span class="sp"></span>
+                <button class="close x" aria-label="Close">×</button>
+            </div>
+            <div class="ui-dlg-b">
+                <div class="progress-rating-container">
+                    <div class="rating-labels"><span class="rating-label-start">Poor</span><span class="rating-label-end">Excellent</span></div>
+                    <div class="progress-rating-track">
+                        <div class="progress-rating-fill" id="ratingFill"></div>
+                        <div class="progress-rating-segments">
+                            <div class="rating-segment" data-value="1"></div>
+                            <div class="rating-segment" data-value="2"></div>
+                            <div class="rating-segment" data-value="3"></div>
+                            <div class="rating-segment" data-value="4"></div>
+                            <div class="rating-segment threshold-indicator" data-value="5"><div class="threshold-line"></div></div>
+                            <div class="rating-segment" data-value="6"></div>
+                            <div class="rating-segment" data-value="7"></div>
+                            <div class="rating-segment" data-value="8"></div>
+                            <div class="rating-segment" data-value="9"></div>
+                            <div class="rating-segment" data-value="10"></div>
+                        </div>
+                    </div>
+                    <div class="rating-value-display"><span id="ratingValue">Click to rate</span><span class="threshold-hint" id="thresholdHint">Saves to workflows · 5+ also adds to your private memory</span></div>
+                </div>
+                <div id="rankStatusMessage" class="rank-status-message"></div>
+            </div>
+            <div class="modal-footer-section ui-dlg-f">
+                <div class="privacy-info">
+                    <span class="privacy-detail">Private: your solutions are never used for model training.</span>
+                    <div class="blog-link-hint"><a href="https://blog.bambooai.io/long-term-memory-in-ai-powered-sports-science-data-analysis-335777e06ac6" target="_blank" rel="noopener noreferrer">How private memory helps →</a></div>
+                </div>
+                <span class="sp"></span>
+                <button id="submit-rank" class="submit-rank-btn ui-btn primary" disabled aria-label="Save checkpoint">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workflow Map Modal -->
+    <div id="workflowMapModal" class="modal map-drawer">
+        <div class="modal-content workflow-modal-content">
+            <div class="modal-header map-drawer-head">
+                <div><h2>Thread map</h2><div class="map-drawer-sub" id="mapDrawerSub">the chains of this thread; click one to open it</div></div>
+                <span class="sp"></span>
+                <button class="close workflow-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body workflow-body">
+                <div id="workflowMapContainer" class="workflow-map-container"></div>
+                <div id="workflowDetailsPane" class="workflow-details-pane">
+                    <div class="details-content">
+                        <div id="nodeTaskContent" class="details-text">Hover over a chain to see its question</div>
+                        <div id="nodePlotPreview" class="details-plot-preview"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer map-drawer-foot">
+                <div class="workflow-actions-container">
+                    <button id="trajectoryButton" class="trajectory-button ui-btn" disabled title="Save the whole exploration to your workflows"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Save trajectory</button>
+                    <button id="synthesisButton" class="synthesis-button ui-btn primary" disabled title="A report across every chain in this thread"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Synthesise</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Popup -->
+    <div id="summaryPopup" class="summary-popup">
+        <button class="close-button">&times;</button>
+        <div id="summaryContent"></div>
+    </div>
+
+    <!-- SweatStack Sports Selection Modal -->
+    <div id="sweatstackModal" class="modal ui-modal integration-dialog">
+        <div class="modal-content ui-dlg">
+            <div class="ui-dlg-h"><img src="/static/image/sweatstack-favicon.svg" alt="" class="int-logo"><div><div class="title">Load data from SweatStack</div><div class="sub">sports, metrics, athletes and a date range</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-b modal-sections-container">
+                <div class="modal-section"><h4>Sports</h4><div class="sports-selection int-options">
+                    <label class="sport-option"><input type="checkbox" id="cycling-checkbox" value="cycling" checked><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Cycling</span></label>
+                    <label class="sport-option"><input type="checkbox" id="running-checkbox" value="running"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Running</span></label>
+                </div></div>
+                <div class="modal-section"><h4>Metrics</h4><div class="metrics-selection int-options">
+                    {% for metric in sweatstack_metrics %}
+                    <label class="metric-option"><input type="checkbox" id="{{ metric.value }}-checkbox" value="{{ metric.value }}" {% if metric in sweatstack_default_metrics %}checked{% endif %}><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>{{ metric.value.replace('_', ' ') }}</span></label>
+                    {% endfor %}
+                </div></div>
+                <div class="modal-section"><h4>Athletes</h4><div class="users-selection int-options" id="users-selection"><div class="loading-spinner">Loading users…</div></div></div>
+                <div class="modal-section"><h4>Date range</h4><div class="date-range-selection ui-row2">
+                    <div class="date-input-group ui-field"><label for="startDate">From</label><input type="date" id="startDate" name="startDate" class="date-input"></div>
+                    <div class="date-input-group ui-field"><label for="endDate">To</label><input type="date" id="endDate" name="endDate" class="date-input"></div>
+                </div></div>
+                <p id="modal-message" class="warning-note int-message">More metrics and a longer window take longer to load and process.</p>
+            </div>
+            <div class="modal-footer ui-dlg-f"><span class="sp"></span><div class="button-label">Load data</div><button id="connectSweatstack" class="circular-button ui-btn primary" title="Load data from SweatStack" aria-label="Load Data from SweatStack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
+        </div>
+    </div>
+
+    <!-- SweatStack Configuration Required Modal -->
+    <div id="sweatstackConfigModal" class="modal ui-modal integration-dialog">
+        <div class="modal-content ui-dlg sm">
+            <div class="ui-dlg-h"><img src="/static/image/sweatstack-favicon.svg" alt="" class="int-logo"><div class="title">SweatStack needs configuring</div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-b modal-section"><p>Set the SWEATSTACK_CLIENT_ID and SWEATSTACK_CLIENT_SECRET environment variables. Credentials are issued at <a href="https://app.sweatstack.no/settings/api" target="_blank" rel="noopener noreferrer">app.sweatstack.no/settings/api</a>.</p></div>
+            <div class="ui-dlg-f"><span class="sp"></span><div class="button-label">OK</div><button onclick="document.getElementById('sweatstackConfigModal').style.display='none'" class="circular-button ui-btn primary" title="Close" aria-label="Close">OK</button></div>
+        </div>
+    </div>
+   
+    <!-- SweatStack Authenticated Modal -->
+    <div id="sweatstackAuthenticatedModal" class="modal ui-modal integration-dialog">
+        <div class="modal-content ui-dlg sm">
+            <div class="ui-dlg-h"><img src="/static/image/sweatstack-favicon.svg" alt="" class="int-logo"><div class="title">SweatStack is connected</div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-b modal-section"><p>You are signed in to SweatStack. Load data from the attach menu, or disconnect this account.</p></div>
+            <div class="ui-dlg-f"><span class="sp"></span><div class="button-label">Disconnect</div><button id="logoutSweatstack" class="circular-button ui-btn danger" title="Disconnect from SweatStack" aria-label="Logout from SweatStack">Disconnect</button></div>
+        </div>
+    </div>
+
+    <!-- Intervals ICU Data Selection Modal -->
+    <div id="intervalsModal" class="modal ui-modal integration-dialog">
+        <div class="modal-content ui-dlg">
+            <div class="ui-dlg-h"><img src="/static/image/intervals-favicon.png" alt="" class="int-logo"><div><div class="title">Load data from Intervals ICU</div><div class="sub">activities in a date range, with optional auxiliary datasets</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-b modal-sections-container">
+                <div class="modal-section"><h4>Date range</h4><div class="date-range-selection ui-row2">
+                    <div class="date-input-group ui-field"><label for="intervalsStartDate">From</label><input type="date" id="intervalsStartDate" name="intervalsStartDate" class="date-input"></div>
+                    <div class="date-input-group ui-field"><label for="intervalsEndDate">To</label><input type="date" id="intervalsEndDate" name="intervalsEndDate" class="date-input"></div>
+                </div></div>
+                <div class="modal-section"><h4>Auxiliary datasets</h4><div class="aux-datasets-selection int-options">
+                    <label class="intervals-aux-option"><input type="checkbox" id="wellness-checkbox" value="wellness"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Wellness</span></label>
+                    <label class="intervals-aux-option"><input type="checkbox" id="summary-checkbox" value="summary"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Activity summary</span></label>
+                    <label class="intervals-aux-option"><input type="checkbox" id="intervals-checkbox" value="intervals"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Activity intervals</span></label>
+                </div></div>
+                <p id="intervals-modal-message" class="intervals-status-message int-message"></p>
+            </div>
+            <div class="modal-footer ui-dlg-f"><span class="sp"></span><div class="button-label">Load data</div><button id="connectIntervals" class="circular-button ui-btn primary" title="Load data from Intervals ICU" aria-label="Load Data from Intervals ICU"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
+        </div>
+    </div>
+
+    <!-- Intervals ICU Configuration Modal with API Key Management -->
+    <div id="intervalsConfigModal" class="modal ui-modal integration-dialog">
+        <div class="modal-content ui-dlg sm">
+            <div class="ui-dlg-h"><img src="/static/image/intervals-favicon.png" alt="" class="int-logo"><div class="title">Intervals ICU</div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-b modal-section">
+                <div id="intervalsApiKeyStatus" class="api-key-status"></div>
+                <div class="api-key-section ui-field"><label for="intervalsApiKeyInput">API key</label><div class="api-key-input-wrapper"><input type="password" id="intervalsApiKeyInput" class="api-key-input" placeholder="Your Intervals.icu API key" autocomplete="off"></div><p class="api-key-help help">From your <a href="https://intervals.icu/settings" target="_blank" rel="noopener noreferrer">Intervals.icu settings</a>, near the bottom. Stored encrypted; used only to fetch your activities.</p></div>
+                <div id="intervals-config-message" class="intervals-status-message int-message" style="display: none;"></div>
+            </div>
+            <div class="modal-footer ui-dlg-f"><div class="button-group"><button id="removeIntervalsApiKey" class="secondary-button ui-btn danger" style="display: none;">Remove</button></div><span class="sp"></span><button id="saveIntervalsApiKey" class="primary-button ui-btn primary">Save</button></div>
+        </div>
+    </div>
+
+    <!-- Endura Data Selection Modal -->
+    <div id="enduraModal" class="modal ui-modal integration-dialog">
+        <div class="modal-content ui-dlg">
+            <div class="ui-dlg-h"><div><div class="title">Load data from Endura</div><div class="sub">a race, with up to three auxiliary datasets</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-b modal-sections-container">
+                <div class="modal-section ui-field"><h4>Race</h4><select id="enduraRaceSelect" class="endura-race-select"><option value="">Loading races…</option></select></div>
+                <div class="modal-section"><h4>Auxiliary datasets (max 3)</h4><div class="aux-datasets-selection int-options">
+                    <label class="endura-aux-option always-selected"><input type="checkbox" value="profile" checked disabled><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Athlete profile</span></label>
+                    <label class="endura-aux-option"><input type="checkbox" value="turns"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Turns</span></label>
+                    <label class="endura-aux-option"><input type="checkbox" value="climbs"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Climbs</span></label>
+                    <label class="endura-aux-option"><input type="checkbox" value="waymarkers"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Waymarkers</span></label>
+                </div></div>
+                <p id="endura-modal-message" class="endura-status-message int-message"></p>
+            </div>
+            <div class="modal-footer ui-dlg-f"><span class="sp"></span><div class="button-label">Load data</div><button id="loadEnduraData" class="circular-button ui-btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
+        </div>
+    </div>
+
+    <!-- Endura Configuration Modal -->
+    <div id="enduraConfigModal" class="modal ui-modal integration-dialog">
+        <div class="modal-content ui-dlg sm">
+            <div class="ui-dlg-h"><div class="title">Endura</div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-b modal-section">
+                <div id="enduraApiKeyStatus" class="api-key-status"></div>
+                <div class="api-key-section ui-field"><label for="enduraApiKeyInput">API key</label><div class="api-key-input-wrapper"><input type="password" id="enduraApiKeyInput" class="api-key-input" placeholder="Your Endura API key" autocomplete="off"></div><p class="api-key-help help">Stored encrypted; used only to fetch your races.</p></div>
+                <div id="endura-config-message" class="endura-status-message int-message" style="display: none;"></div>
+            </div>
+            <div class="modal-footer ui-dlg-f"><div class="button-group"><button id="removeEnduraApiKey" class="secondary-button ui-btn danger" style="display: none;">Remove</button></div><span class="sp"></span><button id="saveEnduraApiKey" class="primary-button ui-btn primary">Save</button></div>
+        </div>
+    </div>
+
+    <!-- Usage Tracking Modal -->
+    <div id="usageTrackingModal" class="modal ui-modal">
+        <div class="modal-content ui-dlg lg">
+            <div class="ui-dlg-h">
+                <div><div class="title">Usage</div><div class="sub" id="usagePeriodDescription">Last 30 days</div></div>
+                <span class="sp"></span>
+                <div class="period-selector-section">
+                    <label for="usagePeriodSelector">Period</label>
+                    <select id="usagePeriodSelector" class="ui-input">
+                        <option value="1_day">Last 24 hours</option>
+                        <option value="7_days">Last 7 days</option>
+                        <option value="30_days" selected>Last 30 days</option>
+                        <option value="90_days">Last 90 days</option>
+                    </select>
+                    <label for="usageViewSelector">View</label>
+                    <select id="usageViewSelector" class="ui-input">
+                        <option value="agents" selected>Seats</option>
+                        <option value="models">Models</option>
+                        <option value="queries">Runs</option>
+                    </select>
+                </div>
+                <button class="close x" aria-label="Close">×</button>
+            </div>
+            <div class="modal-body ui-dlg-b">
+                <div id="usageLoadingContainer" class="loading-container"><div class="loading-spinner"></div><div class="loading-text">Loading usage…</div></div>
+                <div id="usageErrorContainer" class="error-container"><div id="usageErrorMessage" class="error-message">Could not load usage. Please try again.</div></div>
+                <div id="usageDataContainer" class="data-container">
+                    <div class="summary-section ui-stats">
+                        <div class="summary-card ui-stat"><div id="totalQueries" class="value">0</div><span>runs</span></div>
+                        <div class="summary-card ui-stat"><div id="totalCost" class="value">$0.00</div><span>cost</span></div>
+                        <div class="summary-card ui-stat"><div id="totalInputTokens" class="value">0</div><span>input tokens</span></div>
+                        <div class="summary-card ui-stat"><div id="totalOutputTokens" class="value">0</div><span>output tokens</span></div>
+                    </div>
+                    <div class="charts-section">
+                        <div class="chart-container ui-card"><h4>Cost over time</h4><div id="costChartData"></div></div>
+                        <div class="chart-container ui-card"><h4>Tokens over time</h4><div id="tokenChartData"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workflow Manager Modal -->
+    <div id="workflowManagerModal" class="workflow-manager-modal-container ui-modal-plain">
+        <div class="workflow-manager-modal-content ui-dlg lg">
+            <div class="workflow-modal-left">
+                <h3 class="workflow-modal-section-title">Labels</h3>
+                <div class="workflow-add-label-container">
+                    <input type="text" id="workflowNewLabelInput" class="workflow-new-label-input ui-input" placeholder="New label…" maxlength="50">
+                    <button id="workflowAddLabelBtn" class="workflow-add-label-submit ui-icon-btn" title="Add label"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+                </div>
+                <div id="workflowLabelsList" class="workflow-labels-list"></div>
+            </div>
+            <div class="workflow-modal-right">
+                <div class="workflow-modal-header-row ui-dlg-h">
+                    <div class="workflow-section-header"><span class="title">Saved workflows</span></div>
+                    <span class="sp"></span>
+                    <div class="workflow-search-container">
+                        <input type="text" id="workflowSearchInput" class="workflow-search-input ui-input" placeholder="Search workflows…">
+                        <button id="workflowSearchClear" class="workflow-search-clear ui-icon-btn" style="display: none;" title="Clear"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                        <button id="workflowSearchSubmit" class="workflow-search-submit ui-icon-btn" title="Search"><svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg><div class="workflow-search-spinner" style="display: none;"></div></button>
+                    </div>
+                    <button class="workflow-modal-close x" aria-label="Close">×</button>
+                </div>
+                <div id="workflowChainsGrid" class="workflow-chains-grid"><div class="workflow-loading">Loading workflows…</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Updated Subscription Modal HTML for PAYG -->
+    <div id="subscriptionModal" class="modal ui-modal">
+        <div class="modal-content ui-dlg lg">
+            <div class="ui-dlg-h">
+                <div><div class="title">Set up your account</div><div class="sub">choose model access, compute, and which integrations may read your data</div></div>
+                <span class="sp"></span>
+                <button class="close x" aria-label="Close">×</button>
+            </div>
+            <div class="subscription-content-wrapper ui-dlg-b">
+                <div class="subscription-tabs ui-tabs">
+                    <button class="subscription-tab active" data-tab="models">Models</button>
+                    <button class="subscription-tab" data-tab="compute">Compute</button>
+                    <button class="subscription-tab" data-tab="data">Integrations</button>
+                    <button class="subscription-tab" data-tab="funds">Funds</button>
+                </div>
+                <div class="subscription-content">
+                    <!-- Models -->
+                    <div id="models-tab" class="tab-content active">
+                        <div class="tier-options ui-choices">
+                            <label class="tier-option ui-choice">
+                                <input type="radio" name="model-tier" value="free" checked>
+                                <div class="tier-details">
+                                    <span class="tier-name">Free models</span>
+                                    <span class="tier-description">Open models at low effort, on short budgets. Fine to try things; not for serious analysis.</span>
+                                    <span class="tier-price">Free</span>
+                                </div>
+                            </label>
+                            <label class="tier-option tier-option-managed ui-choice">
+                                <input type="radio" name="model-tier" value="managed">
+                                <div class="tier-details">
+                                    <span class="tier-name">Managed models</span>
+                                    <span class="tier-description">The analyst and its reviewer on stronger models; the level sets how strong, and how long they think.</span>
+                                    <span class="tier-price">Pay as you go</span>
+                                </div>
+                                <div id="modelConfigSection" class="model-config-inline" style="display: none;">
+                                    <div class="model-toggle-container ui-seg">
+                                        <button class="toggle-option active" data-value="cost">Cost optimised</button>
+                                        <button class="toggle-option" data-value="performance">Performance</button>
+                                        <button class="toggle-option" data-value="max">Max</button>
+                                    </div>
+                                    <div class="config-description-inline">
+                                        <p id="configDescription"><strong>Cost optimised:</strong> A fast open model at full effort, reviewed by a frontier model. Cents a run.</p>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    <!-- Compute -->
+                    <div id="compute-tab" class="tab-content">
+                        <div class="tier-options ui-choices">
+                            <label class="tier-option ui-choice">
+                                <input type="radio" name="compute-tier" value="free" checked>
+                                <div class="tier-details"><span class="tier-name">Free</span><span class="tier-description">20 queries a month · 4 GB container · 80 MB upload</span><span class="tier-price per-query">$0 / query</span></div>
+                            </label>
+                            <label class="tier-option ui-choice">
+                                <input type="radio" name="compute-tier" value="plus">
+                                <div class="tier-details"><span class="tier-name">Plus</span><span class="tier-description">Unlimited queries · 8 GB container · 160 MB upload</span><span class="tier-price per-query">$0.02 / query</span></div>
+                            </label>
+                            <label class="tier-option ui-choice">
+                                <input type="radio" name="compute-tier" value="pro">
+                                <div class="tier-details"><span class="tier-name">Pro</span><span class="tier-description">Unlimited queries · 16 GB container · 320 MB upload</span><span class="tier-price per-query">$0.03 / query</span></div>
+                            </label>
+                        </div>
+                    </div>
+                    <!-- Integrations -->
+                    <div id="data-tab" class="tab-content">
+                        <p class="ui-muted" style="margin:0 0 10px">Which providers the analyst may fetch your data from, by history length. Longer SweatStack history is an extra.</p>
+                        <div id="integrationGrid" class="integration-grid"></div>
+                        <div class="integration-cost-display">SweatStack extended: <span id="integrationCost">$0</span></div>
+                    </div>
+                    <!-- Funds -->
+                    <div id="funds-tab" class="tab-content">
+                        <div class="ui-field"><label>Amount</label>
+                            <div class="amount-selector">
+                                <div class="amount-options ui-seg">
+                                    <button class="amount-btn active" data-amount="10">$10</button>
+                                    <button class="amount-btn" data-amount="25">$25</button>
+                                    <button class="amount-btn" data-amount="50">$50</button>
+                                    <button class="amount-btn" data-amount="100">$100</button>
+                                </div>
+                                <div class="custom-amount"><label for="customAmount">or a custom amount (min $10)</label><input type="number" id="customAmount" min="10" step="1" placeholder="10"></div>
+                            </div>
+                        </div>
+                        <div class="payment-info">
+                            <p class="fee-notice"><img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" style="height: 20px; vertical-align: middle; margin-right: 8px;">Secure payment by Stripe</p>
+                            <div class="total-display"><span>Amount to add</span><span id="totalAmount">$10.00</span></div>
+                        </div>
+                        <button id="proceedToPayment" class="primary-btn ui-btn primary">Proceed to payment</button>
+                    </div>
+                </div>
+            </div>
+            <div class="subscription-footer ui-dlg-f">
+                <div class="balance-info" id="balanceInfo">
+                    <div class="balance-row"><span>Queries left</span><span id="queryUsageCount" class="balance-amount">0</span><span id="queryUsageBadge" class="tier-badge tier-free">Free</span><div id="limitIndicator" class="limit-indicator"></div></div>
+                    <div class="balance-row query-cost-row"><span>Compute per query</span><span id="queryPriceDisplay" class="cost-amount cost-free">Free</span></div>
+                    <div class="balance-row"><span>Balance</span><span id="accountBalance" class="balance-amount">$0.00</span></div>
+                </div>
+                <span class="sp"></span>
+                <div class="footer-actions">
+                    <button id="addFundsBtn" class="secondary-btn ui-btn">Add funds</button>
+                    <button id="saveSubscription" class="primary-btn ui-btn primary">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load core modules in dependency order -->
+    <script src="{{ url_for('static', filename='js/workspace-gate.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/core.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/compression-utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui-controls.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/file-management.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/content-rendering.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/stream-pane.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/data-grid.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/query-processing.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/workflow-management.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/pdf-export.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/api-keys.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/subscription.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/usage-tracking.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/labels.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/workflow-modal.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/memory-review.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/workflow-replay.js') }}"></script>
+
+    <!-- Other modules - Load after core modules -->
+    <script src="{{ url_for('static', filename='js/integrations/sweatstack.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/integrations/intervals.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/integrations/endura.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/container-status.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dataset-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/agent-instructions.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/workflowGraph.js') }}"></script>
+
+    <!-- Payment Status Notification -->
+    {% if payment_status %}
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if ('{{ payment_status }}' === 'success') {
+            // Show success notification
+            const notification = document.createElement('div');
+            notification.className = 'payment-notification success';
+            notification.innerHTML = `
+                <div class="notification-content">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <span>Payment successful! Your funds have been added.</span>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            
+            // Update balance display
+            if (typeof updateQueryCounter === 'function') {
+                updateQueryCounter();
+            }
+            
+            // Clean URL to prevent notification on refresh
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => notification.remove(), 5000);
+            
+        } else if ('{{ payment_status }}' === 'cancelled') {
+            // Show cancelled notification
+            const notification = document.createElement('div');
+            notification.className = 'payment-notification cancelled';
+            notification.innerHTML = `
+                <div class="notification-content">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                    <span>Payment cancelled. No charges were made.</span>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            
+            // Clean URL to prevent notification on refresh
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            // Remove notification after 3 seconds
+            setTimeout(() => notification.remove(), 3000);
+        }
+    });
+    </script>
+    {% endif %}
+</body>
+</html>

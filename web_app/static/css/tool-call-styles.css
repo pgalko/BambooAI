@@ -1,0 +1,934 @@
+/* ============================================================================
+   TOOL CALL STYLES — Compact, color-coded redesign
+   ============================================================================ */
+
+
+/* ---------------------------------------------------------------------------
+   COLOR VARIABLES — uniform accent, error only
+   --------------------------------------------------------------------------- */
+
+/* variables moved to tokens.css (2026-09-08) */
+
+
+
+/* ---------------------------------------------------------------------------
+   BASE TOOL CALL — compact single-line
+   --------------------------------------------------------------------------- */
+
+.tool-call {
+    position: relative;
+    background-color: var(--tc-accent-bg);
+    border-left: 2px solid var(--tc-accent);
+    margin: 6px 0;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1;             /* prevent whitespace inflation in pre-wrap */
+    max-width: 320px;
+    transition: max-width 0.3s ease, background-color 0.2s ease;
+}
+
+.tool-call.expanded {
+    max-width: 40vw !important;
+}
+
+/* Extra top margin when tool-call follows text (class set by MutationObserver) */
+.tool-call.after-text {
+    margin-top: 26px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   HEADER — single row: [icon label]  [spinner|duration] [chevron]
+   --------------------------------------------------------------------------- */
+
+.tool-call-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    line-height: 22px;          /* comfortable click target */
+    min-width: 0;
+    cursor: default;
+}
+
+.tool-call-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    color: var(--tc-accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.tool-call-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tool-call-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.tool-call-status {
+    display: flex;
+    align-items: center;
+}
+
+
+/* ---------------------------------------------------------------------------
+   ICON — inherits color from parent .tool-call-action
+   --------------------------------------------------------------------------- */
+
+.tool-call .tool-icon {
+    display: inline-block;
+    vertical-align: middle;
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    stroke: currentColor;
+}
+
+
+/* ---------------------------------------------------------------------------
+   SPINNER — small, uses type color
+   --------------------------------------------------------------------------- */
+
+.tool-call .spinner {
+    border: 1.5px solid var(--bg-tertiary);
+    border-top-color: var(--tc-accent);
+    border-radius: 50%;
+    width: 8px;
+    height: 8px;
+    animation: spin 1s linear infinite;
+}
+
+
+/* ---------------------------------------------------------------------------
+   COMPLETION MESSAGE — inline, muted
+   --------------------------------------------------------------------------- */
+
+.tool-call .completion-message {
+    display: none;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
+
+/* ---------------------------------------------------------------------------
+   TOGGLE BUTTON (chevron)
+   --------------------------------------------------------------------------- */
+
+.thoughts-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    color: var(--text-tertiary);
+    transition: color 0.15s, background-color 0.15s;
+    line-height: 1;
+}
+
+.thoughts-toggle:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.chevron-icon {
+    width: 10px;
+    height: 10px;
+    transition: transform 0.2s ease;
+}
+
+
+/* ---------------------------------------------------------------------------
+   EXPANDABLE CONTAINERS — thoughts & results
+   --------------------------------------------------------------------------- */
+
+.thoughts-container,
+.results-container {
+    margin-top: 4px;
+    padding: 6px 0 6px 10px;
+    border-left: 1px solid var(--border-color);
+    overflow: hidden;
+    line-height: 1.4;
+    font-size: 11px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   AGENT flex layout (shared with .tool-start — preserved here as safety net)
+   --------------------------------------------------------------------------- */
+
+.agent {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   TOOL START — agent/model separator line
+   Moved here from styles.css. Remove the original block from styles.css.
+   --------------------------------------------------------------------------- */
+
+.tool-start {
+    display: flex;
+    align-items: center;
+    margin: 6px 0 3px 0;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--system-message-text);
+    position: relative;
+    padding-bottom: 2px;
+}
+
+.tool-start::before,
+.tool-start::after {
+    content: "";
+    flex-grow: 1;
+    height: 1px;
+    background-color: var(--system-message-text);
+    opacity: 0.6;
+}
+
+.tool-start .agent {
+    font-weight: bold;
+    color: var(--system-message-text);
+    display: flex;
+    align-items: center;
+    padding: 1px 4px 1px 8px;
+    white-space: nowrap;
+    margin-bottom: 0;
+}
+
+.tool-start .agent svg {
+    margin-right: 4px;
+}
+
+.tool-start .model {
+    color: var(--text-tertiary);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 1px 8px 1px 4px;
+    white-space: nowrap;
+}
+
+[data-theme="dark"] .tool-start {
+    opacity: 0.8;
+}
+
+.tool-start.loading .agent svg {
+    animation: sparkle-pulse 1.5s ease-in-out infinite;
+    transform-origin: center center;
+}
+
+/* Instructions button (appears alongside tool-start) */
+.agent-instructions-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-tertiary);
+    font-size: 10px;
+    padding: 2px 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+    margin: 0 0 3px 0;
+    vertical-align: middle;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.agent-instructions-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-secondary);
+}
+
+.agent-instructions-btn svg {
+    width: 10px;
+    height: 10px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   THOUGHT CONTENT — flowing text, no per-item cards
+   --------------------------------------------------------------------------- */
+
+.thought-content {
+    color: var(--text-secondary);
+    font-style: italic;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 0;
+    margin: 0;
+}
+
+/* Tighten markdown elements inside thoughts */
+.thought-content p {
+    margin: 2px 0;
+}
+
+.thought-content p:first-child {
+    margin-top: 0;
+}
+
+.thought-content p:last-child {
+    margin-bottom: 0;
+}
+
+.thought-content ul,
+.thought-content ol {
+    margin: 2px 0;
+    padding-left: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CODE EXECUTION — dark terminal box with blinking cursor
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tool-call.code-execution {
+    border-left: 2px solid var(--tc-accent);
+    background-color: #0d0d0d;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+    padding: 6px 10px 10px 10px;
+    min-height: 52px;
+}
+
+.tool-call.code-execution .tool-call-action { color: var(--tc-accent); }
+.tool-call.code-execution .spinner          { border-top-color: var(--tc-accent); }
+.tool-call.code-execution .results-container { border-left: none; }
+.tool-call.code-execution .completion-message { color: rgba(255, 255, 255, 0.35); }
+
+/* Label in monospace to reinforce terminal feel */
+.tool-call.code-execution .tool-call-label {
+    font-family: 'Courier New', monospace;
+}
+
+/* Terminal cursor line */
+.tool-call.code-execution .terminal-cursor-line {
+    display: block;
+    margin-top: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--tc-accent);
+    line-height: 1.4;
+    opacity: 0.7;
+}
+
+.tool-call.code-execution .terminal-cursor-line .prompt-char {
+    color: var(--tc-accent);
+    margin-right: 2px;
+}
+
+.tool-call.code-execution .terminal-cursor-line .blinking-cursor {
+    display: inline-block;
+    width: 7px;
+    height: 13px;
+    background-color: var(--tc-accent);
+    vertical-align: text-bottom;
+    animation: terminal-blink 1s step-end infinite;
+}
+
+/* Hide cursor line once completed */
+.tool-call.code-execution.completed .terminal-cursor-line {
+    display: none;
+}
+
+@keyframes terminal-blink {
+    0%, 100% { opacity: 0.8; }
+    50%      { opacity: 0; }
+}
+
+[data-theme="light"] .tool-call.code-execution {
+    background-color: #f0f2f1;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
+    border-left-color: var(--tc-accent);
+}
+
+[data-theme="light"] .tool-call.code-execution .terminal-cursor-line {
+    color: var(--tc-accent);
+}
+
+[data-theme="light"] .tool-call.code-execution .terminal-cursor-line .blinking-cursor {
+    background-color: var(--tc-accent);
+}
+
+[data-theme="light"] .tool-call.code-execution .completion-message {
+    color: var(--text-tertiary);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ERROR STATE (applied dynamically by updateToolCallWithError)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tool-call.tool-call-error {
+    border-left-color: var(--tc-error) !important;
+    background-color: var(--tc-error-bg) !important;
+}
+
+.tool-call.tool-call-error .tool-call-action {
+    color: var(--tc-error) !important;
+}
+
+.tool-call.tool-call-error .tool-icon {
+    stroke: var(--tc-error) !important;
+}
+
+.tool-call.tool-call-error .completion-message {
+    color: var(--tc-error) !important;
+}
+
+.tool-call.tool-call-error .thoughts-toggle:hover {
+    color: var(--tc-error) !important;
+}
+
+.tool-call.tool-call-error .results-container {
+    border-left-color: var(--tc-error);
+}
+
+
+/* ── Standalone error (no parent tool call) ── */
+
+.tool-call-error-standalone {
+    margin: 4px 0;
+    padding: 4px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--tc-error);
+    border-left: 2px solid var(--tc-error);
+    background-color: var(--tc-error-bg);
+    border-radius: 2px;
+}
+
+
+/* ── Code execution result / error content (inside results-container) ── */
+
+.code-result-content {
+    font-style: italic;
+    color: var(--text-secondary);
+    background-color: transparent;
+    padding: 2px 0;
+    margin: 0;
+    border-radius: 0;
+    display: block;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.code-result-content.error-result {
+    color: var(--tc-error) !important;
+    font-family: 'Courier New', monospace;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.code-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-style: normal;
+}
+
+.code-label.error {
+    color: var(--tc-error);
+}
+
+
+/* ── Search result content (inside results-container) ── */
+
+.search-result-content {
+    font-style: italic;
+    color: var(--text-secondary);
+    background-color: transparent;
+    padding: 2px 0;
+    margin: 0;
+    border-radius: 0;
+    display: block;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.search-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-style: normal;
+}
+
+.search-code {
+    background: rgba(0, 0, 0, 0.1);
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-family: monospace;
+    font-size: 0.85em;
+    font-style: normal;
+}
+
+[data-theme="dark"] .search-code {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+
+/* ── Assistant consultation content (inside results-container) ── */
+
+.assistant-consultation-content {
+    font-style: italic;
+    color: var(--text-secondary);
+    background-color: transparent;
+    padding: 2px 0;
+    margin: 0;
+    border-radius: 0;
+    display: block;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.assistant-consultation-content p {
+    margin: 2px 0;
+}
+
+.assistant-consultation-content p:first-child { margin-top: 0; }
+.assistant-consultation-content p:last-child  { margin-bottom: 0; }
+
+.assistant-consultation-content ul,
+.assistant-consultation-content ol {
+    margin: 2px 0;
+    padding-left: 16px;
+}
+
+.assistant-consultation-content li       { margin-bottom: 2px; }
+.assistant-consultation-content li:last-child { margin-bottom: 0; }
+
+.assistant-consultation-content strong {
+    color: var(--text-primary);
+    font-style: normal;
+}
+
+
+/* ---------------------------------------------------------------------------
+   DARK-THEME opacity for tool calls (matching tool-start treatment)
+   --------------------------------------------------------------------------- */
+
+[data-theme="dark"] .tool-call {
+    opacity: 0.9;
+}
+
+[data-theme="dark"] .thought-content,
+[data-theme="dark"] .search-result-content,
+[data-theme="dark"] .code-result-content:not(.error-result),
+[data-theme="dark"] .assistant-consultation-content {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .code-label,
+[data-theme="dark"] .search-label,
+[data-theme="dark"] .assistant-consultation-content strong {
+    color: var(--text-primary);
+}
+
+
+/* ---------------------------------------------------------------------------
+   KEYFRAMES — sparkle-pulse for tool-start loading state
+   Included here since the module owns .tool-start.loading animation.
+   @keyframes spin is NOT included — it lives in styles.css and is shared
+   by multiple components (loading overlay, file upload, etc.)
+   --------------------------------------------------------------------------- */
+
+@keyframes sparkle-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.15) rotate(15deg);
+    }
+}
+
+/* ==========================================================================
+   LEGACY - streams saved before 2026-09-06 (favourites) still carry this markup:
+   .tool-call blocks (above), session ids, generated-dataset lists, iteration
+   headers, related searches. Nothing in the app produces it any more.
+   ========================================================================== */
+.session-ids {
+    color: var(--accent-color);
+    border: none;
+    margin: 0;
+    padding: 2px 4px; /* Match .tool-start */
+    font-size: 12px;
+    display: block;
+}
+/* Style for each row to control spacing */
+.id-row {
+    line-height: 1.2;
+    margin-bottom: 1px;
+}
+.id-label {
+    color: var(--accent-color);
+    margin-right: 4px;
+}
+.id-value {
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+/* Search Results Styles */
+.related-searches-container {
+    margin: 1rem 0;
+    padding: 15px; /* Matches .research-item padding */
+    border: 1px solid var(--border-color); /* Matches app's border style */
+    border-radius: 4px; /* Matches app's border-radius */
+    background: var(--bg-secondary); /* Matches .thread-item, .research-item background */
+    box-shadow: 0 1px 3px var(--shadow-color); /* Matches .thread-item shadow */
+}
+.related-searches-header {
+    display: flex;
+    align-items: center; /* Vertically aligns the icon and text */
+    gap: 0; /* No flex gap */
+    font-family: Arial, sans-serif; /* Matches body font */
+    font-size: 14px; /* As previously set */
+    font-weight: 600; /* Matches .threads-header */
+    color: var(--accent-color); /* Matches .threads-header */
+    margin-top: 2px; /* Margin to the top edge */
+    margin-bottom: 2px; /* Margin to the divider (border-bottom) */
+    border-bottom: 1px solid var(--border-color); /* Matches other headers like .yaml-task-container */
+    padding-bottom: 0.25rem; /* Matches existing padding-bottom */
+}
+.related-searches-header .search-icon {
+    width: 16px; /* Matches .tool-icon, .code-action-button svg */
+    height: 16px;
+    stroke: var(--accent-color); /* Matches icon colors like .tool-icon */
+    display: block; /* Treat the SVG as a block element to avoid inline spacing issues */
+    transform: translateY(1px); /* Fine-tune vertical alignment */
+    margin-right: 2px; /* Controlled space between icon and text */
+}
+.related-searches-header .header-text {
+    display: inline-block; /* Ensure the text behaves as a block for alignment */
+    line-height: 1; /* Normalize line-height to match the icon */
+}
+.related-searches-list {
+    display: flex;
+    flex-direction: column; /* Stacks chips vertically */
+    align-items: flex-start; /* Prevents chips from stretching to full width */
+    gap: 8px; /* Matches .header-actions gap */
+    margin-top: 10px; /* Space between the divider and the chips */
+    width: auto; /* Ensure the list itself doesn't stretch */
+}
+.related-search-chip {
+    display: inline-block; /* Wraps tightly around text */
+    width: auto; /* Ensures width is based on text length */
+    max-width: fit-content; /* Constrains the chip to the width of its content */
+    padding: 8px 16px; /* Matches .attach-option padding */
+    border: 1px solid var(--border-color); /* Matches app's border style */
+    border-radius: 16px; /* Matches .modal-content border-radius */
+    background: var(--yaml-bg); /* Matches .yaml-task-container background */
+    color: var(--text-secondary); /* Matches app's text color */
+    text-decoration: none;
+    font-family: Arial, sans-serif; /* Matches body font */
+    font-style:italic; /* Italic style for emphasis */
+    font-size: 14px; /* Matches .thread-task font-size */
+    font-weight: 500; /* Matches .language-label */
+    transition: all 0.2s ease; /* Matches .attach-option transition */
+}
+.related-search-chip:hover {
+    background: var(--link-hover-bg); /* Matches .menu-option hover background */
+    color: var(--accent-color); /* Matches .menu-option hover color */
+    border-color: var(--accent-color); /* Matches .thread-item hover */
+}
+/* Dark theme adjustments */
+[data-theme="dark"] .related-searches-container {
+    border-color: var(--border-color); /* #555555 in dark mode */
+    background: var(--yaml-bg); /* #333333 in dark mode */
+}
+[data-theme="dark"] .related-searches-header {
+    color: var(--accent-color); /* var(--accent-color) in dark mode */
+    border-bottom-color: var(--border-color); /* #555555 in dark mode */
+}
+[data-theme="dark"] .related-searches-header .search-icon {
+    stroke: var(--accent-color); /* var(--accent-color) in dark mode */
+}
+[data-theme="dark"] .related-search-chip {
+    background: var(--yaml-bg); /* #3a3a3a in dark mode */
+    border-color: var(--border-color); /* #555555 in dark mode */
+    color: var(--text-secondary); /* #e0e0e0 in dark mode */
+}
+[data-theme="dark"] .related-search-chip:hover {
+    background: var(--link-hover-bg); /* #4a4a4a in dark mode */
+    color: var(--accent-color); /* var(--accent-color) in dark mode */
+    border-color: var(--accent-color); /* var(--accent-color) in dark mode */
+}
+/* --- Generated Datasets (in streamOutput) --- */
+#streamOutput .generated-datasets-container {
+    margin: 1rem 0;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--yaml-bg);
+    box-shadow: 0 1px 3px var(--shadow-color);
+    font-family: Arial, sans-serif;
+    white-space: normal;
+    line-height: 1.5;
+}
+#streamOutput .generated-datasets-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-color);
+    margin-top: 0;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+#streamOutput .generated-datasets-header .file-icon-header {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    flex-shrink: 0;
+}
+#streamOutput .generated-datasets-list {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+#streamOutput .generated-dataset-item.no-datasets-message {
+    font-style: italic;
+    color: var(--text-secondary);
+    font-size: 14px;
+    padding: 8px 0;
+}
+#streamOutput .dataset-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background: var(--yaml-bg);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    max-width: 100%;
+    cursor: pointer;
+}
+#streamOutput .dataset-link:hover {
+    background: var(--link-hover-bg);
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+#streamOutput .dataset-link .download-icon-pill {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    flex-shrink: 0;
+}
+#streamOutput .dataset-link .dataset-path {
+    word-break: break-word;
+    line-height: 1.3;
+}
+/* ── Investigation blocks ────────────────────────────────────────────────
+   Agent steps reuse the .thinking element, so they inherit its theming; only
+   the reasoning body needs rules of its own. No colours are set here - the
+   theme governs, and hard-coding any would break dark mode. */
+
+/* Reasoning while it streams: raw text, so newlines and indentation survive
+   until the block closes and the markdown is parsed in one pass. */
+.thought-stream {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.55;
+    font-size: 0.86rem;
+    opacity: 0.85;
+}
+/* The corrected script the harness pushes after an error correction - the
+   corrector answers with edit blocks, so this is the only full view of the
+   script that will actually run next. */
+.corrected-code-block { margin: 10px 0; }
+.corrected-code-block .code-label { margin-bottom: 4px; display: block; }
+.research-container {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--text-primary);
+}
+.research-item {
+    background-color: var(--research-item-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+.research-query {
+    font-size: 1.4em;
+    color: var(--research-header);
+    margin-bottom: 10px;
+}
+.research-result {
+    margin-bottom: 15px;
+}
+.dataframe {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+}
+.dataframe th, .dataframe td {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    text-align: left;
+}
+.dataframe th {
+    background-color: var(--dataframe-header-bg);
+    font-weight: 600;
+    color: var(--dataframe-header-text);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-clip: padding-box;
+    box-shadow: inset 0 1px 0 var(--bg-primary), 0 1px 0 var(--border-color);
+}
+.dataframe-container {
+    width: 100%;
+    overflow-x: auto;
+    margin: 1rem 0;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px var(--shadow-color);
+    background: var(--bg-primary);
+}
+.dataframe tr:nth-child(even) {
+    background-color: var(--dataframe-even-row);
+}
+.dataframe tr:hover {
+    background-color: var(--dataframe-hover);
+}
+.dataframe td:first-child {
+    color: var(--accent-color);
+    cursor: pointer;
+}
+.dataframe td:nth-child(3) {
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 12px;
+    white-space: nowrap;
+    color: var(--text-secondary);
+}
+.dataframe td:not(:first-child):not(:nth-child(2)):not(:nth-child(3)) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+}
+.dataframe td:nth-child(2) {
+    font-weight: 500;
+}
+/* moved from styles.css 2026-09-08: the old Plan/YAML tab and the thought blocks, for saved favourites that still carry them */
+.plan-content {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+.yaml-content {
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background-color: var(--yaml-bg);
+    padding: 15px;
+    border-radius: 5px;
+    line-height: 1.2;
+}
+.yaml-task-container {
+    background-color: var(--bg-tertiary);
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+.yaml-list-item, .yaml-key-value, .yaml-line {
+    display: block;
+}
+/* Ensure YAML content and wrapper use the correct background and text */
+.yaml-content,
+.yaml-wrapper pre,
+.yaml-wrapper code {
+    background-color: var(--yaml-bg) !important;
+    color: var(--code-text) !important;
+    border: 1px solid var(--border-color) !important;
+}
+.yaml-value {
+    color: var(--yaml-value)!important;
+}
+.yaml-content-wrap {
+    display: inline-block;
+    white-space: normal;
+}
+.yaml-key-link {
+    color: var(--yaml-key);
+    font-weight: bold;
+}
+.yaml-task-link {
+    text-decoration: none;
+    color: var(--accent-color);
+    font-weight: bold;
+}
+.yaml-task-link:hover {
+    text-decoration: underline;
+}
+.yaml-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+}
+.yaml-wrapper pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-word;
+}
+.yaml-wrapper code {
+    display: block;
+    max-width: 100%;
+}
+.code-content {
+    position: relative;
+    background-color: var(--code-bg);
+}
+.code-content pre {
+    margin: 0;
+    padding: 1rem;
+}
+/* Reasoning once parsed. Tight vertical rhythm: these blocks sit in a list. */
+.thought-content { line-height: 1.55; font-size: 0.86rem; }
+.thought-content > :first-child { margin-top: 0; }
+.thought-content > :last-child { margin-bottom: 0; }
+.thought-content p { margin: 0.45em 0; }
+.thought-content ul,
+.thought-content ol { margin: 0.45em 0; padding-left: 1.2em; }
+.thought-content li { margin: 0.15em 0; }
+.thought-content h1,
+.thought-content h2,
+.thought-content h3 { margin: 0.8em 0 0.35em; font-size: 0.92rem; }
+.thought-content pre { margin: 0.5em 0; padding: 0.5em 0.7em; border-radius: 4px;
+                       overflow-x: auto; font-size: 0.82rem; }
+.thought-content code { font-size: 0.82rem; }
+/* An agent step is one row in a sequence, so it reads as a list rather than a
+   stack of cards. The web-search block sits in the same sequence (a delve
+   SEARCH step lands between Investigator turns) and reads the same way. */
+.tool-call.agent-step, .tool-call.web-search { margin: 2px 0; }
+.tool-call.agent-step .tool-call-header,
+.tool-call.web-search .tool-call-header { padding-top: 3px; padding-bottom: 3px; }

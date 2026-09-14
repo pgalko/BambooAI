@@ -1,0 +1,5 @@
+{
+  "//": "delv-e is vendored flat at ./delve and imports its own modules top-level, the way it does as a CLI. bambooai/planner/__init__.py appends that directory to sys.path at import time, which a static analyser does not execute - so `from synthesis import ...`, `from nav_state import ...`, `from prompts import ...` and `from executor import extract_code` resolve at runtime but look unresolved in the editor. Naming the path here fixes that without changing any code.",
+  "extraPaths": ["delve", "."],
+  "reportMissingImports": "warning"
+}

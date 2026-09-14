@@ -1,0 +1,59 @@
+/* workspace_gate.css - MOCKUP of the workspace gate (the card shown while the workspace is set up).
+   Reuses the dialog shell (.modal.ui-modal scrim, .ui-dlg card) and the four meanings:
+   model green = done, kernel sand = in progress, failure red = did not start. */
+
+.ws-gate { display: flex; z-index: 12000; background: var(--scrim); backdrop-filter: blur(2px); }
+.ws-gate.on-dark { background: var(--bg-primary); }                       /* before sign-in: no shell behind yet */
+.ws-card { width: min(392px, 100%); max-height: none; padding: 26px 26px 20px; align-items: center; text-align: center; gap: 10px; }
+.ws-card .ws-title { font-size: 15px; font-weight: 600; color: var(--text-primary); letter-spacing: .01em; }
+.ws-card .ws-line { font-size: var(--fs-body); color: var(--text-secondary); min-height: 18px; }
+.ws-card .ws-note { font-size: var(--fs-small); color: var(--text-quaternary); max-width: 300px; line-height: 1.45; }
+.ws-card .ws-meta { font-size: var(--fs-small); color: var(--text-quaternary); font-family: var(--font-mono); }
+.ws-card .ws-logo { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--text-quaternary); text-transform: uppercase; }
+
+/* A - the ring */
+.ws-ring { width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--border-color); border-top-color: var(--c-model); animation: spin-slow 1s linear infinite; margin-bottom: 4px; }
+.ws-ready .ws-ring { border-color: var(--c-model); animation: none; display: grid; place-items: center; }
+.ws-ready .ws-ring svg { width: 18px; height: 18px; stroke: var(--c-model); fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.ws-failed .ws-ring { border-color: var(--c-fail); animation: none; display: grid; place-items: center; }
+.ws-failed .ws-ring svg { width: 18px; height: 18px; stroke: var(--c-fail); fill: none; stroke-width: 2.4; stroke-linecap: round; }
+.ws-failed .ws-line { color: var(--c-fail); }
+
+/* B - the stages */
+.ws-steps { list-style: none; margin: 4px 0 0; padding: 0; width: 100%; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.ws-steps li { display: flex; align-items: center; gap: 10px; font-size: var(--fs-body); color: var(--text-tertiary); padding: 7px 10px; border-radius: var(--r-2); border: 1px solid var(--border-color); }
+.ws-steps li .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border-tertiary); flex: none; display: grid; place-items: center; }
+.ws-steps li.done { color: var(--text-secondary); }
+.ws-steps li.done .dot { background: var(--c-model); }
+.ws-steps li.busy { color: var(--text-primary); border-color: var(--chip-kernel-border, var(--border-secondary)); }
+.ws-steps li.busy .dot { background: var(--c-kernel); animation: pulse 1.5s ease-in-out infinite; }
+.ws-steps li.fail { color: var(--c-fail); border-color: var(--chip-fail-border, var(--border-secondary)); }
+.ws-steps li.fail .dot { background: var(--c-fail); }
+.ws-steps li em { font-style: normal; margin-left: auto; font-size: var(--fs-small); color: var(--text-quaternary); font-family: var(--font-mono); }
+.ws-steps li.busy em { color: var(--c-kernel); }
+
+/* C - the line */
+.ws-bar { width: 100%; height: 3px; border-radius: 2px; background: var(--border-color); overflow: hidden; margin: 2px 0 4px; }
+.ws-bar i { display: block; height: 100%; width: 38%; border-radius: 2px; background: var(--c-model); animation: ws-slide 1.5s ease-in-out infinite; }
+@keyframes ws-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(290%); } }
+
+/* the pane's empty state (the retired sentence's replacement) */
+.sp-empty { padding: 18px 6px; color: var(--text-quaternary); font-size: var(--fs-body); line-height: 1.5; }
+.sp-empty kbd { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-tertiary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 5px; }
+
+/* P - the pill (the user's sketch): one line, a ring in kernel sand, four stage dots */
+.ws-pill-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.ws-pill { display: inline-flex; align-items: center; gap: 14px; height: 46px; padding: 0 18px 0 16px; border-radius: 23px; background: var(--bg-secondary); border: 1px solid var(--border-secondary); box-shadow: var(--shadow-dialog); color: var(--text-secondary); font-family: var(--font-ui); font-size: 14px; letter-spacing: .005em; white-space: nowrap; }
+.ws-pill .ws-ring { width: 16px; height: 16px; margin: 0; border-width: 2px; border-color: var(--border-tertiary); border-top-color: var(--c-kernel); }
+.ws-pill.ready .ws-ring { border-color: var(--c-model); animation: none; display: grid; place-items: center; }
+.ws-pill.ready .ws-ring svg { width: 10px; height: 10px; stroke: var(--c-model); fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.ws-pill.failed .ws-ring { border-color: var(--c-fail); border-top-color: var(--c-fail); animation: none; }
+.ws-pill.failed .ws-text { color: var(--c-fail); }
+.ws-pill .ws-text .sep { margin: 0 6px; color: var(--text-quaternary); }
+.ws-pill .ws-text .dim { color: var(--text-tertiary); }
+.ws-pill .ws-dots { display: inline-flex; gap: 6px; margin-left: 2px; }
+.ws-pill .ws-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border-tertiary); }
+.ws-pill .ws-dots i.done { background: var(--c-model); }
+.ws-pill .ws-dots i.busy { background: var(--c-kernel); animation: pulse 1.5s ease-in-out infinite; }
+.ws-pill .ws-dots i.fail { background: var(--c-fail); }
+.ws-caption { font-size: var(--fs-small); color: var(--text-quaternary); font-family: var(--font-ui); }

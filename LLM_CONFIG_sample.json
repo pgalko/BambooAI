@@ -1,0 +1,443 @@
+{
+  "agent_configs": [
+    {
+      "agent": "Analyst",
+      "details": {
+        "reasoning_effort": "high",
+        "model": "x-ai/grok-4.6",
+        "provider": "openrouter",
+        "temperature": 0,
+        "max_tokens": 32000
+      }
+    },
+    {
+      "agent": "Rewriter",
+      "details": {
+        "reasoning_effort": "low",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "provider": "openrouter",
+        "temperature": 0,
+        "max_tokens": 16000
+      }
+    },
+    {
+      "agent": "Reviewer",
+      "details": {
+        "reasoning_effort": "high",
+        "model": "openai/gpt-5.6-sol",
+        "provider": "openrouter",
+        "temperature": 0,
+        "max_tokens": 48000
+      }
+    },
+    {
+      "agent": "Knowledge Distiller",
+      "details": {
+        "reasoning_effort": "none",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "provider": "openrouter",
+        "max_tokens": 24000,
+        "temperature": 0
+      }
+    },
+    {
+      "agent": "Google Search Executor",
+      "details": {
+        "reasoning_effort": "none",
+        "model": "gemini-flash-latest",
+        "provider": "gemini",
+        "max_tokens": 8000,
+        "temperature": 0
+      }
+    },
+    {
+      "agent": "Google Search Summarizer",
+      "details": {
+        "reasoning_effort": "none",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "provider": "openrouter",
+        "max_tokens": 12000,
+        "temperature": 0
+      }
+    },
+    {
+      "agent": "Image Generator",
+      "details": {
+        "reasoning_effort": "none",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "provider": "openrouter",
+        "max_tokens": 28000,
+        "temperature": 0
+      }
+    }
+  ],
+  "model_properties": {
+    "gpt-5.6-luna": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "api_type": "responses",
+      "prompt_tokens": 0.0002,
+      "completion_tokens": 0.0012,
+      "cache_read_tokens": 2e-05,
+      "cache_write_tokens": 0.0002
+    },
+    "gpt-5.6-terra": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "api_type": "responses",
+      "prompt_tokens": 0.002,
+      "completion_tokens": 0.012,
+      "cache_read_tokens": 0.0002,
+      "cache_write_tokens": 0.002
+    },
+    "gpt-5.6-sol": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "api_type": "responses",
+      "prompt_tokens": 0.005,
+      "completion_tokens": 0.03,
+      "cache_read_tokens": 0.0005,
+      "cache_write_tokens": 0.005
+    },
+    "gemini-flash-latest": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "prompt_tokens": 0.0005,
+      "completion_tokens": 0.003,
+      "grounding_search_request": 0.014,
+      "cache_read_tokens": 0.000125,
+      "cache_write_tokens": 0.0005
+    },
+    "google/gemini-3.7-flash": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "reasoning_style": "effort",
+      "prompt_tokens": 0.000375,
+      "completion_tokens": 0.001875,
+      "cache_read_tokens": 3.75e-05,
+      "cache_write_tokens": 0.000375,
+      "routing": {
+        "order": [
+          "google-vertex"
+        ],
+        "allow_fallbacks": true
+      }
+    },
+    "gemini-3.1-pro-preview": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "prompt_tokens": 0.002,
+      "completion_tokens": 0.012,
+      "grounding_search_request": 0.014,
+      "cache_read_tokens": 0.0005,
+      "cache_write_tokens": 0.002
+    },
+    "gemini-3.1-flash-image-preview": {
+      "capability": "image_generation",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "prompt_tokens": 0.00025,
+      "completion_tokens": 0.0015,
+      "per_image_output": 0.067,
+      "cache_read_tokens": 6.25e-05,
+      "cache_write_tokens": 0.00025
+    },
+    "gemini-3-pro-image-preview": {
+      "capability": "image_generation",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "prompt_tokens": 0.002,
+      "completion_tokens": 0.012,
+      "per_image_output": 0.134,
+      "cache_read_tokens": 0.0005,
+      "cache_write_tokens": 0.002
+    },
+    "claude-haiku-4-5-20251001": {
+      "capability": "base",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.001,
+      "completion_tokens": 0.005,
+      "cache_read_tokens": 0.0001,
+      "cache_write_tokens": 0.00125
+    },
+    "claude-sonnet-5": {
+      "capability": "base",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.002,
+      "completion_tokens": 0.01,
+      "cache_read_tokens": 0.0002,
+      "cache_write_tokens": 0.0025
+    },
+    "claude-opus-5": {
+      "capability": "base",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.005,
+      "completion_tokens": 0.025,
+      "cache_read_tokens": 0.0005,
+      "cache_write_tokens": 0.00625
+    },
+    "mistral-large-2512": {
+      "capability": "base",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.0005,
+      "completion_tokens": 0.0015
+    },
+    "mistral-medium-2508": {
+      "capability": "base",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.0004,
+      "completion_tokens": 0.002
+    },
+    "codestral-2508": {
+      "capability": "base",
+      "multimodal": "false",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.0003,
+      "completion_tokens": 0.0009
+    },
+    "/mnt/c/Users/pgalk/vllm/models/DeepSeek-R1-Distill-Qwen-14B": {
+      "capability": "reasoning",
+      "multimodal": "false",
+      "templ_formating": "text",
+      "prompt_tokens": 0.0,
+      "completion_tokens": 0.0
+    },
+    "deepseek/deepseek-v4-flash-0731": {
+      "capability": "reasoning",
+      "multimodal": "false",
+      "templ_formating": "text",
+      "prompt_tokens": 0.00044,
+      "completion_tokens": 0.00132,
+      "cache_read_tokens": 3.52e-06,
+      "cache_write_tokens": 0.00044,
+      "routing": {
+        "order": [
+          "deepseek",
+          "fireworks",
+          "deepinfra"
+        ],
+        "allow_fallbacks": true,
+        "quantizations": [
+          "fp8",
+          "bf16"
+        ],
+        "preferred_min_throughput": 25
+      }
+    },
+    "deepseek/deepseek-v4-pro-0813": {
+      "capability": "reasoning",
+      "multimodal": "false",
+      "templ_formating": "text",
+      "prompt_tokens": 0.00132,
+      "completion_tokens": 0.00396,
+      "cache_read_tokens": 1.056e-05,
+      "cache_write_tokens": 0.00132
+    },
+    "moonshotai/kimi-k3": {
+      "capability": "reasoning",
+      "multimodal": "false",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.0029,
+      "completion_tokens": 0.014,
+      "cache_read_tokens": 0.00029,
+      "cache_write_tokens": 0.0029,
+      "routing": {
+        "preferred_min_throughput": 25
+      }
+    },
+    "z-ai/glm-5.3": {
+      "capability": "reasoning",
+      "multimodal": "false",
+      "templ_formating": "text",
+      "reasoning_style": "effort",
+      "reasoning_efforts": [
+        "low",
+        "high",
+        "max"
+      ],
+      "prompt_tokens": 0.0014,
+      "completion_tokens": 0.0044,
+      "cache_read_tokens": 0.00026,
+      "cache_write_tokens": 0.0014
+    },
+    "meta/muse-spark-1.3": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "reasoning_style": "effort",
+      "reasoning_efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "prompt_tokens": 0.00125,
+      "completion_tokens": 0.00425,
+      "cache_read_tokens": 0.00015,
+      "cache_write_tokens": 0.00125
+    },
+    "meta/muse-spark-1.3-contributor": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "reasoning_style": "effort",
+      "reasoning_efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "prompt_tokens": 0.0001,
+      "completion_tokens": 0.0002,
+      "cache_read_tokens": 2e-06,
+      "cache_write_tokens": 0.0001
+    },
+    "google/gemini-3.8-flash": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "reasoning_style": "effort",
+      "reasoning_efforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "prompt_tokens": 0.00075,
+      "completion_tokens": 0.00375,
+      "cache_read_tokens": 7.5e-05,
+      "cache_write_tokens": 0.00075
+    },
+    "z-ai/glm-5.3-flash": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "reasoning_style": "effort",
+      "reasoning_efforts": [
+        "low",
+        "high",
+        "max"
+      ],
+      "prompt_tokens": 0.00015,
+      "completion_tokens": 0.0005,
+      "cache_read_tokens": 3e-05,
+      "cache_write_tokens": 0.00015
+    },
+    "openai/gpt-5.6-terra-pro": {
+      "capability": "reasoning",
+      "multimodal": "false",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.001,
+      "completion_tokens": 0.006,
+      "cache_read_tokens": 0.0001,
+      "cache_write_tokens": 0.001
+    },
+    "openai/gpt-5.6-luna-pro": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.0002,
+      "completion_tokens": 0.0012,
+      "cache_read_tokens": 2e-05,
+      "cache_write_tokens": 0.0002
+    },
+    "grok-4.3": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.00125,
+      "completion_tokens": 0.0025,
+      "cache_read_tokens": 0.0003125,
+      "cache_write_tokens": 0.00125
+    },
+    "grok-4.5": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.002,
+      "completion_tokens": 0.006,
+      "cache_read_tokens": 0.0005,
+      "cache_write_tokens": 0.002
+    },
+    "grok-4.6": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.002,
+      "completion_tokens": 0.006,
+      "cache_read_tokens": 0.0005,
+      "cache_write_tokens": 0.002
+    },
+    "x-ai/grok-4.6": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.002,
+      "completion_tokens": 0.006,
+      "cache_read_tokens": 0.0005,
+      "cache_write_tokens": 0.002,
+      "reasoning_style": "effort",
+      "reasoning_efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    },
+    "openai/gpt-5.6-sol": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "xml",
+      "prompt_tokens": 0.005,
+      "completion_tokens": 0.03,
+      "cache_read_tokens": 0.0005,
+      "cache_write_tokens": 0.005,
+      "reasoning_style": "effort",
+      "reasoning_efforts": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "capability": "reasoning",
+      "multimodal": "true",
+      "templ_formating": "text",
+      "prompt_tokens": 0.0003,
+      "completion_tokens": 0.0012,
+      "cache_read_tokens": 6e-06,
+      "cache_write_tokens": 0.0003,
+      "routing": {
+        "order": [
+          "deepseek"
+        ],
+        "allow_fallbacks": true,
+        "preferred_min_throughput": 25
+      },
+      "reasoning_style": "effort",
+      "reasoning_efforts": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    }
+  },
+  "analyst_turns_quick": 4,
+  "analyst_turns_deep": 15,
+  "analyst_turns_adaptive": 50,
+  "analyst_review_every": 8
+}

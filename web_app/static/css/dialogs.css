@@ -1,0 +1,620 @@
+/* dialogs.css - what is specific to each dialog once it sits in the shell (2026-09-08).
+   Loaded after components.css. Migrated so far: the account dialog (#subscriptionModal). */
+
+/* ---- the shell applied to a legacy .modal element (shown by the JS with display:flex) ---- */
+.modal.ui-modal { position: fixed; inset: 0; width: auto; height: auto; margin: 0; padding: 24px; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; overflow: hidden; }
+.modal.ui-modal > .modal-content.ui-dlg { position: static; margin: 0; padding: 0; max-width: none; min-width: 0; height: auto; transform: none; animation: none; text-align: left; background: var(--bg-secondary); border: 1px solid var(--border-color); box-shadow: var(--shadow-dialog); }
+.modal.ui-modal .ui-dlg-h, .modal.ui-modal .ui-dlg-b, .modal.ui-modal .ui-dlg-f { text-align: left; }
+.modal.ui-modal .ui-dlg-h .title { margin: 0; }
+.modal.ui-modal .ui-dlg-h .x.close { position: static; width: 26px; height: 26px; padding: 0; margin: 0; font-size: 18px; line-height: 1; color: var(--text-tertiary); float: none; opacity: 1; background: none; border: none; }
+.modal.ui-modal .ui-dlg-h .x.close { position: static; font-size: 18px; color: var(--text-tertiary); float: none; }
+.ui-tabs > .active { color: var(--text-primary); border-bottom-color: var(--c-model); }
+.ui-seg > .active { background: var(--bg-tertiary); color: var(--c-model); }
+.ui-btn.active { border-color: var(--c-model); color: var(--c-model); }
+
+/* ---- account dialog (#subscriptionModal): owns its look entirely; subscription.css is retired ---- */
+#subscriptionModal.mandatory .ui-dlg-h .x.close { display: none; }
+#subscriptionModal .ui-dlg { width: min(760px, 100%); }
+#subscriptionModal .ui-dlg-b { min-height: 300px; }
+#subscriptionModal .subscription-content { padding-top: 2px; }
+#subscriptionModal .tab-content { display: none; }
+#subscriptionModal .tab-content.active { display: block; }
+#subscriptionModal .tab-content { background: none; padding: 0; margin: 0; border: none; box-shadow: none; }
+#subscriptionModal #models-tab .tier-options { grid-template-columns: 1fr; }
+#subscriptionModal #compute-tab .tier-options { grid-template-columns: repeat(3, 1fr); }
+#subscriptionModal .tier-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-2); }
+#subscriptionModal .tier-option { display: block; position: relative; margin: 0; padding: 12px 14px; text-align: left; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-primary); cursor: pointer; }
+#subscriptionModal .tier-option:hover { border-color: var(--text-tertiary); }
+#subscriptionModal .tier-option input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+#subscriptionModal .tier-option:has(input:checked) { border-color: var(--c-model); background: var(--accent-bg); }
+#subscriptionModal .tier-option::before, #subscriptionModal .tier-option::after { content: none; }
+#subscriptionModal .tier-details { display: flex; flex-direction: column; gap: 4px; }
+#subscriptionModal .tier-name { font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); }
+#subscriptionModal .tier-description { font-size: var(--fs-small); color: var(--text-tertiary); line-height: 1.45; }
+#subscriptionModal .tier-price { font-size: var(--fs-small); color: var(--c-model); margin-top: 2px; }
+#subscriptionModal .tier-option-managed { grid-column: 1 / -1; }
+#subscriptionModal .model-config-inline { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color); }
+#subscriptionModal .model-toggle-container { margin: 0; }
+#subscriptionModal .config-description-inline p { margin: 10px 0 0; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.5; text-align: left; }
+#subscriptionModal .config-description-inline strong { color: var(--text-primary); font-weight: 600; }
+#subscriptionModal .integration-grid { margin-bottom: 10px; }
+#subscriptionModal .integration-table { border-collapse: collapse; width: 100%; font-size: var(--fs-meta); }
+#subscriptionModal .integration-table th, #subscriptionModal .integration-table td { text-align: center; padding: 8px; border-bottom: 1px solid var(--border-color); }
+#subscriptionModal .integration-table th:first-child, #subscriptionModal .integration-table td:first-child { text-align: left; color: var(--text-primary); }
+#subscriptionModal .integration-table th { color: var(--text-tertiary); font-weight: 600; font-size: var(--fs-small); text-transform: uppercase; letter-spacing: .03em; }
+#subscriptionModal .integration-table td.included { color: var(--c-model); }
+#subscriptionModal .integration-table td.locked { color: var(--text-quaternary); }
+#subscriptionModal .integration-table td.optional input { accent-color: var(--accent-color); }
+#subscriptionModal .integration-cost-display { font-size: var(--fs-meta); color: var(--text-secondary); }
+#subscriptionModal .integration-cost-display span { color: var(--c-model); font-weight: 600; }
+#subscriptionModal .amount-selector { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+#subscriptionModal .amount-options { margin: 0; }
+#subscriptionModal .custom-amount { display: flex; align-items: center; gap: 8px; font-size: var(--fs-meta); color: var(--text-tertiary); margin: 0; }
+#subscriptionModal .custom-amount label { margin: 0; font-size: var(--fs-meta); color: var(--text-tertiary); text-transform: none; letter-spacing: 0; }
+#subscriptionModal .custom-amount input { width: 90px; height: 30px; margin: 0; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 0 8px; font: inherit; font-size: var(--fs-body); }
+#subscriptionModal .payment-info { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); }
+#subscriptionModal .fee-notice { margin: 0; font-size: var(--fs-meta); color: var(--text-tertiary); display: flex; align-items: center; }
+#subscriptionModal .fee-notice img { height: 18px; }
+#subscriptionModal .total-display { font-size: var(--fs-meta); color: var(--text-secondary); display: flex; gap: 10px; align-items: baseline; margin: 0; padding: 0; border: none; }
+#subscriptionModal .total-display span:last-child { font-size: 18px; font-weight: 600; color: var(--c-model); font-variant-numeric: tabular-nums; }
+#subscriptionModal #proceedToPayment { width: auto; margin: 0; }
+#subscriptionModal .subscription-footer { flex-wrap: wrap; }
+#subscriptionModal .balance-info { display: flex; gap: 18px; flex-wrap: wrap; margin: 0; padding: 0; border: none; background: none; }
+#subscriptionModal .balance-row { display: flex; align-items: center; gap: 6px; margin: 0; padding: 0; border: none; font-size: var(--fs-meta); color: var(--text-tertiary); }
+#subscriptionModal .balance-amount, #subscriptionModal .cost-amount { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; font-size: var(--fs-meta); }
+#subscriptionModal #queryUsageCount.near-limit { color: var(--c-kernel); }
+#subscriptionModal #queryUsageCount.at-limit { color: var(--c-fail); }
+#subscriptionModal #queryUsageCount.unlimited { color: var(--c-model); }
+#subscriptionModal .cost-amount.cost-paid { color: var(--c-kernel); }
+#subscriptionModal .tier-badge { display: inline-flex; align-items: center; font-size: 10px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border-color); background: none; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; line-height: 14px; }
+#subscriptionModal .tier-badge.tier-plus { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
+#subscriptionModal .tier-badge.tier-pro { border-color: var(--chip-model-border); color: var(--c-model); }
+#subscriptionModal .limit-indicator { display: none; font-size: var(--fs-small); color: var(--c-fail); margin-left: 4px; }
+#subscriptionModal .limit-indicator.show-near, #subscriptionModal .limit-indicator.show-at { display: inline; }
+#subscriptionModal .footer-actions { display: flex; gap: 8px; margin: 0; }
+
+/* ---- the query-limit dialog (built by subscription.js) and its notification, in the parts' voice ---- */
+.query-limit-modal-overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: 1001; padding: 24px; }
+.query-limit-modal-content { width: min(440px, 100%); border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); font-family: var(--font-ui); color: var(--text-primary); }
+.query-limit-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border-color); }
+.query-limit-icon-simple { color: var(--c-kernel); font-size: 16px; }
+.query-limit-title { font-size: var(--fs-title); font-weight: 600; margin: 0; }
+.query-limit-body { padding: 14px 16px; }
+.query-limit-message { margin: 0 0 12px; font-size: var(--fs-body); color: var(--text-secondary); line-height: 1.55; }
+.query-limit-info { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border-color); font-size: var(--fs-meta); color: var(--text-tertiary); }
+.query-limit-info span:first-child { color: var(--text-tertiary); }
+.balance-display { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.query-limit-actions { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border-color); justify-content: flex-end; }
+.query-limit-btn { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: var(--r-2); border: 1px solid var(--border-color); background: none; color: var(--text-secondary); font: inherit; font-size: 12.5px; cursor: pointer; }
+.query-limit-cancel-btn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+.query-limit-upgrade-btn { border-color: var(--c-model); color: var(--c-model); }
+.query-limit-upgrade-btn:hover { background: var(--accent-bg-hover); }
+.payment-notification.success { position: fixed; right: 20px; bottom: 20px; z-index: 1100; display: flex; align-items: center; gap: 10px; border: 1px solid var(--border-color); border-left: 2px solid var(--c-model); border-radius: var(--r-2); background: var(--bg-secondary); padding: 10px 14px; font-family: var(--font-ui); font-size: var(--fs-meta); color: var(--text-secondary); box-shadow: var(--shadow-dialog); }
+.payment-notification.success svg { width: 16px; height: 16px; stroke: var(--c-model); }
+.notification-content { display: flex; align-items: center; gap: 8px; }
+.hidden { display: none !important; }
+
+/* ---- usage dialog (#usageTrackingModal): usage-tracking.css is retired ---- */
+#usageTrackingModal .ui-dlg { width: min(900px, 100%); max-height: min(88vh, 820px); }
+#usageTrackingModal .period-selector-section { display: flex; align-items: center; gap: 8px; }
+#usageTrackingModal .period-selector-section label { font-size: var(--fs-small); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .03em; }
+#usageTrackingModal .period-selector-section select { height: 28px; padding: 0 8px; font-size: var(--fs-meta); }
+#usageTrackingModal .modal-body { display: flex; flex-direction: column; }
+#usageTrackingModal .loading-container, #usageTrackingModal .error-container { display: none; padding: 40px 0; text-align: center; color: var(--text-tertiary); font-size: var(--fs-meta); }
+#usageTrackingModal .loading-container .loading-spinner { width: 22px; height: 22px; margin: 0 auto 10px; border: 2px solid var(--border-color); border-top-color: var(--c-model); border-radius: 50%; animation: ui-spin .8s linear infinite; }
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+#usageTrackingModal .error-container .error-message { color: var(--c-fail); }
+#usageTrackingModal .data-container { display: none; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
+#usageTrackingModal .summary-section { grid-template-columns: repeat(4, 1fr); }
+#usageTrackingModal .summary-card .value { font-size: 20px; font-weight: 600; color: var(--c-model); font-variant-numeric: tabular-nums; }
+#usageTrackingModal .charts-section { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
+#usageTrackingModal .chart-container { padding: 10px 12px 6px; flex: 1; min-height: 240px; display: flex; flex-direction: column; }
+#usageTrackingModal .chart-container h4 { margin: 0 0 6px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+#usageTrackingModal .chart-container > div { flex: 1; min-height: 200px; }
+
+/* ---- saved workflows dialog (#workflowManagerModal): workflow-modal.css and workflow-replay.css are retired ----
+   The JS swaps the left panel's HTML, replaces the header's title, inserts a thread navigation bar before the
+   grid, and builds the cards; every class it touches is styled here. */
+#workflowManagerModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+#workflowManagerModal .ui-dlg { width: min(1440px, 100%); max-height: min(90vh, 960px); flex-direction: row; overflow: hidden; }
+#workflowManagerModal .workflow-modal-left { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border-color); padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+#workflowManagerModal .workflow-modal-section-title { margin: 0; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: 6px; }
+#workflowManagerModal .workflow-add-label-container { display: flex; gap: 6px; }
+#workflowManagerModal .workflow-add-label-container .ui-input { flex: 1; min-width: 0; height: 30px; font-size: var(--fs-meta); }
+#workflowManagerModal .workflow-labels-list { display: flex; flex-direction: column; gap: 2px; }
+#workflowManagerModal .workflow-label-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 5px; font-size: 12.5px; color: var(--text-secondary); cursor: pointer; }
+#workflowManagerModal .workflow-label-item:hover, #workflowManagerModal .workflow-label-item.active { background: var(--bg-tertiary); color: var(--text-primary); }
+#workflowManagerModal .workflow-label-icon { width: 14px; height: 14px; color: var(--c-kernel); flex-shrink: 0; }
+#workflowManagerModal .workflow-label-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#workflowManagerModal .workflow-label-delete { width: 22px; height: 22px; border: none; background: none; color: var(--text-quaternary); border-radius: 4px; display: grid; place-items: center; cursor: pointer; opacity: 0; }
+#workflowManagerModal .workflow-label-item:hover .workflow-label-delete { opacity: 1; }
+#workflowManagerModal .workflow-label-delete:hover { color: var(--c-fail); background: var(--bg-primary); }
+#workflowManagerModal .workflow-label-delete svg { width: 12px; height: 12px; }
+#workflowManagerModal .workflow-no-labels { font-size: var(--fs-meta); color: var(--text-quaternary); padding: 6px 8px; }
+#workflowManagerModal .workflow-modal-right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#workflowManagerModal .workflow-modal-header-row { gap: 12px; }
+#workflowManagerModal .workflow-section-header { display: flex; align-items: center; gap: 8px; font-size: var(--fs-title); font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+#workflowManagerModal .workflow-section-header svg { width: 16px; height: 16px; color: var(--text-tertiary); }
+#workflowManagerModal .workflow-search-container { display: flex; align-items: center; gap: 4px; }
+#workflowManagerModal .workflow-search-input { width: 260px; height: 30px; font-size: var(--fs-meta); }
+#workflowManagerModal .workflow-search-spinner { width: 12px; height: 12px; border: 2px solid var(--border-color); border-top-color: var(--c-model); border-radius: 50%; animation: ui-spin .8s linear infinite; }
+#workflowManagerModal .workflow-modal-close { width: 26px; height: 26px; border: none; background: none; color: var(--text-tertiary); font-size: 18px; line-height: 1; border-radius: var(--r-2); cursor: pointer; }
+#workflowManagerModal .workflow-modal-close:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+#workflowManagerModal .workflow-thread-nav { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--border-color); font-size: var(--fs-meta); color: var(--text-tertiary); }
+#workflowManagerModal .workflow-back-btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
+#workflowManagerModal .workflow-back-btn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+#workflowManagerModal .workflow-back-btn svg { width: 14px; height: 14px; }
+#workflowManagerModal .workflow-thread-title { font-family: var(--font-mono); }
+#workflowManagerModal .workflow-chains-grid { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); grid-auto-rows: max-content; gap: 12px; align-content: start; align-items: start; }
+/* Safari: a grid inside a flex column bounded by max-height resolves 'auto' rows against zero and clips cards with overflow:hidden; rows are sized by content explicitly and cards never clip */
+#workflowManagerModal .workflow-loading, #workflowManagerModal .workflow-no-chains, #workflowManagerModal .workflow-error { grid-column: 1 / -1; padding: 40px 0; text-align: center; font-size: var(--fs-meta); color: var(--text-quaternary); }
+#workflowManagerModal .workflow-error { color: var(--c-fail); }
+/* a card */
+#workflowManagerModal .workflow-card { display: flex; flex-direction: column; height: auto; min-height: 300px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); }
+#workflowManagerModal .workflow-card[style*="display: block"] { display: flex !important; }
+#workflowManagerModal .workflow-card-header { border-radius: var(--r-2) var(--r-2) 0 0; }
+#workflowManagerModal .workflow-card-footer { border-radius: 0 0 var(--r-2) var(--r-2); }
+#workflowManagerModal .workflow-card:hover { border-color: var(--text-tertiary); }
+#workflowManagerModal .workflow-card-header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border-color); }
+#workflowManagerModal .workflow-card-header button { height: 24px; min-width: 24px; padding: 0 4px; border: none; background: none; color: var(--text-quaternary); border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; font: inherit; font-size: var(--fs-small); white-space: nowrap; }
+#workflowManagerModal .workflow-card-header button:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+#workflowManagerModal .workflow-card-header button svg { width: 14px; height: 14px; }
+#workflowManagerModal .workflow-card-header button.workflow-card-label.labeled { color: var(--c-kernel); }
+#workflowManagerModal .workflow-card-time { flex: 1; font-size: var(--fs-small); color: var(--text-quaternary); text-align: center; }
+#workflowManagerModal .workflow-card-delete:hover { color: var(--c-fail); }
+#workflowManagerModal .workflow-card-body { display: flex; flex-direction: column; gap: 6px; padding: 8px; flex: 1; }
+#workflowManagerModal .workflow-card-preview { height: 120px; border-radius: var(--r-1); background: var(--bg-secondary); display: grid; place-items: center; overflow: hidden; cursor: pointer; }
+#workflowManagerModal .workflow-preview-image { width: 100%; height: 100%; object-fit: cover; }
+#workflowManagerModal .workflow-preview-typed, #workflowManagerModal .workflow-preview-empty, #workflowManagerModal .workflow-preview-error { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--text-quaternary); }
+#workflowManagerModal .workflow-preview-typed svg { width: 26px; height: 26px; color: var(--text-tertiary); }
+#workflowManagerModal .workflow-preview-typed.synthesis svg { color: var(--c-kernel); }
+#workflowManagerModal .workflow-preview-typed.branching svg { color: var(--c-lookup); }
+#workflowManagerModal .workflow-card-info { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: var(--fs-small); color: var(--text-quaternary); }
+#workflowManagerModal .workflow-card-info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#workflowManagerModal .workflow-card-label-name { color: var(--c-kernel); }
+#workflowManagerModal .workflow-card-task { font-size: 12.5px; color: var(--text-primary); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#workflowManagerModal .workflow-card-memory-badge { margin-left: auto; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; color: var(--c-model); border: 1px solid var(--chip-model-border); border-radius: var(--r-2); }
+#workflowManagerModal .workflow-card-memory-badge svg { width: 14px; height: 14px; }
+#workflowManagerModal .workflow-card-footer { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--border-color); }
+#workflowManagerModal .workflow-card-footer button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: var(--fs-small); cursor: pointer; }
+#workflowManagerModal .workflow-card-footer button:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+#workflowManagerModal .workflow-card-footer button svg { width: 13px; height: 13px; }
+#workflowManagerModal .workflow-card-replay { color: var(--c-lookup); }
+#workflowManagerModal .workflow-card-replay:empty::after, #workflowManagerModal .workflow-card-replay svg + *:empty::after { content: ''; }
+#workflowManagerModal .workflow-card-replay::after { content: 'Replay'; }
+/* replay mode: the left panel becomes the dataset picker, the cards show what will be replayed */
+#workflowManagerModal .workflow-replay-theme .workflow-section-header, #workflowManagerModal .workflow-replay-title { color: var(--c-lookup); }
+#workflowManagerModal .replay-message-area:empty { display: none; }
+#workflowManagerModal .replay-message-area { font-size: var(--fs-meta); color: var(--text-secondary); padding: 6px 8px; border: 1px solid var(--border-color); border-left: 2px solid var(--c-lookup); border-radius: var(--r-1); }
+#workflowManagerModal .replay-dataset-section { display: flex; flex-direction: column; gap: 6px; }
+#workflowManagerModal .replay-dataset-header { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+#workflowManagerModal .replay-dataset-header svg { width: 14px; height: 14px; }
+#workflowManagerModal .replay-dataset-empty { font-size: var(--fs-meta); color: var(--text-quaternary); padding: 4px 0; }
+#workflowManagerModal .replay-dataset-card { border: 1px solid var(--border-color); border-radius: var(--r-2); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; background: var(--bg-primary); }
+#workflowManagerModal .replay-dataset-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#workflowManagerModal .replay-dataset-info, #workflowManagerModal .replay-dataset-source, #workflowManagerModal .replay-dataset-shape, #workflowManagerModal .replay-date-info, #workflowManagerModal .replay-race-info { font-size: var(--fs-small); color: var(--text-quaternary); }
+#workflowManagerModal .replay-dataset-notice { font-size: var(--fs-small); color: var(--c-kernel); }
+#workflowManagerModal .replay-dataset-upload, #workflowManagerModal .replay-upload-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
+#workflowManagerModal .replay-dataset-upload:not(:disabled):hover, #workflowManagerModal .replay-upload-btn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+#workflowManagerModal .replay-dataset-upload.loaded { border-color: var(--chip-model-border); color: var(--c-model); }
+#workflowManagerModal .replay-dataset-upload:disabled { opacity: .4; cursor: default; }
+#workflowManagerModal .replay-date-row, #workflowManagerModal .replay-race-row { display: flex; align-items: center; gap: 6px; }
+#workflowManagerModal .replay-date-input, #workflowManagerModal .replay-race-select { height: 28px; flex: 1; min-width: 0; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 0 8px; font: inherit; font-size: var(--fs-meta); }
+#workflowManagerModal .replay-execute-footer { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border-color); }
+#workflowManagerModal .replay-execute-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; border: 1px solid var(--c-lookup); border-radius: var(--r-2); background: none; color: var(--c-lookup); font: inherit; font-size: 12.5px; cursor: pointer; }
+#workflowManagerModal .replay-execute-btn:disabled { opacity: .4; cursor: default; }
+#workflowManagerModal .replay-execute-btn svg { width: 14px; height: 14px; }
+#workflowManagerModal .replay-loading-spinner { width: 14px; height: 14px; border: 2px solid var(--border-color); border-top-color: var(--c-lookup); border-radius: 50%; animation: ui-spin .8s linear infinite; display: inline-block; }
+#workflowManagerModal .workflow-card-footer { align-items: center; }
+/* the label picker the card's tag button opens (built by the script, positioned fixed) */
+.workflow-label-selector { min-width: 180px; padding: 4px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); font-family: var(--font-ui); font-size: 12.5px; }
+.workflow-label-option { padding: 6px 10px; border-radius: 4px; color: var(--text-secondary); cursor: pointer; }
+.workflow-label-option:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.workflow-label-option.selected { color: var(--c-kernel); }
+.workflow-label-separator { height: 1px; background: var(--border-color); margin: 4px 0; }
+
+/* ---- dataset cache dialog (#datasetManagerModal, built by dataset-manager.js): dataset-manager.css is retired ---- */
+#datasetManagerModal .ui-dlg { width: min(1040px, 100%); max-height: min(85vh, 760px); }
+#datasetManagerModal .dataset-modal-body { display: flex; flex: 1; min-height: 0; }
+#datasetManagerModal .dataset-list-panel { width: 300px; flex-shrink: 0; border-right: 1px solid var(--border-color); overflow: auto; padding: 12px 12px; display: flex; flex-direction: column; gap: 14px; }
+#datasetManagerModal .dataset-category h4 { margin: 0 0 6px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+#datasetManagerModal .dataset-item { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-1); font-size: 12.5px; color: var(--text-secondary); cursor: pointer; }
+#datasetManagerModal .dataset-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+#datasetManagerModal .dataset-item.active { background: var(--bg-tertiary); color: var(--text-primary); box-shadow: inset 2px 0 0 var(--c-kernel); }
+#datasetManagerModal .dataset-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#datasetManagerModal .dataset-size { font-size: var(--fs-small); color: var(--text-quaternary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#datasetManagerModal .dataset-icon-download { width: 14px; height: 14px; color: var(--c-model); flex-shrink: 0; }
+#datasetManagerModal .dataset-empty { font-size: var(--fs-meta); color: var(--text-quaternary); padding: 4px 9px; }
+#datasetManagerModal .dataset-details-panel { flex: 1; min-width: 0; overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; }
+#datasetManagerModal .dataset-details-empty { color: var(--text-quaternary); font-size: var(--fs-meta); margin: auto; text-align: center; }
+#datasetManagerModal .dataset-loading { display: flex; align-items: center; gap: 8px; color: var(--text-tertiary); font-size: var(--fs-meta); }
+#datasetManagerModal .dataset-loading-spinner { width: 14px; height: 14px; border: 2px solid var(--border-color); border-top-color: var(--c-model); border-radius: 50%; animation: ui-spin .8s linear infinite; }
+#datasetManagerModal .dataset-details-content { display: flex; flex-direction: column; gap: 16px; flex: 1; }
+#datasetManagerModal .dataset-info-section h3 { margin: 0 0 8px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+#datasetManagerModal .dataset-metadata { display: grid; grid-template-columns: 110px 1fr; gap: 5px 12px; font-size: var(--fs-meta); }
+#datasetManagerModal .metadata-label { color: var(--text-tertiary); }
+#datasetManagerModal .metadata-value { color: var(--text-primary); word-break: break-word; }
+#datasetManagerModal .column-list { display: flex; flex-wrap: wrap; gap: 5px; }
+#datasetManagerModal .column-chip { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--c-kernel); border: 1px solid var(--chip-kernel-border); border-radius: 10px; padding: 1px 8px; }
+#datasetManagerModal .dataset-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-color); }
+#datasetManagerModal .dataset-action-btn { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: 12.5px; cursor: pointer; }
+#datasetManagerModal .dataset-action-btn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+#datasetManagerModal .dataset-load-btn, #datasetManagerModal .dataset-download-btn { border-color: var(--c-model); color: var(--c-model); }
+#datasetManagerModal .dataset-load-btn:hover, #datasetManagerModal .dataset-download-btn:hover { background: var(--accent-bg-hover); }
+#datasetManagerModal .dataset-remove-btn { border-color: var(--chip-fail-border); color: var(--c-fail); }
+#datasetManagerModal .dataset-remove-btn:hover { background: var(--error-bg); }
+#datasetManagerModal .dataset-preview-table { border-collapse: collapse; font-size: var(--fs-small); width: 100%; }
+#datasetManagerModal .dataset-preview-table th, #datasetManagerModal .dataset-preview-table td { padding: 4px 8px; border-bottom: 1px solid var(--border-color); text-align: left; white-space: nowrap; }
+#datasetManagerModal .dataset-preview-table th { color: var(--text-tertiary); font-weight: 600; }
+
+/* kept from dataset-manager.css (the top-panel pill and the ontology box; the shell replaces the rest) */
+/* Pills Container */
+.status-pills-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    margin-right: 12px;
+}
+/* Dataset Manager Pill */
+.dataset-manager-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+
+    /* Purple theme - original styling */
+    background-color: rgba(147, 51, 234, 0.1);
+    color: var(--cache-manager-accent);
+    border-color: rgba(147, 51, 234, 0.2);
+}
+.dataset-manager-pill:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--shadow-color);
+    border-color: var(--cache-manager-accent);
+    background-color: rgba(147, 51, 234, 0.15);
+}
+/* Dark theme adjustments */
+[data-theme="dark"] .dataset-manager-pill {
+    background-color: rgba(168, 85, 247, 0.1);
+    color: var(--cache-manager-accent);
+    border-color: rgba(168, 85, 247, 0.2);
+}
+[data-theme="dark"] .dataset-manager-pill:hover {
+    border-color: var(--cache-manager-accent);
+    background-color: rgba(168, 85, 247, 0.15);
+}
+/* Animations */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+@keyframes fadeIn {
+    from { 
+        opacity: 0;
+    }
+    to { 
+        opacity: 1;
+    }
+}
+@keyframes slideIn {
+    from { 
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+/* Pulse animation for loading state */
+@keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.3; }
+}
+/* Ontology description box in details panel - keep this */
+.ontology-description {
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    position: relative;
+}
+.ontology-description::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.3), transparent);
+    border-radius: 12px 12px 0 0;
+}
+.ontology-description p {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.6;
+}
+/* Dark theme adjustment for description box */
+[data-theme="dark"] .ontology-description {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ---- memory dialog (#memoryReviewModal, built by memory-review.js): memory.css is retired ---- */
+#memoryReviewModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+#memoryReviewModal .ui-dlg { width: min(760px, 100%); max-height: min(85vh, 800px); }
+#memoryReviewModal .memory-section-title { margin: 0 0 4px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+#memoryReviewModal .memory-section-sub { margin: 0 0 12px; font-size: var(--fs-meta); color: var(--text-tertiary); line-height: 1.5; }
+#memoryReviewModal .memory-empty { margin: 20px 0; font-size: var(--fs-meta); color: var(--text-quaternary); text-align: center; }
+#memoryReviewModal .mr-card { border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); padding: 12px 14px; margin-bottom: 10px; }
+#memoryReviewModal .memory-card-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+#memoryReviewModal .memory-card-name { font-family: var(--font-mono); font-size: var(--fs-body); color: var(--c-model); font-weight: 600; word-break: break-all; }
+#memoryReviewModal .memory-card-meta { font-size: var(--fs-small); color: var(--text-quaternary); margin-left: auto; white-space: nowrap; }
+#memoryReviewModal .memory-flag { font-size: var(--fs-small); color: var(--c-kernel); border: 1px solid var(--chip-kernel-border); border-radius: var(--r-1); padding: 4px 8px; margin: 4px 0 8px; }
+#memoryReviewModal .memory-field-label { font-size: var(--fs-small); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .03em; margin: 8px 0 4px; }
+#memoryReviewModal .memory-textarea { width: 100%; box-sizing: border-box; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 6px 8px; font-family: var(--font-ui); font-size: var(--fs-meta); line-height: 1.45; resize: vertical; }
+#memoryReviewModal .memory-textarea:focus { outline: none; border-color: var(--text-tertiary); }
+#memoryReviewModal .memory-detail-text { font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; }
+#memoryReviewModal .memory-similar { margin-top: 6px; }
+#memoryReviewModal .memory-similar-row { display: flex; align-items: center; gap: 8px; font-size: var(--fs-meta); color: var(--text-secondary); padding: 3px 0; cursor: pointer; }
+#memoryReviewModal .memory-similar-row code { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-primary); }
+#memoryReviewModal .memory-similar-blocked { color: var(--text-quaternary); cursor: default; }
+#memoryReviewModal .memory-similar-row input { accent-color: var(--accent-color); }
+#memoryReviewModal .memory-status-chip { font-size: 10px; border: 1px solid var(--border-color); border-radius: 10px; padding: 1px 7px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+#memoryReviewModal .memory-chip-rule { border-color: var(--chip-model-border); color: var(--c-model); }
+#memoryReviewModal .memory-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+#memoryReviewModal .memory-btn { display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
+#memoryReviewModal .memory-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-tertiary); }
+#memoryReviewModal .memory-btn:disabled { opacity: .4; cursor: default; }
+#memoryReviewModal .memory-btn-primary { border-color: var(--c-model); color: var(--c-model); }
+#memoryReviewModal .memory-btn-primary:hover:not(:disabled) { background: var(--accent-bg-hover); }
+#memoryReviewModal .memory-btn-danger { border-color: var(--chip-fail-border); color: var(--c-fail); }
+#memoryReviewModal .memory-btn-danger:hover:not(:disabled) { background: var(--error-bg); }
+#memoryReviewModal .memory-btn-right { margin-left: auto; }
+#memoryReviewModal .memory-action-status { font-size: var(--fs-small); color: var(--text-tertiary); margin-top: 6px; min-height: 14px; }
+#memoryReviewModal .memory-gov-row-wrap { border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); padding: 8px 12px; margin-bottom: 6px; }
+#memoryReviewModal .memory-gov-row { display: flex; align-items: center; gap: 10px; }
+#memoryReviewModal .memory-gov-row code { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--text-primary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#memoryReviewModal .memory-gov-meta { font-size: var(--fs-small); color: var(--text-quaternary); white-space: nowrap; }
+#memoryReviewModal .memory-gov-detail { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color); }
+#memoryReviewModal .mr-gov-status { font-size: var(--fs-small); color: var(--text-tertiary); }
+
+/* kept from memory.css: the top-panel pill and its badge */
+/* Memory (step 27) — pill, badge, and review modal.
+   Sibling geometry to the Workflows / Dataset Cache pills, themed on
+   the app's accent green (--accent-*), which switches with light/dark
+   automatically. All memory styling lives here. */
+
+/* ── Pill ─────────────────────────────────────────────────────────── */
+
+.memory-review-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid var(--accent-border);
+    background-color: var(--accent-bg);
+    color: var(--accent-color);
+}
+.memory-review-pill:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--shadow-color);
+    border-color: var(--accent-color);
+    background-color: var(--accent-bg-hover);
+}
+.memory-review-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.memory-review-text {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent-color);
+}
+/* Unfilled count: a thin circle, transparent inside. */
+.memory-review-badge {
+    /* The count-badge classic: line-height equal to the INNER height
+       (16px minus the two 1px borders) centers digits optically in
+       every font - grid centered the glyph box, but the digit sits
+       high inside its own box, which the screenshot showed. */
+    display: inline-block;
+    box-sizing: border-box;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    margin-left: 6px;
+    border: 1px solid var(--accent-color);
+    border-radius: 9999px;
+    background: transparent;
+    color: var(--accent-color);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 14px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* ---- save-this-chain dialog (#rankModal): the rating track; its old rules left styles.css ---- */
+#rankModal .progress-rating-container { margin: 4px 0 10px; }
+#rankModal .rating-labels { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--text-quaternary); margin-bottom: 6px; }
+#rankModal .progress-rating-track { position: relative; height: 14px; border-radius: 4px; background: var(--bg-tertiary); overflow: hidden; }
+#rankModal .progress-rating-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--c-model); border-radius: 4px; transition: width .15s ease; opacity: .85; }
+#rankModal .progress-rating-segments { position: absolute; inset: 0; display: flex; }
+#rankModal .rating-segment { flex: 1; cursor: pointer; border-right: 1px solid var(--bg-primary); position: relative; }
+#rankModal .rating-segment:last-child { border-right: none; }
+#rankModal .rating-segment:hover { background: rgba(255, 255, 255, 0.06); }
+#rankModal .threshold-line { position: absolute; left: -1px; top: -3px; bottom: -3px; width: 2px; background: var(--c-kernel); }
+#rankModal .rating-value-display { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 8px; font-size: var(--fs-meta); color: var(--text-primary); }
+#rankModal .ui-dlg { width: min(500px, 100%); }
+#rankModal #ratingValue { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#rankModal .rating-value-display.low #ratingValue { color: var(--c-fail); }
+#rankModal .rating-value-display.medium #ratingValue { color: var(--c-kernel); }
+#rankModal .rating-value-display.high #ratingValue { color: var(--c-model); }
+#rankModal .threshold-hint { flex: 1; font-size: var(--fs-small); color: var(--text-quaternary) !important; text-align: right; }
+#rankModal .rank-status-message { display: none; margin-top: 10px; font-size: var(--fs-meta); }
+#rankModal .privacy-info { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-small); color: var(--text-quaternary); }
+#rankModal .blog-link-hint a { color: var(--c-model); text-decoration: none; }
+#rankModal .blog-link-hint a:hover { text-decoration: underline; }
+#rankModal .submit-rank-btn svg { display: none; }
+/* the memory distillation stream the save appends beneath the status */
+#rankModal .memory-distill { margin-top: 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); }
+#rankModal .memory-distill-header { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: var(--fs-small); color: var(--text-tertiary); cursor: pointer; }
+#rankModal .memory-distill-chevron { color: var(--text-quaternary); }
+#rankModal .memory-distill-stream { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border-color); background: var(--code-bg); font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-secondary); white-space: pre-wrap; max-height: 200px; overflow: auto; }
+
+/* ---- the prompt viewer (#agentInstructionsModal, built by agent-instructions.js): agent-instructions.css is retired ---- */
+#agentInstructionsModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+#agentInstructionsModal .ui-dlg { width: min(960px, 100%); max-height: min(88vh, 900px); }
+#agentInstructionsModal .agent-instructions-body { display: flex; flex-direction: column; gap: 10px; }
+#agentInstructionsModal .instructions-section { border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); }
+#agentInstructionsModal .section-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: var(--fs-meta); color: var(--text-secondary); cursor: pointer; user-select: none; }
+#agentInstructionsModal .section-header span { flex: 1; }
+#agentInstructionsModal .expand-icon { width: 14px; height: 14px; color: var(--text-tertiary); transition: transform .15s; }
+#agentInstructionsModal .instructions-section.collapsed .expand-icon { transform: rotate(-90deg); }
+#agentInstructionsModal .instructions-section.collapsed .section-content { display: none; }
+#agentInstructionsModal .copy-btn { width: 26px; height: 26px; border: 1px solid var(--border-color); border-radius: var(--r-1); background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; }
+#agentInstructionsModal .copy-btn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+#agentInstructionsModal .copy-btn svg { width: 13px; height: 13px; }
+#agentInstructionsModal .section-content { border-top: 1px solid var(--border-color); padding: 10px 12px; background: var(--code-bg); font-family: var(--font-mono); font-size: var(--fs-meta); line-height: 1.5; color: var(--text-secondary); white-space: pre-wrap; word-break: break-word; max-height: 48vh; overflow: auto; }
+#agentInstructionsModal .section-content .xml-tag { color: var(--c-kernel); }
+#agentInstructionsModal .section-content .error { color: var(--c-fail); }
+/* kept from agent-instructions.css: the button on turn cards */
+.agent-instructions-btn {
+    position: absolute;
+    right: 0;
+    bottom: -18px; /* Position below the tool-start line */
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px; /* Tighter padding */
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    font-size: 10px; /* Smaller font */
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 10;
+    font-family: inherit;
+    line-height: 1;
+    height: 20px; /* Fixed small height */
+    margin-bottom: 8px; /* Small margin below the button */
+}
+.agent-instructions-btn:hover {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+    background: rgba(var(--accent-bg), 0.1);
+}
+.agent-instructions-btn svg {
+    flex-shrink: 0;
+    width: 12px; /* Smaller icon */
+    height: 12px;
+}
+.agent-instructions-btn span {
+    white-space: nowrap;
+    font-size: 10px;
+}
+/* Dark theme specific */
+[data-theme="dark"] .agent-instructions-btn {
+    background: rgba(42, 42, 42, 0.8);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme="dark"] .agent-instructions-btn:hover {
+    background: rgba(var(--accent-bg), 0.15);
+}
+/* Content Formatting */
+.instruction-content {
+    color: var(--text-primary);
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.4; /* Compact line height */
+    white-space: pre-wrap; /* Preserve spacing */
+    word-break: break-word;
+}
+.instruction-content br {
+    line-height: 1.4;
+}
+
+/* ---- the integration dialogs (SweatStack, Intervals ICU, Endura: load, configure, connected) — one form ----
+   Seven elements keep their ids and hook classes; one ruleset on .integration-dialog styles them all.
+   integrations/sweatstack.css, intervals.css and endura.css are retired. */
+.integration-dialog .ui-dlg { width: min(640px, 100%); }
+.integration-dialog .int-logo { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
+.integration-dialog .modal-sections-container { display: flex; flex-direction: column; gap: 14px; }
+.integration-dialog .modal-section h4 { margin: 0 0 8px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+.integration-dialog .modal-section p { margin: 0; font-size: var(--fs-body); color: var(--text-secondary); line-height: 1.55; }
+.integration-dialog .modal-section a, .integration-dialog .api-key-help a { color: var(--c-model); text-decoration: none; }
+.integration-dialog .modal-section a:hover, .integration-dialog .api-key-help a:hover { text-decoration: underline; }
+/* options: a checkbox drawn as a chip; the hidden input keeps the scripts' :checked queries working */
+.integration-dialog .int-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.integration-dialog .int-options label { display: inline-flex; align-items: center; justify-content: center; gap: 0; height: 28px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-primary); font-size: 12.5px; line-height: 1; color: var(--text-secondary); cursor: pointer; user-select: none; text-transform: capitalize; position: relative; }
+.integration-dialog .int-options label:hover { border-color: var(--text-tertiary); color: var(--text-primary); }
+.integration-dialog .int-options label input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+.integration-dialog .int-options label .check-icon { width: 0; height: 12px; margin-right: 0; color: var(--c-model); opacity: 0; overflow: hidden; transition: none; flex-shrink: 0; }
+.integration-dialog .int-options label:has(input:checked), .integration-dialog .int-options label.selected { border-color: var(--chip-model-border); color: var(--c-model); background: var(--accent-bg); }
+.integration-dialog .int-options label:has(input:checked) .check-icon, .integration-dialog .int-options label.selected .check-icon { width: 12px; margin-right: 6px; opacity: 1; }
+.integration-dialog .int-options label:has(input:disabled) { opacity: .6; cursor: default; }
+.integration-dialog .int-options .loading-spinner { font-size: var(--fs-meta); color: var(--text-quaternary); }
+.integration-dialog .ui-field { margin-bottom: 0; }
+.integration-dialog .date-input, .integration-dialog .endura-race-select { height: 32px; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 0 10px; font-family: var(--font-ui); font-size: var(--fs-body); color-scheme: dark; }
+.integration-dialog .ui-row2 { min-width: 0; }
+.integration-dialog .ui-row2 > .ui-field { min-width: 0; }
+[data-theme="light"] .integration-dialog .date-input { color-scheme: light; }
+.integration-dialog .date-input:focus, .integration-dialog .endura-race-select:focus { outline: none; border-color: var(--text-tertiary); }
+.integration-dialog .int-message { margin: 0; font-size: var(--fs-meta); color: var(--text-tertiary); line-height: 1.5; }
+.integration-dialog .int-message:empty { display: none; }
+.integration-dialog .int-message.error-message { color: var(--c-fail); }
+.integration-dialog .int-message.success-message { color: var(--c-model); }
+.integration-dialog .int-message.loading-message { color: var(--text-tertiary); }
+.integration-dialog .button-label { display: none; font-size: var(--fs-small); color: var(--text-tertiary); }   /* the old icon button's caption: shown only while the script marks the button loading */
+.integration-dialog .ui-dlg-f:has(.circular-button.loading) .button-label { display: inline; }
+.integration-dialog .circular-button { width: auto; height: 30px; min-width: 0; padding: 0 14px; margin: 0; border-radius: var(--r-2); display: inline-flex; align-items: center; justify-content: center; gap: 6px; line-height: 1; font-size: 12.5px; box-shadow: none; transform: none; }
+.integration-dialog .circular-button:hover { transform: none; box-shadow: none; }
+.integration-dialog .circular-button.loading { opacity: .5; pointer-events: none; }
+.integration-dialog .circular-button svg { width: 14px; height: 14px; margin: 0; }
+/* the api-key configuration */
+.integration-dialog .api-key-status { display: none; align-items: center; gap: 8px; margin-bottom: 12px; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-secondary); }
+.integration-dialog .api-key-status.has-key, .integration-dialog .api-key-status.no-key, .integration-dialog .api-key-status.error { display: flex; }
+.integration-dialog .api-key-status.has-key { border-color: var(--chip-model-border); color: var(--c-model); }
+.integration-dialog .api-key-status.error { border-color: var(--chip-fail-border); color: var(--c-fail); }
+.integration-dialog .api-key-status .status-icon { width: 14px; height: 14px; flex-shrink: 0; }
+.integration-dialog .api-key-input-wrapper { display: flex; }
+.integration-dialog .api-key-input { flex: 1; height: 32px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 0 10px; font-family: var(--font-ui); font-size: var(--fs-body); }
+.integration-dialog .api-key-input:focus { outline: none; border-color: var(--text-tertiary); }
+.integration-dialog .api-key-help { margin: 6px 0 0; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.5; }
+.integration-dialog .button-group { display: flex; gap: 8px; }
+
+/* ---- the label editor (#labelModal, built by labels.js): labels.css is retired ---- */
+#labelModal.label-modal-container { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--scrim); }
+#labelModal .label-modal-dialog { position: relative; width: min(400px, 100%); border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); font-family: var(--font-ui); color: var(--text-primary); display: flex; flex-direction: column; }
+#labelModal .label-modal-close { position: absolute; top: 10px; right: 12px; width: 26px; height: 26px; border: none; border-radius: var(--r-2); background: none; color: var(--text-tertiary); font-size: 18px; line-height: 1; cursor: pointer; padding: 0; }
+#labelModal .label-modal-close:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+#labelModal .label-modal-header { padding: 12px 16px; border-bottom: 1px solid var(--border-color); }
+#labelModal .label-modal-header h3 { margin: 0; font-size: var(--fs-title); font-weight: 600; }
+#labelModal .label-modal-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 5px; }
+#labelModal .label-input { height: 32px; box-sizing: border-box; width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 0 10px; font-family: var(--font-ui); font-size: var(--fs-body); }
+#labelModal .label-input:focus { outline: none; border-color: var(--text-tertiary); }
+#labelModal .label-input::placeholder { color: var(--text-quaternary); }
+#labelModal .label-input-hint { font-size: var(--fs-small); color: var(--text-quaternary); }
+#labelModal .label-modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border-color); }
+#labelModal .label-modal-footer .button-label { order: -1; font-size: var(--fs-small); color: var(--text-quaternary); display: none; }
+#labelModal .label-modal-footer .circular-button { width: auto; height: 30px; padding: 0 14px; border: 1px solid var(--c-model); border-radius: var(--r-2); background: none; color: var(--c-model); display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
+#labelModal .label-modal-footer .circular-button::after { content: 'Create label'; }
+#labelModal .label-modal-footer .circular-button:hover { background: var(--accent-bg-hover); }
+#labelModal .label-modal-footer .circular-button svg { width: 14px; height: 14px; }
+#labelModal .label-modal-footer .circular-button.loading { opacity: .5; pointer-events: none; }

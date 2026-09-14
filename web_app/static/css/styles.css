@@ -1,0 +1,3200 @@
+/* the theme variables live in tokens.css (2026-09-08) */
+
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--overlay-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    color: var(--text-overlay);
+    font-size: 18px;
+    font-family: inherit;
+}
+
+.loading-overlay .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border-color);
+    border-top: 4px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 12px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* the base rules (body, html, scrollbars) live in base.css (2026-09-08) */
+
+.container {
+    display: flex;
+    height: 100%;
+    transition: all 0.3s;
+}
+
+.collapse-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1000;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: left 0.3s, transform 0.3s;
+}
+
+.collapse-button:hover {
+    background-color: var(--accent-color);
+}
+
+.collapse-button svg {
+    width: 24px;
+    height: 24px;
+    fill: var(--accent-color);
+}
+
+.left-panel {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--border-color);
+    transition: all 0.1s;
+    background-color: var(--bg-primary);
+}
+
+.left-panel.collapsed {
+    flex: 0;
+    width: 0;
+    border: none;
+}
+
+.right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all 0.2s;
+    padding: 10px;
+    box-sizing: border-box;
+    background-color: var(--bg-primary);
+}
+
+.right-panel.expanded {
+    flex: 2;
+}
+
+.input-area {
+    padding: 5px;
+    background-color: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+}
+
+.input-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin: 10px;
+}
+
+.textarea-container {
+    position: relative;
+    flex: 1;
+}
+
+.icon-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--accent-color);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.icon-button svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+}
+
+.icon-button:hover {
+    transform: scale(1.1);
+}
+
+.icon-button.disabled {
+    color: var(--text-tertiary);
+    pointer-events: none;
+    opacity: 1;
+}
+
+.icon-row {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    gap: 10px;
+}
+
+.submit-button {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 4px;
+    background-color: var(--accent-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.submit-button:hover {
+    background-color: var(--accent-hover);
+    transform: scale(1.05);
+}
+
+.submit-button:active {
+    transform: scale(0.95);
+}
+
+.submit-button svg {
+    stroke: white;
+    width: 18px;
+    height: 18px;
+}
+
+.attach-icon { left: 10px; }
+.planning-brain { left: 40px; }
+.rank-icon { left: 100px; }
+
+#queryInput {
+    width: 100%;
+    min-height: 60px;
+    box-sizing: border-box;
+    border-radius: 8px;
+    padding: 10px 60px 40px 10px;
+    font-size: 14px;
+    resize: none;
+    /* A pasted seed prompt must never swallow the window: cap at 40vh
+       and scroll beyond it, so the submit row stays visible at any
+       window size (2026-08-30). The grow handler clamps to the same
+       bound in ui-controls.js. */
+    max-height: 40vh;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.external-context-indicator {
+    position: absolute;
+    top: -20px;
+    right: 10px;
+    /* Added Flexbox properties for icon alignment */
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    /* Existing styles */
+    font-size: 11px;
+    color: var(--accent-color);
+    background: var(--bg-primary);
+    padding: 0 6px;
+    z-index: 10;
+    font-style: italic;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Ensure the icon doesn't squish */
+.external-context-indicator svg {
+    flex-shrink: 0;
+}
+
+.external-context-indicator:hover {
+    color: var(--accent-hover);
+}
+
+.url-list-popup {
+    position: absolute;
+    bottom: 100%;  /* Changed from top: 10px */
+    margin-bottom: 25px;  /* Add some space above the textarea */
+    right: 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    max-width: 400px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    z-index: 100;
+}
+
+.url-list-popup a {
+    display: block;
+    color: var(--accent-color);
+    text-decoration: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    word-break: break-all;
+    font-size: 12px;
+}
+
+.url-list-popup a:hover {
+    background: var(--bg-tertiary);
+    text-decoration: underline;
+}
+
+#streamOutput {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    background-color: var(--bg-primary);
+    white-space: pre-wrap;
+    font-family: monospace;
+    color: var(--text-secondary);
+}
+
+/* --- Dataset Status Pills --- */
+
+/* Container for all dataset status pills */
+#datasetStatusPillsContainer {
+    display: flex;
+    flex-wrap: wrap; /* Allows pills to wrap */
+    gap: 8px;        /* Space between pills */
+    padding: 0px 10px 5px 10px; /* Top padding 0, L/R/B padding */
+    margin-top: 2px;   /* Reduced margin from input box */
+}
+
+/* Base individual pill style */
+.dataset-status-pill {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 16px;
+    font-size: 13px;    /* Standardized from previous step */
+    font-style: italic; /* Standardized from previous step */
+    border: 1px solid transparent; /* Base, specific states will override */
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+/* Content within the pill (text + spinner) */
+.dataset-pill-content {
+    display: flex;
+    align-items: center;
+    gap: 6px; /* Space between text and spinner */
+    /* Transition for hover effects if applied directly here */
+    transition: opacity 0.2s ease; /* Example if you wanted text to fade slightly */
+}
+
+/* Clickable content area (for successfully loaded pills) */
+.clickable-pill-content {
+    cursor: pointer; /* Hand cursor on hover */
+    /* Transitions for hover effects are on the parent .dataset-status-pill or specific states */
+}
+
+/* Spinner style */
+.file-upload-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--highlight-bg); /* Track color */
+    border-top-color: currentColor; /* Spinner color matches text color of its state */
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Remove icon style */
+.dataset-pill-remove-icon {
+    margin-left: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+.dataset-pill-remove-icon svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2;
+    /* Stroke color will be set by specific pill states */
+}
+.dataset-status-pill:hover .dataset-pill-remove-icon { /* Show remove icon more clearly on pill hover */
+    opacity: 1;
+}
+
+/* --- Pill States (Loading, Success, Error) --- */
+
+/* Loading State (applies to both primary and auxiliary) */
+.dataset-status-pill.loading {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.dataset-status-pill.loading .dataset-pill-remove-icon {
+    display: none; /* Hide remove icon during loading */
+}
+
+/* Error State (applies to both primary and auxiliary) */
+.dataset-status-pill.error {
+    background-color: var(--error-color-bg);
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+.dataset-status-pill.error .dataset-pill-remove-icon svg {
+    stroke: var(--error-color);
+}
+.dataset-status-pill.error .clickable-pill-content { /* Errors are not clickable for preview */
+    cursor: default;
+}
+
+
+/* --- Primary Dataset Pill: Success State --- */
+.primary-dataset-pill.success {
+    background-color: var(--success-color-primary-bg);
+    color: var(--success-color-primary);
+    border-color: var(--success-color-primary);
+}
+.primary-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-primary);
+}
+
+.primary-dataset-pill.success:hover { /* Hover on the entire pill */
+     background-color: #d4f0e3; /* Slightly darker than --success-color-primary-bg for light theme */
+}
+
+
+/* Dark Theme Override for Primary Success Pill */
+[data-theme="dark"] .primary-dataset-pill.success {
+    background-color: transparent; /* No fill */
+    color: var(--success-color-primary);
+    border: 1px solid var(--success-color-primary);
+}
+[data-theme="dark"] .primary-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-primary);
+}
+/* Hover effect for Dark Theme Primary Success */
+[data-theme="dark"] .primary-dataset-pill.success:hover {
+    background-color: rgba(80, 250, 123, 0.08); /* Very subtle accent background on hover */
+    /* border-color: #70ff9b; /* Optional: slightly brighter border on hover */
+}
+
+
+/* --- Auxiliary Dataset Pill: Success State --- */
+.auxiliary-dataset-pill.success {
+    background-color: var(--success-color-auxiliary-bg);
+    color: var(--success-color-auxiliary);
+    border-color: var(--success-color-auxiliary);
+}
+.auxiliary-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-auxiliary);
+}
+/* Hover effect for Light Theme Auxiliary Success */
+.auxiliary-dataset-pill.success:hover { /* Hover on the entire pill */
+    background-color: #ccebde; /* Slightly darker than --success-color-auxiliary-bg for light theme */
+}
+
+/* Dark Theme Override for Auxiliary Success Pill */
+[data-theme="dark"] .auxiliary-dataset-pill.success {
+    background-color: transparent; /* No fill */
+    color: var(--success-color-auxiliary);
+    border: 1px solid var(--success-color-auxiliary);
+}
+[data-theme="dark"] .auxiliary-dataset-pill.success .dataset-pill-remove-icon svg {
+    stroke: var(--success-color-auxiliary);
+}
+/* Hover effect for Dark Theme Auxiliary Success */
+[data-theme="dark"] .auxiliary-dataset-pill.success:hover {
+    background-color: rgba(61, 214, 136, 0.08); /* Very subtle accent background for auxiliary on hover */
+    /* border-color: #5edc9c; /* Optional: slightly brighter border on hover */
+}
+
+
+
+
+
+
+
+/* --- Shared Helper Classes (Buttons, Labels) --- */
+
+.circular-button {
+    background-color: transparent;
+    color: var(--accent-color);
+    border: 1.5px solid var(--accent-color);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+    margin: 16px auto 0;
+}
+
+.circular-button:hover:not(:disabled) {
+    background-color: var(--highlight-bg);
+    color: var(--accent-hover);
+    border-color: var(--accent-hover);
+    transform: scale(1.05);
+}
+
+.circular-button:active {
+    transform: scale(0.95);
+}
+
+.circular-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    border-color: var(--text-tertiary);
+    color: var(--text-tertiary);
+}
+
+.circular-button:disabled:hover {
+    background-color: transparent;
+    transform: none;
+    color: var(--text-tertiary);
+    border-color: var(--text-tertiary);
+}
+
+.circular-button svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+}
+
+.button-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 6px;
+    font-weight: 400;
+}
+
+[data-theme="dark"] .button-label {
+    color: var(--text-secondary);
+}
+
+.circular-button.loading {
+    pointer-events: none;
+}
+
+.circular-button.loading svg {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+
+#contentOutput {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.content-area {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- Tab Container: --- */
+.tab-container {
+    display: flex;
+    background-color: var(--bg-primary);
+    padding: 10px 10px 0 10px; /* Keep top/side padding, bottom padding is effectively handled by tabs */
+    /*border-bottom: 1px solid var(--border-color); /* Subtle grayish border under the tab row */
+    transition: border-bottom-color 0.3s; /* Keep transition if you still want it, though it's now static */
+}
+
+.tab-container:not(:empty) {
+    border-bottom: 1px solid var(--border-color); /* Apply the border only when the container has tabs */
+}
+
+/* --- Tab General Styling: Replaced --- */
+.tab {
+    background-color: transparent;
+    border-style: solid;
+    border-width: 1px;
+    border-radius: 5px 5px 0 0;
+    padding: 10px 15px;
+    margin-right: 5px;
+    margin-bottom: -1px; /* Crucial for overlapping the container's bottom border */
+    position: relative;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.3s, border-color 0.3s, background-color 0.3s;
+
+    /* Add this line to ensure tabs only take the width their content needs */
+    width: fit-content;
+
+    /* Ensure flex properties prevent unwanted growth (these are often defaults but explicit here) */
+    flex-grow: 0;
+    flex-shrink: 1; /* Allow shrinking if many tabs, can be 0 if you never want them to shrink */
+}
+
+/* --- Active Tab Styling: Replaced --- */
+.tab.active {
+    color: var(--accent-color); /* Accented text color */
+    border-color: var(--accent-color); /* Accented border for top, left, right */
+    border-bottom-color: var(--bg-primary); /* Bottom border matches content bg to "open" the tab */
+    background-color: var(--bg-primary); /* Background matches content area to blend in */
+    z-index: 1; /* Ensures the active tab is visually on top of the container's border */
+}
+
+/* --- Inactive Tab Styling: Replaced --- */
+.tab:not(.active) {
+    color: var(--text-secondary); /* Subdued text color for inactive tabs */
+    border-color: var(--border-color); /* Subtle border for inactive tabs */
+    background-color: var(--bg-secondary); /* Slightly different background for inactive tabs */
+}
+
+/* --- Inactive Tab Hover Styling: New --- */
+.tab:not(.active):hover {
+    color: var(--accent-color); /* Accented text on hover */
+    border-color: var(--accent-hover); /* Border color changes to a hover accent */
+    background-color: var(--bg-tertiary); /* Slight background change on hover */
+}
+
+.tab-content {
+    display: none;
+    padding: 20px;
+    background-color: var(--bg-primary);
+    flex: 1;
+    overflow-y: auto;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.markdown-content {
+    line-height: 1.6;
+}
+
+.markdown-content p {
+    margin-bottom: 15px;
+}
+
+.markdown-content pre {
+    background-color: var(--code-bg);
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+}
+
+.markdown-content code {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: var(--code-text);
+}
+
+.markdown-content table {
+    border-collapse: collapse;
+    width: auto;
+    margin: 10px 0;
+    font-size: 14px;
+}
+
+.markdown-content th,
+.markdown-content td {
+    border: 1px solid var(--border-color);
+    padding: 3px 6px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.markdown-content th {
+    background-color: var(--dataframe-header-bg);
+    font-weight: bold;
+    color: var(--dataframe-header-text);
+}
+
+.markdown-content tr:nth-child(even) {
+    background-color: var(--dataframe-even-row);
+}
+
+.markdown-content tr:hover {
+    background-color: var(--dataframe-hover);
+}
+
+.katex-display {
+    margin: 1em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+}
+
+
+
+
+
+/* Ensure YAML keys use the theme variables with higher specificity */
+.yaml-key {
+    color: var(--yaml-key) !important;
+}
+
+
+/* Ensure markdown-rendered YAML uses the correct colors */
+.markdown-content .yaml-key {
+    color: var(--yaml-key) !important;
+}
+
+/* For inline YAML or code blocks within markdown */
+.markdown-content pre code .hljs-attr {
+    color: var(--yaml-key) !important;
+}
+
+
+
+
+
+
+
+
+
+.agent {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+#submitQuery {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+
+    /* Standardized appearance */
+    background-color: transparent;
+    border: 1px solid var(--accent-color);
+    border-radius: 50%; /* Circular */
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+    color: var(--accent-color); /* Icon color */
+}
+
+#submitQuery svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor; /* Inherits color from #submitQuery (which is var(--accent-color)) */
+    fill: none;          /* Ensure outlined icon */
+}
+
+#submitQuery:hover {
+    background-color: var(--highlight-bg); /* Subtle background on hover */
+    color: var(--accent-hover);            /* Icon color change on hover */
+    border-color: var(--accent-hover);     /* Border color change on hover */
+    transform: scale(1.05); /* Keep existing hover transform if desired, or remove if only color change is wanted */
+}
+
+#submitQuery:active {
+    transform: scale(0.95);
+
+}
+
+#submitQuery:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+    border-color: var(--text-tertiary);
+    color: var(--text-tertiary);
+}
+
+#submitQuery:disabled:hover {
+    background-color: transparent;
+    transform: none;
+    border-color: var(--text-tertiary);
+    color: var(--text-tertiary);
+}
+
+/* Normal query running state (accent/stop) */
+#submitQuery.query-running .airplane-icon,
+#submitQuery.query-running .globe-icon {
+    display: none;
+}
+
+#submitQuery.query-running .stop-icon {
+    display: block;
+}
+
+#submitQuery.query-running {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+#submitQuery.query-running:hover {
+    background-color: var(--highlight-bg);
+    border-color: var(--accent-hover);
+    color: var(--accent-hover);
+}
+
+.tab-navigation {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+}
+
+.nav-arrow {
+    background: none;
+    border: none;
+    font-size: 25px;
+    cursor: pointer;
+    padding: 5px;
+    color: var(--accent-color);
+}
+
+.nav-arrow:disabled {
+    color: var(--star-inactive);
+    cursor: not-allowed;
+}
+
+.nav-arrow:not(:disabled):hover {
+    color: var(--accent-hover);
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--overlay-bg);
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+}
+
+.modal-content {
+    background-color: var(--bg-primary);
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    width: 400px; /* Increased from 320px */
+    text-align: center;
+    box-shadow: 0 2px 6px var(--shadow-color);
+    position: relative;
+    animation: modalopen 0.3s ease-out;
+    pointer-events: auto;
+}
+
+@keyframes modalopen {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 24px;
+    font-weight: bold;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close:hover,
+.close:focus {
+    color: var(--text-primary);
+}
+
+.modal h3 {
+    color: var(--modal-text);
+    margin: 0 0 15px;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ratingValue {
+    display: block;
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ==========================================================================
+   SUMMARY POPUP / TOAST SYSTEM
+   ========================================================================== */
+
+/* --- Base Popup Styles --- */
+
+.summary-popup {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    border-left: 3px solid var(--info-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    padding-right: 40px; /* Space for close button */
+    box-shadow: var(--shadow-medium);
+    display: none;
+    width: 320px;
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 40px); /* Prevent going off-screen */
+    z-index: 1000;
+    backdrop-filter: var(--backdrop-blur);
+    -webkit-backdrop-filter: var(--backdrop-blur);
+}
+
+.summary-popup h4 {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--info-color);
+}
+
+.summary-popup pre {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background-color: transparent;
+    padding: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* Stacked message separator */
+.summary-popup .message-separator {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 8px 0;
+}
+
+/* --- Close Button --- */
+
+.summary-popup .close-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-quaternary);
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 4px;
+    transition: color 0.2s, background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
+
+.summary-popup .close-button:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-tertiary);
+}
+
+/* --- System Message Variant --- */
+
+.summary-popup.system-message {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-secondary);
+    border-left: 3px solid var(--accent-color);
+}
+
+.summary-popup.system-message h4 {
+    color: var(--accent-color);
+}
+
+.summary-popup.system-message pre {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.summary-popup.system-message .close-button {
+    color: var(--text-quaternary);
+}
+
+.summary-popup.system-message .close-button:hover {
+    color: var(--accent-color);
+    background-color: var(--accent-bg-hover);
+}
+
+/* --- Entrance Animation --- */
+
+@keyframes popupSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.summary-popup[style*="display: block"] {
+    animation: popupSlideIn 0.2s ease-out;
+}
+
+/* --- Light Theme Adjustments --- */
+
+[data-theme="light"] .summary-popup {
+    background-color: var(--bg-primary);
+    border-color: var(--border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .summary-popup pre {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .summary-popup.system-message pre {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .summary-popup .close-button:hover {
+    background-color: var(--bg-secondary);
+}
+
+
+.icon-button.planning-brain {
+    cursor: pointer;
+    color: var(--text-tertiary);
+    transition: all 0.2s ease;
+}
+
+.icon-button.planning-brain.active {
+    color: var(--accent-color);
+}
+
+.icon-button.planning-brain:hover {
+    transform: scale(1.05);
+}
+/* ---- Mode selector (2026-09-05): the brain's hover menu, Quick | Deep | Adaptive ---- */
+.mode-popup {
+    left: 30px;
+    min-width: 170px;
+    padding: 4px;
+}
+.mode-popup::after { left: 14px; }
+.mode-option {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    width: 100%;
+    font-size: 13px;
+    text-align: left;
+    transition: all 0.2s;
+}
+.mode-option svg { width: 16px; height: 16px; stroke: currentColor; fill: none; flex-shrink: 0; }
+.mode-option:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.mode-option.active { color: var(--accent-color); }
+.mode-params {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    margin-top: 2px;
+    border-top: 1px solid var(--border-color);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.mode-popup.adaptive .mode-params { display: flex; }
+.mode-params .iter-btn { cursor: pointer; padding: 0 6px; border-radius: 4px; user-select: none; }
+.mode-params .iter-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.mode-params .iter-value { min-width: 16px; text-align: center; font-weight: 600; }
+
+.icon-button.suggest-questions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent-color);
+    cursor: pointer;
+    font-size: 12px;
+    transition: opacity 0.2s;
+}
+
+.icon-button.suggest-questions.disabled {
+    opacity: 1;
+    pointer-events: none;
+    color: var(--text-tertiary);
+}
+
+.icon-button.suggest-questions:hover {
+    opacity: 0.8;
+}
+
+.icon-button.rank-icon {
+    cursor: pointer;
+    color: var(--accent-color);
+    transition: all 0.2s ease;
+}
+
+.icon-button.rank-icon.active {
+    color: var(--accent-color);
+}
+.icon-button.rank-icon:hover {
+    transform: scale(1.05);
+    color: var(--accent-color);
+}
+
+.icon-button.rank-icon.replay {
+    color: var(--accent-replay);
+    cursor: pointer;
+}
+
+.icon-button.rank-icon.replay:hover {
+    transform: scale(1.05);
+    color: var(--accent-replay);
+}
+
+.icon-button.rank-icon.replay-success {
+    color: var(--accent-replay);
+    cursor: default;
+}
+
+.icon-button.rank-icon.replay-success:hover {
+    transform: none;
+    color: var(--accent-replay);
+}
+
+/* Branching CV Icons Popup */
+.branching-slider-popup {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 70px; /* Positioned to align with suggest questions button */
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 4px;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 40px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    z-index: 1000;
+}
+
+.branching-slider-popup::before {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 0;
+    width: 100%;
+    height: 10px;
+}
+
+.branching-slider-popup::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 20px;
+    transform: rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.branching-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+/* Size scaling from smallest to largest */
+.branching-icon[data-value="1"] svg {
+    width: 14px;
+    height: 14px;
+}
+
+.branching-icon[data-value="2"] svg {
+    width: 16px;
+    height: 16px;
+}
+
+.branching-icon[data-value="3"] svg {
+    width: 18px;
+    height: 18px;
+}
+
+.branching-icon[data-value="4"] svg {
+    width: 20px;
+    height: 20px;
+}
+
+.branching-icon[data-value="5"] svg {
+    width: 22px;
+    height: 22px;
+}
+
+.branching-icon svg {
+    stroke: currentColor;
+    fill: none;
+    transition: all 0.2s;
+}
+
+.branching-icon:hover {
+    background: var(--bg-tertiary);
+    color: var(--accent-color);
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .branching-slider-popup {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .branching-slider-popup::after {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .branching-icon {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .branching-icon:hover {
+    color: var(--accent-color);
+    background: var(--bg-tertiary);
+}
+
+
+.selection-popup {
+    position: fixed;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 8px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    z-index: 1001;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: 300px;
+    box-sizing: border-box;
+}
+
+.selection-popup input {
+    flex: 1;
+    height: 32px;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+    box-sizing: border-box;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.selection-popup button {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 50%; /* Circular */
+    width: 32px;
+    height: 32px;
+    min-width: 32px; /* Match width */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+    color: var(--accent-color); /* Icon color */
+}
+
+.selection-popup button:hover {
+    background-color: var(--highlight-bg);
+}
+
+.selection-popup button:active {
+    transform: scale(0.98);
+}
+
+.selection-popup button svg {
+    width: 18px;
+    height: 18px;
+    /* Styles for the filled SVG to appear outlined */
+    fill: none;
+    stroke: currentColor; /* Inherits color */
+    stroke-width: 2; /* Define stroke-width for the path */
+}
+
+/* Customize the browser's native selection highlighting */
+::selection {
+    background-color: rgba(140, 231, 182, 0.3);
+    color: inherit; /* Keep original text color */
+}
+
+/* For Firefox */
+::-moz-selection {
+    background-color: rgba(140, 231, 182, 0.3);
+    color: inherit;
+}
+
+#selectionForm {
+    display: flex;
+    flex: 1;
+    gap: 8px;
+}
+
+.selected-text-display {
+    margin-top: 8px;
+    padding: 6px 8px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    max-width: 300px;
+    word-wrap: break-word;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.selected-text-display strong {
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
+.plot-container {
+    width: 100%;
+    overflow: visible;
+    margin-bottom: 20px;
+    padding: 0;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.plot-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.plot-header h3 {
+    margin: 0;
+}
+
+.plot-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.plot-expand-btn,
+.plot-query-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0;
+    opacity: 0.5;
+    transition: opacity 0.15s, color 0.15s;
+    filter: none;
+}
+
+.plot-expand-btn:hover,
+.plot-query-btn:hover {
+    opacity: 1;
+    color: var(--text-primary);
+}
+
+.plot-expand-btn svg,
+.plot-query-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+}
+
+.plot-query-form {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+    padding: 10px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+.plot-query-input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.plot-query-submit {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+    color: var(--accent-color);
+}
+
+.plot-query-submit svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+}
+
+.plot-query-submit:hover {
+    background-color: var(--highlight-bg);
+}
+
+.plot-content {
+    width: 100%;
+    margin-top: 10px;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.plot-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.plotly-plot {
+    min-height: 400px;
+    width: 100% !important;
+    border-radius: 6px;
+    overflow: visible;
+}
+
+.plotly-plot .js-plotly-plot,
+.plotly-plot .plot-container {
+    width: 100% !important;
+}
+
+.plotly-preview-container {
+    width: 100%;
+    height: 100%;
+}
+
+.plot-error {
+    padding: 20px;
+    text-align: center;
+    color: var(--error-color);
+    background: var(--error-bg);
+    border: 1px solid var(--error-color);
+    border-radius: 4px;
+}
+
+.plot-error small {
+    display: block;
+    margin-top: 8px;
+    opacity: 0.8;
+}
+
+
+/* ========================================
+   PLOT FULLSCREEN MODAL
+   Injected by initializePlotFullscreenModal()
+   ======================================== */
+
+.plot-fullscreen-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.92);
+    z-index: 10000;
+    flex-direction: column;
+}
+
+.plot-fullscreen-modal.visible {
+    display: flex;
+}
+
+.plot-fullscreen-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    flex-shrink: 0;
+}
+
+.plot-fullscreen-header h3 {
+    color: #fff;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.plot-fullscreen-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    color: #aaa;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.plot-fullscreen-close:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.plot-fullscreen-body {
+    flex: 1;
+    padding: 0 24px 24px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.plot-fullscreen-body > div {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.plot-fullscreen-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.code-header {
+    background: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+}
+
+.code-header + pre {
+    margin-top: 0;
+    margin-bottom: 8px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
+}
+
+pre code {
+    display: block;
+    background-color: var(--code-bg);
+    padding: 1em;
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    white-space: pre;
+    overflow-x: auto;
+    color: var(--code-text);
+}
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.discard-button {
+    color: var(--error-color);
+}
+
+.discard-button:hover {
+    background-color: var(--error-bg) !important;
+    color: var(--error-color) !important;
+}
+
+.edit-button[data-editing="true"] .edit-icon {
+    stroke: var(--accent-color);
+}
+
+.save-icon {
+    display: none;
+}
+
+.code-action-button[data-editing="true"] .edit-icon {
+    display: none;
+}
+
+.code-action-button[data-editing="true"] .save-icon {
+    display: block;
+    stroke: var(--accent-color);
+}
+
+
+
+.code-action-button {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+}
+
+.code-action-button:hover:not(:disabled) {
+    background-color: var(--bg-tertiary);
+    color: var(--accent-color);
+}
+
+.code-action-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.code-action-button.active {
+    color: var(--accent-color);
+    background-color: var(--bg-tertiary);
+}
+
+.code-action-button svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+}
+
+
+
+.copy-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.copy-button:hover {
+    opacity: 1;
+    color: var(--accent-color);
+}
+
+.language-label {
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
+
+.copy-button .copy-icon,
+.copy-button .check-icon {
+    transition: display 0.2s ease;
+}
+
+.copy-button .check-icon {
+    color: var(--accent-color);
+}
+
+.code-editor-wrapper {
+    border: 1px solid var(--border-color);
+    border-radius: 0 0 4px 4px;
+}
+
+.code-editor-wrapper .CodeMirror {
+    height: auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    border-radius: 0 0 4px 4px;
+    background-color: var(--code-bg) !important;
+    color: var(--code-text) !important;
+}
+
+.code-editor-wrapper .CodeMirror-focused {
+    border-color: var(--accent-color);
+}
+
+.code-editor-wrapper .CodeMirror-lines {
+    padding: 1rem;
+}
+
+.code-editor-wrapper .CodeMirror-linenumber {
+    padding-right: 1rem;
+    color: var(--text-tertiary) !important;
+}
+
+.code-editor-wrapper .CodeMirror-gutters {
+    border-right: 1px solid var(--border-color) !important;
+    background-color: var(--bg-tertiary) !important;
+}
+
+.code-editor-wrapper .CodeMirror-selected {
+    background-color: var(--bg-tertiary) !important;
+}
+
+.code-editor-wrapper .CodeMirror-activeline-background {
+    background-color: var(--bg-tertiary) !important;
+}
+
+.code-editor-wrapper .CodeMirror-cursor {
+    border-left: 1px solid var(--text-primary) !important;
+}
+
+.code-editor-wrapper .CodeMirror-matchingbracket {
+    color: var(--accent-color) !important;
+    border-bottom: 1px solid var(--accent-color);
+}
+
+/* Ensure inline code within markdown uses the same colors */
+.markdown-content code:not(.hljs) {
+    background-color: var(--code-bg) !important;
+    color: var(--code-text) !important;
+}
+
+/* For CodeMirror (if used) to match Highlight.js */
+.CodeMirror .cm-string,
+.CodeMirror .cm-string-2 {
+    color: var(--code-string) !important;
+}
+
+.CodeMirror .cm-number,
+.CodeMirror .cm-variable-2 { /* For f-string variables like overall_change */
+    color: var(--code-text) !important; /* Use light grey for visibility */
+}
+
+.code-editor-wrapper .cm-keyword { color: var(--code-keyword) !important; }
+.code-editor-wrapper .cm-def { color: var(--accent-color) !important; }
+.code-editor-wrapper .cm-variable { color: var(--code-text) !important; }
+.code-editor-wrapper .cm-operator { color: var(--code-keyword) !important; }
+.code-editor-wrapper .cm-number { color: var(--warning-color) !important; }
+.code-editor-wrapper .cm-string { color: var(--code-string) !important; }
+.code-editor-wrapper .cm-comment { color: var(--code-comment) !important; }
+.code-editor-wrapper .cm-builtin { color: var(--accent-color) !important; }
+
+code.language-yaml,
+code.language-json {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    overflow-x: hidden !important;
+}
+
+.hljs {
+    background-color: var(--code-bg) !important;
+    color: var(--code-text) !important;
+}
+
+/* ==========================================================================
+   SYNTAX HIGHLIGHTING — Code & YAML (unified)
+   ========================================================================== */
+
+/* --- Structural: keywords (green) --- */
+.hljs-keyword,
+.hljs-name {
+    color: var(--code-keyword) !important;
+}
+
+/* --- Built-ins: print, len, range (sand) --- */
+.hljs-built_in {
+    color: var(--yaml-key) !important;
+}
+
+/* --- YAML keys (sand) --- */
+.hljs-attr,
+.yaml-key {
+    color: var(--yaml-key) !important;
+}
+
+/* --- YAML values & numbers/literals (mint) --- */
+.hljs-number,
+.hljs-literal,
+.yaml-value {
+    color: var(--yaml-value) !important;
+}
+
+/* --- Strings --- */
+.hljs-string {
+    color: var(--code-string) !important;
+}
+
+/* --- Comments --- */
+.hljs-comment {
+    color: var(--code-comment) !important;
+}
+
+/* --- Neutral: function names, params --- */
+.hljs-title,
+.hljs-params,
+.hljs-subst {
+    color: var(--code-text) !important;
+}
+
+.mermaid {
+    background: var(--mermaid-diagram-bg);
+    padding: 16px;
+    border-radius: 4px;
+}
+
+.mermaid-error {
+    padding: 10px 15px;
+    background-color: var(--error-bg);
+    color: var(--error-color);
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.mermaid-error-notice {
+    padding: 8px 12px;
+    background-color: var(--bg-secondary);
+    color: var(--warning-color);
+    border-left: 3px solid var(--warning-color);
+    border-radius: 2px;
+    font-size: 12px;
+    margin-bottom: 10px;
+    width: fit-content;
+}
+
+/* Mermaid Subgraph/cluster title styling */
+.diagram-container .mermaid-view .cluster-label text {
+    font-size: 16px !important;
+    font-weight: bold !important;
+}
+
+.size-error-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    background-color: var(--bg-secondary);
+    color: var(--warning-color);
+    border-left: 3px solid var(--warning-color);
+    border-radius: 2px;
+    font-size: 12px;
+    width: fit-content;
+}
+
+.size-error-notice svg {
+    color: var(--warning-color);
+    flex-shrink: 0;
+}
+
+.attach-menu-container {
+    position: relative;
+    display: inline-block;
+}
+
+#uploadLimitMessage {
+    position: absolute;
+    bottom: calc(100% + 5px); /* Position it above the attach button */
+    left: 0;
+    /* Or, to center it relative to the button:
+    left: 50%;
+    transform: translateX(-50%);
+    */
+    background-color: var(--error-color-bg); /* Use error background for visibility */
+    color: var(--error-color);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;   /* Small and subtle */
+    font-style: italic;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    z-index: 1001; /* Above other elements but below menu if menu overlaps */
+    opacity: 0;    /* Hidden by default */
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    white-space: nowrap; /* Prevent message from wrapping if short */
+}
+
+#uploadLimitMessage.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.attach-menu {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 150px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    z-index: 1000;
+}
+
+.attach-menu::before {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 0;
+    width: 100%;
+    height: 10px;
+}
+
+.attach-menu::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 20px;
+    transform: rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.attach-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: none;
+    background: none;
+    width: 100%;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+}
+
+.attach-option:hover {
+    background: var(--bg-tertiary);
+    color: var(--accent-color);
+}
+
+.attach-option svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+}
+
+.attach-menu-container:hover .attach-menu,
+.attach-menu:hover {
+    display: flex;
+}
+
+.icon-row .attach-menu-container {
+    display: flex;
+    align-items: center;
+}
+
+
+
+
+
+
+
+.menu-button {
+    background: none;
+    border: none;
+    padding: 6px 10px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    border-radius: 12px;
+}
+
+.menu-button:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--accent-color);
+    transform: translateY(-1px);
+}
+
+.menu-button svg {
+    width: 26px;  /* Reduced from 38px */
+    height: 26px;  /* Reduced from 38px */
+}
+
+.menu-popup {
+    position: absolute;
+    left: 0;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    padding-top: 3px;
+    padding-bottom: 20px;
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 700px;
+    width: 700px;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    z-index: 1000;
+    transition: all 0.3s ease;
+    
+    /* Dynamic height - always end 8px from bottom */
+    max-height: calc(98vh - var(--menu-top-offset, 60px) - 8px);
+    overflow: visible;
+}
+
+.menu-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: none;
+    background: var(--bg-primary);
+    width: 100%;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.2s;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-weight: bold;
+}
+
+.menu-option:hover {
+    background: var(--link-hover-bg);
+    color: var(--accent-color);
+}
+
+.menu-option svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+}
+
+.menu-option span {
+    font-size: 14px;
+}
+
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--overlay-bg);
+    backdrop-filter: blur(2px);
+    z-index: 999;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.menu-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+.menu-divider {
+    width: 90%;
+    margin: 10px auto;
+    border: 0;
+    height: 2px; /* Slightly thicker for easier grabbing */
+    background-image: linear-gradient(to right, transparent, var(--accent-color), transparent);
+    cursor: ns-resize; /* Show resize cursor */
+    position: relative;
+    transition: height 0.2s ease;
+}
+
+.menu-divider:hover {
+    height: 3px; /* Make it more prominent on hover */
+}
+
+/* Add a visual indicator when dragging */
+.menu-divider.dragging {
+    height: 3px;
+    background-image: linear-gradient(to right, transparent, var(--accent-color), var(--accent-color), transparent);
+}
+
+/* Logo styling */
+.menu-logo {
+    width: 80px;
+    height: 50px; 
+    display: block;
+    margin: 10px auto; /* Center it at the top */
+    align-self: flex-start; /* Align to the left edge */
+}
+
+/* Ensure logo is visible only when menu is active */
+.menu-popup:not(.active) .menu-logo {
+    display: none;
+}
+
+.thread-container {
+    margin-bottom: 16px;
+}
+
+.thread-container:last-child {
+    margin-bottom: 40px;
+}
+
+.threads-header {
+    color: var(--accent-color);
+    font-size: 16px;
+    margin: 12px 15px;
+    font-weight: 600;
+}
+
+.threads-list {
+    max-height: calc(100vh - var(--menu-top-offset, 60px) - 200px);
+    overflow-y: auto;
+    padding: 0 8px;
+    margin-bottom: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.threads-list::-webkit-scrollbar {
+    display: none;
+}
+
+.thread-item {
+    position: relative;
+    padding: 12px;
+    padding-bottom: 32px;
+    margin: 8px 0;
+    border-radius: 6px;
+    background-color: var(--bg-secondary); 
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px var(--shadow-color);
+}
+
+.thread-item:hover {
+    background-color: var(--link-hover-bg);
+    border-color: var(--accent-color);
+    box-shadow: 0 2px 5px var(--highlight-bg);
+}
+
+.thread-timestamp {
+    display: block;
+    font-size: 12px;
+    color: var(--yaml-key);
+    margin-bottom: 5px;
+    font-weight: 800;
+}
+
+.thread-id {
+    display: block;
+    font-size: 12px;
+    color: var(--accent-color);
+    margin-bottom: 3px;
+    font-weight: 500;
+}
+
+.thread-dataset-name{
+    display: block;
+    font-size: 12px;
+    color: var(--accent-color);
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.thread-task {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.5;
+    max-height: 4.5em;
+    word-break: break-word;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.thread-toggle {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--accent-color);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease;
+}
+
+.thread-toggle:hover {
+    background-color: var(--highlight-bg);
+}
+
+.thread-toggle.expanded svg {
+    transform: rotate(180deg);
+}
+
+.thread-delete-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    padding: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+.thread-delete-btn:hover {
+    background-color: rgba(255, 51, 51, 0.1);
+    color: var(--error-color);
+    opacity: 1;
+}
+
+.chain-item {
+    margin-left: 15px;
+    padding: 10px;
+    border-left: 2px solid var(--accent-color);
+    background-color: var(--bg-secondary);
+}
+
+.chains-container {
+    margin-top: 4px;
+}
+
+.chains-container.hidden {
+    display: none;
+}
+
+.chain-preview {
+    position: absolute;
+    z-index: 1010;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 8px;
+    box-shadow: 0 4px 8px var(--shadow-color);
+    width: 450px;
+    height: 280px;
+    display: none;
+}
+
+.plotly-preview-container {
+    width: 100%;
+    height: 100%;
+}
+
+.preview-loading, .preview-error {
+    padding: 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.preview-error {
+    color: var(--text-tertiary);
+}
+
+/* Theme Toggle in Settings Menu - Match existing menu items exactly */
+.theme-toggle-option .sun-icon,
+.theme-toggle-option .moon-icon {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    /* Remove any margin - let the default gap: 8px from .menu-option handle spacing */
+}
+
+.theme-toggle-option .theme-label {
+    font-size: 14px; /* Match other menu item text */
+}
+
+
+/* Fix submenu trigger - be very specific */
+.integrations-menu-item .integrations-option:hover + .integrations-submenu,
+.integrations-submenu:hover {
+    display: flex !important;
+}
+
+/* Ensure the general hover rule doesn't apply to other elements */
+.integrations-menu-item:hover .integrations-submenu {
+    display: none !important;
+}
+
+/* Only show submenu when hovering specifically over the integrations option or the submenu itself */
+.integrations-menu-item .integrations-option:hover + .integrations-submenu,
+.integrations-menu-item .integrations-submenu:hover {
+    display: flex !important;
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    #streamOutput .feedback-result-content {
+        color: var(--text-secondary);
+        background-color: var(--bg-secondary);
+    }
+    
+    #streamOutput .feedback-label {
+        color: var(--text-primary);
+    }
+    
+    #streamOutput .feedback-text-line,
+    #streamOutput .feedback-list-item {
+        color: var(--text-secondary);
+    }
+    
+    #streamOutput .feedback-input-simple {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border-color: var(--border-color);
+    }
+}
+
+
+/* --- Custom minimal scroll bar --- */
+
+/* For WebKit browsers - show minimal scroll indicator */
+#streamOutput::-webkit-scrollbar {
+    width: 1px;
+}
+
+#streamOutput::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#streamOutput::-webkit-scrollbar-thumb {
+    background: var(--text-stream);
+    border-radius: 1px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#streamOutput:hover::-webkit-scrollbar-thumb {
+    opacity: 0.4;
+}
+
+#streamOutput::-webkit-scrollbar-thumb:hover {
+    opacity: 0.6;
+}
+
+/* For Firefox - minimal scrollbar */
+#streamOutput {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.3s ease;
+}
+
+#streamOutput:hover {
+    scrollbar-color: var(--text-stream) transparent;
+}
+
+/* For contentOutput */
+#contentOutput::-webkit-scrollbar,
+#contentOutput *::-webkit-scrollbar {
+    width: 1px !important;
+    height: 0 !important;
+}
+
+#contentOutput::-webkit-scrollbar-track,
+#contentOutput *::-webkit-scrollbar-track {
+    background: transparent !important;
+}
+
+#contentOutput::-webkit-scrollbar-thumb,
+#contentOutput *::-webkit-scrollbar-thumb {
+    background: var(--text-stream) !important;
+    border-radius: 1px !important;
+    opacity: 0 !important;
+    transition: opacity 0.3s ease !important;
+}
+
+#contentOutput:hover::-webkit-scrollbar-thumb,
+#contentOutput *:hover::-webkit-scrollbar-thumb {
+    opacity: 0.4 !important;
+}
+
+#contentOutput::-webkit-scrollbar-thumb:hover,
+#contentOutput *::-webkit-scrollbar-thumb:hover {
+    opacity: 0.6 !important;
+}
+
+#contentOutput,
+#contentOutput * {
+    scrollbar-width: thin !important;
+    scrollbar-color: transparent transparent !important;
+    transition: scrollbar-color 0.3s ease !important;
+}
+
+#contentOutput:hover,
+#contentOutput *:hover {
+    scrollbar-color: var(--text-stream) transparent !important;
+}
+
+/* Interactive Pills Container */
+.interactive-pills-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 15px 0;
+    width: 100%;
+}
+
+/* Interactive Pill Style */
+.interactive-pill {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px var(--shadow-color);
+    position: relative;
+    overflow: hidden;
+}
+
+.interactive-pill:hover {
+    background-color: var(--link-hover-bg);
+    border-color: var(--accent-color);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px var(--shadow-color);
+}
+
+.interactive-pill:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px var(--shadow-color);
+}
+
+/* Pill Number */
+.pill-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    background-color: transparent;
+    color: var(--accent-color);
+    border: 1.5px solid var(--accent-color);
+    border-radius: 50%;
+    font-weight: normal;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+/* Pill Content */
+.pill-content {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+/* Ensure links within pills don't interfere with pill clicking */
+.pill-content a {
+    pointer-events: none;
+}
+
+/* Bold text in pills */
+.pill-content strong {
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+/* Pill Icon */
+.pill-icon {
+    margin-left: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: var(--accent-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+}
+
+.interactive-pill:hover .pill-icon {
+    opacity: 1;
+}
+
+.pill-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .interactive-pill {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .interactive-pill:hover {
+    background-color: var(--link-hover-bg);
+    border-color: var(--accent-color);
+}
+
+[data-theme="dark"] .pill-number {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+/* Edit button styling */
+.pill-edit-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-left: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--accent-color);
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.interactive-pill:hover .pill-edit-btn {
+    display: flex;
+}
+
+.pill-edit-btn:hover {
+    opacity: 1;
+}
+
+.pill-edit-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+/* Edit textarea styling */
+.pill-edit-input {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 4px 8px;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--accent-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: inherit;
+    outline: none;
+    resize: none;
+    overflow: hidden;
+    min-height: 20px;
+}
+
+/* Editing state */
+.interactive-pill.editing {
+    background-color: var(--link-hover-bg);
+    border-color: var(--accent-color);
+}
+
+.interactive-pill.editing .pill-edit-btn {
+    display: flex;
+    opacity: 1;
+    color: var(--success-color, var(--accent-color));
+}
+
+.interactive-pill.editing .pill-icon {
+    display: none;
+}
+
+.interactive-pill.editing:hover {
+    transform: none;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .pill-edit-input {
+    background-color: var(--bg-secondary);
+    border-color: var(--accent-color);
+    color: var(--text-primary);
+}
+
+.keyboard-shortcut {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto; /* Push to the right */
+    padding: 2px 5px;
+    min-width: 28px;
+    height: 16px;
+    background-color: rgba(0, 0, 0, 0.08); /* Subtler background */
+    border-radius: 3px;
+    font-size: 10px;
+    font-family: system-ui, -apple-system, sans-serif; /* System font for better platform look */
+    font-weight: 500; /* Medium weight for better readability */
+    letter-spacing: 0.5px;
+    opacity: 0.8;
+    color: var(--text-secondary); /* Use theme color variable */
+    text-align: center;
+}
+
+/* Adjust for dark theme */
+[data-theme="dark"] .keyboard-shortcut {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+}
+
+
+
+
+/* --- Settings container --- */
+.settings-container {
+    position: relative;
+    display: inline-block;
+}
+
+.settings-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-secondary) !important;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, transform 0.2s;
+}
+
+.settings-button svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+}
+
+.settings-button:hover {
+    color: var(--accent-color) !important;
+    transform: scale(1.1);
+}
+
+.settings-popup {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 10px);
+    right: auto;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color); /* Or a lighter version */
+    border-radius: 10px; /* Updated */
+    padding: 10px; /* Updated */
+    display: none;
+    flex-direction: column;
+    gap: 6px; /* Updated */
+    min-width: 190px; /* Slightly wider if padding increased */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.05); /* Updated */
+    z-index: 1002;
+}
+
+.settings-popup::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -10px;
+    width: 10px;
+    height: 100%;
+    background: transparent;
+}
+
+.settings-popup::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: -5px;
+    transform: rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    border-right: none;
+    border-top: none;
+}
+
+.settings-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    width: 100%;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    text-decoration: none;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-weight: normal;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.settings-option:hover {
+    color: var(--accent-color);
+    background-color: rgba(128, 128, 128, 0.07);
+}
+
+.settings-option svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
+}
+
+.settings-option svg[fill="currentColor"] {
+    fill: currentColor;
+    stroke: none;
+}
+
+.settings-container:hover .settings-popup {
+    display: flex;
+}
+
+.integrations-menu-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.integrations-option {
+    justify-content: space-between;
+}
+
+.submenu-arrow {
+    margin-left: auto;
+    padding-left: 8px;
+    font-size: 1.1em;
+    color: var(--text-tertiary);
+    transition: color 0.2s;
+}
+
+.integrations-option:hover .submenu-arrow {
+    color: var(--accent-color);
+}
+
+.integrations-submenu {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 5px);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    display: none !important;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 160px;
+    box-shadow: 0 2px 10px var(--shadow-color);
+    z-index: 1003;
+}
+
+.integrations-submenu::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -5px;
+    width: 5px;
+    height: 100%;
+    background: transparent;
+}
+
+.integrations-submenu::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: -5px;
+    transform: rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    border-right: none;
+    border-top: none;
+}
+
+.integrations-menu-item:hover .integrations-submenu,
+.integrations-submenu:hover {
+    display: flex !important;
+}
+
+.menu-popup .settings-container {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1001;
+}
+
+.menu-popup {
+    overflow: visible;
+}
+
+/* PDF Export Styles */
+/* Button styling to match BambooAI app theme */
+
+/* Button Container */
+.tab-header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.tab-header-container h3 {
+    margin: 0;
+}
+
+/* PDF Export Button - Green accent ghost style */
+.pdf-export-btn {
+    background: transparent;
+    border: 1px solid #4a9d5b;
+    border-radius: 4px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #4a9d5b;
+    font-size: 13px;
+    font-weight: 500;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.pdf-export-btn:hover:not(:disabled) {
+    background-color: #4a9d5b;
+    border-color: #4a9d5b;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(74, 157, 91, 0.3);
+}
+
+.pdf-export-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.pdf-export-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.pdf-export-btn:disabled:hover {
+    background: transparent;
+    color: #4a9d5b;
+    box-shadow: none;
+}
+
+.pdf-export-btn .pdf-icon {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+}
+
+.pdf-export-btn .pdf-text {
+    font-family: inherit;
+}
+
+/* Loading Spinner */
+.pdf-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(74, 157, 91, 0.3);
+    border-top: 2px solid #4a9d5b;
+    border-radius: 50%;
+    animation: pdf-spin 0.8s linear infinite;
+}
+
+@keyframes pdf-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Dark Theme - Enhanced */
+[data-theme="dark"] .pdf-export-btn {
+    border-color: #4a9d5b;
+    color: #5cb870;  /* Slightly brighter green for dark mode */
+    background: rgba(74, 157, 91, 0.1);
+}
+
+[data-theme="dark"] .pdf-export-btn:hover:not(:disabled) {
+    background-color: #4a9d5b;
+    border-color: #4a9d5b;
+    color: #ffffff;
+    box-shadow: 0 2px 12px rgba(74, 157, 91, 0.4);
+}
+
+[data-theme="dark"] .pdf-spinner {
+    border-color: rgba(92, 184, 112, 0.3);
+    border-top-color: #5cb870;
+}
+
+/* Simplified Summary Toggle Button - Green accent ghost style (matches PDF) */
+.simplified-summary-btn {
+    background: transparent;
+    border: 1px solid #4a9d5b;
+    border-radius: 4px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #4a9d5b;
+    font-size: 13px;
+    font-weight: 500;
+    gap: 6px;
+    white-space: nowrap;
+    margin-left: auto;
+    margin-right: 8px;
+}
+
+.simplified-summary-btn:hover:not(:disabled) {
+    background-color: #4a9d5b;
+    border-color: #4a9d5b;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(74, 157, 91, 0.3);
+}
+
+.simplified-summary-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.simplified-summary-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.simplified-summary-btn:disabled:hover {
+    background: transparent;
+    color: #4a9d5b;
+    box-shadow: none;
+}
+
+.simplified-summary-btn .simplified-icon {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+}
+
+.simplified-summary-btn .simplified-text {
+    font-family: inherit;
+}
+
+/* Loading Spinner - hidden by default */
+.simplified-summary-btn .simplified-spinner {
+    display: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(74, 157, 91, 0.3);
+    border-top: 2px solid #4a9d5b;
+    border-radius: 50%;
+    animation: simplified-spin 0.8s linear infinite;
+}
+
+.simplified-summary-btn.loading .simplified-spinner {
+    display: block;
+}
+
+.simplified-summary-btn.loading .simplified-icon {
+    display: none;
+}
+
+@keyframes simplified-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Dark Theme */
+[data-theme="dark"] .simplified-summary-btn {
+    border-color: #4a9d5b;
+    color: #5cb870;
+    background: rgba(74, 157, 91, 0.1);
+}
+
+[data-theme="dark"] .simplified-summary-btn:hover:not(:disabled) {
+    background-color: #4a9d5b;
+    border-color: #4a9d5b;
+    color: #ffffff;
+    box-shadow: 0 2px 12px rgba(74, 157, 91, 0.4);
+}
+
+[data-theme="dark"] .simplified-summary-btn .simplified-spinner {
+    border-color: rgba(92, 184, 112, 0.3);
+    border-top-color: #5cb870;
+}
+
+/* ========================================
+   SYNTHESIS INFOGRAPHIC
+   ======================================== */
+
+   .synthesis-infographic-container {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.synthesis-infographic-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.synthesis-infographic-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.synthesis-infographic-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.synthesis-infographic-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+}
+
+.synthesis-infographic-image:hover {
+    border-color: var(--text-tertiary);
+}
+
+/* Plan tab after an investigation: the Editor's briefing, rendered as prose.
+   Inherits the tab's own typography; only spacing is set here, so it follows
+   the theme rather than pinning colours that would break in dark mode. */
+.briefing-content { line-height: 1.6; }
+.briefing-content h2 { margin: 1.4em 0 0.5em; font-size: 1.05rem; }
+.briefing-content h3 { margin: 1.1em 0 0.4em; font-size: 0.97rem; }
+.briefing-content p,
+.briefing-content ul,
+.briefing-content ol { margin: 0.6em 0; }
+.briefing-content table { border-collapse: collapse; margin: 0.9em 0; width: 100%; }
+.briefing-content th,
+.briefing-content td { padding: 0.35em 0.6em; text-align: left; }
+.briefing-content code { padding: 0.1em 0.3em; border-radius: 3px; }
+.briefing-content > :first-child { margin-top: 0; }

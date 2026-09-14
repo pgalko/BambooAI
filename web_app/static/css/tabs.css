@@ -1,0 +1,204 @@
+/* tabs.css - the right pane's Data tab grid (moved out of styles.css 2026-09-08). Loaded after pane.css. */
+/* ---- Data tab grid (2026-09-07): paged, sortable, typed cells; one page in the browser at a time ---- */
+#content-dataframe .dg { border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); overflow: hidden; margin: 0; }
+#content-dataframe .dg-bar, #content-dataframe .dg-foot { display: flex; align-items: center; gap: 14px; padding: 8px 12px; font-family: Arial, sans-serif; font-size: 12px; color: var(--text-secondary); background: var(--bg-primary); }
+#content-dataframe .dg-bar { border-bottom: 1px solid var(--border-color); }
+#content-dataframe .dg-foot { border-top: 1px solid var(--border-color); font-size: 11px; color: var(--text-quaternary); }
+#content-dataframe .dg-foot .k { color: var(--text-tertiary); }
+#content-dataframe .dg .sp { flex: 1; }
+#content-dataframe .dg-bar b { color: var(--text-primary); font-weight: 600; }
+#content-dataframe .dg-bar .sortlabel, #content-dataframe .dg-bar .sortlabel b { color: var(--yaml-key); }
+#content-dataframe .dg-bar .sortlabel a { color: var(--text-tertiary); }
+#content-dataframe .dg-bar .pager { display: flex; align-items: center; gap: 4px; }
+#content-dataframe .dg-bar .pager button { background: none; border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 4px; width: 26px; height: 24px; cursor: pointer; font-size: 12px; }
+#content-dataframe .dg-bar .pager button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-tertiary); }
+#content-dataframe .dg-bar .pager button:disabled { opacity: .35; cursor: default; }
+#content-dataframe .dg-bar .pager .range { min-width: 150px; text-align: center; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+#content-dataframe .dg-bar input.dg-jump { width: 80px; height: 22px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); padding: 0 6px; font-size: 12px; }
+#content-dataframe .dg-bar select.dg-size { height: 24px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-secondary); font-size: 12px; padding: 0 4px; }
+#content-dataframe.active { display: flex; flex-direction: column; }
+#content-dataframe .dg { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#content-dataframe .dg-scroll { flex: 1; min-height: 0; overflow: auto; }
+#content-dataframe table.dg-table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-family: Arial, sans-serif; font-size: 12.5px; }
+#content-dataframe .dg-table thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-tertiary); color: var(--text-secondary); font-weight: 600; text-align: left; padding: 7px 10px 5px; border-bottom: 1px solid var(--border-color); border-right: 1px solid var(--border-color); white-space: nowrap; cursor: pointer; user-select: none; }
+#content-dataframe .dg-table thead th:last-child { border-right: none; }
+#content-dataframe .dg-table thead th .t { display: block; font-size: 10px; font-weight: 400; color: var(--text-quaternary); margin-top: 2px; }
+#content-dataframe .dg-table thead th:hover { color: var(--text-primary); }
+#content-dataframe .dg-table thead th.sorted { color: var(--yaml-key); }
+#content-dataframe .dg-table thead th .arrow { font-size: 10px; margin-left: 4px; color: var(--yaml-key); }
+#content-dataframe .dg-table td { padding: 5px 10px; border-bottom: 1px solid var(--border-color); border-right: 1px solid var(--border-color); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+#content-dataframe .dg-table td:last-child { border-right: none; }
+#content-dataframe .dg-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+#content-dataframe .dg-table td.dt { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: var(--text-secondary); }
+#content-dataframe .dg-table td.cat { color: var(--text-secondary); }
+#content-dataframe .dg-table td.id { color: var(--accent-color); font-family: 'Courier New', Courier, monospace; font-size: 12px; }
+#content-dataframe .dg-table td.null { color: var(--text-quaternary); text-align: center; }
+#content-dataframe .dg-table td.bool { text-align: center; color: var(--text-secondary); }
+#content-dataframe .dg-table td.rn, #content-dataframe .dg-table th.rn { position: sticky; left: 0; color: var(--text-quaternary); text-align: right; font-variant-numeric: tabular-nums; font-size: 11px; background: var(--bg-primary); }
+#content-dataframe .dg-table td.rn { z-index: 1; }
+#content-dataframe .dg-table th.rn { z-index: 3; background: var(--bg-tertiary); cursor: default; }
+#content-dataframe .dg-table tbody tr:hover td { background: var(--bg-tertiary); }
+
+/* ---- Investigation tab as a notebook (2026-09-05) ----
+   Code blocks use the app's own code styling (.code-header + pre code: Courier New 14px,
+   --code-bg, 1px border, the hljs palette); nothing here restyles the code itself. */
+.briefing-content .nb { display: flex; flex-direction: column; gap: 12px; }
+.briefing-content .nb-note {
+    background: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+}
+.briefing-content .nb-note-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.briefing-content .nb-note-row { display: grid; grid-template-columns: 160px 1fr; gap: 10px; padding: 4px 0; border-top: 1px solid var(--border-color); line-height: 1.45; }
+.briefing-content .nb-note-row:first-of-type { border-top: none; }
+.briefing-content .nb-note-key { color: var(--yaml-key); }
+.briefing-content .nb-note-val { color: var(--text-primary); word-break: break-word; }
+.briefing-content .nb-muted { color: var(--text-quaternary); font-style: italic; }
+/* a cell: the app's code header, then the app's code block, then the output collapsed */
+.briefing-content .nb-cell { border: none; background: none; }
+.briefing-content .nb-cell-head {
+    background: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.briefing-content .nb-cell-idx { color: var(--accent-color); white-space: nowrap; }
+.briefing-content .nb-cell--failed .nb-cell-idx { color: var(--error-color); }
+.briefing-content .nb-cell-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Courier New', Courier, monospace; }
+.briefing-content .nb-cell-meta { color: var(--text-quaternary); white-space: nowrap; margin-left: auto; }
+.briefing-content .nb-think {
+    background: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-bottom: none;
+    padding: 8px 12px;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--text-tertiary);
+    line-height: 1.5;
+}
+.briefing-content pre.nb-code { margin: 0; padding: 0; background: none; border: none; }
+.briefing-content .nb-cell pre code { padding: 1em; border-radius: 0; }
+/* the output: the app's black block, collapsed behind a chevron */
+.briefing-content details.nb-out, .briefing-content details.nb-step {
+    background: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    color: var(--text-secondary);
+}
+.briefing-content details.nb-step { border-top: 1px solid var(--border-color); border-radius: 4px; }
+.briefing-content details.nb-out summary, .briefing-content details.nb-step summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    height: 28px; padding: 0 8px; font-family: Arial, sans-serif; font-size: 12px; user-select: none;
+}
+.briefing-content details summary::-webkit-details-marker { display: none; }
+.briefing-content .nb-chevron { display: inline-block; width: 0; height: 0; border-left: 5px solid var(--text-tertiary); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform 0.15s ease; flex-shrink: 0; }
+.briefing-content details[open] > summary .nb-chevron { transform: rotate(90deg); }
+.briefing-content .nb-out-label { color: var(--accent-color); white-space: nowrap; }
+.briefing-content .nb-out--error .nb-out-label { color: var(--error-color); }
+.briefing-content .nb-out-peek { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Courier New', Courier, monospace; color: var(--text-tertiary); }
+.briefing-content details.nb-out summary:hover, .briefing-content details.nb-step summary:hover { color: var(--text-primary); }
+.briefing-content pre.nb-out-body {
+    margin: 0; padding: 1em; border-top: 1px solid var(--border-color); background: var(--code-bg);
+    font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.4;
+    overflow-x: auto; white-space: pre; color: var(--code-text);
+}
+.briefing-content div.nb-step {
+    height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 8px;
+    background: var(--code-bg); border: 1px solid var(--border-color); border-radius: 4px;
+    font-family: Arial, sans-serif; font-size: 12px; color: var(--text-secondary);
+}
+.briefing-content div.nb-step--warn .nb-out-label { color: var(--error-color); }
+.briefing-content div.nb-step--ask .nb-out-label { color: var(--accent-replay); }
+
+/* ---- Code, Results and Plots tabs (2026-09-08): one code block, one plot card ----
+   content-rendering.js builds: Code = h3 + .markdown-content > .code-header (label, edit/discard/execute) + pre code;
+   Results = h3 + .markdown-content > pre code.language-plaintext; Plots = .plot-container cards with a header,
+   a hidden query form, and the Plotly div. The h3 labels duplicate the tab's own name and are hidden. */
+#content-code > h3, #content-code_exec_results > h3 { display: none; }
+#content-code .markdown-content, #content-code_exec_results .markdown-content { max-width: none; }
+#content-code .code-header { height: 32px; margin: 0; padding: 0 6px 0 12px; border: 1px solid var(--border-color); border-bottom: none; border-radius: var(--r-2) var(--r-2) 0 0; background: var(--bg-secondary); font-family: var(--font-ui); font-size: var(--fs-small); color: var(--text-tertiary); display: flex; align-items: center; justify-content: space-between; }
+#content-code .language-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-tertiary); }
+#content-code .header-actions { display: flex; align-items: center; gap: 2px; }
+#content-code .code-action-button { width: 26px; height: 26px; border: none; border-radius: 5px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; padding: 0; transition: none; }
+#content-code .code-action-button:hover:not(:disabled) { background: var(--bg-tertiary); color: var(--text-primary); transform: none; }
+#content-code .code-action-button.execute-button { color: var(--c-model); }
+#content-code .code-action-button.discard-button { color: var(--c-fail); }
+#content-code .code-action-button svg { width: 14px; height: 14px; stroke-width: 1.8; }
+#content-code .code-header + pre, #content-code_exec_results .markdown-content pre { margin: 0; padding: 0; border: none; background: none; }
+#content-code pre code, #content-code_exec_results pre code { display: block; margin: 0; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 0 0 var(--r-2) var(--r-2); background: var(--code-bg); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; color: var(--code-text); white-space: pre; overflow-x: auto; tab-size: 4; }
+#content-code_exec_results pre code { border-radius: var(--r-2); white-space: pre-wrap; word-break: break-word; }
+#content-code .CodeMirror { border: 1px solid var(--border-color); border-radius: 0 0 var(--r-2) var(--r-2); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; height: auto; min-height: 240px; }
+#content-code .CodeMirror-scroll { min-height: 240px; }
+/* a plot is a card: title and actions on one line, the query row beneath when opened, the figure below */
+#content-plot .plot-container { margin: 0 0 14px; padding: 0; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); overflow: hidden; }
+#content-plot .plot-header { height: 34px; margin: 0; padding: 0 6px 0 12px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 8px; }
+#content-plot .plot-header h3 { flex: 1; margin: 0; font-size: var(--fs-small); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); }
+#content-plot .plot-header-actions { display: flex; align-items: center; gap: 2px; }
+#content-plot .plot-query-btn, #content-plot .plot-expand-btn { width: 26px; height: 26px; border: none; border-radius: 5px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; padding: 0; transition: none; box-shadow: none; }
+#content-plot .plot-query-btn:hover, #content-plot .plot-expand-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); transform: none; }
+#content-plot .plot-query-btn svg, #content-plot .plot-expand-btn svg { width: 14px; height: 14px; stroke-width: 1.8; }
+#content-plot .plot-query-form { display: none; gap: 6px; align-items: center; margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--border-color); background: var(--bg-primary); }
+#content-plot .plot-query-form[style*="flex"], #content-plot .plot-query-form[style*="block"] { display: flex !important; }
+#content-plot .plot-query-input { flex: 1; height: 30px; margin: 0; padding: 0 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); color: var(--text-primary); font-family: var(--font-ui); font-size: var(--fs-body); }
+#content-plot .plot-query-input:focus { outline: none; border-color: var(--text-tertiary); }
+#content-plot .plot-query-submit { width: 30px; height: 30px; margin: 0; border: 1px solid var(--c-model); border-radius: var(--r-2); background: none; color: var(--c-model); display: grid; place-items: center; cursor: pointer; padding: 0; }
+#content-plot .plot-query-submit:hover { background: var(--accent-bg-hover); transform: none; }
+#content-plot .plot-query-submit svg { width: 14px; height: 14px; }
+#content-plot .plot-content { margin: 0; padding: 8px; background: var(--bg-primary); }
+#content-plot .plotly-plot { min-height: 360px; border-radius: 0; }
+#content-plot .plot-image { border-radius: var(--r-1); }
+
+/* ---- the answer page reads at 14.5px (2026-09-08) ---- */
+#content-answer .markdown-content { font-size: 14.5px; line-height: 1.65; max-width: 76ch; }
+#content-answer .markdown-content h1 { font-size: 20px; }
+#content-answer .markdown-content h2 { font-size: 16px; margin: 22px 0 8px; }
+#content-answer .markdown-content h3 { font-size: 11.5px; }
+#content-answer .markdown-content > h1 + p, #content-answer .markdown-content > h2:first-child + p { font-size: 15.5px; }
+#content-answer .markdown-content table { font-size: 13px; }
+#content-answer .markdown-content code { font-size: 12.5px; }
+#content-answer .answer-key .value { font-size: 16px; }
+#content-answer .answer-provenance { font-size: var(--fs-meta); }
+
+/* ---- the Explore page (2026-09-08): the seedling's five questions as cards you can edit and run ----
+   content-rendering.js turns the numbered list into .interactive-pill cards (number, content, a hidden textarea,
+   an edit button, a send icon) and toggles .editing on a card while its text is being changed. */
+#content-answer .interactive-pills-container { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 0; max-width: 76ch; }
+#content-answer .interactive-pill { display: grid; grid-template-columns: 26px 1fr auto auto; align-items: start; gap: 10px; padding: 12px 12px 12px 14px; margin: 0; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); cursor: pointer; transition: none; transform: none; box-shadow: none; }
+#content-answer .interactive-pill:hover { border-color: var(--chip-model-border); background: var(--bg-secondary); transform: none; box-shadow: none; }
+#content-answer .interactive-pill:active { transform: none; }
+#content-answer .interactive-pill.editing { border-color: var(--c-model); cursor: default; }
+#content-answer .pill-number { width: 22px; height: 22px; margin: 1px 0 0; border: 1px solid var(--chip-model-border); border-radius: 50%; background: none; color: var(--c-model); font-size: var(--fs-small); font-weight: 600; display: grid; place-items: center; }
+#content-answer .pill-content { font-size: 14px; line-height: 1.5; color: var(--text-primary); margin: 0; padding: 0; }
+#content-answer .pill-content strong { font-weight: 600; color: var(--text-primary); }
+#content-answer .pill-content p { margin: 0; }
+#content-answer .pill-edit-input { grid-column: 2; width: 100%; box-sizing: border-box; min-height: 84px; margin: 0; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: 14px; line-height: 1.5; resize: vertical; }
+#content-answer .pill-edit-input:focus { outline: none; border-color: var(--text-tertiary); }
+#content-answer .pill-edit-btn, #content-answer .pill-icon { width: 26px; height: 26px; margin: 0; border: none; border-radius: 5px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; padding: 0; opacity: 1; transition: none; }
+#content-answer .pill-edit-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+#content-answer .pill-icon { color: var(--c-model); }
+#content-answer .interactive-pill:hover .pill-icon { color: var(--c-model); transform: none; }
+#content-answer .pill-edit-btn svg, #content-answer .pill-icon svg { width: 14px; height: 14px; fill: currentColor; }
+#content-answer .interactive-pill.editing .pill-icon { color: var(--c-model); }
+#content-answer > h3 { display: none; }   /* 'Explore:' / 'Synthesis:' - the tab already says it */
+#content-answer .interactive-pills-container + p, #content-answer .markdown-content > p:first-child { color: var(--text-secondary); }
+
+/* ---- folded from graph-controls.css: the mermaid diagram frame in the Investigation tab ---- */
+.diagram-container { margin: 8px 0 14px; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); overflow: auto; }
+.diagram-container .mermaid-view { display: flex; justify-content: center; }
+.diagram-container .mermaid-view .mermaid { max-width: 100%; }
+.diagram-container .mermaid-view svg { max-width: 100%; height: auto; }
+.size-error-notice { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: var(--fs-meta); color: var(--text-tertiary); }
