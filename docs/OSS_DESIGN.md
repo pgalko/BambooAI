@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v0.6, 2026-09-14 (v0.1-v0.5 the same day). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v0.7, 2026-09-14 (v0.1-v0.6 the same day). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -31,8 +31,9 @@ The self-hosted edition differs from the hosted one at five places. Everything e
   `PersistentKernel` in a subprocess on the user's machine, no orchestrator. Docker stays as an
   option — a plain `docker run` of the existing executor image — for people who want isolation.
   Today `get_bamboo_ai` always asks the orchestrator — second piece of work.
-- **D6. Accounts and data.** `auth/supabase_client.py` keeps its function names and gains a second
-  backend: SQLite in the user's working directory. Details in §3.
+- **D6. Accounts and data.** `auth/supabase_client.py` keeps its function names; when Supabase is
+  absent its client factories hand out a SQLite client that speaks the same query shape
+  (`bambooai/db/local_store.py`), so nothing above them changes. Details in §3.
 - **D7. The settings dialog.** Models and Compute tabs stay; Funds and Integrations show only what
   the edition has. **Model keys come from `.env`, not from the dialog:** the key-entry UI (the
   hosted "own keys" path) is hidden in the self-hosted edition. *Reason:* the model layer already
@@ -204,6 +205,13 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
 - Tests: a unit suite for the SQLite backend; the local-edition e2e covers labels, favourites,
   the Usage dialog and an integration's configuration.
 - **Done when:** a saved chain, its label and the Usage dialog survive a restart of the server.
+- **Status 2026-09-14: done** (commits `6424c29`, `8c3da64`, `10af511`). The design changed for the
+  better on the way: instead of a facade with two implementations of twenty functions, the local
+  backend is a SQLite client that speaks Supabase's query-builder shape (`bambooai/db/local_store.py`),
+  handed out by the two client factories - every function and route above them, including the label
+  routes' inline queries and the usage dashboard, works unchanged. The store is one file,
+  `bambooai.sqlite`, in `BAMBOO_DATA_DIR` or the working folder. The level saved from the dialog lives
+  there (D7 amended: `BAMBOO_LEVEL` is the default before the first save, not the only source).
 
 ### Phase 4 — packaging (D19, D20)
 - `pyproject.toml` (the package name `bambooai`, version 2.0.0, curated dependencies; the web app's
