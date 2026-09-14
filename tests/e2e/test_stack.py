@@ -52,13 +52,15 @@ def wait_text(page, selector, text, timeout=180000):
 
 def main():
     edition = "local" if "--edition" in sys.argv and sys.argv[sys.argv.index("--edition") + 1] == "local" else "hosted"
+    compute = sys.argv[sys.argv.index("--compute") + 1] if "--compute" in sys.argv else "orchestrator"
     vendor.prepare(fetch=False)
     workdir = tempfile.mkdtemp(prefix=f"bamboo_e2e_{edition}_")
     mod = harness_models.load("field_trial")
     q1, q2 = mod.QUESTIONS[0], mod.QUESTIONS[1]
     USER = "local" if edition == "local" else "localuser"        # BAMBOO_USER in the local edition; the Auth0 stand-in's id in the hosted one
     print(f"edition: {edition}")
-    with Stack(workdir=workdir, scenario="field_trial", fresh=True, auto_ports=True, edition=edition) as st:
+    print(f"compute: {compute}")
+    with Stack(workdir=workdir, scenario="field_trial", fresh=True, auto_ports=True, edition=edition, compute=compute) as st:
         with sync_playwright() as pw:
             b, page, logs = open_page(pw, st.app_url)
             navs, starts = [], []
@@ -70,8 +72,10 @@ def main():
             check("cold load: the composer is visible and the app reports its initialisation complete", True)
             check("cold load is ONE load (v63): no reload into ?new=true; the initialise call and /new_conversation once each",
                   len(navs) == 1 and "new=true" not in page.url and starts.count("initialize") == 1 and starts.count("new_conversation") == 1, (navs, starts))
-            page.wait_for_function("() => /Ready/.test(document.querySelector('#containerStatusText').textContent)", timeout=30000)
-            check("the workspace gate released and the chip says Ready (a fresh load starts the executor, v62)", True)
+            page.wait_for_function("() => /Ready|Local|Docker/.test(document.querySelector('#containerStatusText').textContent)", timeout=30000)
+            chip = page.inner_text("#containerStatusText")
+            check("the workspace gate released and the chip reads " + {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute],
+                  chip == {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute], chip)
             check("the pane is empty (the 'New workflow started' sentence is retired)", page.inner_text("#streamOutput").strip() == "", page.inner_text("#streamOutput"))
 
             page.set_input_files("#primaryFile", st.dataset)
@@ -191,9 +195,14 @@ def main():
               os.path.exists(pack) and "within_soil_plot_level_contrast" in open(pack).read(), pack)
         calls = st.orchestrator_calls()
         kinds = [c["kind"] for c in calls]
-        check("the app never asked the orchestrator to destroy the container", "destroy" not in kinds, kinds)
-        check("the app polled the container status and spawned/reused through the orchestrator",
-              kinds.count("status") >= 3 and kinds.count("spawn") >= 1, kinds)
+        if compute == "orchestrator":
+            check("the app never asked the orchestrator to destroy the container", "destroy" not in kinds, kinds)
+            check("the app polled the container status and spawned/reused through the orchestrator",
+                  kinds.count("status") >= 3 and kinds.count("spawn") >= 1, kinds)
+        else:
+            check(f"compute {compute}: no orchestrator was involved", not calls and "orchestrator" not in st.procs, list(st.procs))
+            check(f"compute {compute}: the executor process " + ("was not started (the kernel ran here)" if compute == "local" else "was the one named in .env"),
+                  ("executor" not in st.procs) if compute == "local" else ("executor" in st.procs), list(st.procs))
         page_errors = [l for l in logs if l.startswith(("[pageerror]", "[window.error]"))] + [f"[window.error] {e}" for e in errs]
         check("no page errors during the whole walk", not page_errors, page_errors[:3])
         http_errors = [l for l in logs if l.startswith("[http 5")]

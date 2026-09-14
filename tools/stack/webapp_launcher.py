@@ -57,6 +57,8 @@ def main():
     ap.add_argument("--workdir", default=os.path.join("/tmp", "bamboo_stack", "webapp"))
     ap.add_argument("--scenario", default="field_trial")
     ap.add_argument("--fresh", action="store_true", help="wipe the working directory first (config, storage, memory)")
+    ap.add_argument("--compute", choices=("orchestrator", "direct", "local"), default="orchestrator")
+    ap.add_argument("--executor-port", type=int, default=5055)
     ap.add_argument("--edition", choices=("hosted", "local"), default="hosted",
                     help="hosted: Auth0 and Supabase stand-ins as on the box; local: the self-hosted edition for real - "
                          "AUTH_MODE=single, no Supabase, no Auth0 (docs/OSS_DESIGN.md)")
@@ -71,13 +73,17 @@ def main():
     os.environ.update({
         "AUTH_MODE": "auth0" if a.edition == "hosted" else "single", "AUTH0_DOMAIN": "local.test", "AUTH0_CLIENT_ID": "local", "AUTH0_API_AUDIENCE": "local",
         "BAMBOO_USER": "local", "BAMBOO_LEVEL": "performance",
-        "FLASK_SECRET": "local-stack-secret", "ORCHESTRATOR_API_URL": f"http://127.0.0.1:{a.orchestrator_port}",
-        "EXECUTION_MODE": "api", "BAMBOO_MEMORY_DIR": os.path.join(a.workdir, "memory"),
+        "FLASK_SECRET": "local-stack-secret",
+        "EXECUTION_MODE": "local" if a.compute == "local" else "api", "BAMBOO_MEMORY_DIR": os.path.join(a.workdir, "memory"),
         "SYNTHESIS_INFOGRAPHIC": os.environ.get("SYNTHESIS_INFOGRAPHIC", "false"),
         "STREAM_HEARTBEAT_SECONDS": "5",
     })
-    for k in ("STRIPE_SECRET_KEY", "OPENROUTER_API_KEY"):
+    for k in ("STRIPE_SECRET_KEY", "OPENROUTER_API_KEY", "ORCHESTRATOR_API_URL", "EXECUTOR_API_BASE_URL"):
         os.environ.pop(k, None)
+    if a.compute == "orchestrator":
+        os.environ["ORCHESTRATOR_API_URL"] = f"http://127.0.0.1:{a.orchestrator_port}"
+    elif a.compute == "direct":
+        os.environ["EXECUTOR_API_BASE_URL"] = f"http://127.0.0.1:{a.executor_port}"     # one executor, as a docker run would be
     sys.path[:0] = [ROOT, os.path.join(ROOT, "delve"), os.path.join(ROOT, "web_app"), HERE]
     import sandbox
     faked = sandbox.install()                 # only packages that are not installed; nothing on a full venv
@@ -137,7 +143,7 @@ def main():
 
     import app as webapp                                     # the real web_app/app.py
     from werkzeug.serving import make_server
-    print(f"[webapp] real app ({a.edition} edition); scenario {a.scenario}; workdir {a.workdir}; orchestrator {os.environ['ORCHESTRATOR_API_URL']}; "
+    print(f"[webapp] real app ({a.edition} edition, compute {a.compute}); scenario {a.scenario}; workdir {a.workdir}; orchestrator {os.environ.get('ORCHESTRATOR_API_URL')}; "
           f"port {a.port}; faked packages: {faked or 'none'}", flush=True)
     make_server("127.0.0.1", a.port, webapp.app, threaded=True).serve_forever()
 
