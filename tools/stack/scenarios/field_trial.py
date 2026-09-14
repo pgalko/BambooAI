@@ -132,6 +132,12 @@ for ax, (soil, g) in zip(axes, plot_means.groupby('soil')):
 axes[0].set_ylabel('yield (t/ha), plot mean over the seasons')
 fig.tight_layout()
 plt.show()
+# the same contrast as a plotly figure, the way the contract asks for figures (fig.show())
+import plotly.graph_objects as go
+means = plot_means.groupby('regime')['yield_t_ha'].mean()
+pfig = go.Figure(data=[go.Bar(x=list(means.index), y=list(means.values))])
+pfig.update_layout(title='mean plot yield by regime (t/ha)')
+pfig.show()
 print('figure drawn: yield by regime within soil')"""
 
 CELL_C = """# C minus A on the same footing: plot means within soil, bootstrap over plots

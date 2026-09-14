@@ -106,6 +106,8 @@ def main():
             page.wait_for_timeout(300)
             imgs = page.evaluate("() => document.querySelectorAll('#content-plot img').length")
             check("the Plots tab holds the figure the replay captured", imgs >= 1, imgs)
+            plots_link = page.evaluate("() => { const l = [...document.querySelectorAll('.sp-done a, .sp-done .link')].map(e => e.textContent).find(t => /Plots \\(\\d+\\)/.test(t)); return l || (document.querySelector('.sp-done') || {}).textContent || ''; }")
+            check("the replay captured both figures: the matplotlib PNG and the plotly JSON (the closing card says Plots (2))", "Plots (2)" in plots_link, plots_link[:120])
 
             # the prompt button (v65): the card of turn 4 shows the prompt turn 4 received, not the seat's first
             def prompt_of(turn):

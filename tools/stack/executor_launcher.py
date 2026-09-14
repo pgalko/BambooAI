@@ -30,6 +30,11 @@ def main():
     os.chdir(a.workdir)                       # datasets/, temp/, iframe_figures/ land here, as in /app
     sys.path[:0] = [HERE, os.path.join(ROOT, "containers", "executor")]
     import sandbox
+    try:
+        import plotly  # noqa: F401
+    except ImportError:                       # the on-disk stand-in serves this process and its kernel subprocesses
+        sys.path.insert(0, os.path.join(HERE, "fakepkgs"))
+        os.environ["PYTHONPATH"] = os.path.join(HERE, "fakepkgs") + os.pathsep + os.environ.get("PYTHONPATH", "")
     faked = sandbox.install()                 # only packages that are not installed; nothing on a full venv
 
     import pandas as pd

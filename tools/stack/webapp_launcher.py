@@ -86,6 +86,11 @@ def main():
         os.environ["EXECUTOR_API_BASE_URL"] = f"http://127.0.0.1:{a.executor_port}"     # one executor, as a docker run would be
     sys.path[:0] = [ROOT, os.path.join(ROOT, "delve"), os.path.join(ROOT, "web_app"), HERE]
     import sandbox
+    try:
+        import plotly  # noqa: F401
+    except ImportError:                       # the on-disk stand-in serves this process and its kernel subprocesses
+        sys.path.insert(0, os.path.join(HERE, "fakepkgs"))
+        os.environ["PYTHONPATH"] = os.path.join(HERE, "fakepkgs") + os.pathsep + os.environ.get("PYTHONPATH", "")
     faked = sandbox.install()                 # only packages that are not installed; nothing on a full venv
     if a.edition == "hosted":
         # the Supabase stand-in (tools/stack/fake_supabase.py): the app's own client code builds it from these

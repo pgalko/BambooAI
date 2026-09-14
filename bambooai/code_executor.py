@@ -139,6 +139,10 @@ pio.show = show
         patch = ""
         if self.webui:
             patch = "try:\n" + "".join("    " + line + "\n" for line in self.patch_code.splitlines()) + "except ImportError:\n    pass\n"
+            # the analysis kernel makes Figure.show a no-op (no display there); the reproduction run must reach the
+            # capture patch, as it does through the executor - so fig.show() goes to pio.show again (2026-09-14)
+            patch += ("try:\n    import plotly.graph_objects as _go\n    import plotly.io as _pio\n"
+                      "    _go.Figure.show = lambda self, *a, **k: _pio.show(self, *a, **k)\nexcept Exception:\n    pass\n")
         script = prelude + patch + "\n" + code
         kernel = None
         try:
