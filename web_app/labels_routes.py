@@ -6,7 +6,7 @@ Flask blueprint for managing labels functionality
 import logging
 from flask import Blueprint, request, jsonify
 from auth import requires_auth, get_current_user_id
-from auth.supabase_client import get_service_client
+from auth.supabase_client import get_service_client, supabase_configured
 import os
 import json
 import glob
@@ -38,6 +38,8 @@ def get_user_labels():
         bamboo_user_id = get_user_bamboo_id()
         if not bamboo_user_id:
             return jsonify({'error': 'User identification failed'}), 401
+        if not supabase_configured():                # the self-hosted edition: labels arrive with the local backend (phase 3)
+            return jsonify({'success': True, 'labels': []}), 200
         
         service_client = get_service_client()
         

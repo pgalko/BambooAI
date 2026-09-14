@@ -4,10 +4,14 @@ from flask import Blueprint, request, jsonify, redirect
 from auth import requires_auth, get_current_user_id
 from datetime import datetime
 import logging
-import stripe
+try:
+    import stripe
+except ImportError:                                     # the self-hosted edition has no billing; the routes answer locally
+    stripe = None
 import os
 
-stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+if stripe is not None:
+    stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 YOUR_DOMAIN = os.getenv('YOUR_DOMAIN')
 

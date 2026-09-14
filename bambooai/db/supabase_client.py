@@ -1,7 +1,10 @@
 import os
 import logging
 from typing import Optional
-from supabase import create_client, Client
+try:
+    from supabase import create_client, Client
+except ImportError:                                     # the self-hosted edition needs no Supabase SDK
+    create_client, Client = None, None
 
 from logger_config import get_logger
 logger = get_logger(__name__)

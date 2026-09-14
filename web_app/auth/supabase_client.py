@@ -7,7 +7,10 @@ from collections import defaultdict
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from supabase import create_client, Client
+try:
+    from supabase import create_client, Client
+except ImportError:                                     # the self-hosted edition needs no Supabase SDK (docs/OSS_DESIGN.md D6)
+    create_client, Client = None, None
 from flask import g
 from typing import Optional, Any, Union
 
@@ -18,6 +21,24 @@ logger = get_logger(__name__)
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+
+# The self-hosted edition (docs/OSS_DESIGN.md D6, D10): without Supabase the accounts functions answer
+# locally - one managed user, no tiers, no funds, no quotas - so the page initialises. The level the
+# analyst runs at (cost / performance / max) comes from BAMBOO_LEVEL. Phase 3 puts the person's own
+# tables (labels, usage, integrations...) behind these same names in SQLite; this is the skeleton.
+BAMBOO_LEVEL = os.getenv('BAMBOO_LEVEL', 'performance')
+
+
+def supabase_configured() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
+
+
+LOCAL_SUBSCRIPTION = {"model_tier": "managed", "compute_tier": "local", "integration_config": {},
+                      "anniversary_date": None, "updated_at": None, "query_cost": 0.0}
+LOCAL_TIER_LIMITS = [
+    {"category": "compute", "tier": "local", "variable_rate": 0.0, "max_queries": None, "max_data_days": None, "description": "Your own machine"},
+    {"category": "model", "tier": "managed", "variable_rate": 0.0, "max_queries": None, "max_data_days": None, "description": "Your own keys"},
+]
 
 
 # Global client instances
@@ -131,6 +152,8 @@ def get_user_llm_config(auth0_id: str) -> dict:
     
     if not validate_user_access(auth0_id):
         return {"error": "Unauthorized access"}
+    if not supabase_configured():
+        return BAMBOO_LEVEL if BAMBOO_LEVEL in ("cost", "performance", "max") else "performance"
     
     try:
         service_client = get_service_client()
@@ -1120,6 +1143,8 @@ def get_user_subscription(auth0_id: str) -> dict:
     """
     if not validate_user_access(auth0_id):
         return {"ok": False, "error": "unauthorized"}
+    if not supabase_configured():
+        return {"ok": True, "data": dict(LOCAL_SUBSCRIPTION)}
 
     try:
         svc = get_service_client()
@@ -1170,6 +1195,8 @@ def get_tier_limits(category: str = None) -> dict:
     Read tier_limits for UI pickers (static catalog).
     Enhanced with caching potential.
     """
+    if not supabase_configured():
+        return {"ok": True, "data": [t for t in LOCAL_TIER_LIMITS if not category or t["category"] == category]}
 
     try:
         svc = get_service_client()
@@ -1239,6 +1266,8 @@ def get_balance(auth0_id: str) -> dict:
     Simple balance read for UI.
     Returns: {"ok": True, "data": {"balance": <number>, "last_updated": <ts>}}
     """
+    if not supabase_configured():
+        return {"ok": True, "data": {"balance": 0.0, "last_updated": None}}
 
     if not validate_user_access(auth0_id):
         return {"ok": False, "error": "unauthorized"}
@@ -1329,6 +1358,8 @@ def get_monthly_usage(auth0_id: str) -> dict:
     Get usage for current anniversary period
     Returns: {"ok": True, "data": {"period_start": date, "period_end": date, "queries_used": int, "max_queries": int}}
     """
+    if not supabase_configured():
+        return {"ok": True, "data": {"period_start": None, "period_end": None, "queries_used": 0, "max_queries": None}}
     if not validate_user_access(auth0_id):
         return {"ok": False, "error": "unauthorized"}
 

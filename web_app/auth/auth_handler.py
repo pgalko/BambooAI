@@ -11,6 +11,16 @@ logger = get_logger(__name__)
 
 # Configuration
 AUTH_MODE = os.getenv('AUTH_MODE', 'none')
+# The self-hosted edition (docs/OSS_DESIGN.md D4, D29): AUTH_MODE=single is one person on their own machine.
+# Every request carries the fixed local identity, no token, no Auth0; BAMBOO_USER names the folders under
+# storage/, memory/ and config/. 'none' keeps its old meaning - nothing configured - so a box never runs
+# open by accident.
+BAMBOO_USER = os.getenv('BAMBOO_USER', 'local')
+LOCAL_SUB = f"local|{BAMBOO_USER}"
+
+
+def local_user():
+    return {'sub': LOCAL_SUB, 'email': f'{BAMBOO_USER}@local', 'name': BAMBOO_USER, 'nickname': BAMBOO_USER}
 AUTH0_DOMAIN = os.getenv('AUTH0_DOMAIN')
 AUTH0_API_AUDIENCE = os.getenv('AUTH0_API_AUDIENCE')
 ALGORITHMS = ['RS256']
@@ -51,6 +61,8 @@ def init_auth(app):
     def auth_status():
         return jsonify({
             'auth_enabled': AUTH_MODE == 'auth0',
+            'mode': AUTH_MODE,
+            'user': local_user() if AUTH_MODE == 'single' else None,
             'auth0_domain': AUTH0_DOMAIN if AUTH_MODE == 'auth0' else None,
             'auth0_client_id': os.getenv('AUTH0_CLIENT_ID') if AUTH_MODE == 'auth0' else None,
             'auth0_audience': AUTH0_API_AUDIENCE if AUTH_MODE == 'auth0' else None
@@ -61,6 +73,11 @@ def requires_auth(f):
     """Decorator to require authentication"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if AUTH_MODE == 'single':                        # the self-hosted edition: the one local identity, no token
+            g.current_user_id = LOCAL_SUB
+            g.current_user = local_user()
+            g.auth_token = None
+            return f(*args, **kwargs)
         token = get_token_from_header()
         if not token:
             return jsonify({'message': 'Authorization token required'}), 401
