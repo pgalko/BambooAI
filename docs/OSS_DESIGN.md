@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v0.3, 2026-09-14 (v0.1 and v0.2 the same day). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v0.4, 2026-09-14 (v0.1-v0.3 the same day). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -91,7 +91,13 @@ statement by statement against the code.
 - **D18. The first push over v1.** Tag and branch the old `main` (`v1-final`, `v1`) so v1 stays
   reachable; publish v2 as **2.0.0** on PyPI under the same name; the README's first paragraph says
   2.0 is a different program. `analyst/cli.py` and the importable engine remain for terminal and
-  notebook users.
+  notebook users. **The public push is parked until the edition works** (phase 2 on the box); the
+  private remote receives the snapshot now.
+- **D30. The working places.** The box: `/home/data/bambooai`, origin `BambooAI_Prod`. The Mac:
+  `/Users/palogalko/Projects/Bamboo_AI_v2`, a clone of `BambooAI_Prod` with `public` as the second
+  remote — deliberately outside Dropbox, which corrupts live `.git` folders when it syncs them.
+  Phase 0 steps 1-4 (the snapshot on the box and the private remote, the Mac clone) are being
+  deployed on 2026-09-14; step 5 (the public push) waits.
 
 ## 5. Install and release
 
