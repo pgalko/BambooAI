@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v0.8, 2026-09-15 (v0.1-v0.7 on 2026-09-14). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v0.9, 2026-09-15 (v0.1-v0.7 on 2026-09-14). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -144,6 +144,13 @@ statement by statement against the code.
   The Selenium mode and `SELENIUM_WEBDRIVER_PATH` are dead and go.
 
 ## 8a. Still open
+
+- **O9. The integrations in local mode.** Intervals, Endura and SweatStack fetch their data inside
+  the executor container (the job model and the provider clients live in
+  `containers/executor/code_executor_api.py`), so on the local kernel they answer "needs an executor"
+  and the Docker option is the way to use them today (found on the Mac, 2026-09-15). The fix is a
+  module both the app and the executor import - which also means a new executor image - scheduled
+  after the release as its own series.
 
 - **O5. Team mode scope** (login, users table, per-user kernels): phase 6, after single-user ships.
 - **O6. The template's prices.** `model_properties` ships with the release; self-hosted users own
