@@ -977,6 +977,7 @@ def upload_file():
             }), 200
 
         except Exception as e:
+            logger.error(f"Upload of {file.filename!r} failed: {e}", exc_info=True)   # the response carried the only trace of this (2026-09-15)
             return jsonify({'message': str(e)}), 500
         finally:
             os.remove(filepath)
