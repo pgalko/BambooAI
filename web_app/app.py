@@ -499,8 +499,11 @@ def load_dataframe_to_bamboo_ai_instance(session_id, df=None, file=None, executi
         if not file:
             raise ValueError("File is required for API execution mode")
         try:
-            file.seek(0)
-            files = {'file': (file.filename, file, file.content_type)}
+            # the stream, not the FileStorage: newer werkzeug (3.1+) no longer proxies read() through the
+            # FileStorage and requests then cannot serialise it (found on the Mac, 2026-09-15); the stream
+            # is what both versions hand to requests unchanged
+            file.stream.seek(0)
+            files = {'file': (file.filename, file.stream, file.content_type)}
             executor_response = requests.post(
                 get_dynamic_executor_urls(get_user_id())['EXECUTOR_API_UPLOAD_URL'],
                 files=files,
