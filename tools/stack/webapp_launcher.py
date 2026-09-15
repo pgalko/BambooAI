@@ -73,6 +73,7 @@ def main():
     os.environ.update({
         "AUTH_MODE": "auth0" if a.edition == "hosted" else "single", "AUTH0_DOMAIN": "local.test", "AUTH0_CLIENT_ID": "local", "AUTH0_API_AUDIENCE": "local",
         "BAMBOO_USER": "local", "BAMBOO_LEVEL": "performance",
+        "GEMINI_API_KEY": "stack-search-key",          # search is on only with a Gemini key (D28); the seam below answers, not Gemini
         "FLASK_SECRET": "local-stack-secret",
         "EXECUTION_MODE": "local" if a.compute == "local" else "api", "BAMBOO_MEMORY_DIR": os.path.join(a.workdir, "memory"),
         "SYNTHESIS_INFOGRAPHIC": os.environ.get("SYNTHESIS_INFOGRAPHIC", "false"),

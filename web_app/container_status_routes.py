@@ -51,6 +51,8 @@ def get_container_status():
             return jsonify({'status': 'ready', 'tier': 'local', 'user_id': user_id}), 200
         if direct:
             return jsonify(dict(_direct_executor_status(direct), user_id=user_id)), 200
+        if container_status_bp.container_orchestrator is None:
+            return jsonify({'status': 'offline', 'tier': 'none', 'user_id': user_id, 'error': 'no executor: set EXECUTION_MODE=local or EXECUTOR_API_BASE_URL'}), 200
         
         # Use the centralized orchestrator client
         status_data = container_status_bp.container_orchestrator.get_container_status(user_id)

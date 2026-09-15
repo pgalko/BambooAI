@@ -16,7 +16,10 @@ from queue import Queue, Empty
 from flask import Flask, request, jsonify, Response, render_template, session, send_from_directory, redirect, url_for
 import tempfile
 from dotenv import load_dotenv
-from google.cloud import storage
+try:
+    from google.cloud import storage                     # hosted edition only; unused by the self-hosted one
+except ImportError:
+    storage = None
 from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import abort
 
@@ -35,7 +38,10 @@ from integrations.cache_manager import init_cache_integration
 
 # Add orchestration path
 sys.path.append('/home/data/bambooai')
-from orchestration import ContainerOrchestrator
+try:
+    from orchestration.main_app_integration import ContainerOrchestrator   # the hosted path's client (requests only)
+except ImportError:                                     # the self-hosted edition ships no orchestrator
+    ContainerOrchestrator = None
 
 # Blueprints
 from llm_config_routes import llm_config_bp
@@ -119,7 +125,7 @@ SSL_CERT_PATH = os.getenv('SSL_CERT_PATH')
 SSL_KEY_PATH = os.getenv('SSL_KEY_PATH')
 
 # Initialize container orchestrator
-container_orchestrator = ContainerOrchestrator(ORCHESTRATOR_API_URL)
+container_orchestrator = ContainerOrchestrator(ORCHESTRATOR_API_URL) if ContainerOrchestrator else None
 
 def _executor_urls(base_url: str) -> dict:
     return {
@@ -143,6 +149,9 @@ def get_dynamic_executor_urls(user_id: str) -> dict:
         return None                                   # no executor: the kernel runs in a subprocess here
     if DIRECT_EXECUTOR_URL:
         return _executor_urls(DIRECT_EXECUTOR_URL)    # one executor, named in .env, no orchestrator
+    if container_orchestrator is None:
+        logger.error("EXECUTION_MODE=api needs EXECUTOR_API_BASE_URL in this edition (no orchestrator is installed)")
+        return None
     try:
         user_compute_tier = get_user_compute_tier(user_id)
 
@@ -222,7 +231,8 @@ user_session_mapping = {}  # Key: user_id, Value: current_session_id
 
 # BambooAI parameters
 EXPLORATORY = True
-SEARCH_TOOL = True
+# Web search (docs/OSS_DESIGN.md D28): google_ai needs a Gemini key; off without one, or when WEB_SEARCH_MODE=off.
+SEARCH_TOOL = bool(os.getenv('GEMINI_API_KEY')) and os.getenv('WEB_SEARCH_MODE', 'google_ai') not in ('off', 'none', 'false', '0')
 WEBUI = True
 
 # Workspace memory is ALWAYS ON at a fixed per-user path - no UI lever, no

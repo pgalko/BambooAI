@@ -4,7 +4,10 @@ import time
 from functools import wraps
 from flask import request, jsonify, g
 from urllib.request import urlopen
-from jose import jwt
+try:
+    from jose import jwt
+except ImportError:                                     # the self-hosted edition (AUTH_MODE=single) verifies no Auth0 tokens
+    jwt = None
 
 from logger_config import get_logger
 logger = get_logger(__name__)

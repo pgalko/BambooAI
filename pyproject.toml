@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bambooai"
+version = "2.0.0"
+description = "An analyst that works in a notebook: one model, one kernel, one report - with a web app, running on your own machine."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Palo Galko" }]
+keywords = ["data analysis", "llm", "pandas", "notebook", "agent"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+# the self-hosted edition's dependencies (docs/OSS_DESIGN.md D19): nothing of the hosted service is here
+dependencies = [
+    "flask>=3.0",
+    "python-dotenv",
+    "requests",
+    "httpx",
+    "openai>=1.30",
+    "anthropic",
+    "google-genai",
+    "google-generativeai",
+    "groq",
+    "mistralai",
+    "ollama",
+    "tiktoken",
+    "termcolor",
+    "pandas>=2.0",
+    "numpy",
+    "pyarrow",
+    "matplotlib",
+    "seaborn",
+    "plotly",
+    "statsmodels",
+    "scipy",
+    "scikit-learn",
+    "ipython",
+    "nbformat",
+    "cryptography",
+    "newspaper3k",
+    "lxml_html_clean",
+    "sweatstack",
+    "gunicorn; sys_platform != 'win32'",
+]
+
+[project.optional-dependencies]
+# extra analysis libraries the executor image carries; install when your work needs them
+analysis = ["geopandas", "yfinance", "kaleido"]
+# the tests and the local stack (a browser is needed for the end-to-end suites: playwright install chromium)
+dev = ["playwright", "pytest"]
+
+[project.scripts]
+bambooai = "bambooai.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/pgalko/BambooAI"
+Repository = "https://github.com/pgalko/BambooAI"
+
+[tool.setuptools]
+py-modules = ["logger_config"]
+packages = ["bambooai", "bambooai.db", "bambooai.messages", "bambooai.models", "analyst", "delve",
+            "web_app", "web_app.auth", "web_app.integrations", "orchestration"]
+
+[tool.setuptools.package-data]
+bambooai = ["messages/default_prompts.yaml"]
+analyst = ["contract.md"]
+web_app = ["LLM_CONFIG_template.json", "templates/*.html", "static/**/*", "ontologies/*"]
