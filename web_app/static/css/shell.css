@@ -63,7 +63,8 @@
 .rail .integrations-menu-item { position: relative; }
 .rail .integrations-submenu { display: none; position: absolute; top: -6px; left: calc(100% + 4px); min-width: 180px; padding: 6px; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); }
 .rail .integrations-menu-item:hover .integrations-submenu { display: block; }
-.rail .settings-option[data-enabled="false"] { display: none; }   /* an integration without its registration in .env is not offered (D26) */
+.rail .settings-option[data-enabled="false"] { opacity: .45; }         /* not set up yet: dimmed, and the way to set it up */
+.rail .settings-option[data-available="false"] { display: none; }     /* no registration with the provider in .env: not offered (D26) */
 
 /* ---- the rail ---- */
 .rail .rb { position: relative; width: 32px; height: 32px; border-radius: 7px; border: none; background: none; display: grid; place-items: center; color: var(--text-tertiary); cursor: pointer; padding: 0; margin: 0; font-size: 0; box-shadow: none; overflow: visible !important; transition: none; }
