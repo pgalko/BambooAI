@@ -148,7 +148,6 @@ def serve(home, host, port, open_browser=True):
     home = init_home(home)
     load_env(home)
     port = int(port or os.environ.get("APP_PORT") or DEFAULTS["APP_PORT"])
-    application = make_app(home)
     url = f"http://{host if host not in ('0.0.0.0', '') else '127.0.0.1'}:{port}"
     if _missing_keys():
         print(f"bambooai: no model key found in {os.path.join(home, ENV_FILE)} - add one (OPENROUTER_API_KEY, for instance) and restart.")
@@ -156,7 +155,13 @@ def serve(home, host, port, open_browser=True):
           f"{', executor ' + os.environ['EXECUTOR_API_BASE_URL'] if os.environ.get('EXECUTOR_API_BASE_URL') else ''}, home: {home})")
     if open_browser:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    # The server. gunicorn forks its worker from the master; on macOS a child forked after numpy, the model
+    # clients and Apple's frameworks have initialised dies with SIGSEGV at first use (found on the Mac,
+    # 2026-09-15), so there werkzeug's threaded server runs the app in one process, no fork - it streams
+    # fine for one person. On Linux gunicorn builds the app inside the worker, never before the fork.
     try:
+        if sys.platform == "darwin" or os.environ.get("BAMBOO_SERVER") == "werkzeug":
+            raise ImportError("werkzeug on this platform")
         import gunicorn.app.base as gunicorn_base           # one process, threads, long-lived streams (as the hosted box runs)
 
         class _App(gunicorn_base.BaseApplication):
@@ -166,11 +171,13 @@ def serve(home, host, port, open_browser=True):
                     self.cfg.set(k, v)
 
             def load(self):
-                return application
+                return make_app(home)                        # in the worker, after the fork
         _App().run()
-    except ImportError:                                     # no gunicorn (Windows): werkzeug's threaded server streams fine for one person
+    except ImportError:
+        import logging
+        logging.getLogger("werkzeug").setLevel(logging.WARNING)
         from werkzeug.serving import run_simple
-        run_simple(host, port, application, threaded=True, use_reloader=False)
+        run_simple(host, port, make_app(home), threaded=True, use_reloader=False)
 
 
 def main(argv=None):
