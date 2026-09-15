@@ -9,7 +9,7 @@ import threading
 import time
 import re
 import sys
-import pkg_resources
+from importlib import metadata as _metadata     # pkg_resources (setuptools) is absent from new virtualenvs on Python 3.12
 from typing import Optional, Union, Dict, List
 import unicodedata
 import pyarrow.parquet as pq
@@ -64,7 +64,11 @@ def get_package_versions():
     }
     
     # Get installed packages
-    installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
+    installed_packages = {}
+    for dist in _metadata.distributions():
+        name = (dist.metadata['Name'] or '').lower()
+        if name:
+            installed_packages[name] = dist.version
     
     # Check for pandas
     versions['pandas_version'] = installed_packages.get('pandas', 'Not installed')
