@@ -241,6 +241,7 @@ def resolve_compute(compute_flag):
     port = int(os.environ.get("EXECUTOR_PORT") or 5055)
     os.environ["EXECUTOR_API_BASE_URL"] = start_executor(port)
     os.environ["EXECUTION_MODE"] = "api"
+    os.environ["BAMBOO_EXECUTOR_CONTAINER"] = EXECUTOR_CONTAINER   # the app may restart it (the chip's Restart)
     return "docker"
 
 

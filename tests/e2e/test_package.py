@@ -56,7 +56,13 @@ elif a[:1] == ["run"]:
     port = a[a.index("-p") + 1].split(":")[1]; image = a[-1]
     d = tempfile.mkdtemp(); open(os.path.join(d, "health"), "w").write('{"status":"healthy","build":"fake"}')
     p = subprocess.Popen([sys.executable, "-m", "http.server", port, "--bind", "127.0.0.1", "-d", d], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    st["container"] = {"image": image, "port": port, "pid": p.pid}; out = "abc123"
+    st["container"] = {"image": image, "port": port, "pid": p.pid, "started": str(time.time())}; out = "abc123"
+elif a[:1] == ["inspect"]:
+    c = st["container"]; out = c["started"] if c else ""; rc = 0 if c else 1
+elif a[:1] == ["restart"]:
+    c = st["container"]
+    if c:
+        c["started"] = str(time.time()); st["restarts"] = st.get("restarts", 0) + 1
 elif a[:1] == ["stop"]:
     c = st["container"]
     if c:
@@ -182,6 +188,12 @@ def main():
         cs = requests.get(f"{base2}/api/container/status").json()
         check("compute: the executor container (status ready, tier docker, from its own /health)", cs.get("status") == "ready" and cs.get("tier") == "docker", cs)
         check("the container's port is published on localhost only", any("127.0.0.1:" in c[c.index("-p") + 1] for c in st_["calls"] if c[:1] == ["run"] and "-p" in c))
+        job_before = cs.get("job_id")
+        check("the status carries a job id for the managed container (Docker's start time)", bool(job_before) and cs.get("managed") is True, cs)
+        rr = requests.post(f"{base2}/api/container/restart", json={})
+        check("the chip's Restart restarts the managed container", rr.ok and rr.json().get("success") is True, rr.text[:200])
+        cs2 = requests.get(f"{base2}/api/container/status").json()
+        check("after the restart the job id is new, which is what the page waits for before reloading", cs2.get("status") == "ready" and cs2.get("job_id") and cs2.get("job_id") != job_before, (job_before, cs2.get("job_id")))
     proc.terminate()
     try:
         proc.wait(timeout=15)
