@@ -84,7 +84,8 @@ def get_data_limits():
             max_days_map = {
                 'free': 14,    # Shouldn't happen (free can't have extended)
                 'plus': 182,   # 6 months
-                'pro': 365     # 1 year
+                'pro': 365,     # 1 year
+                'local': 3650  # your own machine: no limit that matters
             }
             max_days = max_days_map.get(compute_tier, 14)
             message = f"SweatStack Extended enabled. Access up to {max_days} days with {compute_tier} tier."
@@ -347,7 +348,7 @@ def load_data():
             adjustment_reason = "Limited to 14 days (SweatStack Extended not enabled)"
         else:
             # Paying = based on compute tier
-            max_days_map = {'free': 14, 'plus': 182, 'pro': 365}
+            max_days_map = {'free': 14, 'plus': 182, 'pro': 365, 'local': 3650}
             max_days = max_days_map.get(compute_tier, 14)
             adjustment_reason = f"Limited to {max_days} days ({compute_tier} tier)"
         
@@ -427,6 +428,8 @@ def _load_data_via_executor(session_id, access_token, data):
     
     # Call remote executor to fetch data
     executor_urls = sweatstack_bp.get_dynamic_executor_urls(user_id)
+    if not executor_urls:                      # the self-hosted edition on the local kernel (docs/OSS_DESIGN.md D5)
+        return jsonify({'error': 'Loading from SweatStack needs an executor in this edition for now: run the executor image in Docker and set EXECUTION_MODE=api and EXECUTOR_API_BASE_URL in .env'}), 409
     
     response = requests.post(
         f"{executor_urls['EXECUTOR_API_BASE_URL']}/fetch_sweatstack_data",

@@ -126,6 +126,8 @@ def get_races():
         
         # Get executor URLs for this user
         executor_urls = endura_bp.get_dynamic_executor_urls(user_id)
+        if not executor_urls:                      # the self-hosted edition on the local kernel (docs/OSS_DESIGN.md D5)
+            return jsonify({'error': 'Loading from Endura needs an executor in this edition for now: run the executor image in Docker and set EXECUTION_MODE=api and EXECUTOR_API_BASE_URL in .env'}), 409
         
         # Forward to container with API key
         response = requests.get(
@@ -179,6 +181,8 @@ def load_data():
         
         # Forward to executor/container
         executor_urls = endura_bp.get_dynamic_executor_urls(user_id)
+        if not executor_urls:                      # the self-hosted edition on the local kernel (docs/OSS_DESIGN.md D5)
+            return jsonify({'error': 'Loading from Endura needs an executor in this edition for now: run the executor image in Docker and set EXECUTION_MODE=api and EXECUTOR_API_BASE_URL in .env'}), 409
         
         response = requests.post(
             f"{executor_urls['EXECUTOR_API_BASE_URL']}/endura/load_race_data",

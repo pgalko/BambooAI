@@ -132,7 +132,8 @@ def get_data_limits():
         max_days_map = {
             'free': 14,
             'plus': 182,  # 6 months
-            'pro': 365    # 1 year
+            'pro': 365,    # 1 year
+            'local': 3650  # your own machine: no limit that matters
         }
         max_days = max_days_map.get(compute_tier, 14)
         
@@ -171,7 +172,7 @@ def load_data():
             compute_tier = sub_result['data'].get('compute_tier', 'free')
         
         # Max days based on compute tier
-        max_days_map = {'free': 14, 'plus': 182, 'pro': 365}
+        max_days_map = {'free': 14, 'plus': 182, 'pro': 365, 'local': 3650}
         max_days = max_days_map.get(compute_tier, 14)
         
         # Parse and adjust dates
@@ -206,6 +207,8 @@ def load_data():
         
         # Start job on executor
         executor_urls = intervals_bp.get_dynamic_executor_urls(user_id)
+        if not executor_urls:                      # the self-hosted edition on the local kernel (docs/OSS_DESIGN.md D5)
+            return jsonify({'error': 'Loading from Intervals needs an executor in this edition for now: run the executor image in Docker and set EXECUTION_MODE=api and EXECUTOR_API_BASE_URL in .env'}), 409
         
         response = requests.post(
             f"{executor_urls['EXECUTOR_API_BASE_URL']}/fetch_intervals_data",
@@ -241,6 +244,8 @@ def get_job_status(job_id):
     try:
         user_id = intervals_bp.get_user_id()
         executor_urls = intervals_bp.get_dynamic_executor_urls(user_id)
+        if not executor_urls:                      # the self-hosted edition on the local kernel (docs/OSS_DESIGN.md D5)
+            return jsonify({'error': 'Loading from Intervals needs an executor in this edition for now: run the executor image in Docker and set EXECUTION_MODE=api and EXECUTOR_API_BASE_URL in .env'}), 409
         
         # Forward request to executor
         response = requests.get(

@@ -1228,7 +1228,7 @@ def get_tier_limits(category: str = None) -> dict:
 def get_user_compute_tier(bamboo_user_id: str) -> str:
     """Get user's compute tier"""
     if not supabase_configured():
-        return 'free'                                # until phase 2 the executor still comes through the orchestrator: its smallest tier
+        return 'local'                               # the self-hosted edition: your own machine (a real orchestrator treats unknown tiers as free)
     try:
         res = _rpc("get_compute_tier", {"p_bamboo_user_id": bamboo_user_id})
         # res.data is already the string 'free', 'plus', or 'pro'

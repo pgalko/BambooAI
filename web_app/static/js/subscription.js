@@ -588,7 +588,7 @@ async function checkSubscriptionOnLoad() {
 // Models and Integrations tabs and hides what belongs to the hosted service; the level is saved in the local
 // store (phase 3), BAMBOO_LEVEL being the default before the first save.
 function applyLocalEditionToDialog() {
-    if (!(typeof authConfig !== 'undefined' && authConfig && authConfig.mode === 'single')) return;   // auth.js's top-level `let`
+    if (!isSingleEdition()) return;
     const modal = document.getElementById('subscriptionModal');
     if (!modal || modal.classList.contains('edition-local')) return;
     modal.classList.add('edition-local');
@@ -775,7 +775,12 @@ function showQueryLimitModal(message, details = {}) {
 }
 
 // Switch tabs (single definition)
+function isSingleEdition() {
+    return typeof authConfig !== 'undefined' && authConfig && authConfig.mode === 'single';
+}
+
 function switchTab(tabName) {
+    if (isSingleEdition() && (tabName === 'funds' || tabName === 'compute')) tabName = 'models';   // no funds, no tiers here (D7)
     document.querySelectorAll('.subscription-tab').forEach(tab => {
         tab.classList.toggle('active', tab.dataset.tab === tabName);
     });
