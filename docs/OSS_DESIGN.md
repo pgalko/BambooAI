@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v0.7, 2026-09-14 (v0.1-v0.6 the same day). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v0.8, 2026-09-15 (v0.1-v0.7 on 2026-09-14). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -104,8 +104,9 @@ statement by statement against the code.
 ## 5. Install and release
 
 - **D19. `pip install bambooai` (or `uvx bambooai`) and one command.** `bambooai serve` creates the
-  working folder, writes the default configs, generates `FLASK_SECRET` and the config encryption key,
-  starts the server on localhost and opens the browser. A Docker image built from the same repo is
+  working folder `~/bambooai`, writes `.env` with generated secrets and the edition's settings and a
+  copy of the template, starts one process on localhost and opens the browser; `bambooai init` does
+  the folder alone. Keys go in that `.env` (D7). A Docker image built from the same repo is
   the second, equal door. The page's CDN libraries stay on the CDN (vendoring, as the stack does, is
   optional).
 - **D20. On-prem models are a headline, not a footnote.** The vLLM and Ollama providers already
@@ -121,9 +122,13 @@ statement by statement against the code.
 
 ## 7. Working method
 
-- **D23. Proprietary first, by construction.** Every change is developed once in the shared tree,
-  tested on the stack in both modes, applied on the box, and reaches the public repo as the same
-  commit. There is no step in which the open-source version is edited by hand before a push.
+- **D23. Proprietary first, by construction.** Every change is developed once in the shared tree and
+  tested on the stack in both editions. The order in the field (settled 2026-09-15): the series is
+  applied on the **dev box** first and tested there (it exists only as local commits until it passes;
+  `git reset --hard origin/main` discards it), then prod pulls, then the push to the private remote,
+  then the Mac pulls and the self-hosted edition is tested with `bambooai serve`, and the public push
+  comes last. `git am --keep-cr` wherever a series is applied; commit where you edit, push before you
+  pull elsewhere. There is no step in which the open-source version is edited by hand.
 - **D24. Sessions start from a clone and a handover.** Each session begins from the repository (a
   bundle or clone) and the current handover, and ends with a patch series and an updated handover.
   The design document is updated in the same series that changes a decision.
@@ -219,6 +224,10 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   default configs, generated secrets, browser), a Dockerfile for the app, the executor image as is.
 - **Done when:** `pip install` from a clean virtualenv on a clean machine and `bambooai serve`
   reach the field-trial story with no other step.
+- **Status 2026-09-15: built** (commit `ef2496c`); the clean-machine half of "done" is the Mac's
+  to confirm (the sandbox has no network for dependencies). The working folder is `~/bambooai`
+  (D30 amended: visible, not hidden; `BAMBOO_HOME` overrides; a code checkout is refused as the
+  folder). The 1.x `setup.py` is retired.
 
 ### Phase 5 — CI and the release (D18, D21, D22)
 - GitHub Actions: the battery and the stack's e2e in both modes on every push; the PyPI build on a
