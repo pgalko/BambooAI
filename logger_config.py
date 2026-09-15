@@ -54,10 +54,20 @@ def setup_logging(log_level=None):
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
     
-    # Setup orchestration logs directory
-    app_root = os.getenv('APP_ROOT_DIR', '/home/data/bambooai')
+    # The orchestration log files belong to the hosted box (APP_ROOT_DIR). Elsewhere - the self-hosted
+    # edition, a machine where that path cannot be made (2026-09-15: macOS refuses /home) - the console
+    # handler above is the logging, and the file handlers below are skipped.
+    app_root = os.getenv('APP_ROOT_DIR')
+    if not app_root:
+        _logging_configured = True
+        return
     log_dir = os.path.join(app_root, 'orchestration', 'logs')
-    os.makedirs(log_dir, exist_ok=True)
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except OSError as e:
+        root_logger.warning(f"orchestration log folder {log_dir} unavailable ({e}); logging to the console only")
+        _logging_configured = True
+        return
     
     # Configure file handlers for ANY logger that starts with these patterns
     # This catches both 'orchestration.container_manager' and '__main__' when run directly
