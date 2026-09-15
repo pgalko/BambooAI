@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v0.9, 2026-09-15 (v0.1-v0.7 on 2026-09-14). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v1.0, 2026-09-15 (v0.1-v0.7 on 2026-09-14). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -138,19 +138,25 @@ statement by statement against the code.
 - **D25. Licence: MIT stays**, as the public repository carries it.
 - **D26. SweatStack: bare machinery, the user's own registration.** The integration ships as code;
   the user registers their own app with SweatStack and puts its client id and secret in `.env`.
-- **D27. Subprocess is the default execution; Docker is an option** (`EXECUTION_MODE=local` by
-  default; `api` with `EXECUTOR_API_BASE_URL` pointing at a `docker run` of the executor image).
+- **D27. Docker is the default compute; the subprocess kernel is the fallback** (ruled 2026-09-15,
+  reversing the 2026-09-14 ruling once the integrations showed why). `bambooai serve` builds the
+  executor image from the Dockerfile the package ships - the hosted service's own image - on first
+  use, starts or reuses one container published on localhost, waits for its health, points the app
+  at it (`EXECUTION_MODE=api`, `EXECUTOR_API_BASE_URL`) and stops it on exit. One compute model in
+  both editions: the executor is the only place model-written code runs, and every executor feature -
+  the integrations included - works in the self-hosted edition the day it lands. `--compute local`
+  (or `BAMBOO_COMPUTE=local`) keeps the kernel-in-a-subprocess path for a machine without Docker,
+  documented as no isolation and no integrations. No image is published; nothing in the hosted
+  code moves - the work is `bambooai/cli.py`, the package data and the README.
 - **D28. Web search is off unless `GEMINI_API_KEY` is set;** with the key, `google_ai` as today.
   The Selenium mode and `SELENIUM_WEBDRIVER_PATH` are dead and go.
 
 ## 8a. Still open
 
-- **O9. The integrations in local mode.** Intervals, Endura and SweatStack fetch their data inside
-  the executor container (the job model and the provider clients live in
-  `containers/executor/code_executor_api.py`), so on the local kernel they answer "needs an executor"
-  and the Docker option is the way to use them today (found on the Mac, 2026-09-15). The fix is a
-  module both the app and the executor import - which also means a new executor image - scheduled
-  after the release as its own series.
+- **O9 - closed by D27.** Intervals, Endura and SweatStack fetch their data inside the executor
+  container; with Docker the default compute they work in the self-hosted edition as they do in the
+  hosted one. On the `--compute local` fallback they answer "needs an executor", which is now a
+  stated property of the fallback rather than a gap.
 
 - **O5. Team mode scope** (login, users table, per-user kernels): phase 6, after single-user ships.
 - **O6. The template's prices.** `model_properties` ships with the release; self-hosted users own

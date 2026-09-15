@@ -11,14 +11,22 @@ to, wherever it is installed. `serve` writes a .env with generated secrets the f
 it, applies the edition's defaults for anything the file leaves unset, moves into the folder (the
 app resolves its paths from the working directory) and runs the web app on localhost.
 
+The analysis runs in the executor container (docs/OSS_DESIGN.md D27, as ruled on 2026-09-15): the
+same image the hosted service runs, built here from the Dockerfile the package ships, managed by
+`serve` - built on first use, started or reused, waited for, stopped on exit. Model-written code
+never runs on this machine's account. `--compute local` (or BAMBOO_COMPUTE=local) is the fallback
+for a machine without Docker: the kernel in a subprocess here, no isolation, no integrations.
+
 Nothing here reads /etc/bambooai or the hosted box's gunicorn configuration.
 """
 import argparse
 import os
 import secrets
 import shutil
+import subprocess
 import sys
 import threading
+import time
 import webbrowser
 
 DEFAULT_HOME = os.path.join(os.path.expanduser("~"), "bambooai")
@@ -27,7 +35,7 @@ ENV_FILE = ".env"
 # the edition's defaults: applied only where .env leaves a variable unset
 DEFAULTS = {
     "AUTH_MODE": "single",
-    "EXECUTION_MODE": "local",
+    "BAMBOO_COMPUTE": "docker",
     "BAMBOO_USER": "local",
     "BAMBOO_LEVEL": "performance",
     "SESSION_COOKIE_NAME": "bambooai",
@@ -46,8 +54,13 @@ AUTH_MODE=single
 BAMBOO_USER=local
 # cost | performance | max - the first default; the account dialog saves your later choice
 BAMBOO_LEVEL=performance
-# local: the kernel runs on this machine. api with EXECUTOR_API_BASE_URL: a docker executor
-EXECUTION_MODE=local
+# docker: the analysis runs in the executor container, built and managed by `bambooai serve` (needs Docker running).
+# local: the kernel in a subprocess on this machine - no isolation, no integrations - for a machine without Docker.
+BAMBOO_COMPUTE=docker
+# the port the executor container is published on
+EXECUTOR_PORT=5055
+# an executor you run yourself (Docker or a server): set these two and BAMBOO_COMPUTE is ignored
+# EXECUTION_MODE=api
 # EXECUTOR_API_BASE_URL=http://localhost:5055
 
 # --- model keys (only the providers you use) ---------------------------------------
@@ -133,6 +146,104 @@ def _missing_keys():
     return not any(os.environ.get(k) for k in keys)
 
 
+# ---------------------------------------------------------------------------- the executor container
+EXECUTOR_CONTAINER = "bambooai-executor"
+
+
+def _version():
+    try:
+        from importlib.metadata import version
+        return version("bambooai")
+    except Exception:                                       # noqa: BLE001
+        return "dev"
+
+
+def _docker(*args, capture=True, timeout=None):
+    return subprocess.run(["docker", *args], capture_output=capture, text=True, timeout=timeout)
+
+
+def docker_ready():
+    """None when Docker can be used; otherwise the sentence to print."""
+    if shutil.which("docker") is None:
+        return "Docker is not installed. Install Docker Desktop (or Docker Engine), or run `bambooai serve --compute local`."
+    try:
+        r = _docker("info", timeout=20)
+    except subprocess.TimeoutExpired:
+        return "Docker did not answer. Is Docker Desktop running? (or: bambooai serve --compute local)"
+    if r.returncode != 0:
+        return "Docker is installed but not running. Start Docker Desktop, or run `bambooai serve --compute local`."
+    return None
+
+
+def executor_image():
+    return f"bambooai-executor:{_version()}"
+
+
+def build_executor_image(image):
+    """The image from the Dockerfile the package ships - the hosted service's image, built here."""
+    context = os.path.join(_package_root(), "bambooai_executor_image")
+    if not os.path.exists(os.path.join(context, "Dockerfile")):
+        context = os.path.join(_package_root(), "containers", "executor")     # a checkout, installed editable
+    print(f"bambooai: building the executor image {image} (first time only; a few minutes - the analysis libraries are installed inside it)")
+    r = subprocess.run(["docker", "build", "-t", image, context], text=True)
+    if r.returncode != 0:
+        sys.exit(f"bambooai: the image build failed (see above). Fix and retry, or run `bambooai serve --compute local`.")
+
+
+def start_executor(port):
+    """Build if absent, start or reuse the container, wait for its health. Returns the executor's URL."""
+    image = executor_image()
+    if _docker("image", "inspect", image).returncode != 0:
+        build_executor_image(image)
+    running = _docker("ps", "--filter", f"name=^{EXECUTOR_CONTAINER}$", "--format", "{{.Image}}|{{.Ports}}").stdout.strip()
+    if running and running.split("|")[0] == image and f":{port}->" in running:
+        print(f"bambooai: executor already running ({image})")
+    else:
+        _docker("rm", "-f", EXECUTOR_CONTAINER)                     # a stopped, older, or differently-published one
+        r = _docker("run", "-d", "--name", EXECUTOR_CONTAINER, "-p", f"127.0.0.1:{port}:5000",
+                    "-e", "KERNEL_MAX_SESSIONS=4", image)
+        if r.returncode != 0:
+            sys.exit(f"bambooai: could not start the executor container: {r.stderr.strip()[-400:]}")
+        print(f"bambooai: executor started ({image}, port {port})")
+    url = f"http://127.0.0.1:{port}"
+    import urllib.request
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(f"{url}/health", timeout=3) as resp:
+                if resp.status == 200:
+                    return url
+        except Exception:                                   # noqa: BLE001
+            pass
+        if _docker("ps", "-q", "--filter", f"name=^{EXECUTOR_CONTAINER}$").stdout.strip() == "":
+            sys.exit(f"bambooai: the executor container stopped while starting. `docker logs {EXECUTOR_CONTAINER}` shows why.")
+        time.sleep(1)
+    sys.exit(f"bambooai: the executor did not become healthy at {url}/health within three minutes (`docker logs {EXECUTOR_CONTAINER}`).")
+
+
+def stop_executor():
+    _docker("stop", EXECUTOR_CONTAINER)
+
+
+def resolve_compute(compute_flag):
+    """Decide where the analysis runs, from the flag, then .env, then the default; set the app's variables."""
+    if os.environ.get("EXECUTOR_API_BASE_URL"):            # an executor the person runs themselves
+        os.environ["EXECUTION_MODE"] = "api"
+        return "external"
+    compute = compute_flag or os.environ.get("BAMBOO_COMPUTE") or DEFAULTS["BAMBOO_COMPUTE"]
+    if compute == "local":
+        os.environ["EXECUTION_MODE"] = "local"
+        os.environ.pop("EXECUTOR_API_BASE_URL", None)
+        return "local"
+    problem = docker_ready()
+    if problem:
+        sys.exit("bambooai: " + problem)
+    port = int(os.environ.get("EXECUTOR_PORT") or 5055)
+    os.environ["EXECUTOR_API_BASE_URL"] = start_executor(port)
+    os.environ["EXECUTION_MODE"] = "api"
+    return "docker"
+
+
 def make_app(home):
     """Import the web app with the working folder as its working directory."""
     root = _package_root()
@@ -144,15 +255,21 @@ def make_app(home):
     return webapp.application
 
 
-def serve(home, host, port, open_browser=True):
+def serve(home, host, port, open_browser=True, compute=None, keep_executor=False):
     home = init_home(home)
     load_env(home)
     port = int(port or os.environ.get("APP_PORT") or DEFAULTS["APP_PORT"])
     url = f"http://{host if host not in ('0.0.0.0', '') else '127.0.0.1'}:{port}"
     if _missing_keys():
         print(f"bambooai: no model key found in {os.path.join(home, ENV_FILE)} - add one (OPENROUTER_API_KEY, for instance) and restart.")
-    print(f"bambooai: {url}  (edition: {os.environ.get('AUTH_MODE')}, compute: {os.environ.get('EXECUTION_MODE')}"
-          f"{', executor ' + os.environ['EXECUTOR_API_BASE_URL'] if os.environ.get('EXECUTOR_API_BASE_URL') else ''}, home: {home})")
+    where = resolve_compute(compute)
+    print(f"bambooai: {url}  (edition: {os.environ.get('AUTH_MODE')}, compute: {where}"
+          f"{' at ' + os.environ['EXECUTOR_API_BASE_URL'] if os.environ.get('EXECUTOR_API_BASE_URL') else ' - the kernel on this machine, no isolation'}, home: {home})")
+    if where == "docker" and not keep_executor:
+        import atexit
+        import signal
+        atexit.register(stop_executor)                      # Ctrl-C stops the app; the container goes with it
+        signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))   # a plain kill runs the exit hooks too (gunicorn sets its own handlers later)
     if open_browser:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     # The server. gunicorn forks its worker from the master; on macOS a child forked after numpy, the model
@@ -188,13 +305,17 @@ def main(argv=None):
     s.add_argument("--port", type=int, default=None, help="default APP_PORT from .env, else 5001")
     s.add_argument("--host", default="127.0.0.1", help="127.0.0.1 (default) or 0.0.0.0 to reach it from another machine")
     s.add_argument("--no-browser", action="store_true")
+    s.add_argument("--compute", choices=("docker", "local"), default=None,
+                   help="docker (default; the executor container) or local (the kernel here: no isolation, no integrations)")
+    s.add_argument("--keep-executor", action="store_true", help="leave the executor container running when the app stops")
     i = sub.add_parser("init", help="create the working folder and its files, then stop")
     i.add_argument("--home", default=os.environ.get("BAMBOO_HOME", DEFAULT_HOME))
     sub.add_parser("where", help="print the working folder")
     a = ap.parse_args(argv)
     if a.cmd in (None, "serve"):
         home = getattr(a, "home", os.environ.get("BAMBOO_HOME", DEFAULT_HOME))
-        serve(home, getattr(a, "host", "127.0.0.1"), getattr(a, "port", None), open_browser=not getattr(a, "no_browser", False))
+        serve(home, getattr(a, "host", "127.0.0.1"), getattr(a, "port", None), open_browser=not getattr(a, "no_browser", False),
+              compute=getattr(a, "compute", None), keep_executor=getattr(a, "keep_executor", False))
     elif a.cmd == "init":
         home = init_home(a.home)
         print(f"bambooai: edit {os.path.join(home, ENV_FILE)} (a model key at least), then: bambooai serve")

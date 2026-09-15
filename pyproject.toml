@@ -68,9 +68,14 @@ Repository = "https://github.com/pgalko/BambooAI"
 [tool.setuptools]
 py-modules = ["logger_config"]
 packages = ["bambooai", "bambooai.db", "bambooai.messages", "bambooai.models", "analyst", "delve",
-            "web_app", "web_app.auth", "web_app.integrations", "orchestration"]
+            "web_app", "web_app.auth", "web_app.integrations", "orchestration", "bambooai_executor_image"]
+
+[tool.setuptools.package-dir]
+# the executor image's build context, shipped as it is in the repository (Dockerfile unchanged)
+bambooai_executor_image = "containers/executor"
 
 [tool.setuptools.package-data]
 bambooai = ["messages/default_prompts.yaml"]
 analyst = ["contract.md"]
 web_app = ["LLM_CONFIG_template.json", "templates/*.html", "static/**/*", "ontologies/*"]
+bambooai_executor_image = ["Dockerfile", "requirements.txt"]
