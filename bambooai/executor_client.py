@@ -3,6 +3,8 @@
 import requests
 import pandas as pd
 from typing import Optional, Dict, Any, Union, List
+import logging
+import os
 from datetime import datetime
 
 class ExecutorAPIClient:
@@ -10,10 +12,20 @@ class ExecutorAPIClient:
         self.base_url = base_url
         
     def log_to_file(self, message):
-        """Write log message to file with timestamp"""
+        """The executor client's line in the box's code_executor.log - only where APP_ROOT_DIR names a
+        folder that exists (the hosted box). Elsewhere it goes to the logger (found on the Mac,
+        2026-09-15: the hard-coded path aborted every reproduction run)."""
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        with open('/home/data/bambooai/orchestration/logs/code_executor.log', 'a') as f:
-            f.write(f"[INFO] {timestamp} - {message}\n")
+        root = os.getenv('APP_ROOT_DIR')
+        path = os.path.join(root, 'orchestration', 'logs', 'code_executor.log') if root else None
+        if path and os.path.isdir(os.path.dirname(path)):
+            try:
+                with open(path, 'a') as f:
+                    f.write(f"[INFO] {timestamp} - {message}\n")
+                return
+            except OSError:
+                pass
+        logging.getLogger(__name__).debug(message)
 
     def execute_code(self, code: str,
                     output_manager: Optional[Any] = None,
