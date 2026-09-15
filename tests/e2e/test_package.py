@@ -46,6 +46,10 @@ elif a[:1] == ["build"]:
     st["images"].append(a[a.index("-t") + 1]); print("fake docker: built", a[a.index("-t") + 1])
 elif a[:1] == ["ps"]:
     c = st["container"]
+    if c and c.get("dying") and time.time() > c["dying"]:
+        try: os.kill(c["pid"], 15)
+        except OSError: pass
+        st["container"] = c = None                        # the stop a previous serve began has finished
     if c and ("-q" in a):
         out = "abc123"
     elif c and "--format" in a:
@@ -200,7 +204,32 @@ def main():
     except subprocess.TimeoutExpired:
         proc.kill()
     st_ = json.load(open(state)) if os.path.exists(state) else {"calls": []}
-    check("on exit the executor container is stopped", ["stop", "bambooai-executor"] in st_["calls"], [c for c in st_["calls"] if c[:1] == ["stop"]])
+    check("on exit the executor container is stopped", any(c[:1] == ["stop"] and c[-1] == "bambooai-executor" for c in st_["calls"]), [c for c in st_["calls"] if c[:1] == ["stop"]])
+
+    # ---- a container still listed as running but on its way down (a previous stop cut short): not reused
+    image = next((t for t in st_.get("images", []) if t.startswith("bambooai-executor:")), "bambooai-executor:test")
+    json.dump({"calls": [], "images": [image], "container": {"image": image, "port": env_docker["EXECUTOR_PORT"], "pid": 999999,
+                                                              "started": "old", "dying": time.time() + 1}}, open(state, "w"))
+    port3 = free_port()
+    proc = subprocess.Popen([py, "-c", PRE + "from bambooai.cli import main; main(['serve', '--home', %r, '--port', '%d', '--no-browser'])" % (home, port3)],
+                            env=env_docker, cwd=work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    base3 = f"http://127.0.0.1:{port3}"; up = False
+    for _ in range(120):
+        try:
+            if requests.get(f"{base3}/api/auth/status", timeout=2).ok:
+                up = True; break
+        except Exception:
+            pass
+        if proc.poll() is not None:
+            break
+        time.sleep(0.5)
+    st_ = json.load(open(state)); kinds = [c[0] for c in st_["calls"]]
+    check("a dying container is not reused: serve notices it is gone and starts a fresh one", up and "run" in kinds and "build" not in kinds, (up, kinds))
+    proc.terminate()
+    try:
+        proc.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        proc.kill()
     n_fail = sum(1 for _, ok in results if not ok)
     print(f"{len(results) - n_fail} passed, {n_fail} failed")
     shutil.rmtree(work, ignore_errors=True)

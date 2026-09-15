@@ -196,9 +196,19 @@ def start_executor(port):
     if _docker("image", "inspect", image).returncode != 0:
         build_executor_image(image)
     running = _docker("ps", "--filter", f"name=^{EXECUTOR_CONTAINER}$", "--format", "{{.Image}}|{{.Ports}}").stdout.strip()
-    if running and running.split("|")[0] == image and f":{port}->" in running:
-        print(f"bambooai: executor already running ({image})")
-    else:
+    reuse = bool(running) and running.split("|")[0] == image and f":{port}->" in running
+    if reuse:
+        # a container listed as running may be on its way down - a previous serve's `docker stop` cut short by a
+        # second Ctrl-C finishes in the background (found on the Mac, 2026-09-15). Trust it only after it has stayed
+        # up and healthy for a moment; otherwise start a fresh one.
+        time.sleep(3)
+        alive = _docker("ps", "-q", "--filter", f"name=^{EXECUTOR_CONTAINER}$").stdout.strip() != ""
+        reuse = alive and _health_ok(f"http://127.0.0.1:{port}")
+        if reuse:
+            print(f"bambooai: executor already running ({image})")
+        else:
+            print("bambooai: the running executor is stopping or unhealthy; starting a fresh one")
+    if not reuse:
         _docker("rm", "-f", EXECUTOR_CONTAINER)                     # a stopped, older, or differently-published one
         r = _docker("run", "-d", "--name", EXECUTOR_CONTAINER, "-p", f"127.0.0.1:{port}:5000",
                     "-e", "KERNEL_MAX_SESSIONS=4", image)
@@ -206,23 +216,38 @@ def start_executor(port):
             sys.exit(f"bambooai: could not start the executor container: {r.stderr.strip()[-400:]}")
         print(f"bambooai: executor started ({image}, port {port})")
     url = f"http://127.0.0.1:{port}"
-    import urllib.request
     deadline = time.time() + 180
     while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(f"{url}/health", timeout=3) as resp:
-                if resp.status == 200:
-                    return url
-        except Exception:                                   # noqa: BLE001
-            pass
+        if _health_ok(url):
+            return url
         if _docker("ps", "-q", "--filter", f"name=^{EXECUTOR_CONTAINER}$").stdout.strip() == "":
             sys.exit(f"bambooai: the executor container stopped while starting. `docker logs {EXECUTOR_CONTAINER}` shows why.")
         time.sleep(1)
     sys.exit(f"bambooai: the executor did not become healthy at {url}/health within three minutes (`docker logs {EXECUTOR_CONTAINER}`).")
 
 
+def _health_ok(url):
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"{url}/health", timeout=3) as resp:
+            return resp.status == 200
+    except Exception:                                       # noqa: BLE001
+        return False
+
+
 def stop_executor():
-    _docker("stop", EXECUTOR_CONTAINER)
+    """Stop the container on the way out. A second Ctrl-C must not cut this short: Docker would finish the
+    stop in the background and the next serve could reuse a container about to die."""
+    import signal
+    previous = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        print("bambooai: stopping the executor container (a few seconds)...")
+        _docker("stop", "-t", "8", EXECUTOR_CONTAINER, timeout=60)
+        print("bambooai: executor stopped")
+    except Exception:                                       # noqa: BLE001
+        pass
+    finally:
+        signal.signal(signal.SIGINT, previous)
 
 
 def resolve_compute(compute_flag):
