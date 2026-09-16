@@ -1,11 +1,6 @@
-# BambooAI - the checks on every push and pull request (docs/OSS_DESIGN.md D22).
-#
-# gate: what must hold for the package to be installable - the unit battery, the package installed into
-#   a fresh virtualenv and served, and the executor image building. Deterministic on any runner; the badge.
-# browser: the story end to end in the three compute modes, the local store across a restart, the
-#   start-up flows - the real app driven by a browser with the stack's stand-ins. Reported, not yet
-#   blocking (continue-on-error) until it has held on the runner; the rehearsal before every push still
-#   runs it locally.
+# BambooAI - the checks on every push and pull request: the unit battery and the executor image.
+# Both are deterministic on a plain runner. The browser suites and the package test run locally
+# before every push (see README, Development); they are not run here.
 name: ci
 
 on:
@@ -14,59 +9,28 @@ on:
   pull_request:
 
 jobs:
-  gate:
+  battery:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-      - name: install
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,analysis]"
-      - name: battery
-        run: ./run_battery.sh
-      - name: the package installs and serves
-        run: python tests/e2e/test_package.py
-      - name: the executor image builds and answers /health
-        run: |
+      - run: ./run_battery.sh
+
+  executor-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
           docker build -t bambooai-executor:ci containers/executor
           docker run -d --name ex -p 5055:5000 bambooai-executor:ci
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:5055/health && break; sleep 2; done
           curl -sf http://127.0.0.1:5055/health
           docker stop ex
-
-  browser:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - name: install
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,analysis]"
-          python -m playwright install --with-deps chromium
-      - name: story - hosted edition (orchestrator stand-in)
-        run: python tests/e2e/test_stack.py
-      - name: story - self-hosted edition, local kernel
-        run: python tests/e2e/test_stack.py --edition local --compute local
-      - name: story - self-hosted edition, direct executor
-        run: python tests/e2e/test_stack.py --edition local --compute direct
-      - name: the local store survives a restart
-        run: python tests/e2e/test_local_store.py
-      - name: start-up flows
-        run: python tools/stack/flows.py --out /tmp/flows --delay 3
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: browser-screenshots
-          path: /tmp/flows
-          if-no-files-found: ignore

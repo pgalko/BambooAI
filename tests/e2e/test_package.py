@@ -86,7 +86,9 @@ def main():
     work = tempfile.mkdtemp(prefix="bamboo_pkg_")
     whl_dir, venv, home = os.path.join(work, "wheel"), os.path.join(work, "venv"), os.path.join(work, "home")
     # ---- the wheel
-    r = subprocess.run([sys.executable, "-m", "pip", "wheel", ROOT, "--no-deps", "--no-build-isolation", "-w", whl_dir, "-q"], capture_output=True, text=True)
+    r = subprocess.run([sys.executable, "-m", "pip", "wheel", ROOT, "--no-deps", "-w", whl_dir, "-q"], capture_output=True, text=True)
+    if r.returncode != 0:                                   # no network for an isolated build (this sandbox): build with what is installed
+        r = subprocess.run([sys.executable, "-m", "pip", "wheel", ROOT, "--no-deps", "--no-build-isolation", "-w", whl_dir, "-q"], capture_output=True, text=True)
     wheels = glob.glob(os.path.join(whl_dir, "bambooai-*.whl"))
     check("the wheel builds from the checkout", r.returncode == 0 and wheels, r.stderr[-300:])
     # ---- a fresh virtualenv (system packages visible: the sandbox has no network for dependencies)
