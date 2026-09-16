@@ -14,6 +14,16 @@ FAKE = {"pyarrow", "plotly", "termcolor", "IPython", "tiktoken", "anthropic",
         "selenium", "newspaper", "pinecone", "sweatstack", "yfinance",
         "geopandas", "fitparse", "google", "jose", "kaleido", "nbformat",
         "seaborn", "lxml_html_clean", "httpx"}
+# fake only what is genuinely absent: on a full installation (CI, the box) the finder must not shadow a
+# real package's submodules - pyarrow.vendored.version turned into a stub broke pandas on the runner
+# (2026-09-16). Probed before the finder is installed, so the probe sees the real import system.
+import importlib.util as _util
+def _absent(name):
+    try:
+        return _util.find_spec(name) is None
+    except (ModuleNotFoundError, ValueError):
+        return True
+FAKE = {name for name in FAKE if _absent(name)}
 
 
 class _Mod(types.ModuleType):

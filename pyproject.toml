@@ -49,6 +49,8 @@ dependencies = [
     "newspaper3k",
     "lxml_html_clean",
     "sweatstack",
+    "openpyxl",
+    "pyyaml",
     "gunicorn; sys_platform != 'win32'",
 ]
 
@@ -56,7 +58,7 @@ dependencies = [
 # extra analysis libraries the executor image carries; install when your work needs them
 analysis = ["geopandas", "yfinance", "kaleido"]
 # the tests and the local stack (a browser is needed for the end-to-end suites: playwright install chromium)
-dev = ["playwright", "pytest"]
+dev = ["playwright", "pytest", "fitparse"]      # fitparse: the executor process the stack runs (FIT files from Intervals)
 
 [project.scripts]
 bambooai = "bambooai.cli:main"
