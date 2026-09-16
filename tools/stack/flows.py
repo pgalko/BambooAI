@@ -132,7 +132,7 @@ def main():
     ap.add_argument("--edition", choices=("hosted", "local"), default="hosted")
     a = ap.parse_args()
     from playwright.sync_api import sync_playwright
-    vendor.prepare(fetch=False)
+    vendor.prepare(fetch=bool(os.environ.get("CI")))
     os.makedirs(a.out, exist_ok=True)
     os.environ["STACK_SPAWN_DELAY"] = str(a.delay)
     os.environ.pop("STACK_SPAWN_FAIL", None)

@@ -344,8 +344,9 @@ python tests/e2e/test_package.py                                  # the wheel in
 python tools/render_gallery.py --out /tmp/gallery                 # every page state, both themes, for visual comparison
 ```
 
-CI runs all of it on every push and builds the executor image (`.github/workflows/ci.yml`). A tag
-`v*` publishes the package to PyPI (`.github/workflows/release.yml`).
+CI (`.github/workflows/ci.yml`) runs the battery, the package test and the executor image build as
+the gate on every push, and the browser suites as a second, reported job. A tag `v*` publishes the
+package to PyPI (`.github/workflows/release.yml`).
 
 Design notes: `docs/DESIGN_CHECKLIST.md` (what every change must keep true),
 `docs/OSS_DESIGN.md` (the decisions behind this edition), `HANDOVER.md` (the state of the code).

@@ -53,7 +53,7 @@ def wait_text(page, selector, text, timeout=180000):
 def main():
     edition = "local" if "--edition" in sys.argv and sys.argv[sys.argv.index("--edition") + 1] == "local" else "hosted"
     compute = sys.argv[sys.argv.index("--compute") + 1] if "--compute" in sys.argv else "orchestrator"
-    vendor.prepare(fetch=False)
+    vendor.prepare(fetch=bool(os.environ.get("CI")))    # a runner has network and no node_modules: fetch the page's libraries
     workdir = tempfile.mkdtemp(prefix=f"bamboo_e2e_{edition}_")
     mod = harness_models.load("field_trial")
     q1, q2 = mod.QUESTIONS[0], mod.QUESTIONS[1]

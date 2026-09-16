@@ -38,7 +38,7 @@ def wait_text(page, selector, text, timeout=180000):
 
 
 def main():
-    vendor.prepare(fetch=False)
+    vendor.prepare(fetch=bool(os.environ.get("CI")))    # a runner has network and no node_modules: fetch the page's libraries
     workdir = tempfile.mkdtemp(prefix="bamboo_store_")
     mod = harness_models.load("field_trial")
     from playwright.sync_api import sync_playwright
