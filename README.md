@@ -1,23 +1,18 @@
 # BambooAI
 
-<img src="docs/images/logo.png" alt="BambooAI" width="120" align="right">
+<a href="https://pypi.org/project/bambooai/"><img alt="PyPI" src="https://img.shields.io/pypi/v/bambooai"></a>
+<a href="https://pypi.org/project/bambooai/"><img alt="Python" src="https://img.shields.io/pypi/pyversions/bambooai"></a>
+<a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
 
-**Hosted version: [bambooai.org](https://bambooai.org)** — the same analyst, no installation.
+<img src="docs/images/logo.png" alt="BambooAI" width="150">
+
+**Hosted version:** [bambooai.org](https://bambooai.org) — the same analyst, nothing to install.
 
 BambooAI is an LLM-driven data analyst that works in a persistent Python kernel, one cell at a time,
 and reproduces its own results before it reports them. You give it a dataset and a question; it writes
 and runs code, reads the output, decides the next step, and ends with a report whose cited numbers
 have been re-executed in a fresh kernel. It runs on your machine with your own model keys, and the
 code the model writes runs in a container, not under your account.
-
-<br clear="right">
-
-<p align="center">
-  <a href="https://pypi.org/project/bambooai/"><img alt="PyPI" src="https://img.shields.io/pypi/v/bambooai"></a>
-  <a href="https://github.com/pgalko/BambooAI/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/pgalko/BambooAI/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://pypi.org/project/bambooai/"><img alt="Python" src="https://img.shields.io/pypi/pyversions/bambooai"></a>
-  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
-</p>
 
 ![An Adaptive run: turns and cells on the left, the report's figures on the right](docs/images/bambooai_app.jpg)
 
