@@ -58,6 +58,7 @@ def render_all(out, light=False):
                 pg.wait_for_timeout(1600)
                 try: pg.evaluate(PILLS + js)
                 except Exception as e: print('  [eval]', name, str(e)[:80])
+                if os.environ.get('GALLERY_EXTRA_JS'): pg.evaluate(os.environ['GALLERY_EXTRA_JS'])   # e.g. the README shot: the chip as a live page shows it
                 pg.wait_for_timeout(1000)
                 pg.screenshot(path=os.path.join(out, f'{name}_{theme}.png')); pg.close()
         b.close()

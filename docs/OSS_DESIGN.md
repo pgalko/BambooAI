@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v1.0, 2026-09-15 (v0.1-v0.7 on 2026-09-14). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v1.1, 2026-09-16 (v0.1-v0.7 on 2026-09-14; v0.8-v1.0 on 2026-09-15). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -91,10 +91,11 @@ statement by statement against the code.
   by the maintainer, not local drift. The deploy-package engine (md5s, anchors, transforms) retires
   once the repository is the source of truth.
 - **D18. The first push over v1.** Tag and branch the old `main` (`v1-final`, `v1`) so v1 stays
-  reachable; publish v2 as **2.0.0** on PyPI under the same name; the README's first paragraph says
-  2.0 is a different program. `analyst/cli.py` and the importable engine remain for terminal and
-  notebook users. **The public push is parked until the edition works** (phase 2 on the box); the
-  private remote receives the snapshot now.
+  reachable; publish v2 as **2.0.0** on PyPI under the same name. The README (ruled 2026-09-16) is
+  written for 2.0 - logo, a screenshot, plain text - with a short note at the bottom that 1.x was a
+  different program, still installable as `bambooai<2` and on the `v1` branch. `analyst/cli.py` and
+  the importable engine remain for terminal use. The public push is the last step of the cycle, after
+  the dev box, prod and the Mac have run the same commit.
 - **D30. The working places.** The box: `/home/data/bambooai`, origin `BambooAI_Prod`. The Mac:
   `/Users/palogalko/Projects/Bamboo_AI_v2`, a clone of `BambooAI_Prod` with `public` as the second
   remote — deliberately outside Dropbox, which corrupts live `.git` folders when it syncs them.
@@ -246,6 +247,15 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
 - GitHub Actions: the battery and the stack's e2e in both modes on every push; the PyPI build on a
   tag. The README rewritten for 2.0 with the v1 note first.
 - **Done when:** the public repo is green, `pip install bambooai==2.0.0` works, v1 is reachable.
+- **Status 2026-09-16: built.** `.github/workflows/ci.yml` runs the battery, the story in all three
+  compute modes, the persistence and package e2e and the start-up flows on every push, and builds the
+  executor image in a second job; `release.yml` publishes to PyPI on a `v*` tag through a trusted
+  publisher (to be registered on pypi.org: owner `pgalko`, repository `BambooAI`, workflow
+  `release.yml`, environment `pypi`). `LICENSE` (MIT) is in the tree; the README is the 2.0 one with a
+  screenshot from the gallery. The public push procedure (the Mac, `public` remote): `git fetch public`,
+  `git tag v1-final public/main`, `git branch v1 public/main`, `git push public v1-final v1`, remove any
+  protection on the public `main`, `git push public main --force`, then `git tag v2.0.0 && git push
+  public v2.0.0` when the release is wanted.
 
 ### Phase 6 — team mode (O5)
 - A users table, a login page, per-user kernels (subprocess or Docker), one process.

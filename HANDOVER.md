@@ -1,31 +1,38 @@
-# State on 2026-09-14 (read this first; the sections below are the 2026-09-05 handover of the engine)
+# State on 2026-09-16 (read this first; the sections below are the 2026-09-05 handover of the engine)
 
-- **The box is at v72** (git `237d856` on the private repo). Packages v62-v72 since the seed of 2026-09-09:
-  v62 the workspace gate (the pill from first paint until the executor is Ready; login starts the workspace);
-  v63 one start-up instead of two (the workspace starts before the modules initialise; no `?new=true` reload;
-  `[workspace]`/`[gate]` console logging); v64 the Reviewer seat (Adaptive's self-review turns on a stronger
-  model; `analyst_review_every`); v65 the contract's competing-analyses sentence restored, the prompt button
-  shows the clicked call, the map stays closed after Adaptive, `deepseek/deepseek-v4.1-flash`; v66 effort words
-  for the flash model (a declared `none` stays `none`); v67 figures as a nudge; grok-4.6 and Sol on effort words
-  with headroom; v68 the account dialog's tier text (general, no model names), the pill hidden on a signed-out
-  load; v69 the forced-report prompt sees every cell whole, `SHOW 8 9`; v70 tabs respond while another chain
-  runs; v71 the Rewriter seat (the plain-language rewrite on the flash model at low); v72 the current schema.
-- **Delivery is git from here** (docs/OSS_DESIGN.md D15-D17): one repository tree, private remote
-  `BambooAI_Prod` (the box's origin) and public `BambooAI` (same commits, pushed at release points); a
-  change arrives as a patch series applied once on the box (`git am`, battery, restart, commit, push).
-  The package engine (`tools/deploy/`) is retired and stays on the box untracked, with `docs/history/` and
-  `web_app/db_schema.sql`.
-- **The local stack** (`tools/stack/`, README there) runs the real app, executor and page here with Auth0,
-  Supabase, the orchestrator and the CDNs faked; `tests/e2e/test_stack.py` (30 checks) and
-  `tools/stack/flows.py` (the start-up flows) are the rehearsal for every change, next to `run_battery.sh`.
-  Battery at v72: 66, 45, 1, 1, 20, 7, 29, 56.
-- **The open-source edition**: design and decisions in `docs/OSS_DESIGN.md` (v0.3): the self-hosted
-  edition, single user by default, same code selected by `.env`, SQLite for the nine work tables, pip
-  install, 2.0.0 on the public repo over v1. Phases 0 (this snapshot) to 6; phase 1 (`AUTH_MODE=single`) is
-  next, with phase 2 (`EXECUTION_MODE=local` from the web app) right after.
-- **Known and parked** (from the 2026-09-09 review, not yet acted on): the orchestrator's health check
-  returns a tuple three call sites test for truth; a single missed probe destroys the container; a failed
-  tier lookup answers 'free'. The box runs one gunicorn worker, so the per-process state is not a live hazard.
+- **Where the code lives.** One repository, two remotes: `BambooAI_Prod` (private; `origin` everywhere)
+  and `BambooAI` (public, pushed last). The Mac clone `/Users/palogalko/Projects/Bamboo_AI_v2`, the dev
+  box and prod at `/home/data/bambooai` all run the same `main`: the snapshot `f28de59` plus 31 commits
+  (the phase series 0001-0031). Delivery is a patch series applied once with `git am --keep-cr` (five
+  files are CRLF), tested, pushed to the private remote, pulled elsewhere. The field order (D23): dev
+  box first for anything the hosted edition runs, prod, push private, the Mac's `bambooai serve`, the
+  public push last. Hosted-only or self-hosted-only changes may be applied where they matter first.
+- **The open-source edition** (docs/OSS_DESIGN.md, v1.1, 39 decisions): phases 0-4 done and verified
+  on the Mac, phase 5 built. `AUTH_MODE=single` (the identity `BAMBOO_USER`, no Auth0, Supabase never
+  touched); `bambooai/db/local_store.py`, SQLite behind Supabase's query shape, handed out by the two
+  client factories (labels, chains, usage, the saved level, the integrations' keys); the compute is the
+  executor container built from the Dockerfile the package ships and managed by `bambooai serve` (D27,
+  reversed from subprocess-by-default once the integrations showed why), `--compute local` the fallback;
+  `pyproject.toml`, the `bambooai` command, `~/bambooai` as the working folder. Nothing hosted moved: the
+  self-hosted paths are `cli.py`, `local_store.py`, single-mode branches, and env-driven defaults.
+- **Phase 5 as built, awaiting the ruling to publish:** `.github/workflows/ci.yml` (battery, the story in
+  three compute modes, the store's persistence, the package, the flows, the executor image),
+  `release.yml` (PyPI on a `v*` tag via trusted publisher - to register on pypi.org), `LICENSE` (MIT), the
+  2.0 README with a gallery screenshot. The public push procedure is in the design document under phase 5.
+- **The tests.** `run_battery.sh` (66/45/1/1/20/7/29/56); `tests/e2e/test_stack.py [--edition local]
+  [--compute local|direct]` (32 checks, the story on the real app with the stack's stand-ins);
+  `tests/e2e/test_local_store.py` (16, a restart of the server); `tests/e2e/test_package.py` (34, the wheel
+  in a fresh virtualenv, `serve` with a docker stand-in); `tools/stack/flows.py` (start-up flows);
+  `tools/render_gallery.py --compare` (the page states; the reference moved on 2026-09-16 for the gear
+  menu and the dialog title).
+- **What the Mac taught** (each now a commit): `pkg_resources` absent from new virtualenvs; `/home` not
+  creatable on macOS (logger_config, the executor client's log file); gunicorn's fork dies on macOS (werkzeug
+  there, the app built in the worker on Linux); a werkzeug FileStorage handed to requests; a `docker stop`
+  cut short by a second Ctrl-C leaves a dying container the next serve must not reuse.
+- **Next:** the public push and the 2.0.0 tag when you say so; O5 team mode (a users table exists in the
+  store); the padlock icon on 'Models & Compute' if wanted. Parked from 2026-09-09: the orchestrator's
+  health check returns a tuple three call sites test for truth; a single missed probe destroys a container;
+  a failed tier lookup answers 'free'.
 
 # BambooAI — handover (redesign of 2026-09-05)
 
