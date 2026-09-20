@@ -26,6 +26,7 @@ dependencies = [
     "requests",
     "httpx",
     "openai>=1.30",
+    "litellm>=1.92.0,<1.101.0",
     "anthropic",
     "google-genai",
     "google-generativeai",
