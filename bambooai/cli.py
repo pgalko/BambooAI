@@ -71,6 +71,7 @@ OPENROUTER_API_KEY=
 # GROQ_API_KEY=
 # XAI_API_KEY=
 # MISTRAL_API_KEY=
+# REQUESTY_API_KEY=
 # a local model server
 # REMOTE_OLLAMA=http://localhost:11434
 # REMOTE_VLLM=http://localhost:8000/v1
@@ -142,7 +143,7 @@ def load_env(home):
 
 
 def _missing_keys():
-    keys = ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "XAI_API_KEY", "MISTRAL_API_KEY", "REMOTE_OLLAMA", "REMOTE_VLLM")
+    keys = ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "XAI_API_KEY", "MISTRAL_API_KEY", "REQUESTY_API_KEY", "REMOTE_OLLAMA", "REMOTE_VLLM")
     return not any(os.environ.get(k) for k in keys)
 
 

@@ -69,8 +69,8 @@ SweatStack load directly — and applies to any tabular dataset.
   Intervals.icu, Endura and SweatStack; loaded frames paged in the Data tab.
 - **Everything inspectable.** Every cell's code and output, every figure, every prompt that produced
   a turn, the per-call tokens, time and cost.
-- **Ten providers, per-seat configuration.** OpenRouter, OpenAI, Anthropic, Google, Groq, Mistral,
-  xAI, DeepSeek, Ollama and vLLM; each seat (analyst, reviewer, rewriter, …) has its own model and
+- **Eleven providers, per-seat configuration.** OpenRouter, Requesty, OpenAI, Anthropic, Google, Groq,
+  Mistral, xAI, DeepSeek, Ollama and vLLM; each seat (analyst, reviewer, rewriter, …) has its own model and
   reasoning effort. Local models keep everything on the machine.
 - **Isolation by default.** The model-written code runs in the executor container, built from the
   Dockerfile in the package and reachable only from your machine.
@@ -177,7 +177,8 @@ All in `~/bambooai/.env`. Lines starting with `#` are ignored; do not put commen
 
 | variable | meaning |
 |---|---|
-| `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY` | provider keys; only for the providers the seats use |
+| `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `REQUESTY_API_KEY` | provider keys; only for the providers the seats use |
+| `REQUESTY_BASE_URL` | Requesty's router (default `https://router.requesty.ai/v1`; `https://router.eu.requesty.ai/v1` for the EU) |
 | `GEMINI_API_KEY` | also enables web search (Google AI grounding); without it `SEARCH` is off |
 | `REMOTE_OLLAMA`, `REMOTE_VLLM` | base URLs of local model servers, e.g. `http://localhost:11434` |
 | `BAMBOO_LEVEL` | `cost` / `performance` / `max`: the preset before one is saved in the app |
@@ -242,6 +243,13 @@ A seat on a local server:
 
 with `REMOTE_OLLAMA=http://localhost:11434` in `.env` and a `model_properties` entry with zero prices.
 With every seat on Ollama or vLLM and no Gemini key, no request leaves the machine.
+
+A seat through [Requesty](https://requesty.ai), with `REQUESTY_API_KEY` in `.env` and a
+`model_properties` entry for the model:
+
+```json
+{"agent": "Rewriter", "details": {"model": "openai/gpt-4o-mini", "provider": "requesty", "reasoning_effort": "none", "max_tokens": 16000, "temperature": 0}}
+```
 
 The app builds `config/<user>/LLM_CONFIG.json` from the template for the chosen preset, and rebuilds
 it when the template file is newer than the built one.
