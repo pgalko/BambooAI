@@ -269,4 +269,23 @@ try:
 except Exception as exc:                                     # noqa: BLE001
     check("effort law: the checks ran", False, repr(exc))
 
+# ---- the Requesty provider: the key, the router it talks to, the effort word it sends
+try:
+    from bambooai.models import requesty_models as rq
+    seen = []
+    class _Client:
+        def __init__(self, **kw): seen.append(kw)
+    _orig = rq.openai.OpenAI; rq.openai.OpenAI = _Client
+    try:
+        os.environ["REQUESTY_API_KEY"] = "k"; rq.init()
+        os.environ["REQUESTY_BASE_URL"] = "https://router.eu.requesty.ai/v1"; rq.init()
+    finally:
+        rq.openai.OpenAI = _orig; os.environ.pop("REQUESTY_BASE_URL", None); os.environ.pop("REQUESTY_API_KEY", None)
+    check("requesty: REQUESTY_API_KEY and the default router; REQUESTY_BASE_URL picks a regional one",
+          [(s["api_key"], s["base_url"]) for s in seen] == [("k", "https://router.requesty.ai/v1"), ("k", "https://router.eu.requesty.ai/v1")], seen)
+    check("requesty: effort words pass through, aliases resolve, anything else is medium",
+          rq._normalise_effort("xhigh") == "xhigh" and rq._normalise_effort("off") == "none" and rq._normalise_effort("bogus") == "medium")
+except Exception as exc:                                     # noqa: BLE001
+    check("requesty: the checks ran", False, repr(exc))
+
 print(f"\n{len(passed)} passed, {len(failed)} failed"); sys.exit(1 if failed else 0)

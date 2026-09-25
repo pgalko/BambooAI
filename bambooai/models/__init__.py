@@ -99,9 +99,9 @@ class ModelManager:
                 provider = details.get('provider')
                 max_tokens = details.get('max_tokens', max_tokens)
                 temperature = details.get('temperature', temperature)
-                # OpenRouter proxies the OpenAI-compatible endpoint, so it accepts
-                # response_format on models that support structured output.
-                if provider in ('openai', 'openrouter') and 'response_format' in details:
+                # OpenRouter and Requesty proxy the OpenAI-compatible endpoint, so they
+                # accept response_format on models that support structured output.
+                if provider in ('openai', 'openrouter', 'requesty') and 'response_format' in details:
                     response_format = details.get('response_format')
                 break
         
@@ -212,6 +212,7 @@ class ModelManager:
             'anthropic': 'llm_call',
             'mistral': 'llm_call',
             'openrouter': 'llm_call',
+            'requesty': 'llm_call',
             "deepseek": 'llm_call',
             "grok": 'llm_call'
         }
@@ -294,6 +295,7 @@ class ModelManager:
             'anthropic': 'llm_stream',
             'mistral': 'llm_stream',
             'openrouter': 'llm_stream',
+            'requesty': 'llm_stream',
             "deepseek": 'llm_stream',
             "grok": 'llm_stream'
         }
