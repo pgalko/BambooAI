@@ -20,6 +20,11 @@ import queue
 import threading
 import time
 from ollama import Client
+try:
+    from ollama import ResponseError
+except ImportError:                                     # older clients
+    class ResponseError(Exception):
+        status_code = None
 import tiktoken
 try:
     import httpx
@@ -58,6 +63,31 @@ OLLAMA_KEEP_ALIVE = os.getenv('OLLAMA_KEEP_ALIVE', '30m')
 TRUNCATION_RATIO = 0.8
 
 TRANSPORT_ERRORS = tuple(t for t in (getattr(httpx, 'TransportError', None), ConnectionError) if t)
+
+# Daemon answers that are worth asking again: the cloud side refused the daemon's credentials or was
+# busy or down (a signed-in daemon's session can lapse mid-run; a second cloud model in the same
+# minute can trip a concurrency limit). Raised as a ConnectionError so the dispatcher's turn retry
+# (5 / 10 / 20 s) applies; anything else (a missing model, a bad request) is final.
+RETRYABLE_STATUSES = {401, 403, 408, 425, 429, 500, 502, 503, 504}
+
+
+class OllamaTransientError(ConnectionError):
+    """A daemon/cloud answer the dispatcher should retry, with the remedy in the message."""
+
+
+def _explain(exc):
+    """A ResponseError from the daemon, read for the person: what it means and what to do."""
+    status = getattr(exc, 'status_code', None)
+    host = _host()
+    if status in (401, 403):
+        return (f"Ollama Cloud rejected the daemon's credentials (HTTP {status}): run `ollama signin` on the machine "
+                f"running the daemon ({host}), or use REMOTE_OLLAMA=https://ollama.com with OLLAMA_API_KEY, a key that "
+                f"does not lapse like a sign-in session.")
+    if status == 429:
+        return f"Ollama Cloud is rate-limiting the daemon ({host}): a session or concurrency limit of the plan (HTTP 429)."
+    if status == 404:
+        return f"The daemon ({host}) has no such model: `ollama pull <tag>` there, and the template's key must match `ollama list`."
+    return f"Ollama answered HTTP {status}: {exc}"
 
 
 def _host():
@@ -480,7 +510,11 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
             total_tokens_used = prompt_tokens_used + completion_tokens_used
             tokens_per_second = completion_tokens_used / elapsed_time if elapsed_time > 0 else 0
         else:
-            output_manager.display_system_messages(f"Ollama API Error: {str(e)}")
+            explanation = _explain(e) if isinstance(e, ResponseError) else f"Ollama API Error: {str(e)}"
+            output_manager.display_system_messages(explanation)
+            logger.warning(explanation)
+            if isinstance(e, ResponseError) and getattr(e, 'status_code', None) in RETRYABLE_STATUSES:
+                raise OllamaTransientError(explanation) from e      # the dispatcher re-asks the turn
             raise
     
     # Return format depends on whether tools were used

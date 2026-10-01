@@ -66,6 +66,8 @@ class FakeClient:
                 for c in FakeClient.script:
                     if isinstance(c, float):           # a pause, to exercise the idle deadline
                         time.sleep(c)
+                    elif isinstance(c, Exception):     # the daemon's error, mid-stream
+                        raise c
                     else:
                         yield c
             return gen()
@@ -74,7 +76,13 @@ class FakeClient:
                 "prompt_eval_count": last.get("prompt_eval_count", 0), "eval_count": last.get("eval_count", 0)}
 
 
+class FakeResponseError(Exception):
+    def __init__(self, error, status_code=None):
+        super().__init__(error); self.status_code = status_code
+
+
 ollama_mod.Client = FakeClient
+ollama_mod.ResponseError = FakeResponseError
 sys.modules["ollama"] = ollama_mod
 
 from bambooai.models import ollama_models as om  # noqa: E402
@@ -102,11 +110,14 @@ class Prompts:
     google_search_react_system = "{}"
 
 
+LAST_PANE = [None]
+
+
 def stream(messages, effort="medium", props=None, script=None, stop_event=None):
     FakeClient.calls.clear(); FakeClient.script[:] = script or []
     om.set_model_properties(props or {})
     om._show_cache.clear()
-    pane = Pane()
+    pane = Pane(); LAST_PANE[0] = pane
     out = om.llm_stream(Prompts(), None, pane, "c1", messages, "qwen3:8b", 0, 16000, None, None, [], effort, None, stop_event=stop_event)
     return out, pane, FakeClient.calls[-1]
 
@@ -177,6 +188,17 @@ os.environ["REMOTE_OLLAMA"] = "myhost:11434"; os.environ.pop("OLLAMA_API_KEY")
 om.init(); li = FakeClient.last_init
 check("a bare host:port gets http:// and no header", li["host"] == "http://myhost:11434" and not li["headers"], li)
 os.environ.pop("REMOTE_OLLAMA")
+
+# ---- the daemon's errors: explained, and the retryable ones raised for the dispatcher's retry
+for status, retry, needle in ((401, True, "ollama signin"), (429, True, "rate-limiting"), (404, False, "no such model"), (400, False, "HTTP 400")):
+    try:
+        out, pane, req = stream(MSGS, "high", {}, [{"message": {"content": "part"}}, FakeResponseError("Unauthorized", status)])
+        check(f"HTTP {status}: an error is raised", False, out[0])
+    except Exception as exc:  # noqa: BLE001
+        is_transient = isinstance(exc, om.OllamaTransientError)
+        pane = LAST_PANE[0]
+        check(f"HTTP {status}: {'retryable (a ConnectionError for the dispatcher)' if retry else 'final'}, with the remedy in the pane", is_transient == retry and any(needle in m for m in pane.system), (type(exc).__name__, pane.system))
+check("the transient error is in the module's TRANSPORT_ERRORS family (ConnectionError)", issubclass(om.OllamaTransientError, ConnectionError) and any(issubclass(om.OllamaTransientError, t) for t in om.TRANSPORT_ERRORS))
 
 # ---- llm_call: a utility call runs with thinking off
 FakeClient.calls.clear(); FakeClient.script[:] = [{"message": {"content": "{\"a\": 1}"}, "prompt_eval_count": 10, "eval_count": 4}]
