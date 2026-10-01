@@ -236,36 +236,76 @@ its reasoning interface.
 
 ### Ollama
 
-A seat on the Ollama daemon, local or cloud model alike:
+BambooAI can use models running locally through Ollama, or hosted in Ollama's cloud.
+
+#### Model configuration
+
+In `LLM_CONFIG_template.json`, set the agent's provider to `ollama` and name the model. For example,
+to use `gpt-oss:20b` as the Analyst:
 
 ```json
-{"agent": "Analyst", "details": {"model": "gpt-oss:20b", "provider": "ollama", "reasoning_effort": "high", "max_tokens": 16000, "temperature": 0}}
+{
+  "agent": "Analyst",
+  "details": {
+    "model": "gpt-oss:20b",
+    "provider": "ollama",
+    "reasoning_effort": "high",
+    "max_tokens": 16000,
+    "temperature": 0
+  }
+}
 ```
 
-and its `model_properties` entry:
+Add a matching entry under `model_properties` in the same file:
 
 ```json
-"gpt-oss:20b": {"capability": "reasoning", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0,
-                "context_window": 65536, "reasoning_efforts": ["low", "medium", "high"]}
+"gpt-oss:20b": {
+  "capability": "reasoning",
+  "templ_formating": "text",
+  "prompt_tokens": 0.0,
+  "completion_tokens": 0.0,
+  "context_window": 65536,
+  "reasoning_efforts": ["low", "medium", "high"]
+}
 ```
 
-What the fields do, and why they matter here more than elsewhere:
+**Context length.** For local models, `context_window` sets the context length used for each request
+(Ollama's `num_ctx`). Set it to at least 32,768 tokens for the Analyst; the example uses 65,536.
+Without it, Ollama applies its own default, which depends on the machine's memory and can be as low as
+4,096 tokens. A prompt longer than the limit is truncated rather than rejected; BambooAI shows a
+warning when it detects this. Cloud models manage their own context length and do not need the
+setting.
 
-- **`context_window`** is sent to the daemon as `num_ctx` for every request. Without it the daemon's
-  own default applies, which for a *local* model depends on the machine: 4k below 24 GiB of VRAM,
-  32k up to 48 GiB, 256k above ([docs](https://docs.ollama.com/context-length)). The analyst's prompt
-  is 10–30k tokens and the daemon truncates silently, so on a small machine a seat without this field
-  loses the contract. When that happens BambooAI says so in the pane (it compares the daemon's
-  `prompt_eval_count` with what it sent) and names the remedies: this field, the Ollama app's context
-  slider, or `OLLAMA_CONTEXT_LENGTH` on the daemon. Cloud models run at their maximum context without it.
-- **`reasoning_efforts`** lists the level names the model defines (`/api/show` prints them);
-  the seat's effort is sent as `think` by name, `none` turns thinking off, and a model with thinking but
-  no named levels gets `think: true`. A model without the thinking capability is sent nothing.
-- Prices are zero for a local model; the subscription covers cloud models.
+**Reasoning.** List the thinking levels the model supports in `reasoning_efforts`, and pick one with
+the agent's `reasoning_effort`. `ollama show <model>` lists the levels a model defines. For models
+that can only switch thinking on or off, BambooAI sends the switch instead; `reasoning_effort: none`
+turns thinking off where the model allows it. Models without thinking support receive no setting.
 
-Cloud models (`gpt-oss:120b-cloud`, `kimi-k2.6:cloud`, …) work through the same daemon once it is signed
-in (`ollama signin`); set `REMOTE_OLLAMA=https://ollama.com` with `OLLAMA_API_KEY` to use them with no
-daemon at all. `OLLAMA_KEEP_ALIVE` (default `30m`) keeps a model loaded between turns.
+**Costs.** Set `prompt_tokens` and `completion_tokens` to `0.0` for local models. Cloud usage is
+covered by your Ollama account and plan.
+
+#### Connecting to Ollama
+
+By default, BambooAI connects to Ollama on your own computer at `http://localhost:11434`. To use
+Ollama on another machine, set its address in your `.env` file:
+
+```dotenv
+REMOTE_OLLAMA=http://<server-address>:11434
+```
+
+All agents using the `ollama` provider share this connection. Pull local models on the machine
+running that Ollama server, and to use cloud models through it, sign in there with `ollama signin`.
+
+For access from another machine, start the Ollama server with `OLLAMA_HOST=0.0.0.0`, and restrict
+access to a trusted network.
+
+You can also connect to Ollama's cloud directly, without running an Ollama server. Add these settings
+to your `.env` file and choose cloud models in your agent configuration:
+
+```dotenv
+REMOTE_OLLAMA=https://ollama.com
+OLLAMA_API_KEY=your_api_key
+```
 
 ### vLLM
 
