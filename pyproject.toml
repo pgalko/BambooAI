@@ -31,7 +31,7 @@ dependencies = [
     "google-generativeai",
     "groq",
     "mistralai",
-    "ollama",
+    "ollama>=0.5",
     "tiktoken",
     "termcolor",
     "pandas>=2.0",

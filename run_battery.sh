@@ -3,7 +3,7 @@
 cd "$(dirname "$0")"
 [ -d /home/data/bambooai-venv/bin ] && export PATH="/home/data/bambooai-venv/bin:$PATH"
 rc=0
-for t in tests/analyst/test_analyst.py tests/analyst/test_app_path.py tests/analyst/test_js_refs.py tests/analyst/test_css_refs.py; do
+for t in tests/analyst/test_analyst.py tests/analyst/test_app_path.py tests/analyst/test_ollama_adapter.py tests/analyst/test_js_refs.py tests/analyst/test_css_refs.py; do
   echo "##### SUITE $t"
   timeout 600 python3 "$t" || rc=1
 done

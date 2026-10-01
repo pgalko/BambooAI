@@ -1,9 +1,30 @@
+"""Ollama: the daemon on this machine (or the one REMOTE_OLLAMA names), local models and - when the
+daemon is signed in - cloud models alike, through the native /api/chat (the `ollama` client).
+
+Facts from docs.ollama.com that shape this adapter (2026-10-01):
+  * A local model's context defaults by VRAM: under 24 GiB 4k, 24-48 GiB 32k, 48 GiB+ 256k; agents
+    should run at 64k or more; the daemon truncates a longer prompt silently - the analyst's prompt
+    is 10-30k tokens, and the contract is at its start. Cloud models run at their maximum context.
+    The native API takes `options.num_ctx` per request (the OpenAI-compatible endpoint cannot):
+    sent when the model's model_properties entry declares `context_window`; otherwise the daemon's
+    default stands and a prompt the daemon reports as shorter than we sent is called out.
+  * Thinking: `think` is true / false / a model-defined level name (gpt-oss: low/medium/high);
+    /api/show lists each model's capabilities and levels. The streamed `message.thinking` carries
+    the reasoning apart from the content.
+  * `keep_alive` keeps a model loaded between turns (the daemon unloads after 5 minutes).
+  * Direct cloud access without a daemon: OLLAMA_API_KEY against https://ollama.com.
+"""
 import json
 import os
+import queue
 import threading
 import time
 from ollama import Client
 import tiktoken
+try:
+    import httpx
+except ImportError:                                     # the ollama client depends on httpx; be tolerant
+    httpx = None
 
 from bambooai import google_search, utils, context_retrieval
 from bambooai.utils import StoppableStreamWrapper
@@ -13,29 +34,166 @@ from bambooai.models import prompt_cache
 from bambooai.models import resilience
 logger = get_logger(__name__)
 
+# ── Per-model facts, handed over by the dispatcher (the routing precedent) ─────
+_props_local = threading.local()
+
+
+def set_model_properties(props):
+    """The dispatcher's hand-off: this model's model_properties entry (or {}), per thread,
+    reset before every dispatch so a reused worker thread never carries the last model's."""
+    _props_local.props = dict(props) if props else {}
+
+
+def _props():
+    return getattr(_props_local, 'props', None) or {}
+
+
+# How long the stream may be silent AFTER its first chunk before it is given up (seconds); the
+# wait for the first chunk is unbounded on purpose - a local model evaluating a 20k-token prompt
+# on modest hardware can take minutes before it says anything.
+OLLAMA_IDLE_TIMEOUT = float(os.getenv('OLLAMA_IDLE_TIMEOUT', '300'))
+# Keep the model loaded between turns of a run; the daemon's own default unloads after 5 minutes.
+OLLAMA_KEEP_ALIVE = os.getenv('OLLAMA_KEEP_ALIVE', '30m')
+# Below this share of our own estimate, the daemon's prompt_eval_count means it dropped prompt.
+TRUNCATION_RATIO = 0.8
+
+TRANSPORT_ERRORS = tuple(t for t in (getattr(httpx, 'TransportError', None), ConnectionError) if t)
+
+
+def _host():
+    host = os.environ.get('REMOTE_OLLAMA') or 'http://localhost:11434'
+    return host if host.startswith('http') else f"http://{host}"
+
+
 def init(api_keys=None):
-    """
-    Initialize Ollama client with configuration precedence:
-    1. Use api_keys['ollama_host'] if available for remote Ollama
-    2. Fall back to REMOTE_OLLAMA environment variable
-    3. Default to localhost:11434 if neither is set
-    """
-    
-    # Determine Ollama host
-    ollama_host = os.environ.get('REMOTE_OLLAMA')
-    
-    if ollama_host:
-        # Use remote Ollama host
-        if not ollama_host.startswith('http'):
-            ollama_host = f"http://{ollama_host}"
-    else:
-        # Default to localhost
-        ollama_host = 'http://localhost:11434'
-    
-    # A local model can stall just as a hosted one can, and there is no SDK
-    # default to fall back on.
-    client = Client(host=ollama_host, timeout=resilience.LLM_TIMEOUT)
-    return client
+    """The client for the daemon REMOTE_OLLAMA names (default localhost:11434). Direct cloud access
+    (https://ollama.com) carries OLLAMA_API_KEY. The read timeout is unbounded: the idle deadline is
+    enforced around the stream instead (see _with_idle_deadline), so a slow first token is not an
+    error and a dead stream still is."""
+    host = _host()
+    headers = {}
+    key = os.environ.get('OLLAMA_API_KEY')
+    if key and 'ollama.com' in host:
+        headers['Authorization'] = f"Bearer {key}"
+    timeout = httpx.Timeout(connect=30.0, read=None, write=120.0, pool=None) if httpx else None
+    kwargs = {'host': host, 'timeout': timeout}
+    if headers:
+        kwargs['headers'] = headers
+    return Client(**kwargs)
+
+
+_show_cache = {}
+
+
+def _capabilities(client, model):
+    """What /api/show says the model can do (e.g. 'completion', 'thinking', 'tools'); cached per
+    model and host; an unreachable or old daemon gives an empty list, and nothing is sent that
+    depends on it."""
+    key = (_host(), model)
+    if key not in _show_cache:
+        caps = []
+        try:
+            info = client.show(model)
+            raw = info.get('capabilities') if isinstance(info, dict) else getattr(info, 'capabilities', None)
+            caps = [str(c) for c in (raw or [])]
+        except Exception as exc:                            # noqa: BLE001
+            logger.info(f"ollama: /api/show for {model} unavailable ({exc}); sending no thinking control")
+        _show_cache[key] = caps
+    return _show_cache[key]
+
+
+def _think_value(reasoning_effort, caps):
+    """The native `think` field for this model and effort, or None to send none.
+    Only a model that lists 'thinking' in its capabilities is sent the field. 'none' turns thinking
+    off; a level the model defines (model_properties.reasoning_efforts) is sent by name, with
+    OpenAI-style aliases folded to the nearest level it has; otherwise plain `true`."""
+    if 'thinking' not in (caps or []):
+        return None
+    effort = (reasoning_effort or '').strip().lower()
+    if effort in ('none', 'off', 'false', '0'):
+        return False
+    levels = [str(x).lower() for x in (_props().get('reasoning_efforts') or []) if str(x).lower() != 'none']
+    if not levels:
+        return True
+    if effort in levels:
+        return effort
+    order = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+    if effort in order:                                    # the nearest level the model has, by rank
+        rank = order.index(effort)
+        ranked = sorted((abs(order.index(l) - rank) if l in order else 99, l) for l in levels)
+        return ranked[0][1]
+    return True
+
+
+def _request_options(temperature, max_tokens):
+    """Runtime options: temperature, the output cap, and the context length when the template
+    declares it for this model (model_properties.context_window). Nothing else: a forced num_ctx on
+    a small GPU is an out-of-memory failure, so the daemon's default stands unless the person set
+    one, and truncation is reported instead (see _report_truncation)."""
+    options = {'temperature': temperature}
+    if max_tokens:
+        options['num_predict'] = max_tokens
+    ctx = _props().get('context_window')
+    if ctx:
+        try:
+            options['num_ctx'] = int(ctx)
+        except (TypeError, ValueError):
+            logger.warning(f"ollama: context_window {ctx!r} is not a number; ignored")
+    return options
+
+
+def _with_idle_deadline(stream, stop_event):
+    """Yield the daemon's chunks with the three-phase wait: unbounded before the first chunk (a slow
+    prompt evaluation is not a failure), then OLLAMA_IDLE_TIMEOUT of silence ends the stream, and a
+    stop_event ends it at any point. The producer thread is a daemon thread, so a stream abandoned
+    here cannot keep the process alive."""
+    q = queue.Queue()
+    done = object()
+
+    def pump():
+        try:
+            for chunk in stream:
+                q.put(chunk)
+        except BaseException as exc:                       # noqa: BLE001 - handed to the consumer
+            q.put(exc)
+        finally:
+            q.put(done)
+    threading.Thread(target=pump, daemon=True).start()
+    started = False
+    while True:
+        try:
+            item = q.get(timeout=1.0 if not started else OLLAMA_IDLE_TIMEOUT)
+        except queue.Empty:
+            if stop_event is not None and stop_event.is_set():
+                return
+            if started:
+                raise TimeoutError(f"ollama: no data for {OLLAMA_IDLE_TIMEOUT:.0f}s after the stream began")
+            continue
+        if item is done:
+            return
+        if isinstance(item, BaseException):
+            raise item
+        started = True
+        yield item
+        if stop_event is not None and stop_event.is_set():
+            return
+
+
+def _report_truncation(output_manager, chain_id, model, estimated, reported):
+    """The daemon saw fewer prompt tokens than we sent: its context is shorter than the prompt and
+    the beginning - the contract - was dropped. Said once per call, in the log and the pane."""
+    if not (estimated and reported) or estimated < 2000 or reported >= TRUNCATION_RATIO * estimated:
+        return
+    msg = (f"Ollama evaluated {reported:,} prompt tokens of about {estimated:,} sent to {model}: the model's "
+           f"context length is shorter than the prompt and its beginning was dropped. Raise it: the Ollama "
+           f"app's context slider, OLLAMA_CONTEXT_LENGTH for the daemon, or \"context_window\" on this "
+           f"model's model_properties entry (the analyst needs 32k or more).")
+    logger.warning(msg)
+    try:
+        output_manager.display_system_messages(f"WARNING: {msg}")
+    except Exception:                                       # noqa: BLE001
+        pass
+
 
 def llm_call(messages: str, model: str, temperature: str, max_tokens: str, response_format: str = None, api_keys=None):  
     """
@@ -45,21 +203,14 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str, respo
 
     start_time = time.time()
 
-    # Prepare options
-    options = {
-        'temperature': temperature,
-        'top_k': 10,
-    }
-    
-    # Add max_tokens if specified (Ollama uses 'num_predict')
-    if max_tokens:
-        options['num_predict'] = max_tokens
-
-    response = client.chat(
-        model=model, 
-        messages=messages,
-        options=options,
-    )
+    options = _request_options(temperature, max_tokens)
+    think = _think_value('none', _capabilities(client, model))   # a plain call is a utility call: no thinking
+    params = {'model': model, 'messages': messages, 'options': options, 'keep_alive': OLLAMA_KEEP_ALIVE}
+    if think is not None:
+        params['think'] = think
+    if response_format and isinstance(response_format, dict) and response_format.get('type') == 'json_object':
+        params['format'] = 'json'
+    response = client.chat(**params)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
@@ -117,23 +268,21 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         }
         search_triplets.append(triplet)
 
+    caps = _capabilities(client, model)
+    think = _think_value(reasoning_effort, caps)
+    logger.info(f"ollama: {model} think={think!r} num_ctx={_request_options(temperature, max_tokens).get('num_ctx')} keep_alive={OLLAMA_KEEP_ALIVE}")
+
     def get_response(model, messages, temperature, max_tokens, tools, response_format):
-        """Helper function to create a streaming response from Ollama"""
-        options = {
-            'temperature': temperature,
-            'top_k': 10,
-        }
-        
-        # Add max_tokens if specified
-        if max_tokens:
-            options['num_predict'] = max_tokens
-        
+        """One streaming request to the daemon, wrapped in the idle deadline."""
         params = {
             "model": model,
             "messages": messages,
             "stream": True,
-            "options": options,
+            "options": _request_options(temperature, max_tokens),
+            "keep_alive": OLLAMA_KEEP_ALIVE,
         }
+        if think is not None:
+            params["think"] = think
         
         # Add tools if provided and model supports them
         # Note: Tool support in Ollama is model-dependent
@@ -146,7 +295,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         if response_format and response_format.get('type') == 'json_object':
             params["format"] = "json"
         
-        return client.chat(**params)
+        return _with_idle_deadline(client.chat(**params), stop_event)
     
     try:
         start_time = time.time()
@@ -188,6 +337,10 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 if str(chunk.get('done_reason', '')).lower() == 'length':
                     prompt_cache.record_meta(truncated=True)
                 
+                # The reasoning channel: thinking models stream it apart from the content when `think`
+                # is on; it goes to the pane's collapsible block, never into the answer.
+                if 'message' in chunk and chunk['message'].get('thinking'):
+                    output_manager.print_wrapper(chunk['message']['thinking'], end='', flush=True, chain_id=chain_id, thought=True)
                 # Handle regular content
                 if 'message' in chunk and 'content' in chunk['message']:
                     chunk_message = chunk['message']['content']
@@ -302,9 +455,12 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
             # Fall back to tiktoken estimation
             completion_tokens_used = len(encoding.encode(full_reply_content))
         
-        # Update prompt tokens if provided
+        # Update prompt tokens if provided - and compare with what we sent: a daemon whose context is
+        # shorter than the prompt evaluates fewer tokens than we counted, silently.
         if 'prompt_eval_count' in last_chunk:
+            estimated_prompt_tokens = prompt_tokens_used
             prompt_tokens_used = last_chunk['prompt_eval_count']
+            _report_truncation(output_manager, chain_id, model, estimated_prompt_tokens, prompt_tokens_used)
         
         # Calculate total tokens
         total_tokens_used = prompt_tokens_used + completion_tokens_used

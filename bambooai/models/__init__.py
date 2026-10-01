@@ -251,6 +251,11 @@ class ModelManager:
             if _set_efforts:
                 _set_efforts((self.get_model_properties().get(model) or {})
                              .get('reasoning_efforts'))
+            # The whole model_properties entry for providers that read more than
+            # one fact (Ollama: context_window, the model's effort names; 2026-10-01).
+            _set_props = getattr(provider_module, 'set_model_properties', None)
+            if _set_props:
+                _set_props(self.get_model_properties().get(model) or {})
 
             content_received, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = getattr(provider_module, function_name)(
                 messages, model, temperature, max_tokens, response_format, self.api_keys
@@ -326,6 +331,11 @@ class ModelManager:
             if _set_efforts:
                 _set_efforts((self.get_model_properties().get(model) or {})
                              .get('reasoning_efforts'))
+            # The whole model_properties entry for providers that read more than
+            # one fact (Ollama: context_window, the model's effort names; 2026-10-01).
+            _set_props = getattr(provider_module, 'set_model_properties', None)
+            if _set_props:
+                _set_props(self.get_model_properties().get(model) or {})
 
             # TURN-LEVEL RETRY ON A TRANSPORT DEATH.
             #
