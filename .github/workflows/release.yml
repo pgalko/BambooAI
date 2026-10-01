@@ -8,8 +8,11 @@ on:
   push:
     tags: ["v*"]
 
+# The same file lives in the private repository, which also receives the tags; publishing belongs to
+# the public one alone (the trusted publisher is registered for it), so both jobs run only there.
 jobs:
   build:
+    if: github.repository == 'pgalko/BambooAI'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +28,7 @@ jobs:
           path: dist/
 
   publish:
+    if: github.repository == 'pgalko/BambooAI'
     needs: build
     runs-on: ubuntu-latest
     environment: pypi
