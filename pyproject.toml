@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bambooai"
-version = "2.0.0"
-description = "An analyst that works in a notebook: one model, one kernel, one report - with a web app, running on your own machine."
+version = "2.0.1"
+description = "An LLM-driven data analyst that works in a persistent Python kernel, one cell at a time, and reproduces its own results before it reports them."
 readme = "docs/PYPI_README.md"     # PyPI cannot resolve the repository-relative images of README.md
 requires-python = ">=3.11"
 license = { text = "MIT" }
