@@ -94,6 +94,9 @@
     "openai/gpt-5.6-sol": {"capability": "reasoning", "multimodal": "true", "templ_formating": "xml", "prompt_tokens": 0.005, "completion_tokens": 0.03, "cache_read_tokens": 0.0005, "cache_write_tokens": 0.005, "reasoning_style": "effort", "reasoning_efforts": ["none", "low", "medium", "high", "xhigh"]},
     "deepseek/deepseek-v4.1-flash": {"capability": "reasoning", "multimodal": "true", "templ_formating": "text", "prompt_tokens": 0.0003, "completion_tokens": 0.0012, "cache_read_tokens": 6e-06, "cache_write_tokens": 0.0003, "routing": {"order": ["deepseek"], "allow_fallbacks": true, "preferred_min_throughput": 25}, "reasoning_style": "effort", "reasoning_efforts": ["none", "low", "medium", "high", "xhigh"]},
     "gpt-oss:20b": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0, "context_window": 65536, "reasoning_efforts": ["low", "medium", "high"]},
-    "qwen3:30b": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0, "context_window": 65536}
+    "qwen3:30b": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0, "context_window": 65536},
+    "deepseek-v4.1-flash:cloud": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0},
+    "glm-5.3:cloud": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0},
+    "qwen3.8:27b-mlx": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0, "context_window": 65536}
   }
 }
