@@ -198,7 +198,7 @@ turn budgets per preset (`tier_properties`), and the properties of every model n
 
 ```json
 "performance_agent_configs": [
-  {"agent": "Analyst",                  "details": {"model": "x-ai/grok-4.6",               "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 32000, "temperature": 0}},
+  {"agent": "Analyst",                  "details": {"model": "x-ai/grok-4.7",               "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 32000, "temperature": 0}},
   {"agent": "Reviewer",                 "details": {"model": "openai/gpt-5.6-sol",          "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 48000, "temperature": 0}},
   {"agent": "Rewriter",                 "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "low",  "max_tokens": 16000, "temperature": 0}},
   {"agent": "Knowledge Distiller",      "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "none", "max_tokens": 24000, "temperature": 0}},
@@ -210,7 +210,7 @@ turn budgets per preset (`tier_properties`), and the properties of every model n
   "performance": {"analyst_turns_quick": 4, "analyst_turns_deep": 15, "analyst_turns_adaptive": 50, "analyst_review_every": 8}
 },
 "model_properties": {
-  "x-ai/grok-4.6": {"capability": "reasoning", "multimodal": "true", "templ_formating": "xml",
+  "x-ai/grok-4.7": {"capability": "reasoning", "multimodal": "true", "templ_formating": "xml",
                     "prompt_tokens": 0.002, "completion_tokens": 0.006,
                     "reasoning_style": "effort", "reasoning_efforts": ["low", "medium", "high", "xhigh"]}
 }
@@ -234,14 +234,43 @@ mapped to each provider's own vocabulary, or to a thinking budget for models tha
 supplies its prices per 1K tokens (used for the running cost), its formatting (`xml` or `text`) and
 its reasoning interface.
 
-A seat on a local server:
+### Ollama
+
+A seat on the Ollama daemon, local or cloud model alike:
 
 ```json
-{"agent": "Analyst", "details": {"model": "qwen3:32b", "provider": "ollama", "reasoning_effort": "medium", "max_tokens": 16000, "temperature": 0}}
+{"agent": "Analyst", "details": {"model": "gpt-oss:20b", "provider": "ollama", "reasoning_effort": "high", "max_tokens": 16000, "temperature": 0}}
 ```
 
-with `REMOTE_OLLAMA=http://localhost:11434` in `.env` and a `model_properties` entry with zero prices.
-With every seat on Ollama or vLLM and no Gemini key, no request leaves the machine.
+and its `model_properties` entry:
+
+```json
+"gpt-oss:20b": {"capability": "reasoning", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0,
+                "context_window": 65536, "reasoning_efforts": ["low", "medium", "high"]}
+```
+
+What the fields do, and why they matter here more than elsewhere:
+
+- **`context_window`** is sent to the daemon as `num_ctx` for every request. Without it the daemon's
+  own default applies, which for a *local* model depends on the machine: 4k below 24 GiB of VRAM,
+  32k up to 48 GiB, 256k above ([docs](https://docs.ollama.com/context-length)). The analyst's prompt
+  is 10–30k tokens and the daemon truncates silently, so on a small machine a seat without this field
+  loses the contract. When that happens BambooAI says so in the pane (it compares the daemon's
+  `prompt_eval_count` with what it sent) and names the remedies: this field, the Ollama app's context
+  slider, or `OLLAMA_CONTEXT_LENGTH` on the daemon. Cloud models run at their maximum context without it.
+- **`reasoning_efforts`** lists the level names the model defines (`/api/show` prints them);
+  the seat's effort is sent as `think` by name, `none` turns thinking off, and a model with thinking but
+  no named levels gets `think: true`. A model without the thinking capability is sent nothing.
+- Prices are zero for a local model; the subscription covers cloud models.
+
+Cloud models (`gpt-oss:120b-cloud`, `kimi-k2.6:cloud`, …) work through the same daemon once it is signed
+in (`ollama signin`); set `REMOTE_OLLAMA=https://ollama.com` with `OLLAMA_API_KEY` to use them with no
+daemon at all. `OLLAMA_KEEP_ALIVE` (default `30m`) keeps a model loaded between turns.
+
+### vLLM
+
+`REMOTE_VLLM=http://localhost:8000/v1` and seats with `"provider": "vllm"`. With every seat on Ollama or
+vLLM and no Gemini key, no request leaves the machine.
 
 The app builds `config/<user>/LLM_CONFIG.json` from the template for the chosen preset, and rebuilds
 it when the template file is newer than the built one.

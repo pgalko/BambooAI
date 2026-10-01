@@ -71,8 +71,14 @@ OPENROUTER_API_KEY=
 # GROQ_API_KEY=
 # XAI_API_KEY=
 # MISTRAL_API_KEY=
-# a local model server
+# Ollama: the daemon on this machine (default http://localhost:11434), local models and - once the daemon
+# is signed in - cloud models. Seats with "provider": "ollama" in LLM_CONFIG_template.json use it.
 # REMOTE_OLLAMA=http://localhost:11434
+# a key from ollama.com/settings/keys, for cloud models WITHOUT a daemon (REMOTE_OLLAMA=https://ollama.com)
+# OLLAMA_API_KEY=
+# how long a model stays loaded between turns (default 30m) and how long a started stream may be silent (default 300 s)
+# OLLAMA_KEEP_ALIVE=30m
+# OLLAMA_IDLE_TIMEOUT=300
 # REMOTE_VLLM=http://localhost:8000/v1
 
 # --- integrations (each needs your own registration with the provider) -------------
