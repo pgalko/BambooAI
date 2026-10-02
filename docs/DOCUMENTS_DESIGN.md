@@ -1,9 +1,9 @@
 # Documents in the analysis: the READ action, the Reader and Embedder seats
 
-Living document. v0.1, 2026-10-03. Kept at `docs/DOCUMENTS_DESIGN.md`. Decisions are numbered on
-from `docs/OSS_DESIGN.md` (D1-D32 live there), so D33 onward live here and the two documents never
-reuse a number. Updated in the same series that changes a decision. Facts about outside systems
-carry the date they were checked.
+Living document. v0.2, 2026-10-03 (v0.1 the same day). Kept at `docs/DOCUMENTS_DESIGN.md`. Decisions
+are numbered on from `docs/OSS_DESIGN.md` (D1-D32 live there), so D33 onward live here and the two
+documents never reuse a number. Updated in the same series that changes a decision. Facts about
+outside systems carry the date they were checked.
 
 ## 1. What is being built
 
@@ -151,20 +151,67 @@ figures-to-data (digitising a plotted chart needs a vision model and yields esti
 ## 6. Citations, the guard, the page
 
 - **D45. The report cites units.** `[D1.17]` beside `[cell 7]` and `[fig 7]`. The page renders it as
-  a chip reading the file name and place ("paper.pdf p.4"); hover shows the passage (the unit's
-  text, trimmed to about 300 characters) through the tooltip the chain references use; click opens
-  the Documents tab at the unit. The guard extends in two ways: a cited unit must exist in the
-  thread's documents (one that does not is disclosed as the number check discloses: "CHECK: [D3.9]
-  is not in the documents"), and a number in the report may be matched against the text of cited
-  units as well as against cell outputs. Quotations are already verified at READ time (D41).
-  *Reason:* one provenance discipline for cells, figures and passages; the reader sees where every
-  claim came from.
-- **D46. The page.** A Documents tab in the pane beside Investigation and Plots: the thread's
-  documents with their maps, and the passages each READ returned marked in place. A READ row in the
-  stream with the label READ and "n passages" on the right, as a search row shows its sources. In
-  the file area, "Documents (n/4)" beside the auxiliary datasets, with upload, remove, and the
-  refusal messages of D36 shown as they are written. *Reason:* the action is visible when it happens
-  and the evidence is one click away, as for cells and searches.
+  a chip reading the file name and place ("paper.pdf p.4"); hover shows the passage as the READ
+  digest of that run recorded it (trimmed to about 300 characters), through the tooltip the chain
+  references use - from the record, not the live file, so a chip in an old report still shows its
+  passage after the document is removed (D56); click opens the Documents tab at the unit. The guard
+  extends in two ways: a cited unit must exist in the thread's documents or in a READ digest of the
+  run (one that does not is disclosed as the number check discloses: "CHECK: [D3.9] is not in the
+  documents"), and a number in the report may be matched against the text of cited units as well as
+  against cell outputs. Quotations are already verified at READ time (D41). *Reason:* one provenance
+  discipline for cells, figures and passages; the reader sees where every claim came from.
+- **D46. The page.** A Documents tab in the right pane beside Investigation and Plots (D55), a READ
+  row in the stream with the label READ and "n passages" on the right as a search row shows its
+  sources, and one Documents pill in the top bar (D54). How a document is attached, what the page
+  shows while it is parsed and after, and how it is removed are section 6a. *Reason:* the action is
+  visible when it happens and the evidence is one click away, as for cells and searches.
+
+## 6a. Attaching documents: the upload and what the page shows
+
+- **D52. The paperclip, one more entry.** The attach menu gains "Document" below "Auxiliary
+  Dataset", with a page icon and a hidden file input accepting `.pdf`, `.docx`, `.md` and `.txt` -
+  one file a pick, as the datasets do (O-D6 asks about several at once); the page has no
+  drag-and-drop today and this adds none. At four attached, the entry answers with the menu's limit
+  message: "Maximum 4 documents per thread." A document is attached to the current thread. When the
+  page has no thread yet - nothing has been asked - the upload mints one, as a first question does,
+  and the page adopts the id the server returns; a thread that gets documents and never a question
+  is removed by the cleanup after a day, folder and all. *Reason:* the person already attaches data
+  here; a document is one more thing to attach, in the same place, with the same gestures.
+- **D53. While it is parsed, and when it is refused.** The whole of upload, parse, map and embed is
+  one request (O-D4), and for its duration the Documents pill (D54) carries the spinner and "parsing
+  paper.pdf...". A refusal replaces that with the message in the pill's error state - "paper.pdf is
+  14 MB; the limit is 10 MB a document"; "this PDF has no text layer; a scanned document needs OCR,
+  which is not supported"; "the text of report.pdf is 3.1 MB; the limit is 2 MB" (O-D2); "notes.rtf
+  is not a PDF, Word, Markdown or text file"; "Maximum 4 documents per thread" - and stays until it
+  is clicked away, unlike the auxiliary pill's three seconds: these are sentences a person has to
+  act on. An Embedder that cannot be reached at upload is not a refusal: the document is attached,
+  its row in the tab says "no embeddings yet", and the next READ retries (D37). *Reason:* the person
+  sees the one thing that is happening, and a refusal tells them what to do about it.
+- **D54. One Documents pill in the top bar, not one per file.** The bar already carries up to four
+  dataset pills, and four more would not fit a laptop's width. "Documents (2/4)": hover lists the
+  documents the way the attach menu lists its options - "D1 paper.pdf - 12 pages", "D2 meeting.md -
+  3,400 words" - each with the remove icon the dataset pills use; click opens the Documents tab. The
+  Dataset Cache dialog is unchanged: documents are thread files, not the executor's cache. *Reason:*
+  the bar has to hold the data and the documents of a thread at once.
+- **D55. The Documents tab.** Created through the right pane's `createOrUpdateTab` as the Data and
+  Plots tabs are, so `paneOpenTab('Documents')` and the chips work unchanged. For each document a
+  header row - "D1 - paper.pdf - PDF - 12 pages - 3 tables - 2026-10-03" and the remove icon - then
+  its map, then its text as units with the locator in the margin ("p.4 ¶17"; "§3.2 ¶4"), tables
+  rendered as tables. Documents are collapsed to their header and map by default and a document's
+  text is rendered when it is expanded, a page or a section at a time, because four documents at the
+  text cap are 8 MB of text. Units a READ returned carry a highlight and a small "READ k" tag; a
+  `[D1.17]` chip scrolls to its unit and flashes it. The tab belongs to the thread: when a thread is
+  opened the page fetches the manifest and rebuilds the pill and the tab from it, which datasets
+  never needed because they do not outlive a container. *Reason:* the evidence behind every chip is
+  readable in full, in place, in both editions.
+- **D56. Numbering and removal.** Ids are given in upload order - D1, D2, ... - and never reused
+  within a thread, so `[D2.17]` in an earlier report still names what it named after D2 is removed,
+  and its chip still shows the passage from the digest (D45); a document attached after a removal is
+  D5 while at most four are attached at once. Removing (the icon in the pill's list or in the tab)
+  deletes the folder under `storage/<user>/documents/<thread_id>/` and tells the kernel to drop its
+  copy - the executor's remove route in api mode, a deletion in the local folder - with the
+  chain-start push (D38) no longer sending it. *Reason:* a citation is a promise to the reader;
+  removing a document must not break promises already made.
 
 ## 7. The seats
 
@@ -233,12 +280,15 @@ Every phase touches hosted paths (`web_app/`, `analyst/`, `containers/executor/`
 the order is the dev box first, then prod, then the Mac, and the four `[confirm]` items of the
 session seed are due at the start of A.
 
-- **A. Documents in the thread.** The upload slot and its page; parsing (D34, D36) and the folder
-  (D35); the map (D39); the push to the kernel at chain start and before replay (D38); cleanup with
-  the thread; the Documents tab in its first form (the list and the maps). No new action yet. *Done
-  when:* four documents attach to a thread in both editions; the map rides in every chain's prompt;
-  the analyst greps a transcript in a cell; the files are back in a hosted container after a
-  restart; a deleted thread leaves no folder.
+- **A. Documents in the thread.** The attach entry, the Documents pill, the upload request with its
+  refusals, the manifest and its restore when a thread is opened (D52-D54, D56); parsing (D34, D36)
+  and the folder (D35); the map (D39); the push to the kernel at chain start and before replay
+  (D38); cleanup with the thread; the Documents tab in its first form - the list, the maps, the text
+  by page or section (D55 without the READ marks). No new action yet. *Done when:* four documents
+  attach to a thread in both editions and the pill and tab come back when the thread is reopened;
+  the map rides in every chain's prompt; the analyst greps a transcript in a cell; the files are
+  back in a hosted container after a restart; a removed document and a deleted thread leave no
+  folder.
 - **B. READ, the seats, memory.** The Reader and Embedder seats in the template and the dialog (D47,
   D48, D50 as decided); `embed` in the adapters and the dispatcher (D49); embeddings at upload
   (D37); memory on the seat (D51); READ with hybrid selection, verification and the digest, `SHOW
@@ -262,3 +312,5 @@ session seed are due at the start of A.
   long.
 - **O-D5.** Whether READ digests of earlier chains should be reachable by `SHOW READ` directly, or
   only through `SHOW RUN k` as searches are (D40).
+- **O-D6.** Whether the file input should take several documents in one pick, up to the free slots;
+  the dataset inputs take one, and the first version follows them (D52).

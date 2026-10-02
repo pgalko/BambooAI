@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v1.3, 2026-10-03 (v0.1-v0.7 on 2026-09-14; v0.8-v1.0 on 2026-09-15; v1.1 on 2026-09-16; v1.2 on 2026-10-03). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v1.4, 2026-10-03 (v0.1-v0.7 on 2026-09-14; v0.8-v1.0 on 2026-09-15; v1.1 on 2026-09-16; v1.2-v1.3 on 2026-10-03). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -184,9 +184,9 @@ statement by statement against the code.
   copy of the OpenRouter adapter that would drift from it. *Reason:* a lean code base. If gateways
   are wanted, the unit is one generic OpenAI-compatible provider with a table of gateways, not one
   adapter per gateway.
-- **D33-D51 live in `docs/DOCUMENTS_DESIGN.md`** (2026-10-03): documents attached to a thread, the READ
+- **D33-D56 live in `docs/DOCUMENTS_DESIGN.md`** (2026-10-03): documents attached to a thread, the READ
   action, verbatim passages cited as `[D1.17]`, the Reader and Embedder seats, memory on the Embedder
-  seat. The numbering continues there so the two documents never reuse a number.
+  seat, the upload and the page. The numbering continues there so the two documents never reuse a number.
 
 ## 9. Scope, phase by phase
 
@@ -293,7 +293,7 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
 - Up to four documents a thread (PDF, Word, Markdown, text) parsed into units with locators and kept as
   thread files; a map of each in every prompt and the text in the kernel; the READ action with
   verbatim, verified passages; `[D1.17]` citations with the passage on hover; the Reader and Embedder
-  seats; memory on the Embedder seat. Phases A-D and the decisions D33-D51 are in
+  seats; memory on the Embedder seat. Phases A-D and the decisions D33-D56 are in
   `docs/DOCUMENTS_DESIGN.md`; every phase is hosted-path work, dev box first.
 - **Status 2026-10-03: designed, not started.**
 
