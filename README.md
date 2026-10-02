@@ -322,6 +322,8 @@ against (vLLM 0.30, an RTX A6000):
 vllm serve ~/models/Qwen3.8-27B \
   --quantization fp8 --linear-backend marlin \
   --language-model-only \
+  --compilation-config '{"mode": 0, "cudagraph_mode": "FULL"}' \
+  --speculative-config '{"method": "mtp", "num_speculative_tokens": 2}' \
   --max-model-len 65536 --max-num-seqs 8 \
   --reasoning-parser qwen3 \
   --served-model-name qwen3.8-27b \
@@ -332,8 +334,11 @@ A few of these flags are worth knowing about. `--reasoning-parser` is what lets 
 model's thinking apart from the answer. `--served-model-name` gives the model the short name you use
 in the agent configuration. `--linear-backend marlin` selects the 8-bit kernels that run on Ampere
 GPUs such as the A6000 and A100; on Ada and Hopper GPUs it is not needed. `--language-model-only`
-skips a model's vision components, which BambooAI does not use. If the server fails to start while
-compiling, add `--enforce-eager`.
+skips a model's vision components, which BambooAI does not use. The `--compilation-config` line runs
+the model with CUDA graphs but without `torch.compile`, which fails on this model; it is markedly
+faster than `--enforce-eager`. The `--speculative-config` line uses the model's own
+multi-token-prediction head to draft tokens: the same output, noticeably faster. Drop it for a
+model without an MTP head.
 
 #### Model configuration
 
