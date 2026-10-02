@@ -62,7 +62,8 @@ def _effort_for(model, reasoning_effort):
     order = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']
     if effort in order:                                    # fold an alias the model lacks to its nearest level
         rank = order.index(effort)
-        return 'effort', sorted((abs(order.index(l) - rank) if l in order else 99, l) for l in levels)[0][1]
+        # the nearest level by rank; on a tie the higher one (Qwen3.8 documents high as xhigh)
+        return 'effort', sorted((abs(order.index(l) - rank) if l in order else 99, -(order.index(l) if l in order else -1), l) for l in levels)[0][2]
     return 'effort', effort
 
 

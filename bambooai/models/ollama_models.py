@@ -150,8 +150,9 @@ def _think_value(reasoning_effort, caps):
     order = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']
     if effort in order:                                    # the nearest level the model has, by rank
         rank = order.index(effort)
-        ranked = sorted((abs(order.index(l) - rank) if l in order else 99, l) for l in levels)
-        return ranked[0][1]
+        # the nearest level by rank; on a tie the higher one
+        ranked = sorted((abs(order.index(l) - rank) if l in order else 99, -(order.index(l) if l in order else -1), l) for l in levels)
+        return ranked[0][2]
     return True
 
 

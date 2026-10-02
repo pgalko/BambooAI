@@ -361,7 +361,7 @@ Add a matching entry under `model_properties`:
   "prompt_tokens": 0.0,
   "completion_tokens": 0.0,
   "context_window": 65536,
-  "reasoning_efforts": ["low", "medium", "high"]
+  "reasoning_efforts": ["low", "medium", "xhigh"]
 }
 ```
 
@@ -370,7 +370,9 @@ refuses a prompt that does not fit, rather than truncating it. Set `context_wind
 value and BambooAI warns before sending a prompt that cannot fit, with the options for fixing it.
 
 **Reasoning.** With `--reasoning-parser`, the agent's `reasoning_effort` is passed to the model;
-list the levels it supports in `reasoning_efforts`. `reasoning_effort: none` turns thinking off.
+list the levels it supports in `reasoning_efforts`, as the model names them (Qwen3.8 takes `low`,
+`medium` and `xhigh`). An agent's effort the model does not define is mapped to the nearest level
+it does. `reasoning_effort: none` turns thinking off.
 
 **Costs.** Set `prompt_tokens` and `completion_tokens` to `0.0`; the server does not bill.
 

@@ -161,6 +161,8 @@ check("the thinking goes to the pane's reasoning block, the answer to the conten
 check("token counts come from the server's usage chunk (thinking included in completion)", out[2] == 6100 and out[3] == 61, out[2:4])
 out, pane, req = stream(MSGS, "xhigh", {"reasoning_efforts": ["low", "medium", "high"]}, SCRIPT)
 check("an alias the model lacks folds to its nearest level (xhigh -> high)", req.get("reasoning_effort") == "high", req.get("reasoning_effort"))
+out, pane, req = stream(MSGS, "high", {"reasoning_efforts": ["low", "medium", "xhigh"]}, SCRIPT)
+check("a seat at 'high' on Qwen3.8's levels (low/medium/xhigh) folds UP to xhigh, as Qwen documents", req.get("reasoning_effort") == "xhigh", req.get("reasoning_effort"))
 out, pane, req = stream(MSGS, "none", {}, SCRIPT)
 check("effort 'none' switches thinking off through chat_template_kwargs, and sends no reasoning_effort",
       req.get("extra_body") == {"chat_template_kwargs": {"enable_thinking": False}} and "reasoning_effort" not in req, req)

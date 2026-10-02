@@ -142,6 +142,8 @@ out, pane, req = stream(MSGS, "medium", {}, [{"message": {"content": "x"}}, DONE
 check("a thinking model with no level names gets think=true", req.get("think") is True, req.get("think"))
 out, pane, req = stream(MSGS, "xhigh", {"reasoning_efforts": ["low", "medium", "high"]}, [{"message": {"content": "x"}}, DONE])
 check("an alias the model lacks folds to its nearest level (xhigh -> high)", req.get("think") == "high", req.get("think"))
+out, pane, req = stream(MSGS, "high", {"reasoning_efforts": ["low", "medium", "xhigh"]}, [{"message": {"content": "x"}}, DONE])
+check("a tie between neighbouring levels folds upward (high on low/medium/xhigh -> xhigh)", req.get("think") == "xhigh", req.get("think"))
 FakeClient.show_info = {"capabilities": ["completion"]}
 out, pane, req = stream(MSGS, "high", {}, [{"message": {"content": "x"}}, DONE])
 check("a model without the thinking capability is sent no think field at all", "think" not in req, req.keys())
