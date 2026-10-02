@@ -14,7 +14,8 @@
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
-- **The open-source edition** (docs/OSS_DESIGN.md, v1.2 of 2026-10-03, decisions D1-D32):
+- **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; D33-D51 are in
+  docs/DOCUMENTS_DESIGN.md):
   `AUTH_MODE=single` with the identity `BAMBOO_USER`; `bambooai/db/local_store.py` (SQLite behind
   Supabase's query shape); the executor container built from the Dockerfile the package ships and
   managed by `bambooai serve` (`--compute local` the fallback);
@@ -44,6 +45,15 @@
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
   right unit, when wanted, is one generic OpenAI-compatible gateway provider with a table of gateways.
+- **Designed, not started (2026-10-03):** documents in the analysis - `docs/DOCUMENTS_DESIGN.md`,
+  D33-D51. Up to four documents a thread (PDF, Word, Markdown, text; 10 MB each) parsed with
+  pdfplumber and python-docx into units with locators, kept as files under
+  `storage/<user>/documents/<thread_id>/` and pushed to the kernel at every chain start; a map in
+  every prompt; a READ action (3 a chain, recursion capped at depth 2 and 12 reader calls) returning
+  verbatim, verified passages; `[D1.17]` citations with the passage on hover; a Reader seat and an
+  Embedder seat (`openai/text-embedding-3-large` through OpenRouter, in all tiers); memory moves to
+  the Embedder seat and `EMBEDDING_PLATFORM` retires. Phases A-D, every one dev-first; the `[confirm]`
+  items of the session seed are due at the start of A.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
