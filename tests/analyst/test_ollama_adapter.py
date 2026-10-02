@@ -129,7 +129,7 @@ DONE = {"message": {"content": ""}, "done": True, "done_reason": "stop", "prompt
 out, pane, req = stream(MSGS, "high", {"context_window": 65536, "reasoning_efforts": ["low", "medium", "high"]},
                         [{"message": {"content": "ok "}}, {"message": {"content": "done"}}, DONE])
 check("num_ctx is sent when the template declares context_window", req["options"].get("num_ctx") == 65536, req["options"])
-check("num_predict carries max_tokens; temperature rides along; nothing else is forced (no top_k)", req["options"].get("num_predict") == 16000 and "top_k" not in req["options"], req["options"])
+check("num_predict carries max_tokens; temperature rides along; top_k is not forced", req["options"].get("num_predict") == 16000 and "top_k" not in req["options"], req["options"])
 check("think is the model's own level name when it defines levels", req.get("think") == "high", req.get("think"))
 check("keep_alive is sent (default 30m)", req.get("keep_alive") == "30m", req.get("keep_alive"))
 check("the content streamed to the pane and the reply assembled", "".join(pane.text).startswith("ok done") and out[0] == "ok done", (pane.text, out[0]))
@@ -153,6 +153,11 @@ out, pane, req = stream(MSGS, "high", {}, [{"message": {"content": "x"}}, DONE])
 check("an old daemon without /api/show: no think field, the call still works", "think" not in req and out[0] == "x", req.keys())
 FakeClient.show_fail = False
 check("no num_ctx when the template says nothing (the daemon's default stands)", "num_ctx" not in req["options"], req["options"])
+
+# ---- repeat_penalty: 1.0 unless the model's entry sets its own (Ollama's Modelfile default of 1.1 hurts code)
+default_options = req["options"]
+out, pane, req = stream(MSGS, "medium", {"repeat_penalty": 1.1}, [{"message": {"content": "x"}}, DONE])
+check("repeat_penalty is 1.0 by default and the model's own value where model_properties sets one (1.1 here)", default_options.get("repeat_penalty") == 1.0 and req["options"].get("repeat_penalty") == 1.1, (default_options, req["options"]))
 
 # ---- the thinking channel
 out, pane, req = stream(MSGS, "high", {}, [{"message": {"thinking": "let me think"}}, {"message": {"thinking": " more"}}, {"message": {"content": "answer"}}, DONE])

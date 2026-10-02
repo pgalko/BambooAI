@@ -61,6 +61,10 @@ OLLAMA_IDLE_TIMEOUT = float(os.getenv('OLLAMA_IDLE_TIMEOUT', '300'))
 OLLAMA_KEEP_ALIVE = os.getenv('OLLAMA_KEEP_ALIVE', '30m')
 # Below this share of our own estimate, the daemon's prompt_eval_count means it dropped prompt.
 TRUNCATION_RATIO = 0.8
+# Ollama's Modelfile default is repeat_penalty 1.1 (docs.ollama.com, 2026-10-03): a penalty on tokens
+# the model has used recently, which hurts code and structured output - and every analyst turn is one
+# or the other. 1.0 switches it off; a model's model_properties entry may set its own (repeat_penalty).
+DEFAULT_REPEAT_PENALTY = 1.0
 
 TRANSPORT_ERRORS = tuple(t for t in (getattr(httpx, 'TransportError', None), ConnectionError) if t)
 
@@ -157,13 +161,20 @@ def _think_value(reasoning_effort, caps):
 
 
 def _request_options(temperature, max_tokens):
-    """Runtime options: temperature, the output cap, and the context length when the template
-    declares it for this model (model_properties.context_window). Nothing else: a forced num_ctx on
-    a small GPU is an out-of-memory failure, so the daemon's default stands unless the person set
+    """Runtime options: temperature, the output cap, repeat_penalty (1.0 unless the template sets one
+    for this model: model_properties.repeat_penalty), and the context length when the template
+    declares it (model_properties.context_window). Nothing else is forced: a forced num_ctx on a
+    small GPU is an out-of-memory failure, so the daemon's default stands unless the person set
     one, and truncation is reported instead (see _report_truncation)."""
     options = {'temperature': temperature}
     if max_tokens:
         options['num_predict'] = max_tokens
+    penalty = _props().get('repeat_penalty', DEFAULT_REPEAT_PENALTY)
+    try:
+        options['repeat_penalty'] = float(penalty)
+    except (TypeError, ValueError):
+        logger.warning(f"ollama: repeat_penalty {penalty!r} is not a number; {DEFAULT_REPEAT_PENALTY} used")
+        options['repeat_penalty'] = DEFAULT_REPEAT_PENALTY
     ctx = _props().get('context_window')
     if ctx:
         try:
@@ -301,7 +312,8 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
 
     caps = _capabilities(client, model)
     think = _think_value(reasoning_effort, caps)
-    logger.info(f"ollama: {model} think={think!r} num_ctx={_request_options(temperature, max_tokens).get('num_ctx')} keep_alive={OLLAMA_KEEP_ALIVE}")
+    opts = _request_options(temperature, max_tokens)
+    logger.info(f"ollama: {model} think={think!r} num_ctx={opts.get('num_ctx')} repeat_penalty={opts.get('repeat_penalty')} keep_alive={OLLAMA_KEEP_ALIVE}")
 
     def get_response(model, messages, temperature, max_tokens, tools, response_format):
         """One streaming request to the daemon, wrapped in the idle deadline."""

@@ -281,6 +281,10 @@ the agent's `reasoning_effort`. `ollama show <model>` lists the levels a model d
 that can only switch thinking on or off, BambooAI sends the switch instead; `reasoning_effort: none`
 turns thinking off where the model allows it. Models without thinking support receive no setting.
 
+**Repetition penalty.** Ollama penalises recently used tokens by default (`repeat_penalty` 1.1), which
+degrades code and structured output, so BambooAI sends `1.0` (no penalty) with each request. To use a
+different value for a model, add `repeat_penalty` to its `model_properties` entry.
+
 **Costs.** Set `prompt_tokens` and `completion_tokens` to `0.0` for local models. Cloud usage is
 covered by your Ollama account and plan.
 
