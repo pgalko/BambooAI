@@ -3,7 +3,8 @@
 - **Where the code lives.** One repository, two remotes: `BambooAI_Prod` (private; `origin` everywhere)
   and `BambooAI` (public). The Mac clone `/Users/palogalko/Projects/Bamboo_AI_v2`, the dev box and prod
   at `/home/data/bambooai` all run the same `main`: the snapshot `f28de59` plus the patch series
-  0001-0050 (phases 0-5 of the open-source edition, then Ollama 0038-0045 and vLLM 0046-0050).
+  0001-0053 (phases 0-5 of the open-source edition, then Ollama 0038-0045, vLLM 0046-0050, this
+  handover 0051, the design document brought current 0052, the Ollama `repeat_penalty` 0053).
   Delivery is a patch series applied with `git am --keep-cr` (27 tracked text files are CRLF, among
   them every `bambooai/models/*.py`), tested, pushed to the private remote, pulled on the boxes, pushed
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
@@ -13,9 +14,10 @@
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
-- **The open-source edition** (docs/OSS_DESIGN.md): `AUTH_MODE=single` with the identity `BAMBOO_USER`;
-  `bambooai/db/local_store.py` (SQLite behind Supabase's query shape); the executor container built from
-  the Dockerfile the package ships and managed by `bambooai serve` (`--compute local` the fallback);
+- **The open-source edition** (docs/OSS_DESIGN.md, v1.2 of 2026-10-03, decisions D1-D32):
+  `AUTH_MODE=single` with the identity `BAMBOO_USER`; `bambooai/db/local_store.py` (SQLite behind
+  Supabase's query shape); the executor container built from the Dockerfile the package ships and
+  managed by `bambooai serve` (`--compute local` the fallback);
   `~/bambooai` the working folder. Configuration is a trio: the master `web_app/LLM_CONFIG_template.json`
   (ships with the package), the person's copy `~/bambooai/LLM_CONFIG_template.json` (four tiers of seats
   and `model_properties`), and the built `config/<user>/LLM_CONFIG.json` (one tier flattened), rebuilt when
@@ -24,7 +26,9 @@
   `model_properties.context_window` with a truncation report otherwise, `think` from the seat's effort
   (off / a level name / on, only for models whose /api/show lists thinking), the thinking channel to the
   pane, an unbounded first-token wait with an idle deadline, `keep_alive`, `OLLAMA_API_KEY` for
-  ollama.com, the daemon's errors explained and the transient ones retried. `bambooai/models/vllm_models.py`
+  ollama.com, the daemon's errors explained and the transient ones retried, `repeat_penalty` 1.0 on
+  every request unless the model's `model_properties` entry sets its own (Ollama's Modelfile default
+  of 1.1 hurts code and structured output; 2026-10-03). `bambooai/models/vllm_models.py`
   on an OpenAI-compatible server: `delta.reasoning`/`reasoning_content` to the pane, `reasoning_effort` by
   the model's level names (Qwen3.8: low/medium/xhigh; a tie between neighbours folds upward), thinking off
   via `chat_template_kwargs`, exact usage from the stream, a context pre-flight against `context_window`
@@ -34,15 +38,15 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (66/45/29/19/1/1 Python; 20/7/29/56 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (66/45/30/19/1/1 Python; 20/7/29/56 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (32); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
   right unit, when wanted, is one generic OpenAI-compatible gateway provider with a table of gateways.
-- **Next candidates:** `repeat_penalty: 1.0` in the Ollama adapter's options (Ollama's Modelfile default
-  of 1.1 hurts code and structured output); the CI badge back in the README (the public workflow exists
-  now); O5 team mode (a users table exists in the store); O9 integrations on the local kernel. Parked
+- **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
+  tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
+  exists in the store); O9 integrations on the local kernel. Parked
   from 2026-09-09: the orchestrator's health check returns a tuple three call sites test for truth; a
   single missed probe destroys a container; a failed tier lookup answers 'free'.
 
