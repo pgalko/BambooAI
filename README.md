@@ -309,8 +309,81 @@ OLLAMA_API_KEY=your_api_key
 
 ### vLLM
 
-`REMOTE_VLLM=http://localhost:8000/v1` and seats with `"provider": "vllm"`. With every seat on Ollama or
-vLLM and no Gemini key, no request leaves the machine.
+BambooAI can use models served by vLLM on a machine with a suitable GPU. vLLM serves a model as an
+OpenAI-compatible API; BambooAI connects to it the way it connects to any provider.
+
+#### Serving a model
+
+The command below serves Qwen3.8-27B in 8-bit on a single 48 GB GPU, with a 64k context and the
+model's thinking returned separately from its answers. It is the configuration BambooAI was tested
+against (vLLM 0.30, an RTX A6000):
+
+```bash
+vllm serve ~/models/Qwen3.8-27B \
+  --quantization fp8 --linear-backend marlin \
+  --language-model-only \
+  --max-model-len 65536 --max-num-seqs 8 \
+  --reasoning-parser qwen3 \
+  --served-model-name qwen3.8-27b \
+  --host 0.0.0.0 --port 8000
+```
+
+A few of these flags are worth knowing about. `--reasoning-parser` is what lets BambooAI show the
+model's thinking apart from the answer. `--served-model-name` gives the model the short name you use
+in the agent configuration. `--linear-backend marlin` selects the 8-bit kernels that run on Ampere
+GPUs such as the A6000 and A100; on Ada and Hopper GPUs it is not needed. `--language-model-only`
+skips a model's vision components, which BambooAI does not use. If the server fails to start while
+compiling, add `--enforce-eager`.
+
+#### Model configuration
+
+In `LLM_CONFIG_template.json`, set the agent's provider to `vllm` and use the served model name:
+
+```json
+{
+  "agent": "Analyst",
+  "details": {
+    "model": "qwen3.8-27b",
+    "provider": "vllm",
+    "reasoning_effort": "high",
+    "max_tokens": 16000,
+    "temperature": 0
+  }
+}
+```
+
+Add a matching entry under `model_properties`:
+
+```json
+"qwen3.8-27b": {
+  "capability": "reasoning",
+  "templ_formating": "text",
+  "prompt_tokens": 0.0,
+  "completion_tokens": 0.0,
+  "context_window": 65536,
+  "reasoning_efforts": ["low", "medium", "high"]
+}
+```
+
+**Context length.** vLLM sets the context length when the server starts (`--max-model-len`) and
+refuses a prompt that does not fit, rather than truncating it. Set `context_window` to the same
+value and BambooAI warns before sending a prompt that cannot fit, with the options for fixing it.
+
+**Reasoning.** With `--reasoning-parser`, the agent's `reasoning_effort` is passed to the model;
+list the levels it supports in `reasoning_efforts`. `reasoning_effort: none` turns thinking off.
+
+**Costs.** Set `prompt_tokens` and `completion_tokens` to `0.0`; the server does not bill.
+
+#### Connecting to vLLM
+
+Set the server's address in your `.env` file:
+
+```dotenv
+REMOTE_VLLM=http://<server-address>:8000/v1
+```
+
+If the server was started with `--api-key`, add `VLLM_API_KEY` with the same value. With every agent
+on Ollama or vLLM and no Gemini key, no request leaves your network.
 
 The app builds `config/<user>/LLM_CONFIG.json` from the template for the chosen preset, and rebuilds
 it when the template file is newer than the built one.

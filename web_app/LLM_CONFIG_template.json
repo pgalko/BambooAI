@@ -97,6 +97,7 @@
     "qwen3:30b": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0, "context_window": 65536},
     "deepseek-v4.1-flash:cloud": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0},
     "glm-5.3:cloud": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0},
-    "qwen3.8:27b-mlx": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0, "context_window": 65536}
+    "qwen3.8:27b-mlx": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0, "context_window": 65536},
+    "qwen3.8-27b": {"capability": "reasoning", "multimodal": "false", "templ_formating": "text", "prompt_tokens": 0.0, "completion_tokens": 0.0, "context_window": 65536, "reasoning_efforts": ["low", "medium", "high"]}
   }
 }

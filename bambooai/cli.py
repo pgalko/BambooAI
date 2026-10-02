@@ -79,7 +79,9 @@ OPENROUTER_API_KEY=
 # how long a model stays loaded between turns (default 30m) and how long a started stream may be silent (default 300 s)
 # OLLAMA_KEEP_ALIVE=30m
 # OLLAMA_IDLE_TIMEOUT=300
+# vLLM, an OpenAI-compatible server you run (agents with "provider": "vllm"); the key only if the server was started with --api-key
 # REMOTE_VLLM=http://localhost:8000/v1
+# VLLM_API_KEY=
 
 # --- integrations (each needs your own registration with the provider) -------------
 # SWEATSTACK_CLIENT_ID=
