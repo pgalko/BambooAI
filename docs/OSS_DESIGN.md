@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v1.1, 2026-09-16 (v0.1-v0.7 on 2026-09-14; v0.8-v1.0 on 2026-09-15). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v1.2, 2026-10-03 (v0.1-v0.7 on 2026-09-14; v0.8-v1.0 on 2026-09-15; v1.1 on 2026-09-16). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -84,12 +84,12 @@ statement by statement against the code.
   stands, scanned for secrets, without the schema. The private `main` is reset to the same snapshot
   with the old history kept on `history-pre-oss` (private only). From that commit on, both remotes
   carry identical commits. *Reason:* pushing the private history publishes every past commit.
-- **D17. Delivery is a git patch series, applied once, on the box.** `git am --keep-cr` (five files
-  are CRLF; without the flag a patch touching them does not apply), the battery,
-  restart, commit, push to the private remote. The Mac clone pulls from the private remote and pushes
-  to the public one; it never applies the series a second time. Template edits on the box are commits
-  by the maintainer, not local drift. The deploy-package engine (md5s, anchors, transforms) retires
-  once the repository is the source of truth.
+- **D17. Delivery is a git patch series, applied once, on the box.** `git am --keep-cr` (27 tracked
+  text files are CRLF, every `bambooai/models/*.py` among them; without the flag a patch touching
+  them does not apply), the battery, restart, commit, push to the private remote. The Mac clone
+  pulls from the private remote and pushes to the public one; it never applies the series a second
+  time. Template edits on the box are commits by the maintainer, not local drift. The deploy-package
+  engine (md5s, anchors, transforms) retires once the repository is the source of truth.
 - **D18. The first push over v1.** Tag and branch the old `main` (`v1-final`, `v1`) so v1 stays
   reachable; publish v2 as **2.0.0** on PyPI under the same name. The README (ruled 2026-09-16) is
   written for 2.0 - logo, a screenshot, plain text - with a short note at the bottom that 1.x was a
@@ -117,9 +117,11 @@ statement by statement against the code.
 ## 6. Testing
 
 - **D22. Both editions in every run.** The battery and the stack's end-to-end suite run in local
-  mode (the open-source default) and in api mode with the fake orchestrator; CI on GitHub Actions
-  runs both (Playwright runs there routinely). The stack is the rehearsal rig for both editions and
-  ships with the repository.
+  mode (the open-source default) and in api mode with the fake orchestrator. CI on GitHub Actions
+  (`.github/workflows/ci.yml`) runs the battery and the executor image build, nothing else (ruled
+  2026-09-16, after three runs failed on differences between a fresh runner and the machines the
+  suites were written on); the browser suites and the package test run locally before every push.
+  The stack is the rehearsal rig for both editions and ships with the repository.
 
 ## 7. Working method
 
@@ -167,6 +169,21 @@ statement by statement against the code.
   about paying go.
 - **D29. The local identity is `BAMBOO_USER=local` in `.env`** — a constant the user may change —
   used for `storage/<id>`, `memory/<id>` and `config/<id>` (settled 2026-09-14; was O8).
+
+## 8b. Settled since (2026-09-16 to 2026-10-03)
+
+- **D31. The Ollama adapter stays on the daemon's native API** (`/api/chat` through the `ollama`
+  client), not on the OpenAI-compatible endpoint (ruled 2026-10-01, checked against docs.ollama.com).
+  *Reason:* only the native API takes `options.num_ctx` per request, and the context length has to be
+  set per request: a local model's default context depends on the machine's VRAM and can be 4k, the
+  daemon truncates a longer prompt silently, and the analyst's prompt is 10-30k tokens with the
+  contract at its start.
+- **D32. Gateway providers are declined for now.** PR #61 (the LiteLLM SDK as a provider) and PR #62
+  (a Requesty adapter) were assessed and set aside (recorded in the handover of 2026-10-03): the
+  first is a heavy dependency duplicating what the adapters already do, the second good work but a
+  copy of the OpenRouter adapter that would drift from it. *Reason:* a lean code base. If gateways
+  are wanted, the unit is one generic OpenAI-compatible provider with a table of gateways, not one
+  adapter per gateway.
 
 ## 9. Scope, phase by phase
 
@@ -247,15 +264,24 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
 - GitHub Actions: the battery and the stack's e2e in both modes on every push; the PyPI build on a
   tag. The README rewritten for 2.0 with the v1 note first.
 - **Done when:** the public repo is green, `pip install bambooai==2.0.0` works, v1 is reachable.
-- **Status 2026-09-16: built.** `.github/workflows/ci.yml` runs the battery, the story in all three
-  compute modes, the persistence and package e2e and the start-up flows on every push, and builds the
-  executor image in a second job; `release.yml` publishes to PyPI on a `v*` tag through a trusted
-  publisher (to be registered on pypi.org: owner `pgalko`, repository `BambooAI`, workflow
-  `release.yml`, environment `pypi`). `LICENSE` (MIT) is in the tree; the README is the 2.0 one with a
-  screenshot from the gallery. The public push procedure (the Mac, `public` remote): `git fetch public`,
-  `git tag v1-final public/main`, `git branch v1 public/main`, `git push public v1-final v1`, remove any
-  protection on the public `main`, `git push public main --force`, then `git tag v2.0.0 && git push
-  public v2.0.0` when the release is wanted.
+- **Status 2026-09-16: built.** `.github/workflows/ci.yml` runs the battery and, in a second job,
+  builds the executor image, on every push and pull request - nothing else: the first version also
+  ran the story in all three compute modes, the persistence and package e2e and the start-up flows,
+  and three runs each failed on a difference between a fresh runner and the machines the suites were
+  written on (the stubs, the page's libraries, a Python without setuptools), so the browser suites
+  and the package test run locally before every push (D22). `release.yml` publishes to PyPI on a `v*`
+  tag through a trusted publisher (to be registered on pypi.org: owner `pgalko`, repository
+  `BambooAI`, workflow `release.yml`, environment `pypi`). `LICENSE` (MIT) is in the tree; the README
+  is the 2.0 one with a screenshot from the gallery. The public push procedure (the Mac, `public`
+  remote): `git fetch public`, `git tag v1-final public/main`, `git branch v1 public/main`, `git push
+  public v1-final v1`, remove any protection on the public `main`, `git push public main --force`,
+  then `git tag v2.0.0 && git push public v2.0.0` when the release is wanted.
+- **Status 2026-10-03: released.** The public repository carries 2.0 since 2026-09-16, with 1.x
+  reachable as the `v1` branch and the `v1-final` tag; the trusted publisher is registered and PyPI
+  has 2.0.0 (2026-09-17), 2.0.1 (the Ollama work) and 2.0.2 (2026-10-02, the vLLM adapter). Both jobs
+  of `release.yml` run only when the repository is the public one (2026-10-01): the private remote
+  receives every tag too, and its publish step used to fail against the publisher registered for
+  `pgalko/BambooAI`. A release is a version bump in `pyproject.toml` within the series, then the tag.
 
 ### Phase 6 — team mode (O5)
 - A users table, a login page, per-user kernels (subprocess or Docker), one process.
