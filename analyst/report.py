@@ -14,6 +14,7 @@ import re
 from typing import Iterable, List, Set
 
 CELL_REF_RE = re.compile(r"\[cell\s+(\d+)\]", re.I)
+UNIT_REF_RE = re.compile(r"\[(D\d+\.\d+)\]")                 # a document passage, [D1.17] (docs/DOCUMENTS_DESIGN.md D45)
 FIG_REF_RE = re.compile(r"\[fig\s+(\d+)\]", re.I)
 _NUM_RE = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?:[eE][-+]?\d+)?(?![\w.])")
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
@@ -21,6 +22,25 @@ _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
 
 def cited_cells(text: str) -> List[int]:
     return sorted({int(m.group(1)) for m in CELL_REF_RE.finditer(text or "")})
+
+
+def cited_units(text: str) -> List[str]:
+    """Document passages the report cites, as [D1.17], in order of first appearance."""
+    seen, out = set(), []
+    for m in UNIT_REF_RE.finditer(text or ""):
+        if m.group(1) not in seen:
+            seen.add(m.group(1)); out.append(m.group(1))
+    return out
+
+
+def guard_units(missing: Iterable[str]) -> str:
+    """Cited passages that are not in the thread's documents, disclosed as the number check discloses."""
+    missing = list(missing)
+    if not missing:
+        return ""
+    shown = ", ".join(f"[{u}]" for u in missing[:8]) + (" ..." if len(missing) > 8 else "")
+    return (f"CHECK: {len(missing)} cited passage(s) {'are' if len(missing) != 1 else 'is'} not in this thread's documents: {shown}. "
+            f"A passage is evidence only when a READ returned it or a cell read it; treat these citations as unverified.")
 
 
 def referenced_figures(text: str) -> List[int]:

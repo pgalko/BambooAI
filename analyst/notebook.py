@@ -32,11 +32,11 @@ def new_id() -> str:
 
 @dataclass
 class Turn:
-    kind: str                       # cell | show | names | recall | search | ask | report | rewrite | review | error
+    kind: str                       # cell | show | names | recall | search | read | ask | report | rewrite | review | error
     note: str = ""                  # the note as rewritten this turn
     thinking: str = ""              # free text before the note, if any
     code: str = ""                  # CELL: the code that ran
-    stdout: str = ""                # CELL/SHOW/NAMES/RECALL/SEARCH: what came back
+    stdout: str = ""                # CELL/SHOW/NAMES/RECALL/SEARCH/READ: what came back
     error: str = ""                 # CELL: traceback, if the cell failed
     figures: List[dict] = field(default_factory=list)   # CELL: plot payloads returned by the kernel
     cell_no: Optional[int] = None   # CELL: its number along the path (only committed cells get one)
@@ -276,6 +276,18 @@ class Notebook:
         run = path[k - 1]
         return (f"--- run {k} ---\nQUESTION: {run.question.strip()}\nFINAL NOTE:\n{run.note.strip() or '(none)'}\n"
                 f"REPORT:\n{(run.report or '(no report)').strip()}")
+
+    def reads(self, run_id: str) -> List[Turn]:
+        """Every document read on the path, in order (SHOW READ k opens one) - numbered along the path like searches."""
+        return [t for r in self.path(run_id) for t in r.turns if t.kind == "read"]
+
+    def render_read(self, run_id: str, k: int) -> str:
+        """SHOW READ k: a read digest whole."""
+        reads = self.reads(run_id)
+        if not 1 <= k <= len(reads):
+            return f"(no read {k}; {len(reads)} so far)"
+        t = reads[k - 1]
+        return f"--- read {k}: {(t.text or '').strip()} ---\n{(t.stdout or '').strip()}"
 
     def render_search(self, run_id: str, k: int) -> str:
         """SHOW SEARCH k: a search digest whole."""

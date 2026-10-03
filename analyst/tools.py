@@ -45,6 +45,24 @@ def rebind_aliases(kernel) -> None:
         pass
 
 
+def run_prelude(kernel, source: str) -> None:
+    """Source the host wants in the kernel - the document objects - run as a committed step of the kernel's
+    own history (so the kernel recovers it itself after a rollback and lists its names at once; an uncommitted
+    step is invisible to the registry until the next commit). It is not a cell of the session's record and the
+    session never replays it: the host prefixes it to the replay script."""
+    if not source or kernel is None:
+        return
+    try:
+        out = kernel.execute(source)
+        err = out[1] if isinstance(out, tuple) and len(out) > 1 else None
+        if err:
+            logger.warning("kernel prelude raised: %s", str(err).strip().splitlines()[-1][:200])
+    except Exception as exc:                            # noqa: BLE001
+        logger.warning("kernel prelude failed: %s", exc)
+
+
+
+
 def names(kernel, limit: int = 200) -> str:
     """The kernel's user-defined names and their types - no previews."""
     try:
@@ -97,6 +115,18 @@ def search(search_fn: Optional[Callable[[str], str]], query: str) -> str:
     except Exception as exc:                          # noqa: BLE001
         logger.warning("search failed: %s", exc)
         return f"(search failed: {exc})"
+
+
+def read(read_fn: Optional[Callable[[str], str]], arg: str) -> str:
+    """A document read through the host's seam (a callable taking 'D2 what you are looking for' or
+    'ALL ...' and returning the digest), or a note that no documents can be read here."""
+    if read_fn is None:
+        return "(documents are not available in this workspace)"
+    try:
+        return read_fn(arg) or "(the read returned nothing)"
+    except Exception as exc:                          # noqa: BLE001
+        logger.warning("read failed: %s", exc)
+        return f"(read failed: {exc})"
 
 
 def ask_user(emit: Optional[Callable[[dict], None]], question: str) -> None:

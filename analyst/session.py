@@ -30,11 +30,18 @@ logger = logging.getLogger(__name__)
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 CONTRACT = open(os.path.join(_HERE, "contract.md"), encoding="utf-8").read()
+# the documents' part of the contract rides only when the thread has documents
+CONTRACT_DOCUMENTS = open(os.path.join(_HERE, "contract_documents.md"), encoding="utf-8").read()
 
 REVIEW_LINE = ("SELF-REVIEW TURN: re-read your note against the original question. Say what is "
                "established, what would change the answer, and whether to continue, redirect or REPORT.")
 LAST_TURNS_LINE = "The budget is nearly gone: write REPORT with what you have, and say what was not established."
-SEARCH_VIEW_CHARS = 4000     # the prompt shows this much of a search digest; the record keeps all (SHOW SEARCH k)
+SHOW_VIEW_CHARS = 40_000     # a SHOW of several cells at once rides whole up to this; beyond it the middle goes, as for a digest
+                             # (2026-10-03: an 87,000-character view of several cells was sent whole to a 64k-token server)
+SHOWN_RUNS_WHOLE = 3         # the runs SHOW RUN re-opened stay in the prompt for the rest of the run: the most recent three whole,
+                             # the rest as a line each (2026-10-03: a synthesis re-opened run 1 eleven times, each SHOW living one turn)
+DIGEST_VIEW_CHARS = 12_000   # a search or read digest rides into the next prompt whole, like the newest cell's output; a longer one
+                             # is cut from the middle at line ends so its top and its SUMMARY both survive. The record keeps all.
 
 IDEAS_SYSTEM = ("You propose the next questions for a data analysis thread. You know the dataset and the chains so far from the "
                 "message. You do not run code and you do not analyse; you write five follow-up questions at the variation level asked, "
@@ -54,6 +61,7 @@ REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader wh
 _ACTION_RE = re.compile(r"###ACTION###\s*\n(.*)\Z", re.S)
 _NOTE_RE = re.compile(r"###NOTE###\s*\n(.*?)\n###ACTION###", re.S)
 _CODE_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.S)
+_ACTION_LINE_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPORT)\b", re.I)
 
 
 def _estimate_line(note: str) -> str:
@@ -72,6 +80,7 @@ class Budget:
     review_every: int = 0       # 0 = no self-review turns; long budgets use 8
     max_failures: int = 5       # consecutive failed cells before the session forces the report
     searches: int = 4           # web searches per run; beyond it SEARCH answers with what is already on hand
+    reads: int = 3              # document reads per run, the same way (docs/DOCUMENTS_DESIGN.md)
 
     @staticmethod
     def preset(name: str) -> "Budget":
@@ -82,8 +91,25 @@ class Budget:
 
 @dataclass
 class Action:
-    verb: str          # cell | show | names | recall | search | ask | report | invalid
+    verb: str          # cell | show | names | recall | search | read | ask | report | invalid
     arg: str = ""      # code, cell number, query, question or the report text
+    more: tuple = ()   # the further actions a reply carried after this one, which did not run (2026-10-03)
+
+
+def view_digest(text: str, how_to_see_all: str, cap: int = DIGEST_VIEW_CHARS) -> str:
+    """A digest as the next prompt shows it: whole, unless it is longer than the safety cap, in which case
+    the middle goes - at line ends, keeping the first part (the top claims or passages) and the last (the
+    SUMMARY) - with a marker that says how much and how to see it all."""
+    text = text or ""
+    if len(text) <= cap:
+        return text
+    head_budget, tail_budget = int(cap * 0.6), int(cap * 0.35)
+    head = text[:head_budget]
+    head = head[:head.rfind("\n")] if "\n" in head else head
+    tail = text[-tail_budget:]
+    tail = tail[tail.find("\n") + 1:] if "\n" in tail else tail
+    omitted = len(text) - len(head) - len(tail)
+    return head.rstrip() + f"\n... [{omitted} characters omitted from the middle for length; {how_to_see_all}] ...\n" + tail.lstrip()
 
 
 def parse_turn(text: str) -> tuple[str, str, Action]:
@@ -100,21 +126,45 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     if not m_act:
         return thinking, note, Action("invalid", "no ###ACTION### block")
     body = m_act.group(1).strip()
+    # a reply may carry several actions; one runs. Pure reads before a REPORT are skipped and the REPORT taken - the
+    # report was written without their results, so it is what the model meant to hand in (2026-10-03: a model that
+    # bundled a read and a REPORT five times lost its report every time and never learned why). Any other first
+    # action runs, and the next prompt says what did not.
+    verbs = [ln.split()[0].lower() for ln in _CODE_RE.sub("", body).splitlines() if _ACTION_LINE_RE.match(ln)]
+    more: tuple = ()
+    if len(verbs) > 1:
+        if "report" in verbs[1:] and all(v in ("show", "names", "recall") for v in verbs[:verbs.index("report")]):
+            i = re.search(r"(?m)^\s*REPORT\b", body).start()
+            more = tuple(verbs[:verbs.index("report")])
+            body = body[i:].strip()
+        else:
+            more = tuple(verbs[1:])
     head, _, rest = body.partition("\n")
     verb = head.strip().split()[0].lower() if head.strip() else ""
     arg = head.strip()[len(verb):].strip()
     if verb == "cell":
         m = _CODE_RE.search(body)
-        return thinking, note, Action("cell", m.group(1).rstrip() if m else "") if m else Action("invalid", "CELL without a python block")
+        return thinking, note, Action("cell", m.group(1).rstrip(), more=more) if m else Action("invalid", "CELL without a python block", more=more)
     if verb == "show":
-        return thinking, note, Action("show", arg or rest.strip().split()[0] if rest.strip() else arg)
+        return thinking, note, Action("show", arg or rest.strip().split()[0] if rest.strip() else arg, more=more)
     if verb in ("names",):
-        return thinking, note, Action("names")
-    if verb in ("recall", "search", "ask"):
-        return thinking, note, Action(verb, (arg + "\n" + rest).strip() if rest.strip() else arg)
+        return thinking, note, Action("names", more=more)
+    if verb in ("recall", "search", "read"):
+        # a query is its one line: whatever the model writes after the action line - more thinking, a second action,
+        # a stray marker - is not the query (2026-10-03: forty-three lines of chatter had reached the Reader as the question)
+        return thinking, note, Action(verb, arg, more=more)
+    if verb == "ask":
+        # a question may run on for a few lines, until a marker, another action, or a blank line
+        kept_lines = []
+        for ln in rest.splitlines():
+            if _ACTION_LINE_RE.match(ln) or ln.strip().startswith("###") or not ln.strip():
+                break
+            kept_lines.append(ln)
+        tail = "\n".join(kept_lines).strip()
+        return thinking, note, Action(verb, (arg + "\n" + tail).strip() if tail else arg, more=more)
     if verb == "report":
-        return thinking, note, Action("report", rest.strip())
-    return thinking, note, Action("invalid", f"unknown action {head.strip()[:40]!r}")
+        return thinking, note, Action("report", rest.strip(), more=more)
+    return thinking, note, Action("invalid", f"unknown action {head.strip()[:40]!r}", more=more)
 
 
 class Session:
@@ -122,7 +172,8 @@ class Session:
                  emit: Optional[Callable[[dict], None]] = None, recall: Optional[Callable] = None,
                  search: Optional[Callable] = None, data_description: str = "",
                  kernel_factory: Optional[Callable[[], object]] = None,
-                 replay_runner: Optional[Callable] = None):
+                 replay_runner: Optional[Callable] = None, read: Optional[Callable] = None,
+                 unit_text: Optional[Callable[[str], Optional[str]]] = None, kernel_prelude: str = "", documents: bool = False):
         self.kernel = kernel
         self.nb = notebook
         self.llm = llm            # llm(system, user, **hints) -> (text, usage); hints: review=True on a self-review turn, rewrite=True on the plain-language rewrite
@@ -133,12 +184,41 @@ class Session:
         self.data_description = data_description or "(no dataset attached)"
         self.kernel_factory = kernel_factory
         self.replay_runner = replay_runner      # (run, script) -> (stdout, error); the host may also collect figures
+        self.read = read                        # read(arg) -> digest text over the thread's documents, or None when the host has none
+        self.unit_text = unit_text              # unit_text("D1.17") -> the unit's text, for the report guard; None when unknown
+        self.kernel_prelude = kernel_prelude    # source the host wants in the kernel (the document objects): run committed at the
+                                                # start of a run and again after a rollback, never a cell of the record
+        self.documents = documents
+        self.system = CONTRACT + ("\n" + CONTRACT_DOCUMENTS if documents else "")   # the documents' part only when there are documents
 
     # ----- the prompt --------------------------------------------------------
     @staticmethod
     def is_review(budget: Budget, turn_no: int) -> bool:
         """A self-review turn: never the first; every review_every turns after it (turns 9, 17, 25... for 8)."""
         return bool(budget.review_every) and turn_no > 1 and (turn_no - 1) % budget.review_every == 0
+
+    def _shown_runs(self, run: Run) -> str:
+        """The earlier chains SHOW RUN re-opened in this run, standing in the prompt for the rest of it (2026-10-03: a
+        SHOW lived one turn, and a synthesis that needed three chains in view re-opened them twenty-seven times). The
+        most recent SHOWN_RUNS_WHOLE whole, in the order they were shown, the rest as a line each."""
+        order: List[int] = []                                      # run numbers in order of their latest showing
+        texts: dict = {}
+        for i, x in enumerate(run.turns, 1):
+            if x.kind == "show" and x.text and (x.stdout or "").startswith("--- run "):
+                for m in re.finditer(r"(?ms)^--- run (\d+) ---\n.*?(?=^--- run \d+ ---|\Z)", x.stdout):
+                    k = int(m.group(1))
+                    if k in order:
+                        order.remove(k)
+                    order.append(k); texts[k] = (m.group(0).strip(), i)
+        if not order:
+            return ""
+        whole, older = order[-SHOWN_RUNS_WHOLE:], order[:-SHOWN_RUNS_WHOLE]
+        parts = ["RUNS SHOWN THIS RUN (they stay here; SHOW RUN k re-opens an older one):"]
+        for k in older:
+            parts.append(f"(run {k} was shown at turn {texts[k][1]}; SHOW RUN {k} brings it back whole)")
+        for k in whole:
+            parts.append(view_digest(texts[k][0], "the notebook keeps it whole", cap=SHOW_VIEW_CHARS))
+        return "\n".join(parts)
 
     def _user_prompt(self, run: Run, budget: Budget, turn_no: int, spent: float, extra: str = "", review: bool = False,
                      everything: bool = False) -> str:
@@ -151,10 +231,18 @@ class Session:
         anc = self.nb.render_ancestry(run.id)
         if anc:
             parts.append(anc)
+            shown = self._shown_runs(run)
+            if shown:
+                parts.append(shown)
         parts.append(f"DATA:\n{self.data_description}")
         parts.append(f"QUESTION:\n{run.question.strip()}")
         parts.append(f"YOUR NOTE (as you last wrote it):\n{run.note or '(none yet - write it this turn)'}")
         parts.append("CELLS SO FAR:\n" + self.nb.render_cells(run.id, everything=everything))
+        # the passages this run's reads returned stay in view for the rest of the run - the lines with their ids, as a
+        # cell's output stays as a line: the evidence the report may quote, whenever it is written
+        passages = [ln for x in run.turns if x.kind == "read" for ln in (x.stdout or "").splitlines() if ln.startswith("- [")]
+        if passages:
+            parts.append("PASSAGES THIS RUN'S READS RETURNED (verbatim, each with its id - cite one as [D1.17]):\n" + "\n".join(passages))
         if extra:
             parts.append(extra)
         task = f"TASK: turn {turn_no} of {budget.turns} ({left} left); spent ${spent:.2f} of ${budget.dollars:.2f}."
@@ -229,17 +317,21 @@ class Session:
         run = self.nb.new_run(question, parent, run_id=run_id)
         self._save()
         spent, extra, failures = 0.0, "", 0
+        tools.run_prelude(self.kernel, self.kernel_prelude)        # the document objects, when the thread has documents
         for turn_no in range(1, budget.turns + 1):
             review = self.is_review(budget, turn_no)
             self.emit({"type": "turn_start", "run": run.id, "turn": turn_no, "of": budget.turns, "review": review})
             t0 = time.time()
-            text, usage = self.llm(CONTRACT, self._user_prompt(run, budget, turn_no, spent, extra, review=review), review=review)
+            text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, extra, review=review), review=review)
             usage = dict(usage or {})
             usage["elapsed"] = round(time.time() - t0, 1)
             spent += float(usage.get("cost", 0.0) or 0.0)
             thinking, note, action = parse_turn(text)
             note = note or run.note
             extra = ""
+            held = ((f"(Your reply held {len(action.more) + 1} actions - {action.verb.upper()} then "
+                     f"{', '.join(v.upper() for v in action.more)}; only the {action.verb.upper()} ran. One action per turn.)")
+                    if action.more and action.verb != "report" else "")
             turn = Turn(kind=action.verb, note=note, thinking=thinking, usage=usage)
             self.emit({"type": "turn_end", "run": run.id, "turn": turn_no, "kind": action.verb,
                        "thinking": thinking, "note": note, "code": action.arg if action.verb == "cell" else "",
@@ -259,6 +351,7 @@ class Session:
                 else:
                     failures += 1
                     tools.rebind_aliases(self.kernel)          # a rollback on an older kernel loses pd/np/plt
+                    tools.run_prelude(self.kernel, self.kernel_prelude)      # ... and the document objects
                     extra = ("YOUR LAST CELL FAILED - it was rolled back, nothing it defined persists:\n"
                              f"```python\n{action.arg.rstrip()}\n```\nERROR:\n{tools.condense_error(err, code=action.arg)}")
                     if failures >= 2:
@@ -276,7 +369,7 @@ class Session:
                         halt = (f"STOP: {failures} cells in a row have failed and the analysis could not get past this error. "
                                 "Write REPORT now with what stands: what was established before the failures, what the failing "
                                 "step was meant to add, and what remains unestablished.")
-                        text, usage = self.llm(CONTRACT, self._user_prompt(run, budget, turn_no, spent, halt + "\n\n" + extra, everything=True))
+                        text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, halt + "\n\n" + extra, everything=True))
                         spent += float((usage or {}).get("cost", 0.0) or 0.0)
                         _, note, action = parse_turn(text)
                         body = action.arg if action.verb == "report" else (text or "")
@@ -289,12 +382,21 @@ class Session:
                         return run
             elif action.verb == "show":
                 arg = str(action.arg).strip()
-                m_run = re.match(r"(?i)^run\s+(\d+)$", arg)
-                m_srch = re.match(r"(?i)^search\s+(\d+)$", arg)
+                m_run = re.match(r"(?i)^run((?:\s+\d+)+)$", arg)
+                m_srch = re.match(r"(?i)^search((?:\s+\d+)+)$", arg)
+                m_read = re.match(r"(?i)^read((?:\s+\d+)+)$", arg)
+                nums = lambda m: [int(x) for x in m.group(1).split()]
                 if m_run:
-                    turn.stdout = self.nb.render_run(run.id, int(m_run.group(1)))
+                    ks = nums(m_run)
+                    turn.stdout = "\n\n".join(self.nb.render_run(run.id, k) for k in ks)
+                    turn.text = " ".join(str(k) for k in ks)        # the runs this SHOW opened, for the prompt's standing block
                 elif m_srch:
-                    turn.stdout = self.nb.render_search(run.id, int(m_srch.group(1)))
+                    turn.stdout = "\n\n".join(self.nb.render_search(run.id, k) for k in nums(m_srch))
+                elif m_read:
+                    turn.stdout = "\n\n".join(self.nb.render_read(run.id, k) for k in nums(m_read))
+                elif re.match(r"(?i)^[a-z]", arg):
+                    # a word the forms above do not know (2026-10-03: "SHOW SEARCH 1 2 3 4" had been read as cells 1-4): say so
+                    turn.stdout = f"(SHOW did not understand '{arg}'. SHOW takes cell numbers, or RUN k, SEARCH k, READ k - several numbers allowed.)"
                 else:
                     # several cells at once (2026-09-10): SHOW 8 9 - a report needs its numbers in view in one turn
                     views = []
@@ -304,9 +406,10 @@ class Session:
                         except ValueError:
                             cell = None
                         views.append(f"--- cell {cell.cell_no} (re-opened) ---\n```python\n{cell.code}\n```\nOUTPUT:\n{cell.stdout}"
-                                     if cell else f"(no cell {num}; SHOW takes cell numbers, RUN k or SEARCH k)")
+                                     if cell else f"(no cell {num}; SHOW takes cell numbers, RUN k, SEARCH k or READ k)")
                     turn.stdout = "\n\n".join(views)
-                extra = "SHOWN:\n" + turn.stdout
+                extra = (f"SHOWN: run {turn.text} - whole, under RUNS SHOWN THIS RUN above" if m_run and turn.text
+                         else "SHOWN:\n" + view_digest(turn.stdout, "the notebook keeps it whole", cap=SHOW_VIEW_CHARS))
             elif action.verb == "names":
                 turn.stdout = tools.names(self.kernel)
                 extra = "NAMES IN THE KERNEL:\n" + turn.stdout
@@ -321,13 +424,27 @@ class Session:
                                    f"searches returned - SHOW SEARCH k re-opens any of them whole - or state plainly what was not found.)")
                     extra = f"SEARCH ({action.arg}):\n" + turn.stdout
                 else:
+                    self.emit({"type": "lookup_start", "run": run.id, "kind": "search", "query": action.arg})
                     turn.stdout = tools.search(self.search, action.arg)
-                    shown = turn.stdout
                     k = len(self.nb.searches(run.id)) + 1          # this search's number once recorded
-                    if len(shown) > SEARCH_VIEW_CHARS:
-                        shown = shown[:SEARCH_VIEW_CHARS].rstrip() + f"\n... [{len(turn.stdout) - SEARCH_VIEW_CHARS} more characters; SHOW SEARCH {k} for all]"
+                    shown = view_digest(turn.stdout, f"SHOW SEARCH {k} for all")
                     left = budget.searches - done - 1 if budget.searches else None
                     extra = f"SEARCH ({action.arg}):\n" + shown + (f"\n(searches left in this run: {left})" if left is not None else "")
+            elif action.verb == "read":
+                turn.text = action.arg                          # scope and query, so SHOW READ k can name it
+                done = sum(1 for t in run.turns if t.kind == "read" and t.stdout and not t.stdout.startswith("(read budget"))
+                if budget.reads and done >= budget.reads:
+                    turn.stdout = (f"(read budget for this run used: {done} of {budget.reads}. Work with what the earlier reads "
+                                   f"returned - SHOW READ k re-opens any of them whole - read the document in a cell "
+                                   f"(D1.grep, D1.page, D1.units), or state plainly what was not found.)")
+                    extra = f"READ ({action.arg}):\n" + turn.stdout
+                else:
+                    self.emit({"type": "lookup_start", "run": run.id, "kind": "read", "query": action.arg})
+                    turn.stdout = tools.read(self.read, action.arg)
+                    k = len(self.nb.reads(run.id)) + 1              # this read's number once recorded
+                    shown = view_digest(turn.stdout, f"SHOW READ {k} for all")
+                    left = budget.reads - done - 1 if budget.reads else None
+                    extra = f"READ ({action.arg}):\n" + shown + (f"\n(reads left in this run: {left})" if left is not None else "")
             elif action.verb == "ask":
                 turn.text = action.arg
                 run.turns.append(turn)
@@ -353,6 +470,8 @@ class Session:
                     turn.stdout = f"Your last reply had no valid action ({action.arg}). Reply in the exact turn format."
                 extra = turn.stdout
 
+            if held:
+                extra = held + ("\n\n" + extra if extra else "")
             run.turns.append(turn)
             self._emit_turn(run, turn)
             self.emit({"type": "heartbeat", "run": run.id, "turn": turn_no, "of": budget.turns, "spent": spent,
@@ -360,7 +479,7 @@ class Session:
             self._save()
 
         # budget exhausted without a report: ask for it once
-        text, usage = self.llm(CONTRACT, self._user_prompt(run, budget, budget.turns, spent, LAST_TURNS_LINE + "\nWrite REPORT now.", everything=True))
+        text, usage = self.llm(self.system, self._user_prompt(run, budget, budget.turns, spent, LAST_TURNS_LINE + "\nWrite REPORT now.", everything=True))
         spent += float((usage or {}).get("cost", 0.0) or 0.0)
         _, note, action = parse_turn(text)
         body = action.arg if action.verb == "report" else (text or "")
@@ -378,12 +497,19 @@ class Session:
         report_text = rep.repair_markdown_tables(report_text)
         # a number is verified if a cell printed it - or if it is a constant of the analysis
         # itself (a filter bound, a bin edge) that appears in a cell's code
-        check = rep.guard_technical(report_text, [c.stdout for c in cells] + [c.code for c in cells])
-        run.report = report_text + (f"\n\n> {check}" if check else "")
+        # a number is also verified if a cited document passage carries it
+        cited = rep.cited_units(report_text)
+        unit_texts, missing = [], []
+        for uid in cited:
+            text_u = self.unit_text(uid) if self.unit_text else None
+            (unit_texts if text_u is not None else missing).append(text_u if text_u is not None else uid)
+        check = rep.guard_technical(report_text, [c.stdout for c in cells] + [c.code for c in cells] + unit_texts)
+        check_u = rep.guard_units(missing)
+        run.report = report_text + (f"\n\n> {check}" if check else "") + (f"\n\n> {check_u}" if check_u else "")
         # the plain-language rewrite by the same analyst
         self.emit({"type": "turn_start", "run": run.id, "turn": "rewrite", "of": budget.turns, "rewrite": True})
         t_rw = time.time()
-        text, usage = self.llm(CONTRACT, REWRITE_TASK + report_text, rewrite=True)   # the app runs it on the Rewriter seat when the config has one (2026-09-11)
+        text, usage = self.llm(self.system, REWRITE_TASK + report_text, rewrite=True)   # the app runs it on the Rewriter seat when the config has one (2026-09-11)
         self.emit({"type": "turn_end", "run": run.id, "turn": "rewrite", "kind": "rewrite", "thinking": "", "note": "", "code": "",
                    "elapsed": round(time.time() - t_rw, 1), "cost": (usage or {}).get("cost", 0.0)})
         rewrite = (text or "").strip()
@@ -418,6 +544,11 @@ class Session:
         ev = {"type": turn.kind, "run": run.id, "note": turn.note}
         if turn.kind == "cell":
             ev.update(code=turn.code, stdout=turn.stdout, error=turn.error, cell_no=turn.cell_no, figures=turn.figures)
+        elif turn.kind in ("read", "search"):
+            # the digest is the text; the query rides beside it (2026-10-03: the query had been sent as the text, so the
+            # pane's row showed the query twice)
+            ev["text"] = turn.stdout or ""
+            ev["query"] = turn.text or ""
         elif turn.text:
             ev["text"] = turn.text
         elif turn.stdout:

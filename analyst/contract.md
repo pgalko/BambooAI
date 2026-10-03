@@ -25,7 +25,7 @@ WHEN YOU ANSWER. Answer in the form the question needs: a definition is a paragr
 
 FIGURES. A report usually carries one to three figures - the reader wants to see the estimate and where it breaks down, not only read it; a question answered by a number, a table or a definition needs none, and the analysis comes before any figure. Draw them with Plotly and call fig.show() - the kernel has no display, so during the analysis this shows nothing, but the reproduction run captures every fig.show() and the reader sees those figures. A figure reaches the reader only if it is drawn in a cell you cite as [fig n].
 
-FORMAT OF A TURN. Exactly this, all of it as visible text:
+FORMAT OF A TURN. Exactly this, all of it as visible text, the first marker first - nothing before ###THINKING###:
 
 ###THINKING###
 (a few sentences for yourself: what the last output told you, what you will do now and why - think here, in the open, before the note)
@@ -37,7 +37,7 @@ CELL
 ```python
 ...one Python cell; print what the decision needs; keep printed output under ~3000 characters...
 ```
-SHOW <cell number>          (or SHOW RUN <k> for an earlier chain's question, note and report whole; SHOW SEARCH <k> for a search digest)
+SHOW <cell number>          (or SHOW RUN <k>, or several, for earlier chains' question, note and report whole - they stay in view; SHOW SEARCH <k> for a search digest)
 NAMES
 RECALL <what you are looking for>
 SEARCH <query>

@@ -21,6 +21,18 @@ QUESTIONS = [
 ]
 REVIEW_QUESTION = "Walk through ten small checks of the data, one per turn."     # crosses turn 9: Adaptive's first self-review
 
+# a document attached to the thread (docs/DOCUMENTS_DESIGN.md, phase A): the analyst reads it in a cell
+DOC_NAME = "field_notes.md"
+DOC_TEXT = """# Field notes - 2026 season
+
+## Weather
+The wet season came early: rainfall was 40% above the ten-year average in March, and the loam plots drained slowly.
+
+## Regimes
+Regime B plots were sown a week later than regime A on the same soils.
+"""
+DOC_QUESTION = "What do the field notes say about the wet season?"
+
 
 def make_dataset(path, seed=20260909):
     rng = np.random.default_rng(seed)
@@ -45,6 +57,7 @@ def make_dataset(path, seed=20260909):
 
 # ----------------------------------------------------------------- helpers
 def _turn(user):
+    """The turn about to be taken."""
     m = re.search(r"TASK: turn (\d+) of (\d+)", user)
     return (int(m.group(1)), int(m.group(2))) if m else (1, 15)
 
@@ -183,7 +196,19 @@ class Scenario:
             return "", ""
         if system.startswith("You are the analyst"):
             return self.analyst(user)
+        if system.startswith("You are the Reader"):
+            return "", self.reader(user)
         return "", "OK"
+
+    # ------------------------------------------------------------ the Reader seat
+    def reader(self, user):
+        """The Reader quotes, exactly, every candidate passage that mentions the wet season (the story's document
+        question); whole, as the passages are short. The platform verifies each quote against the unit."""
+        hits = [(uid, text) for uid, text in re.findall(r"^\[(D\d+\.\d+)\] \([^)]*\) (.+)$", user, re.M) if "wet season" in text.lower()]
+        if not hits:
+            return "NOTHING ANSWERS - the passages are about the trial's regimes and soils."
+        lines = [f'- [{uid}] "{text.strip()}"' for uid, text in hits]
+        return "\n".join(lines) + f"\nSUMMARY: The notes record an early wet season [{hits[0][0]}]."
 
     # ------------------------------------------------------------ analyst
     def analyst(self, user):
@@ -191,6 +216,9 @@ class Scenario:
         turn, of = _turn(user)
         forced = "STOP:" in user or "Write REPORT now" in user
         if q == QUESTIONS[0]:
+            # turn 1 inspects; turn 2 the search (a turn, as every exchange is without documents -, 2026-10-03);
+            # turn 3, with the digest in the prompt, the cell that fails; turn 4 the corrected cell; turn 5 the figure;
+            # turn 6 the report
             if forced or turn >= 6:
                 return self.report_b(user, q)
             return {1: self.t_inspect, 2: self.t_search, 3: self.t_fail, 4: self.t_adjusted, 5: self.t_figure}[turn](q)
@@ -198,6 +226,14 @@ class Scenario:
             if forced or turn >= 2:
                 return self.report_c(user, q)
             return self.t_cell_c(q)
+        if q == DOC_QUESTION:
+            # the documents path: a cell with the kernel's D1 object finds where the wet season is, a scoped READ reads
+            # that unit whole through the Reader, the report quotes the passage and cites it.
+            if forced or "READ (" in user:
+                return self.report_doc(user, q)
+            if "grep('wet season'" in user:                 # this chain's grep cell is in the record: read the unit it found
+                return self.t_doc_read(user, q)
+            return self.t_doc(user, q)
         if q == REVIEW_QUESTION:
             if forced or turn >= 10:
                 return _report("Ten checks done.", _note(q, plan="report"), "Ten small checks ran, one per turn [cell 1]; nothing else was computed.")
@@ -235,6 +271,36 @@ class Scenario:
                      "plot-level yield by regime within each soil type.",
                      _note(q, est="see cell 2: adjusted B-A with 95% bootstrap interval", held="soil type (stratified)",
                            doubts="rainfall", plan="figure; then report", names="df, plot_means, adj_diff, est, boots"), CELL_FIGURE)
+
+    # ------------------------------------------------------------ the document
+    def t_doc(self, user, q):
+        """The DATA block names the kernel's document objects; a cell greps the notes for the wet season the way a
+        real analyst would - print(D1.grep(...))."""
+        m = re.search(r"^(D\d+) - " + re.escape(DOC_NAME), user, re.M)
+        doc = m.group(1) if m else "D1"
+        return _action(f"The notes are {doc} in the kernel; the map lists a Weather section. One cell greps them for the "
+                       "wet season to find the passage's id, then a READ of that stretch.",
+                       _note(q, plan="grep for the passage; READ the stretch; report"),
+                       f"CELL\n```python\nprint({doc})\nprint({doc}.grep('wet season', context=0))\n```")
+
+    def t_doc_read(self, user, q):
+        """The cell printed the matching unit with its id; the READ of exactly that unit goes through the Reader."""
+        m = re.search(r"^\[(D\d+\.\d+)[^\]]*\] [^\n]*wet season", user, re.M | re.I)
+        uid = m.group(1) if m else "D1.3"
+        return _action(f"The passage is {uid}. READ it whole so the quote is the Reader's, verified against the document.",
+                       _note(q, plan=f"READ {uid}; then report", names="-"),
+                       f"READ {uid} what do the notes say about the wet season")
+
+    def report_doc(self, user, q):
+        # the READ digest in the prompt: take its passage line - the quote the platform verified - and cite the id
+        m = re.search(r"^- \[(D\d+\.\d+)\] \([^)]*\) \"(.+)\"\s*$", user, re.M)
+        if not m:
+            return _report("The passage was not found.", _note(q, plan="report"),
+                           "The field notes were looked at but no passage mentions the wet season.")
+        uid, passage = m.group(1), m.group(2)
+        return _report("The passage is quoted by the Reader; the report quotes it and cites the passage.", _note(q, plan="report"),
+                       f"The field notes record an early wet season: {passage} [{uid}]. "
+                       "That is the notes' account; whether the trial data agree would be a separate question over `df`.")
 
     # ------------------------------------------------------------- reports
     def report_b(self, user, q):

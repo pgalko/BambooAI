@@ -10,13 +10,14 @@ Modes are budget presets of the same session: quick / deep / adaptive.
 """
 import json
 import os
+import shutil
 import re
 import threading
 import time
 
 import pandas as pd
 
-from bambooai import log_manager, output_manager, web_output_manager, utils, executor_client, code_executor
+from bambooai import log_manager, output_manager, web_output_manager, utils, executor_client, code_executor, documents, reading
 from bambooai.messages.prompts import PromptManager
 from bambooai.models import ModelManager
 from bambooai import synthesis_infographic
@@ -236,6 +237,51 @@ class BambooAI:
         text = memory_lookup(self.memory_path, [query])
         return [text] if text else []
 
+    # ------------------------------------------------------------- the READ
+    def _reader_seat(self):
+        """The seat a READ's reader call runs on (docs/DOCUMENTS_DESIGN.md): 'Reader' when the config
+        carries one - a cheaper model for selection and faithful quotation - else the analyst seat."""
+        agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
+        return 'Reader' if 'Reader' in agents else self._seat()
+
+    def _read(self, arg):
+        """One READ over the thread's documents: the Reader seat called once over the candidates, every passage
+        verified verbatim. Runs on the platform; the kernel never calls a model. The passages are kept for the
+        pane's row."""
+        def call_reader(system, user):
+            if self.kill_signal or self._stop_event.is_set():
+                raise ExecutionInterrupted("stopped by the user")
+            messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+            return self.models.llm_call(self.log_and_call_manager, messages, agent=self._reader_seat(), chain_id=self.chain_id)
+
+        digest, passages = reading.read(self._documents_dir(), arg, call_reader)
+        self._last_read_query = arg
+        self._last_read_passages = passages
+        return digest
+
+    def _kernel_prelude(self):
+        """The source that defines D1, D2, ... in the kernel: run uncommitted by the session at the start of a
+        run and after a rollback, prefixed to the replay script here. Empty without documents or a kernel copy."""
+        if self.thread_id is None or not getattr(self, '_documents_in_kernel', True):
+            return ""
+        try:
+            return documents.kernel_api_source(self._documents_dir(), self._kernel_documents_root())
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("documents: the kernel objects could not be prepared: %s", exc)
+            return ""
+
+    def _unit_text(self, unit_id):
+        """A document passage's text by id, for the report guard; None when the thread has no such unit."""
+        m = re.match(r"^(D\d+)\.(\d+)$", unit_id or "")
+        if not m or self.thread_id is None:
+            return None
+        try:
+            units = documents.read_units(self._documents_dir(), m.group(1)).get("units", [])
+        except (OSError, ValueError, KeyError):
+            return None
+        u = next((x for x in units if x.get("id") == unit_id), None)
+        return reading.unit_text(u) if u else None
+
     # ---------------------------------------------------------- the replay
     def _run_replay(self, run, script):
         """Run the assembled script through the executor. Returns (stdout, error) to the
@@ -245,6 +291,10 @@ class BambooAI:
         path_cells = self.notebook.path_cells(run.id)
         took = sum(float(c.elapsed or 0.0) for c in path_cells)
         timeout = int(min(1800, max(300, 2 * took + 120)))
+        self._sync_documents("replay")              # a cited cell may have read a document file
+        prelude = self._kernel_prelude()            # ... or used D1.table(2): the objects ride ahead of the cells
+        if prelude:
+            script = prelude + "\n\n" + script
         new_df, results, error, plot_images, generated = self.executor.execute(
             self.output_manager, self.kill_signal, script, self.df, self.df_id, generated_datasets_path,
             persist_df=False, timeout=timeout)
@@ -261,6 +311,74 @@ class BambooAI:
 
     # -------------------------------------------------------- the data view
     def _data_description(self):
+        """The DATA block: the dataframe, the auxiliary files, then the thread's documents (their maps and
+        where their text is in the kernel - docs/DOCUMENTS_DESIGN.md); documents count even with no dataset."""
+        text = self._dataset_description()
+        block = self._documents_block()
+        return text + ("\n\n" + block if block else "")
+
+    # ------------------------------------------------------- the documents
+    def _documents_dir(self, thread_id=None):
+        """The thread's documents folder on this machine: storage/<user>/documents/<thread_id>/."""
+        return os.path.join(os.getcwd(), 'storage', self.user_id or '', 'documents', str(thread_id if thread_id is not None else self.thread_id))
+
+    def _kernel_documents_root(self):
+        """Where the kernel sees them, relative to its working directory - the same in both compute modes."""
+        return os.path.join('datasets', self.user_id or '', 'documents').replace(os.sep, '/')
+
+    def _documents_block(self):
+        if self.thread_id is None:
+            return ""
+        try:
+            return documents.prompt_block(self._documents_dir(), self._kernel_documents_root(),
+                                          in_kernel=getattr(self, '_documents_in_kernel', True))
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("documents: the prompt block could not be built: %s", exc)
+            return ""
+
+    def _sync_documents(self, why="chain start"):
+        """The kernel's documents folder mirrors the thread's: a copy on this machine for local compute,
+        the executor's file routes in api mode; by content, so a second call sends nothing. A thread without
+        documents clears what an earlier thread left. Never fatal: the chain runs without the files."""
+        if self.thread_id is None:
+            return
+        tdir = self._documents_dir()
+        try:
+            if self.execution_mode == 'api':
+                if self.api_client is None:
+                    logger.info("documents: no executor client yet, the kernel's copy is not synced (%s)", why)
+                    self._documents_in_kernel = False
+                    return
+                result = self.api_client.sync_documents(self.user_id or 'default', tdir)
+                if result is None:                            # an executor image from before documents: no route, no copy
+                    if getattr(self, '_documents_in_kernel', True):
+                        logger.warning("documents: the executor (build %s) has no documents route - the kernel has no copy of the "
+                                       "thread's documents; READ still works. Rebuild the executor image (bambooai serve builds it).",
+                                       self.api_client.executor_build() or "unknown")
+                    self._documents_in_kernel = False
+                    return
+                sent, removed = result
+            else:
+                sent, removed = documents.sync_local(tdir, self._kernel_documents_root())
+            self._documents_in_kernel = True
+            if sent or removed:
+                logger.info("documents: thread %s, %d file(s) sent to the kernel, %d removed (%s)", self.thread_id, sent, removed, why)
+        except Exception as exc:                              # noqa: BLE001
+            self._documents_in_kernel = False
+            logger.warning("documents: the kernel's copy could not be synced (%s): %s", why, exc)
+
+    def remove_document_from_kernel(self, doc_id):
+        """A document the person removed from the thread: drop the kernel's copy now; the next sync is the backstop."""
+        try:
+            if self.execution_mode == 'api':
+                if self.api_client is not None:
+                    self.api_client.remove_document(self.user_id or 'default', doc_id)
+            else:
+                shutil.rmtree(os.path.join(self._kernel_documents_root(), doc_id), ignore_errors=True)
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("documents: %s could not be removed from the kernel: %s", doc_id, exc)
+
+    def _dataset_description(self):
         if self.df is None and not self.df_id:
             return "(no dataset attached)"
         head = f"File: {self.df_name}\n" if getattr(self, "df_name", "") else ""
@@ -347,17 +465,29 @@ class BambooAI:
             out = (ev.get('stdout') or '').strip()
             peek = next((ln.strip() for ln in out.splitlines() if ln.strip()), '') if ok else ''
             from analyst.tools import exception_line
-            t = next((x for x in reversed(run.turns) if x.kind == "cell"), None)
+            t = next((x for x in reversed(run.turns) if x.kind == kind), None)
             self._pane('pane_cell', cell_no=ev.get('cell_no'), ok=ok, peek=peek[:160], elapsed=(t.elapsed if t else None),
                        chars=len(ev.get('stdout') or ''), figs=len(ev.get('figures') or []),
                        error_line=exception_line(ev.get('error') or '')[:220] if not ok else '')
             self._tab('plan', self._notebook_view(run))
-        elif kind in ("show", "names", "recall", "search"):
+        elif kind == "lookup_start":
+            # a READ or SEARCH is under way: the pane shows a pending row until the digest replaces it (2026-10-03,
+            # the Reader took a minute on a real paper and the page showed nothing meanwhile)
+            model = ''
+            if ev.get("kind") == "read":
+                try:
+                    model = self.models.get_model_name(self._reader_seat())
+                    model = model[0] if isinstance(model, (tuple, list)) else model
+                except Exception:                              # noqa: BLE001
+                    model = ''
+            self._pane('pane_lookup_start', kind=ev.get("kind"), query=ev.get("query") or '', model=model or '')
+        elif kind in ("show", "names", "recall", "search", "read"):
             text = ev.get('text') or ''
-            query = self._last_search_query if kind == "search" else ''
+            query = ev.get('query') or (self._last_search_query if kind == "search" else (getattr(self, '_last_read_query', '') if kind == "read" else ''))
             sources = list(getattr(self, '_last_search_sources', []) or [])[:8] if kind == "search" else []
-            peek = next((ln.strip() for ln in text.splitlines() if ln.strip()), '')[:160]
-            self._pane('pane_lookup', kind=kind, query=query, peek=peek, sources=sources)
+            passages = reading.parse_digest(text) if kind == "read" else []
+            peek = (reading.digest_peek(text) if kind == "read" else next((ln.strip() for ln in text.splitlines() if ln.strip()), ''))[:160]
+            self._pane('pane_lookup', kind=kind, query=query, peek=peek, sources=sources, passages=passages)
             self._tab('plan', self._notebook_view(run))
         elif kind == "error":
             self._pane('pane_lookup', kind='lost', query='', peek=(ev.get("text") or "malformed turn")[:160], sources=[])
@@ -386,6 +516,7 @@ class BambooAI:
         if self.notebook is None or self.notebook.thread_id != str(self.thread_id):
             self.notebook = self.store.load(self.thread_id)
             self._drop_kernel()
+        self._sync_documents()                       # the thread's documents into the kernel's folder
         parent = str(chain_id) if chain_id is not None and str(chain_id) in self.notebook.runs else None
         parent_for_ui = chain_id if parent is not None else None      # the browser's own value, same type
         self.chain_id = utils.next_chain_id()
@@ -396,7 +527,9 @@ class BambooAI:
             question = (question or "Run this code and report what it shows.") + \
                        "\n\nThe person supplied this code to run first, as your first cell:\n```python\n" + user_code + "\n```"
         if synthesis:
-            question = "Write the report for the analysis so far on this thread: the answer first, then how it was established, its limitations and next steps."
+            question = ("Write the report for the analysis so far on this thread: the answer first, then how it was established, its limitations and next steps. "
+                        "The earlier chains' reports are the record, each verified by its own replay: synthesise them, citing [run k]; "
+                        "SHOW RUN k - or SHOW RUN 1 2 3 - re-opens them whole where the ledger's line is not enough. Do not re-derive what they established.")
         if not question:
             return None
 
@@ -438,6 +571,8 @@ class BambooAI:
         kernel = self._kernel_for(parent)
         session = Session(kernel, self.notebook, self._llm, store=self.store, emit=self._emit,
                           recall=self._recall if self.memory_path else None, search=self._search,
+                          read=self._read, unit_text=self._unit_text, kernel_prelude=self._kernel_prelude(),
+                          documents=bool(self._kernel_prelude()),
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
                           replay_runner=self._run_replay)
         try:
@@ -478,7 +613,7 @@ class BambooAI:
         if run.report and '> Replay' in run.report:
             replay_line = run.report.rsplit('> ', 1)[-1].strip().splitlines()[0]
         self._pane('pane_run_end', status=run.status, turns=len([t for t in run.turns if t.kind != 'rewrite']),
-                   of=budget.turns, cells=len(run.cells()), failed=sum(1 for t in run.turns if t.kind == 'cell' and t.error),
+                   cells_of=budget.turns, cells=len(run.cells()), failed=sum(1 for t in run.turns if t.kind == 'cell' and t.error),
                    cost=round(self._chain_cost(), 3),
                    seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns), 1),
                    replay_status=run.replay_status or '', replay_line=replay_line, plots=len(rep.get('plots') or []), files=files)

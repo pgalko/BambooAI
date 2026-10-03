@@ -5,6 +5,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path[:0] = [os.path.dirname(os.path.abspath(__file__)), ROOT, os.path.join(ROOT, "delve")]
 import pandas as pd, numpy as np
 from analyst import Session, Budget, Notebook, NotebookStore, parse_turn, replay, report
+from analyst.session import CONTRACT, CONTRACT_DOCUMENTS
 from kernel import PersistentKernel
 
 passed, failed = [], []
@@ -124,6 +125,7 @@ check("failed attempts are listed in CELLS SO FAR for the rest of the run",
 
 # ---- error condensing: the exception line first, verbose tails cut ----
 from analyst.tools import condense_error, exception_line
+from analyst import tools
 long_err = ("Traceback (most recent call last):\n  File \"/tmp/k.py\", line 378, in <module>\n    exec(_user_code, G)\n  File \"<string>\", line 153, in <module>\n"
             "  File \"/site/plotly/_box.py\", line 3638, in __init__\n    self._process_kwargs(**dict(arg, **kwargs))\n"
             "ValueError: Invalid property specified for object of type plotly.graph_objs.Box: 'points'\n\nDid you mean \"pointpos\"?\n\n    Valid properties:\n"
@@ -266,6 +268,115 @@ try:
 finally:
     k6.cleanup()
 
+# ---- the synthesis of a thread (2026-10-03): shown runs stay in view, SHOW RUN takes several, the report comes in a handful of turns ----
+# five reported chains like the log's (reports of about a thousand words), then the synthesis question
+def act6(line): return "###NOTE###\n" + NOTE5 + "\n###ACTION###\n" + line
+k6 = PersistentKernel(df=df); nb6 = Notebook("t6")
+parent6 = None; runs6 = []
+long_para = " ".join(f"Sentence {i} of the chain's report states a finding with the number {100 + i}." for i in range(1, 60))
+for n in range(1, 6):
+    rep_n = f"## Chain {n}\n\nThe best estimate of chain {n} is {n * 11} units (interval {n * 11 - 2} to {n * 11 + 2}).\n\n{long_para}\n\nLimitations of chain {n}: few sites."
+    script6 = [act6("CELL\n```python\nprint('chain %d: %d')\n```" % (n, n * 11)), act6("REPORT\n" + rep_n)]
+    r6 = Session(k6, nb6, thread_llm_factory(script6), data_description="d").run(f"Question {n}?", parent=parent6, budget=Budget(turns=4, dollars=1.0)); runs6.append(r6); parent6 = r6.id
+syn_prompts = []
+SYN = [act6("SHOW RUN 1 2 3"), act6("SHOW RUN 4"), act6("REPORT\n## The thread\n\nChain 1 found 11 units [run 1], chain 2 22 [run 2], chain 3 33 [run 3], chain 4 44 [run 4], chain 5 55 [run 5].")]
+syn_i = {"n": 0}
+def syn_llm(system, user, **h):
+    syn_prompts.append(user)
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    i = syn_i["n"]; syn_i["n"] += 1
+    return SYN[min(i, len(SYN) - 1)], {"cost": 0.001}
+try:
+    syn = Session(k6, nb6, syn_llm, data_description="d").run("Write the report for the analysis so far on this thread.", parent=parent6, budget=Budget(turns=15, dollars=1.5))
+finally:
+    k6.cleanup()
+p2 = syn_prompts[1]; p3 = syn_prompts[2]
+check("synthesis: SHOW RUN 1 2 3 opens three chains in one turn, and they stand in the next prompt under RUNS SHOWN THIS RUN, whole",
+      "RUNS SHOWN THIS RUN" in p2 and all(f"--- run {k} ---" in p2.split("RUNS SHOWN THIS RUN")[1] for k in (1, 2, 3)) and "Sentence 59 of the chain's report" in p2.split("RUNS SHOWN THIS RUN")[1]
+      and p2.count("SHOWN: run 1 2 3 - whole, under RUNS SHOWN THIS RUN above") == 1, [ln for ln in p2.splitlines() if ln.startswith("---") or ln.startswith("SHOWN") or ln.startswith("RUNS")])
+check("synthesis: after SHOW RUN 4 the three most recent (2, 3, 4) stand whole and run 1 has become a line that says when it was shown",
+      "(run 1 was shown at turn 1; SHOW RUN 1 brings it back whole)" in p3 and all(f"--- run {k} ---" in p3 for k in (2, 3, 4)) and p3.count("--- run 1 ---") == 0, [ln for ln in p3.splitlines() if ln.startswith("---") or ln.startswith("(run")])
+check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",
+      syn.status == "answered" and len([x for x in syn.turns if x.kind != "rewrite"]) == 3 and "CHECK:" not in syn.report, (syn.status, [x.kind for x in syn.turns], syn.report[-200:]))
+check("synthesis: the prompt with three chains whole stays well inside a 64k context (chars/4)", len(p2) // 4 < 20000, len(p2) // 4)
+check("the contract: SHOW RUN may open several, and they stay in view", "or several, for earlier chains' question, note and report whole - they stay in view" in open(os.path.join(ROOT, "analyst", "contract.md")).read())
+# a SHOW of several cells at once is capped from the middle, with the marker; the record keeps it whole
+kc = PersistentKernel(df=df); nbc = Notebook("tc")
+big_cells = [act6("CELL\n```python\nprint('x' * 30000)\n```"), act6("CELL\n```python\nprint('y' * 30000)\n```"), act6("SHOW 1 2"), act6("REPORT\n## r\n\nDone.")]
+cap_prompts = []
+cap_i = {"n": 0}
+def cap_llm(system, user, **h):
+    cap_prompts.append(user)
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    i = cap_i["n"]; cap_i["n"] += 1
+    return big_cells[min(i, len(big_cells) - 1)], {"cost": 0.001}
+try:
+    rc = Session(kc, nbc, cap_llm, data_description="d").run("q", budget=Budget(turns=5, dollars=1.0))
+finally:
+    kc.cleanup()
+shown_view = cap_prompts[3].split("SHOWN:")[1].split("\n\nTASK:")[0] if "SHOWN:" in cap_prompts[3] else ""
+check("SHOW 1 2 of two 30,000-character outputs: the view is cut from the middle at 40,000 with the marker, the record keeps both whole",
+      0 < len(shown_view) <= 40_200 and "characters omitted from the middle for length; the notebook keeps it whole" in shown_view and len(rc.turns[2].stdout) > 60_000, (len(shown_view), len(rc.turns[2].stdout)))
+
+# ---- without documents the run is the original run: every exchange is a turn (2026-10-03) ----
+plain_prompts = []
+PLAIN = [act6("SHOW 1"), act6("NAMES"), act6("CELL\n```python\nprint('one')\n```"), act6("REPORT\n## r\n\nDone.")]
+pl_i = {"n": 0}
+def plain_llm(system, user, **h):
+    plain_prompts.append(user)
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    i = pl_i["n"]; pl_i["n"] += 1
+    return PLAIN[min(i, len(PLAIN) - 1)], {"cost": 0.001}
+kp = PersistentKernel(df=df); nbp = Notebook("tp")
+try:
+    rp = Session(kp, nbp, plain_llm, data_description="d").run("q", budget=Budget(turns=4, dollars=1.0))
+finally:
+    kp.cleanup()
+tl_p = [ln for q in plain_prompts for ln in q.splitlines() if ln.startswith("TASK:")]
+check("without documents, a SHOW and a NAMES cost a turn each, as in the original: the task line counts every exchange",
+      tl_p[:4] == ["TASK: turn 1 of 4 (3 left); spent $0.00 of $1.00.", "TASK: turn 2 of 4 (2 left); spent $0.00 of $1.00.", "TASK: turn 3 of 4 (1 left); spent $0.00 of $1.00.", "TASK: turn 4 of 4 (0 left); spent $0.00 of $1.00."], tl_p[:4])
+check("without documents the system prompt is the base contract: no READ, no documents' part",
+      "READ <D1" not in Session(None, Notebook("x"), plain_llm, data_description="d").system and "DOCUMENTS." not in Session(None, Notebook("x"), plain_llm, data_description="d").system)
+check("with documents the system prompt gains READ and the citation rule", "READ <D1|ALL|D1.35-41|D1 p.7-9>" in CONTRACT_DOCUMENTS and "[D1.17]" in CONTRACT_DOCUMENTS and "LOOK" not in CONTRACT_DOCUMENTS)
+
+# a reply that carries two actions: the first runs and the next prompt says so; pure reads before a REPORT are skipped
+def act(line): return "###NOTE###\n" + NOTE5 + "\n###ACTION###\n" + line
+two_prompts = []
+TWO = [act("CELL\n```python\nprint('one')\n```\nREPORT\n## r\n\nDone."),               # CELL then REPORT: the cell runs, the report is dropped and said
+       act("SHOW 1\n###THINKING###\nmore\n###NOTE###\n" + NOTE5 + "\n###ACTION###\nREPORT\n## r\n\nDone [cell 1].")]   # SHOW then REPORT: the report is taken
+two_i = {"n": 0}
+def two_llm(system, user, **h):
+    two_prompts.append(user)
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    i = two_i["n"]; two_i["n"] += 1
+    return TWO[min(i, len(TWO) - 1)], {"cost": 0.001}
+k2 = PersistentKernel(df=df); nb2_ = Notebook("t2")
+try:
+    r2 = Session(k2, nb2_, two_llm, data_description="d").run("q", budget=Budget(turns=5, dollars=1.0))
+finally:
+    k2.cleanup()
+check("a reply with CELL then REPORT: the cell ran, and the next prompt says the report did not", r2.turns[0].kind == "cell" and "(Your reply held 2 actions - CELL then REPORT; only the CELL ran. One action per turn.)" in two_prompts[1], ([x.kind for x in r2.turns], two_prompts[1][-300:]))
+check("a reply with SHOW then REPORT: the report is taken - it was written without the shown cell - and the run is answered", r2.turns[1].kind == "report" and r2.status == "answered" and "Done [cell 1]" in r2.report, ([x.kind for x in r2.turns], r2.status))
+pt = parse_turn("###NOTE###\nn\n###ACTION###\nSHOW 1 2\nNAMES\nREPORT\n## r\n\nx")[2]
+check("parse_turn: SHOW and NAMES before a REPORT are skipped and recorded as `more`", pt.verb == "report" and pt.more == ("show", "names") and pt.arg.startswith("## r"))
+pt2 = parse_turn("###NOTE###\nn\n###ACTION###\nSEARCH x\nREPORT\n## r")[2]
+check("parse_turn: a SEARCH before a REPORT runs first, the REPORT recorded as `more`", pt2.verb == "search" and pt2.more == ("report",))
+# the prelude: source the host wants in the kernel is there at the start of the run and again after a rollback
+PRE_SCRIPT = [act("CELL\n```python\nprint(D9.name)\n```"), act("CELL\n```python\nraise ValueError('boom')\n```"), act("CELL\n```python\nprint(D9.name)\n```"), act("REPORT\n## r\n\nDone.")]
+pre_n = {"n": 0}
+def pre_llm(system, user, **hints):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    i = pre_n["n"]; pre_n["n"] += 1
+    return PRE_SCRIPT[min(i, len(PRE_SCRIPT) - 1)], {"cost": 0.001}
+kp = PersistentKernel(df=df); nbp = Notebook("tp")
+try:
+    rp = Session(kp, nbp, pre_llm, data_description="d", kernel_prelude="class _D:\n    name = 'the prelude object'\nD9 = _D()").run("q", budget=Budget(turns=4, dollars=1.0))
+finally:
+    kp.cleanup()
+lp = [x for x in rp.turns if x.kind == "cell" and not x.error]
+check("kernel prelude: the host's object is in the kernel for the first cell and still there after a cell's rollback",
+      len(lp) == 2 and "the prelude object" in lp[0].stdout and "the prelude object" in lp[1].stdout, [x.stdout for x in rp.turns if x.kind == "cell"])
+
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
 SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i in range(6)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nDone."]
 seen_s = {"prompts": []}
@@ -277,20 +388,19 @@ def search_llm(system, user, **hints):
 calls = {"n": 0}
 def fake_search(q):
     calls["n"] += 1
-    return "SOURCED CLAIMS:\n- a figure [1]\n\nSOURCES:\n[1] x - https://x\n\nSUMMARY:\n" + ("long digest " * 600)
+    return "SOURCED CLAIMS:\n- a figure [1]\n\nSOURCES:\n[1] x - https://x\n\nSUMMARY:\n" + ("long digest\n" * 1100) + "the last line survives"
 k7 = PersistentKernel(df=df); nb7 = Notebook("t7")
 try:
-    r7 = Session(k7, nb7, search_llm, data_description="d", search=fake_search).run("q", budget=Budget(turns=8, dollars=1.0, searches=4))
+    r7 = Session(k7, nb7, search_llm, data_description="d", search=fake_search).run("q", budget=Budget(turns=10, dollars=1.0, searches=4))
 finally:
     k7.cleanup()
 srch = [t for t in r7.turns if t.kind == "search"]
 check("search budget: the seam is called four times, the fifth and sixth SEARCH answer from budget without a call",
       calls["n"] == 4 and len(srch) == 6 and srch[4].stdout.startswith("(search budget") and srch[5].stdout.startswith("(search budget"), (calls["n"], len(srch)))
 p2 = seen_s["prompts"][1]
-check("search view: the digest is capped in the prompt with 'SHOW SEARCH 1 for all', the record keeps it whole, the count left is shown",
-      "SHOW SEARCH 1 for all" in p2 and "searches left in this run: 3" in p2 and len(srch[0].stdout) > 7000)
-check("SHOW SEARCH 1 re-opens the whole digest", len(nb7.render_search(r7.id, 1)) > 7000 and "--- search 1: query 0 ---" in nb7.render_search(r7.id, 1))
-
+check("search view: a digest past the 12,000-character safety cap is cut from the middle - its head and its last line both in the prompt, the marker naming SHOW SEARCH 1 - the record keeps it whole, the count left is shown",
+      "SOURCED CLAIMS:" in p2 and "the last line survives" in p2 and "omitted from the middle for length; SHOW SEARCH 1 for all" in p2 and "searches left in this run: 3" in p2 and len(srch[0].stdout) > 13000, p2[-400:])
+check("SHOW SEARCH 1 re-opens the whole digest", len(nb7.render_search(r7.id, 1)) > 13000 and "--- search 1: query 0 ---" in nb7.render_search(r7.id, 1))
 # ---- ideas: five next questions from one call, no cells, recorded as a chain ----
 IDEAS_REPLY = ("###THINKING###\nfive questions\n###NOTE###\n- Plan: REPORT\n###ACTION###\nREPORT\nThe thread has two pieces so far.\n\n1. **Split by port**: How many survivors boarded at each port?\n2. **First departure**: Does boarding at the first port change survival?\n"
                "3. **Missing ports**: Did the two passengers without a port survive?\n4. **Mix inside survivors**: Is the port mix among survivors the table's mix?\n5. **A useful grouping?**: Does port separate outcomes more than chance?\n\nThese stay close to the count.")
@@ -416,7 +526,14 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page, neutral", len(c) < 6500 and not bad, (len(c), bad))
+check("contract: one page, back under 6,800 since the documents' part moved to its own file (2026-10-03), neutral", len(c) < 6800 and not bad, (len(c), bad))
+check("contract: no documents furniture and one budget sentence - the original's - when the thread has no documents",
+      "READ D1" not in c and "[D1.17]" not in c and "LOOK" not in c and "Budget: the task line tells you the turns and money left. Write REPORT when the answer is ready" in c)
+cd_ = open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()
+check("the documents' part of the contract: READ with the stretch, READ ALL, the citation rule, no LOOK - one short paragraph and the format line, under 900 characters", len(cd_) < 900 and "READ ALL" in cd_ and "[D1.17]" in cd_ and "LOOK" not in cd_ and "p.7-9" in cd_, (len(cd_), cd_[:100]))
+sd = Session(None, Notebook("sd"), lambda s, u, **h: ("", {}), data_description="d", documents=True)
+sn = Session(None, Notebook("sn"), lambda s, u, **h: ("", {}), data_description="d")
+check("the system prompt carries the documents' part only when the thread has documents", sd.system == CONTRACT + "\n" + CONTRACT_DOCUMENTS and sn.system == CONTRACT)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)
