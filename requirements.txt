@@ -33,3 +33,5 @@ python-jose[cryptography]
 supabase
 stripe
 httpx
+pdfplumber
+python-docx

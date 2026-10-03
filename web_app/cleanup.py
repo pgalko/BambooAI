@@ -71,6 +71,39 @@ def cleanup_old_user_sessions(user_id, current_session_id, user_session_mapping,
     # Update the mapping with the current session
     user_session_mapping[user_id] = current_session_id
 
+def _remove_documents(user_id, thread_id):
+    """A thread's documents folder goes with the thread (docs/DOCUMENTS_DESIGN.md)."""
+    folder = get_user_path(user_id, 'storage', 'documents', str(thread_id))
+    if os.path.isdir(folder):
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def cleanup_orphan_documents(user_id, max_age_seconds=24 * 3600):
+    """Documents folders whose thread never got a question - the upload minted the thread and
+    nothing followed - are removed once they are a day old; a thread with a JSON or a favourite is kept."""
+    root = get_user_path(user_id, 'storage', 'documents')
+    if not os.path.isdir(root):
+        return 0
+    threads_dir = get_user_path(user_id, 'storage', 'threads')
+    favourites_dir = get_user_path(user_id, 'storage', 'favourites')
+    removed = 0
+    for thread_id in os.listdir(root):
+        folder = os.path.join(root, thread_id)
+        if not os.path.isdir(folder):
+            continue
+        has_thread = os.path.exists(os.path.join(threads_dir, f"{thread_id}.json")) or os.path.isdir(os.path.join(favourites_dir, thread_id))
+        if has_thread:
+            continue
+        try:
+            age = time.time() - os.path.getmtime(folder)
+        except OSError:
+            continue
+        if age > max_age_seconds:
+            shutil.rmtree(folder, ignore_errors=True)
+            removed += 1
+    return removed
+
+
 def cleanup_threads_for_user(user_id, debug_mode=False):
     """Clean up thread files for a specific user that don't have matching IDs in favorites
     Also cleans up iframe figures
@@ -104,6 +137,7 @@ def cleanup_threads_for_user(user_id, debug_mode=False):
                     threads_deleted += 1
                 except Exception as e:
                     logger.error(f"Failed to delete {thread_id}: {str(e)}")
+                _remove_documents(user_id, thread_id)
             else:
                 # Thread exists in favorites - clean unfavorited chains
                 try:
@@ -145,8 +179,9 @@ def cleanup_threads_for_user(user_id, debug_mode=False):
                 except Exception as e:
                     logger.error(f"Failed to clean chains in {thread_id}: {str(e)}")
 
+    orphans = cleanup_orphan_documents(user_id)
     elapsed_time = time.time() - start_time
-    logger.info(f"Thread cleanup: {threads_deleted} deleted, {chains_cleaned} chains cleaned in {elapsed_time:.3f}s")
+    logger.info(f"Thread cleanup: {threads_deleted} deleted, {chains_cleaned} chains cleaned, {orphans} orphan documents folder(s) removed in {elapsed_time:.3f}s")
 
 
     # Clean up iframe figures
