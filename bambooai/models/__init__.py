@@ -213,7 +213,8 @@ class ModelManager:
             'mistral': 'llm_call',
             'openrouter': 'llm_call',
             "deepseek": 'llm_call',
-            "grok": 'llm_call'
+            "grok": 'llm_call',
+            "litellm": 'llm_call'
         }
 
         if provider in provider_function_map:
@@ -300,7 +301,8 @@ class ModelManager:
             'mistral': 'llm_stream',
             'openrouter': 'llm_stream',
             "deepseek": 'llm_stream',
-            "grok": 'llm_stream'
+            "grok": 'llm_stream',
+            "litellm": 'llm_stream'
         }
 
         if provider in provider_function_map:
