@@ -29,6 +29,9 @@ from fitparse import FitFile
 import gzip
 from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
 import uuid
+import re
+import hashlib
+import shutil
 from datetime import datetime, timedelta
 
 # Set the number of CPU cores for pyarrow
@@ -36,7 +39,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-09-08 v42 (dataframe_page, aux_page)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-03 v43 (documents)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -1089,6 +1092,90 @@ def remove_aux_dataset_endpoint():
         log_info(f"Error removing auxiliary dataset from executor: {str(e)}")
         return jsonify({'error': f'Error removing auxiliary dataset from executor: {str(e)}'}), 500
     
+#### DOCUMENT FILE ENDPOINTS ####
+# A thread's documents (docs/DOCUMENTS_DESIGN.md): the app mirrors text.json, text.md and the tables of
+# each document into datasets/<user>/documents/<D-id>/ at every chain start and before a replay, by content.
+# The container forgets between restarts; these three routes are how it is told. Never the original file.
+
+_DOC_PATH_RE = re.compile(r'^D\d+/(text\.json|text\.md|tables/\d+\.csv)$')
+_USER_RE = re.compile(r'^[\w.@-]{1,120}$')
+
+
+def _documents_root(user_id):
+    return os.path.join('datasets', user_id, 'documents')
+
+
+def _sha256(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+@app.route('/file_utils/documents', methods=['GET'])
+def documents_inventory_endpoint():
+    """{relative path: sha256} of the documents folder, so the app sends only what is missing or changed."""
+    user_id = request.args.get('user_id', 'default')
+    if not _USER_RE.match(user_id):
+        return jsonify({'error': 'invalid user_id'}), 400
+    root = _documents_root(user_id)
+    out = {}
+    if os.path.isdir(root):
+        for dirpath, _, files in os.walk(root):
+            for name in files:
+                p = os.path.join(dirpath, name)
+                out[os.path.relpath(p, root).replace(os.sep, '/')] = _sha256(p)
+    return jsonify({'files': out}), 200
+
+
+@app.route('/file_utils/upload_document', methods=['POST'])
+def upload_document_endpoint():
+    """One file of a document, at its relative path (D3/text.md, D3/tables/2.csv)."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part in request'}), 400
+    user_id = request.form.get('user_id', 'default')
+    rel = request.form.get('path', '')
+    if not _USER_RE.match(user_id):
+        return jsonify({'error': 'invalid user_id'}), 400
+    if not _DOC_PATH_RE.match(rel):
+        return jsonify({'error': 'path must be D<n>/text.json, D<n>/text.md or D<n>/tables/<n>.csv'}), 400
+    try:
+        dst = os.path.join(_documents_root(user_id), *rel.split('/'))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        request.files['file'].save(dst)
+        return jsonify({'message': 'stored', 'path': rel, 'sha256': _sha256(dst)}), 200
+    except Exception as e:
+        log_info(f"Error storing document file {rel}: {str(e)}")
+        return jsonify({'error': f'Error storing document file: {str(e)}'}), 500
+
+
+@app.route('/file_utils/remove_document', methods=['POST'])
+def remove_document_endpoint():
+    """Remove one file (D3/text.md) or a whole document (D3) from the documents folder."""
+    data = request.json or {}
+    user_id = data.get('user_id', 'default')
+    rel = data.get('path', '')
+    if not _USER_RE.match(user_id):
+        return jsonify({'error': 'invalid user_id'}), 400
+    if not (_DOC_PATH_RE.match(rel) or re.match(r'^D\d+$', rel)):
+        return jsonify({'error': 'path must be a document id or one of its files'}), 400
+    target = os.path.join(_documents_root(user_id), *rel.split('/'))
+    try:
+        if os.path.isdir(target):
+            shutil.rmtree(target)
+        elif os.path.exists(target):
+            os.remove(target)
+            parent = os.path.dirname(target)
+            while parent != _documents_root(user_id) and os.path.isdir(parent) and not os.listdir(parent):
+                os.rmdir(parent); parent = os.path.dirname(parent)
+        else:
+            return jsonify({'message': 'not present', 'path': rel}), 200
+        return jsonify({'message': 'removed', 'path': rel}), 200
+    except Exception as e:
+        log_info(f"Error removing document path {rel}: {str(e)}")
+        return jsonify({'error': f'Error removing document path: {str(e)}'}), 500
+
 #### AUXILIARY FILE UTILITY ENDPOINTS ####
 
 @app.route('/file_utils/aux_datasets_to_string', methods=['POST'])

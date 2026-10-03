@@ -21,6 +21,7 @@ Nothing here reads /etc/bambooai or the hosted box's gunicorn configuration.
 """
 import argparse
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -183,16 +184,34 @@ def docker_ready():
     return None
 
 
+def _executor_context():
+    context = os.path.join(_package_root(), "bambooai_executor_image")
+    if not os.path.exists(os.path.join(context, "Dockerfile")):
+        context = os.path.join(_package_root(), "containers", "executor")     # a checkout, installed editable
+    return context
+
+
+def _executor_stamp():
+    """The executor's own build stamp (EXECUTOR_BUILD in code_executor_api.py, '2026-10-03 v43 (documents)'),
+    reduced to its version token: v43. A changed executor is a changed tag, so the image is rebuilt on the
+    next serve instead of an old one being reused for the life of the package version (found 2026-10-03:
+    the documents routes never reached the container because the 2.0.2 image predated them)."""
+    try:
+        with open(os.path.join(_executor_context(), "code_executor_api.py"), encoding="utf-8", errors="replace") as f:
+            m = re.search(r"EXECUTOR_BUILD\s*=\s*['\"].*?\b(v\d+)\b", f.read())
+        return m.group(1) if m else "v0"
+    except OSError:
+        return "v0"
+
+
 def executor_image():
-    return f"bambooai-executor:{_version()}"
+    return f"bambooai-executor:{_version()}-{_executor_stamp()}"
 
 
 def build_executor_image(image):
     """The image from the Dockerfile the package ships - the hosted service's image, built here."""
-    context = os.path.join(_package_root(), "bambooai_executor_image")
-    if not os.path.exists(os.path.join(context, "Dockerfile")):
-        context = os.path.join(_package_root(), "containers", "executor")     # a checkout, installed editable
-    print(f"bambooai: building the executor image {image} (first time only; a few minutes - the analysis libraries are installed inside it)")
+    context = _executor_context()
+    print(f"bambooai: building the executor image {image} (once per package version and executor build; a few minutes - the analysis libraries are installed inside it)")
     r = subprocess.run(["docker", "build", "-t", image, context], text=True)
     if r.returncode != 0:
         sys.exit(f"bambooai: the image build failed (see above). Fix and retry, or run `bambooai serve --compute local`.")

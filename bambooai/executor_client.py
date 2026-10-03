@@ -235,10 +235,60 @@ class ExecutorAPIClient:
             r = requests.post(f"{self.base_url}/aux_page", json={'path': path, 'offset': offset, 'limit': limit, 'order_by': order_by, 'ascending': bool(ascending)}, timeout=60)
             if r.status_code == 200:
                 return r.json()
-            log_to_file(f"aux_page failed: {r.status_code} {r.text[:200]}")
+            self.log_to_file(f"aux_page failed: {r.status_code} {r.text[:200]}")
         except Exception as exc:                                # noqa: BLE001
-            log_to_file(f"aux_page error: {exc}")
+            self.log_to_file(f"aux_page error: {exc}")
         return None
+
+    # ---- the thread's documents on the executor (docs/DOCUMENTS_DESIGN.md) ----
+    def documents_inventory(self, user_id: str) -> Optional[dict]:
+        """{relative path: sha256} of the executor's documents folder; None when the image lacks the route."""
+        try:
+            r = requests.get(f"{self.base_url}/file_utils/documents", params={'user_id': user_id}, timeout=30)
+            if r.status_code == 200:
+                return (r.json() or {}).get('files', {})
+            self.log_to_file(f"documents inventory failed: {r.status_code} {r.text[:200]}")
+        except Exception as exc:                                # noqa: BLE001
+            self.log_to_file(f"documents inventory error: {exc}")
+        return None
+
+    def upload_document(self, user_id: str, rel: str, path: str) -> bool:
+        try:
+            with open(path, 'rb') as f:
+                r = requests.post(f"{self.base_url}/file_utils/upload_document", files={'file': (os.path.basename(path), f)},
+                                  data={'user_id': user_id, 'path': rel}, timeout=120)
+            if r.status_code == 200:
+                return True
+            self.log_to_file(f"document upload failed for {rel}: {r.status_code} {r.text[:200]}")
+        except Exception as exc:                                # noqa: BLE001
+            self.log_to_file(f"document upload error for {rel}: {exc}")
+        return False
+
+    def remove_document(self, user_id: str, rel: str) -> bool:
+        """Remove one file (D3/text.md) or a whole document (D3)."""
+        try:
+            r = requests.post(f"{self.base_url}/file_utils/remove_document", json={'user_id': user_id, 'path': rel}, timeout=30)
+            return r.status_code == 200
+        except Exception as exc:                                # noqa: BLE001
+            self.log_to_file(f"document remove error for {rel}: {exc}")
+            return False
+
+    def sync_documents(self, user_id: str, tdir: str) -> tuple:
+        """Mirror the thread's documents (text.json, text.md, tables - never the original) into the executor's
+        datasets/<user>/documents/, by content: what is missing or changed is sent, what the thread no
+        longer has is removed. Returns (sent, removed) - or None when the executor has no documents route
+        (an image from before 2026-10-03): the kernel then has no copy, and the caller must say so rather
+        than let the analyst look for files that are not there."""
+        from bambooai import documents as docs
+        present = self.documents_inventory(user_id)
+        if present is None:
+            return None
+        manifest = docs.load_manifest(tdir)
+        wanted = [f for d in manifest.get('documents', []) for f in docs.kernel_files(tdir, d)]
+        send, delete = docs.sync_plan(wanted, present)
+        sent = sum(1 for rel, src, _ in send if self.upload_document(user_id, rel, src))
+        removed = sum(1 for rel in delete if self.remove_document(user_id, rel))
+        return sent, removed
 
     def executor_build(self) -> Optional[str]:
         """The executor image's build stamp from /health (None for images before 2026-09-07)."""
