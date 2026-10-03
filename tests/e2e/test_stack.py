@@ -10,6 +10,8 @@ unconditionally.
 import glob
 import json
 import os
+import re
+import shutil
 import sys
 import tempfile
 import time
@@ -118,7 +120,8 @@ def main():
                 page.wait_for_timeout(200)
                 return got
             p4 = prompt_of(4)
-            check("prompt button: turn 4's card opens the prompt of turn 4 ('TASK: turn 4 of'), titled call 4", "TASK: turn 4 of" in p4["user"] and "call 4 of" in p4["title"], (p4["title"], p4["user"][-160:]))
+            # exchange 4 is the third cell turn: the SEARCH at exchange 2 spent none (2026-10-03)
+            check("prompt button: turn 4's card opens the prompt of exchange 4 ('TASK: turn 4 of' - every exchange a turn without documents), titled call 4", "TASK: turn 4 of" in p4["user"] and "call 4 of" in p4["title"], (p4["title"], p4["user"][-160:]))
             p1 = prompt_of(1)
             check("prompt button: turn 1's card still opens turn 1's prompt", "TASK: turn 1 of" in p1["user"], p1["user"][-120:])
 
@@ -129,15 +132,65 @@ def main():
             row = page.evaluate("() => [...document.querySelectorAll('.sp-row')].map(e => e.textContent).join(' | ')")
             check("the follow-up runs on the warm kernel: its cell is numbered 4 along the path", "[4]" in row, row[:200])
 
+            # a document attached to the thread (docs/DOCUMENTS_DESIGN.md, phase A): the real file input, the blue pill,
+            # the view, a chain whose cell reads the kernel's copy, and the copy coming back after the kernel forgets
+            notes = os.path.join(workdir, "data", mod.DOC_NAME)
+            with open(notes, "w", encoding="utf-8") as fh:
+                fh.write(mod.DOC_TEXT)
+            page.set_input_files("#documentFile", notes)
+            page.wait_for_function("() => { const p = document.getElementById('documentsPill'); return p && p.className.includes('success'); }", timeout=60000)
+            check("document upload through the real file input: the Documents pill reads 1/4 and is the blue one",
+                  page.inner_text("#documentsPill .label").strip() == "Documents (1/4)" and "documents-pill" in page.get_attribute("#documentsPill", "class"), page.inner_text("#documentsPill"))
+            try:
+                page.wait_for_function("() => { const m = document.getElementById('documentsModal'); return !!m && m.style.display === 'flex' && /D1\\.\\d/.test(m.innerText) && /wet season/.test(m.innerText) && /Weather/.test(m.innerText); }", timeout=15000)
+                view_ok = True
+            except Exception:                                 # noqa: BLE001
+                view_ok = False
+            check("the Documents view opened on the new document: its units with their locators, the Weather section", view_ok,
+                  page.evaluate("() => { const m = document.getElementById('documentsModal'); return m ? [m.style.display, m.innerText.slice(0, 200)] : null; }"))
+            page.evaluate("documentsClose()")
+            tid_now = str(page.evaluate("() => currentData.thread_id"))
+            man = json.load(open(os.path.join(workdir, "webapp", "storage", USER, "documents", tid_now, "manifest.json")))
+            check("the upload parsed the document into units with a map: the manifest names the file as D1",
+                  man["documents"][0].get("id") == "D1" and man["documents"][0].get("file") == mod.DOC_NAME and man["documents"][0].get("units", 0) > 0, man["documents"][0])
+            page.fill("#queryInput", mod.DOC_QUESTION)
+            page.click("#submitQuery")
+            wait_text(page, "#chainPosition", "chain 3 of 3", 60000)
+            wait_run_end(page, 3)
+            page.evaluate("activateTab('answer')")
+            page.wait_for_timeout(300)
+            answer = page.inner_text("#content-answer")
+            check("the analyst looked with D1.grep, read the stretch through the Reader, and the report quotes the passage with its number citing the passage, not a cell",
+                  "40%" in answer and re.search(r"\bD1\.\d+\b", answer) is not None and "cell 1" not in answer.lower(), answer[:240])   # the citation reads D1.n: it is a chip now
+            rows_doc = page.evaluate("() => [...document.querySelectorAll('.sp-row')].map(e => [e.className, e.textContent])")
+            check("the pane: the grep's cell row (numbered along the thread) and a READ row with its passage count",
+                  any(re.search(r"In\s*\[\d+\]", txt) and "field_notes" in txt for c, txt in rows_doc) and any("read" in c.split() and "1 passage" in txt for c, txt in rows_doc), rows_doc)
+            # the [D1.n] chip in the answer (D45): the passage a READ returned on hover, a click opening the view at the unit
+            chip = page.evaluate("() => { const c = document.querySelector('#content-answer .cite.doc'); return c ? [c.textContent, c.getAttribute('data-unit'), c.getAttribute('title')] : null; }")
+            check("the answer's [D1.n] is a chip: blue, the unit id, the READ's passage as its hover text",
+                  chip is not None and re.fullmatch(r"D1\.\d+", chip[0] or "") and chip[1] == chip[0] and "40%" in (chip[2] or ""), chip)
+            page.click("#content-answer .cite.doc")
+            page.wait_for_function("() => { const m = document.getElementById('documentsModal'); return !!m && m.style.display === 'flex' && !!m.querySelector('.docs-unit.hit'); }", timeout=15000)
+            hit = page.evaluate("() => { const h = document.querySelector('#documentsModal .docs-unit.hit'); return h ? [h.id, h.className, !!h.querySelector('.mark'), h.closest('details').open] : null; }")
+            check("the click opens the Documents view at that unit: highlighted, marked as read, its group open",
+                  hit is not None and hit[0] == "unit-" + chip[0] and "read" in hit[1].split() and hit[2] is True and hit[3] is True, hit)
+            page.evaluate("documentsClose()")
+            strip_doc = page.inner_text(".sp-strip")
+            check("the strip counts the chain's exchanges as turns", re.search(r"turn \d+ of", strip_doc) is not None, strip_doc)
+            kernel_copies = glob.glob(os.path.join(workdir, "**", "datasets", USER, "documents", "D1", "text.md"), recursive=True)
+            check("the kernel's copy of the document is where the cell read it through D1", len(kernel_copies) >= 1, kernel_copies)
+            for kc in kernel_copies:                        # the kernel forgets (a container restart): the next chain start brings it back
+                shutil.rmtree(os.path.dirname(kc), ignore_errors=True)
+
             # the Reviewer seat (v64): an Adaptive run crossing turn 9 runs that turn on the Reviewer seat
             page.fill("#queryInput", mod.REVIEW_QUESTION)
             page.evaluate("setMode('adaptive')")
             page.click("#submitQuery")
-            wait_text(page, "#chainPosition", "chain 3 of 3", 60000)
-            # while chain 3 runs, browse chain 2 and use its tabs (v70: clicks act on the visible strip, not the parked one)
+            wait_text(page, "#chainPosition", "chain 4 of 4", 60000)
+            # while chain 4 runs, browse chain 3 and use its tabs (v70: clicks act on the visible strip, not the parked one)
             wait_text(page, ".sp-turn", "Turn 1", 30000)
             page.click("#prevResponse")
-            wait_text(page, "#chainPosition", "chain 2 of 3", 10000)
+            wait_text(page, "#chainPosition", "chain 3 of 4", 10000)
             page.wait_for_timeout(300)
             switched = []
             for t in ("code", "plan", "answer"):
@@ -148,8 +201,10 @@ def main():
             still_running = page.evaluate("typeof queryRunning !== 'undefined' && queryRunning")
             check("browsing a finished chain while another runs: its tabs respond (the visible pane switches on click)", switched and all(switched), (switched, still_running))
             page.click("#nextResponse")
-            wait_text(page, "#chainPosition", "chain 3 of 3", 10000)
-            wait_run_end(page, 3)
+            wait_text(page, "#chainPosition", "chain 4 of 4", 10000)
+            wait_run_end(page, 4)
+            kernel_again = glob.glob(os.path.join(workdir, "**", "datasets", USER, "documents", "D1", "text.md"), recursive=True)
+            check("after the kernel forgot the document, the next chain's start synced it back", len(kernel_again) >= 1, kernel_again)
             chip_after = page.inner_text("#containerStatusText")
             check("after runs the chip still reads " + {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute] + " (the execution branch uses the same text rule)",
                   chip_after == {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute], chip_after)
@@ -165,15 +220,16 @@ def main():
             page.evaluate("setMode('deep')")
             page.click("#prevResponse")
             page.wait_for_timeout(500)
-            check("chain navigation: back to chain 2 of 3", "chain 2 of 3" in page.inner_text("#chainPosition"))
+            check("chain navigation: back to chain 3 of 4", "chain 3 of 4" in page.inner_text("#chainPosition"))
+            page.click("#prevResponse")
+            page.wait_for_timeout(500)
             page.click("#prevResponse")
             page.wait_for_timeout(500)
             p2 = prompt_of(2)                                  # a restored chain: the rebound buttons work and carry the ordinal (v65)
             check("prompt button on a restored chain: turn 2's card opens turn 2's prompt", "TASK: turn 2 of" in p2["user"], p2["user"][-120:])
-            page.click("#nextResponse")
-            page.wait_for_timeout(400)
-            page.click("#nextResponse")
-            page.wait_for_timeout(300)
+            for _ in range(3):
+                page.click("#nextResponse")
+                page.wait_for_timeout(400)
 
             page.click("#rankButton")
             page.wait_for_selector("#rankModal", state="visible", timeout=10000)
@@ -181,23 +237,33 @@ def main():
             page.click("#submit-rank")
             page.wait_for_timeout(3000)
             errs = page.evaluate("window.__stackErrors || []")
+            # what landed on disk, in the app's own layout under the stack's web app working directory
+            wa = os.path.join(workdir, "webapp")
+            threads = glob.glob(os.path.join(wa, "storage", USER, "threads", "*.json"))
+            check("one notebook thread file stored under storage/<user>/threads", len(threads) == 1, threads)
+            nb = json.load(open(threads[0])) if threads else {"runs": {}}
+            runs = list(nb["runs"].values())
+            # the document chain's one cell (the grep) replays like any other
+            check("the thread holds four runs, all answered; every chain with cells reproduced",
+                  len(runs) == 4 and all(r["status"] == "answered" for r in runs)
+                  and all((r["replay_status"] == "reproduced") == any(t_["kind"] == "cell" for t_ in r["turns"]) for r in runs),
+                  [(r["status"], r["replay_status"], sum(1 for t_ in r["turns"] if t_["kind"] == "cell")) for r in runs])
+            check("the second run's parent is the first", len(runs) >= 2 and runs[1]["parent"] == runs[0]["id"])
+            favs = glob.glob(os.path.join(wa, "storage", USER, "favourites", "*", "*.json"))
+            check("Save wrote the favourites (one file per chain of the thread)", len(favs) == 4, favs)
+            pack = os.path.join(wa, "memory", USER, "memory_pack.yaml")
+            check("Save at 7 ran the write pass: the memory pack holds the distilled candidate card",
+                  os.path.exists(pack) and "within_soil_plot_level_contrast" in open(pack).read(), pack)
+
+            # the thread's documents go with the thread (D35): the last thing, since deleting it tombstones the memory card
+            tid = str(page.evaluate("() => currentData.thread_id"))
+            docs_dir = os.path.join(wa, "storage", USER, "documents", tid)
+            had_docs = os.path.isdir(docs_dir) and os.path.exists(os.path.join(docs_dir, "manifest.json"))
+            status = page.evaluate("(t) => window.authService.fetch('/delete_thread/' + t, { method: 'DELETE' }).then(r => r.status)", tid)   # as the page does: its auth header rides along
+            check("the thread's documents folder existed with its manifest, and deleting the thread removed it",
+                  had_docs and status == 200 and not os.path.exists(docs_dir), (had_docs, status, os.path.exists(docs_dir)))
             b.close()
 
-        # what landed on disk, in the app's own layout under the stack's web app working directory
-        wa = os.path.join(workdir, "webapp")
-        threads = glob.glob(os.path.join(wa, "storage", USER, "threads", "*.json"))
-        check("one notebook thread file stored under storage/<user>/threads", len(threads) == 1, threads)
-        nb = json.load(open(threads[0])) if threads else {"runs": {}}
-        runs = list(nb["runs"].values())
-        check("the thread holds three runs, all answered and all replays reproduced",
-              len(runs) == 3 and all(r["status"] == "answered" and r["replay_status"] == "reproduced" for r in runs),
-              [(r["status"], r["replay_status"]) for r in runs])
-        check("the second run's parent is the first", len(runs) >= 2 and runs[1]["parent"] == runs[0]["id"])
-        favs = glob.glob(os.path.join(wa, "storage", USER, "favourites", "*", "*.json"))
-        check("Save wrote the favourites (one file per chain of the thread)", len(favs) == 3, favs)
-        pack = os.path.join(wa, "memory", USER, "memory_pack.yaml")
-        check("Save at 7 ran the write pass: the memory pack holds the distilled candidate card",
-              os.path.exists(pack) and "within_soil_plot_level_contrast" in open(pack).read(), pack)
         calls = st.orchestrator_calls()
         kinds = [c["kind"] for c in calls]
         if compute == "orchestrator":

@@ -253,6 +253,15 @@
                                         </svg>
                                         <span>Auxiliary Dataset</span>
                                     </button>
+                                    <button class="attach-option document-option" title="Attach a document: PDF, Word, Markdown or text (up to 4 a thread)">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                            <line x1="8" y1="13" x2="16" y2="13"></line>
+                                            <line x1="8" y1="17" x2="14" y2="17"></line>
+                                        </svg>
+                                        <span>Document</span>
+                                    </button>
                                     <button class="attach-option sweatstack-data-option" title="Load SweatStack Data">
                                         <img src="/static/image/sweatstack-favicon.svg" width="20" height="20" alt="SweatStack">
                                         <span>SweatStack</span>
@@ -271,6 +280,7 @@
             
                             <input type="file" id="primaryFile" accept=".csv, .parquet, .json, .xlsx" style="display: none" />
                             <input type="file" id="auxiliaryFile" accept=".csv, .parquet, .json, .xlsx" style="display: none" />
+                            <input type="file" id="documentFile" accept=".pdf,.docx,.md,.txt" style="display: none" />
                             
                             <!-- Mode: hover the brain for Quick | Deep | Adaptive (2026-09-05) -->
                             <button id="modeSwitch" type="button" class="icon-button planning-brain active" data-mode="deep" title="Mode: Deep">
@@ -775,6 +785,7 @@
     <script src="{{ url_for('static', filename='js/compression-utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/ui-controls.js') }}"></script>
     <script src="{{ url_for('static', filename='js/file-management.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/documents.js') }}"></script>
     <script src="{{ url_for('static', filename='js/content-rendering.js') }}"></script>
     <script src="{{ url_for('static', filename='js/stream-pane.js') }}"></script>
     <script src="{{ url_for('static', filename='js/data-grid.js') }}"></script>

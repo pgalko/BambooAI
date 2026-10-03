@@ -204,6 +204,7 @@
 #content-answer .cite { display: inline-block; font-family: var(--font-mono); font-size: 10.5px; line-height: 15px; padding: 0 5px; margin: 0 1px; border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-tertiary); vertical-align: 1px; white-space: nowrap; cursor: pointer; }
 #content-answer .cite:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
 #content-answer .cite.fig { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
+#content-answer .cite.doc { color: var(--info-color, #58a6ff); border-color: var(--info-color, #58a6ff); }   /* a document passage, [D1.17] (D45) */
 
 /* ---- the thread map as a drawer (2026-09-08): #workflowMapModal keeps its ids; workflow-management.js shows it with
    display:flex and workflowGraph.js draws .wf-* nodes and edges into #workflowMapContainer. workflow-map.css is retired. */
@@ -447,3 +448,28 @@
 .topbar #rankButton .rank-label { vertical-align: 0; }
 .topbar #rankButton.replay-success { background: var(--c-model); color: var(--bg-primary); border-color: var(--c-model); }
 .topbar #rankButton.replay-success svg { fill: currentColor; }
+
+/* ---- the Documents pill (2026-10-03, docs/DOCUMENTS_DESIGN.md D53-D54): one pill for the thread's documents, blue so it
+   reads apart from the green dataset pills. The spinner and "parsing name…" while a file is parsed; the refusal sentence
+   in the error state until it is clicked away; otherwise "Documents (n/4)", hover listing the documents with their
+   remove icons, click opening the Documents view. ---- */
+.topbar .documents-pill { position: relative; font-style: normal; }
+.topbar .documents-pill .dataset-pill-content svg { width: 13px; height: 13px; stroke: currentColor; fill: none; flex: none; }
+.topbar .documents-pill.success { background: rgba(93, 173, 226, 0.10); color: var(--info-color); border-color: var(--info-color); }
+.topbar .documents-pill.success:hover { background: rgba(93, 173, 226, 0.18); }
+[data-theme="dark"] .topbar .documents-pill.success { background: transparent; }
+[data-theme="dark"] .topbar .documents-pill.success:hover { background: rgba(93, 173, 226, 0.10); }
+.topbar .documents-pill.loading .dataset-pill-content svg { stroke: var(--text-secondary); }
+.topbar .documents-pill.error .dataset-pill-content { cursor: pointer; }
+.topbar .documents-pill.error .dataset-pill-content svg { stroke: var(--error-color); }
+.topbar .documents-pill-menu { display: none; position: fixed; min-width: 280px; padding: 6px; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); z-index: 60; }
+.topbar .documents-pill-menu::before { content: ''; display: block; position: absolute; left: 0; right: 0; top: -6px; height: 6px; }   /* the gap stays hoverable */
+.topbar .documents-pill:hover .documents-pill-menu { display: block; }
+.topbar .documents-pill-menu .row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-2); color: var(--text-secondary); font-family: var(--font-ui); font-size: var(--fs-meta); cursor: pointer; white-space: nowrap; }
+.topbar .documents-pill-menu .row:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.topbar .documents-pill-menu .row .id { color: var(--info-color); font-weight: 600; }
+.topbar .documents-pill-menu .row .meta { color: var(--text-quaternary); }
+.topbar .documents-pill-menu .row .sp { flex: 1; }
+.topbar .documents-pill-menu .row .rm { margin-left: 8px; opacity: .6; }
+.topbar .documents-pill-menu .row .rm:hover { opacity: 1; }
+.topbar .documents-pill-menu .row .rm svg { width: 14px; height: 14px; stroke: var(--info-color); fill: none; stroke-width: 2; }

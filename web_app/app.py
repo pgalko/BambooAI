@@ -51,6 +51,7 @@ from labels_routes import labels_bp
 from agent_instructions_routes import agent_instructions_bp
 from replay_routes import replay_bp
 from dataframe_routes import dataframe_bp
+from documents_routes import documents_bp
 
 # Logs
 from logger_config import setup_logging, get_logger
@@ -96,6 +97,7 @@ try:
     from bambooai import BambooAI
     from bambooai import utils
     from bambooai import executor_client
+    from bambooai import documents
 except ImportError:
     # If direct import fails, try adding the local path (cloned repo case)
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -106,6 +108,7 @@ except ImportError:
         from bambooai import BambooAI
         from bambooai import utils
         from bambooai import executor_client
+        from bambooai import documents
     else:
         raise ImportError("Could not find bambooai package. Please either install via pip or ensure you're running from the correct directory in the cloned repository.")
 
@@ -215,6 +218,7 @@ app.register_blueprint(subscription_bp)
 app.register_blueprint(labels_bp)
 app.register_blueprint(agent_instructions_bp)
 app.register_blueprint(dataframe_bp)
+app.register_blueprint(documents_bp)
 app.register_blueprint(replay_bp)
 
 # Initialize authentication
@@ -2019,6 +2023,7 @@ def delete_thread(thread_id):
         # Delete the entire thread directory
         shutil.rmtree(thread_path)
         logger.info(f"Deleted entire thread directory: {thread_id} ({len(chain_ids)} chains)")
+        documents.remove_thread(user_path('storage', 'documents', str(thread_id)))      # its documents too
         
         return jsonify({
             'message': f"Thread {thread_id} deleted successfully",
