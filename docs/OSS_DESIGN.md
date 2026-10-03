@@ -1,6 +1,6 @@
 # BambooAI 2 — the open-source edition: design and decisions
 
-Living document. v1.4, 2026-10-03 (v0.1-v0.7 on 2026-09-14; v0.8-v1.0 on 2026-09-15; v1.1 on 2026-09-16; v1.2-v1.3 on 2026-10-03). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
+Living document. v1.5, 2026-10-03 (v0.1-v0.7 on 2026-09-14; v0.8-v1.0 on 2026-09-15; v1.1 on 2026-09-16; v1.2-v1.4 on 2026-10-03). Kept in the repository at `docs/OSS_DESIGN.md`; updated as the
 design is refined. Decisions are numbered so later notes can refer to them. Each carries a one-line
 reason; the reasoning behind the reasons is in the session notes.
 
@@ -84,7 +84,7 @@ statement by statement against the code.
   stands, scanned for secrets, without the schema. The private `main` is reset to the same snapshot
   with the old history kept on `history-pre-oss` (private only). From that commit on, both remotes
   carry identical commits. *Reason:* pushing the private history publishes every past commit.
-- **D17. Delivery is a git patch series, applied once, on the box.** `git am --keep-cr` (27 tracked
+- **D17. Delivery is a git patch series, applied once, on the box.** `git am --keep-cr` (26 tracked
   text files are CRLF, every `bambooai/models/*.py` among them; without the flag a patch touching
   them does not apply), the battery, restart, commit, push to the private remote. The Mac clone
   pulls from the private remote and pushes to the public one; it never applies the series a second
@@ -184,9 +184,10 @@ statement by statement against the code.
   copy of the OpenRouter adapter that would drift from it. *Reason:* a lean code base. If gateways
   are wanted, the unit is one generic OpenAI-compatible provider with a table of gateways, not one
   adapter per gateway.
-- **D33-D56 live in `docs/DOCUMENTS_DESIGN.md`** (2026-10-03): documents attached to a thread, the READ
-  action, verbatim passages cited as `[D1.17]`, the Reader and Embedder seats, memory on the Embedder
-  seat, the upload and the page. The numbering continues there so the two documents never reuse a number.
+- **D33. Documents** (2026-10-03) are designed in `docs/DOCUMENTS_DESIGN.md`: up to four per thread,
+  parsed into units with locators, objects in the kernel read with cells, one `READ` action served by a
+  Reader seat with verbatim passages cited as `[D1.17]`; a `READ` is a turn like a `SEARCH`. A first build
+  with free look-ups, a `LOOK` action and an embedding stack was removed the same day after real runs.
 
 ## 9. Scope, phase by phase
 
@@ -291,10 +292,9 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
 
 ### Phase 7 — documents in the analysis
 - Up to four documents a thread (PDF, Word, Markdown, text) parsed into units with locators and kept as
-  thread files; a map of each in every prompt and the text in the kernel; the READ action with
-  verbatim, verified passages; `[D1.17]` citations with the passage on hover; the Reader and Embedder
-  seats; memory on the Embedder seat. Phases A-D and the decisions D33-D56 are in
-  `docs/DOCUMENTS_DESIGN.md`; every phase is hosted-path work, dev box first.
-- **Status 2026-10-03: designed, not started.**
+  thread files; a map of each in every prompt and the objects in the kernel; the READ action with
+  verbatim, verified passages; `[D1.17]` citations with the passage on hover; the Reader seat. The
+  design is `docs/DOCUMENTS_DESIGN.md`; it is hosted-path work, dev box first.
+- **Status 2026-10-03: built and consolidated on the Mac; the hosted push pending.**
 
 Phases 0 and 1 go together; nothing is installable before the identity seam works.

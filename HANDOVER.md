@@ -1,12 +1,25 @@
 # State on 2026-10-03 (read this first; the sections below are the 2026-09-05 handover of the engine)
 
+- **How we work (Palo's standing rule, 2026-10-03 - read before changing anything).** When a model
+  misbehaves, find the root cause before changing anything: read what the standing text actually
+  says - the contract, the DATA block, the task line - and check whether the instruction exists at
+  all, or says the opposite; read the record or the run log for the sequence of calls; only then
+  decide. The fix goes where the cause is, in the fewest words or lines, and it corrects rather than
+  supplements: a wrong sentence is rewritten, not followed by another; a mechanism is replaced, not
+  layered. Prompts are held to the same discipline as code - the contract's page cap stands, and a
+  sentence that does not change what the model does comes out. Before returning anything, simulate
+  it: run the loop with a scripted model, replay the log, count what the seams actually received.
+  The lesson behind the rule: an afternoon of 2026-10-03 went on a refused dictionary, a
+  first-refusal-free rule, counts threaded through the loop and regexes, for a model whose standing
+  text promised that READ never spends a cell turn; making that one promise conditional fixed it,
+  and 0076 removed the rest.
 - **Where the code lives.** One repository, two remotes: `BambooAI_Prod` (private; `origin` everywhere)
   and `BambooAI` (public). The Mac clone `/Users/palogalko/Projects/Bamboo_AI_v2`, the dev box and prod
   at `/home/data/bambooai` all run the same `main`: the snapshot `f28de59` plus the patch series
   0001-0053 (phases 0-5 of the open-source edition, then Ollama 0038-0045, vLLM 0046-0050, this
   handover 0051, the design document brought current 0052, the Ollama `repeat_penalty` 0053).
-  Delivery is a patch series applied with `git am --keep-cr` (27 tracked text files are CRLF, among
-  them every `bambooai/models/*.py`), tested, pushed to the private remote, pulled on the boxes, pushed
+  Delivery is a patch series applied with `git am --keep-cr` (26 tracked text files are CRLF, among
+  them every `bambooai/models/*.py`; 27 before `embeddings.py` retired), tested, pushed to the private remote, pulled on the boxes, pushed
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
@@ -14,7 +27,7 @@
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
-- **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; D33-D56 are in
+- **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
   docs/DOCUMENTS_DESIGN.md):
   `AUTH_MODE=single` with the identity `BAMBOO_USER`; `bambooai/db/local_store.py` (SQLite behind
   Supabase's query shape); the executor container built from the Dockerfile the package ships and
@@ -39,21 +52,31 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (66/45/30/19/1/1 Python; 20/7/29/56 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (83/45/30/19/49/44/50/1/1 Python; 29/7/29/56/24 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (32); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
   right unit, when wanted, is one generic OpenAI-compatible gateway provider with a table of gateways.
-- **Designed, not started (2026-10-03):** documents in the analysis - `docs/DOCUMENTS_DESIGN.md`,
-  D33-D56. Up to four documents a thread (PDF, Word, Markdown, text; 10 MB each) parsed with
-  pdfplumber and python-docx into units with locators, kept as files under
-  `storage/<user>/documents/<thread_id>/` and pushed to the kernel at every chain start; a map in
-  every prompt; a READ action (3 a chain, recursion capped at depth 2 and 12 reader calls) returning
-  verbatim, verified passages; `[D1.17]` citations with the passage on hover; a Reader seat and an
-  Embedder seat (`openai/text-embedding-3-large` through OpenRouter, in all tiers); memory moves to
-  the Embedder seat and `EMBEDDING_PLATFORM` retires. Phases A-D, every one dev-first; the `[confirm]`
-  items of the session seed are due at the start of A.
+- **Documents (2026-10-03; the consolidated series replaces the day's 0054-0089).** A thread carries up to
+  four documents (PDF, Word, Markdown, text), parsed once into units with locators (`D1.17`) and stored as
+  files under `storage/<user>/documents/<thread>/`, mirrored into the executor by content; in the kernel
+  each is an object (`D1.text`, `.page`, `.units`, `.grep`, `.table`, `.outline`) the analyst reads with
+  cells; one new action, `READ <scope> <question>`, served by the Reader seat in one call over BM25
+  candidates (or exactly the stretch named), every passage verified verbatim, the digest in the prompt
+  and `SHOW READ k`; the report cites `[D1.17]`, the guard checks the quote, the page shows the passage
+  on hover; the paperclip's Document entry, the Documents pill and view. A READ is a turn, like a
+  SEARCH, three a run. The documents paragraph joins the contract only when the thread has documents;
+  without them the prompt and the accounting are the original, byte for byte. Removed from the first
+  build after real runs (a plain run at nineteen exchanges, a documents run at thirty-three with
+  eighteen free looks): the economy of free look-ups, caps and refusals; the `LOOK` action; the
+  embedding stack (Embedder seat, `embed()` in the adapters, vectors, reciprocal-rank fusion) and the
+  re-wiring of memory to it; map-reduce reads. `docs/DOCUMENTS_DESIGN.md` v1.0 states what is built.
+  Also in the series: `SHOW RUN` stays in view and takes several (the synthesis loop), a reply with
+  several actions is handled and a bundled REPORT no longer lost, SHOW of several of anything, the
+  `[cell n]` chips fixed. **Hosted push still pending**: the executor image rebuilt and recycled, the
+  Reader seat in the boxes' template, `pdfplumber` and `python-docx` in the boxes' venv, a smoke test
+  that attaches a PDF.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

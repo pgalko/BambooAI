@@ -27,6 +27,7 @@ code the model writes runs in a container, not under your account.
   - [Environment Variables](#environment-variables)
   - [Models and Seats](#models-and-seats)
 - [Data and Integrations](#data-and-integrations)
+  - [Documents](#documents)
 - [Where the Code Runs](#where-the-code-runs)
 - [Command Line](#command-line)
 - [Architecture](#architecture)
@@ -67,6 +68,9 @@ SweatStack load directly — and applies to any tabular dataset.
   both versions are kept.
 - **Auxiliary datasets and integrations.** Several files per analysis; training data loaded from
   Intervals.icu, Endura and SweatStack; loaded frames paged in the Data tab.
+- **Documents beside the data.** Up to four papers, notes or transcripts a thread (PDF, Word, Markdown,
+  text), parsed into passages with locators; the analyst sees a map of each and reads the text with
+  code, so a dataset is analysed in the context of what was written about it.
 - **Everything inspectable.** Every cell's code and output, every figure, every prompt that produced
   a turn, the per-call tokens, time and cost.
 - **Ten providers, per-seat configuration.** OpenRouter, OpenAI, Anthropic, Google, Groq, Mistral,
@@ -201,6 +205,7 @@ turn budgets per preset (`tier_properties`), and the properties of every model n
   {"agent": "Analyst",                  "details": {"model": "x-ai/grok-4.7",               "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 32000, "temperature": 0}},
   {"agent": "Reviewer",                 "details": {"model": "openai/gpt-5.6-sol",          "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 48000, "temperature": 0}},
   {"agent": "Rewriter",                 "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "low",  "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Reader",                   "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "low",  "max_tokens": 16000, "temperature": 0}},
   {"agent": "Knowledge Distiller",      "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "none", "max_tokens": 24000, "temperature": 0}},
   {"agent": "Google Search Executor",   "details": {"model": "gemini-flash-latest",          "provider": "gemini",     "reasoning_effort": "none", "max_tokens": 8000,  "temperature": 0}},
   {"agent": "Google Search Summarizer", "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "none", "max_tokens": 12000, "temperature": 0}},
@@ -223,6 +228,7 @@ The seats:
 | `Analyst` | runs the analysis: every turn, every cell, the report |
 | `Reviewer` | the self-review turns in Adaptive mode; a stronger model |
 | `Rewriter` | the plain-language version of the report |
+| `Reader` | reads the thread's documents for the analyst (the `READ` action): a cheaper model, called once per read over the passages that match the question |
 | `Knowledge Distiller` | writes the memory card when a run is saved |
 | `Google Search Executor` | the grounded search itself (a Gemini model) |
 | `Google Search Summarizer` | condenses search results into a cited digest |
@@ -410,6 +416,35 @@ it when the template file is newer than the built one.
 - **SweatStack**: OAuth; needs your own app registration with SweatStack (`SWEATSTACK_CLIENT_ID`,
   `SWEATSTACK_CLIENT_SECRET`).
 - **Web search**: `GEMINI_API_KEY`.
+
+### Documents
+
+A thread can carry up to four documents — papers, notes, meeting or interview transcripts — as PDF,
+Word (`.docx`), Markdown or plain text, each up to 10 MB. Attach one from the paperclip menu
+(**Document**). The file is parsed once, into passages with locators: the page for a PDF, the heading
+trail for the other formats, each passage numbered `D1.17` (document 1, passage 17). Tables become
+rows the kernel can load. A blue **Documents** pill in the top bar shows how many are attached; hover
+it to see them and remove one, click it to open the Documents view, which shows each document's map
+and its text passage by passage.
+
+The analyst does not receive the text in its prompt. It receives a short map of each document — the
+outline, the tables, the figure captions — and in the kernel each document is an object: `D1.text`,
+`D1.page(n)`, `D1.grep(pattern, context=1)`, `D1.units(a, b)`, `D1.table(n)` (a dataframe),
+`D1.outline()`. A cell can search a transcript for a name, read a section, or load a table and check it
+against the paragraph that describes it, and the report cites the cell as usual. For what a search of
+the text cannot do, the analyst has one more action, `READ`: it names a document (or all of them, or
+a stretch of one) and what it is looking for; the passages that match go to the `Reader` seat, which
+quotes the ones that answer, each checked word for word against the document and returned with its
+locator. The report cites a passage as `[D1.17]` beside `[cell n]`; on the page the citation shows the
+passage on hover and opens the Documents view at it on click. A `READ` is a turn, like a web search;
+three per run.
+
+Documents are kept as files under the working folder's `storage/<user>/documents/<thread>/`, not in
+the database; every chain in the thread sees them, and they are removed with the thread. The parsers
+are `pdfplumber` and `python-docx`, installed with the package. A template from before the `Reader`
+seat keeps working: add the seat from the shipped template to yours to turn `READ` on. A PDF without a
+text layer (a scan) is refused: OCR is not supported. Parsed text above 2 MB is refused as well; the
+pill shows the reason.
 
 ## Where the Code Runs
 
