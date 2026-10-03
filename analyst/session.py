@@ -38,8 +38,9 @@ REVIEW_LINE = ("SELF-REVIEW TURN: re-read your note against the original questio
 LAST_TURNS_LINE = "The budget is nearly gone: write REPORT with what you have, and say what was not established."
 SHOW_VIEW_CHARS = 40_000     # a SHOW of several cells at once rides whole up to this; beyond it the middle goes, as for a digest
                              # (2026-10-03: an 87,000-character view of several cells was sent whole to a 64k-token server)
-SHOWN_RUNS_WHOLE = 3         # the runs SHOW RUN re-opened stay in the prompt for the rest of the run: the most recent three whole,
-                             # the rest as a line each (2026-10-03: a synthesis re-opened run 1 eleven times, each SHOW living one turn)
+SHOWN_RUNS_CHARS = 60_000    # the runs SHOW RUN re-opened stay in the prompt for the rest of the run, whole, while together they fit
+                             # this; beyond it the oldest collapse to a line each (2026-10-03: a count of three kept a five-chain
+                             # synthesis cycling - ten of its fourteen turns re-opened runs it had already shown)
 DIGEST_VIEW_CHARS = 12_000   # a search or read digest rides into the next prompt whole, like the newest cell's output; a longer one
                              # is cut from the middle at line ends so its top and its SUMMARY both survive. The record keeps all.
 
@@ -132,6 +133,11 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     # action runs, and the next prompt says what did not.
     verbs = [ln.split()[0].lower() for ln in _CODE_RE.sub("", body).splitlines() if _ACTION_LINE_RE.match(ln)]
     more: tuple = ()
+    if len(verbs) > 1 and all(v == "cell" for v in verbs):
+        # several CELL blocks and nothing else: the model wrote one step as several cells (2026-10-03: half the replies
+        # of five chains did, and the second cell ran a turn later) - they are one cell, run together
+        codes = [m.group(1).rstrip() for m in _CODE_RE.finditer(body)]
+        return thinking, note, Action("cell", "\n\n".join(c for c in codes if c.strip()))
     if len(verbs) > 1:
         if "report" in verbs[1:] and all(v in ("show", "names", "recall") for v in verbs[:verbs.index("report")]):
             i = re.search(r"(?m)^\s*REPORT\b", body).start()
@@ -200,7 +206,7 @@ class Session:
     def _shown_runs(self, run: Run) -> str:
         """The earlier chains SHOW RUN re-opened in this run, standing in the prompt for the rest of it (2026-10-03: a
         SHOW lived one turn, and a synthesis that needed three chains in view re-opened them twenty-seven times). The
-        most recent SHOWN_RUNS_WHOLE whole, in the order they were shown, the rest as a line each."""
+        shown runs whole, in the order they were shown, while together they fit SHOWN_RUNS_CHARS; the oldest beyond that as a line each."""
         order: List[int] = []                                      # run numbers in order of their latest showing
         texts: dict = {}
         for i, x in enumerate(run.turns, 1):
@@ -212,7 +218,13 @@ class Session:
                     order.append(k); texts[k] = (m.group(0).strip(), i)
         if not order:
             return ""
-        whole, older = order[-SHOWN_RUNS_WHOLE:], order[:-SHOWN_RUNS_WHOLE]
+        whole, older, size = [], [], 0
+        for k in reversed(order):                                  # newest first, whole while they fit
+            n = len(texts[k][0])
+            if not whole or size + n <= SHOWN_RUNS_CHARS:
+                whole.insert(0, k); size += n
+            else:
+                older.insert(0, k)
         parts = ["RUNS SHOWN THIS RUN (they stay here; SHOW RUN k re-opens an older one):"]
         for k in older:
             parts.append(f"(run {k} was shown at turn {texts[k][1]}; SHOW RUN {k} brings it back whole)")

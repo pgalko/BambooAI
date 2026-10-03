@@ -72,7 +72,7 @@
   eighteen free looks): the economy of free look-ups, caps and refusals; the `LOOK` action; the
   embedding stack (Embedder seat, `embed()` in the adapters, vectors, reciprocal-rank fusion) and the
   re-wiring of memory to it; map-reduce reads. `docs/DOCUMENTS_DESIGN.md` v1.0 states what is built.
-  Also in the series: `SHOW RUN` stays in view and takes several (the synthesis loop), a reply with
+  Also in the series: `SHOW RUN` stays in view - every shown run whole while together they fit 60k characters - and takes several (the synthesis loop; a count of three had kept a five-chain synthesis cycling), several CELL blocks in one reply run as one cell, a reply with
   several actions is handled and a bundled REPORT no longer lost, SHOW of several of anything, the
   `[cell n]` chips fixed. **Hosted push still pending**: the executor image rebuilt and recycled, the
   Reader seat in the boxes' template, `pdfplumber` and `python-docx` in the boxes' venv, a smoke test

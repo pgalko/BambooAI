@@ -294,8 +294,23 @@ p2 = syn_prompts[1]; p3 = syn_prompts[2]
 check("synthesis: SHOW RUN 1 2 3 opens three chains in one turn, and they stand in the next prompt under RUNS SHOWN THIS RUN, whole",
       "RUNS SHOWN THIS RUN" in p2 and all(f"--- run {k} ---" in p2.split("RUNS SHOWN THIS RUN")[1] for k in (1, 2, 3)) and "Sentence 59 of the chain's report" in p2.split("RUNS SHOWN THIS RUN")[1]
       and p2.count("SHOWN: run 1 2 3 - whole, under RUNS SHOWN THIS RUN above") == 1, [ln for ln in p2.splitlines() if ln.startswith("---") or ln.startswith("SHOWN") or ln.startswith("RUNS")])
-check("synthesis: after SHOW RUN 4 the three most recent (2, 3, 4) stand whole and run 1 has become a line that says when it was shown",
-      "(run 1 was shown at turn 1; SHOW RUN 1 brings it back whole)" in p3 and all(f"--- run {k} ---" in p3 for k in (2, 3, 4)) and p3.count("--- run 1 ---") == 0, [ln for ln in p3.splitlines() if ln.startswith("---") or ln.startswith("(run")])
+check("synthesis: after SHOW RUN 4 all four shown runs stand whole - they fit the budget together (2026-10-03: a count of three had kept a five-chain synthesis cycling)",
+      all(f"--- run {k} ---" in p3 for k in (1, 2, 3, 4)) and "was shown at turn" not in p3, [ln for ln in p3.splitlines() if ln.startswith("---") or ln.startswith("(run")])
+from analyst import session as _sess
+_saved_chars = _sess.SHOWN_RUNS_CHARS; _sess.SHOWN_RUNS_CHARS = 10500     # room for two of these reports, not three
+try:
+    small = Session(None, nb6, lambda s_, u, **h: ("", {}), data_description="d")
+    block = small._shown_runs(syn)
+finally:
+    _sess.SHOWN_RUNS_CHARS = _saved_chars
+check("synthesis: past the character budget the oldest shown runs collapse to a line each, the newest stay whole",
+      "(run 1 was shown at turn 1; SHOW RUN 1 brings it back whole)" in block and "(run 2 was shown at turn 1; SHOW RUN 2 brings it back whole)" in block
+      and "--- run 4 ---" in block and "--- run 3 ---" in block and block.count("--- run 1 ---") == 0, [ln for ln in block.splitlines() if ln.startswith("---") or ln.startswith("(run")])
+pm = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nCELL\n```python\nprint(a + 1)\n```")[2]
+check("parse_turn: several CELL blocks and nothing else in one reply are one cell, run together (2026-10-03: half the replies of five chains bundled two cells, and the second ran a turn later)",
+      pm.verb == "cell" and pm.arg == "a = 1\n\nprint(a + 1)" and pm.more == (), (pm.verb, pm.arg, pm.more))
+pm2 = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nSHOW 3")[2]
+check("parse_turn: a CELL followed by another kind of action still runs the cell alone and records the rest", pm2.verb == "cell" and pm2.arg == "a = 1" and pm2.more == ("show",), (pm2.verb, pm2.more))
 check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",
       syn.status == "answered" and len([x for x in syn.turns if x.kind != "rewrite"]) == 3 and "CHECK:" not in syn.report, (syn.status, [x.kind for x in syn.turns], syn.report[-200:]))
 check("synthesis: the prompt with three chains whole stays well inside a 64k context (chars/4)", len(p2) // 4 < 20000, len(p2) // 4)
