@@ -392,8 +392,10 @@ async function updateTabContent(type, data, id = null, format = null) {
                 answerTabSynthesis = false;
             }
             
-            // Restore LaTeX content
-            const finalContent = restoreLatexDelimiters(parsedContent, placeholders);
+            // Restore LaTeX content; then the citation chips - [cell 7], [fig 7], [D1.17] - as part of the HTML itself, so
+            // the stored technical answer carries them through toggles and re-renders (stream-pane.js, 2026-10-03)
+            let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
+            if (type === 'answer' && typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent);
             
             // Add the content to the DOM
             content += '<div class="markdown-content content-body">' + finalContent + '</div>';

@@ -44,6 +44,9 @@
 #streamOutput .sp-row { display: flex; align-items: center; gap: 10px; padding: 5px 10px; margin-left: 10px; font-family: Arial, sans-serif; font-size: 12px; color: var(--text-secondary); border-left: 2px solid var(--yaml-key); background: var(--bg-secondary); border-radius: 0 4px 4px 0; }
 #streamOutput .sp-row[data-cell] { cursor: pointer; }
 #streamOutput .sp-row .in { font-family: 'Courier New', Courier, monospace; color: var(--yaml-key); white-space: nowrap; }
+#streamOutput .sp-row.tool.pending .live { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-color); animation: sp-pulse 1.2s ease-in-out infinite; flex-shrink: 0; }   /* a READ or SEARCH under way (2026-10-03) */
+#streamOutput .sp-row.tool.pending .out { font-style: italic; }
+#streamOutput .sp-row.tool.read { border-left-color: var(--info-color, #58a6ff); }
 #streamOutput .sp-row .out { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Courier New', Courier, monospace; color: var(--text-tertiary); }
 #streamOutput .sp-row .t { color: var(--text-quaternary); font-size: 11px; white-space: nowrap; }
 #streamOutput .sp-row.fail { border-left-color: var(--error-color); }

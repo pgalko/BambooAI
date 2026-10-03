@@ -8,7 +8,7 @@ function encodeAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '
 class Node { constructor() { this.parent = null; } }
 class Text extends Node { constructor(t) { super(); this.nodeType = 3; this.data = t; } get textContent() { return this.data; } get outerHTML() { return encodeText(this.data); } }
 class Element extends Node {
-  constructor(tag) { super(); this.nodeType = 1; this.tag = tag.toLowerCase(); this.attrs = {}; this.children = []; const self = this;
+  constructor(tag) { super(); this.nodeType = 1; this.tag = tag.toLowerCase(); this.tagName = this.tag.toUpperCase(); this.attrs = {}; this.children = []; const self = this;
     this.classList = { add: c => self._cls(c, true), remove: c => self._cls(c, false), contains: c => self._c().includes(c), toggle: (c, on) => self._cls(c, on === undefined ? !self._c().includes(c) : on) };
     this.style = {}; this.dataset = new Proxy({}, { get: (_, k) => self.attrs['data-' + String(k).replace(/[A-Z]/g, m => '-' + m.toLowerCase())] }); }
   _c() { return (this.attrs['class'] || '').split(/\s+/).filter(Boolean); }
@@ -18,6 +18,7 @@ class Element extends Node {
   getAttribute(a) { return this.attrs[a] == null ? null : this.attrs[a]; } setAttribute(a, v) { this.attrs[a] = String(v); } removeAttribute(a) { delete this.attrs[a]; } hasAttribute(a) { return a in this.attrs; }
   appendChild(n) { if (n.parent) n.parent.children = n.parent.children.filter(c => c !== n); n.parent = this; this.children.push(n); return n; }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); this.parent = null; }
+  get parentNode() { return this.parent || null; }        // the browser's name for it
   get innerHTML() { return this.children.map(c => c.outerHTML).join(''); }
   set innerHTML(html) { this.children = []; parseInto(this, html); }
   get outerHTML() { const a = Object.entries(this.attrs).map(([k, v]) => ` ${k}="${encodeAttr(v)}"`).join(''); return VOID.has(this.tag) ? `<${this.tag}${a}/>` : `<${this.tag}${a}>${this.innerHTML}</${this.tag}>`; }
@@ -66,7 +67,7 @@ function parseInto(parent, html) {
 }
 function makeDocument() {
   const body = new Element('body');
-  const doc = { body, createElement: t => new Element(t), getElementById: id => body.querySelectorAll('#' + id)[0] || null,
+  const doc = { body, createElement: t => new Element(t), getElementById: id => { const find = n => { for (const c of n.elements) { if (c.id === id) return c; const r = find(c); if (r) return r; } return null; }; return find(body); },   // by id, not by selector: a dotted id (unit-D1.2) is an id, as in the browser
     querySelector: s => body.querySelector(s), querySelectorAll: s => body.querySelectorAll(s), addEventListener() {} };
   return doc;
 }

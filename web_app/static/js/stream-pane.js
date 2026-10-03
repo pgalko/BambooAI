@@ -16,7 +16,8 @@
 //   thought (token)  -> paneThought      reasoning-channel tokens of the live turn
 //   pane_turn_end    -> paneTurnEnd      {turn, kind, peek, elapsed, cost, thinking, note, code}
 //   pane_cell        -> paneCell         {cell_no, ok, peek, elapsed, chars, figs, error_line}
-//   pane_lookup      -> paneLookup       {kind, query, peek, sources:[{title,url,host}]}
+//   pane_lookup_start -> paneLookupStart {kind, query, model}          a READ or SEARCH under way: a pending row, replaced by the lookup row
+//   pane_lookup      -> paneLookup       {kind, query, peek, sources:[{title,url,host}], passages:[{id,where,quote}]}
 //   pane_heartbeat   -> paneHeartbeat    {turn, of, spent, dollars, estimate, mode}
 //   pane_datasets    -> paneDatasets     {files:[{path,name,rows,size}]}
 //   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, cost, seconds, replay_status, replay_line, plots}
@@ -118,11 +119,20 @@
                 '<span class="out">' + esc(ok ? (c.peek || '(no output)') : (c.error_line || 'failed')) + '</span>' +
                 '<span class="t">' + esc(meta) + '</span></div>';
         },
+        lookupStart(l) {
+            // a READ or SEARCH in progress (2026-10-03): the row pulses until paneLookup replaces it
+            const label = ({ search: 'SEARCH', read: 'READ', recall: 'RECALL' })[l.kind] || String(l.kind || '').toUpperCase();
+            const doing = l.kind === 'read' ? 'reading' + (l.model ? ' · Reader on ' + esc(String(l.model).split('/').pop()) : '') + '…'
+                        : (l.kind === 'search' ? 'searching the web…' : 'working…');
+            return '<div class="sp-row tool pending" data-pending="' + esc(l.kind || '') + '"><span class="live"></span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
+                '<span class="out">' + doing + '</span><span class="t"></span></div>';
+        },
         lookup(l) {
-            const label = ({ show: 'SHOW', names: 'NAMES', recall: 'RECALL', search: 'SEARCH' })[l.kind] || String(l.kind || '').toUpperCase();
-            const glyph = l.kind === 'search' ? '⌕' : (l.kind === 'recall' ? '✦' : '↺');
-            const right = l.kind === 'search' && l.sources && l.sources.length ? l.sources.length + ' source' + (l.sources.length === 1 ? '' : 's') : '';
-            let h = '<div class="sp-row tool"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
+            const label = ({ show: 'SHOW', names: 'NAMES', recall: 'RECALL', search: 'SEARCH', read: 'READ' })[l.kind] || String(l.kind || '').toUpperCase();
+            const glyph = l.kind === 'search' ? '⌕' : (l.kind === 'recall' ? '✦' : (l.kind === 'read' ? '¶' : '↺'));
+            const right = l.kind === 'search' && l.sources && l.sources.length ? l.sources.length + ' source' + (l.sources.length === 1 ? '' : 's')
+                        : (l.kind === 'read' ? (l.passages && l.passages.length ? l.passages.length + ' passage' + (l.passages.length === 1 ? '' : 's') : 'no passage') : '');
+            let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
                 '<span class="out">' + esc(l.peek || '') + '</span><span class="t">' + esc(right) + '</span></div>';
             if (l.sources && l.sources.length) {
                 h += '<div class="sp-pills">' + l.sources.map(s =>
@@ -154,6 +164,16 @@
         },
         system(text, level) {
             return '<div class="sp-sys' + (level === 'error' ? ' error' : '') + '">' + esc(text) + '</div>';
+        },
+        cite(kind, ref) {
+            // [cell 7] opens the cell, [fig 7] the plots, [D1.17] the Documents view at that unit with the passage a READ
+            // returned as its hover text (2026-10-03)
+            if (kind === 'doc') {
+                const p = unitPassages[ref];
+                const title = p ? (p.where ? p.where + ' — ' : '') + '"' + p.quote + '"' : 'open in the Documents view';
+                return '<span class="cite doc" data-unit="' + esc(ref) + '" title="' + esc(title) + '" onclick="if(typeof documentsOpenUnit===\'function\')documentsOpenUnit(\'' + esc(ref) + '\')">' + esc(ref) + '</span>';
+            }
+            return '<span class="cite ' + kind + '" onclick="' + (kind === 'fig' ? "if(typeof paneOpenTab==='function')paneOpenTab('Plots')" : "if(typeof paneOpenCell==='function')paneOpenCell(" + esc(ref) + ")") + '">' + kind + ' ' + esc(ref) + '</span>';
         }
     };
 
@@ -199,6 +219,7 @@
     }
     window.paneRunStart = function (ev) {
         lastStrip = null;
+        Object.keys(unitPassages).forEach(k => delete unitPassages[k]);
         renderStrip({ mode: ev.mode, turn: 0, of: ev.of, spent: 0, dollars: ev.dollars, estimate: '' });
         liveCard = null; liveRaw = ''; noteSeen = false;
     };
@@ -270,7 +291,26 @@
         const html = '<details class="sp-telemetry"><summary><span class="chev"></span>call telemetry</summary><pre>' + esc(text) + '</pre></details>';
         if (card) card.insertAdjacentHTML('beforeend', html); else append('<div class="sp-done">' + html + '</div>');
     };
-    window.paneLookup = function (l) { append(build.lookup(l)); };
+    // the passages this chain's READs returned, by unit id: the hover text of a [D1.17] chip in the answer, and
+    // the Documents view's read marks. Reset at run start.
+    const unitPassages = {};
+    window.documentsReadMarks = unitPassages;
+    window.paneCite = function (kind, ref) { return build.cite(kind, ref); };
+    // [cell n], [fig n] and [D1.17] in rendered answer HTML become chips - in the text between tags only, so the stored
+    // HTML carries the chips and no later re-render loses them (2026-10-03: a walk at run end had raced the rendering)
+    window.paneCiteHtml = function (html) {
+        return String(html || '').split(/(<[^>]+>)/).map(seg => seg.startsWith('<') ? seg :
+            seg.replace(/\[(cell|fig)\s*(\d+)\]|\[(D\d+\.\d+)\]/g, (m, kind, num, unit) => unit ? build.cite('doc', unit) : build.cite(kind, num))).join('');
+    };
+    window.paneLookupStart = function (l) { append(build.lookupStart(l)); };
+    window.paneLookup = function (l) {
+        (l.passages || []).forEach(p => { if (p && p.id) unitPassages[p.id] = { quote: p.quote || '', where: p.where || '' }; });
+        // the pending row this look-up announced itself with goes; the finished row takes its place
+        const root = document.getElementById('streamOutput');
+        const pend = root && root.querySelectorAll('.sp-row.tool.pending');
+        if (pend && pend.length) pend[pend.length - 1].remove();
+        append(build.lookup(l));
+    };
     window.paneDatasets = function (d) { append(build.datasets(d)); };
     window.paneRunEnd = function (r) {
         window.paneTurnEnd({ turn: -1 });
@@ -292,18 +332,7 @@
                     const first = body.firstElementChild; const after = first && /^H[12]$/.test(first.tagName) ? first : null;
                     if (after && after.nextSibling) body.insertBefore(key, after.nextSibling); else body.insertBefore(key, body.firstChild);
                 }
-                // [cell n] and [fig n] markers become chips that open the cell or the plots
-                if (!body.dataset.cited) {
-                    body.dataset.cited = '1';
-                    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT); const nodes = [];
-                    while (walker.nextNode()) if (/\[(cell|fig)\s*\d+\]/.test(walker.currentNode.nodeValue)) nodes.push(walker.currentNode);
-                    nodes.forEach(n => {
-                        const span = document.createElement('span');
-                        span.innerHTML = esc(n.nodeValue).replace(/\[(cell|fig)\s*(\d+)\]/g, (m, kind, num) =>
-                            '<span class="cite ' + kind + '" onclick="' + (kind === 'fig' ? "if(typeof paneOpenTab==='function')paneOpenTab('Plots')" : "if(typeof paneOpenCell==='function')paneOpenCell(" + num + ")") + '">' + kind + ' ' + num + '</span>');
-                        n.replaceWith(...span.childNodes);
-                    });
-                }
+                // the citation chips are made where the answer is rendered (content-rendering.js, paneCiteHtml)
             }
             let foot = answer.querySelector('.answer-provenance');
             if (!foot) { foot = document.createElement('div'); foot.className = 'answer-provenance'; answer.appendChild(foot); }

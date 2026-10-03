@@ -25,7 +25,23 @@ w.paneTurnStart({turn:2, of:15, seat:'Analyst', model:'x-ai/grok-4.6', chain_id:
 w.paneThought('hidden reasoning');
 w.paneTurnEnd({turn:2, kind:'cell', thinking:'', note:'', code:'1/0', elapsed:3, cost:0.001});
 w.paneCell({cell_no:null, ok:false, error_line:"ZeroDivisionError: division by zero", elapsed:0.2});
+w.paneLookupStart({kind:'search', query:'altitude & "pace"'});
+const pendingSearch = pane.querySelector('.sp-row.tool.pending');
+check('a SEARCH under way: a pending row with the pulse, the query and "searching the web…"', pendingSearch && pendingSearch.querySelector('.live') && pendingSearch.querySelector('.in').textContent.includes('SEARCH altitude') && pendingSearch.querySelector('.out').textContent === 'searching the web…');
 w.paneLookup({kind:'search', query:'altitude & "pace"', peek:'r <1>', sources:[{title:'A & B', url:'https://x.y/a?b=1&c=2', host:'x.y'}]});
+check('the search row replaces its pending row', !pane.querySelector('.sp-row.tool.pending') && pane.querySelectorAll('.sp-row.tool').length === 1);
+w.paneLookupStart({kind:'read', query:'D1 the wet season', model:'deepseek/deepseek-v4.1-flash'});
+check('a READ under way: the pending row names the Reader and its model', pane.querySelector('.sp-row.tool.pending .out').textContent === 'reading · Reader on deepseek-v4.1-flash…');
+w.paneLookup({kind:'read', query:'D1 the wet season', peek:'An early wet season [D1.3].', sources:[], passages:[{id:'D1.3', where:'notes.md §Weather', quote:'rainfall was 40% above'}, {id:'D1.5', where:'notes.md §Weather', quote:'sown a week later'}]});
+check('[D1.3] chip: a document citation with the READ row\'s passage as its hover text, opening the view at the unit; an unknown unit still opens the view',
+      w.paneCite('doc', 'D1.3') === '<span class="cite doc" data-unit="D1.3" title="notes.md §Weather — &quot;rainfall was 40% above&quot;" onclick="if(typeof documentsOpenUnit===\'function\')documentsOpenUnit(\'D1.3\')">D1.3</span>'
+      && w.paneCite('doc', 'D1.9').includes('title="open in the Documents view"') && w.paneCite('cell', '7') === '<span class="cite cell" onclick="if(typeof paneOpenCell===\'function\')paneOpenCell(7)">cell 7</span>', w.paneCite('doc', 'D1.3'));
+check('the read marks the view reads are the same map', w.documentsReadMarks['D1.3'] && w.documentsReadMarks['D1.3'].quote === 'rainfall was 40% above' && !w.documentsReadMarks['D1.9']);
+const cited = w.paneCiteHtml('<p>Rain was 40% above [D1.3] and plots [cell 2] <code>x[D1.3]</code> <a title="[cell 9]">t</a></p>');
+check('paneCiteHtml: chips in the text between tags - a document chip with its passage, a cell chip - and nothing inside a tag is touched',
+      cited.includes('data-unit="D1.3"') && cited.includes('paneOpenCell(2)') && cited.includes('title="[cell 9]"') && cited.split('class="cite').length === 4, cited);
+const readRow = pane.querySelector('.sp-row.tool.read');
+check('the READ row: ¶ glyph, READ label with the query, the summary as peek, "2 passages" on the right; the pending row gone', readRow && readRow.textContent.includes('¶') && readRow.querySelector('.in').textContent.startsWith('READ D1 the wet season') && readRow.querySelector('.out').textContent === 'An early wet season [D1.3].' && readRow.querySelector('.t').textContent === '2 passages' && !pane.querySelector('.sp-row.tool.pending'));
 w.paneDatasets({files:[{path:"generated/it's.csv", rows:45}]});
 w.paneHeartbeat({turn:2, of:15, spent:0.013, dollars:1.5, estimate:'ratio 1.06 [1.02, 1.10] "matched HR"', mode:'Deep'});
 w.paneRunEnd({status:'answered', turns:2, of:15, cells:1, failed:1, cost:0.013, seconds:16, replay_status:'reproduced', replay_line:'Replay reproduced (1 cells, 3 numbers)', plots:1, files:[{path:'generated/x.csv'}]});
@@ -36,11 +52,14 @@ check('strip: settled on the final turn and spend, estimate shown, idle dot', pa
 check('closing card: counts, replay line, four links, dataset pill', pane.querySelector('.sp-done .grid').textContent.includes('2 of 15') && pane.querySelector('.sp-done .rep').textContent.includes('Replay reproduced') && pane.querySelectorAll('.sp-done a').length === 4 && pane.querySelector('.sp-done .sp-pill.ds'));
 
 // 2. save to favourites = innerHTML; restore = innerHTML into a fresh element (a reload, a navigation arrow, a map click)
+w.paneHeartbeat({turn:9, of:15, spent:0.09, dollars:1.5, estimate:'x', mode:'Deep'});
+w.paneTurnStart({turn:10, of:15, seat:'Analyst', model:'m'}); w.paneTurnEnd({turn:10, kind:'names', thinking:'', note:'', code:'', elapsed:1, cost:0.001});
+check('a turn start moves the strip: turn 10 of 15', pane.querySelector('.sp-strip').textContent.includes('turn 10 of 15'));
 const saved = pane.innerHTML;
 const pane2 = doc.createElement('div'); pane2.setAttribute('id', 'streamOutput'); pane.remove(); doc.body.appendChild(pane2);
 pane2.innerHTML = saved;
 check('restore round-trip: the saved HTML re-parses to the same HTML', pane2.innerHTML === saved);
-check('restored: cards collapsed with their folds, rows, pills, strip and ids present', pane2.querySelectorAll('.sp-turn').length === 2 && pane2.querySelectorAll('.sp-turn[open]').length === 0 && pane2.querySelector('.sp-note') && pane2.querySelectorAll('.sp-row').length === 3 && pane2.querySelectorAll('.sp-ids .v')[1].textContent === '1788644290');
+check('restored: cards collapsed with their folds, rows, pills, strip and ids present', pane2.querySelectorAll('.sp-turn').length === 3 && pane2.querySelectorAll('.sp-turn[open]').length === 0 && pane2.querySelector('.sp-note') && pane2.querySelectorAll('.sp-row').length === 4 && pane2.querySelectorAll('.sp-ids .v')[1].textContent === '1788644290');   // 4 rows: In [1], the failed cell, the search row, the READ row and three LOOK rows (2026-10-03)
 const dsClick = pane2.querySelector('.sp-pill.ds').getAttribute('onclick');
 let called = null; global.downloadFile = p => { called = p; }; new Function(dsClick)();
 check("restored handlers: the dataset pill's inline handler runs and passes the exact path (apostrophe included)", called === "generated/it's.csv", dsClick);
@@ -61,7 +80,11 @@ w.paneTurnStart({turn:1, of:15, seat:'Analyst', model:'m', chain_id:3}); w.paneT
 w.paneTurnStart({turn:2, of:15, seat:'Analyst', model:'m', chain_id:3});
 check('a turn that never ended closes as lost when the next starts', pane2.querySelectorAll('.sp-turn')[0].classList.contains('lost') && !pane2.querySelectorAll('.sp-turn')[0].hasAttribute('open') && pane2.querySelectorAll('.sp-turn')[1].classList.contains('live'));
 w.paneRunEnd({status:'stopped', turns:2, of:15, cells:0, failed:0, cost:0.01, seconds:5, replay_status:'', replay_line:'', plots:0, files:[]});
+
 check('stopped run: the live card closed, the closing card says stopped, no tab links', !pane2.querySelector('.sp-turn.live') && pane2.querySelector('.sp-done .title').textContent === 'Run stopped' && pane2.querySelectorAll('.sp-done a').length === 0);
+w.paneRunEnd({status:'answered', turns:31, of:15, cells:7, failed:2, cost:0.4, seconds:300, replay_status:'', replay_line:'', plots:0, files:[]});
+const grids = pane2.querySelectorAll('.sp-done .grid'); const lastGrid = grids[grids.length - 1].textContent;
+check('closing card: "Turns 31 of 15", "Cells 7 (2 failed)"', lastGrid.includes('Turns 31 of 15') && lastGrid.includes('Cells 7 (2 failed)') && !lastGrid.includes('Cell turns'), lastGrid);
 
 // 5. tokens with no live turn are refused (the dispatcher then appends plain text itself)
 check('no live turn: tokens and thoughts refused', w.paneToken('x') === false && w.paneThought('y') === false);
