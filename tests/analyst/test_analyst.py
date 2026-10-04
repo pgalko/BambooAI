@@ -307,8 +307,8 @@ check("synthesis: past the character budget the oldest shown runs collapse to a 
       "(run 1 was shown at turn 1; SHOW RUN 1 brings it back whole)" in block and "(run 2 was shown at turn 1; SHOW RUN 2 brings it back whole)" in block
       and "--- run 4 ---" in block and "--- run 3 ---" in block and block.count("--- run 1 ---") == 0, [ln for ln in block.splitlines() if ln.startswith("---") or ln.startswith("(run")])
 pm = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nCELL\n```python\nprint(a + 1)\n```")[2]
-check("parse_turn: several CELL blocks and nothing else in one reply are one cell, run together (2026-10-03: half the replies of five chains bundled two cells, and the second ran a turn later)",
-      pm.verb == "cell" and pm.arg == "a = 1\n\nprint(a + 1)" and pm.more == (), (pm.verb, pm.arg, pm.more))
+check("parse_turn: several CELL blocks in one reply are NOT merged - the first is the cell, the rest recorded (2026-10-04: merged, the model wrote fourteen blind)",
+      pm.verb == "cell" and pm.arg == "a = 1" and pm.more == ("cell",), (pm.verb, pm.arg, pm.more))
 pm2 = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nSHOW 3")[2]
 check("parse_turn: a CELL followed by another kind of action still runs the cell alone and records the rest", pm2.verb == "cell" and pm2.arg == "a = 1" and pm2.more == ("show",), (pm2.verb, pm2.more))
 check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",
@@ -357,7 +357,7 @@ check("with documents the system prompt gains READ and the citation rule", "READ
 # a reply that carries two actions: the first runs and the next prompt says so; pure reads before a REPORT are skipped
 def act(line): return "###NOTE###\n" + NOTE5 + "\n###ACTION###\n" + line
 two_prompts = []
-TWO = [act("CELL\n```python\nprint('one')\n```\nREPORT\n## r\n\nDone."),               # CELL then REPORT: the cell runs, the report is dropped and said
+TWO = [act("CELL\n```python\nprint('one')\n```\nCELL\n```python\nprint('two')\n```"),   # two CELL blocks: the first runs, the next prompt says one cell per turn
        act("SHOW 1\n###THINKING###\nmore\n###NOTE###\n" + NOTE5 + "\n###ACTION###\nREPORT\n## r\n\nDone [cell 1].")]   # SHOW then REPORT: the report is taken
 two_i = {"n": 0}
 def two_llm(system, user, **h):
@@ -370,7 +370,8 @@ try:
     r2 = Session(k2, nb2_, two_llm, data_description="d").run("q", budget=Budget(turns=5, dollars=1.0))
 finally:
     k2.cleanup()
-check("a reply with CELL then REPORT: the cell ran, and the next prompt says the report did not", r2.turns[0].kind == "cell" and "(Your reply held 2 actions - CELL then REPORT; only the CELL ran. One action per turn.)" in two_prompts[1], ([x.kind for x in r2.turns], two_prompts[1][-300:]))
+check("a reply with two CELL blocks: the first ran, the second was discarded, and the next prompt says one cell per turn and to read the output first",
+      r2.turns[0].kind == "cell" and "two" not in (r2.turns[0].stdout or "") and "(Your reply held 2 CELL blocks. Only the first ran; the others were discarded. One cell per turn: read this cell's output, then write the next.)" in two_prompts[1], ([x.kind for x in r2.turns], two_prompts[1][-300:]))
 check("a reply with SHOW then REPORT: the report is taken - it was written without the shown cell - and the run is answered", r2.turns[1].kind == "report" and r2.status == "answered" and "Done [cell 1]" in r2.report, ([x.kind for x in r2.turns], r2.status))
 pt = parse_turn("###NOTE###\nn\n###ACTION###\nSHOW 1 2\nNAMES\nREPORT\n## r\n\nx")[2]
 check("parse_turn: SHOW and NAMES before a REPORT are skipped and recorded as `more`", pt.verb == "report" and pt.more == ("show", "names") and pt.arg.startswith("## r"))

@@ -133,11 +133,6 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     # action runs, and the next prompt says what did not.
     verbs = [ln.split()[0].lower() for ln in _CODE_RE.sub("", body).splitlines() if _ACTION_LINE_RE.match(ln)]
     more: tuple = ()
-    if len(verbs) > 1 and all(v == "cell" for v in verbs):
-        # several CELL blocks and nothing else: the model wrote one step as several cells (2026-10-03: half the replies
-        # of five chains did, and the second cell ran a turn later) - they are one cell, run together
-        codes = [m.group(1).rstrip() for m in _CODE_RE.finditer(body)]
-        return thinking, note, Action("cell", "\n\n".join(c for c in codes if c.strip()))
     if len(verbs) > 1:
         if "report" in verbs[1:] and all(v in ("show", "names", "recall") for v in verbs[:verbs.index("report")]):
             i = re.search(r"(?m)^\s*REPORT\b", body).start()
@@ -341,7 +336,12 @@ class Session:
             thinking, note, action = parse_turn(text)
             note = note or run.note
             extra = ""
-            held = ((f"(Your reply held {len(action.more) + 1} actions - {action.verb.upper()} then "
+            # several CELL blocks in one reply: the first ran, the rest did not - and are not merged (2026-10-04: merged, they
+            # ran fine, but the model then wrote fourteen cells blind in one reply, computing nothing it had read the output of)
+            held = ((f"(Your reply held {len(action.more) + 1} CELL blocks. Only the first ran; the others were discarded. "
+                     f"One cell per turn: read this cell's output, then write the next.)")
+                    if action.more and action.verb == "cell" and all(v == "cell" for v in action.more) else
+                    (f"(Your reply held {len(action.more) + 1} actions - {action.verb.upper()} then "
                      f"{', '.join(v.upper() for v in action.more)}; only the {action.verb.upper()} ran. One action per turn.)")
                     if action.more and action.verb != "report" else "")
             turn = Turn(kind=action.verb, note=note, thinking=thinking, usage=usage)
