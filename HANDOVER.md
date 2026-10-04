@@ -96,8 +96,9 @@ must pass is `docs/DESIGN_CHECKLIST.md`; the inventory of what was removed and w
   `notebook.py` (a tree of runs and turns per thread; collapse; JSON persistence),
   `tools.py` (run a cell, show a cell, names, recall, search, ask), `report.py` (the two
   numeric guards, cell/figure references, table repair), `replay.py` (assemble the cited cells
-  into one script; rehydrate a path; verify in a fresh kernel), `llm_openrouter.py` + `cli.py`
-  (a headless runner for development).
+  into one script; rehydrate a path; verify in a fresh kernel). The headless runner of the first week
+  (`llm_openrouter.py` + `cli.py`, its own OpenRouter client and price table) was removed on 2026-10-04:
+  the battery drives the session with a scripted model, and the app is the product.
 - `bambooai/bambooai.py` (~440 lines) — the instance the web app holds: builds the kernel
   (RemoteKernel in `api` mode, PersistentKernel locally), the model call through the app's model
   layer, the memory and search tools, runs a Session per question, streams artifacts to the

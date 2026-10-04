@@ -93,8 +93,8 @@ statement by statement against the code.
 - **D18. The first push over v1.** Tag and branch the old `main` (`v1-final`, `v1`) so v1 stays
   reachable; publish v2 as **2.0.0** on PyPI under the same name. The README (ruled 2026-09-16) is
   written for 2.0 - logo, a screenshot, plain text - with a short note at the bottom that 1.x was a
-  different program, still installable as `bambooai<2` and on the `v1` branch. `analyst/cli.py` and
-  the importable engine remain for terminal use. The public push is the last step of the cycle, after
+  different program, still installable as `bambooai<2` and on the `v1` branch. The importable engine
+  remains; the terminal runner `analyst/cli.py` was removed on 2026-10-04 as a second model stack. The public push is the last step of the cycle, after
   the dev box, prod and the Mac have run the same commit.
 - **D30. The working places.** The box: `/home/data/bambooai`, origin `BambooAI_Prod`. The Mac:
   `/Users/palogalko/Projects/Bamboo_AI_v2`, a clone of `BambooAI_Prod` with `public` as the second

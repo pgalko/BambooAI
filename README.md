@@ -473,14 +473,6 @@ bambooai init  [--home DIR]      create the working folder and its files without
 bambooai where                   print the working folder
 ```
 
-A single question without the web app, kernel in-process, models through OpenRouter:
-
-```bash
-export OPENROUTER_API_KEY=...
-python -m analyst.cli --csv data.csv --question "Is there a trend in weekly load?" \
-       --preset deep --model x-ai/grok-4.6 --effort high
-```
-
 ## Architecture
 
 ```
