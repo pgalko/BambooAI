@@ -541,7 +541,9 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page, back under 6,800 since the documents' part moved to its own file (2026-10-03), neutral", len(c) < 6800 and not bad, (len(c), bad))
+check("contract: one page - under 6,900 (2026-10-04: one sentence more, on why a second cell in a reply is written blind), neutral", len(c) < 6900 and not bad, (len(c), bad))
+check("contract: says in HOW YOU WORK that a second cell in the same reply is written blind and does not run, and in the format that the cell is the only one in the reply",
+      "a second cell in the same reply is written blind and does not run" in c and "the only one in this reply" in c and "intentions for later turns, not cells for this one" in c)
 check("contract: no documents furniture and one budget sentence - the original's - when the thread has no documents",
       "READ D1" not in c and "[D1.17]" not in c and "LOOK" not in c and "Budget: the task line tells you the turns and money left. Write REPORT when the answer is ready" in c)
 cd_ = open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()
