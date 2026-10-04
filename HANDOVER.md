@@ -77,6 +77,12 @@
   `[cell n]` chips fixed. **Hosted push still pending**: the executor image rebuilt and recycled, the
   Reader seat in the boxes' template, `pdfplumber` and `python-docx` in the boxes' venv, a smoke test
   that attaches a PDF.
+- **The contract (2026-10-04).** Rewritten as markdown: sections with headings, each rule once; the format a literal
+  template of one turn (three marker lines, each once); the actions a table, which gains the `READ` row
+  with documents; seven note headings (the count had said six); `ASK` ends the run; `SHOW RUN` chains stay
+  in view, shown cells are for the next prompt. No terminator, no invitation to restart - the prompt
+  that evolved organically had both, and a reasoning model took them literally. `analyst.session.contract()`
+  assembles it. Proof: the battery, and the Fibonacci and documents runs live.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

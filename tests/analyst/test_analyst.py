@@ -5,7 +5,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path[:0] = [os.path.dirname(os.path.abspath(__file__)), ROOT, os.path.join(ROOT, "delve")]
 import pandas as pd, numpy as np
 from analyst import Session, Budget, Notebook, NotebookStore, parse_turn, replay, report
-from analyst.session import CONTRACT, CONTRACT_DOCUMENTS
+from analyst.session import contract, READ_ROW, CONTRACT, CONTRACT_DOCUMENTS
 from kernel import PersistentKernel
 
 passed, failed = [], []
@@ -83,7 +83,7 @@ check("loop: only committed cells get numbers (the syntax error did not), number
       [c.cell_no for c in cells] == [1, 2] and run.turns[1].error and run.turns[1].cell_no is None)
 check("loop: the kernel state persisted across cells (cell 2 used g from cell 1)", "n units 4" in cells[1].stdout)
 check("loop: SHOW re-opened cell 1 into the next prompt", any("SHOWN:" in p and "means" in p for p in calls["prompts"]))
-check("loop: the prompt carries the contract's six-heading note and collapses nothing while under the recent window",
+check("loop: the prompt carries the contract's seven-heading note and collapses nothing while under the recent window",
       all("YOUR NOTE" in p for p in calls["prompts"][1:6]))
 check("report: the technical guard flagged the invented 0.999 and nothing else",
       "CHECK: 1 number(s)" in run.report and "0.999" in run.report.split("CHECK")[1])
@@ -325,13 +325,14 @@ pr4 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```py
 check("parse_turn: a bare ###ACTION### after a complete turn (seen in real logs) is not a turn - the one before it stands", pr4[2].verb == "cell" and pr4[2].arg == "print('a')" and pr4[1] == "n", (pr4[2].verb, pr4[2].arg, pr4[1]))
 pr5 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###ACTION###\nCELL")
 check("parse_turn: a restart given up after one word ('CELL' and nothing) is no action either - the complete one before it stands (seen in a real log)", pr5[2].verb == "cell" and pr5[2].arg == "print('a')", (pr5[2].verb, pr5[2].arg))
-check("contract: a change of mind begins again at ###ACTION###, and only the last block is read", "only the last ###ACTION### block is read" in open(os.path.join(ROOT, "analyst", "contract.md")).read())
+c_all = open(os.path.join(ROOT, "analyst", "contract.md")).read()
+check("contract: the turn is one action and its result reaches the model next turn - said once, under How a turn works, and never an invitation to restart in the reply", "nothing in this reply can depend on it" in c_all and "write the turn once" in c_all and "Begin again" not in c_all and "###END###" not in c_all)
 pm2 = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nSHOW 3")[2]
 check("parse_turn: a CELL followed by another kind of action still runs the cell alone and records the rest", pm2.verb == "cell" and pm2.arg == "a = 1" and pm2.more == ("show",), (pm2.verb, pm2.more))
 check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",
       syn.status == "answered" and len([x for x in syn.turns if x.kind != "rewrite"]) == 3 and "CHECK:" not in syn.report, (syn.status, [x.kind for x in syn.turns], syn.report[-200:]))
 check("synthesis: the prompt with three chains whole stays well inside a 64k context (chars/4)", len(p2) // 4 < 20000, len(p2) // 4)
-check("the contract: SHOW RUN may open several, and they stay in view", "or several, for earlier chains' question, note and report whole - they stay in view" in open(os.path.join(ROOT, "analyst", "contract.md")).read())
+check("the contract: SHOW RUN takes several and the chains stay in view; shown cells are for the next prompt", "`SHOW RUN <run numbers>`" in c_all and "stay in view for the rest of the run" in c_all and "Those cells, whole, in your next prompt" in c_all)
 # a SHOW of several cells at once is capped from the middle, with the marker; the record keeps it whole
 kc = PersistentKernel(df=df); nbc = Notebook("tc")
 big_cells = [act6("CELL\n```python\nprint('x' * 30000)\n```"), act6("CELL\n```python\nprint('y' * 30000)\n```"), act6("SHOW 1 2"), act6("REPORT\n## r\n\nDone.")]
@@ -369,7 +370,7 @@ check("without documents, a SHOW and a NAMES cost a turn each, as in the origina
       tl_p[:4] == ["TASK: turn 1 of 4 (3 left); spent $0.00 of $1.00.", "TASK: turn 2 of 4 (2 left); spent $0.00 of $1.00.", "TASK: turn 3 of 4 (1 left); spent $0.00 of $1.00.", "TASK: turn 4 of 4 (0 left); spent $0.00 of $1.00."], tl_p[:4])
 check("without documents the system prompt is the base contract: no READ, no documents' part",
       "READ <D1" not in Session(None, Notebook("x"), plain_llm, data_description="d").system and "DOCUMENTS." not in Session(None, Notebook("x"), plain_llm, data_description="d").system)
-check("with documents the system prompt gains READ and the citation rule", "READ <D1|ALL|D1.35-41|D1 p.7-9>" in CONTRACT_DOCUMENTS and "[D1.17]" in CONTRACT_DOCUMENTS and "LOOK" not in CONTRACT_DOCUMENTS)
+check("with documents the system prompt gains the Documents section before Format and the READ row in the actions table", "## Documents" in contract(True) and contract(True).index("## Documents") < contract(True).index("## Format") and "`READ D1 <what>`" in contract(True) and "[D1.17]" in contract(True) and "LOOK" not in contract(True))
 
 # a reply that carries two actions: the first runs and the next prompt says so; pure reads before a REPORT are skipped
 def act(line): return "###NOTE###\n" + NOTE5 + "\n###ACTION###\n" + line
@@ -559,16 +560,16 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page - under 7,000 (2026-10-04: why a second cell in a reply is written blind; how to change one's mind), neutral", len(c) < 7000 and not bad, (len(c), bad))
-check("contract: says in HOW YOU WORK that a second cell in the same reply is written blind and does not run, and in the format that the cell is the only one in the reply",
-      "a second cell in the same reply is written blind and does not run" in c and "the only one in this reply" in c and "intentions for later turns, not cells for this one" in c)
-check("contract: no documents furniture and one budget sentence - the original's - when the thread has no documents",
-      "READ D1" not in c and "[D1.17]" not in c and "LOOK" not in c and "Budget: the task line tells you the turns and money left. Write REPORT when the answer is ready" in c)
+check("contract: one page - under 7,500 without documents (2026-10-04: rewritten as markdown - sections, a template of one turn, the actions as a table), neutral", len(c) < 7500 and not bad, (len(c), bad))
+check("contract: the format is a literal template of one turn - three marker lines, each once - and the actions are a table with one row per form",
+      c.count("###THINKING###") == 1 and c.count("###NOTE###") == 1 and c.count("###ACTION###") == 1 and "| `CELL` |" in c and "| `REPORT` |" in c and "Seven headings" in c and "under the headings listed in The note" in c)
+check("contract: no documents furniture and the one budget rule when the thread has no documents",
+      "READ D1" not in c and "[D1.17]" not in c and "LOOK" not in c and "## Documents" not in c and "The task line tells you the turns and money left. Write REPORT when the answer is ready" in c)
 cd_ = open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()
-check("the documents' part of the contract: READ with the stretch, READ ALL, the citation rule, no LOOK - one short paragraph and the format line, under 900 characters", len(cd_) < 900 and "READ ALL" in cd_ and "[D1.17]" in cd_ and "LOOK" not in cd_ and "p.7-9" in cd_, (len(cd_), cd_[:100]))
+check("the documents' section: the seven kernel objects, READ for what grep cannot do, the citation rule, no LOOK - under 900 characters; the READ row names the stretch forms", len(cd_) < 900 and "D1.around" in cd_ and "[D1.17]" in cd_ and "LOOK" not in cd_ and "p.7-9" in READ_ROW and "READ ALL" in READ_ROW, (len(cd_), cd_[:100]))
 sd = Session(None, Notebook("sd"), lambda s, u, **h: ("", {}), data_description="d", documents=True)
 sn = Session(None, Notebook("sn"), lambda s, u, **h: ("", {}), data_description="d")
-check("the system prompt carries the documents' part only when the thread has documents", sd.system == CONTRACT + "\n" + CONTRACT_DOCUMENTS and sn.system == CONTRACT)
+check("the system prompt carries the documents' section and the READ row only when the thread has documents", sd.system == contract(True) and sn.system == CONTRACT and "## Documents" not in sn.system)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

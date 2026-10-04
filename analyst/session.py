@@ -29,9 +29,21 @@ from .replay import verify
 logger = logging.getLogger(__name__)
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-CONTRACT = open(os.path.join(_HERE, "contract.md"), encoding="utf-8").read()
-# the documents' part of the contract rides only when the thread has documents
+_CONTRACT_TEMPLATE = open(os.path.join(_HERE, "contract.md"), encoding="utf-8").read()
+# the documents' section and the READ row of the actions table ride only when the thread has documents
 CONTRACT_DOCUMENTS = open(os.path.join(_HERE, "contract_documents.md"), encoding="utf-8").read()
+READ_ROW = ("| `READ D1 <what>` | Quote the passages of document 1 that answer. `READ ALL <what>`: every document. "
+            "`READ D1.35-41 <what>` or `READ D1 p.7-9 <what>`: that stretch. |\n")
+
+
+def contract(documents: bool = False) -> str:
+    """The contract as the model reads it: one page, each rule once; with documents, the Documents
+    section before Format and the READ row in the actions table."""
+    return (_CONTRACT_TEMPLATE.replace("{DOCUMENTS}", "\n" + CONTRACT_DOCUMENTS if documents else "")
+                              .replace("{READ_ROW}", READ_ROW if documents else ""))
+
+
+CONTRACT = contract(False)
 
 REVIEW_LINE = ("SELF-REVIEW TURN: re-read your note against the original question. Say what is "
                "established, what would change the answer, and whether to continue, redirect or REPORT.")
@@ -213,7 +225,7 @@ class Session:
         self.kernel_prelude = kernel_prelude    # source the host wants in the kernel (the document objects): run committed at the
                                                 # start of a run and again after a rollback, never a cell of the record
         self.documents = documents
-        self.system = CONTRACT + ("\n" + CONTRACT_DOCUMENTS if documents else "")   # the documents' part only when there are documents
+        self.system = contract(documents)      # the documents' section and the READ row only when there are documents
 
     # ----- the prompt --------------------------------------------------------
     @staticmethod

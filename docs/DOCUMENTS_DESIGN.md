@@ -44,9 +44,9 @@ passage on hover and opens it on click.
   replay, since the container forgets between restarts. *Reason:* the analyst reads documents with
   cells, as it reads data; nothing new to learn, and the provenance of a printed line is a cell.
 - **A map of each document rides in `DATA`** — file, type, size, the outline, the tables, where the
-  files are — and a short `DOCUMENTS` paragraph is appended to the contract only when the thread has
-  documents (`Session(documents=True)`). Without documents the system prompt is the base contract, to
-  the byte.
+  files are — and a short *Documents* section and the `READ` row of the actions table join the contract only when
+  the thread has documents (`Session(documents=True)`, `analyst.session.contract()`). Without documents
+  the system prompt is the base contract, to the byte.
 
 ## 4. The READ action
 

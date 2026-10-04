@@ -198,10 +198,10 @@ s2 = Session(PersistentKernel(), nb, lambda sy, us, **h: (act("SHOW READ 2") if 
 run2 = s2.run("follow-up", parent=run.id, budget=Budget(turns=4, dollars=1.0))
 check("session: in a follow-up chain, SHOW READ 2 reaches the earlier chain's second read - numbered along the path, as searches are", run2.turns[0].stdout.startswith("--- read 2: ALL regimes ---"), run2.turns[0].stdout[:80])
 check("notebook: reads() along the path counts both chains' read turns, the budget-refused one included as searches do", len(nb.reads(run2.id)) == 4, len(nb.reads(run2.id)))
-check("the documents' part of the contract names READ with its stretch forms, READ ALL, SHOW READ and the passage citation, and no LOOK; the base contract has none of them",
-      all(x in open(os.path.join(ROOT, "analyst", "contract_documents.md")).read() for x in ("READ D1.35-41 <what you want>", "READ ALL <what you want>", "SHOW READ <k>", "[D1.17]"))
-      and "LOOK" not in open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()
-      and not any(x in open(os.path.join(ROOT, "analyst", "contract.md")).read() for x in ("LOOK", "READ D", "[D1.17]")))
+from analyst.session import contract as _contract, READ_ROW as _read_row
+check("the documents' section names the kernel objects, READ, SHOW READ and the passage citation, and no LOOK; the READ row names the stretch forms; the base contract has none of them",
+      all(x in _contract(True) for x in ("`D1.grep(pattern, context=1)`", "`SHOW READ <k>`", "[D1.17]", "`READ D1 <what>`", "READ D1.35-41 <what>", "READ ALL <what>"))
+      and "LOOK" not in _contract(True) and not any(x in _contract(False) for x in ("LOOK", "READ D1", "[D1.17]", "## Documents")))
 check("parse_turn: READ with a scope and a question", parse_turn("###NOTE###\nn\n###ACTION###\nREAD D1 the sample size")[2].verb == "read" and parse_turn("###NOTE###\nn\n###ACTION###\nREAD D1 the sample size")[2].arg == "D1 the sample size")
 check("report.cited_units: ids in order, once each", rep.cited_units("x [D1.3] y [D2.1] z [D1.3]") == ["D1.3", "D2.1"] and rep.guard_units([]) == "")
 two = parse_turn("###NOTE###\nn\n###ACTION###\nSEARCH Schmidhuber subjective beauty proportional bits\nREAD D1 section 4 visual illustrations")[2]
@@ -210,7 +210,7 @@ multi = parse_turn("###NOTE###\nn\n###ACTION###\nASK Which season do you mean:\n
 check("parse_turn: a question's own second line still belongs to it; a blank line or a marker ends it", multi.arg == "Which season do you mean:\nthe wet one, or the whole year?", multi)
 chatter = parse_turn("###NOTE###\nn\n###ACTION###\nREAD D1 altitude correction headline\n\n###THINKING###\nI got the document read. Let me digest what it says.\nActually the READ returned a summary")[2]
 check("parse_turn: a READ query is its one line - forty lines of chatter after it are not the question (2026-10-03)", chatter.arg == "D1 altitude correction headline", chatter)
-check("contract: the turn begins at its first marker", "the first marker first:" in open(os.path.join(ROOT, "analyst", "contract.md")).read())
+check("contract: the three marker lines are literal and the template shows each once", "The three marker lines are\nliteral" in open(os.path.join(ROOT, "analyst", "contract.md")).read() and open(os.path.join(ROOT, "analyst", "contract.md")).read().count("###THINKING###") == 1)
 
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{len(passed)} passed, {len(failed)} failed")
