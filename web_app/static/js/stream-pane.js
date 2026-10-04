@@ -63,7 +63,7 @@
     function noteGrid(note) {
         const rows = [];
         String(note || '').split('\n').forEach(ln => {
-            const s = ln.trim().replace(/^[-•]\s*/, '');
+            const s = ln.trim().replace(/^[-•]\s*/, '').replace(/\*\*/g, '');   // a model's bold markers around a heading are not part of it
             if (!s) return;
             const i = s.indexOf(':');
             if (i > 0 && i <= 40) rows.push('<b>' + esc(s.slice(0, i).trim()) + '</b><span>' + esc(s.slice(i + 1).trim()) + '</span>');

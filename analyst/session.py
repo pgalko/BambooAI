@@ -77,6 +77,19 @@ _CODE_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.S)
 _ACTION_LINE_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPORT)\b", re.I)
 
 
+_NOTE_LINE_RE = re.compile(r"^(\s*[-•]\s*)\**\s*([^:*]{2,60}?)\s*\**\s*:\s*\**\s*(.*?)\s*\**\s*$")
+
+
+def clean_note(note: str) -> str:
+    """The note as every reader expects it - '- Heading: content' - whatever a model wrapped the heading or its
+    content in (2026-10-04: '- **Best estimate so far:** ...' reached the pane's table and the strip as written)."""
+    out = []
+    for ln in (note or "").splitlines():
+        m = _NOTE_LINE_RE.match(ln)
+        out.append(f"{m.group(1)}{m.group(2)}: {m.group(3)}" if m else ln)
+    return "\n".join(out)
+
+
 def _estimate_line(note: str) -> str:
     """The note's 'Best estimate so far' content, for the pane's strip."""
     for ln in (note or "").splitlines():
@@ -157,7 +170,7 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     last_note = head.rfind("###NOTE###")
     note_text = head[last_note + len("###NOTE###"):] if last_note >= 0 else ""
     cut = note_text.find("###ACTION###")                    # the note ends where an abandoned action began
-    note = (note_text[:cut] if cut >= 0 else note_text).strip()
+    note = clean_note((note_text[:cut] if cut >= 0 else note_text).strip())
     think_end = last_note if last_note >= 0 else len(head)
     last_think = head.rfind("###THINKING###", 0, think_end)
     thinking = head[last_think + len("###THINKING###"):think_end].strip() if last_think >= 0 else head[:think_end].strip()

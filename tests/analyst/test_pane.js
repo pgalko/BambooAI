@@ -117,4 +117,9 @@ w.paneSummary('Analyst: 12 calls, 143,000 tokens, $0.44\nImage Generator: 1 call
 check('telemetry: folded into the closing card as a collapsible pre', pane2.querySelector('.sp-done .sp-telemetry pre').textContent.includes('Analyst: 12 calls') && !pane2.querySelector('.sp-done .sp-telemetry').hasAttribute('open'));
 
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
+// a stored note with bold markers around a heading: the grid shows the heading plain
+w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:12, of:15, seat:'Analyst', model:'m'}); w.paneTurnEnd({turn:12, kind:'cell', thinking:'t', note:'- **Best estimate so far:** 7.4%\n- Names: df', code:'print(1)', elapsed:1, cost:0.001});
+const boldRow = Array.from(pane.querySelectorAll('.sp-note b')).map(b => b.textContent);
+check('note grid: bold markers around a heading in a stored note are not shown', boldRow.includes('Best estimate so far') && !boldRow.some(t => t.includes('*')), boldRow);
+
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

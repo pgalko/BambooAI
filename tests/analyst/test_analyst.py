@@ -327,6 +327,12 @@ pr5 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```py
 check("parse_turn: a restart given up after one word ('CELL' and nothing) is no action either - the complete one before it stands (seen in a real log)", pr5[2].verb == "cell" and pr5[2].arg == "print('a')", (pr5[2].verb, pr5[2].arg))
 c_all = open(os.path.join(ROOT, "analyst", "contract.md")).read()
 check("contract: the turn is one action and its result reaches the model next turn - said once, under How a turn works, and never an invitation to restart in the reply", "nothing in this reply can depend on it" in c_all and "write the turn once" in c_all and "Begin again" not in c_all and "###END###" not in c_all)
+from analyst.session import clean_note
+pn = parse_turn("###NOTE###\n- **Question as understood:** q\n- **Best estimate so far:** 7.4% [D1.7]\n- *Plan*: next\n###ACTION###\nNAMES")
+check("parse_turn: a model's bold or italic markers around the note's headings are removed at the source - every reader sees 'Heading: content' (2026-10-04: '**' reached the pane)",
+      pn[1] == "- Question as understood: q\n- Best estimate so far: 7.4% [D1.7]\n- Plan: next", repr(pn[1]))
+check("clean_note: a plain note is unchanged, and a line with no heading is left alone", clean_note("- Names: df\nfree text line") == "- Names: df\nfree text line")
+check("contract: the note's headings are shown plainly, not in bold", "- Question as understood: what you take" in c_all and "**Question" not in c_all)
 pm2 = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nSHOW 3")[2]
 check("parse_turn: a CELL followed by another kind of action still runs the cell alone and records the rest", pm2.verb == "cell" and pm2.arg == "a = 1" and pm2.more == ("show",), (pm2.verb, pm2.more))
 check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",

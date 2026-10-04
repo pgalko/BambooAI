@@ -49,15 +49,15 @@ conclusions and the names they left - the two newest whole; SHOW RUN opens any o
 ## The note
 
 A short working note you rewrite every turn: your memory across turns, and the standing state the
-person sees. Seven headings, always the same, each followed by its content:
+person sees. Seven headings, always the same, written plainly as below, each followed by its content:
 
-- **Question as understood:** what you take the question to mean, in one or two sentences
-- **Best estimate so far:** value, interval, unit, direction, scope - or "none yet"
-- **Held fixed:** what, and how (adjustment, matching, restriction) - or "nothing yet"
-- **Open doubts:** what could change the answer
-- **Plan:** what next, and after that; what is done, dropped or replaced
-- **Names:** the kernel objects that matter
-- **Standing instructions from the person:** what they have corrected or constrained in this thread
+- Question as understood: what you take the question to mean, in one or two sentences
+- Best estimate so far: value, interval, unit, direction, scope - or "none yet"
+- Held fixed: what, and how (adjustment, matching, restriction) - or "nothing yet"
+- Open doubts: what could change the answer
+- Plan: what next, and after that; what is done, dropped or replaced
+- Names: the kernel objects that matter
+- Standing instructions from the person: what they have corrected or constrained in this thread
   ("no site name", "show the gap years") - written the turn it happens, kept verbatim, honoured in
   every later answer
 {DOCUMENTS}
