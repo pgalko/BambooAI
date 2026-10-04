@@ -314,6 +314,18 @@ check("synthesis: past the character budget the oldest shown runs collapse to a 
 pm = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nCELL\n```python\nprint(a + 1)\n```")[2]
 check("parse_turn: several CELL blocks in one reply are NOT merged - the first is the cell, the rest recorded (2026-10-04: merged, the model wrote fourteen blind)",
       pm.verb == "cell" and pm.arg == "a = 1" and pm.more == ("cell",), (pm.verb, pm.arg, pm.more))
+pr = parse_turn("###THINKING###\nfirst idea\n###NOTE###\nn1\n###ACTION###\nCELL\n```python\nprint('draft')\n```\n\nWait - one action per turn. Let me redo it.\n\n###THINKING###\nsecond idea\n###NOTE###\nn2\n###ACTION###\nCELL\n```python\nprint('meant')\n```")
+check("parse_turn: a reply that starts over (a second THINKING after the first ACTION) is read from its last turn - that note, that cell, nothing recorded as more",
+      pr[2].verb == "cell" and pr[2].arg == "print('meant')" and pr[2].more == () and pr[1] == "n2" and pr[0] == "second idea", (pr[2].verb, pr[2].arg, pr[2].more, pr[1], pr[0]))
+pr2 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###THINKING###\ntrailing thoughts with no action")
+check("parse_turn: a trailing THINKING without an ACTION is not a restart - the turn stands", pr2[2].verb == "cell" and pr2[2].arg == "print('a')", (pr2[2].verb, pr2[2].arg))
+pr3 = parse_turn("###THINKING###\nidea\n###NOTE###\nn1\n###ACTION###\nCELL\n```python\nprint('draft')\n```\n(That is the cell.)\n\nWait - one action per turn.\n###ACTION###\nSHOW 11")
+check("parse_turn: a restart from ###ACTION### alone is read from that last block, with the note written before it", pr3[2].verb == "show" and pr3[2].arg == "11" and pr3[2].more == () and pr3[1] == "n1", (pr3[2].verb, pr3[2].arg, pr3[1]))
+pr4 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###ACTION###")
+check("parse_turn: a bare ###ACTION### after a complete turn (seen in real logs) is not a turn - the one before it stands", pr4[2].verb == "cell" and pr4[2].arg == "print('a')" and pr4[1] == "n", (pr4[2].verb, pr4[2].arg, pr4[1]))
+pr5 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###ACTION###\nCELL")
+check("parse_turn: a restart given up after one word ('CELL' and nothing) is no action either - the complete one before it stands (seen in a real log)", pr5[2].verb == "cell" and pr5[2].arg == "print('a')", (pr5[2].verb, pr5[2].arg))
+check("contract: a change of mind begins again at ###ACTION###, and only the last block is read", "only the last ###ACTION### block is read" in open(os.path.join(ROOT, "analyst", "contract.md")).read())
 pm2 = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nSHOW 3")[2]
 check("parse_turn: a CELL followed by another kind of action still runs the cell alone and records the rest", pm2.verb == "cell" and pm2.arg == "a = 1" and pm2.more == ("show",), (pm2.verb, pm2.more))
 check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",
@@ -547,7 +559,7 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page - under 6,900 (2026-10-04: one sentence more, on why a second cell in a reply is written blind), neutral", len(c) < 6900 and not bad, (len(c), bad))
+check("contract: one page - under 7,000 (2026-10-04: why a second cell in a reply is written blind; how to change one's mind), neutral", len(c) < 7000 and not bad, (len(c), bad))
 check("contract: says in HOW YOU WORK that a second cell in the same reply is written blind and does not run, and in the format that the cell is the only one in the reply",
       "a second cell in the same reply is written blind and does not run" in c and "the only one in this reply" in c and "intentions for later turns, not cells for this one" in c)
 check("contract: no documents furniture and one budget sentence - the original's - when the thread has no documents",

@@ -45,4 +45,6 @@ ASK <one question to the person>
 REPORT
 (the report)
 
+Changed your mind while writing? Begin again at ###ACTION### - only the last ###ACTION### block is read.
+
 Budget: the task line tells you the turns and money left. Write REPORT when the answer is ready, not when the budget is gone; if the budget is nearly gone, write it with what you have and say so.

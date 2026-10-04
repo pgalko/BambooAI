@@ -119,18 +119,43 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     text = text or ""
     if not text.strip():
         return "", "", Action("invalid", "empty reply")
-    m_note = _NOTE_RE.search(text)
-    note = m_note.group(1).strip() if m_note else ""
-    thinking = text[:text.find("###NOTE###")].strip() if "###NOTE###" in text else ""
-    thinking = re.sub(r"^###THINKING###\s*", "", thinking).strip()
-    m_act = _ACTION_RE.search(text)
-    if not m_act:
+    # The reply is read from its LAST complete action: whatever precedes it is drafting. A reasoning model corrects
+    # itself in the open - "Wait - one action per turn. Let me redo it" - and writes the turn it means below the one
+    # it abandoned (2026-10-04: ten such replies in forty-two, and the draft had run); a restart it gave up after a
+    # word, or a bare marker at the end, is no action, so the block before it stands. The note and the thinking are
+    # the last ones written before the block taken. The contract says the same, so a change of mind has a shape.
+    marks = [m.start() for m in re.finditer(r"###ACTION###", text)]
+    if not marks:
+        m_note = _NOTE_RE.search(text)
+        note = m_note.group(1).strip() if m_note else ""
+        thinking = text[:text.find("###NOTE###")].strip() if "###NOTE###" in text else ""
+        thinking = re.sub(r"^###THINKING###\s*", "", thinking).strip()
         return thinking, note, Action("invalid", "no ###ACTION### block")
-    body = m_act.group(1).strip()
-    # a reply may carry several actions; one runs. Pure reads before a REPORT are skipped and the REPORT taken - the
-    # report was written without their results, so it is what the model meant to hand in (2026-10-03: a model that
-    # bundled a read and a REPORT five times lost its report every time and never learned why). Any other first
-    # action runs, and the next prompt says what did not.
+    chosen = None
+    for i in range(len(marks) - 1, -1, -1):
+        body = text[marks[i] + len("###ACTION###"):(marks[i + 1] if i + 1 < len(marks) else len(text))].strip()
+        action = _action_from(body)
+        if chosen is None:
+            chosen = (marks[i], action)                      # the last block is the fallback, invalid or not
+        if action.verb != "invalid":
+            chosen = (marks[i], action)
+            break
+    last_act, action = chosen
+    head = text[:last_act]
+    last_note = head.rfind("###NOTE###")
+    note_text = head[last_note + len("###NOTE###"):] if last_note >= 0 else ""
+    cut = note_text.find("###ACTION###")                    # the note ends where an abandoned action began
+    note = (note_text[:cut] if cut >= 0 else note_text).strip()
+    think_end = last_note if last_note >= 0 else len(head)
+    last_think = head.rfind("###THINKING###", 0, think_end)
+    thinking = head[last_think + len("###THINKING###"):think_end].strip() if last_think >= 0 else head[:think_end].strip()
+    return thinking, note, action
+
+
+def _action_from(body: str) -> Action:
+    """One ###ACTION### block's content to an Action. A block may carry several actions; one runs. Pure reads before a
+    REPORT are skipped and the REPORT taken - it was written without their results; any other first action runs,
+    and the rest is recorded as `more` so the next prompt can say what did not."""
     verbs = [ln.split()[0].lower() for ln in _CODE_RE.sub("", body).splitlines() if _ACTION_LINE_RE.match(ln)]
     more: tuple = ()
     if len(verbs) > 1:
@@ -145,27 +170,25 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     arg = head.strip()[len(verb):].strip()
     if verb == "cell":
         m = _CODE_RE.search(body)
-        return thinking, note, Action("cell", m.group(1).rstrip(), more=more) if m else Action("invalid", "CELL without a python block", more=more)
+        return Action("cell", m.group(1).rstrip(), more=more) if m else Action("invalid", "CELL without a python block", more=more)
     if verb == "show":
-        return thinking, note, Action("show", arg or rest.strip().split()[0] if rest.strip() else arg, more=more)
+        return Action("show", arg or rest.strip().split()[0] if rest.strip() else arg, more=more)
     if verb in ("names",):
-        return thinking, note, Action("names", more=more)
+        return Action("names", more=more)
     if verb in ("recall", "search", "read"):
-        # a query is its one line: whatever the model writes after the action line - more thinking, a second action,
-        # a stray marker - is not the query (2026-10-03: forty-three lines of chatter had reached the Reader as the question)
-        return thinking, note, Action(verb, arg, more=more)
+        # a query is its one line: whatever the model writes after the action line is not the query
+        return Action(verb, arg, more=more)
     if verb == "ask":
-        # a question may run on for a few lines, until a marker, another action, or a blank line
         kept_lines = []
         for ln in rest.splitlines():
             if _ACTION_LINE_RE.match(ln) or ln.strip().startswith("###") or not ln.strip():
                 break
             kept_lines.append(ln)
         tail = "\n".join(kept_lines).strip()
-        return thinking, note, Action(verb, (arg + "\n" + tail).strip() if tail else arg, more=more)
+        return Action(verb, (arg + "\n" + tail).strip() if tail else arg, more=more)
     if verb == "report":
-        return thinking, note, Action("report", rest.strip(), more=more)
-    return thinking, note, Action("invalid", f"unknown action {head.strip()[:40]!r}", more=more)
+        return Action("report", rest.strip(), more=more)
+    return Action("invalid", f"unknown action {head.strip()[:40]!r}", more=more)
 
 
 class Session:
