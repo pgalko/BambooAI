@@ -489,6 +489,12 @@ class BambooAI:
             peek = (reading.digest_peek(text) if kind == "read" else next((ln.strip() for ln in text.splitlines() if ln.strip()), ''))[:160]
             self._pane('pane_lookup', kind=kind, query=query, peek=peek, sources=sources, passages=passages)
             self._tab('plan', self._notebook_view(run))
+        elif kind == "replay_start":
+            # the replay under way: a pending row in the pane, and the executor chip on Executing as for a cell
+            self._pane('pane_lookup_start', kind='replay', query=f"{ev.get('cells') or 0} cells", model='')
+            self._pane('pane_cell_start', turn='replay')
+        elif kind == "replay_end":
+            self._pane('pane_lookup', kind='replay', query='', peek=(ev.get("line") or ev.get("status") or "")[:160], sources=[], passages=[])
         elif kind == "error":
             self._pane('pane_lookup', kind='lost', query='', peek=(ev.get("text") or "malformed turn")[:160], sources=[])
 

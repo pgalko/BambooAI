@@ -40,6 +40,10 @@ check('the read marks the view reads are the same map', w.documentsReadMarks['D1
 const cited = w.paneCiteHtml('<p>Rain was 40% above [D1.3] and plots [cell 2] <code>x[D1.3]</code> <a title="[cell 9]">t</a></p>');
 check('paneCiteHtml: chips in the text between tags - a document chip with its passage, a cell chip - and nothing inside a tag is touched',
       cited.includes('data-unit="D1.3"') && cited.includes('paneOpenCell(2)') && cited.includes('title="[cell 9]"') && cited.split('class="cite').length === 4, cited);
+w.paneLookupStart({kind:'replay', query:'9 cells', model:''});
+check('the replay under way: a pulsing REPLAY row saying it reproduces the report\'s cells in a fresh kernel', !!pane.querySelector('.sp-row.tool.pending[data-pending="replay"]') && pane.querySelector('.sp-row.tool.pending[data-pending="replay"]').textContent.includes('fresh kernel'));
+w.paneLookup({kind:'replay', query:'', peek:'Replay reproduced the cited results in a fresh run (9 cells, 41 numbers).', sources:[], passages:[]});
+check('the replay done: the pending row is gone and a REPLAY row carries the replay line', !pane.querySelector('.sp-row.tool.pending[data-pending="replay"]') && Array.from(pane.querySelectorAll('.sp-row.tool')).some(r => r.textContent.includes('REPLAY') && r.textContent.includes('41 numbers')));
 const readRow = pane.querySelector('.sp-row.tool.read');
 check('the READ row: ¶ glyph, READ label with the query, the summary as peek, "2 passages" on the right; the pending row gone', readRow && readRow.textContent.includes('¶') && readRow.querySelector('.in').textContent.startsWith('READ D1 the wet season') && readRow.querySelector('.out').textContent === 'An early wet season [D1.3].' && readRow.querySelector('.t').textContent === '2 passages' && !pane.querySelector('.sp-row.tool.pending'));
 w.paneDatasets({files:[{path:"generated/it's.csv", rows:45}]});
@@ -59,7 +63,7 @@ const saved = pane.innerHTML;
 const pane2 = doc.createElement('div'); pane2.setAttribute('id', 'streamOutput'); pane.remove(); doc.body.appendChild(pane2);
 pane2.innerHTML = saved;
 check('restore round-trip: the saved HTML re-parses to the same HTML', pane2.innerHTML === saved);
-check('restored: cards collapsed with their folds, rows, pills, strip and ids present', pane2.querySelectorAll('.sp-turn').length === 3 && pane2.querySelectorAll('.sp-turn[open]').length === 0 && pane2.querySelector('.sp-note') && pane2.querySelectorAll('.sp-row').length === 4 && pane2.querySelectorAll('.sp-ids .v')[1].textContent === '1788644290');   // 4 rows: In [1], the failed cell, the search row, the READ row and three LOOK rows (2026-10-03)
+check('restored: cards collapsed with their folds, rows, pills, strip and ids present', pane2.querySelectorAll('.sp-turn').length === 3 && pane2.querySelectorAll('.sp-turn[open]').length === 0 && pane2.querySelector('.sp-note') && pane2.querySelectorAll('.sp-row').length === 5 && pane2.querySelectorAll('.sp-ids .v')[1].textContent === '1788644290');   // 5 rows: In [1], the failed cell, the search row, the REPLAY row, the READ row and three LOOK rows (2026-10-03)
 const dsClick = pane2.querySelector('.sp-pill.ds').getAttribute('onclick');
 let called = null; global.downloadFile = p => { called = p; }; new Function(dsClick)();
 check("restored handlers: the dataset pill's inline handler runs and passes the exact path (apostrophe included)", called === "generated/it's.csv", dsClick);

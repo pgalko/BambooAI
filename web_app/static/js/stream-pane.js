@@ -121,15 +121,16 @@
         },
         lookupStart(l) {
             // a READ or SEARCH in progress (2026-10-03): the row pulses until paneLookup replaces it
-            const label = ({ search: 'SEARCH', read: 'READ', recall: 'RECALL' })[l.kind] || String(l.kind || '').toUpperCase();
+            const label = ({ search: 'SEARCH', read: 'READ', recall: 'RECALL', replay: 'REPLAY' })[l.kind] || String(l.kind || '').toUpperCase();
             const doing = l.kind === 'read' ? 'reading' + (l.model ? ' · Reader on ' + esc(String(l.model).split('/').pop()) : '') + '…'
-                        : (l.kind === 'search' ? 'searching the web…' : 'working…');
+                        : (l.kind === 'search' ? 'searching the web…'
+                        : (l.kind === 'replay' ? 'reproducing the cited cells in a fresh kernel…' : 'working…'));
             return '<div class="sp-row tool pending" data-pending="' + esc(l.kind || '') + '"><span class="live"></span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
                 '<span class="out">' + doing + '</span><span class="t"></span></div>';
         },
         lookup(l) {
-            const label = ({ show: 'SHOW', names: 'NAMES', recall: 'RECALL', search: 'SEARCH', read: 'READ' })[l.kind] || String(l.kind || '').toUpperCase();
-            const glyph = l.kind === 'search' ? '⌕' : (l.kind === 'recall' ? '✦' : (l.kind === 'read' ? '¶' : '↺'));
+            const label = ({ show: 'SHOW', names: 'NAMES', recall: 'RECALL', search: 'SEARCH', read: 'READ', replay: 'REPLAY' })[l.kind] || String(l.kind || '').toUpperCase();
+            const glyph = l.kind === 'search' ? '⌕' : (l.kind === 'recall' ? '✦' : (l.kind === 'read' ? '¶' : (l.kind === 'replay' ? '↻' : '↺')));
             const right = l.kind === 'search' && l.sources && l.sources.length ? l.sources.length + ' source' + (l.sources.length === 1 ? '' : 's')
                         : (l.kind === 'read' ? (l.passages && l.passages.length ? l.passages.length + ' passage' + (l.passages.length === 1 ? '' : 's') : 'no passage') : '');
             let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +

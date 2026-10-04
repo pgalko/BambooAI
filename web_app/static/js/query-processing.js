@@ -243,7 +243,7 @@ function processChunk(chunk) {
                 else if (data.type === "pane_cell")       { if (typeof paneCell === 'function') paneCell(data); if (window.containerStatus && window.containerStatus.setExecuting) window.containerStatus.setExecuting(false); }
                 else if (data.type === "pane_cell_start") { if (window.containerStatus && window.containerStatus.setExecuting) window.containerStatus.setExecuting(true); handled = true; }   // the executor chip: Executing (2026-09-08)
                 else if (data.type === "pane_lookup_start") { if (typeof paneLookupStart === 'function') paneLookupStart(data); }   // a READ or SEARCH under way (2026-10-03)
-                else if (data.type === "pane_lookup")     { if (typeof paneLookup === 'function') paneLookup(data); }
+                else if (data.type === "pane_lookup")     { if (typeof paneLookup === 'function') paneLookup(data); if (data.kind === 'replay' && window.containerStatus && window.containerStatus.setExecuting) window.containerStatus.setExecuting(false); }   // the replay done: the chip back to Ready (2026-10-04)
                 else if (data.type === "pane_heartbeat")  { if (typeof paneHeartbeat === 'function') paneHeartbeat(data); }
                 else if (data.type === "pane_datasets")   { if (typeof paneDatasets === 'function') paneDatasets(data); }
                 else if (data.type === "pane_run_end")    { if (typeof paneRunEnd === 'function') paneRunEnd(data); if (window.containerStatus && window.containerStatus.setExecuting) window.containerStatus.setExecuting(false); }

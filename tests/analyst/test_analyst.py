@@ -91,6 +91,11 @@ check("report: the table separator was repaired to the header's width", "|---|--
 check("rewrite: same analyst, the guard flagged the invented 7.777", run.rewrite and "7.777" in run.rewrite.split("CHECK")[-1])
 check("replay: assembled the two cited cells and reproduced them in a fresh kernel",
       run.replay_status == "reproduced" and "# --- cell 1 ---" in run.replay_script and "# --- cell 2 ---" in run.replay_script, run.replay_status)
+kinds_seen = [e.get("type") for e in events]
+check("emit: the replay announces itself before it runs and reports when done (replay_start with the cell count, then replay_end with the line), in that order and before replay_status",
+      "replay_start" in kinds_seen and "replay_end" in kinds_seen and kinds_seen.index("replay_start") < kinds_seen.index("replay_end") < kinds_seen.index("replay_status")
+      and next(e for e in events if e.get("type") == "replay_start").get("cells") == 2 and "reproduced" in (next(e for e in events if e.get("type") == "replay_end").get("line") or ""),
+      [k for k in kinds_seen if "replay" in str(k)])
 check("emit: cells, show, names, report, rewrite, replay_status all streamed",
       {e["type"] for e in events} >= {"cell", "names", "show", "report", "rewrite", "replay_status"})
 saved = store.load("t2"); rr = saved.runs[run.id]

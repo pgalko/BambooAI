@@ -532,6 +532,9 @@ class Session:
         # the replay: the host's runner when it has one (the app's executor, which also
         # yields the figures and the results text), else a fresh kernel
         if run.cells() and (self.replay_runner is not None or self.kernel_factory is not None):
+            # the replay can take as long as the analysis did; the pane shows it under way (2026-10-04: between the
+            # rewrite and the closing card nothing was shown, and a person took a working run for a stuck one)
+            self.emit({"type": "replay_start", "run": run.id, "cells": len(run.cells())})
             try:
                 if self.replay_runner is not None:
                     from .replay import assemble, compare
@@ -544,6 +547,7 @@ class Session:
                 status, line, script = "failed", f"Replay could not run: {exc}", ""
             run.replay_status, run.replay_script = status, script
             run.report += f"\n\n> {line}"
+            self.emit({"type": "replay_end", "run": run.id, "status": status, "line": line})
         run.status = "answered"
         self.emit({"type": "report", "run": run.id, "text": run.report})
         self.emit({"type": "rewrite", "run": run.id, "text": run.rewrite})
