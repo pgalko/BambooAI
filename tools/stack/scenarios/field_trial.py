@@ -194,6 +194,11 @@ class Scenario:
             return "", self.card()
         if "infographic" in user[:400].lower() or "infographic" in system[:400].lower():
             return "", ""
+        if system.startswith("You are the reviewer"):
+            return "", ("###REVIEW###\n- The question requires: the comparison the question names, with its uncertainty.\n"
+                        "- Established: the comparison was made and its interval printed.\n"
+                        "- Most consequential problem: none\n"
+                        "- Verdict: REPORT the comparison the question requires is made and its uncertainty stated.")
         if system.startswith("You are the analyst"):
             return self.analyst(user)
         if system.startswith("You are the Reader"):

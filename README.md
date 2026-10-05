@@ -57,7 +57,7 @@ SweatStack load directly — and applies to any tabular dataset.
   and executed in a fresh kernel against the original data. The closing card states how many numbers
   reproduced.
 - **Three modes.** *Quick* (a lookup, a definition), *Deep* (a full analysis within a turn budget),
-  *Adaptive* (a long run with periodic self-review on a stronger model that can redirect it).
+  *Adaptive* (a long run, reviewed after every 8th turn by a separate reviewer on a stronger model that can redirect it or end it).
 - **Follow-ups on a warm kernel.** A follow-up question continues with the variables the previous run
   left; a new question starts fresh. Runs form chains you can step through.
 - **Web search with sources.** With a Gemini key, the analyst searches for published figures to
@@ -110,8 +110,11 @@ After `REPORT`:
 
 **Modes and budgets.** Each mode sets a turn budget and a dollar budget the analyst can see. The
 budgets are per preset (`tier_properties` in the configuration). At the `performance` preset: Quick 4
-turns, Deep 15, Adaptive 50 with a self-review every 8 turns. In Adaptive mode the review turns run
-on the `Reviewer` seat — a stronger model — which reads the run so far and can redirect it.
+turns, Deep 15, Adaptive 50 with a review after every 8th turn. In Adaptive mode the review runs on
+the `Reviewer` seat - a stronger model with its own brief - which reads the question, the note and the
+results so far, and answers with one verdict: a test to run, a narrower conclusion, or report now.
+After every report, in every mode, the same reviewer reads the report against the question and adds
+a short note for the reader.
 
 **Memory.** When you save a run, the `Knowledge Distiller` seat writes a card about the dataset —
 what the columns mean in practice, what to watch for, what worked — into
@@ -226,7 +229,7 @@ The seats:
 | seat | role |
 |---|---|
 | `Analyst` | runs the analysis: every turn, every cell, the report |
-| `Reviewer` | the self-review turns in Adaptive mode; a stronger model |
+| `Reviewer` | the reviews - after every 8th turn in Adaptive mode, and after every report in every mode; its own brief, a stronger model |
 | `Rewriter` | the plain-language version of the report |
 | `Reader` | reads the thread's documents for the analyst (the `READ` action): a cheaper model, called once per read over the passages that match the question |
 | `Knowledge Distiller` | writes the memory card when a run is saved |

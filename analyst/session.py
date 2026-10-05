@@ -32,21 +32,29 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _CONTRACT_TEMPLATE = open(os.path.join(_HERE, "contract.md"), encoding="utf-8").read()
 # the documents' section and the READ row of the actions table ride only when the thread has documents
 CONTRACT_DOCUMENTS = open(os.path.join(_HERE, "contract_documents.md"), encoding="utf-8").read()
+# the Reviews section rides only when a reviewer runs during the run (Adaptive), naming the cadence; the reviewer has its
+# own prompt and never sees the analyst's (2026-10-05)
+CONTRACT_REVIEWS = open(os.path.join(_HERE, "contract_reviews.md"), encoding="utf-8").read()
+REVIEWER = open(os.path.join(_HERE, "reviewer.md"), encoding="utf-8").read()
+REPORT_NOW = "The review found the answer established: this turn is the report. Write REPORT now."
 READ_ROW = ("| `READ D1 <what>` | Quote the passages of document 1 that answer. `READ ALL <what>`: every document. "
             "`READ D1.35-41 <what>` or `READ D1 p.7-9 <what>`: that stretch. |\n")
 
 
-def contract(documents: bool = False) -> str:
-    """The contract as the model reads it: one page, each rule once; with documents, the Documents
-    section before Format and the READ row in the actions table."""
-    return (_CONTRACT_TEMPLATE.replace("{DOCUMENTS}", "\n" + CONTRACT_DOCUMENTS if documents else "")
-                              .replace("{READ_ROW}", READ_ROW if documents else ""))
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
+
+def contract(documents: bool = False, review_every: int = 0) -> str:
+    """The contract as the model reads it: one page, each rule once; with documents, the Documents section before
+    Format and the READ row in the actions table; with reviews during the run, the Reviews section after Results."""
+    return (_CONTRACT_TEMPLATE.replace("{DOCUMENTS}", "\n" + CONTRACT_DOCUMENTS if documents else "")
+                              .replace("{READ_ROW}", READ_ROW if documents else "")
+                              .replace("{REVIEWS}", "\n" + CONTRACT_REVIEWS.replace("{ordinal}", _ordinal(review_every))
+                                       if review_every else ""))
 
 CONTRACT = contract(False)
 
-REVIEW_LINE = ("SELF-REVIEW TURN: re-read your note against the original question. Say what is "
-               "established, what would change the answer, and whether to continue, redirect or REPORT.")
 LAST_TURNS_LINE = "The budget is nearly gone: write REPORT with what you have, and say what was not established."
 SHOW_VIEW_CHARS = 40_000     # a SHOW of several cells at once rides whole up to this; beyond it the middle goes, as for a digest
                              # (2026-10-03: an 87,000-character view of several cells was sent whole to a 64k-token server)
@@ -89,6 +97,64 @@ def clean_note(note: str) -> str:
         m = _NOTE_LINE_RE.match(ln)
         out.append(f"{m.group(1)}{m.group(2)}: {m.group(3)}" if m else ln)
     return "\n".join(out)
+
+
+_REVIEW_HEADS = (("requires", "The question requires"), ("established", "Established"),
+                 ("problem", "Most consequential problem"), ("verdict", "Verdict"))
+
+
+def parse_review(text: str) -> Optional[dict]:
+    """A reviewer's reply to {requires, established, problem, verdict, arg, lines}; None when it names no verdict.
+    Tolerant of bold markers, bullets, and a field's text running on to further lines."""
+    t = text or ""
+    if "###REVIEW###" in t:
+        t = t[t.rfind("###REVIEW###") + len("###REVIEW###"):]
+    fields, current = {}, None
+    for ln in clean_note(t).splitlines():
+        s_ = ln.strip().lstrip("-•* ").strip()
+        hit = next((key for key, head in _REVIEW_HEADS
+                    if s_.lower().startswith(head.lower()) and ":" in s_[len(head):len(head) + 3]), None)
+        if hit:
+            current = hit
+            fields[hit] = s_.split(":", 1)[1].strip()
+        elif current and s_:
+            fields[current] = (fields[current] + " " + s_).strip()
+    m = re.match(r"(TEST|NARROW|REPORT)\b[\s:.\-\u2013\u2014]*(.*)", fields.get("verdict", "").replace("*", "").strip(), re.I | re.S)
+    if not m:
+        return None
+    rv = {key: fields.get(key, "") for key, _ in _REVIEW_HEADS}
+    rv["verdict"], rv["arg"] = m.group(1).upper(), m.group(2).strip()
+    rv["lines"] = "\n".join((f"- Verdict: {rv['verdict']} {rv['arg']}".rstrip() if key == "verdict" else f"- {head}: {rv[key]}")
+                            for key, head in _REVIEW_HEADS)
+    return rv
+
+
+def review_note(rv: dict) -> str:
+    """The review after the report, as the note the reader sees under it."""
+    req, arg, problem = rv["requires"].rstrip(" ."), rv["arg"].rstrip(" ."), rv["problem"].rstrip(" .")
+    if rv["verdict"] == "REPORT":
+        return f"**Reviewer's note.** The question requires: {req}. The report answers it as asked" + (f": {arg}." if arg else ".")
+    if rv["verdict"] == "TEST":
+        return f"**Reviewer's note.** The question requires: {req}. Not established: {problem}. The analysis that would settle it: {arg}."
+    return f"**Reviewer's note.** The question requires: {req}. {problem}. The evidence supports a narrower conclusion: {arg}."
+
+
+def _first_line(text: str, cap: int = 110) -> str:
+    ln = next((x.strip() for x in (text or "").splitlines() if x.strip()), "")
+    return ln if len(ln) <= cap else ln[:cap - 3] + "..."
+
+
+def _first_line_of_code(code: str, cap: int = 110) -> str:
+    """What a cell did, in a line: its first comment, else its first line that is not an import."""
+    lines = [x.strip() for x in (code or "").splitlines() if x.strip()]
+    comment = next((x.lstrip("#").strip() for x in lines if x.startswith("#") and x.lstrip("#").strip()), "")
+    ln = comment or next((x for x in lines if not x.startswith(("import ", "from "))), lines[0] if lines else "")
+    return ln if len(ln) <= cap else ln[:cap - 3] + "..."
+
+
+def _first_sentence(text: str, cap: int = 160) -> str:
+    sent = re.split(r"(?<=[.!?])\s", (text or "").strip(), maxsplit=1)[0]
+    return sent if len(sent) <= cap else sent[:cap - 3] + "..."
 
 
 def result_lines(run) -> List[str]:
@@ -263,11 +329,13 @@ class Session:
                                                 # start of a run and again after a rollback, never a cell of the record
         self.documents = documents
         self.system = contract(documents)      # the documents' section and the READ row only when there are documents
+        self._review_block = ""                 # the latest review, in every analyst prompt until the next one
 
     # ----- the prompt --------------------------------------------------------
     @staticmethod
     def is_review(budget: Budget, turn_no: int) -> bool:
-        """A self-review turn: never the first; every review_every turns after it (turns 9, 17, 25... for 8)."""
+        """A review comes before this turn: never before the first; after every review_every turns (before turns 9, 17,
+        25... for 8)."""
         return bool(budget.review_every) and turn_no > 1 and (turn_no - 1) % budget.review_every == 0
 
     def _shown_runs(self, run: Run) -> str:
@@ -299,8 +367,8 @@ class Session:
             parts.append(view_digest(texts[k][0], "the notebook keeps it whole", cap=SHOW_VIEW_CHARS))
         return "\n".join(parts)
 
-    def _user_prompt(self, run: Run, budget: Budget, turn_no: int, spent: float, extra: str = "", review: bool = False,
-                     everything: bool = False) -> str:
+    def _user_prompt(self, run: Run, budget: Budget, turn_no: int, spent: float, extra: str = "",
+                     everything: bool = False, tail: str = "") -> str:
         left = budget.turns - turn_no
         last = (left <= 1 and turn_no > 1) or spent >= 0.9 * budget.dollars      # never on the first turn: even a tiny budget gets one cell
         # the report turn sees everything (2026-09-10): once the session forces the report there is no turn left to
@@ -327,11 +395,13 @@ class Session:
             parts.append("PASSAGES THIS RUN'S READS RETURNED (verbatim, each with its id - cite one as [D1.17]):\n" + "\n".join(passages))
         if extra:
             parts.append(extra)
+        if self._review_block:
+            parts.append(self._review_block)       # the latest review stands above the task line until the next one
+        if tail:
+            parts.append(tail)
         # the limit, not a countdown (2026-10-05: "turn 31 of 48 (17 left)" read as turns to fill, and a run that had its
         # finding at turn 13 reported at 47)
         task = f"TASK: turn {turn_no}; up to {budget.turns} turns and ${budget.dollars:.2f} (spent ${spent:.2f})."
-        if review:
-            task += "\n" + REVIEW_LINE
         if last:
             task += "\n" + LAST_TURNS_LINE
         parts.append(task)
@@ -401,12 +471,23 @@ class Session:
         run = self.nb.new_run(question, parent, run_id=run_id)
         self._save()
         spent, extra, failures = 0.0, "", 0
+        self.system = contract(self.documents, budget.review_every)    # the Reviews section only when a reviewer runs
+        self._review_block = ""
+        final_turn, final_extra, forced_by_review = budget.turns, LAST_TURNS_LINE + "\nWrite REPORT now.", False
         tools.run_prelude(self.kernel, self.kernel_prelude)        # the document objects, when the thread has documents
         for turn_no in range(1, budget.turns + 1):
-            review = self.is_review(budget, turn_no)
-            self.emit({"type": "turn_start", "run": run.id, "turn": turn_no, "of": budget.turns, "review": review})
+            if self.is_review(budget, turn_no):
+                # the reviewer: its own prompt and input, no actions; its review rides in the analyst's next prompts, and a
+                # REPORT verdict ends the analysis (2026-10-05: the self-review had been the analyst's own turn with one
+                # line added, and continued the analysis five times in five)
+                rv, cost = self._review(run, budget, after_turn=turn_no - 1)
+                spent += cost
+                if rv is not None and rv["verdict"] == "REPORT":
+                    final_turn, final_extra, forced_by_review = turn_no, extra, True
+                    break
+            self.emit({"type": "turn_start", "run": run.id, "turn": turn_no, "of": budget.turns})
             t0 = time.time()
-            text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, extra, review=review), review=review)
+            text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, extra))
             usage = dict(usage or {})
             usage["elapsed"] = round(time.time() - t0, 1)
             spent += float(usage.get("cost", 0.0) or 0.0)
@@ -575,12 +656,15 @@ class Session:
                        "dollars": budget.dollars, "estimate": _estimate_line(run.note)})
             self._save()
 
-        # budget exhausted without a report: ask for it once
-        text, usage = self.llm(self.system, self._user_prompt(run, budget, budget.turns, spent, LAST_TURNS_LINE + "\nWrite REPORT now.", everything=True))
+        # the report, forced: by a REPORT verdict (this turn is the report), or by the budget exhausted (ask for it once)
+        if forced_by_review:
+            self.emit({"type": "turn_start", "run": run.id, "turn": final_turn, "of": budget.turns})
+        text, usage = self.llm(self.system, self._user_prompt(run, budget, final_turn, spent, final_extra, everything=True,
+                                                              tail=REPORT_NOW if forced_by_review else ""))
         spent += float((usage or {}).get("cost", 0.0) or 0.0)
         _, note, action = parse_turn(text)
         body = action.arg if action.verb == "report" else (text or "")
-        self.emit({"type": "turn_end", "run": run.id, "turn": budget.turns + 1, "kind": "report", "thinking": "",
+        self.emit({"type": "turn_end", "run": run.id, "turn": final_turn if forced_by_review else budget.turns + 1, "kind": "report", "thinking": "",
                    "note": note or run.note, "code": "", "elapsed": (usage or {}).get("elapsed"), "cost": (usage or {}).get("cost", 0.0)})
         turn = Turn(kind="report", note=note or run.note, text=body, usage=dict(usage or {}))
         run.turns.append(turn)
@@ -614,6 +698,10 @@ class Session:
         check2 = rep.guard_rewrite(rewrite, report_text)
         run.rewrite = rewrite + (f"\n\n> {check2}" if check2 else "")
         run.turns.append(Turn(kind="rewrite", note=run.note, text=run.rewrite, usage=dict(usage or {})))
+        # the review after the report, in every mode: the report read against the question, its note added for the reader
+        rv, _ = self._review(run, budget, report=run.report)
+        if rv is not None:
+            run.report += "\n\n> " + review_note(rv)
         # the replay: the host's runner when it has one (the app's executor, which also
         # yields the figures and the results text), else a fresh kernel
         if run.cells() and (self.replay_runner is not None or self.kernel_factory is not None):
@@ -641,6 +729,54 @@ class Session:
         self._save()
 
     # ----- plumbing ------------------------------------------------------------
+    # ----- the reviewer -------------------------------------------------------
+    def _review_input(self, run: Run, budget: Budget, after_turn: Optional[int] = None, report: Optional[str] = None) -> str:
+        """What the reviewer reads: the question, the data, the thread, the note (or the report), the results, the cells
+        one line each, its earlier reviews with the analyst's answer to each, and where the run stands."""
+        parts = [f"QUESTION:\n{run.question.strip()}", f"DATA:\n{self.data_description}"]
+        anc = self.nb.render_ancestry(run.id)
+        if anc:
+            parts.append(anc)
+        parts.append(f"THE REPORT:\n{report.strip()}" if report is not None else f"THE ANALYST'S NOTE:\n{run.note or '(none yet)'}")
+        res = result_lines(run)
+        parts.append("RESULTS SO FAR:\n" + ("\n".join(res) if res else "(no RESULT lines printed)"))
+        cells = [f"- cell {x.cell_no}: {_first_line_of_code(x.code)} -> {_first_line(x.stdout) or '(printed nothing)'}" for x in run.cells()]
+        parts.append("CELLS (one line each):\n" + ("\n".join(cells) if cells else "(no cells)"))
+        parts.append(f"FAILED ATTEMPTS: {sum(1 for x in run.turns if x.kind == 'cell' and x.error)}")
+        earlier = []
+        for j, x in enumerate(run.turns):
+            if x.kind == "review":
+                nxt = next((y for y in run.turns[j + 1:] if y.kind not in ("review", "rewrite")), None)
+                answer = _first_sentence(nxt.thinking) if nxt is not None and nxt.thinking else "(no turn since)"
+                earlier.append(f"- {x.text}: {x.thinking}; the analyst then: {answer}")
+        parts.append("EARLIER REVIEWS:\n" + ("\n".join(earlier) if earlier else "(none)"))
+        parts.append("The analysis is over; this review is added to the report." if report is not None
+                     else f"TURN: after turn {after_turn}; up to {budget.turns}.")
+        return "\n\n".join(parts)
+
+    def _review(self, run: Run, budget: Budget, after_turn: Optional[int] = None, report: Optional[str] = None):
+        """One call on the Reviewer seat with the reviewer's own prompt. Returns (review or None, cost). A review that
+        names no verdict is not used: the run goes on as if none had been asked for."""
+        self.emit({"type": "turn_start", "run": run.id, "turn": "review", "of": budget.turns, "review": True})
+        t0 = time.time()
+        text, usage = self.llm(REVIEWER, self._review_input(run, budget, after_turn, report), review=True)
+        usage = dict(usage or {})
+        usage["elapsed"] = round(time.time() - t0, 1)
+        cost = float(usage.get("cost", 0.0) or 0.0)
+        rv = parse_review(text)
+        label = "after the report" if report is not None else f"after turn {after_turn}"
+        verdict = f"Verdict: {rv['verdict']} {rv['arg']}".rstrip() if rv else "(no verdict - the review was not used)"
+        self.emit({"type": "turn_end", "run": run.id, "turn": "review", "kind": "review", "thinking": verdict,
+                   "note": rv["lines"] if rv else "", "code": "", "elapsed": usage["elapsed"], "cost": cost})
+        if rv is None:
+            logger.warning("review %s: no verdict in the reply - not used", label)
+            return None, cost
+        run.turns.append(Turn(kind="review", note=rv["lines"], thinking=verdict, text=label, usage=usage))
+        if report is None:
+            self._review_block = f"REVIEW ({label} - answer it in your THINKING):\n" + rv["lines"]
+        self._save()
+        return rv, cost
+
     def _emit_turn(self, run: Run, turn: Turn) -> None:
         ev = {"type": turn.kind, "run": run.id, "note": turn.note}
         if turn.kind == "cell":

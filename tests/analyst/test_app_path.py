@@ -33,6 +33,9 @@ class FakeModels:
         lacm.write_to_log(agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
         if user.startswith("Rewrite the technical report"):
             return "Plain: B is higher by DIFF."
+        if messages[0]["content"].startswith("You are the reviewer"):
+            return ("###REVIEW###\n- The question requires: B against A.\n- Established: the difference [cell 1].\n"
+                    "- Most consequential problem: no interval.\n- Verdict: TEST bootstrap the difference")
         i = min(state["i"], len(state["script"]) - 1); state["i"] += 1
         text = state["script"][i]
         if "DIFF" in text:
@@ -56,8 +59,8 @@ check("web events: id, the Data tab (no Query tab), live Investigation-tab updat
       types[0] == "id" and "query" not in types and "dataframe" in types and "plan" in types
       and all(t in types for t in ("answer", "simplified_answer", "code", "code_exec_results")) and types[-1] == "end", types)
 pane_types = [e.get("type") for e in events if str(e.get("type", "")).startswith("pane_")]
-check("the pane protocol: run_start, a turn_start/turn_end pair per model turn, a cell row per cell, heartbeats, run_end",
-      pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 4 and pane_types.count("pane_turn_end") == 4
+check("the pane protocol: run_start, a turn_start/turn_end pair per model call (three turns, the rewrite, the review after the report), a cell row per cell, heartbeats, run_end",
+      pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 5 and pane_types.count("pane_turn_end") == 5
       and pane_types.count("pane_cell") == 2 and pane_types.count("pane_heartbeat") == 2 and pane_types[-1] == "pane_run_end", pane_types)
 te = [e for e in events if e.get("type") == "pane_turn_end"]
 check("turn_end carries the note and the code for the fold, and the heartbeat carries the estimate line",
@@ -70,8 +73,8 @@ check("run_end carries turns, cells, cost, the replay line and the plots count",
 plan = [e for e in events if e.get("type") == "plan"][-1]["data"]
 check("the Investigation tab is a notebook: one HTML block, cells with collapsed outputs, no blank line inside it",
       plan.startswith('<div class="nb">') and plan.count('<details class="nb-out"') == 2 and "\n\n" not in plan and 'language-python' in plan)
-check("each turn opened a card labelled with the seat, the rewrite too",
-      sum(1 for e in events if e.get("type") == "pane_turn_start" and e.get("seat") == "Investigator") == 4)
+check("each turn opened a card labelled with the seat, the rewrite and the review too (no Reviewer in the config: the analyst seat)",
+      sum(1 for e in events if e.get("type") == "pane_turn_start" and e.get("seat") == "Investigator") == 5)
 _runlog = os.path.join(work, "logs", "u1", "bambooai_run_log.json")
 check("the run log is written per model call (the real LogAndCallManager, under logs/<user>/) and the budget saw the cost",
       os.path.exists(_runlog) and len(json.load(open(_runlog))) >= 3
@@ -222,17 +225,22 @@ try:
     BAMBOO.output_manager.add_user_input("review me")
     BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
     agents = [a for a, u in state["calls"] if not u.startswith("Rewrite")]
-    check("review seat: in Adaptive with analyst_review_every=2, turns 3 and 5 ran on the Reviewer, the rest on the analyst seat",
-          agents == ["Investigator", "Investigator", "Reviewer", "Investigator", "Reviewer"], agents)
+    check("review seat: in Adaptive with analyst_review_every=2 a review runs on the Reviewer after turns 2 and 4 and after the report; the turns on the analyst seat",
+          agents == ["Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer", "Investigator", "Reviewer"], agents)
+    check("review seat: the reviewer is sent its own prompt, never the analyst's contract",
+          all(u.startswith("QUESTION:") for a, u in state["calls"] if a == "Reviewer"), [u[:40] for a, u in state["calls"] if a == "Reviewer"])
     q = BAMBOO.output_manager.output_queue; ev = []
     while not q.empty(): ev.append(json.loads(q.get()))
-    starts = [(e.get("turn"), e.get("seat"), e.get("model"), e.get("review")) for e in ev if e.get("type") == "pane_turn_start" and isinstance(e.get("turn"), int)]
-    check("review seat: the pane's turn cards carry 'Reviewer' and its model on the review turns only",
-          starts[2][1:] == ("Reviewer", "fake/strong", True) and starts[0][1:] == ("Investigator", "fake/model", False) and starts[4][1] == "Reviewer", starts)
+    starts = [(e.get("turn"), e.get("seat"), e.get("model"), e.get("review")) for e in ev if e.get("type") == "pane_turn_start"]
+    check("review seat: the pane's Review cards carry 'Reviewer' and its model; the turns carry the analyst seat",
+          [x[1:] for x in starts if x[0] == "review"] == [("Reviewer", "fake/strong", True)] * 3
+          and all(x[1:3] == ("Investigator", "fake/model") and not x[3] for x in starts if isinstance(x[0], int)), starts)
     BAMBOO.review_every = 0
     state.update(i=0, calls=[], script=[cell(1), cell(2), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
     BAMBOO.output_manager.add_user_input("no review"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
-    check("review seat: analyst_review_every=0 disables the review turns", all(a != "Reviewer" for a, u in state["calls"]), [a for a, u in state["calls"]])
+    _ag = [a for a, u in state["calls"] if not u.startswith("Rewrite")]
+    check("review seat: analyst_review_every=0 - no review during the run; the one after the report still runs on the Reviewer",
+          _ag == ["Investigator", "Investigator", "Investigator", "Reviewer"], _ag)
     check("rewrite seat: without a Rewriter in the config the rewrite ran on the analyst seat",
           [a for a, u in state["calls"] if u.startswith("Rewrite")] == ["Investigator"], [(a, u[:20]) for a, u in state["calls"]])
     # with a Rewriter seat (2026-09-11): the rewrite, and only the rewrite, runs on it
@@ -242,7 +250,7 @@ try:
     BAMBOO.output_manager.add_user_input("rewrite me"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="deep")
     agents = [(a, u.startswith("Rewrite")) for a, u in state["calls"]]
     check("rewrite seat: the rewrite call runs on the Rewriter, the analysis turns on the analyst seat",
-          agents == [("Investigator", False), ("Investigator", False), ("Rewriter", True)], agents)
+          agents == [("Investigator", False), ("Investigator", False), ("Rewriter", True), ("Reviewer", False)], agents)
     q = BAMBOO.output_manager.output_queue; ev = []
     while not q.empty(): ev.append(json.loads(q.get()))
     rw = [(e.get("seat"), e.get("model")) for e in ev if e.get("type") == "pane_turn_start" and e.get("turn") == "rewrite"]

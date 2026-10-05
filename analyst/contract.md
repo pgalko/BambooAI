@@ -50,16 +50,18 @@ conclusions and the names they left - the two newest whole; SHOW RUN opens any o
 
 ## Results
 
-When a cell establishes a number you may report, print it on one line that begins with `RESULT:`,
-complete in itself - quantity, estimate, interval, unit, direction, what was compared and for whom:
+Every time a cell computes an estimate - provisional or final - print it on one line that begins
+with `RESULT:`, complete in itself - quantity, estimate, interval, unit, direction, what was
+compared and for whom:
 
 ```
 RESULT: group B vs group A weekly load at matched age, 42 subjects, 1,210 sessions: +3.2 km/week (95% CI +0.8 to +5.6), B higher
 ```
 
-Every such line is kept, with its cell number, under RESULTS SO FAR in every later prompt; they are
-what the report quotes, and a result that is there need not be computed again.
-
+Every such line is kept, with its cell number, under RESULTS SO FAR in every later prompt. A revised
+estimate gets a new line; the earlier one stays. The lines are what the report quotes, and a result
+that is there need not be computed again.
+{REVIEWS}
 ## The note
 
 A short working note you rewrite every turn: your memory across turns, and the standing state the
@@ -127,10 +129,10 @@ A sentence of context before each number; tables copied from cell outputs; LaTeX
 
 ## Figures
 
-A report carries one to three figures, drawn last - after the estimate is settled, in the cells just
-before REPORT; a fourth figure cell is not run. The reader wants to see the estimate and where it
-breaks down, not only read it; a question answered by a number, a table or a definition needs none.
-Draw them with Plotly and call `fig.show()`: the kernel has
+A report carries one to three figures, drawn once the estimate is settled - not before it, and not
+left to the last turns; a fourth figure cell is not run. The reader wants to see the estimate and
+where it breaks down, not only read it; a question answered by a number, a table or a definition
+needs none. Draw them with Plotly and call `fig.show()`: the kernel has
 no display, so during the analysis this shows nothing, but the reproduction run captures every
 `fig.show()` and the reader sees those figures. A figure reaches the reader only if it is drawn in a
 cell you cite as [fig n].

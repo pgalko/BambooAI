@@ -177,7 +177,7 @@ block = report_prompt.split("PASSAGES THIS RUN'S READS RETURNED")[1].split("\n\n
 check("the passages this run's reads returned stay in the prompt - the lines with their ids, no summaries or footers - on the report turn too",
       report_prompt and block and "- [D2.3] (notes.md" in block and "SUMMARY:" not in block and "For a stretch whole" not in block, report_prompt[-700:])
 check("they are in every prompt after the read, not only the last one (2026-10-03: a report written early had nothing to cite)",
-      all("PASSAGES THIS RUN'S READS RETURNED" in q for q in rp_prompts[1:] if not q.startswith("Rewrite")) and "PASSAGES THIS RUN'S READS RETURNED" not in rp_prompts[0], [("PASSAGES" in q) for q in rp_prompts])
+      all("PASSAGES THIS RUN'S READS RETURNED" in q for q in rp_prompts[1:] if "TASK:" in q) and "PASSAGES THIS RUN'S READS RETURNED" not in rp_prompts[0], [("PASSAGES" in q) for q in rp_prompts])
 check("session: SHOW READ 1 reopens the first digest whole", run.turns[4].stdout.startswith("--- read 1: D2 what about the wet season ---\nPASSAGES"), run.turns[4].stdout[:100])
 from analyst.session import view_digest, DIGEST_VIEW_CHARS
 short = "PASSAGES (verbatim, each with its locator):\n- [D1.3] (p p.2) \"x\"\nSUMMARY:\nShort."

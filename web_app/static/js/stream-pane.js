@@ -57,7 +57,7 @@
     }
     function fmtCost(c) { return '$' + Number(c || 0).toFixed(2); }
     function kindLabel(kind) {
-        return ({ cell: 'cell', show: 'look-up', names: 'look-up', recall: 'memory', search: 'search',
+        return ({ cell: 'cell', show: 'look-up', names: 'look-up', recall: 'memory', search: 'search', review: 'review',
                   ask: 'question', report: 'report', rewrite: 'plain-language version', infographic: 'infographic', error: 'lost' })[kind] || kind || '';
     }
     function noteGrid(note) {
@@ -90,11 +90,11 @@
                 '<span class="est"' + (h.estimate ? ' title="' + esc(h.estimate) + '"' : '') + '><b>Best estimate so far:</b> ' + esc(h.estimate || 'none yet') + '</span>';
         },
         turnStart(t) {
-            const label = typeof t.turn === 'number' ? 'Turn ' + esc(t.turn) : (t.turn === 'rewrite' ? 'Rewrite' : (t.turn === 'infographic' ? 'Infographic' : esc(t.turn)));
+            const label = typeof t.turn === 'number' ? 'Turn ' + esc(t.turn) : (t.turn === 'rewrite' ? 'Rewrite' : (t.turn === 'review' ? 'Review' : (t.turn === 'infographic' ? 'Infographic' : esc(t.turn))));
             const seatModel = t.seat ? esc(t.seat) + (t.model ? ' · ' + esc(String(t.model).split('/').pop()) : '') : '';
             return '<details class="sp-turn live' + (t.quiet ? ' quiet' : '') + (t.review ? ' review' : '') + '"' + (t.quiet ? '' : ' open') + ' data-turn="' + esc(t.turn) + '"' +
                 (t.review ? ' data-review="1" data-seat-model="' + seatModel + '"' : '') + '>' +
-                '<summary><span class="chev"></span><span class="n">' + label + (t.review ? ' · review' : '') + '</span>' +
+                '<summary><span class="chev"></span><span class="n">' + label + (t.review && t.turn !== 'review' ? ' · review' : '') + '</span>' +
                 '<span class="kind">' + (t.quiet ? 'working…' : 'thinking…') + '</span><span class="peek"></span>' +
                 '<span class="meta">' + (t.seat ? esc(t.seat) + (t.model ? ' · ' + esc(String(t.model).split('/').pop()) : '') : 'streaming') + '</span>' +
                 (t.seat && t.chain_id ? '<button class="agent-instructions-btn sp-prompt" type="button" title="the prompt this turn received (run log)" data-agent="' + esc(t.seat) + '" data-chain="' + esc(t.chain_id) + '" data-call="' + esc(t.call || 1) + '" onclick="event.preventDefault();">⌘</button>' : '') +

@@ -38,7 +38,9 @@ is not earning its place.
 - [ ] D2. Recent cells ride in full; older cells collapse to one headline line each; any cell re-openable on demand. The prompt does not grow with the run.
 - [ ] D3. Prompt size target: contract ≤ 1 page (~4K chars) + note (~2K) + schema (~5K) + recent cells (~10–15K).
 - [ ] D4. A session persists every turn and can be continued after any interruption; a dead kernel is rehydrated from the path.
-- [ ] D5. Long budgets get a self-review at fixed intervals (default every 8 turns): the analyst re-reads the note against the original question and decides stop/continue/redirect. It is the same seat, not a handover.
+- [ ] D5. Long budgets are reviewed at fixed intervals (default after every 8th turn) by a reviewer with its own
+  prompt and no actions; its verdict (TEST / NARROW / REPORT) rides in the analyst's next prompt and REPORT
+  ends the analysis. Every report, in every mode, is reviewed once against the question.
 - [ ] D6. Budgets attach to a run (one user question), not to the session, so branches never starve each other.
 
 ## E. Modes, routing, tools

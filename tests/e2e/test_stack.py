@@ -96,7 +96,7 @@ def main():
             check("the closing card reports the replay reproduced the cited numbers", "Replay reproduced" in done, done)
             check("the closing card counts 3 cells with 1 failed", "Cells 3 (1 failed)" in done.replace("\n", " ") or ("3" in done and "1 failed" in done), done)
             turns = page.evaluate("() => document.querySelectorAll('.sp-turn').length")
-            check("one turn card per model turn (6 analyst turns + the rewrite)", turns == 7, turns)
+            check("one card per model call (6 analyst turns, the rewrite, the review after the report)", turns == 8, turns)
             pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill')].map(e => e.textContent)")
             check("the search row carries the two source pills", any("fao.org" in p for p in pills) and any("wiley" in p for p in pills), pills)
             page.evaluate("activateTab('answer')")
@@ -214,9 +214,9 @@ def main():
             cards = page.evaluate("() => [...document.querySelectorAll('.sp-turn')].map(t => ({ n: (t.querySelector('.n') || {}).textContent || '', meta: (t.querySelector('.meta') || {}).textContent || '', seat: (t.querySelector('.sp-prompt') || {}).dataset ? t.querySelector('.sp-prompt').dataset.agent : '' }))")
             rewrite_seat = page.evaluate("() => { const c = [...document.querySelectorAll('.sp-turn')].find(t => /Rewrite/.test((t.querySelector('.n') || {}).textContent || '')); const b = c && c.querySelector('.sp-prompt'); return b ? b.dataset.agent : null; }")
             check("rewrite seat: the Rewrite card ran on the Rewriter seat (v71)", rewrite_seat == "Rewriter", rewrite_seat)
-            check("review seat: turn 9 of the Adaptive run is labelled 'review', keeps 'Reviewer' and its model on the finished card; turns 8 and 10 ran on the Analyst",
-                  len(cards) >= 10 and "review" in cards[8]["n"] and "Reviewer" in cards[8]["meta"] and cards[8]["seat"] == "Reviewer"
-                  and cards[7]["seat"] == "Analyst" and cards[9]["seat"] == "Analyst" and "review" not in cards[7]["n"], cards[7:10])
+            check("review: after turn 8 of the Adaptive run a Review card on the Reviewer seat with its model, between turns 8 and 9 on the Analyst - and its REPORT verdict made turn 9 the report",
+                  len(cards) >= 10 and cards[8]["n"] == "Review" and "Reviewer" in cards[8]["meta"] and cards[8]["seat"] == "Reviewer"
+                  and cards[7]["n"] == "Turn 8" and cards[7]["seat"] == "Analyst" and cards[9]["n"] == "Turn 9" and cards[9]["seat"] == "Analyst", cards[7:10])
             page.evaluate("setMode('deep')")
             page.click("#prevResponse")
             page.wait_for_timeout(500)

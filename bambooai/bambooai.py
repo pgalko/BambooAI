@@ -618,7 +618,7 @@ class BambooAI:
         replay_line = ''
         if run.report and '> Replay' in run.report:
             replay_line = run.report.rsplit('> ', 1)[-1].strip().splitlines()[0]
-        self._pane('pane_run_end', status=run.status, turns=len([t for t in run.turns if t.kind != 'rewrite']),
+        self._pane('pane_run_end', status=run.status, turns=len([t for t in run.turns if t.kind not in ('rewrite', 'review')]),
                    cells_of=budget.turns, cells=len(run.cells()), failed=sum(1 for t in run.turns if t.kind == 'cell' and t.error),
                    cost=round(self._chain_cost(), 3),
                    seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns), 1),

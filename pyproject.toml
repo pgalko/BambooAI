@@ -80,6 +80,6 @@ bambooai_executor_image = "containers/executor"
 
 [tool.setuptools.package-data]
 bambooai = ["messages/default_prompts.yaml"]
-analyst = ["contract.md", "contract_documents.md"]
+analyst = ["contract.md", "contract_documents.md", "contract_reviews.md", "reviewer.md"]
 web_app = ["LLM_CONFIG_template.json", "templates/*.html", "static/**/*", "ontologies/*"]
 bambooai_executor_image = ["Dockerfile", "requirements.txt"]

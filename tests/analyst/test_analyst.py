@@ -126,7 +126,7 @@ check("a failed cell is fed back to the analyst with its code and traceback, mar
 check("two failures in a row add the look-before-computing nudge; one does not",
       "attempts in a row have failed" in seen["prompts"][4] and "attempts in a row have failed" not in seen["prompts"][1])
 check("failed attempts are listed in CELLS SO FAR for the rest of the run",
-      "FAILED ATTEMPTS THIS RUN" in seen["prompts"][-2] and "undefined_name" in seen["prompts"][-2])
+      "FAILED ATTEMPTS THIS RUN" in [p_ for p_ in seen["prompts"] if "TASK:" in p_][-1] and "undefined_name" in [p_ for p_ in seen["prompts"] if "TASK:" in p_][-1])
 
 # ---- error condensing: the exception line first, verbose tails cut ----
 from analyst.tools import condense_error, exception_line
@@ -445,7 +445,10 @@ check("results ledger: the block rides in the prompt after the first result, und
       "RESULTS SO FAR (printed by your cells; the report quotes these):\n- [cell 1] B vs A mean" in res_prompts[1] and "- [cell 3] C vs A" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "RESULTS SO FAR" not in res_prompts[0], [p_[-200:] for p_ in res_prompts[:2]])
 check("contract: names DS and the comparison part of the report, and shows the RESULT: line with a neutral example",
       "`df = DS.load()`" in c_all and "- the comparison: what the question asks to compare, and what you compared" in c_all and "RESULT: group B vs group A" in c_all and "## Results" in c_all)
-check("contract: figures drawn last and a fourth figure cell not run - said where the cap is", "a fourth figure cell is not run" in c_all and "drawn last" in c_all)
+check("contract: figures drawn once the estimate is settled, not left to the last turns, and a fourth figure cell not run (2026-10-05: 'drawn last' had cost a Deep report its figures)",
+      "a fourth figure cell is not run" in c_all and "drawn once the estimate is settled" in c_all and "drawn last" not in c_all)
+check("contract: a RESULT: line for every estimate a cell computes, provisional or final; a revised estimate gets a new line",
+      "Every time a cell computes an estimate - provisional or final" in c_all and "A revised\nestimate gets a new line" in c_all and "you may report" not in c_all)
 
 # ---- figures: at most FIGURE_CELLS_MAX figure cells a run; the fourth is not run and the reply says so ----
 FIGS = [act6(f"CELL\n```python\nclass _F:\n    def show(self): print('fig {k}')\nfig = _F(); fig.show()\n```") for k in range(1, 5)] + [act6("REPORT\n## r\n\nDone.")]
@@ -566,28 +569,83 @@ check("guard: a real missing number is reported", report.numbers_missing("the es
 # ---- the contract has no benchmark vocabulary ----
 import re
 c = open(os.path.join(ROOT, "analyst", "contract.md")).read()
-# ---- the self-review turn (2026-09-10): marked for the caller, never the first turn, every review_every after it
-hints_seen, starts = [], []
+# ---- the reviewer (2026-10-05): its own prompt and input, no actions; its review rides in the analyst's next prompts; a REPORT
+# ---- verdict binds; and once after every report, its note added for the reader
+from analyst.session import REVIEWER, parse_review, review_note
+REVIEWS_SCRIPT = ["###REVIEW###\n- The question requires: B against A with an interval.\n- Established: the means [cell 1].\n- Most consequential problem: no interval yet.\n- Verdict: TEST bootstrap the difference by subject",
+                  "###REVIEW###\n- **The question requires:** B against A with an interval.\n- **Established:** the difference and its interval [cell 3].\n- **Most consequential problem:** none\n- **Verdict:** **REPORT** the comparison is made and its uncertainty stated",
+                  "###REVIEW###\n- The question requires: B against A with an interval.\n- Established: +1.5 (CI 0.2 to 2.8) [cell 3].\n- Most consequential problem: the difference by sex was not examined.\n- Verdict: TEST the difference by sex"]
+rv_calls, an_prompts, rv_starts, rv_ends, hints_seen = [], [], [], [], []
+rv_i = {"n": 0}
 def review_llm(system, user, **hints):
     hints_seen.append(dict(hints))
-    n = len(hints_seen)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
-    if n >= 5: return "###THINKING###\nt\n###NOTE###\n- Question as understood: q\n###ACTION###\nREPORT\nDone.", {"cost": 0.001}
-    return "###THINKING###\nt\n###NOTE###\n- Question as understood: q\n###ACTION###\nCELL\n```python\nprint(%d)\n```" % n, {"cost": 0.001}
+    if system.startswith("You are the reviewer"):
+        rv_calls.append((system, user, dict(hints))); i_ = rv_i["n"]; rv_i["n"] += 1
+        return REVIEWS_SCRIPT[min(i_, len(REVIEWS_SCRIPT) - 1)], {"cost": 0.002}
+    an_prompts.append((user, dict(hints)))
+    if "this turn is the report" in user:
+        return act6("REPORT\n## r\n\nB is higher [cell 3]."), {"cost": 0.001}
+    return act6(f"CELL\n```python\nprint('RESULT: B vs A step {len(an_prompts)}, 20 subjects: +1.5 units (95% CI 0.2 to 2.8), B higher')\n```"), {"cost": 0.001}
 k9 = PersistentKernel(df=df); nb9 = Notebook("t9")
-s9 = Session(k9, nb9, review_llm, emit=lambda ev: starts.append(ev) if ev.get("type") == "turn_start" else None, data_description="d")
+s9 = Session(k9, nb9, review_llm, emit=lambda ev: rv_starts.append(ev) if ev.get("type") == "turn_start" else (rv_ends.append(ev) if ev.get("type") == "turn_end" else None), data_description="d")
 try:
-    s9.run("q", budget=Budget(turns=6, dollars=1.0, review_every=2))
+    r9 = s9.run("is B higher than A", budget=Budget(turns=12, dollars=1.0, review_every=2))
 finally:
     k9.cleanup()
-flags = [h.get("review") for h in hints_seen if "review" in h]
-check("review: turns 3 and 5 are review turns (every 2 after the first), passed as review=True; the others False",
-      flags == [False, False, True, False, True], flags)
+an_tasks = [ln for u, _ in an_prompts for ln in u.splitlines() if ln.startswith("TASK:")]
+check("review: the reviewer is called with its own prompt, never the analyst's, as review=True; no analyst turn is review=True",
+      len(rv_calls) == 3 and all(sy == REVIEWER and h.get("review") is True for sy, _, h in rv_calls) and not any(h.get("review") for _, h in an_prompts),
+      ([h for _, _, h in rv_calls], [h for _, h in an_prompts]))
+check("review: reviews come after every 2nd turn and are not turns - the analyst's task lines run 1 to 5 without a gap",
+      [t.split(";")[0] for t in an_tasks] == [f"TASK: turn {k}" for k in (1, 2, 3, 4, 5)], an_tasks)
+u2 = rv_calls[1][1]
+check("review: the reviewer reads the question, the results, the cells one line each, its earlier review with the analyst's answer, and the turn",
+      "QUESTION:\nis B higher than A" in u2 and "RESULTS SO FAR:\n- [cell 1] B vs A step 1" in u2 and "CELLS (one line each):\n- cell 1:" in u2
+      and "EARLIER REVIEWS:\n- after turn 2: Verdict: TEST bootstrap the difference by subject; the analyst then:" in u2 and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-700:])
+p3 = an_prompts[2][0]
+check("review: the review rides in the analyst's next prompts under REVIEW, above the task line, until the next one",
+      "REVIEW (after turn 2 - answer it in your THINKING):\n- The question requires: B against A with an interval." in p3 and p3.index("REVIEW (after turn 2") < p3.index("TASK: turn 3")
+      and "REVIEW (after turn 2" in an_prompts[3][0], p3[-500:])
+p5 = an_prompts[4][0]
+check("review: a REPORT verdict binds - the next turn is the report: every cell in view, the review above, the report-now line - and the run is answered",
+      "REVIEW (after turn 4 - answer it in your THINKING):" in p5 and "- Verdict: REPORT the comparison is made" in p5 and "this turn is the report. Write REPORT now." in p5
+      and "TASK: turn 5;" in p5 and r9.status == "answered" and len(an_prompts) == 5, (r9.status, len(an_prompts), p5[-400:]))
+u3 = rv_calls[2][1]
+check("review after the report: the report is read instead of the note, the input says the analysis is over, and the note is added to the report",
+      "THE REPORT:\n## r" in u3 and "THE ANALYST'S NOTE" not in u3 and "The analysis is over; this review is added to the report." in u3
+      and r9.report.rstrip().endswith("> **Reviewer's note.** The question requires: B against A with an interval. Not established: the difference by sex was not examined. The analysis that would settle it: the difference by sex."),
+      r9.report[-300:])
+rv_turns = [t for t in r9.turns if t.kind == "review"]
+check("review: recorded as turns of kind review with their verdict and lines; the pane gets a Review card for each",
+      [t.text for t in rv_turns] == ["after turn 2", "after turn 4", "after the report"] and rv_turns[1].thinking.startswith("Verdict: REPORT")
+      and sum(1 for e in rv_starts if e.get("turn") == "review" and e.get("review")) == 3 and sum(1 for e in rv_ends if e.get("kind") == "review") == 3
+      and "- Established: the means [cell 1]." in rv_turns[0].note, [(t.text, t.thinking[:30]) for t in rv_turns])
+check("review: the analyst's contract for the run carries the Reviews section, naming the cadence", "## Reviews" in s9.system and "After every 2nd turn a reviewer" in s9.system)
+check("contract: the Reviews section only when a reviewer runs - none, and no reviewer at all, in Quick and Deep",
+      "After every 8th turn a reviewer" in contract(False, 8) and "## Reviews" not in contract(False, 0) and "reviewer" not in contract(False, 0).lower()
+      and "## Reviews" not in CONTRACT and contract(True, 8).index("## Reviews") < contract(True, 8).index("## The note"))
 check("rewrite: the plain-language rewrite call carries rewrite=True and no other call does",
-      [h.get("rewrite") for h in hints_seen] == [None] * 5 + [True] or hints_seen[-1].get("rewrite") is True and not any(h.get("rewrite") for h in hints_seen[:-1]), hints_seen)
-turn_flags = [e.get("review") for e in starts if isinstance(e.get("turn"), int)]         # the rewrite's own start carries no flag
-check("review: the turn_start event carries the flag for the pane", turn_flags == [False, False, True, False, True], turn_flags)
-check("review: the review line is in the prompt on review turns only", Session.is_review(Budget(turns=50, review_every=8), 9) and not Session.is_review(Budget(turns=50, review_every=8), 8)
+      sum(1 for h in hints_seen if h.get("rewrite")) == 1, hints_seen)
+# a review with no verdict is not used: no REVIEW block, no review turn, no note; the run goes on
+nv_prompts = []
+def noverdict_llm(system, user, **hints):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are the reviewer"): return "It looks fine to me.", {"cost": 0.001}
+    nv_prompts.append(user)
+    return (act6("REPORT\n## r\n\nDone [cell 1].") if len(nv_prompts) >= 3 else act6("CELL\n```python\nprint(1)\n```")), {"cost": 0.001}
+kv = PersistentKernel(df=df); nbv = Notebook("tv")
+try:
+    rvv = Session(kv, nbv, noverdict_llm, data_description="d").run("q", budget=Budget(turns=6, dollars=1.0, review_every=1))
+finally:
+    kv.cleanup()
+check("review: a reply that names no verdict is not used - no REVIEW block, no review turn, no note - and the run goes on to its report",
+      rvv.status == "answered" and not any("REVIEW (" in u for u in nv_prompts) and not any(t.kind == "review" for t in rvv.turns) and "Reviewer's note" not in rvv.report,
+      (rvv.status, [t.kind for t in rvv.turns]))
+pr_ = parse_review("Some preamble\n###REVIEW###\n- The question requires: X by group\n  and its interval.\n- Established: nothing yet\n- Most consequential problem: none\n- Verdict: NARROW only the pooled X is supported")
+check("parse_review: a field running on to the next line is joined; NARROW parsed with its conclusion", pr_ and pr_["requires"] == "X by group and its interval." and pr_["verdict"] == "NARROW" and pr_["arg"] == "only the pooled X is supported", pr_)
+check("review timing: before turns 9, 17... for 8; never before the first; none without reviews",
+      Session.is_review(Budget(turns=50, review_every=8), 9) and not Session.is_review(Budget(turns=50, review_every=8), 8)
       and not Session.is_review(Budget(turns=50, review_every=0), 9) and not Session.is_review(Budget(turns=50, review_every=8), 1))
 
 # ---- the report turn sees everything; SHOW takes several cells (2026-09-10, from a run whose report could not quote cell 9)

@@ -98,6 +98,18 @@
   budget as a limit, not a target, and the task line without the countdown ("turn 12; up to 48 turns and
   $4.00"). Phase 1's measures held on both runs (0 rejections, 3 and 1 figure cells); Adaptive took 19 of
   48 against 47 before any phase, not yet credited to anything.
+- **Phase 3 (2026-10-05): the reviewer.** The review is no longer a turn of the analyst: after every 8th turn in
+  Adaptive the session calls the Reviewer seat with its own prompt (`analyst/reviewer.md`) and its own input - the
+  question, the data, the thread, the note, RESULTS SO FAR, the cells one line each, its earlier reviews with the
+  analyst's answer to each, the turn - and no actions. The reply is a review in a fixed shape ending in one
+  verdict: TEST, NARROW or REPORT. The review rides in the analyst's next prompts under REVIEW until the next one;
+  REPORT binds - the next turn is the report, by the path the session uses when the budget runs out. After every
+  report, in every mode, the same reviewer reads the report against the question and its note is added for the
+  reader. The Reviews section of the contract (`contract_reviews.md`) rides only in Adaptive, naming the cadence.
+  Folded in: figures drawn once the estimate is settled (phase 2's 'drawn last' had cost a Deep report its
+  figures), and a RESULT: line for every estimate, provisional or final (phase 2's 'a number you may report' had
+  the ledger empty until turn 37). Phase 2's measures: the comparison stated in both reports; Adaptive still 46
+  turns, the budget wording no brake.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
@@ -113,7 +125,7 @@ must pass is `docs/DESIGN_CHECKLIST.md`; the inventory of what was removed and w
 ## The shape
 
 - `analyst/` — the whole harness (~1,000 lines): `contract.md` (the only prompt, one page),
-  `session.py` (the turn loop, budget, self-review, report + rewrite + guards + replay),
+  `session.py` (the turn loop, budget, the reviews, report + rewrite + guards + replay),
   `notebook.py` (a tree of runs and turns per thread; collapse; JSON persistence),
   `tools.py` (run a cell, show a cell, names, recall, search, ask), `report.py` (the two
   numeric guards, cell/figure references, table repair), `replay.py` (assemble the cited cells
@@ -137,8 +149,8 @@ must pass is `docs/DESIGN_CHECKLIST.md`; the inventory of what was removed and w
 ## Modes (see HANDOVER_2026-09-09_session_seed.md for the current presets: Quick 5 / Deep 15 / Adaptive 50)
 
 Quick / Deep / Adaptive are budget presets of the one session: ~2 / 15 / 50 turns (the UI's
-planning dial maps to adaptive; `max_investigations` × 4 turns). The adaptive preset asks the
-analyst for a self-review every 8 turns.
+planning dial maps to adaptive; `max_investigations` × 4 turns). The adaptive preset is reviewed
+after every 8th turn by the reviewer (its own prompt, `analyst/reviewer.md`); every report is reviewed once.
 
 ## Behaviour to know
 
