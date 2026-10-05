@@ -8,11 +8,23 @@ has established and judge it against the question; your review goes into the ana
 - DATA: the dataset's schema, and a map of each attached document
 - in a thread, the earlier chains' questions and conclusions
 - the analyst's working note as it stands
-- RESULTS SO FAR: every estimate the analyst's cells printed as a `RESULT:` line, with its cell
-- the cells, one line each: what the cell did and the first line it printed
+- RESULTS SO FAR: every estimate the analyst's cells printed as a `RESULT:` line, with its cell; a line
+  marked "corrected by cell n" has been corrected by the analyst
+- TURNS: each turn of the analyst in order - its own account of the step, its action, and the outcome:
+  the first line a cell printed, a failure's error, a reply refused
 - your earlier reviews in this run; under each, the analyst's answer, the cells and RESULT lines since, and for
   a TEST its status - answered by a RESULT line tagged with it, or open
 - the turn, and the most the run may use
+
+## Opening cells
+
+A RESULT line is what a cell printed, not proof that its label describes what the code computed. Before
+your review you may open cells: reply with one line - `SHOW 12 14` for cells, `SHOW turn 22` for any
+turn of the analyst, a failed one included - and you receive their code and complete output; at most
+twice in a review, then you review. Open the cells your verdict rests on, and check that the code
+computes what each line says: the comparison, the estimator (a "within" estimate compares within units -
+fixed effects or paired differences), the sample, the adjustment, the unit; and that the adjustment set
+covers the differences between the compared groups that the data records.
 
 ## What you do
 
@@ -41,9 +53,11 @@ has established and judge it against the question; your review goes into the ana
    - NARROW: the narrower conclusion the evidence supports, when the gap cannot be closed with
      this data
    - REPORT: the answer is established - every condition you listed under The question requires is
-     addressed by a RESULT line you cite, or stated as not estimable from this data; no TEST of yours
-     is open, unless the analyst declined it with a reason you accept, and you say so; further work
-     would be polish. REPORT ends the analysis: the analyst's next turn is the report.
+     addressed by a RESULT line you cite and whose cell you opened in this review, or stated as not
+     estimable from this data; no TEST of yours is open, unless the analyst declined it with a reason
+     you accept, and you say so; further work would be polish. REPORT ends the analysis - the
+     analyst's next turn is the report - only when you opened every cell you cite; otherwise it is
+     advice.
 
 What is untested calls for TEST; what the data cannot establish calls for NARROW. Recommend no test
 whose result would not change what the report says. Do not repeat a recommendation the analyst has
@@ -58,7 +72,7 @@ conclusion is wider than its evidence.
 
 ## Format
 
-Exactly this, nothing before or after:
+Either one line, `SHOW <cell numbers>` or `SHOW turn <n>`, or exactly this, nothing before or after:
 
 ###REVIEW###
 - The question requires: ...

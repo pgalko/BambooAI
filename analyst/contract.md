@@ -59,8 +59,9 @@ RESULT: group B vs group A weekly load at matched age, 42 subjects, 1,210 sessio
 ```
 
 Every such line is kept, with its cell number, under RESULTS SO FAR in every later prompt. A revised
-estimate gets a new line; the earlier one stays. The lines are what the report quotes, and a result
-that is there need not be computed again.
+estimate gets a new line; the earlier one stays. When a later cell finds an earlier line wrong or
+mislabelled, its corrected line begins `RESULT: (corrects cell 14)`, and cell 14's line is marked as
+corrected. The lines are what the report quotes, and a result that is there need not be computed again.
 {REVIEWS}
 ## The note
 

@@ -37,6 +37,9 @@ CONTRACT_DOCUMENTS = open(os.path.join(_HERE, "contract_documents.md"), encoding
 CONTRACT_REVIEWS = open(os.path.join(_HERE, "contract_reviews.md"), encoding="utf-8").read()
 REVIEWER = open(os.path.join(_HERE, "reviewer.md"), encoding="utf-8").read()
 REPORT_NOW = "The review found the answer established: this turn is the report. Write REPORT now."
+REVIEW_SHOW_ROUNDS = 2        # times a reviewer may open cells before it must review
+REVIEW_OPEN_MAX = 6           # cells or turns one SHOW opens
+REVIEW_OPEN_CHARS = 12_000    # a cell's output as the reviewer sees it, whole up to this
 READ_ROW = ("| `READ D1 <what>` | Quote the passages of document 1 that answer. `READ ALL <what>`: every document. "
             "`READ D1.35-41 <what>` or `READ D1 p.7-9 <what>`: that stretch. |\n")
 
@@ -126,14 +129,39 @@ def parse_review(text: str) -> Optional[dict]:
     return rv
 
 
+def cited_cells(text: str) -> List[int]:
+    """Cell numbers a review cites: [cell 11], [cells 11, 13], [cell 11, cell 13], cell 11."""
+    nums = []
+    for m in re.finditer(r"\bcells?\s+(\d+(?:\s*(?:,|and|&|/)\s*(?:cells?\s*)?\d+)*)", text or "", re.I):
+        nums += [int(n) for n in re.findall(r"\d+", m.group(1)) if int(n) not in nums]
+    return nums
+
+
+def show_request(text: str):
+    """A reviewer's request to open cells - one line, SHOW 12 14 or SHOW turn 22 - as ([cells], [turns]); None when
+    the reply is a review or anything else."""
+    if "###REVIEW###" in (text or ""):
+        return None
+    m = re.search(r"^\s*SHOW\s+(.+)$", text or "", re.M | re.I)
+    if not m:
+        return None
+    arg = m.group(1)
+    turns = [int(n) for n in re.findall(r"turns?\s*(\d+)", arg, re.I)]
+    cells = [int(n) for n in re.findall(r"\d+", re.sub(r"turns?\s*\d+", " ", arg, flags=re.I))]
+    return (cells[:REVIEW_OPEN_MAX], turns[:REVIEW_OPEN_MAX]) if cells or turns else None
+
+
 def review_note(rv: dict) -> str:
     """The review after the report, as the note the reader sees under it."""
     req, arg, problem = rv["requires"].rstrip(" ."), rv["arg"].rstrip(" ."), rv["problem"].rstrip(" .")
+    opened, cited = rv.get("opened") or [], rv.get("cited") or []
+    read = (f" Checked against the code of {', '.join(f'cell {c}' for c in opened)}." if opened
+            else (" The reviewer did not open the cells it cites." if cited else ""))
     if rv["verdict"] == "REPORT":
-        return f"**Reviewer's note.** The question requires: {req}. The report answers it as asked" + (f": {arg}." if arg else ".")
+        return f"**Reviewer's note.** The question requires: {req}. The report answers it as asked" + (f": {arg}." if arg else ".") + read
     if rv["verdict"] == "TEST":
-        return f"**Reviewer's note.** The question requires: {req}. Not established: {problem}. The analysis that would settle it: {arg}."
-    return f"**Reviewer's note.** The question requires: {req}. {problem}. The evidence supports a narrower conclusion: {arg}."
+        return f"**Reviewer's note.** The question requires: {req}. Not established: {problem}. The analysis that would settle it: {arg}.{read}"
+    return f"**Reviewer's note.** The question requires: {req}. {problem}. The evidence supports a narrower conclusion: {arg}.{read}"
 
 
 def _first_line(text: str, cap: int = 110) -> str:
@@ -141,12 +169,6 @@ def _first_line(text: str, cap: int = 110) -> str:
     return ln if len(ln) <= cap else ln[:cap - 3] + "..."
 
 
-def _first_line_of_code(code: str, cap: int = 110) -> str:
-    """What a cell did, in a line: its first comment, else its first line that is not an import."""
-    lines = [x.strip() for x in (code or "").splitlines() if x.strip()]
-    comment = next((x.lstrip("#").strip() for x in lines if x.startswith("#") and x.lstrip("#").strip()), "")
-    ln = comment or next((x for x in lines if not x.startswith(("import ", "from "))), lines[0] if lines else "")
-    return ln if len(ln) <= cap else ln[:cap - 3] + "..."
 
 
 def _first_sentence(text: str, cap: int = 160) -> str:
@@ -156,14 +178,23 @@ def _first_sentence(text: str, cap: int = 160) -> str:
 
 def result_lines(run) -> List[str]:
     """The RESULT: lines the run's committed cells printed, each with its cell number - the record of what is
-    established, kept whole in every prompt whatever the window does to the cells (2026-10-05: a run spent two
-    cells locating the specification behind a number it had printed twenty turns earlier)."""
-    out = []
+    established, kept whole in every prompt whatever the window does to the cells (2026-10-05: a run spent two cells
+    locating the specification behind a number it had printed twenty turns earlier). A line a later cell corrected -
+    its RESULT line begins "(corrects cell 14)" - is marked, so a known-wrong line stops reading as evidence
+    (2026-10-05: the analyst found a slope labelled within-athlete was pooled, and the line stood unmarked)."""
+    rows = []
     for x in run.cells():
         for ln in (x.stdout or "").splitlines():
             if ln.strip().startswith("RESULT:"):
-                out.append(f"- [cell {x.cell_no}] {ln.strip()[7:].strip()}")
-    return out
+                rows.append((x.cell_no, ln.strip()[7:].strip()))
+    corrected = {}
+    for c, t in rows:
+        m_ = re.match(r"\(\s*corrects\s+cells?\s+([\d ,&and]+)\)", t, re.I)
+        if m_:
+            for n in re.findall(r"\d+", m_.group(1)):
+                if int(n) != c:
+                    corrected.setdefault(int(n), c)
+    return [f"- [cell {c}] " + (f"(corrected by cell {corrected[c]}) " if c in corrected else "") + t for c, t in rows]
 
 
 def _estimate_line(note: str) -> str:
@@ -505,7 +536,7 @@ class Session:
                 # line added, and continued the analysis five times in five)
                 rv, cost = self._review(run, budget, after_turn=turn_no - 1)
                 spent += cost
-                if rv is not None and rv["verdict"] == "REPORT":
+                if rv is not None and rv["verdict"] == "REPORT" and rv.get("binding"):
                     final_turn, final_extra, forced_by_review = turn_no, extra, True
                     break
             self.emit({"type": "turn_start", "run": run.id, "turn": turn_no, "of": budget.turns})
@@ -789,6 +820,9 @@ class Session:
             done = self._test_answers(run, latest.text)
             block += ("\n- Status: answered by " + ", ".join(f"[cell {c}]" for c in done) if done
                       else f"\n- Status: open - no RESULT line tagged (test {latest.text}) yet")
+        elif latest.thinking.startswith("Verdict: REPORT") and (latest.stdout or "").startswith("not binding"):
+            block += (f"\n- Status: advice, not binding - {latest.stdout[len('not binding: '):]}. Continue, or write REPORT when "
+                      "you judge the answer established.")
         return block
 
     def _review_input(self, run: Run, budget: Budget, after_turn: Optional[int] = None, report: Optional[str] = None) -> str:
@@ -801,9 +835,8 @@ class Session:
         parts.append(f"THE REPORT:\n{report.strip()}" if report is not None else f"THE ANALYST'S NOTE:\n{run.note or '(none yet)'}")
         res = result_lines(run)
         parts.append("RESULTS SO FAR:\n" + ("\n".join(res) if res else "(no RESULT lines printed)"))
-        cells = [f"- cell {x.cell_no}: {_first_line_of_code(x.code)} -> {_first_line(x.stdout) or '(printed nothing)'}" for x in run.cells()]
-        parts.append("CELLS (one line each):\n" + ("\n".join(cells) if cells else "(no cells)"))
-        parts.append(f"FAILED ATTEMPTS: {sum(1 for x in run.turns if x.kind == 'cell' and x.error)}")
+        parts.append("TURNS (the analyst's own account of each turn, its action, and the outcome; SHOW opens any cell or turn):\n"
+                     + ("\n".join(self._turn_log(run)) or "(none yet)"))
         earlier = []
         for j, x in enumerate(run.turns):
             if x.kind == "review":
@@ -824,16 +857,91 @@ class Session:
                      else f"TURN: after turn {after_turn}; up to {budget.turns}.")
         return "\n\n".join(parts)
 
+    @staticmethod
+    def _turn_log(run: Run) -> List[str]:
+        """Each analyst turn in order, one entry: its own account (the THINKING), its action, the outcome - the first
+        line a cell printed, a failure's error, a refusal (2026-10-05: an admission that a slope labelled within-athlete
+        was pooled sat in a turn the reviewer never saw; it saw a cell list and 'FAILED ATTEMPTS: 7')."""
+        lines, k = [], 0
+        for x in run.turns:
+            if x.kind == "rewrite":
+                continue
+            if x.kind == "review":
+                lines.append(f"- (review {x.text}: {x.thinking[:140]})")
+                continue
+            k += 1
+            th = " ".join((x.thinking or "").split())
+            th = th if len(th) <= 360 else th[:357] + "..."
+            if x.kind == "cell" and x.cell_no is not None:
+                what = f"cell {x.cell_no} -> {_first_line(x.stdout) or '(printed nothing)'}"
+            elif x.kind == "cell":
+                what = f"cell failed, rolled back -> {tools.exception_line(x.error or '')[:160]}"
+            elif x.kind == "error":
+                what = f"refused -> {_first_sentence(x.stdout or '', 160)}"
+            elif x.kind in ("search", "read"):
+                what = f"{x.kind.upper()} {(x.text or '')[:80]} -> {_first_line(x.stdout)}"
+            else:
+                what = f"{x.kind.upper()} {(x.text or '')[:60]}".rstrip()
+            lines.append(f"- turn {k}: {th or '(no thinking written)'} | {what}")
+        return lines
+
+    def _open_for_review(self, run: Run, cells: List[int], turns: List[int]):
+        """The cells and turns a reviewer asked to open: code and complete output, or code and error. Returns (text,
+        the committed cells opened)."""
+        parts, found = [], []
+        by_no = {c.cell_no: c for c in self.nb.path_cells(run.id) if c.cell_no is not None}
+        analyst = [x for x in run.turns if x.kind not in ("review", "rewrite")]
+
+        def whole(c):
+            out = c.stdout or ""
+            out = out if len(out) <= REVIEW_OPEN_CHARS else out[:REVIEW_OPEN_CHARS] + "\n... [output cut for length]"
+            return f"```python\n{(c.code or '').rstrip()}\n```\nOUTPUT:\n{out.rstrip() or '(printed nothing)'}"
+        for n in cells:
+            c = by_no.get(n)
+            if c is None:
+                parts.append(f"--- cell {n}: no such cell ---")
+            else:
+                found.append(n)
+                parts.append(f"--- cell {n} ---\n{whole(c)}")
+        for t_ in turns:
+            x = analyst[t_ - 1] if 0 < t_ <= len(analyst) else None
+            if x is None:
+                parts.append(f"--- turn {t_}: no such turn ---")
+            elif x.kind == "cell" and x.cell_no is not None:
+                found.append(x.cell_no)
+                parts.append(f"--- turn {t_} (cell {x.cell_no}) ---\n{whole(x)}")
+            elif x.kind == "cell":
+                parts.append(f"--- turn {t_} (failed, rolled back) ---\n```python\n{(x.code or '').rstrip()}\n```\nERROR:\n"
+                             f"{tools.condense_error(x.error or '', code=x.code or '')}")
+            else:
+                parts.append(f"--- turn {t_} ({x.kind}) ---\n{(x.stdout or x.text or '')[:3000]}")
+        return "\n\n".join(parts), found
+
     def _review(self, run: Run, budget: Budget, after_turn: Optional[int] = None, report: Optional[str] = None):
         """One call on the Reviewer seat with the reviewer's own prompt. Returns (review or None, cost). A review that
         names no verdict is not used: the run goes on as if none had been asked for."""
         self.emit({"type": "turn_start", "run": run.id, "turn": "review", "of": budget.turns, "review": True})
         t0 = time.time()
-        text, usage = self.llm(REVIEWER, self._review_input(run, budget, after_turn, report), review=True)
-        usage = dict(usage or {})
-        usage["elapsed"] = round(time.time() - t0, 1)
-        cost = float(usage.get("cost", 0.0) or 0.0)
+        base = self._review_input(run, budget, after_turn, report)
+        opened, shown, cost, text = [], [], 0.0, ""
+        for rnd in range(REVIEW_SHOW_ROUNDS + 1):
+            user = base + ("\n\nCELLS YOU OPENED:\n" + "\n\n".join(shown) if shown else "")
+            if rnd == REVIEW_SHOW_ROUNDS:
+                user += "\n\nNo more cells can be opened in this review: give your review now, in the format."
+            text, usage_r = self.llm(REVIEWER, user, review=True)
+            cost += float((usage_r or {}).get("cost", 0.0) or 0.0)
+            req = show_request(text)
+            if req is None or rnd == REVIEW_SHOW_ROUNDS:
+                break
+            block, found = self._open_for_review(run, *req)
+            shown.append(block)
+            opened += [c for c in found if c not in opened]
+        usage = {"cost": cost, "elapsed": round(time.time() - t0, 1)}
         rv = parse_review(text)
+        if rv is not None:
+            rv["opened"], rv["cited"] = opened, cited_cells(rv["established"] + " " + rv["arg"])
+            rv["binding"] = rv["verdict"] == "REPORT" and bool(rv["cited"]) and set(rv["cited"]) <= set(opened)
+            rv["lines"] += "\n- Opened: " + (", ".join(f"cell {c}" for c in opened) if opened else "none")
         label = "after the report" if report is not None else f"after turn {after_turn}"
         verdict = f"Verdict: {rv['verdict']} {rv['arg']}".rstrip() if rv else "(no verdict - the review was not used)"
         self.emit({"type": "turn_end", "run": run.id, "turn": "review", "kind": "review", "thinking": verdict,
@@ -841,7 +949,12 @@ class Session:
         if rv is None:
             logger.warning("review %s: no verdict in the reply - not used", label)
             return None, cost
-        run.turns.append(Turn(kind="review", note=rv["lines"], thinking=verdict, text=label, usage=usage))
+        turn = Turn(kind="review", note=rv["lines"], thinking=verdict, text=label, usage=usage)
+        if report is None and rv["verdict"] == "REPORT" and not rv["binding"]:
+            missing = [c for c in rv["cited"] if c not in opened]
+            turn.stdout = "not binding: " + ("the reviewer cites no cell" if not rv["cited"] else
+                                             "the reviewer did not open " + ", ".join(f"cell {c}" for c in missing) + ", which it cites")
+        run.turns.append(turn)
         self._save()
         return rv, cost
 

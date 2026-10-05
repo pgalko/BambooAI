@@ -124,6 +124,17 @@
   condition it listed under The question requires addressed by a RESULT line it cites, or stated as not estimable,
   and no open TEST unless a decline is accepted and said; claims cite [cell n] with the number and interval as
   printed, and a comparison writes both numbers out (a review had called +22.1 'comfortably' inside -17.9 to +13.7).
+- **Phase 3c (2026-10-05), from Palo's second reading: the reviewer could judge direction, not verify implementation.**
+  Its input had the note, the RESULT lines, a line per cell and a count of failures - no code, no outputs, no failure
+  details, none of the analyst's intermediate admissions, and no way to open a cell. Now: the reviewer may open cells
+  before its review (`SHOW 12 14`, `SHOW turn 22` for any turn, a failed one included - code and complete output, at
+  most twice a review); its REPORT binds only when it opened every cell it cites, else it is advice and the analyst's
+  REVIEW block says so; its input lists every analyst turn with the analyst's own account (the THINKING), the action
+  and the outcome (first printed line, the error of a failure, a refusal) - turn 22's 'the within-abroad fit is
+  mislabelled: no athlete dummies, -2.1 is pooled' would have been in view; a RESULT line beginning
+  `(corrects cell 14)` marks cell 14's line as corrected in every prompt; the brief: a RESULT line is not proof its
+  label describes the computation - open the cells the verdict rests on and check the estimator, the sample, the
+  adjustment and the unit, and that the adjustment set covers the recorded differences between the compared groups.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

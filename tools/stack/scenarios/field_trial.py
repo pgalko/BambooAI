@@ -195,10 +195,15 @@ class Scenario:
         if "infographic" in user[:400].lower() or "infographic" in system[:400].lower():
             return "", ""
         if system.startswith("You are the reviewer"):
+            # as the brief asks: open the cell the verdict rests on, then review citing it (a REPORT binds only then)
+            cells = [int(n) for n in re.findall(r"\bcell (\d+)\b", user)]
+            last = max(cells) if cells else 1
+            if cells and "CELLS YOU OPENED" not in user and "The analysis is over" not in user:
+                return "", f"SHOW {last}"
             return "", ("###REVIEW###\n- The question requires: the comparison the question names, with its uncertainty.\n"
-                        "- Established: the comparison was made and its interval printed.\n"
+                        f"- Established: the comparison was made and its interval printed [cell {last}].\n"
                         "- Most consequential problem: none\n"
-                        "- Verdict: REPORT the comparison the question requires is made and its uncertainty stated.")
+                        f"- Verdict: REPORT the comparison the question requires is made and its uncertainty stated [cell {last}].")
         if system.startswith("You are the analyst"):
             return self.analyst(user)
         if system.startswith("You are the Reader"):

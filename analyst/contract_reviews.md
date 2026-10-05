@@ -6,4 +6,4 @@ the next one. Answer it in your THINKING: a TEST it recommends is your next acti
 its result could not change the answer, and its outcome goes on a RESULT line that begins with the
 test it answers - `RESULT: (test after turn 16) ...`; until such a line is printed the test is open. A
 NARROW conclusion goes into your note; a REPORT verdict ends the analysis, and your next turn is the
-report.
+report - unless its status says the reviewer did not open the cells it cites: then it is advice.

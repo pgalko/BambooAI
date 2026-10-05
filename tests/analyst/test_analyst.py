@@ -584,6 +584,7 @@ c = open(os.path.join(ROOT, "analyst", "contract.md")).read()
 # ---- verdict binds; and once after every report, its note added for the reader
 from analyst.session import REVIEWER, parse_review, review_note
 REVIEWS_SCRIPT = ["###REVIEW###\n- The question requires: B against A with an interval.\n- Established: the means [cell 1].\n- Most consequential problem: no interval yet.\n- Verdict: TEST bootstrap the difference by subject",
+                  "SHOW 3",
                   "###REVIEW###\n- **The question requires:** B against A with an interval.\n- **Established:** the difference and its interval [cell 3].\n- **Most consequential problem:** none\n- **Verdict:** **REPORT** the comparison is made and its uncertainty stated",
                   "###REVIEW###\n- The question requires: B against A with an interval.\n- Established: +1.5 (CI 0.2 to 2.8) [cell 3].\n- Most consequential problem: the difference by sex was not examined.\n- Verdict: TEST the difference by sex"]
 rv_calls, an_prompts, rv_starts, rv_ends, hints_seen = [], [], [], [], []
@@ -606,17 +607,23 @@ finally:
     k9.cleanup()
 an_tasks = [ln for u, _ in an_prompts for ln in u.splitlines() if ln.startswith("TASK:")]
 check("review: the reviewer is called with its own prompt, never the analyst's, as review=True; no analyst turn is review=True",
-      len(rv_calls) == 3 and all(sy == REVIEWER and h.get("review") is True for sy, _, h in rv_calls) and not any(h.get("review") for _, h in an_prompts),
+      len(rv_calls) == 4 and all(sy == REVIEWER and h.get("review") is True for sy, _, h in rv_calls) and not any(h.get("review") for _, h in an_prompts),
       ([h for _, _, h in rv_calls], [h for _, h in an_prompts]))
 check("review: reviews come after every 2nd turn and are not turns - the analyst's task lines run 1 to 5 without a gap",
       [t.split(";")[0] for t in an_tasks] == [f"TASK: turn {k}" for k in (1, 2, 3, 4, 5)], an_tasks)
 u2 = rv_calls[1][1]
-check("review: the reviewer reads the question, the results, the cells one line each, its earlier review with the analyst's answer, the evidence since and the test's status, and the turn",
-      "QUESTION:\nis B higher than A" in u2 and "RESULTS SO FAR:\n- [cell 1] B vs A step 1" in u2 and "CELLS (one line each):\n- cell 1:" in u2
+check("review: the reviewer reads the question, the results, the analyst's turns one entry each, its earlier review with the analyst's answer, the evidence since and the test's status, and the turn",
+      "QUESTION:\nis B higher than A" in u2 and "RESULTS SO FAR:\n- [cell 1] B vs A step 1" in u2
+      and "TURNS (the analyst's own account of each turn, its action, and the outcome; SHOW opens any cell or turn):\n- turn 1: (no thinking written) | cell 1 -> RESULT: B vs A step 1" in u2
+      and "- (review after turn 2: Verdict: TEST bootstrap the difference by subject)" in u2
       and "EARLIER REVIEWS:\n- after turn 2: Verdict: TEST bootstrap the difference by subject\n  the analyst then:" in u2
       and "  since then: cells 3, 4 committed; 0 failed attempts; 0 replies that ran nothing; cells that printed nothing: none" in u2
       and "  RESULT lines since: [cell 3] B vs A step 3" in u2 and "  status: open - no RESULT line tagged (test after turn 2)" in u2
-      and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-900:])
+      and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-1200:])
+u2b = rv_calls[2][1]
+check("review: the reviewer opened cell 3 - SHOW 3 - and its next call carries the cell's code and complete output; the review records it",
+      "CELLS YOU OPENED:\n--- cell 3 ---\n```python\nprint('RESULT: B vs A step 3" in u2b and "\nOUTPUT:\nRESULT: B vs A step 3" in u2b
+      and "- Opened: cell 3" in [t for t in r9.turns if t.kind == "review"][1].note, u2b[-600:])
 check("review: the analyst's REVIEW block carries the TEST's status - open until a RESULT line tagged with it is printed",
       "- Status: open - no RESULT line tagged (test after turn 2) yet" in an_prompts[2][0], an_prompts[2][0][-400:])
 # a tagged RESULT line answers the test: the status says so, in the analyst's block and in the reviewer's input
@@ -647,10 +654,10 @@ p5 = an_prompts[4][0]
 check("review: a REPORT verdict binds - the next turn is the report: every cell in view, the review above, the report-now line - and the run is answered",
       "REVIEW (after turn 4 - answer it in your THINKING):" in p5 and "- Verdict: REPORT the comparison is made" in p5 and "this turn is the report. Write REPORT now." in p5
       and "TASK: turn 5;" in p5 and r9.status == "answered" and len(an_prompts) == 5, (r9.status, len(an_prompts), p5[-400:]))
-u3 = rv_calls[2][1]
+u3 = rv_calls[3][1]
 check("review after the report: the report is read instead of the note, the input says the analysis is over, and the note is added to the report",
       "THE REPORT:\n## r" in u3 and "THE ANALYST'S NOTE" not in u3 and "The analysis is over; this review is added to the report." in u3
-      and r9.report.rstrip().endswith("> **Reviewer's note.** The question requires: B against A with an interval. Not established: the difference by sex was not examined. The analysis that would settle it: the difference by sex."),
+      and r9.report.rstrip().endswith("> **Reviewer's note.** The question requires: B against A with an interval. Not established: the difference by sex was not examined. The analysis that would settle it: the difference by sex. The reviewer did not open the cells it cites."),
       r9.report[-300:])
 rv_turns = [t for t in r9.turns if t.kind == "review"]
 check("review: recorded as turns of kind review with their verdict and lines; the pane gets a Review card for each",
@@ -663,6 +670,42 @@ check("contract: the Reviews section only when a reviewer runs - none, and no re
       and "## Reviews" not in CONTRACT and contract(True, 8).index("## Reviews") < contract(True, 8).index("## The note"))
 check("rewrite: the plain-language rewrite call carries rewrite=True and no other call does",
       sum(1 for h in hints_seen if h.get("rewrite")) == 1, hints_seen)
+# a REPORT on cells the reviewer did not open is advice: the run goes on, and the analyst's block says why
+ad_prompts, ad_rv = [], []
+def advice_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are the reviewer"):
+        ad_rv.append(user)
+        return "###REVIEW###\n- The question requires: X.\n- Established: X is +1 [cell 1].\n- Most consequential problem: none\n- Verdict: REPORT X is established [cell 1]", {"cost": 0.001}
+    ad_prompts.append(user)
+    return (act6("REPORT\n## r\n\nX is +1 [cell 1].") if len(ad_prompts) >= 4 else act6("CELL\n```python\nprint('RESULT: X, 10 units: +1 (95% CI 0 to 2), up')\n```")), {"cost": 0.001}
+ka = PersistentKernel(df=df); nba = Notebook("ta")
+try:
+    ra = Session(ka, nba, advice_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0, review_every=2))
+finally:
+    ka.cleanup()
+check("review: a REPORT citing a cell the reviewer did not open does not bind - the run goes on, and the analyst's block says it is advice and why",
+      len(ad_prompts) == 4 and "- Status: advice, not binding - the reviewer did not open cell 1, which it cites." in ad_prompts[2] and ra.status == "answered",
+      (len(ad_prompts), ad_prompts[2][-400:] if len(ad_prompts) > 2 else ""))
+from analyst.session import result_lines, Run as _Run, Turn as _Turn
+_rc = _Run(id="rc", question="q", parent=None)
+_rc.turns = [_Turn(kind="cell", cell_no=1, stdout="RESULT: slope within athletes, 54 sessions: -2.1 (95% CI -17.9 to +13.7)", code="x"),
+             _Turn(kind="cell", cell_no=2, stdout="RESULT: (corrects cell 1) slope pooled, not within athletes - with athlete fixed effects: +4.0 (95% CI -9 to +17)", code="y")]
+check("ledger: a RESULT line beginning (corrects cell 1) marks cell 1's line as corrected, in every prompt's RESULTS SO FAR",
+      result_lines(_rc) == ["- [cell 1] (corrected by cell 2) slope within athletes, 54 sessions: -2.1 (95% CI -17.9 to +13.7)",
+                            "- [cell 2] (corrects cell 1) slope pooled, not within athletes - with athlete fixed effects: +4.0 (95% CI -9 to +17)"], result_lines(_rc))
+_log = Session._turn_log(r3) + Session._turn_log(r2)
+check("the reviewer's turn log: a failed attempt with its error, a refused reply with the reason, a committed cell with its first line",
+      any("cell failed, rolled back -> " in x for x in _log) and any("refused -> Your reply held 2 different actions" in x for x in _log)
+      and any(re.search(r"\| cell \d+ -> ", x) for x in _log), _log[:6])
+from analyst.session import show_request, cited_cells
+check("show_request: SHOW 12 14 and SHOW turn 22 are requests; a review is not", show_request("SHOW 12 14") == ([12, 14], []) and show_request("SHOW turn 22") == ([], [22])
+      and show_request("###REVIEW###\n- Verdict: REPORT [cell 3]") is None, (show_request("SHOW 12 14"), show_request("SHOW turn 22")))
+check("cited_cells: [cell 11], [cells 11, 13], [cell 11, cell 13] all read", cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]") == [11, 12, 13, 14, 15], cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]"))
+check("contract: a correction line begins RESULT: (corrects cell 14), and the earlier line is marked", "`RESULT: (corrects cell 14)`" in c_all and "cell 14's line is marked as\ncorrected" in c_all)
+check("contract (Adaptive): a REPORT whose cited cells the reviewer did not open is advice", "unless its status says the reviewer did not open the cells it cites: then it is advice" in contract(False, 8))
+check("reviewer prompt: it may open cells, a RESULT line is not proof of its label, and REPORT binds only on cells opened",
+      "`SHOW turn 22`" in REVIEWER and "not proof that its label describes what the code computed" in REVIEWER and "only when you opened every cell you cite" in REVIEWER)
 # a review with no verdict is not used: no REVIEW block, no review turn, no note; the run goes on
 nv_prompts = []
 def noverdict_llm(system, user, **hints):
@@ -722,7 +765,7 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page - under 8,600 without documents (2026-10-05: Results, DS, the comparison, the budget as a limit, one action a reply), neutral", len(c) < 8600 and not bad, (len(c), bad))
+check("contract: one page - under 8,700 without documents (2026-10-05: Results with corrections, DS, the comparison, the budget as a limit, one action a reply), neutral", len(c) < 8700 and not bad, (len(c), bad))
 check("contract: a reply with more than one action is a lost turn and nothing in it runs - said in Format", "with no action, or with more than one, is a lost turn: nothing in it\nruns." in c)
 check("contract (Adaptive): a TEST's outcome goes on a RESULT line tagged with the test, and the test is open until it is printed",
       "`RESULT: (test after turn 16) ...`" in contract(False, 8) and "until such a line is printed the test is open" in contract(False, 8))
