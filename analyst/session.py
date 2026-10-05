@@ -20,7 +20,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 from . import tools, report as rep
 from .notebook import Notebook, NotebookStore, Run, Turn
@@ -89,6 +89,18 @@ def clean_note(note: str) -> str:
         m = _NOTE_LINE_RE.match(ln)
         out.append(f"{m.group(1)}{m.group(2)}: {m.group(3)}" if m else ln)
     return "\n".join(out)
+
+
+def result_lines(run) -> List[str]:
+    """The RESULT: lines the run's committed cells printed, each with its cell number - the record of what is
+    established, kept whole in every prompt whatever the window does to the cells (2026-10-05: a run spent two
+    cells locating the specification behind a number it had printed twenty turns earlier)."""
+    out = []
+    for x in run.cells():
+        for ln in (x.stdout or "").splitlines():
+            if ln.strip().startswith("RESULT:"):
+                out.append(f"- [cell {x.cell_no}] {ln.strip()[7:].strip()}")
+    return out
 
 
 def _estimate_line(note: str) -> str:
@@ -305,6 +317,9 @@ class Session:
         parts.append(f"QUESTION:\n{run.question.strip()}")
         parts.append(f"YOUR NOTE (as you last wrote it):\n{run.note or '(none yet - write it this turn)'}")
         parts.append("CELLS SO FAR:\n" + self.nb.render_cells(run.id, everything=everything))
+        results = result_lines(run)
+        if results:
+            parts.append("RESULTS SO FAR (printed by your cells; the report quotes these):\n" + "\n".join(results))
         # the passages this run's reads returned stay in view for the rest of the run - the lines with their ids, as a
         # cell's output stays as a line: the evidence the report may quote, whenever it is written
         passages = [ln for x in run.turns if x.kind == "read" for ln in (x.stdout or "").splitlines() if ln.startswith("- [")]
@@ -312,7 +327,9 @@ class Session:
             parts.append("PASSAGES THIS RUN'S READS RETURNED (verbatim, each with its id - cite one as [D1.17]):\n" + "\n".join(passages))
         if extra:
             parts.append(extra)
-        task = f"TASK: turn {turn_no} of {budget.turns} ({left} left); spent ${spent:.2f} of ${budget.dollars:.2f}."
+        # the limit, not a countdown (2026-10-05: "turn 31 of 48 (17 left)" read as turns to fill, and a run that had its
+        # finding at turn 13 reported at 47)
+        task = f"TASK: turn {turn_no}; up to {budget.turns} turns and ${budget.dollars:.2f} (spent ${spent:.2f})."
         if review:
             task += "\n" + REVIEW_LINE
         if last:

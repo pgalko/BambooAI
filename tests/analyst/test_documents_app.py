@@ -87,7 +87,7 @@ check("the scoped READ ran the Reader on exactly that unit; the report cites the
       any(x.kind == "read" and x.stdout.startswith("PASSAGES") for x in run2.turns) and run2.status == "answered"
       and f"[{pipeline_unit}]" in run2.report and "CHECK:" not in run2.report, (run2.report, [(x.kind, (x.stdout or "")[:80]) for x in run2.turns]))
 check("the task line in its original form; the pane got a cell row and a read row with the passage",
-      any("TASK: turn 1 of 15 (14 left); spent $" in c for c in state["calls"])
+      any("TASK: turn 1; up to 15 turns and $" in c for c in state["calls"])
       and any(e.get("type") == "pane_cell" for e in events2) and any(e.get("type") == "pane_lookup" and e.get("kind") == "read" and e.get("passages") for e in events2),
       ([ln for c in state["calls"] for ln in c.splitlines() if ln.startswith("TASK:")][-4:], [(e.get("type"), e.get("kind")) for e in events2 if e.get("type") in ("pane_cell", "pane_lookup")]))
 # a fourth READ on a fresh chain: refused, and the pane says so

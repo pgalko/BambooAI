@@ -58,7 +58,7 @@ def make_dataset(path, seed=20260909):
 # ----------------------------------------------------------------- helpers
 def _turn(user):
     """The turn about to be taken."""
-    m = re.search(r"TASK: turn (\d+) of (\d+)", user)
+    m = re.search(r"TASK: turn (\d+); up to (\d+)", user)
     return (int(m.group(1)), int(m.group(2))) if m else (1, 15)
 
 

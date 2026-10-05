@@ -194,7 +194,7 @@ check("the next prompt carries the whole digest after a READ, with the reads-lef
 check("guard: the number 40 came from the cited passage [D2.3], so it passes; 4.2 did not and is disclosed; [D9.9] is disclosed as not in the documents",
       "40" not in (run.report.split("CHECK:")[1] if "CHECK:" in run.report else "") and "4.2" in run.report.split("CHECK:")[1] and "not in this thread's documents: [D9.9]" in run.report, run.report[-500:])
 events2 = []
-s2 = Session(PersistentKernel(), nb, lambda sy, us, **h: (act("SHOW READ 2") if "TASK: turn 1 of" in us and "SHOWN:" not in us else act("REPORT\nDone."), {"cost": 0.0}) if not us.startswith("Rewrite") else ("Plain.", {"cost": 0.0}), store=store, emit=events2.append, read=host_read, unit_text=host_unit_text, documents=True)
+s2 = Session(PersistentKernel(), nb, lambda sy, us, **h: (act("SHOW READ 2") if "TASK: turn 1;" in us and "SHOWN:" not in us else act("REPORT\nDone."), {"cost": 0.0}) if not us.startswith("Rewrite") else ("Plain.", {"cost": 0.0}), store=store, emit=events2.append, read=host_read, unit_text=host_unit_text, documents=True)
 run2 = s2.run("follow-up", parent=run.id, budget=Budget(turns=4, dollars=1.0))
 check("session: in a follow-up chain, SHOW READ 2 reaches the earlier chain's second read - numbered along the path, as searches are", run2.turns[0].stdout.startswith("--- read 2: ALL regimes ---"), run2.turns[0].stdout[:80])
 check("notebook: reads() along the path counts both chains' read turns, the budget-refused one included as searches do", len(nb.reads(run2.id)) == 4, len(nb.reads(run2.id)))

@@ -91,6 +91,13 @@
   and the run paid for it over twenty turns); a run commits at most three figure cells, the fourth refused with
   the reason (a run had drawn nine). Nothing the model is told changed; that is phase 2, with the reviewer seat
   phase 3, each tested on the same question in Deep and Adaptive. Executor build v44.
+- **Phase 2 (2026-10-05): the contract.** `DS` named; a Results section - a cell prints `RESULT: ...` and the
+  line rides, with its cell number, under RESULTS SO FAR in every later prompt, what the report quotes; the
+  cell row of the actions table is "a fenced python block"; the report gains "the comparison: what the
+  question asks to compare, and what you compared"; figures drawn last, a fourth figure cell not run; the
+  budget as a limit, not a target, and the task line without the countdown ("turn 12; up to 48 turns and
+  $4.00"). Phase 1's measures held on both runs (0 rejections, 3 and 1 figure cells); Adaptive took 19 of
+  48 against 47 before any phase, not yet credited to anything.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

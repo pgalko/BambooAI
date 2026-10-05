@@ -121,9 +121,9 @@ def main():
                 return got
             p4 = prompt_of(4)
             # exchange 4 is the third cell turn: the SEARCH at exchange 2 spent none (2026-10-03)
-            check("prompt button: turn 4's card opens the prompt of exchange 4 ('TASK: turn 4 of' - every exchange a turn without documents), titled call 4", "TASK: turn 4 of" in p4["user"] and "call 4 of" in p4["title"], (p4["title"], p4["user"][-160:]))
+            check("prompt button: turn 4's card opens the prompt of exchange 4 ('TASK: turn 4;' - every exchange a turn without documents), titled call 4", "TASK: turn 4;" in p4["user"] and "call 4 of" in p4["title"], (p4["title"], p4["user"][-160:]))
             p1 = prompt_of(1)
-            check("prompt button: turn 1's card still opens turn 1's prompt", "TASK: turn 1 of" in p1["user"], p1["user"][-120:])
+            check("prompt button: turn 1's card still opens turn 1's prompt", "TASK: turn 1;" in p1["user"], p1["user"][-120:])
 
             page.fill("#queryInput", q2)
             page.click("#submitQuery")
@@ -226,7 +226,7 @@ def main():
             page.click("#prevResponse")
             page.wait_for_timeout(500)
             p2 = prompt_of(2)                                  # a restored chain: the rebound buttons work and carry the ordinal (v65)
-            check("prompt button on a restored chain: turn 2's card opens turn 2's prompt", "TASK: turn 2 of" in p2["user"], p2["user"][-120:])
+            check("prompt button on a restored chain: turn 2's card opens turn 2's prompt", "TASK: turn 2;" in p2["user"], p2["user"][-120:])
             for _ in range(3):
                 page.click("#nextResponse")
                 page.wait_for_timeout(400)

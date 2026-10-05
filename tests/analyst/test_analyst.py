@@ -377,7 +377,7 @@ finally:
     kp.cleanup()
 tl_p = [ln for q in plain_prompts for ln in q.splitlines() if ln.startswith("TASK:")]
 check("without documents, a SHOW and a NAMES cost a turn each, as in the original: the task line counts every exchange",
-      tl_p[:4] == ["TASK: turn 1 of 4 (3 left); spent $0.00 of $1.00.", "TASK: turn 2 of 4 (2 left); spent $0.00 of $1.00.", "TASK: turn 3 of 4 (1 left); spent $0.00 of $1.00.", "TASK: turn 4 of 4 (0 left); spent $0.00 of $1.00."], tl_p[:4])
+      tl_p[:4] == ["TASK: turn 1; up to 4 turns and $1.00 (spent $0.00).", "TASK: turn 2; up to 4 turns and $1.00 (spent $0.00).", "TASK: turn 3; up to 4 turns and $1.00 (spent $0.00).", "TASK: turn 4; up to 4 turns and $1.00 (spent $0.00)."], tl_p[:4])
 check("without documents the system prompt is the base contract: no READ, no documents' part",
       "READ <D1" not in Session(None, Notebook("x"), plain_llm, data_description="d").system and "DOCUMENTS." not in Session(None, Notebook("x"), plain_llm, data_description="d").system)
 check("with documents the system prompt gains the Documents section before Format and the READ row in the actions table", "## Documents" in contract(True) and contract(True).index("## Documents") < contract(True).index("## Format") and "`READ D1 <what>`" in contract(True) and "[D1.17]" in contract(True) and "LOOK" not in contract(True))
@@ -420,6 +420,32 @@ finally:
 lp = [x for x in rp.turns if x.kind == "cell" and not x.error]
 check("kernel prelude: the host's object is in the kernel for the first cell and still there after a cell's rollback",
       len(lp) == 2 and "the prelude object" in lp[0].stdout and "the prelude object" in lp[1].stdout, [x.stdout for x in rp.turns if x.kind == "cell"])
+
+# ---- results: RESULT: lines printed by committed cells ride in every later prompt with their cell numbers ----
+RES = [act6("CELL\n```python\nprint('RESULT: B vs A mean, 20 subjects: +1.5 units (95% CI 0.2 to 2.8), B higher')\nprint('other output')\n```"),
+       act6("CELL\n```python\nprint('no result here')\n```"),
+       act6("CELL\n```python\nraise ValueError('RESULT: this one must not count - the cell failed')\n```"),
+       act6("CELL\n```python\nprint('  RESULT: C vs A, 20 subjects: -0.4 units (95% CI -1.1 to 0.3), no difference')\n```"),
+       act6("REPORT\n## r\n\nDone [cell 1].")]
+res_i = {"n": 0}; res_prompts = []
+def res_llm(system, user, **h):
+    res_prompts.append(user)
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    i = res_i["n"]; res_i["n"] += 1
+    return RES[min(i, len(RES) - 1)], {"cost": 0.001}
+kr = PersistentKernel(df=df); nbr = Notebook("tr")
+try:
+    rr = Session(kr, nbr, res_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0))
+finally:
+    kr.cleanup()
+from analyst.session import result_lines
+check("results ledger: the RESULT: lines of committed cells, with their cell numbers, in order; a failed cell's line does not count; leading spaces are fine",
+      result_lines(rr) == ["- [cell 1] B vs A mean, 20 subjects: +1.5 units (95% CI 0.2 to 2.8), B higher", "- [cell 3] C vs A, 20 subjects: -0.4 units (95% CI -1.1 to 0.3), no difference"], result_lines(rr))
+check("results ledger: the block rides in the prompt after the first result, under its heading, and on the report turn",
+      "RESULTS SO FAR (printed by your cells; the report quotes these):\n- [cell 1] B vs A mean" in res_prompts[1] and "- [cell 3] C vs A" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "RESULTS SO FAR" not in res_prompts[0], [p_[-200:] for p_ in res_prompts[:2]])
+check("contract: names DS and the comparison part of the report, and shows the RESULT: line with a neutral example",
+      "`df = DS.load()`" in c_all and "- the comparison: what the question asks to compare, and what you compared" in c_all and "RESULT: group B vs group A" in c_all and "## Results" in c_all)
+check("contract: figures drawn last and a fourth figure cell not run - said where the cap is", "a fourth figure cell is not run" in c_all and "drawn last" in c_all)
 
 # ---- figures: at most FIGURE_CELLS_MAX figure cells a run; the fourth is not run and the reply says so ----
 FIGS = [act6(f"CELL\n```python\nclass _F:\n    def show(self): print('fig {k}')\nfig = _F(); fig.show()\n```") for k in range(1, 5)] + [act6("REPORT\n## r\n\nDone.")]
@@ -602,11 +628,11 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page - under 7,500 without documents (2026-10-04: rewritten as markdown - sections, a template of one turn, the actions as a table), neutral", len(c) < 7500 and not bad, (len(c), bad))
+check("contract: one page - under 8,500 without documents (2026-10-05: the Results section with its example, DS, the comparison, the budget as a limit), neutral", len(c) < 8500 and not bad, (len(c), bad))
 check("contract: the format is a literal template of one turn - three marker lines, each once - and the actions are a table with one row per form",
-      c.count("###THINKING###") == 1 and c.count("###NOTE###") == 1 and c.count("###ACTION###") == 1 and "| `CELL` |" in c and "| `REPORT` |" in c and "Seven headings" in c and "under the headings listed in The note" in c)
+      c.count("###THINKING###") == 1 and c.count("###NOTE###") == 1 and c.count("###ACTION###") == 1 and "| a fenced python block |" in c and "| `CELL` |" not in c and "| `REPORT` |" in c and "Seven headings" in c and "under the headings listed in The note" in c)
 check("contract: no documents furniture and the one budget rule when the thread has no documents",
-      "READ D1" not in c and "[D1.17]" not in c and "LOOK" not in c and "## Documents" not in c and "The task line tells you the turns and money left. Write REPORT when the answer is ready" in c)
+      "READ D1" not in c and "[D1.17]" not in c and "LOOK" not in c and "## Documents" not in c and "The limit is not a target" in c and "Write REPORT when the answer is established" in c)
 cd_ = open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()
 check("the documents' section: the seven kernel objects, READ for what grep cannot do, the citation rule, no LOOK - under 900 characters; the READ row names the stretch forms", len(cd_) < 900 and "D1.around" in cd_ and "[D1.17]" in cd_ and "LOOK" not in cd_ and "p.7-9" in READ_ROW and "READ ALL" in READ_ROW, (len(cd_), cd_[:100]))
 sd = Session(None, Notebook("sd"), lambda s, u, **h: ("", {}), data_description="d", documents=True)
