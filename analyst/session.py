@@ -53,6 +53,7 @@ SHOW_VIEW_CHARS = 40_000     # a SHOW of several cells at once rides whole up to
 SHOWN_RUNS_CHARS = 60_000    # the runs SHOW RUN re-opened stay in the prompt for the rest of the run, whole, while together they fit
                              # this; beyond it the oldest collapse to a line each (2026-10-03: a count of three kept a five-chain
                              # synthesis cycling - ten of its fourteen turns re-opened runs it had already shown)
+FIGURE_CELLS_MAX = 3         # figure cells a run may commit; the contract says one to three figures
 DIGEST_VIEW_CHARS = 12_000   # a search or read digest rides into the next prompt whole, like the newest cell's output; a longer one
                              # is cut from the middle at line ends so its top and its SUMMARY both survive. The record keeps all.
 
@@ -122,6 +123,11 @@ class Action:
     more: tuple = ()   # the further actions a reply carried after this one, which did not run (2026-10-03)
 
 
+def _draws_figure(code: str) -> bool:
+    """A cell that draws a figure the reader will see: a Plotly fig.show() or a matplotlib show/savefig."""
+    return bool(re.search(r"\.show\(|plt\.savefig\(|\.write_image\(|\.write_html\(", code or ""))
+
+
 def view_digest(text: str, how_to_see_all: str, cap: int = DIGEST_VIEW_CHARS) -> str:
     """A digest as the next prompt shows it: whole, unless it is longer than the safety cap, in which case
     the middle goes - at line ends, keeping the first part (the top claims or passages) and the last (the
@@ -181,6 +187,12 @@ def _action_from(body: str) -> Action:
     """One ###ACTION### block's content to an Action. A block may carry several actions; one runs. Pure reads before a
     REPORT are skipped and the REPORT taken - it was written without their results; any other first action runs,
     and the rest is recorded as `more` so the next prompt can say what did not."""
+    # A fenced block as the first thing under ###ACTION### is a cell - nothing else it could be - and a fenced CELL
+    # word is the word (2026-10-05: six turns of forty-eight were refused as "unknown action '```python'", each
+    # re-sent the turn after). The word CELL stays accepted; the contract may stop asking for it.
+    body = re.sub(r"\A```[ \t]*\n\s*CELL\s*\n```[ \t]*\n", "CELL\n", body)
+    if body.startswith("```"):
+        body = "CELL\n" + body
     verbs = [ln.split()[0].lower() for ln in _CODE_RE.sub("", body).splitlines() if _ACTION_LINE_RE.match(ln)]
     more: tuple = ()
     if len(verbs) > 1:
@@ -398,7 +410,15 @@ class Session:
                        "elapsed": usage.get("elapsed"), "cost": usage.get("cost", 0.0),
                        "estimate": _estimate_line(note)})
 
-            if action.verb == "cell":
+            if action.verb == "cell" and _draws_figure(action.arg) and sum(1 for x in run.cells() if _draws_figure(x.code)) >= FIGURE_CELLS_MAX:
+                # the cap on figure cells (2026-10-05: a run drew nine, three of them failing, with its finding in hand
+                # since turn 13): the cell is not run, and the reply says why and what to do instead
+                turn.code = action.arg
+                turn.stdout = (f"(Figure limit: {FIGURE_CELLS_MAX} figure cells a run, and this run has drawn {FIGURE_CELLS_MAX}. "
+                               "This cell was not run. Cite the figures already drawn as [fig n]; if the cell also computed "
+                               "something the answer needs, write that part again without the figure.)")
+                extra = turn.stdout
+            elif action.verb == "cell":
                 turn.code = action.arg
                 t_cell = time.time()
                 self.emit({"type": "cell_start", "run": run.id, "turn": turn_no})   # the executor is busy from here (2026-09-08)

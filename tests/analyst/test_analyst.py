@@ -333,6 +333,10 @@ check("parse_turn: a model's bold or italic markers around the note's headings a
       pn[1] == "- Question as understood: q\n- Best estimate so far: 7.4% [D1.7]\n- Plan: next", repr(pn[1]))
 check("clean_note: a plain note is unchanged, and a line with no heading is left alone", clean_note("- Names: df\nfree text line") == "- Names: df\nfree text line")
 check("contract: the note's headings are shown plainly, not in bold", "- Question as understood: what you take" in c_all and "**Question" not in c_all)
+pb = parse_turn("###NOTE###\nn\n###ACTION###\n```python\nprint(1)\n```")
+check("parse_turn: a fenced block directly under ###ACTION### is a cell - no CELL word needed (2026-10-05: six turns of a run were refused for its absence)", pb[2].verb == "cell" and pb[2].arg == "print(1)", (pb[2].verb, pb[2].arg))
+pb2 = parse_turn("###NOTE###\nn\n###ACTION###\n```\nCELL\n```\n```python\nprint(2)\n```")
+check("parse_turn: a fenced CELL word followed by the block is the cell", pb2[2].verb == "cell" and pb2[2].arg == "print(2)", (pb2[2].verb, pb2[2].arg))
 pm2 = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nSHOW 3")[2]
 check("parse_turn: a CELL followed by another kind of action still runs the cell alone and records the rest", pm2.verb == "cell" and pm2.arg == "a = 1" and pm2.more == ("show",), (pm2.verb, pm2.more))
 check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",
@@ -416,6 +420,38 @@ finally:
 lp = [x for x in rp.turns if x.kind == "cell" and not x.error]
 check("kernel prelude: the host's object is in the kernel for the first cell and still there after a cell's rollback",
       len(lp) == 2 and "the prelude object" in lp[0].stdout and "the prelude object" in lp[1].stdout, [x.stdout for x in rp.turns if x.kind == "cell"])
+
+# ---- figures: at most FIGURE_CELLS_MAX figure cells a run; the fourth is not run and the reply says so ----
+FIGS = [act6(f"CELL\n```python\nclass _F:\n    def show(self): print('fig {k}')\nfig = _F(); fig.show()\n```") for k in range(1, 5)] + [act6("REPORT\n## r\n\nDone.")]
+fig_i = {"n": 0}; fig_prompts = []
+def fig_llm(system, user, **h):
+    fig_prompts.append(user)
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    i = fig_i["n"]; fig_i["n"] += 1
+    return FIGS[min(i, len(FIGS) - 1)], {"cost": 0.001}
+kf = PersistentKernel(df=df); nbf = Notebook("tf")
+try:
+    rf = Session(kf, nbf, fig_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0))
+finally:
+    kf.cleanup()
+fig_cells = [x for x in rf.turns if x.kind == "cell" and x.cell_no]
+check("figure cap: three figure cells commit, the fourth is not run - no cell number, the output says 'Figure limit' and what to do - and the run goes on to its report",
+      len(fig_cells) == 3 and rf.turns[3].kind == "cell" and rf.turns[3].cell_no is None and "Figure limit" in (rf.turns[3].stdout or "") and rf.status == "answered",
+      ([(x.kind, x.cell_no) for x in rf.turns], (rf.turns[3].stdout or "")[:80]))
+check("figure cap: the refusal reaches the next prompt", any("Figure limit" in p_ for p_ in fig_prompts), len(fig_prompts))
+
+# ---- the kernel's DS: the dataset recoverable, the df check in a step's output ----
+kd = PersistentKernel(df=df)
+try:
+    o1 = kd.execute("print(DS)\nprint(DS.load().shape)")[0]
+    o2 = kd.execute("df = df.head(5)\nprint(df.shape)")[0]
+    o3 = kd.execute("for nm, df, t in [('x', df[[df.columns[0]]], 1)]:\n    pass\nprint('done')")[0]
+    o4 = kd.execute("df = DS.load()\nprint(df.shape)")[0]
+finally:
+    kd.cleanup()
+check("DS: the kernel holds the dataset as attached - DS.load() returns a fresh frame of the original shape", "DS: the dataset as attached" in o1 and f"({len(df)}, {df.shape[1]})" in o1, o1[:120])
+check("DS: a row filter of df raises no warning; columns lost raise the one-line warning naming DS.load(); the restore is clean",
+      "DS.load()" not in o2 and "of the dataset's" in o3 and "DS.load() restores" in o3 and "DS.load()" not in o4 and f"({len(df)}, {df.shape[1]})" in o4, (o2, o3, o4))
 
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
 SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i in range(6)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nDone."]

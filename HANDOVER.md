@@ -83,6 +83,14 @@
   in view, shown cells are for the next prompt. No terminator, no invitation to restart - the prompt
   that evolved organically had both, and a reasoning model took them literally. `analyst.session.contract()`
   assembles it. Proof: the battery, and the Fibonacci and documents runs live.
+- **Phase 1 of the Adaptive-run review (2026-10-05)**, after the independent review of chain 1791137848
+  (REVIEW_adaptive_run_2026-10-05.md in the outputs folder): the parser takes a fenced block directly under
+  ###ACTION### as a cell (six turns of forty-eight had been refused for the missing word); the kernel defines
+  `DS` - the dataset as attached, `DS.load()` a fresh copy from the file it loaded - and appends a one-line
+  warning to a step's output when `df` has lost the dataset's columns (a cell had reused `df` as a loop variable
+  and the run paid for it over twenty turns); a run commits at most three figure cells, the fourth refused with
+  the reason (a run had drawn nine). Nothing the model is told changed; that is phase 2, with the reviewer seat
+  phase 3, each tested on the same question in Deep and Adaptive. Executor build v44.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

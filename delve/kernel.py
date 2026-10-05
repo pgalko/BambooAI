@@ -113,13 +113,51 @@ G["pd"] = pd
 G["np"] = np
 G["plt"] = plt
 
+def _load_df(path):
+    if path.endswith(".pkl"):
+        return pd.read_pickle(path)
+    if path.endswith(".parquet"):
+        return pd.read_parquet(path)
+    return pd.read_csv(path, low_memory=False)
+
+
+class _Source:
+    """DS: the dataset as attached, always recoverable (2026-10-05). `df` is the analyst's working frame and may be
+    filtered, rebound or lost - a cell of the Adaptive run of 2026-10-05 reused `df` as a loop variable and the
+    rest of the run paid for it. DS.load() returns a fresh copy from the file the kernel loaded; DS._check(G) is
+    the line the worker appends to a step's output when `df` no longer carries the dataset's columns."""
+
+    def __init__(self, path, frame):
+        self.path = path
+        self.columns = list(frame.columns)
+        self.shape = tuple(frame.shape)
+
+    def load(self):
+        return _load_df(self.path)
+
+    def __repr__(self):
+        return (f"DS: the dataset as attached, {self.shape[0]} rows x {self.shape[1]} columns; "
+                f"df = DS.load() restores it")
+
+    def _check(self, ns):
+        """A one-line warning when df is gone, not a frame, or has lost columns of the dataset; '' otherwise.
+        Rows are the analyst's to filter; columns dropped are the sign of a rebinding gone wrong."""
+        if "df" not in ns:
+            return "(df is not defined any more; df = DS.load() restores the dataset)"
+        f = ns["df"]
+        if not isinstance(f, pd.DataFrame):
+            return f"(df is now a {type(f).__name__}, not the dataset; df = DS.load() restores it)"
+        lost = [c for c in self.columns if c not in f.columns]
+        if lost:
+            return (f"(df now has {f.shape[1]} of the dataset's {len(self.columns)} columns and {f.shape[0]:,} of "
+                    f"{self.shape[0]:,} rows - {', '.join(lost[:4])}{'...' if len(lost) > 4 else ''} gone; "
+                    f"df = DS.load() restores the dataset)")
+        return ""
+
+
 if _df_path:
-    if _df_path.endswith(".pkl"):
-        G["df"] = pd.read_pickle(_df_path)
-    elif _df_path.endswith(".parquet"):
-        G["df"] = pd.read_parquet(_df_path)
-    else:
-        G["df"] = pd.read_csv(_df_path, low_memory=False)
+    G["df"] = _load_df(_df_path)
+    G["DS"] = _Source(_df_path, G["df"])      # set at every worker start, never checkpointed, like the aliases
 
 # ---- Worker arguments: argv[2] is the package directory (the worker runs from
 # a temp file), argv[3] the checkpoint path. (The vetted-toolkit preload that
@@ -175,7 +213,7 @@ except Exception:
 
 _INTERNAL = {
     "os", "io", "json", "sys", "traceback", "warnings",
-    "matplotlib", "plt", "_mpl_figure", "pd", "np", "df",
+    "matplotlib", "plt", "_mpl_figure", "pd", "np", "df", "DS",
     "_real_savefig", "_saved_plots", "_plot_counter", "_analysis_dir",
     "_patched_show", "_patched_savefig", "redirect_stdout",
 }
@@ -458,6 +496,10 @@ for _line in sys.stdin:
             exec(_user_code, G)   # exec into G so derived state persists
         _stdout = _buf.getvalue()
         _post_exec(_user_code, _before, _step_no)
+        if isinstance(G.get("DS"), _Source):
+            _warn = G["DS"]._check(G)
+            if _warn:
+                _stdout = (_stdout.rstrip("\n") + "\n" if _stdout else "") + _warn + "\n"
     except Exception:
         _error = traceback.format_exc()
     finally:
