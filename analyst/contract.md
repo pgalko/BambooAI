@@ -80,7 +80,8 @@ person sees. Seven headings, always the same, written plainly as below, each fol
 ## Format
 
 Every reply has exactly these three sections, in this order, each once. The three marker lines are
-literal. A reply without them, or with no action, is a lost turn.
+literal. A reply without them, with no action, or with more than one, is a lost turn: nothing in it
+runs.
 
 ```
 ###THINKING###

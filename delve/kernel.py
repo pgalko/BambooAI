@@ -35,7 +35,7 @@ import threading
 
 from logger_config import get_logger
 
-# Reuse the security blacklist and temp-file helpers from codeutils.
+# Reuse the security blacklist and temp-file helpers: codeutils in the package, executor.py in the executor image.
 from codeutils import BLACKLIST, _write_temp_text, _cleanup_files, _serialize_dataframe
 
 logger = get_logger(__name__)

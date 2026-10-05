@@ -80,10 +80,7 @@ REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader wh
                 "stand in for a statement ('this still matters', not 'this earns its keep'; 'a parameter worth varying', "
                 "not 'a dial worth turning'). Reply with the text only.\n\n")
 
-_ACTION_RE = re.compile(r"###ACTION###\s*\n(.*)\Z", re.S)
 _NOTE_RE = re.compile(r"###NOTE###\s*\n(.*?)\n###ACTION###", re.S)
-_CODE_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.S)
-_ACTION_LINE_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPORT)\b", re.I)
 
 
 _NOTE_LINE_RE = re.compile(r"^(\s*[-•]\s*)\**\s*([^:*]{2,60}?)\s*\**\s*:\s*\**\s*(.*?)\s*\**\s*$")
@@ -223,37 +220,44 @@ def view_digest(text: str, how_to_see_all: str, cap: int = DIGEST_VIEW_CHARS) ->
 
 
 def parse_turn(text: str) -> tuple[str, str, Action]:
-    """(thinking, note, action). Tolerant: a missing NOTE keeps the previous
-    note; a missing or unknown ACTION is 'invalid' and the model is told so."""
+    """(thinking, note, action). A reply carries one action. Every action in every ###ACTION### block is found; if they
+    are not all the same action, nothing runs - the reply is 'ambiguous' and the analyst is told (2026-10-05: a reply
+    held a 69-line cell and, after it, a four-line restart of imports; the rule 'the last complete action' ran the four
+    lines and the reviewer's test never happened). The same action written twice runs once; a bare marker, or one with
+    an unfinished action under it, carries none. The note and the thinking are the last written before the action."""
     text = text or ""
     if not text.strip():
         return "", "", Action("invalid", "empty reply")
-    # The reply is read from its LAST complete action: whatever precedes it is drafting. A reasoning model corrects
-    # itself in the open - "Wait - one action per turn. Let me redo it" - and writes the turn it means below the one
-    # it abandoned (2026-10-04: ten such replies in forty-two, and the draft had run); a restart it gave up after a
-    # word, or a bare marker at the end, is no action, so the block before it stands. The note and the thinking are
-    # the last ones written before the block taken. The contract says the same, so a change of mind has a shape.
     marks = [m.start() for m in re.finditer(r"###ACTION###", text)]
     if not marks:
         m_note = _NOTE_RE.search(text)
-        note = m_note.group(1).strip() if m_note else ""
+        note = clean_note(m_note.group(1).strip()) if m_note else ""
         thinking = text[:text.find("###NOTE###")].strip() if "###NOTE###" in text else ""
         thinking = re.sub(r"^###THINKING###\s*", "", thinking).strip()
         return thinking, note, Action("invalid", "no ###ACTION### block")
-    chosen = None
-    for i in range(len(marks) - 1, -1, -1):
-        body = text[marks[i] + len("###ACTION###"):(marks[i + 1] if i + 1 < len(marks) else len(text))].strip()
-        action = _action_from(body)
-        if chosen is None:
-            chosen = (marks[i], action)                      # the last block is the fallback, invalid or not
-        if action.verb != "invalid":
-            chosen = (marks[i], action)
-            break
-    last_act, action = chosen
-    head = text[:last_act]
+    found, reasons = [], []
+    for k, pos in enumerate(marks):
+        body = text[pos + len("###ACTION###"):(marks[k + 1] if k + 1 < len(marks) else len(text))]
+        acts, why = _actions_in(body)
+        found.extend((k, a) for a in acts)
+        if why:
+            reasons.append(why)
+    distinct = []
+    for k, a in found:
+        if all((a.verb, a.arg.strip()) != (d.verb, d.arg.strip()) for _, d in distinct):
+            distinct.append((k, a))
+    if len(distinct) > 1:
+        chosen = len(marks) - 1
+        action = Action("invalid", f"ambiguous: {len(distinct)} different actions in one reply", more=tuple(a.verb for _, a in distinct))
+    elif distinct:
+        chosen, action = distinct[0]
+    else:
+        chosen = len(marks) - 1
+        action = Action("invalid", reasons[-1] if reasons else "no action under ###ACTION###")
+    head = text[:marks[chosen]]
     last_note = head.rfind("###NOTE###")
     note_text = head[last_note + len("###NOTE###"):] if last_note >= 0 else ""
-    cut = note_text.find("###ACTION###")                    # the note ends where an abandoned action began
+    cut = note_text.find("###ACTION###")                    # the note ends where an earlier action began
     note = clean_note((note_text[:cut] if cut >= 0 else note_text).strip())
     think_end = last_note if last_note >= 0 else len(head)
     last_think = head.rfind("###THINKING###", 0, think_end)
@@ -261,49 +265,69 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     return thinking, note, action
 
 
-def _action_from(body: str) -> Action:
-    """One ###ACTION### block's content to an Action. A block may carry several actions; one runs. Pure reads before a
-    REPORT are skipped and the REPORT taken - it was written without their results; any other first action runs,
-    and the rest is recorded as `more` so the next prompt can say what did not."""
-    # A fenced block as the first thing under ###ACTION### is a cell - nothing else it could be - and a fenced CELL
-    # word is the word (2026-10-05: six turns of forty-eight were refused as "unknown action '```python'", each
-    # re-sent the turn after). The word CELL stays accepted; the contract may stop asking for it.
-    body = re.sub(r"\A```[ \t]*\n\s*CELL\s*\n```[ \t]*\n", "CELL\n", body)
-    if body.startswith("```"):
-        body = "CELL\n" + body
-    verbs = [ln.split()[0].lower() for ln in _CODE_RE.sub("", body).splitlines() if _ACTION_LINE_RE.match(ln)]
-    more: tuple = ()
-    if len(verbs) > 1:
-        if "report" in verbs[1:] and all(v in ("show", "names", "recall") for v in verbs[:verbs.index("report")]):
-            i = re.search(r"(?m)^\s*REPORT\b", body).start()
-            more = tuple(verbs[:verbs.index("report")])
-            body = body[i:].strip()
-        else:
-            more = tuple(verbs[1:])
-    head, _, rest = body.partition("\n")
-    verb = head.strip().split()[0].lower() if head.strip() else ""
-    arg = head.strip()[len(verb):].strip()
-    if verb == "cell":
-        m = _CODE_RE.search(body)
-        return Action("cell", m.group(1).rstrip(), more=more) if m else Action("invalid", "CELL without a python block", more=more)
-    if verb == "show":
-        return Action("show", arg or rest.strip().split()[0] if rest.strip() else arg, more=more)
-    if verb in ("names",):
-        return Action("names", more=more)
-    if verb in ("recall", "search", "read"):
-        # a query is its one line: whatever the model writes after the action line is not the query
-        return Action(verb, arg, more=more)
-    if verb == "ask":
-        kept_lines = []
-        for ln in rest.splitlines():
-            if _ACTION_LINE_RE.match(ln) or ln.strip().startswith("###") or not ln.strip():
+_ACTION_WORD_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPORT)\b[ \t]*(.*)$")          # as the contract writes them
+_ACTION_WORD_ANY_CASE_RE = re.compile(r"^\s*(cell|show|names|recall|search|read|ask|report)\b[ \t]*(.*)$", re.I)
+
+
+def _actions_in(body: str):
+    """The actions one ###ACTION### block carries, in order, and why it carries none. A python fence is a cell, with or
+    without the word CELL before it; an action word at the start of a line, outside a fence, is that action (any case on
+    the block's first line, upper case after it, so prose is not read as an action); after REPORT the rest of the block
+    is the report. A fence without its closing line is not a cell: unfinished code does not run."""
+    body = re.sub(r"\A\s*```[ \t]*\n\s*CELL\s*\n```[ \t]*\n", "CELL\n", body or "")    # a fenced CELL word is the word
+    lines = body.strip("\n").splitlines()
+    acts, i, first, cell_word, unclosed = [], 0, True, False, False
+    first_text = next((x.strip() for x in lines if x.strip()), "")
+    while i < len(lines):
+        ln = lines[i]
+        if ln.strip().startswith("```"):
+            j = i + 1
+            while j < len(lines) and not lines[j].strip().startswith("```"):
+                j += 1
+            if j >= len(lines):
+                unclosed = True
                 break
-            kept_lines.append(ln)
-        tail = "\n".join(kept_lines).strip()
-        return Action(verb, (arg + "\n" + tail).strip() if tail else arg, more=more)
-    if verb == "report":
-        return Action("report", rest.strip(), more=more)
-    return Action("invalid", f"unknown action {head.strip()[:40]!r}", more=more)
+            lang, code = ln.strip()[3:].strip().lower(), "\n".join(lines[i + 1:j]).rstrip()
+            if lang in ("", "python", "py", "python3") and code.strip():
+                acts.append(Action("cell", code))
+            i, first = j + 1, False
+            continue
+        m = _ACTION_WORD_RE.match(ln) or (_ACTION_WORD_ANY_CASE_RE.match(ln) if first else None)
+        if m:
+            verb, arg = m.group(1).lower(), m.group(2).strip()
+            first = False
+            if verb == "cell":
+                cell_word = True                                     # its fence follows
+            elif verb == "report":
+                acts.append(Action("report", "\n".join(lines[i + 1:]).strip()))
+                return acts, ""
+            elif verb == "ask":
+                tail = []
+                for ln2 in lines[i + 1:]:
+                    if not ln2.strip() or _ACTION_WORD_RE.match(ln2) or ln2.strip().startswith(("###", "```")):
+                        break
+                    tail.append(ln2)
+                i += len(tail)
+                acts.append(Action("ask", (arg + "\n" + "\n".join(tail)).strip()))
+            elif verb == "names":
+                acts.append(Action("names"))
+            elif verb == "show":
+                if not arg:
+                    nxt = next((x.strip() for x in lines[i + 1:] if x.strip()), "")
+                    arg = nxt.split()[0] if nxt else ""
+                acts.append(Action("show", arg))
+            else:                                                    # recall, search, read: the query is its one line
+                acts.append(Action(verb, arg))
+        elif ln.strip():
+            first = False
+        i += 1
+    if acts:
+        return acts, ""
+    if unclosed:
+        return acts, "a python block without its closing fence"
+    if cell_word:
+        return acts, "CELL without a python block"
+    return acts, f"unknown action {first_text[:40]!r}"
 
 
 class Session:
@@ -329,7 +353,6 @@ class Session:
                                                 # start of a run and again after a rollback, never a cell of the record
         self.documents = documents
         self.system = contract(documents)      # the documents' section and the READ row only when there are documents
-        self._review_block = ""                 # the latest review, in every analyst prompt until the next one
 
     # ----- the prompt --------------------------------------------------------
     @staticmethod
@@ -395,8 +418,9 @@ class Session:
             parts.append("PASSAGES THIS RUN'S READS RETURNED (verbatim, each with its id - cite one as [D1.17]):\n" + "\n".join(passages))
         if extra:
             parts.append(extra)
-        if self._review_block:
-            parts.append(self._review_block)       # the latest review stands above the task line until the next one
+        block = self._review_block(run)
+        if block:
+            parts.append(block)                     # the latest review stands above the task line until the next one
         if tail:
             parts.append(tail)
         # the limit, not a countdown (2026-10-05: "turn 31 of 48 (17 left)" read as turns to fill, and a run that had its
@@ -472,7 +496,6 @@ class Session:
         self._save()
         spent, extra, failures = 0.0, "", 0
         self.system = contract(self.documents, budget.review_every)    # the Reviews section only when a reviewer runs
-        self._review_block = ""
         final_turn, final_extra, forced_by_review = budget.turns, LAST_TURNS_LINE + "\nWrite REPORT now.", False
         tools.run_prelude(self.kernel, self.kernel_prelude)        # the document objects, when the thread has documents
         for turn_no in range(1, budget.turns + 1):
@@ -494,14 +517,6 @@ class Session:
             thinking, note, action = parse_turn(text)
             note = note or run.note
             extra = ""
-            # several CELL blocks in one reply: the first ran, the rest did not - and are not merged (2026-10-04: merged, they
-            # ran fine, but the model then wrote fourteen cells blind in one reply, computing nothing it had read the output of)
-            held = ((f"(Your reply held {len(action.more) + 1} CELL blocks. Only the first ran; the others were discarded. "
-                     f"One cell per turn: read this cell's output, then write the next.)")
-                    if action.more and action.verb == "cell" and all(v == "cell" for v in action.more) else
-                    (f"(Your reply held {len(action.more) + 1} actions - {action.verb.upper()} then "
-                     f"{', '.join(v.upper() for v in action.more)}; only the {action.verb.upper()} ran. One action per turn.)")
-                    if action.more and action.verb != "report" else "")
             turn = Turn(kind=action.verb, note=note, thinking=thinking, usage=usage)
             self.emit({"type": "turn_end", "run": run.id, "turn": turn_no, "kind": action.verb,
                        "thinking": thinking, "note": note, "code": action.arg if action.verb == "cell" else "",
@@ -639,7 +654,12 @@ class Session:
                 return run
             else:
                 turn.kind = "error"
-                if action.arg == "empty reply":
+                if action.arg.startswith("ambiguous"):
+                    logger.warning("Analyst turn %d: %s (%s) - none ran", turn_no, action.arg, ", ".join(action.more))
+                    turn.stdout = (f"Your reply held {len(action.more)} different actions ({', '.join(v.upper() for v in action.more)}); "
+                                   "none of them ran. A reply carries one action under one ###ACTION###: decide, then write the "
+                                   "turn once.")
+                elif action.arg == "empty reply":
                     logger.warning("Analyst turn %d: the model returned an empty reply (%s completion tokens billed) - re-asking",
                                    turn_no, usage.get("completion_tokens", "?"))
                     turn.stdout = "Your last reply arrived empty - no text reached the workspace. Reply again, in the turn format."
@@ -648,8 +668,6 @@ class Session:
                     turn.stdout = f"Your last reply had no valid action ({action.arg}). Reply in the exact turn format."
                 extra = turn.stdout
 
-            if held:
-                extra = held + ("\n\n" + extra if extra else "")
             run.turns.append(turn)
             self._emit_turn(run, turn)
             self.emit({"type": "heartbeat", "run": run.id, "turn": turn_no, "of": budget.turns, "spent": spent,
@@ -730,6 +748,49 @@ class Session:
 
     # ----- plumbing ------------------------------------------------------------
     # ----- the reviewer -------------------------------------------------------
+    @staticmethod
+    def _since_review(run: Run, j: int) -> dict:
+        """The evidence after the review at run.turns[j], up to the next review: the cells committed, their RESULT lines,
+        the failed attempts, the cells that printed nothing, the replies that ran nothing."""
+        ev = {"cells": [], "results": [], "failed": 0, "empty": [], "rejected": 0}
+        for x in run.turns[j + 1:]:
+            if x.kind == "review":
+                break
+            if x.kind == "cell" and x.cell_no is not None:
+                ev["cells"].append(x.cell_no)
+                lines = [ln.strip()[7:].strip() for ln in (x.stdout or "").splitlines() if ln.strip().startswith("RESULT:")]
+                ev["results"] += [(x.cell_no, ln) for ln in lines]
+                if not (x.stdout or "").strip():
+                    ev["empty"].append(x.cell_no)
+            elif x.kind == "cell" and x.error:
+                ev["failed"] += 1
+            elif x.kind == "error":
+                ev["rejected"] += 1
+        return ev
+
+    @staticmethod
+    def _test_answers(run: Run, label: str) -> List[int]:
+        """The cells whose RESULT lines are tagged with this test - "(test after turn 16)" - committed after it."""
+        tag = re.compile(r"\(\s*test\s+%s\s*\)" % re.escape(label), re.I)
+        j = next((k for k, x in enumerate(run.turns) if x.kind == "review" and x.text == label), None)
+        if j is None:
+            return []
+        return sorted({x.cell_no for x in run.turns[j + 1:] if x.kind == "cell" and x.cell_no is not None
+                       and any(ln.strip().startswith("RESULT:") and tag.search(ln) for ln in (x.stdout or "").splitlines())})
+
+    def _review_block(self, run: Run) -> str:
+        """The latest review during the run, for the analyst's prompt; a TEST carries its status, from the evidence: answered
+        by a RESULT line tagged with it, or open (2026-10-05: a test the analyst said it had run never ran)."""
+        latest = next((x for x in reversed(run.turns) if x.kind == "review" and x.text != "after the report"), None)
+        if latest is None:
+            return ""
+        block = f"REVIEW ({latest.text} - answer it in your THINKING):\n" + latest.note
+        if latest.thinking.startswith("Verdict: TEST"):
+            done = self._test_answers(run, latest.text)
+            block += ("\n- Status: answered by " + ", ".join(f"[cell {c}]" for c in done) if done
+                      else f"\n- Status: open - no RESULT line tagged (test {latest.text}) yet")
+        return block
+
     def _review_input(self, run: Run, budget: Budget, after_turn: Optional[int] = None, report: Optional[str] = None) -> str:
         """What the reviewer reads: the question, the data, the thread, the note (or the report), the results, the cells
         one line each, its earlier reviews with the analyst's answer to each, and where the run stands."""
@@ -748,7 +809,16 @@ class Session:
             if x.kind == "review":
                 nxt = next((y for y in run.turns[j + 1:] if y.kind not in ("review", "rewrite")), None)
                 answer = _first_sentence(nxt.thinking) if nxt is not None and nxt.thinking else "(no turn since)"
-                earlier.append(f"- {x.text}: {x.thinking}; the analyst then: {answer}")
+                ev = self._since_review(run, j)
+                entry = [f"- {x.text}: {x.thinking}", f"  the analyst then: {answer}",
+                         f"  since then: cells {', '.join(map(str, ev['cells'])) or 'none'} committed; {ev['failed']} failed attempts; "
+                         f"{ev['rejected']} replies that ran nothing; cells that printed nothing: {', '.join(map(str, ev['empty'])) or 'none'}",
+                         "  RESULT lines since: " + ("; ".join(f"[cell {c}] {ln}" for c, ln in ev["results"]) or "none")]
+                if x.thinking.startswith("Verdict: TEST"):
+                    done = self._test_answers(run, x.text)
+                    entry.append("  status: " + (f"answered by {', '.join(f'[cell {c}]' for c in done)}" if done
+                                                 else f"open - no RESULT line tagged (test {x.text})"))
+                earlier.append("\n".join(entry))
         parts.append("EARLIER REVIEWS:\n" + ("\n".join(earlier) if earlier else "(none)"))
         parts.append("The analysis is over; this review is added to the report." if report is not None
                      else f"TURN: after turn {after_turn}; up to {budget.turns}.")
@@ -772,8 +842,6 @@ class Session:
             logger.warning("review %s: no verdict in the reply - not used", label)
             return None, cost
         run.turns.append(Turn(kind="review", note=rv["lines"], thinking=verdict, text=label, usage=usage))
-        if report is None:
-            self._review_block = f"REVIEW ({label} - answer it in your THINKING):\n" + rv["lines"]
         self._save()
         return rv, cost
 

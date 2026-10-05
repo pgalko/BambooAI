@@ -110,6 +110,20 @@
   figures), and a RESULT: line for every estimate, provisional or final (phase 2's 'a number you may report' had
   the ledger empty until turn 37). Phase 2's measures: the comparison stated in both reports; Adaptive still 46
   turns, the budget wording no brake.
+- **Phase 3b (2026-10-05), from Palo's reading of the phase-3 runs.** (1) One kernel: the executor image ran its own
+  copy of the kernel (containers/executor/kernel.py), forked at the snapshot; phase 1 had changed only delve's, so `DS`
+  never existed in the image and both runs' first cell failed on it. The image's copy is now delve's but for the one
+  import that differs by design, and tests/analyst/test_executor_kernel.py holds it there and runs `DS` through the
+  executor's own kernel service. Build v45. (2) A reply carries one action: every action in every ###ACTION### block is
+  found, and if they are not all the same nothing runs and the analyst is told (a reply had held a 69-line cell and a
+  four-line restart of imports; the last-complete-action rule ran the four lines and the reviewer's test never
+  happened); the same action written twice runs once; after REPORT the block is the report; a fence without its
+  closing line is not run. (3) A TEST's outcome goes on a RESULT line tagged with it - `RESULT: (test after turn 16)
+  ...` - and the session reports its status, answered or open, in the analyst's REVIEW block and in the reviewer's
+  input, with the cells, failures, empty cells and RESULT lines since each review. (4) The reviewer's REPORT needs every
+  condition it listed under The question requires addressed by a RESULT line it cites, or stated as not estimable,
+  and no open TEST unless a decline is accepted and said; claims cite [cell n] with the number and interval as
+  printed, and a comparison writes both numbers out (a review had called +22.1 'comfortably' inside -17.9 to +13.7).
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

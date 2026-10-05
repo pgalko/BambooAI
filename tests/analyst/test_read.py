@@ -205,7 +205,9 @@ check("the documents' section names the kernel objects, READ, SHOW READ and the 
 check("parse_turn: READ with a scope and a question", parse_turn("###NOTE###\nn\n###ACTION###\nREAD D1 the sample size")[2].verb == "read" and parse_turn("###NOTE###\nn\n###ACTION###\nREAD D1 the sample size")[2].arg == "D1 the sample size")
 check("report.cited_units: ids in order, once each", rep.cited_units("x [D1.3] y [D2.1] z [D1.3]") == ["D1.3", "D2.1"] and rep.guard_units([]) == "")
 two = parse_turn("###NOTE###\nn\n###ACTION###\nSEARCH Schmidhuber subjective beauty proportional bits\nREAD D1 section 4 visual illustrations")[2]
-check("parse_turn: one action per turn - a READ line after a SEARCH is not part of the query", two.verb == "search" and two.arg == "Schmidhuber subjective beauty proportional bits", two)
+check("parse_turn: one action per turn - a SEARCH and a READ in one reply run nothing (2026-10-05: ambiguous replies are refused), and the query is never the two lines", two.verb == "invalid" and two.more == ("search", "read"), two)
+one_ = parse_turn("###NOTE###\nn\n###ACTION###\nSEARCH Schmidhuber subjective beauty proportional bits\nthe second line is prose, not a query")[2]
+check("parse_turn: a query is its one line - a prose line after it is not part of it", one_.verb == "search" and one_.arg == "Schmidhuber subjective beauty proportional bits", one_)
 multi = parse_turn("###NOTE###\nn\n###ACTION###\nASK Which season do you mean:\nthe wet one, or the whole year?\n\n###THINKING###\nmore chatter")[2]
 check("parse_turn: a question's own second line still belongs to it; a blank line or a marker ends it", multi.arg == "Which season do you mean:\nthe wet one, or the whole year?", multi)
 chatter = parse_turn("###NOTE###\nn\n###ACTION###\nREAD D1 altitude correction headline\n\n###THINKING###\nI got the document read. Let me digest what it says.\nActually the READ returned a summary")[2]

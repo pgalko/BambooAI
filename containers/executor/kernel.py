@@ -4,7 +4,7 @@ Persistent execution kernel for delv-e's inverted-core loop.
 A single long-lived worker process holds ONE namespace. `df` is loaded once;
 derived columns and intermediate objects created in step k survive into step
 k+1. This is what makes analytical (not line-count) decomposition possible:
-each Executor step can stay junior-simple because its prerequisites already
+each step can stay small because its prerequisites already
 live in the namespace.
 
 Crash isolation: the worker is itself a killable subprocess. If a step hangs
@@ -13,14 +13,14 @@ replays the history of previously-successful steps to reconstruct the
 namespace. Determinism of the replayed steps is the caller's responsibility
 (seed your RNG).
 
-Contract (kept deliberately close to executor.CodeExecutor):
+Contract:
     kernel = PersistentKernel(df=df, analysis_root="output/exploration")
     stdout, error, plots = kernel.execute(code, analysis_dir=".../01")
     print(kernel.describe_namespace())   # registry for prompts
     kernel.cleanup()
 
 `execute` returns the familiar (stdout, error, plots) triple so it can slot in
-beside the existing stateless executor. The namespace registry is exposed
+as the single execution surface. The namespace registry is exposed
 separately via `registry` / `describe_namespace()`.
 """
 
@@ -35,7 +35,7 @@ import threading
 
 from logger_config import get_logger
 
-# Reuse the security blacklist and temp-file helpers already proven in executor.
+# Reuse the security blacklist and temp-file helpers: codeutils in the package, executor.py in the executor image.
 from executor import BLACKLIST, _write_temp_text, _cleanup_files, _serialize_dataframe
 
 logger = get_logger(__name__)
@@ -54,7 +54,7 @@ _DONE = "__DELVE_KERNEL_DONE__"
 _READY = "__DELVE_KERNEL_READY__"
 
 # Names that are part of the kernel's own plumbing and must never be surfaced
-# in the namespace registry shown to the Investigator/Executor.
+# in the namespace registry shown to the Investigator.
 _INTERNAL_NAMES = {
     "df",  # handled explicitly (we show its columns, not as a generic object)
     "os", "io", "json", "sys", "traceback", "warnings",
@@ -113,13 +113,51 @@ G["pd"] = pd
 G["np"] = np
 G["plt"] = plt
 
+def _load_df(path):
+    if path.endswith(".pkl"):
+        return pd.read_pickle(path)
+    if path.endswith(".parquet"):
+        return pd.read_parquet(path)
+    return pd.read_csv(path, low_memory=False)
+
+
+class _Source:
+    """DS: the dataset as attached, always recoverable (2026-10-05). `df` is the analyst's working frame and may be
+    filtered, rebound or lost - a cell of the Adaptive run of 2026-10-05 reused `df` as a loop variable and the
+    rest of the run paid for it. DS.load() returns a fresh copy from the file the kernel loaded; DS._check(G) is
+    the line the worker appends to a step's output when `df` no longer carries the dataset's columns."""
+
+    def __init__(self, path, frame):
+        self.path = path
+        self.columns = list(frame.columns)
+        self.shape = tuple(frame.shape)
+
+    def load(self):
+        return _load_df(self.path)
+
+    def __repr__(self):
+        return (f"DS: the dataset as attached, {self.shape[0]} rows x {self.shape[1]} columns; "
+                f"df = DS.load() restores it")
+
+    def _check(self, ns):
+        """A one-line warning when df is gone, not a frame, or has lost columns of the dataset; '' otherwise.
+        Rows are the analyst's to filter; columns dropped are the sign of a rebinding gone wrong."""
+        if "df" not in ns:
+            return "(df is not defined any more; df = DS.load() restores the dataset)"
+        f = ns["df"]
+        if not isinstance(f, pd.DataFrame):
+            return f"(df is now a {type(f).__name__}, not the dataset; df = DS.load() restores it)"
+        lost = [c for c in self.columns if c not in f.columns]
+        if lost:
+            return (f"(df now has {f.shape[1]} of the dataset's {len(self.columns)} columns and {f.shape[0]:,} of "
+                    f"{self.shape[0]:,} rows - {', '.join(lost[:4])}{'...' if len(lost) > 4 else ''} gone; "
+                    f"df = DS.load() restores the dataset)")
+        return ""
+
+
 if _df_path:
-    if _df_path.endswith(".pkl"):
-        G["df"] = pd.read_pickle(_df_path)
-    elif _df_path.endswith(".parquet"):
-        G["df"] = pd.read_parquet(_df_path)
-    else:
-        G["df"] = pd.read_csv(_df_path, low_memory=False)
+    G["df"] = _load_df(_df_path)
+    G["DS"] = _Source(_df_path, G["df"])      # set at every worker start, never checkpointed, like the aliases
 
 # ---- Worker arguments: argv[2] is the package directory (the worker runs from
 # a temp file), argv[3] the checkpoint path. (The vetted-toolkit preload that
@@ -175,7 +213,7 @@ except Exception:
 
 _INTERNAL = {
     "os", "io", "json", "sys", "traceback", "warnings",
-    "matplotlib", "plt", "_mpl_figure", "pd", "np", "df",
+    "matplotlib", "plt", "_mpl_figure", "pd", "np", "df", "DS",
     "_real_savefig", "_saved_plots", "_plot_counter", "_analysis_dir",
     "_patched_show", "_patched_savefig", "redirect_stdout",
 }
@@ -187,7 +225,7 @@ _df_blob_cache = None    # pickled df bytes matching _df_fp_cache
 
 def _df_fingerprint():
     """A cheap content fingerprint of df, used to avoid re-pickling it on every
-    checkpoint when nothing changed (the common case: executors mostly create
+    checkpoint when nothing changed (the common case: steps mostly create
     derived objects). Any failure returns a unique object — 'always changed' —
     which is safe: the blob is simply rebuilt."""
     _df = G.get("df")
@@ -209,7 +247,7 @@ def _checkpoint_save(path):
     otherwise unpicklable object), the previous complete checkpoint is left
     untouched and the caller replays the tail from it instead.
 
-    df IS included, despite being 'internal': executors mutate it in place
+    df IS included, despite being 'internal': step code mutates it in place
     (new columns, dropped rows), and those mutations belong to committed
     steps. A checkpoint restore skips replaying the steps it covers, so if df
     were left to the startup parquet reload — the ORIGINAL data — every
@@ -289,7 +327,7 @@ _ALIAS_RE = re.compile(r"^([A-Za-z_]\w*)__s(\d+)$")
 def _shape_of(val, depth=0):
     """What a value IS: element shape and length, not just its type name.
 
-    The Executor is blind to prior code by design, so the registry is the ONLY
+    The registry is the namespace summary the Investigator reads each turn, the ONLY
     thing that tells it what a persisted object contains. "list len=60" does not,
     and a wrong guess about a return contract is a silent, type-correct error."""
     t = type(val).__name__
@@ -328,9 +366,9 @@ def _post_exec(_user_code, _before, _step_no):
     """After a clean exec: pin an immutable alias on everything this step bound,
     and record what each function it called actually returned.
 
-    Both exist because the Executor is architecturally blind to prior code while
-    every Executor writes into one shared dict. Aliases make a rebound name
-    recoverable by a name the Executor can actually type; return contracts mean the next blind Executor never has to guess."""
+    Both exist so a turn can reference prior objects by NAME instead of code while
+    every step writes into one shared dict. Aliases make a rebound name
+    recoverable by a name a later step can actually type; return contracts mean the next step never has to guess."""
     if _step_no:
         for _k in [_k for _k in list(G)
                    if not _k.startswith("_") and not _ALIAS_RE.match(_k)]:
@@ -458,6 +496,10 @@ for _line in sys.stdin:
             exec(_user_code, G)   # exec into G so derived state persists
         _stdout = _buf.getvalue()
         _post_exec(_user_code, _before, _step_no)
+        if isinstance(G.get("DS"), _Source):
+            _warn = G["DS"]._check(G)
+            if _warn:
+                _stdout = (_stdout.rstrip("\n") + "\n" if _stdout else "") + _warn + "\n"
     except Exception:
         _error = traceback.format_exc()
     finally:
@@ -705,7 +747,7 @@ class PersistentKernel:
         uncommitted (chart) execution can never enter the checkpoint file."""
         # NOTE: analysis_dir is NOT created here. The folder is made lazily, only
         # when a plot is actually written (see the worker plot patch), so steps
-        # that produce no plots — which is all of them, since the executor is told
+        # that produce no plots — which is all of them, since step cutor is told
         # not to plot — never leave behind an empty NN/ folder.
         code_path = _write_temp_text(code, suffix=".py", prefix="delve_step_")
         fd, result_path = tempfile.mkstemp(suffix=".json", prefix="delve_res_")
@@ -745,7 +787,7 @@ class PersistentKernel:
     def execute(self, code, analysis_dir=None, step=None, commit=True):
         """Execute one step in the persistent namespace, TRANSACTIONALLY.
 
-        Returns (stdout, error, plots), matching executor.CodeExecutor.execute
+        Returns (stdout, error, plots), the historical CodeExecutor.execute
         (minus the df argument — df lives in the kernel).
 
         Commit semantics: a step is COMMITTED only when it runs without error
@@ -758,7 +800,7 @@ class PersistentKernel:
         failed attempt is therefore ROLLED BACK: the worker is rebuilt from the
         last committed checkpoint + tail (see _restart_and_replay) before
         control returns, and the error string says so, matching what the
-        executor's retry template now promises.
+        next turn's traceback context relies on.
 
         commit=False runs the code against the live namespace WITHOUT
         committing it: no history append, no checkpoint (the worker is told to
@@ -843,11 +885,11 @@ class PersistentKernel:
 
     def describe_namespace(self, max_items=120, names=None):
         """Human/LLM-readable registry of current derived state and df columns.
-        ALL df column names are shown — the Executor writes code against these, so
+        ALL df column names are shown — step code is written against these, so
         a truncated list could make it reference a column it cannot see.
 
         When `names` is given, only those derived objects are listed (plus a count
-        of the rest); callers use this to show the Executor just the objects its
+        of the rest); callers use this to show the Investigator just the objects its
         spec references — those always carry their FULL descriptions.
 
         When `names` is None (the Investigator's per-turn view), the NEWEST

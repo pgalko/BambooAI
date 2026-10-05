@@ -312,15 +312,15 @@ check("synthesis: past the character budget the oldest shown runs collapse to a 
       "(run 1 was shown at turn 1; SHOW RUN 1 brings it back whole)" in block and "(run 2 was shown at turn 1; SHOW RUN 2 brings it back whole)" in block
       and "--- run 4 ---" in block and "--- run 3 ---" in block and block.count("--- run 1 ---") == 0, [ln for ln in block.splitlines() if ln.startswith("---") or ln.startswith("(run")])
 pm = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nCELL\n```python\nprint(a + 1)\n```")[2]
-check("parse_turn: several CELL blocks in one reply are NOT merged - the first is the cell, the rest recorded (2026-10-04: merged, the model wrote fourteen blind)",
-      pm.verb == "cell" and pm.arg == "a = 1" and pm.more == ("cell",), (pm.verb, pm.arg, pm.more))
+check("parse_turn: two different cells in one reply run nothing - the reply is ambiguous, its actions named (2026-10-05)",
+      pm.verb == "invalid" and pm.arg.startswith("ambiguous") and pm.more == ("cell", "cell"), (pm.verb, pm.arg, pm.more))
 pr = parse_turn("###THINKING###\nfirst idea\n###NOTE###\nn1\n###ACTION###\nCELL\n```python\nprint('draft')\n```\n\nWait - one action per turn. Let me redo it.\n\n###THINKING###\nsecond idea\n###NOTE###\nn2\n###ACTION###\nCELL\n```python\nprint('meant')\n```")
-check("parse_turn: a reply that starts over (a second THINKING after the first ACTION) is read from its last turn - that note, that cell, nothing recorded as more",
-      pr[2].verb == "cell" and pr[2].arg == "print('meant')" and pr[2].more == () and pr[1] == "n2" and pr[0] == "second idea", (pr[2].verb, pr[2].arg, pr[2].more, pr[1], pr[0]))
+check("parse_turn: a reply that starts over with a different cell (a second THINKING after the first ACTION) runs nothing (2026-10-05: the restart had been a four-line fragment and it ran)",
+      pr[2].verb == "invalid" and pr[2].arg.startswith("ambiguous") and pr[1] == "n2", (pr[2].verb, pr[2].arg, pr[1]))
 pr2 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###THINKING###\ntrailing thoughts with no action")
 check("parse_turn: a trailing THINKING without an ACTION is not a restart - the turn stands", pr2[2].verb == "cell" and pr2[2].arg == "print('a')", (pr2[2].verb, pr2[2].arg))
 pr3 = parse_turn("###THINKING###\nidea\n###NOTE###\nn1\n###ACTION###\nCELL\n```python\nprint('draft')\n```\n(That is the cell.)\n\nWait - one action per turn.\n###ACTION###\nSHOW 11")
-check("parse_turn: a restart from ###ACTION### alone is read from that last block, with the note written before it", pr3[2].verb == "show" and pr3[2].arg == "11" and pr3[2].more == () and pr3[1] == "n1", (pr3[2].verb, pr3[2].arg, pr3[1]))
+check("parse_turn: a restart from ###ACTION### alone with another action runs nothing", pr3[2].verb == "invalid" and pr3[2].more == ("cell", "show"), (pr3[2].verb, pr3[2].more))
 pr4 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###ACTION###")
 check("parse_turn: a bare ###ACTION### after a complete turn (seen in real logs) is not a turn - the one before it stands", pr4[2].verb == "cell" and pr4[2].arg == "print('a')" and pr4[1] == "n", (pr4[2].verb, pr4[2].arg, pr4[1]))
 pr5 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###ACTION###\nCELL")
@@ -338,7 +338,7 @@ check("parse_turn: a fenced block directly under ###ACTION### is a cell - no CEL
 pb2 = parse_turn("###NOTE###\nn\n###ACTION###\n```\nCELL\n```\n```python\nprint(2)\n```")
 check("parse_turn: a fenced CELL word followed by the block is the cell", pb2[2].verb == "cell" and pb2[2].arg == "print(2)", (pb2[2].verb, pb2[2].arg))
 pm2 = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nSHOW 3")[2]
-check("parse_turn: a CELL followed by another kind of action still runs the cell alone and records the rest", pm2.verb == "cell" and pm2.arg == "a = 1" and pm2.more == ("show",), (pm2.verb, pm2.more))
+check("parse_turn: a CELL followed by another kind of action runs nothing", pm2.verb == "invalid" and pm2.more == ("cell", "show"), (pm2.verb, pm2.more))
 check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",
       syn.status == "answered" and len([x for x in syn.turns if x.kind != "rewrite"]) == 3 and "CHECK:" not in syn.report, (syn.status, [x.kind for x in syn.turns], syn.report[-200:]))
 check("synthesis: the prompt with three chains whole stays well inside a 64k context (chars/4)", len(p2) // 4 < 20000, len(p2) // 4)
@@ -385,8 +385,10 @@ check("with documents the system prompt gains the Documents section before Forma
 # a reply that carries two actions: the first runs and the next prompt says so; pure reads before a REPORT are skipped
 def act(line): return "###NOTE###\n" + NOTE5 + "\n###ACTION###\n" + line
 two_prompts = []
-TWO = [act("CELL\n```python\nprint('one')\n```\nCELL\n```python\nprint('two')\n```"),   # two CELL blocks: the first runs, the next prompt says one cell per turn
-       act("SHOW 1\n###THINKING###\nmore\n###NOTE###\n" + NOTE5 + "\n###ACTION###\nREPORT\n## r\n\nDone [cell 1].")]   # SHOW then REPORT: the report is taken
+TWO = [act("CELL\n```python\nprint('one')\n```\nCELL\n```python\nprint('two')\n```"),          # two different cells: nothing runs
+       act("CELL\n```python\nprint('single')\n```"),
+       act("SHOW 1\n###THINKING###\nmore\n###NOTE###\n" + NOTE5 + "\n###ACTION###\nREPORT\n## r\n\nDone [cell 1]."),  # SHOW then REPORT: nothing runs
+       act("REPORT\n## r\n\nDone [cell 1].")]
 two_i = {"n": 0}
 def two_llm(system, user, **h):
     two_prompts.append(user)
@@ -398,13 +400,22 @@ try:
     r2 = Session(k2, nb2_, two_llm, data_description="d").run("q", budget=Budget(turns=5, dollars=1.0))
 finally:
     k2.cleanup()
-check("a reply with two CELL blocks: the first ran, the second was discarded, and the next prompt says one cell per turn and to read the output first",
-      r2.turns[0].kind == "cell" and "two" not in (r2.turns[0].stdout or "") and "(Your reply held 2 CELL blocks. Only the first ran; the others were discarded. One cell per turn: read this cell's output, then write the next.)" in two_prompts[1], ([x.kind for x in r2.turns], two_prompts[1][-300:]))
-check("a reply with SHOW then REPORT: the report is taken - it was written without the shown cell - and the run is answered", r2.turns[1].kind == "report" and r2.status == "answered" and "Done [cell 1]" in r2.report, ([x.kind for x in r2.turns], r2.status))
+check("a reply with two different actions runs nothing: the turn is lost, the next prompt names the actions and says none ran",
+      r2.turns[0].kind == "error" and "Your reply held 2 different actions (CELL, CELL); none of them ran." in two_prompts[1]
+      and not any("one" in (x.stdout or "") or "two" in (x.stdout or "") for x in r2.turns if x.kind == "cell"), ([x.kind for x in r2.turns], two_prompts[1][-300:]))
+check("after a rejected reply the run goes on: a single cell runs, a SHOW-then-REPORT reply is rejected too, and the plain REPORT ends the run",
+      [x.kind for x in r2.turns if x.kind != "rewrite"][:4] == ["error", "cell", "error", "report"] and r2.status == "answered" and "Done [cell 1]" in r2.report,
+      ([x.kind for x in r2.turns], r2.status))
 pt = parse_turn("###NOTE###\nn\n###ACTION###\nSHOW 1 2\nNAMES\nREPORT\n## r\n\nx")[2]
-check("parse_turn: SHOW and NAMES before a REPORT are skipped and recorded as `more`", pt.verb == "report" and pt.more == ("show", "names") and pt.arg.startswith("## r"))
+check("parse_turn: SHOW and NAMES before a REPORT run nothing either - any two different actions are ambiguous", pt.verb == "invalid" and pt.more == ("show", "names", "report"), (pt.verb, pt.more))
 pt2 = parse_turn("###NOTE###\nn\n###ACTION###\nSEARCH x\nREPORT\n## r")[2]
-check("parse_turn: a SEARCH before a REPORT runs first, the REPORT recorded as `more`", pt2.verb == "search" and pt2.more == ("report",))
+check("parse_turn: a SEARCH before a REPORT runs nothing", pt2.verb == "invalid" and pt2.more == ("search", "report"), (pt2.verb, pt2.more))
+pd_ = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint(1)\n```\n###ACTION###\nCELL\n```python\nprint(1)\n```\n###ACTION###\n```python\nprint(1)\n```")[2]
+check("parse_turn: the same cell written three times (seen in a real log) runs once", pd_.verb == "cell" and pd_.arg == "print(1)", (pd_.verb, pd_.arg))
+prp = parse_turn("###NOTE###\nn\n###ACTION###\nREPORT\n## Answer\n\nRead as a correction, this implies +53 s/km.\nShow this to the coach.\n\nSHOW 3 is not an action here.\n```python\nprint('quoted code')\n```")[2]
+check("parse_turn: after REPORT the rest of the block is the report - prose or code in it is not another action", prp.verb == "report" and "Read as a correction" in prp.arg and "SHOW 3 is not an action here." in prp.arg and "quoted code" in prp.arg, (prp.verb, prp.more))
+puf = parse_turn("###NOTE###\nn\n###ACTION###\n```python\nimport pandas as pd\nx = 1")[2]
+check("parse_turn: a python block without its closing fence is not run - unfinished code does not run", puf.verb == "invalid" and "closing fence" in puf.arg, (puf.verb, puf.arg))
 # the prelude: source the host wants in the kernel is there at the start of the run and again after a rollback
 PRE_SCRIPT = [act("CELL\n```python\nprint(D9.name)\n```"), act("CELL\n```python\nraise ValueError('boom')\n```"), act("CELL\n```python\nprint(D9.name)\n```"), act("REPORT\n## r\n\nDone.")]
 pre_n = {"n": 0}
@@ -600,9 +611,34 @@ check("review: the reviewer is called with its own prompt, never the analyst's, 
 check("review: reviews come after every 2nd turn and are not turns - the analyst's task lines run 1 to 5 without a gap",
       [t.split(";")[0] for t in an_tasks] == [f"TASK: turn {k}" for k in (1, 2, 3, 4, 5)], an_tasks)
 u2 = rv_calls[1][1]
-check("review: the reviewer reads the question, the results, the cells one line each, its earlier review with the analyst's answer, and the turn",
+check("review: the reviewer reads the question, the results, the cells one line each, its earlier review with the analyst's answer, the evidence since and the test's status, and the turn",
       "QUESTION:\nis B higher than A" in u2 and "RESULTS SO FAR:\n- [cell 1] B vs A step 1" in u2 and "CELLS (one line each):\n- cell 1:" in u2
-      and "EARLIER REVIEWS:\n- after turn 2: Verdict: TEST bootstrap the difference by subject; the analyst then:" in u2 and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-700:])
+      and "EARLIER REVIEWS:\n- after turn 2: Verdict: TEST bootstrap the difference by subject\n  the analyst then:" in u2
+      and "  since then: cells 3, 4 committed; 0 failed attempts; 0 replies that ran nothing; cells that printed nothing: none" in u2
+      and "  RESULT lines since: [cell 3] B vs A step 3" in u2 and "  status: open - no RESULT line tagged (test after turn 2)" in u2
+      and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-900:])
+check("review: the analyst's REVIEW block carries the TEST's status - open until a RESULT line tagged with it is printed",
+      "- Status: open - no RESULT line tagged (test after turn 2) yet" in an_prompts[2][0], an_prompts[2][0][-400:])
+# a tagged RESULT line answers the test: the status says so, in the analyst's block and in the reviewer's input
+tg_prompts, tg_rv = [], []
+def tagged_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are the reviewer"):
+        tg_rv.append(user)
+        return ("###REVIEW###\n- The question requires: B against A.\n- Established: the difference [cell 1] +1.5.\n- Most consequential problem: no interval.\n- Verdict: TEST bootstrap the difference" if len(tg_rv) == 1
+                else "###REVIEW###\n- The question requires: B against A.\n- Established: +1.5 (0.2 to 2.8) [cell 2].\n- Most consequential problem: none\n- Verdict: REPORT the test is answered [cell 2]"), {"cost": 0.001}
+    tg_prompts.append(user)
+    if "this turn is the report" in user: return act6("REPORT\n## r\n\nDone [cell 2]."), {"cost": 0.001}
+    if len(tg_prompts) == 3:
+        return act6("CELL\n```python\nprint('RESULT: (test after turn 2) bootstrap of B vs A, 20 subjects: +1.5 (95% CI 0.2 to 2.8), B higher')\n```"), {"cost": 0.001}
+    return act6("CELL\n```python\nprint('RESULT: B vs A, 20 subjects: +1.5, B higher')\n```"), {"cost": 0.001}
+kt = PersistentKernel(df=df); nbt = Notebook("tt")
+try:
+    rt = Session(kt, nbt, tagged_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0, review_every=2))
+finally:
+    kt.cleanup()
+check("review: a RESULT line tagged (test after turn 2) answers the test - the analyst's next block and the reviewer's next input say 'answered by [cell 3]', and the REPORT verdict ends the run",
+      "- Status: answered by [cell 3]" in tg_prompts[3] and "  status: answered by [cell 3]" in tg_rv[1] and rt.status == "answered", (tg_prompts[3][-300:], tg_rv[1][-500:] if len(tg_rv) > 1 else ""))
 p3 = an_prompts[2][0]
 check("review: the review rides in the analyst's next prompts under REVIEW, above the task line, until the next one",
       "REVIEW (after turn 2 - answer it in your THINKING):\n- The question requires: B against A with an interval." in p3 and p3.index("REVIEW (after turn 2") < p3.index("TASK: turn 3")
@@ -686,7 +722,10 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page - under 8,500 without documents (2026-10-05: the Results section with its example, DS, the comparison, the budget as a limit), neutral", len(c) < 8500 and not bad, (len(c), bad))
+check("contract: one page - under 8,600 without documents (2026-10-05: Results, DS, the comparison, the budget as a limit, one action a reply), neutral", len(c) < 8600 and not bad, (len(c), bad))
+check("contract: a reply with more than one action is a lost turn and nothing in it runs - said in Format", "with no action, or with more than one, is a lost turn: nothing in it\nruns." in c)
+check("contract (Adaptive): a TEST's outcome goes on a RESULT line tagged with the test, and the test is open until it is printed",
+      "`RESULT: (test after turn 16) ...`" in contract(False, 8) and "until such a line is printed the test is open" in contract(False, 8))
 check("contract: the format is a literal template of one turn - three marker lines, each once - and the actions are a table with one row per form",
       c.count("###THINKING###") == 1 and c.count("###NOTE###") == 1 and c.count("###ACTION###") == 1 and "| a fenced python block |" in c and "| `CELL` |" not in c and "| `REPORT` |" in c and "Seven headings" in c and "under the headings listed in The note" in c)
 check("contract: no documents furniture and the one budget rule when the thread has no documents",
