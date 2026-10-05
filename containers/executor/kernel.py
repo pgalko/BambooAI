@@ -576,6 +576,34 @@ class KernelDead(Exception):
 REGISTRY_DESC_RECENT = 25
 
 
+def _code_for_security_check(code):
+    """The code as the restricted-name check reads it: comments and plain string literals blanked out, everything
+    else verbatim, so a label or a note that mentions a restricted word is not taken for its use (2026-10-05: a
+    label '+HR eval@150' was refused as the eval module). f-strings stay: their expressions are code. Code that
+    does not tokenize is checked whole."""
+    import io
+    import re
+    import tokenize
+    try:
+        toks = list(tokenize.generate_tokens(io.StringIO(code).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return code
+    starts, pos = [0], 0
+    for line in code.splitlines(keepends=True):
+        pos += len(line)
+        starts.append(pos)
+    chars = list(code)
+    for tok in toks:
+        prefix = re.match(r"[A-Za-z]*", tok.string).group(0).lower() if tok.type == tokenize.STRING else ""
+        if tok.type == tokenize.COMMENT or (tok.type == tokenize.STRING and "f" not in prefix):
+            a = starts[tok.start[0] - 1] + tok.start[1]
+            b = starts[tok.end[0] - 1] + tok.end[1]
+            for i in range(a, min(b, len(chars))):
+                if chars[i] != "\n":
+                    chars[i] = " "
+    return "".join(chars)
+
+
 class PersistentKernel:
     """A long-lived worker process holding one persistent analysis namespace."""
 
@@ -729,6 +757,7 @@ class PersistentKernel:
 
     def _security_refuse(self, code):
         import re
+        code = _code_for_security_check(code)
         for banned in BLACKLIST:
             pattern = r"\b" + re.escape(banned) + r"\b"
             if re.search(pattern, code):

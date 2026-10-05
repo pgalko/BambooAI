@@ -39,7 +39,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-05 v45 (the kernel is delve kernel: DS in the image)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-05 v46 (the restricted-name check reads code, not strings)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 

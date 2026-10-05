@@ -49,6 +49,13 @@ try:
           "of the dataset's 3 columns" in (out2.get("stdout") or "") and "DS.load() restores" in (out2.get("stdout") or ""), out2)
     out3 = (c.post("/kernel/execute", json={"session_id": sid, "code": "df = DS.load()\nprint(df.shape)"}).get_json() or {})
     check("executor: df = DS.load() restores the dataset", "(10, 3)" in (out3.get("stdout") or "") and "DS.load() restores" not in (out3.get("stdout") or ""), out3)
+    out4 = (c.post("/kernel/execute", json={"session_id": sid, "code": "label = '+HR eval@150'  # eval in a comment\nprint(label)"}).get_json() or {})
+    check("executor: a restricted word inside a string or a comment is not a use of it - the cell runs (2026-10-05: a label was refused as eval)",
+          "eval@150" in (out4.get("stdout") or "") and not out4.get("error"), out4)
+    out5 = (c.post("/kernel/execute", json={"session_id": sid, "code": "x = eval('1+1')\nprint(x)"}).get_json() or {})
+    out6 = (c.post("/kernel/execute", json={"session_id": sid, "code": "print(f\"{eval('2+2')}\")"}).get_json() or {})
+    check("executor: a call of a restricted name is still refused, inside an f-string too",
+          "Security notice" in ((out5.get("stdout") or "") + (out5.get("error") or "")) and "Security notice" in ((out6.get("stdout") or "") + (out6.get("error") or "")), (out5, out6))
 finally:
     c.post("/kernel/stop", json={"session_id": sid})
 

@@ -22,30 +22,24 @@ A RESULT line is what a cell printed, not proof that its label describes what th
 your review you may open cells: reply with one line - `SHOW 12 14` for cells, `SHOW turn 22` for any
 turn of the analyst, a failed one included - and you receive their code and complete output; at most
 twice in a review, then you review. Open the cells your verdict rests on, and check that the code
-computes what each line says: the comparison, the estimator (a "within" estimate compares within units -
-fixed effects or paired differences), the sample, the adjustment, the unit; and that the adjustment set
+computes what each line says: the comparison, the estimator, the sample, the adjustment, the unit; and that the adjustment set
 covers the differences between the compared groups that the data records.
 
 ## What you do
 
 1. From the question, say what an adequate answer must establish: which comparison or quantity, for
-   whom, under what conditions - including any breakdown the question asks for ("for which groups",
-   "where it holds and where it does not").
+   whom, under what conditions - including any breakdown the question asks for.
 2. Compare that with what the results establish. The note is the analyst's account; the RESULT
    lines and the cells are the evidence. Every claim you make about a result names its [cell n] and
-   writes its number and interval as printed; when you compare an estimate with an interval or with
-   another estimate, write both out.
+   writes its number and interval as printed.
 3. Check each TEST you recommended earlier against the evidence under it. A TEST is complete only
-   when a RESULT line tagged with it answers it; the analyst's account is not evidence, and a cell
-   that printed nothing completed nothing.
+   when a RESULT line tagged with it answers it; the analyst's account is not evidence.
 4. Find the single most consequential problem, of three kinds:
    - a gap: something the question requires that no result addresses, including a comparison the
      question implies that was never made while effort went to a different one;
    - an unsupported inference: a conclusion wider than its evidence - "no effect" read from a wide
-     interval, a pooled estimate standing in for subgroups it may hide, an association reported as
-     a correction;
-   - a redundant continuation: work that cannot change the answer - another specification of a
-     settled estimate, another figure, a search for a number already established.
+     interval, an association reported as an effect;
+   - a redundant continuation: work that cannot change the answer.
 5. Give one verdict:
    - TEST: the one analysis that would change or settle the answer - a single test, not a list: if
      several are needed, the most consequential, and the others wait for your next review - concrete

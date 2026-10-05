@@ -13,15 +13,29 @@ from __future__ import annotations
 import re
 from typing import Iterable, List, Set
 
-CELL_REF_RE = re.compile(r"\[cell\s+(\d+)\]", re.I)
+# a citation of one or several cells: [cell 7], [cells 6, 7, 9], [cell 5, cell 6], [cells 6-9] (2026-10-05: reports cite
+# several at once, and the replay read only the single form)
+CELL_REF_RE = re.compile(r"\[cells?\s+(\d+(?:\s*(?:,|;|and|&|-|\u2013)\s*(?:cells?\s*)?\d+)*)\]", re.I)
 UNIT_REF_RE = re.compile(r"\[(D\d+\.\d+)\]")                 # a document passage, [D1.17] (docs/DOCUMENTS_DESIGN.md D45)
-FIG_REF_RE = re.compile(r"\[fig\s+(\d+)\]", re.I)
+FIG_REF_RE = re.compile(r"\[figs?\s+(\d+(?:\s*(?:,|;|and|&|-|\u2013)\s*(?:figs?\s*)?\d+)*)\]", re.I)
+
+
+def _ref_numbers(group: str) -> Set[int]:
+    """The numbers of one citation, with a range a-b read whole."""
+    out: Set[int] = set()
+    for part in re.split(r"\s*(?:,|;|and|&)\s*", group):
+        nums = [int(n) for n in re.findall(r"\d+", part)]
+        if len(nums) == 2 and re.search(r"\d\s*[-\u2013]\s*\d", part) and nums[0] <= nums[1] <= nums[0] + 200:
+            out |= set(range(nums[0], nums[1] + 1))
+        else:
+            out |= set(nums)
+    return out
 _NUM_RE = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?:[eE][-+]?\d+)?(?![\w.])")
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
 
 
 def cited_cells(text: str) -> List[int]:
-    return sorted({int(m.group(1)) for m in CELL_REF_RE.finditer(text or "")})
+    return sorted({n for m in CELL_REF_RE.finditer(text or "") for n in _ref_numbers(m.group(1))})
 
 
 def cited_units(text: str) -> List[str]:
@@ -44,7 +58,7 @@ def guard_units(missing: Iterable[str]) -> str:
 
 
 def referenced_figures(text: str) -> List[int]:
-    return sorted({int(m.group(1)) for m in FIG_REF_RE.finditer(text or "")})
+    return sorted({n for m in FIG_REF_RE.finditer(text or "") for n in _ref_numbers(m.group(1))})
 
 
 def _numbers(text: str, min_len: int = 2) -> Set[str]:

@@ -28,7 +28,12 @@ is not earning its place.
 - [ ] C2. No prescribed method, estimator, toolkit, step order or granularity. "One move per step", "baseline first", "meaning ritual" are gone; the analyst decides.
 - [ ] C3. No planner commissioning probes to other seats; no cards; no supersession; no external map. The analyst's note is the map.
 - [ ] C4. No second model rewriting, summarising or re-implementing the analyst's work as a default. (Optional, off by default: a critic that returns comments; a cheaper model for the simplified rewrite, guarded.)
-- [ ] C5. No benchmark vocabulary, example or method in anything a model reads. The scanner test stays.
+- [ ] C5. No benchmark vocabulary, example or method in anything a model reads - and, the standing rule since
+  2026-10-05, no coaching aimed at one model's habits (restarts, figure timing, misread intervals, library
+  pitfalls) and no examples taken from earlier threads. A prompt describes the work, the mechanisms and the
+  format; a failure is answered by a mechanism, by evaluation or by the choice of model, not by a sentence for
+  the model. The scanner test stays, and covers every text a model reads: the contract and its inserts, the
+  reviewer's prompt, the rewrite task, the Reader, and every string the session, tools and reader send.
 - [ ] C6. No structure added without a failure observed in the comparison runs that it fixes. Complexity is earned, never anticipated.
 - [ ] C7. No context pasted "just in case": the memory index, registry dumps, prior-chain briefings and record views are replaced by tools the analyst calls (`show`, `names`, `recall`, `search`).
 

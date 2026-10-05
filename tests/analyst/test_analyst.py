@@ -123,7 +123,7 @@ check("kernel: pd/np/plt are in the namespace without an import, and survive the
       kinds3[0] == ("cell", True) and kinds3[1] == ("cell", False) and "True True" in r3.turns[1].stdout, (kinds3, r3.turns[1].stdout, r3.turns[1].error[-120:]))
 check("a failed cell is fed back to the analyst with its code and traceback, marked rolled back",
       "YOUR LAST CELL FAILED" in seen["prompts"][1] and "has no attribute 'round'" in seen["prompts"][1] and "x.round(2)" in seen["prompts"][1])
-check("two failures in a row add the look-before-computing nudge; one does not",
+check("two failures in a row are said - the fact, no advice; one failure is not",
       "attempts in a row have failed" in seen["prompts"][4] and "attempts in a row have failed" not in seen["prompts"][1])
 check("failed attempts are listed in CELLS SO FAR for the rest of the run",
       "FAILED ATTEMPTS THIS RUN" in [p_ for p_ in seen["prompts"] if "TASK:" in p_][-1] and "undefined_name" in [p_ for p_ in seen["prompts"] if "TASK:" in p_][-1])
@@ -326,7 +326,7 @@ check("parse_turn: a bare ###ACTION### after a complete turn (seen in real logs)
 pr5 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###ACTION###\nCELL")
 check("parse_turn: a restart given up after one word ('CELL' and nothing) is no action either - the complete one before it stands (seen in a real log)", pr5[2].verb == "cell" and pr5[2].arg == "print('a')", (pr5[2].verb, pr5[2].arg))
 c_all = open(os.path.join(ROOT, "analyst", "contract.md")).read()
-check("contract: the turn is one action and its result reaches the model next turn - said once, under How a turn works, and never an invitation to restart in the reply", "nothing in this reply can depend on it" in c_all and "write the turn once" in c_all and "Begin again" not in c_all and "###END###" not in c_all)
+check("contract: the turn is one action and its result reaches the model next turn - said once, under How a turn works, and never an invitation to restart in the reply", "nothing in this reply can depend on it" in c_all and "write the turn once" not in c_all and "Begin again" not in c_all and "###END###" not in c_all)
 from analyst.session import clean_note
 pn = parse_turn("###NOTE###\n- **Question as understood:** q\n- **Best estimate so far:** 7.4% [D1.7]\n- *Plan*: next\n###ACTION###\nNAMES")
 check("parse_turn: a model's bold or italic markers around the note's headings are removed at the source - every reader sees 'Heading: content' (2026-10-04: '**' reached the pane)",
@@ -455,9 +455,9 @@ check("results ledger: the RESULT: lines of committed cells, with their cell num
 check("results ledger: the block rides in the prompt after the first result, under its heading, and on the report turn",
       "RESULTS SO FAR (printed by your cells; the report quotes these):\n- [cell 1] B vs A mean" in res_prompts[1] and "- [cell 3] C vs A" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "RESULTS SO FAR" not in res_prompts[0], [p_[-200:] for p_ in res_prompts[:2]])
 check("contract: names DS and the comparison part of the report, and shows the RESULT: line with a neutral example",
-      "`df = DS.load()`" in c_all and "- the comparison: what the question asks to compare, and what you compared" in c_all and "RESULT: group B vs group A" in c_all and "## Results" in c_all)
-check("contract: figures drawn once the estimate is settled, not left to the last turns, and a fourth figure cell not run (2026-10-05: 'drawn last' had cost a Deep report its figures)",
-      "a fourth figure cell is not run" in c_all and "drawn once the estimate is settled" in c_all and "drawn last" not in c_all)
+      "`df = DS.load()`" in c_all and "- the comparison: what the question asks to compare, and what you compared" in c_all and "RESULT: outcome Y, group B vs group A at matched age" in c_all and "## Results" in c_all)
+check("contract: one to three figures and a fourth figure cell not run - the mechanism, with no advice on when to draw them",
+      "A report carries one to three figures; a fourth figure cell is not run." in c_all and "drawn once" not in c_all and "where it breaks down" not in c_all)
 check("contract: a RESULT: line for every estimate a cell computes, provisional or final; a revised estimate gets a new line",
       "Every time a cell computes an estimate - provisional or final" in c_all and "A revised\nestimate gets a new line" in c_all and "you may report" not in c_all)
 
@@ -492,6 +492,26 @@ finally:
 check("DS: the kernel holds the dataset as attached - DS.load() returns a fresh frame of the original shape", "DS: the dataset as attached" in o1 and f"({len(df)}, {df.shape[1]})" in o1, o1[:120])
 check("DS: a row filter of df raises no warning; columns lost raise the one-line warning naming DS.load(); the restore is clean",
       "DS.load()" not in o2 and "of the dataset's" in o3 and "DS.load() restores" in o3 and "DS.load()" not in o4 and f"({len(df)}, {df.shape[1]})" in o4, (o2, o3, o4))
+
+# ---- the replay (2026-10-05): DS exists in the replayed script; combined citations and [fig n] are read
+from analyst.replay import assemble as _assemble
+from analyst.report import cited_cells as _rep_cited, referenced_figures as _rep_figs
+_cells = [Turn(kind="cell", cell_no=1, code="a = 1\nprint('one', a)", stdout="one 1"), Turn(kind="cell", cell_no=2, code="b = 2\nprint('two', b)", stdout="two 2"),
+          Turn(kind="cell", cell_no=3, code="df = DS.load()\nprint('rows', len(df))", stdout="rows 5"), Turn(kind="cell", cell_no=4, code="print('four')", stdout="four")]
+_script, _order = _assemble(_cells, "Found it [cell 1, cell 2] and drew it [fig 3].")
+check("replay: a figure cited as [fig 3] and cells cited together as [cell 1, cell 2] decide how far the replay runs - cells 1 to 3, not 4",
+      "print('rows', len(df))" in _script and "print('four')" not in _script and _rep_cited("[cell 1, cell 2] [cells 6-8] [cells 9, 11]") == [1, 2, 6, 7, 8, 9, 11]
+      and _rep_figs("[fig 3] [figs 4, 5]") == [3, 4, 5], (_order, _rep_cited("[cell 1, cell 2] [cells 6-8] [cells 9, 11]")))
+_g = {"df": pd.DataFrame({"x": range(5)})}
+try:
+    import contextlib as _cl, io as _io
+    with _cl.redirect_stdout(_io.StringIO()) as _out:
+        exec(_script, _g)
+    _ran = _out.getvalue()
+except Exception as _exc:                                                   # noqa: BLE001
+    _ran = f"FAILED: {_exc!r}"
+check("replay: the assembled script defines DS, so a cell that calls DS.load() runs in a plain script as in the kernel (2026-10-05: it had stopped the replay before the figures)",
+      "rows 5" in _ran, _ran[-300:])
 
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
 SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i in range(6)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nDone."]
@@ -699,6 +719,8 @@ check("the reviewer's turn log: a failed attempt with its error, a refused reply
       any("cell failed, rolled back -> " in x for x in _log) and any("refused -> Your reply held 2 different actions" in x for x in _log)
       and any(re.search(r"\| cell \d+ -> ", x) for x in _log), _log[:6])
 from analyst.session import show_request, cited_cells
+check("show_request: a placeholder review with no verdict and a SHOW line is a request (2026-10-05: such a reply had been dropped whole)",
+      show_request("###REVIEW###\n- The question requires: X\n- Established: pending\n- Most consequential problem: pending\n- Verdict: pending cell inspection.\n\nSHOW 5 6") == ([5, 6], []))
 check("show_request: SHOW 12 14 and SHOW turn 22 are requests; a review is not", show_request("SHOW 12 14") == ([12, 14], []) and show_request("SHOW turn 22") == ([], [22])
       and show_request("###REVIEW###\n- Verdict: REPORT [cell 3]") is None, (show_request("SHOW 12 14"), show_request("SHOW turn 22")))
 check("cited_cells: [cell 11], [cells 11, 13], [cell 11, cell 13] all read", cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]") == [11, 12, 13, 14, 15], cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]"))
@@ -706,6 +728,28 @@ check("contract: a correction line begins RESULT: (corrects cell 14), and the ea
 check("contract (Adaptive): a REPORT whose cited cells the reviewer did not open is advice", "unless its status says the reviewer did not open the cells it cites: then it is advice" in contract(False, 8))
 check("reviewer prompt: it may open cells, a RESULT line is not proof of its label, and REPORT binds only on cells opened",
       "`SHOW turn 22`" in REVIEWER and "not proof that its label describes what the code computed" in REVIEWER and "only when you opened every cell you cite" in REVIEWER)
+# ---- the standing rule (2026-10-05): no task-specific or model-specific content in any prompt. Every authored text a model
+# ---- reads is scanned for the vocabulary of the tasks this agent was tested on; docstrings and comments are not prompts.
+import ast as _ast
+from analyst.session import REWRITE_TASK, LAST_TURNS_LINE, REPORT_NOW
+from bambooai.reading import READER_SYSTEM
+_DOMAIN = re.compile(r"\b(athletes?|altitude|sea.level|heart.rate|HR|HRmax|hr_max|pace|runners?|race|marathon|venues?|surfaces?|terrain|km|laps?|weekly load|gap years|site name|F1|Formula|drivers?)\b", re.I)
+def _authored_strings(path):
+    tree = _ast.parse(open(os.path.join(ROOT, path), encoding="utf-8").read())
+    docs = set()
+    for node in _ast.walk(tree):
+        body = getattr(node, "body", None)
+        if isinstance(node, (_ast.Module, _ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)) and body and isinstance(body[0], _ast.Expr) and isinstance(getattr(body[0], "value", None), _ast.Constant):
+            docs.add(id(body[0].value))
+    return [n.value for n in _ast.walk(tree) if isinstance(n, _ast.Constant) and isinstance(n.value, str) and id(n) not in docs]
+_texts = {"contract (plain)": contract(False, 0), "contract (documents, reviews)": contract(True, 8), "reviewer": REVIEWER,
+          "rewrite task": REWRITE_TASK, "reader": READER_SYSTEM, "last turns": LAST_TURNS_LINE, "report now": REPORT_NOW}
+for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py"):
+    for _k, _t in enumerate(_authored_strings(_path)):
+        _texts[f"{_path} string {_k}"] = _t
+_hits = {name: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for name, t in _texts.items() if _DOMAIN.search(t)}
+check("standing rule: no prompt text a model reads carries the tested tasks' vocabulary - contract, reviewer, rewrite, reader, and every string the session, tools and reader send",
+      not _hits, _hits)
 # a review with no verdict is not used: no REVIEW block, no review turn, no note; the run goes on
 nv_prompts = []
 def noverdict_llm(system, user, **hints):

@@ -75,9 +75,8 @@ IDEAS_SYSTEM = ("You propose the next questions for a data analysis thread. You 
 REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader who has never studied statistics and "
                 "does not know this dataset: the answer first in everyday words, then what it depends on and what it "
                 "does not mean, then how it was checked, then what to do next. Explain each idea the first time it "
-                "appears. No column names, no method jargon (say 'compared the same person at the same heart rate', "
-                "not 'within-subject HR-matched'), no bracketed intervals - give ranges in words ('somewhere between "
-                "4% and 11%'). Keep every number that matters and change none; drop the rest. Use short markdown "
+                "appears. No column names, no method jargon, no bracketed intervals - give ranges in words "
+                "('somewhere between 2 and 5'). Keep every number that matters and change none; drop the rest. Use short markdown "
                 "headings and short paragraphs; about two-thirds the length of the original. Say what you mean in "
                 "direct statements: when a literal phrase is available, use it, and never let a metaphor or a flourish "
                 "stand in for a statement ('this still matters', not 'this earns its keep'; 'a parameter worth varying', "
@@ -138,9 +137,10 @@ def cited_cells(text: str) -> List[int]:
 
 
 def show_request(text: str):
-    """A reviewer's request to open cells - one line, SHOW 12 14 or SHOW turn 22 - as ([cells], [turns]); None when
-    the reply is a review or anything else."""
-    if "###REVIEW###" in (text or ""):
+    """A reviewer's request to open cells - SHOW 12 14 or SHOW turn 22 - as ([cells], [turns]); None when the reply is a
+    review with a verdict, or has no SHOW line. A reply that names no verdict but holds a SHOW line is a request
+    (2026-10-05: a reviewer wrote a placeholder review and SHOW 5 6 in one reply, and the whole review was dropped)."""
+    if parse_review(text or "") is not None:
         return None
     m = re.search(r"^\s*SHOW\s+(.+)$", text or "", re.M | re.I)
     if not m:
@@ -579,9 +579,7 @@ class Session:
                     extra = ("YOUR LAST CELL FAILED - it was rolled back, nothing it defined persists:\n"
                              f"```python\n{action.arg.rstrip()}\n```\nERROR:\n{tools.condense_error(err, code=action.arg)}")
                     if failures >= 2:
-                        extra += (f"\n\n{failures} attempts in a row have failed. Before another full attempt, look "
-                                  "before computing: NAMES, SHOW an earlier cell, or a small cell that prints the "
-                                  "type and shape of what you are about to use.")
+                        extra += (f"\n\n{failures} attempts in a row have failed.")
                     if budget.max_failures and failures >= budget.max_failures:
                         # five in a row is a model looping, not analysing: close with what stands
                         logger.warning("Analyst: %d consecutive failed cells; forcing the report", failures)
@@ -688,8 +686,7 @@ class Session:
                 if action.arg.startswith("ambiguous"):
                     logger.warning("Analyst turn %d: %s (%s) - none ran", turn_no, action.arg, ", ".join(action.more))
                     turn.stdout = (f"Your reply held {len(action.more)} different actions ({', '.join(v.upper() for v in action.more)}); "
-                                   "none of them ran. A reply carries one action under one ###ACTION###: decide, then write the "
-                                   "turn once.")
+                                   "none of them ran. A reply carries one action under one ###ACTION###.")
                 elif action.arg == "empty reply":
                     logger.warning("Analyst turn %d: the model returned an empty reply (%s completion tokens billed) - re-asking",
                                    turn_no, usage.get("completion_tokens", "?"))

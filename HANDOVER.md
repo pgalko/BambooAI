@@ -135,6 +135,19 @@
   `(corrects cell 14)` marks cell 14's line as corrected in every prompt; the brief: a RESULT line is not proof its
   label describes the computation - open the cells the verdict rests on and check the estimator, the sample, the
   adjustment and the unit, and that the adjustment set covers the recorded differences between the compared groups.
+- **Phase 3d (2026-10-05): three faults, and the prompts cleaned to a standing rule.** (1) A reviewer reply with a
+  placeholder review and a SHOW line was treated as a review and dropped: a reply with no valid verdict and a SHOW
+  line is now a request. (2) The 3c Adaptive run lost its figures because the replay runs a plain script in the
+  executor (/execute, not the kernel) and its figure cell began `df = DS.load()`: the assembled script now defines
+  `DS`. (The replay already ran cells cited as [fig n]; it now also reads combined citations - [cell 5, cell 6],
+  [cells 6-9].) (3) The kernel's restricted-name check matched words inside strings - a label '+HR eval@150' was
+  refused as eval: comments and plain strings are blanked before the check, f-strings stay. Executor build v46.
+  The standing rule (docs/DESIGN_CHECKLIST.md C5, extended): no task-specific or model-specific content in any prompt. Removed:
+  the rewrite task's heart-rate and 4-11% examples; the contract's training-load example, the note's examples from
+  earlier threads, 'where it breaks down', the figure-timing advice and 'write the turn once'; the reviewer's
+  'within' parenthesis, its examples echoing the test question, 'an association reported as a correction', the
+  pooled-subgroup example, 'write both out', the empty-cell line and the redundancy examples; the session's advice
+  after two failures and after a refused reply (the facts stay). A battery check scans every authored prompt text.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
