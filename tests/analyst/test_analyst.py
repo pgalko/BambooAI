@@ -609,8 +609,22 @@ check("DS.save: the format follows the name's extension (json as records, txt/ts
       not _ferr and sorted(os.listdir(os.path.join(_gtmp, "fmt"))) == ["Up_Case.csv", "m.json", "m.txt", "notes.txt", "tab.tsv"]
       and open(os.path.join(_gtmp, "fmt", "m.json")).read().lstrip().startswith("[") and "\t" in open(os.path.join(_gtmp, "fmt", "m.txt")).readline()
       and open(os.path.join(_gtmp, "fmt", "notes.txt")).read() == "a note" and "DATASET: notes.txt - 6 characters" in _fout, (_ferr, _fout, os.listdir(os.path.join(_gtmp, "fmt"))))
+_nk = PersistentKernel(df=None, generated_dir=os.path.join(_gtmp, "nodf"))
+try:
+    _nout, _nerr, _ = _nk.execute("print(DS)\nx = DS.load()\nprint('load ->', x)\nimport pandas as pd\nDS.save(pd.DataFrame({'n': range(3)}), 'seq.json')\nDS.save('0 1 1', 'seq.txt')")
+finally:
+    _nk.cleanup()
+check("DS exists in a run with no dataset attached (2026-10-06: a dataset-less run spent twelve turns hunting for DS.save): load says there is nothing to load, save still saves",
+      not _nerr and "DS: no dataset attached to this run" in _nout and "nothing to load" in _nout and "load -> None" in _nout
+      and sorted(os.listdir(os.path.join(_gtmp, "nodf"))) == ["seq.json", "seq.txt"], (_nerr, _nout))
 check("DS.save in the replayed script: the stub writes into the folder the route passes and prints the kernel's line",
       os.path.isfile(os.path.join(_gtmp, "replay", "Merged_laps.csv")) and "DATASET: Merged_laps.csv - 7 rows x " in _gbuf.getvalue(), (_gbuf.getvalue()[-200:], os.listdir(_gtmp)))
+_nscript, _ = _assemble([Turn(kind="cell", cell_no=1, code="x = DS.load()\nprint('load ->', x)\nDS.save('0 1 1', 'seq.txt')", stdout="x")], "see [cell 1]")
+_ng = {"df": None, "_generated_dir": os.path.join(_gtmp, "replay_nodf")}
+with _cl.redirect_stdout(_io.StringIO()) as _nbuf:
+    exec(_nscript, _ng)
+check("the replayed script's DS without a dataset: load says there is nothing to load, save works", "nothing to load" in _nbuf.getvalue() and "load -> None" in _nbuf.getvalue()
+      and os.path.isfile(os.path.join(_gtmp, "replay_nodf", "seq.txt")), _nbuf.getvalue()[-300:])
 
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
 SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i in range(6)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nDone."]

@@ -39,7 +39,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-06 v50 (DS.save: formats)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-06 v51 (DS in every run)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 

@@ -269,6 +269,12 @@
   parquet, xlsx, txt/tsv (tab-separated) - or `fmt=`; a string is written as a text file whatever the extension. The
   replay stub mirrors it; the executor's preview gives a text file its basic information (columns when it reads as a
   tab-separated table). The contract's sentence names the formats. Executor build v50.
+- **DS in every run (2026-10-06).** The kernel had defined DS only beside an attached dataset. A run with no dataset
+  ("plot the Fibonacci sequence and return it as json and txt") hit NameError on DS.save, which the contract promised,
+  and spent twelve of fifteen turns hunting for a delivery route - reading dataio.py and the kernel's own source off the
+  disk, trying sys.argv and importlib (both stopped by the restricted-module guard) - before reporting files in /app
+  that nobody could see. DS now exists in every run: without a dataset, DS.load() prints that nothing is attached and
+  returns None, the df check is a no-op, and DS.save works as everywhere. The replay stub likewise. Executor build v51.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

@@ -52,6 +52,8 @@ def assemble(cells: List[Turn], report: str, own: Optional[List[Turn]] = None) -
              "        def __init__(self, frame):",
              "            self._frame = frame.copy() if frame is not None else None",
              "        def load(self):",
+             "            if self._frame is None:",
+             "                print('DS: no dataset is attached to this run - nothing to load'); return None",
              "            return self._frame.copy()",
              "        def save(self, frame, name, fmt=None):   # the kernel's DS.save: a dataset for the person, in the generated folder the route passes",
              "            import os, re as _re",

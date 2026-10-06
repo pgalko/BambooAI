@@ -129,14 +129,22 @@ class _Source:
     the line the worker appends to a step's output when `df` no longer carries the dataset's columns."""
 
     def __init__(self, path, frame):
+        # DS exists in every run (2026-10-06): with no dataset attached it has nothing to load but it still saves - a
+        # run without a dataset had spent twelve turns hunting for DS.save, which the contract promised and the
+        # kernel had only defined beside a dataset
         self.path = path
-        self.columns = list(frame.columns)
-        self.shape = tuple(frame.shape)
+        self.columns = list(frame.columns) if frame is not None else []
+        self.shape = tuple(frame.shape) if frame is not None else (0, 0)
 
     def load(self):
+        if not self.path:
+            print("DS: no dataset is attached to this run - nothing to load")
+            return None
         return _load_df(self.path)
 
     def __repr__(self):
+        if not self.path:
+            return "DS: no dataset attached to this run; DS.save(frame, 'name') still saves a file for the person"
         return (f"DS: the dataset as attached, {self.shape[0]} rows x {self.shape[1]} columns; "
                 f"df = DS.load() restores it")
 
@@ -179,6 +187,8 @@ class _Source:
     def _check(self, ns):
         """A one-line warning when df is gone, not a frame, or has lost columns of the dataset; '' otherwise.
         Rows are the analyst's to filter; columns dropped are the sign of a rebinding gone wrong."""
+        if not self.path:
+            return ""                          # no dataset attached: nothing to lose
         if "df" not in ns:
             return "(df is not defined any more; df = DS.load() restores the dataset)"
         f = ns["df"]
@@ -195,7 +205,7 @@ class _Source:
 G["_generated_dir"] = _generated_dir or None
 if _df_path:
     G["df"] = _load_df(_df_path)
-    G["DS"] = _Source(_df_path, G["df"])      # set at every worker start, never checkpointed, like the aliases
+G["DS"] = _Source(_df_path or None, G.get("df"))      # set at every worker start, never checkpointed, like the aliases
 
 
 def _decimals_for(values):
