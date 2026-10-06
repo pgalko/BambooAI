@@ -140,6 +140,29 @@ def parse_review(text: str) -> Optional[dict]:
     return rv
 
 
+def checked_ok(text: str) -> bool:
+    """A reviewer's Checked line read as a verdict on the cell: it does not describe its code when the line says "does not"
+    and never says "matches" (the brief's form: "matches its line | does not: how")."""
+    t = (text or "").lower()
+    return not ("does not" in t and "matches" not in t)
+
+
+def disputed_cells(run) -> Dict[int, str]:
+    """Cells an earlier review found not to describe their code - cell -> the review's label - from the Checked lines on
+    the review turns (the latest review's word on a cell stands). A line of such a cell is marked in the ledger, and a
+    report that cites the cell is flagged (2026-10-06: a review had caught a typed line and the report quoted it anyway)."""
+    out: Dict[int, str] = {}
+    for x in run.turns:
+        if x.kind == "review":
+            for rec in x.checked or []:
+                c = int(rec["cell"])
+                if rec.get("ok", True):
+                    out.pop(c, None)
+                else:
+                    out[c] = x.text
+    return out
+
+
 def cited_cells(text: str) -> List[int]:
     """Cell numbers a review cites: [cell 11], [cells 11, 13], [cell 11, cell 13], cell 11."""
     nums = []
@@ -194,7 +217,9 @@ def result_lines(run, omit=()) -> List[str]:
         for n in (cs if isinstance(cs, (list, tuple)) else ([cs] if cs is not None else [])):
             if int(n) != c:
                 corrected.setdefault(int(n), c)
-    return [f"- [cell {c}] " + (f"(corrected by cell {corrected[c]}) " if c in corrected else "") + r["text"]
+    disputed = disputed_cells(run)
+    return [f"- [cell {c}] " + (f"(corrected by cell {corrected[c]}) " if c in corrected else "")
+            + (f"(the review {disputed[c]} found this line does not describe its code) " if c in disputed else "") + r["text"]
             for c, r in rows if c not in omit]      # omit: cells whose output is in view whole, so the line is not shown twice
 
 
@@ -752,7 +777,11 @@ class Session:
             (unit_texts if text_u is not None else missing).append(text_u if text_u is not None else uid)
         check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts)
         check_u = rep.guard_units(missing)
-        run.report = report_text + (f"\n\n> {check}" if check else "") + (f"\n\n> {check_u}" if check_u else "")
+        disputed = disputed_cells(run)
+        quoted = [c for c in cited_cells(report_text) if c in disputed]
+        check_d = ("CHECK: this report cites " + ", ".join(f"cell {c}, whose RESULT line the review {disputed[c]} found does not describe its code" for c in quoted)
+                   + ". Treat what it quotes from there as unverified.") if quoted else ""
+        run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d) if x)
         # the plain-language rewrite by the same analyst
         self.emit({"type": "turn_start", "run": run.id, "turn": "rewrite", "of": budget.turns, "rewrite": True})
         t_rw = time.time()
@@ -1007,7 +1036,7 @@ class Session:
             logger.warning("review %s: no verdict in the reply - not used", label)
             return None, cost
         turn = Turn(kind="review", note=rv["lines"], thinking=verdict, text=label, usage=usage, shown=list(sent),
-                    checked=[{"cell": c, "text": t} for c, t in rv["checked"]], recheck=list(rv["recheck"]))
+                    checked=[{"cell": c, "text": t, "ok": checked_ok(t)} for c, t in rv["checked"]], recheck=list(rv["recheck"]))
         if report is None and rv["verdict"] == "REPORT" and not rv["binding"]:
             missing = [c for c in rv["cited"] if c not in rv["checked_cells"]]
             turn.stdout = "not binding: " + ("the reviewer cites no cell" if not rv["cited"] else

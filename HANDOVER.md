@@ -201,6 +201,11 @@
 - **docs/RUN_ASSESSMENT_2026-10-06.md:** the altitude question across 21 runs - the spread of headlines against D1,
   what every solution shares, what decides where one lands (the comparison chosen; effort as a covariate, never as
   strata), and how to score a new run. Mechanics improve patch by patch; substance has not moved.
+- **A reviewer's finding changes the record (2026-10-06).** A Checked line that says "does not" (and not "matches")
+  marks every RESULT line of that cell in the ledger - "(the review after turn 16 found this line does not describe
+  its code)" - for the analyst and for later reviews; a report that cites the cell gets a CHECK note for the reader;
+  a later review's "matches" on the same cell clears the mark (the latest word stands). Turn.checked carries ok per
+  line.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

@@ -10,7 +10,8 @@ has established and judge it against the question; your review goes into the ana
 - the analyst's working note as it stands
 - RESULTS SO FAR: every estimate the analyst's cells recorded with `RESULT(...)`, with its cell; a line
   marked "corrected by cell n" has been corrected by the analyst; a line marked "typed" carries numbers
-  written into the call, not computed - a claim, not a result
+  written into the call, not computed - a claim, not a result; a line marked with an earlier review was
+  found by it not to describe its code
 - CHECKED BY EARLIER REVIEWS: one line per cell an earlier review was handed, with what it found
 - EARLIER REVIEWS: your verdicts, the analyst's answer to each, and for a TEST its status - answered by a
   RESULT recorded with that test, or open

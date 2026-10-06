@@ -693,7 +693,7 @@ check("review: the second review's input - what the first review checked (its Ch
       and "--- cell 1 (you asked to see it again) ---" in u2 and "--- cell 2 (" not in u2 and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-2500:])
 rv_turns = [t for t in r9.turns if t.kind == "review"]
 check("review: the review turn records the cells it was handed, its Checked lines and its Re-check; the card's lines carry them",
-      rv_turns[0].shown == [2, 1] and rv_turns[0].checked == [{"cell": 2, "text": "computes the mean difference B vs A for 20 subjects; matches its line"}, {"cell": 1, "text": "the same, step 1; matches its line"}]
+      rv_turns[0].shown == [2, 1] and rv_turns[0].checked == [{"cell": 2, "text": "computes the mean difference B vs A for 20 subjects; matches its line", "ok": True}, {"cell": 1, "text": "the same, step 1; matches its line", "ok": True}]
       and rv_turns[0].recheck == [1] and rv_turns[1].shown == [4, 3, 1] and "- Checked: cell 2 - computes the mean difference" in rv_turns[0].note
       and "- Re-check: cell 1" in rv_turns[0].note and "- Shown: cell 2, cell 1" in rv_turns[0].note, (rv_turns[0].shown, rv_turns[0].checked, rv_turns[0].recheck, rv_turns[1].shown, rv_turns[0].note))
 check("review: the analyst's REVIEW block carries the TEST's status - open until a RESULT recorded with it",
@@ -761,6 +761,39 @@ check("review: a REPORT citing a cell no review has checked (its cells recorded 
       len(ad_prompts) == 4 and "- Status: advice, not binding - no review has checked cell 1, which it cites." in ad_prompts[2] and ra.status == "answered"
       and "TO CHECK NOW (code and complete output; no review has checked these):\n(nothing new to check" in ad_rv[0],
       (len(ad_prompts), ad_prompts[2][-400:] if len(ad_prompts) > 2 else "", ad_rv[0][-400:]))
+# a Checked line that says "does not" (2026-10-06): the cell's ledger lines are marked for the analyst and the reviewer, a
+# report citing the cell is flagged, and a later review's "matches" clears the mark
+dp_prompts, dp_rv = [], []
+def disputed_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are the reviewer"):
+        dp_rv.append(user)
+        return ("###REVIEW###\n- The question requires: X.\n- Established: +1.5 [cell 1].\n- Checked: cell 1 - labelled within-subject; no subject term in the fit: pooled. Does not match.\n"
+                "- Most consequential problem: cell 1's label\n- Verdict: TEST refit with the subject term" if len(dp_rv) == 1 else
+                "###REVIEW###\n- The question requires: X.\n- Established: +1.5 [cell 1].\n- Most consequential problem: none\n- Verdict: NARROW pooled only"), {"cost": 0.001}
+    dp_prompts.append(user)
+    if "this turn is the report" in user or len(dp_prompts) >= 4:
+        return act6("REPORT\n## r\n\nWithin subjects, +1.50 [cell 1]."), {"cost": 0.001}
+    return act6("CELL\n```python\ne = 1.5\nRESULT('X within subjects, 20 subjects', e, e - 1.3, e + 1.3, 'units', 'up')\n```"), {"cost": 0.001}
+kd = PersistentKernel(df=df); nbd = Notebook("td")
+try:
+    rd = Session(kd, nbd, disputed_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0, review_every=2))
+finally:
+    kd.cleanup()
+check("disputed: a Checked line saying the cell's line does not describe its code marks that cell's ledger lines, in the analyst's prompt and the reviewer's input",
+      "- [cell 1] (the review after turn 2 found this line does not describe its code) X within subjects" in dp_prompts[3] and "found this line does not describe its code) X within subjects" in dp_rv[1],
+      (dp_prompts[3][-600:], dp_rv[1][-900:] if len(dp_rv) > 1 else ""))
+check("disputed: a report citing the disputed cell is flagged for the reader",
+      "> CHECK: this report cites cell 1, whose RESULT line the review after turn 2 found does not describe its code. Treat what it quotes from there as unverified." in rd.report, rd.report[-400:])
+from analyst.session import checked_ok, disputed_cells, Run as _Run, Turn as _Turn
+check("checked_ok: 'matches its line' is fine, 'does not match' is not, a line with both ('matches ..., but does not cover ...') stays fine",
+      checked_ok("computes the difference; matches its line") and not checked_ok("labelled within-athlete; no athlete term: pooled. Does not match.")
+      and checked_ok("matches its line, but does not cover the surface difference"))
+_rd = _Run(id="rd2", question="q", parent=None)
+_rd.turns = [_Turn(kind="review", text="after turn 2", checked=[{"cell": 4, "text": "does not match", "ok": False}]),
+             _Turn(kind="review", text="after turn 4", checked=[{"cell": 4, "text": "refit; matches its line", "ok": True}])]
+check("disputed_cells: the latest review's word on a cell stands - a later 'matches' clears an earlier 'does not'", disputed_cells(_rd) == {}, disputed_cells(_rd))
+
 from analyst.session import result_lines, Run as _Run, Turn as _Turn
 _rc = _Run(id="rc", question="q", parent=None)
 _rc.turns = [_Turn(kind="cell", cell_no=1, code="x", results=[{"text": "slope within athletes, 54 sessions: -2.1 (95% CI -17.9 to +13.7)", "typed": False, "test": None, "corrects": None}]),
