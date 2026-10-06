@@ -262,6 +262,9 @@
   closing card no longer repeats them. Also seen there: "3 min 60 s" - seconds are rounded before the split now. The
   stack's scenario saves a dataset (DS.save in its estimate cell), so both stories see the pill; the hosted story opens
   the Dataset cache and checks the Generated entry and its buttons.
+- **No Generated datasets tab (2026-10-06).** The web output manager had sent a generated_datasets payload with the
+  results, and the tab factory made a right-pane tab for every type it did not know - an empty "Generated_datasets" tab.
+  The payload is gone (the pane's pills carry the files) and the factory makes no tab for the type; both stories check.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

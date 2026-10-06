@@ -198,6 +198,11 @@ try:
     while not _om.output_queue.empty(): _events2.append(_json.loads(_om.output_queue.get()))
     _ans2 = [e for e in _events2 if e.get('type') == 'answer']
     check("explore: the seedling's answer event carries explore=True; a report's does not", _ans and _ans[0].get('explore') is True and _ans2 and 'explore' not in _ans2[0], (_ans[:1], _ans2[:1]))
+    _om.display_results(chain_id="c3", answer="## r", generated_datasets=["datasets/u/generated/x.csv"])
+    _events3 = []
+    while not _om.output_queue.empty(): _events3.append(_json.loads(_om.output_queue.get()))
+    check("generated datasets are not a right-pane tab: display_results sends no generated_datasets payload (the pane's pills carry the files, 2026-10-06)",
+          not any(e.get('type') == 'generated_datasets' for e in _events3) and any(e.get('type') == 'answer' for e in _events3), [e.get('type') for e in _events3])
 except Exception as exc:                                     # noqa: BLE001
     check("explore: the seedling's answer event carries explore=True; a report's does not", False, repr(exc))
 # ---- the infographic's YAML is mended before parsing; the infographic is a synthesis's only ----

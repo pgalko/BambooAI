@@ -260,8 +260,7 @@ class WebOutputManager(OutputManager):
                 ('code', code),
                 ('answer', answer),
                 ('simplified_answer', simplified_answer),
-                ('generated_datasets', generated_datasets),
-                ('code_exec_results', code_exec_results)
+                ('code_exec_results', code_exec_results)      # generated datasets are the pane's pills, not a tab (2026-10-06: the tab was empty)
             ]:
                 if data:
                     payload = {'type': data_type, 'data': data, 'chain_id': chain_id}

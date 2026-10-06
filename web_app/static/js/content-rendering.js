@@ -196,8 +196,9 @@ async function handleQuerySubmission(e) {
 //--------------------
 
 function createOrUpdateTab(type, data, id = null, format = null) {
-    if (type === 'query') {
-        return;   // the Query tab is retired (2026-09-05): the question is the chain's own text
+    if (type === 'query' || type === 'generated_datasets') {
+        return;   // the Query tab is retired (2026-09-05): the question is the chain's own text; generated datasets are
+                  // the pane's download pills, not a tab (2026-10-06: the tab the type made was empty)
     }
 
     const _lt = (typeof liveTargets === 'function') ? liveTargets() : null;

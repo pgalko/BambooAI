@@ -101,6 +101,8 @@ def main():
             ds_pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill.ds')].map(e => e.textContent)")
             check("the dataset the analyst saved shows as one download pill under the REPLAY row, and the closing card does not repeat it",
                   len(ds_pills) == 1 and "plot_means.csv" in ds_pills[0] and page.evaluate("() => document.querySelectorAll('.sp-done .sp-pill.ds').length") == 0, ds_pills)
+            tabs = page.evaluate("() => [...document.querySelectorAll('#tabContainer .tab')].map(e => e.textContent)")
+            check("no Generated datasets tab in the right pane (2026-10-06): the files are the pane's pills", not any('enerated' in t for t in tabs), tabs)
             if edition == "hosted":
                 # the Dataset cache (through the executor): the file under Generated; its details with the buttons in view without scrolling
                 page.click("#datasetManagerPill")
