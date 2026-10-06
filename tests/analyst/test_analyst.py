@@ -518,6 +518,23 @@ except Exception as _exc:                                                   # no
 check("replay: the assembled script defines DS, so a cell that calls DS.load() runs in a plain script as in the kernel (2026-10-05: it had stopped the replay before the figures)",
       "rows 5" in _ran, _ran[-300:])
 
+# the replayed script defines RESULT when the runtime has none, printing the kernel's line exactly (2026-10-06: a replay
+# had stopped with NameError: name 'RESULT' is not defined)
+_rcode = ("e = float(len(df)) / 10\nRESULT('a, rows', e, e - 1.3, e + 1.3, 'units', 'up')\nRESULT('slope', -0.051, -0.143, 0.040, 'min/km', test='after turn 8')\n"
+          "x = 0.0023\nRESULT('tiny', x, x / 2, x * 2, corrects=[1, 2])\nRESULT('big', 15156.7, 14000.2, 16300.9, 's')\nRESULT('text', '+6.1')")
+_krn = PersistentKernel(df=df)
+try:
+    _kout = _krn.execute(_rcode)[0]
+finally:
+    _krn.cleanup()
+_rscript, _ = _assemble([Turn(kind="cell", cell_no=1, code=_rcode, stdout=_kout)], "see [cell 1]")
+_rg = {"df": df.copy()}
+with _cl.redirect_stdout(_io.StringIO()) as _rout:
+    exec(_rscript, _rg)
+_lines = lambda t: [ln.split(" - typed:")[0] for ln in t.splitlines() if ln.startswith("RESULT:")]
+check("replay: a replayed cell's RESULT(...) runs where the runtime has no kernel, and prints the kernel's line to the character (the typed mark aside, which the ledger does not take from the replay)",
+      _lines(_kout) == _lines(_rout.getvalue()) and len(_lines(_kout)) == 5, (_lines(_kout), _lines(_rout.getvalue())))
+
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
 SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i in range(6)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nDone."]
 seen_s = {"prompts": []}

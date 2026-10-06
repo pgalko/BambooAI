@@ -135,7 +135,8 @@ lo, hi = np.percentile(boots, [2.5, 97.5])
 raw = plot_means[plot_means.regime == 'B']['yield_t_ha'].mean() - plot_means[plot_means.regime == 'A']['yield_t_ha'].mean()
 print(f"RAW_DIFF={raw:.3f}")
 print(f"ADJ_DIFF={est:.3f} CI_LO={lo:.3f} CI_HI={hi:.3f}")
-print(f"N_PLOTS_A={int((plot_means.regime == 'A').sum())} N_PLOTS_B={int((plot_means.regime == 'B').sum())}")"""
+print(f"N_PLOTS_A={int((plot_means.regime == 'A').sum())} N_PLOTS_B={int((plot_means.regime == 'B').sum())}")
+RESULT('yield, regime B vs A within soil type, plot means', est, lo, hi, 't/ha', 'B higher')"""
 
 CELL_FIGURE = """# Plot-level yield by regime within each soil type
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.4), sharey=True)

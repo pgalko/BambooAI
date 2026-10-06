@@ -161,7 +161,9 @@
   "RESULT:" line is output like any other. A number written into the call - a literal, or an expression of literals,
   read from the cell's code at the call - is marked "typed" on the line and in the record, and the report guard no
   longer counts that line's numbers (nor the call's literals in the code) as evidence, so a report quoting them is
-  flagged. The tags became arguments: test="after turn 16", corrects=14. The contract's Results section shows the call.
+  flagged. The tags became arguments: test="after turn 16", corrects=14. The contract's Results section shows the call. The replayed
+  script defines RESULT when its runtime has none (the executor's /execute route runs a plain script), printing the
+  kernel's line to the character (2026-10-06: the first Deep replay under 0078 had stopped on NameError).
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
