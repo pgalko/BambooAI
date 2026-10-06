@@ -63,6 +63,21 @@ try:
 finally:
     c.post("/kernel/stop", json={"session_id": sid})
 
+# DS.save through the executor (2026-10-06): a kernel started with the user's generated folder writes there; /cache/inspect
+# lists the file under generated_datasets and /download_generated_dataset serves it - the Dataset cache's Generated section
+r2 = c.post("/kernel/start", json={"df_id": "t1", "generated_dir": os.path.join("datasets", "u9", "generated")}).get_json() or {}
+sid2 = r2.get("session_id")
+try:
+    out8 = (c.post("/kernel/execute", json={"session_id": sid2, "code": "DS.save(df.head(3), 'Merged laps')"}).get_json() or {})
+    listing = (c.get("/cache/inspect", query_string={"user_id": "u9"}).get_json() or {}).get("generated_datasets") or []
+    served = c.get("/download_generated_dataset", query_string={"path": os.path.join("datasets", "u9", "generated", "Merged_laps.csv"), "user_id": "u9"})
+    check("executor: DS.save writes under datasets/<user>/generated, /cache/inspect lists it under generated_datasets, and the download route serves it (the Dataset cache's Generated section, 2026-10-06)",
+          "DATASET: Merged_laps.csv - 3 rows x " in (out8.get("stdout") or "") and [d["filename"] for d in listing] == ["Merged_laps.csv"] and served.status_code == 200
+          and served.data.decode().splitlines()[0].startswith("a,"), (r2, out8.get("stdout"), out8.get("error"), listing, served.status_code))
+finally:
+    c.post("/kernel/stop", json={"session_id": sid2})
+
+
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")
 sys.exit(1 if n_fail else 0)

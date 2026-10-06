@@ -192,8 +192,8 @@ def _executor_context():
 
 
 def _executor_stamp():
-    """The executor's own build stamp (EXECUTOR_BUILD in code_executor_api.py, '2026-10-06 v48 (RESULT: typed numbers, not strings or starred calls)'),
-    reduced to its version token: v48. A changed executor is a changed tag, so the image is rebuilt on the
+    """The executor's own build stamp (EXECUTOR_BUILD in code_executor_api.py, '2026-10-06 v49 (DS.save: generated datasets)'),
+    reduced to its version token: v49. A changed executor is a changed tag, so the image is rebuilt on the
     next serve instead of an old one being reused for the life of the package version (found 2026-10-03:
     the documents routes never reached the container because the 2.0.2 image predated them)."""
     try:

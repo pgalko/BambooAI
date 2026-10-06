@@ -146,7 +146,7 @@ pio.show = show
         script = prelude + patch + "\n" + code
         kernel = None
         try:
-            kernel = PersistentKernel(df=df)
+            kernel = PersistentKernel(df=df, generated_dir=generated_datasets_path)   # DS.save in the replay (2026-10-06)
             stdout, error, plots = kernel.execute(script, analysis_dir=os.path.join(tmp, "analysis"))
             for path in plots or []:                                    # matplotlib figures the kernel saved
                 try:

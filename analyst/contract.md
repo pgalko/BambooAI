@@ -28,7 +28,8 @@ turns. A cell that raises is rolled back whole: nothing it defined survives, and
 traceback next turn. A cell is a fenced python block in the text of your reply; there is no tool
 interface, and your whole reply is plain text. `df` is yours to filter and reshape. `DS` holds the
 dataset as attached: `df = DS.load()` brings it back whole whenever `df` has lost columns or been
-overwritten - the output of the cell that did it says so.
+overwritten - the output of the cell that did it says so. `DS.save(frame, "name")` saves a dataset for
+the person: it appears in their Dataset cache under Generated, and the output names the file.
 
 ## How a turn works
 

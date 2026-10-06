@@ -56,7 +56,7 @@ class RemoteKernel:
 
     def __init__(self, base_url, df_id=None, session_id=None,
                  evict_cache=False, step_timeout=None, session=None,
-                 force=False):
+                 force=False, generated_dir=None):
         """`force=True` reclaims the least recently used session when the
         executor is at capacity. Use it when starting a NEW investigation for a
         user whose previous run is known to be over - otherwise a driver that
@@ -76,6 +76,7 @@ class RemoteKernel:
         payload = {
             "session_id": session_id,
             "df_id": df_id,
+            "generated_dir": generated_dir,      # where DS.save puts a dataset for the person (2026-10-06)
             "evict_cache": evict_cache,
             "step_timeout": step_timeout,
             "force": force,

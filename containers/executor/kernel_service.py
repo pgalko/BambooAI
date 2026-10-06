@@ -16,7 +16,7 @@ Wire in from code_executor_api.py:
 
 Endpoints (all under /kernel):
 
-    POST /kernel/start      {session_id?, df_id?, evict_cache?}
+    POST /kernel/start      {session_id?, df_id?, evict_cache?, generated_dir?}
     POST /kernel/execute    {session_id, code, analysis_dir?, step?, commit?}
     POST /kernel/namespace  {session_id, max_items?, names?}
     POST /kernel/restore    {session_id, history}
@@ -242,7 +242,8 @@ def start():
         # PersistentKernel pickles the frame to a temp file for the worker to
         # load. That is the second copy; the cache copy is the one we can drop.
         kernel = PersistentKernel(
-            df=df, step_timeout=int(data.get("step_timeout") or STEP_TIMEOUT))
+            df=df, step_timeout=int(data.get("step_timeout") or STEP_TIMEOUT),
+            generated_dir=data.get("generated_dir") or None)      # where DS.save puts a dataset for the person (2026-10-06)
     except Exception as exc:                                # noqa: BLE001
         log(f"kernel start failed: {exc}")
         return jsonify({"error": f"kernel failed to start: {exc}"}), 500

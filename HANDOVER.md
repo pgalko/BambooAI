@@ -244,6 +244,16 @@
   that has a verdict after it; and the reviewer's talk of "unchecked cells" and "cite only checked numbers" had the
   analyst spend six turns on SHOW - the brief now says checking is the reviewer's own work and it asks the analyst
   for analysis, not verification.
+- **Generated datasets reinstated (2026-10-06).** The original BambooAI's prompt told the agent to save a dataset it made
+  under `datasets/<user_id>/generated/` - the folder the Dataset cache lists under Generated and the download route
+  serves. The rebuilt analyst had no such place, so a dataset it "returned" landed in the kernel worker's working
+  directory where nothing listed it (Palo: a merge of two datasets, reported as generated, nowhere to be seen). Now
+  the app hands the kernel that folder at start (RemoteKernel -> /kernel/start generated_dir -> PersistentKernel ->
+  the worker's fourth argument), `DS.save(frame, "name")` writes `<name>.csv` there and prints "DATASET: name.csv -
+  rows x columns, in the Dataset cache under Generated", the replayed script's DS stub does the same into the folder
+  the /execute route already passes (now in the script's namespace as _generated_dir; the local replay's kernel gets
+  it too), and the contract's workspace paragraph has one sentence naming DS.save. The UI, the /cache blueprint and
+  the executor routes were intact and unchanged. Executor build v49.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

@@ -585,6 +585,24 @@ finally:
 check("a reply cut at the length limit: the next prompt says so, and nothing ran",
       "Your last reply was cut off at the length limit before it reached an action; nothing ran." in tr_prompts[1] and "no valid action" not in tr_prompts[1] and rtr.status == "answered", tr_prompts[1][-300:])
 
+# DS.save (2026-10-06): a dataset for the person lands in the generated-datasets folder the kernel was given, with one
+# printed line; the replayed script's stub does the same into the folder the route passes
+_gtmp = tempfile.mkdtemp(); _gdir = os.path.join(_gtmp, "datasets", "u1", "generated")
+_gk = PersistentKernel(df=df, generated_dir=_gdir)
+try:
+    _gout, _gerr, _ = _gk.execute("m = df.head(7)\np = DS.save(m, 'Merged laps.csv')\nprint(p)")
+finally:
+    _gk.cleanup()
+check("DS.save: the file is written under the kernel's generated folder with a safe name, the line says rows, columns and where it is, the path is returned",
+      not _gerr and os.path.isfile(os.path.join(_gdir, "Merged_laps.csv")) and "DATASET: Merged_laps.csv - 7 rows x " in _gout and "in the Dataset cache under Generated" in _gout
+      and _gout.strip().endswith(os.path.join(_gdir, "Merged_laps.csv")), (_gerr, _gout))
+_gscript, _ = _assemble([Turn(kind="cell", cell_no=1, code="m = df.head(7)\nDS.save(m, 'Merged laps.csv')", stdout="x")], "see [cell 1]")
+_gg = {"df": df.copy(), "_generated_dir": os.path.join(_gtmp, "replay")}
+with _cl.redirect_stdout(_io.StringIO()) as _gbuf:
+    exec(_gscript, _gg)
+check("DS.save in the replayed script: the stub writes into the folder the route passes and prints the kernel's line",
+      os.path.isfile(os.path.join(_gtmp, "replay", "Merged_laps.csv")) and "DATASET: Merged_laps.csv - 7 rows x " in _gbuf.getvalue(), (_gbuf.getvalue()[-200:], os.listdir(_gtmp)))
+
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
 SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i in range(6)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nDone."]
 seen_s = {"prompts": []}
@@ -959,7 +977,8 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page - under 8,800 without documents (2026-10-06: Results with RESULT(...), DS, the comparison, the budget as a limit), neutral", len(c) < 8800 and not bad, (len(c), bad))
+check("contract: one page - under 9,000 without documents (2026-10-06: Results with RESULT(...), DS with save, the comparison, the budget as a limit), neutral", len(c) < 9000 and not bad, (len(c), bad))
+check("contract: DS.save(frame, name) saves a dataset for the person, listed in the Dataset cache under Generated", "`DS.save(frame, \"name\")` saves a dataset for\nthe person: it appears in their Dataset cache under Generated" in c)
 check("contract: a reply with more than one action runs the first and the rest does not - said in Format", "A reply with more than one action runs\nthe first; the rest does not run." in c)
 check("contract (Adaptive): a TEST's outcome is recorded with test='after turn 16', and the test is open until it is recorded",
       "`RESULT(..., test=\"after turn 16\")`" in contract(False, 8) and "until such a line is recorded the test is open" in contract(False, 8))

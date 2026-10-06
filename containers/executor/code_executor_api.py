@@ -39,7 +39,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-06 v48 (RESULT: typed numbers, not strings or starred calls)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-06 v49 (DS.save: generated datasets)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -434,7 +434,8 @@ def execute_code():
                     local_vars = {
                         'df': df,
                         '_plots_dir': plots_dir,
-                        '_generated_files': generated_files
+                        '_generated_files': generated_files,
+                        '_generated_dir': generated_datasets_path      # the replay stub's DS.save writes here (2026-10-06)
                     }
                     
                     log_info(f"Executing code")

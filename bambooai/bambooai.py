@@ -171,13 +171,20 @@ class BambooAI:
                 logger.info("Executor at %s: build %s", self.executor_api_url, (self.api_client.executor_build() if self.api_client else None) or "unknown (image before 2026-09-07)")
             except Exception:                                  # noqa: BLE001
                 pass
-            return RemoteKernel(base_url=self.executor_api_url, df_id=self.df_id, session_id=None, force=True)
+            return RemoteKernel(base_url=self.executor_api_url, df_id=self.df_id, session_id=None, force=True,
+                                generated_dir=self._generated_dir())
         import sys
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if os.path.join(here, 'delve') not in sys.path:
             sys.path.insert(0, os.path.join(here, 'delve'))
         from kernel import PersistentKernel
-        return PersistentKernel(df=self.df)
+        return PersistentKernel(df=self.df, generated_dir=self._generated_dir())
+
+    def _generated_dir(self):
+        """The user's generated-datasets folder - the one /cache/inspect lists under Generated and the download route
+        serves (2026-10-06): where DS.save puts a dataset the analyst makes for the person, in the kernel during the
+        analysis and in the replay. The same expression the replay has always passed to the executor."""
+        return os.path.join('datasets', self.user_id or '', 'generated')
 
     def _kernel_for(self, parent_run_id):
         """The kernel the run works in. Continuing from the tip the kernel already
@@ -290,7 +297,7 @@ class BambooAI:
     def _run_replay(self, run, script):
         """Run the assembled script through the executor. Returns (stdout, error) to the
         session and keeps the figures, results and datasets for the tabs."""
-        generated_datasets_path = os.path.join('datasets', self.user_id or '', 'generated')
+        generated_datasets_path = self._generated_dir()
         # the replay re-runs every committed cell: give it twice the time they took, within limits
         path_cells = self.notebook.path_cells(run.id)
         took = sum(float(c.elapsed or 0.0) for c in path_cells)

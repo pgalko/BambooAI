@@ -99,6 +99,7 @@ _DONE = "__DELVE_KERNEL_DONE__"
 _READY = "__DELVE_KERNEL_READY__"
 
 _df_path = sys.argv[1] if len(sys.argv) > 1 else ""
+_generated_dir = sys.argv[4] if len(sys.argv) > 4 else ""     # where DS.save puts a dataset for the person (2026-10-06)
 
 # ---- Persistent namespace -------------------------------------------------
 # Everything user code defines lands in G and survives across steps.
@@ -139,6 +140,23 @@ class _Source:
         return (f"DS: the dataset as attached, {self.shape[0]} rows x {self.shape[1]} columns; "
                 f"df = DS.load() restores it")
 
+    def save(self, frame, name):
+        """Save a dataset for the person (2026-10-06): written under the generated-datasets folder the kernel was given,
+        which the Dataset cache lists under Generated and serves for download; one printed line says so. The original
+        BambooAI told the agent where to save in its prompt; the rebuilt analyst had no such place, so a merged dataset
+        it 'returned' landed in the worker's working directory where nothing listed it."""
+        import re as _re
+        base = _re.sub(r"\.(csv|parquet)$", "", str(name).strip(), flags=_re.I)
+        base = _re.sub(r"[^A-Za-z0-9_\-]+", "_", base).strip("_") or "dataset"
+        folder = G.get("_generated_dir") or "generated"
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, f"{base}.csv")
+        frame.to_csv(path, index=False)
+        rows, cols = (frame.shape if hasattr(frame, "shape") and len(frame.shape) == 2 else (len(frame), 1))
+        print(f"DATASET: {os.path.basename(path)} - {rows:,} rows x {cols} columns, in the Dataset cache under Generated")
+        G.setdefault("_DATASETS", []).append(path)
+        return path
+
     def _check(self, ns):
         """A one-line warning when df is gone, not a frame, or has lost columns of the dataset; '' otherwise.
         Rows are the analyst's to filter; columns dropped are the sign of a rebinding gone wrong."""
@@ -155,6 +173,7 @@ class _Source:
         return ""
 
 
+G["_generated_dir"] = _generated_dir or None
 if _df_path:
     G["df"] = _load_df(_df_path)
     G["DS"] = _Source(_df_path, G["df"])      # set at every worker start, never checkpointed, like the aliases
@@ -290,7 +309,7 @@ except Exception:
 
 _INTERNAL = {
     "os", "io", "json", "sys", "traceback", "warnings",
-    "matplotlib", "plt", "_mpl_figure", "pd", "np", "df", "DS", "RESULT", "_RESULTS", "_CURRENT_CODE",
+    "matplotlib", "plt", "_mpl_figure", "pd", "np", "df", "DS", "RESULT", "_RESULTS", "_CURRENT_CODE", "_generated_dir", "_DATASETS",
     "_real_savefig", "_saved_plots", "_plot_counter", "_analysis_dir",
     "_patched_show", "_patched_savefig", "redirect_stdout",
 }
@@ -559,6 +578,7 @@ for _line in sys.stdin:
     G["_analysis_dir"] = _req.get("analysis_dir") or "/tmp"
     G["_saved_plots"] = []
     G["_RESULTS"] = []
+    G["_DATASETS"] = []
 
     _stdout = None
     _error = None
@@ -596,6 +616,7 @@ for _line in sys.stdin:
         "error": _error,
         "plots": list(G.get("_saved_plots", [])),
         "results": list(G.get("_RESULTS", [])),
+        "datasets": list(G.get("_DATASETS", [])),
         "namespace": _namespace_summary(),
         "columns": _df_columns(),
         "checkpoint_ok": _ckpt_ok,
@@ -687,8 +708,9 @@ def _code_for_security_check(code):
 class PersistentKernel:
     """A long-lived worker process holding one persistent analysis namespace."""
 
-    def __init__(self, df=None, analysis_root=None, step_timeout=STEP_TIMEOUT):
+    def __init__(self, df=None, analysis_root=None, step_timeout=STEP_TIMEOUT, generated_dir=None):
         self.step_timeout = step_timeout
+        self.generated_dir = generated_dir            # where DS.save puts a dataset for the person (2026-10-06)
         self._df_path = _serialize_dataframe(df) if df is not None else None
         self._worker_script_path = _write_temp_text(
             _WORKER_SCRIPT, suffix=".py", prefix="delve_kernel_"
@@ -722,7 +744,8 @@ class PersistentKernel:
         self._proc = subprocess.Popen(
             [sys.executable, "-u", self._worker_script_path, self._df_path or "",
              os.path.dirname(os.path.abspath(__file__)),
-             self._ckpt_path if load_ckpt else ""],
+             self._ckpt_path if load_ckpt else "",
+             self.generated_dir or ""],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
