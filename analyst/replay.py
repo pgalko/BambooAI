@@ -31,13 +31,18 @@ def assemble(cells: List[Turn], report: str, own: Optional[List[Turn]] = None) -
     by_no: Dict[int, Turn] = {c.cell_no: c for c in cells if c.cell_no is not None}
     cited = [n for n in cited_cells(report) if n in by_no]
     own_nos = [c.cell_no for c in (own if own is not None else cells) if c.cell_no is not None]
-    last = max(cited) if cited else (max(own_nos) if own_nos else 0)
+    # up to the last cell the report cites - and to this run's last figure cell when that is later (2026-10-06: a figure
+    # drawn after the last cited cell was never replayed, so it never reached the reader), or [fig n] cited after it
+    own_fig = [c.cell_no for c in (own if own is not None else cells) if c.cell_no is not None and c.figures]
+    fig_cited = [n for n in referenced_figures(report) if n in by_no]
+    last = max([max(cited) if cited else 0, max(own_fig) if own_fig else 0, max(fig_cited) if fig_cited else 0]
+               or [0]) or (max(own_nos) if own_nos else 0)
     order = [n for n in sorted(by_no) if n <= last]
     # Figures: earlier runs' cells must RUN (the state), but their figures are not this
     # run's plots (2026-09-07: a follow-up that fixed a plot returned both). Capture is
     # on for this run's own cells and for any earlier figure the report cites as [fig n].
     wanted = set(own_nos) | {n for n in referenced_figures(report) if n in by_no}
-    parts = ["# Assembled from the analysis notebook: the committed cells in execution order, up to the last cell the report cites.",
+    parts = ["# Assembled from the analysis notebook: the committed cells in execution order, up to the last cell the report cites or this run's last figure cell.",
              "# `df` is the dataset the analysis ran on.",
              "import pandas as pd", "import numpy as np", "import matplotlib", "matplotlib.use('Agg')", "import matplotlib.pyplot as plt",
              "# DS, as in the analysis kernel - a cell may call DS.load() (2026-10-05: the replay route runs a plain script, and",

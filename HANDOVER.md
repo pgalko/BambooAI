@@ -206,6 +206,10 @@
   its code)" - for the analyst and for later reviews; a report that cites the cell gets a CHECK note for the reader;
   a later review's "matches" on the same cell clears the mark (the latest word stands). Turn.checked carries ok per
   line.
+- **The replay runs to the run's last figure cell (2026-10-06).** It ran to the last cell the report cites; a figure
+  drawn after that cell was never replayed and never reached the reader. Now it runs to the later of the last cited
+  cell, the run's last figure cell and the last [fig n] cited. This closes the standing list of issues of 2026-10-05;
+  the next runs confirm 0083-0086 together.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

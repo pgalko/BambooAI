@@ -560,6 +560,15 @@ check("step_sentence: an abbreviation is not a sentence end - (e.g. X), i.e., vs
       step_sentence("The ladder (e.g. Jan Meda at 4.5 vs. Kality at 3.8) says it is venue, i.e. not altitude. This turn I test the Ethiopia slope."))
 check("step_sentence: a one-sentence account is the step itself; a long one is cut at a word", step_sentence("Just this one sentence.") == "Just this one sentence." and step_sentence("First. " + "word " * 60).endswith("...") and len(step_sentence("First. " + "word " * 60)) <= 114)
 
+# the replay runs to the run's last figure cell too (2026-10-06): a figure drawn after the last cell the report cites
+_fig_turns = [Turn(kind="cell", cell_no=1, code="x = 1\nprint('RESULT: x')", stdout="RESULT: x"),
+              Turn(kind="cell", cell_no=2, code="print('estimate', x)", stdout="estimate 1"),
+              Turn(kind="cell", cell_no=3, code="import matplotlib.pyplot as plt\nplt.plot([1, 2])\nplt.show()", stdout="", figures=[{"name": "f"}])]
+_scr_a, _ = _assemble(_fig_turns, "The estimate is 1 [cell 2].")
+_scr_b, _ = _assemble(_fig_turns[:2], "The estimate is 1 [cell 2].")
+check("replay: the assembled script runs to the run's last figure cell when the report cites only earlier cells; without a later figure it stops at the last cited cell",
+      "plt.plot([1, 2])" in _scr_a and "# --- cell 3" in _scr_a and "# --- cell 3" not in _scr_b and "or this run's last figure cell" in _scr_a, (_scr_a[-300:], _scr_b[-200:]))
+
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
 SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i in range(6)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nDone."]
 seen_s = {"prompts": []}
