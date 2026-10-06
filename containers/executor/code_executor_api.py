@@ -39,7 +39,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-06 v49 (DS.save: generated datasets)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-06 v50 (DS.save: formats)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -361,6 +361,17 @@ def preview_aux_dataset():
             preview['shape'] = list(df_temp.shape)
             preview['columns'] = df_temp.columns.tolist()
             del df_temp
+
+        elif file_ext in ['.txt', '.tsv']:
+            # a tab-separated table when it reads as one; otherwise the file's basic information stands (2026-10-06)
+            try:
+                df_temp = pd.read_csv(file_path, sep='\t')
+                if df_temp.shape[1] > 1:
+                    preview['shape'] = list(df_temp.shape)
+                    preview['columns'] = df_temp.columns.tolist()
+                del df_temp
+            except Exception:
+                pass
         
         return jsonify(preview), 200
         

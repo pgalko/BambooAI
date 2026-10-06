@@ -600,6 +600,15 @@ _gscript, _ = _assemble([Turn(kind="cell", cell_no=1, code="m = df.head(7)\nDS.s
 _gg = {"df": df.copy(), "_generated_dir": os.path.join(_gtmp, "replay")}
 with _cl.redirect_stdout(_io.StringIO()) as _gbuf:
     exec(_gscript, _gg)
+_fk = PersistentKernel(df=df, generated_dir=os.path.join(_gtmp, "fmt"))
+try:
+    _fout, _ferr, _ = _fk.execute("DS.save(df.head(4), 'm.json')\nDS.save(df.head(4), 'm.txt')\nDS.save(df.head(4), 'tab', fmt='tsv')\nDS.save('a note', 'notes.txt')\nDS.save(df.head(4), 'Up Case.CSV')")
+finally:
+    _fk.cleanup()
+check("DS.save: the format follows the name's extension (json as records, txt/tsv tab-separated, csv by default), a string is a text file, and the extension's case is kept lower",
+      not _ferr and sorted(os.listdir(os.path.join(_gtmp, "fmt"))) == ["Up_Case.csv", "m.json", "m.txt", "notes.txt", "tab.tsv"]
+      and open(os.path.join(_gtmp, "fmt", "m.json")).read().lstrip().startswith("[") and "\t" in open(os.path.join(_gtmp, "fmt", "m.txt")).readline()
+      and open(os.path.join(_gtmp, "fmt", "notes.txt")).read() == "a note" and "DATASET: notes.txt - 6 characters" in _fout, (_ferr, _fout, os.listdir(os.path.join(_gtmp, "fmt"))))
 check("DS.save in the replayed script: the stub writes into the folder the route passes and prints the kernel's line",
       os.path.isfile(os.path.join(_gtmp, "replay", "Merged_laps.csv")) and "DATASET: Merged_laps.csv - 7 rows x " in _gbuf.getvalue(), (_gbuf.getvalue()[-200:], os.listdir(_gtmp)))
 
@@ -978,7 +987,8 @@ check("the total cap: a pathological output is shortened from the middle with a 
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
 check("contract: one page - under 9,000 without documents (2026-10-06: Results with RESULT(...), DS with save, the comparison, the budget as a limit), neutral", len(c) < 9000 and not bad, (len(c), bad))
-check("contract: DS.save(frame, name) saves a dataset for the person, listed in the Dataset cache under Generated", "`DS.save(frame, \"name\")` saves a dataset for\nthe person: it appears in their Dataset cache under Generated" in c)
+check("contract: DS.save(frame, name) saves a dataset for the person - CSV by default, json/parquet/xlsx/txt by the name, a string as text - listed in the Dataset cache under Generated",
+      "`DS.save(frame, \"name\")` saves a dataset for\nthe person as CSV - `\"name.json\"`, `\"name.parquet\"`, `\"name.xlsx\"` or `\"name.txt\"` in that format, and\na string as a text file: it appears in their Dataset cache under Generated" in c)
 check("contract: a reply with more than one action runs the first and the rest does not - said in Format", "A reply with more than one action runs\nthe first; the rest does not run." in c)
 check("contract (Adaptive): a TEST's outcome is recorded with test='after turn 16', and the test is open until it is recorded",
       "`RESULT(..., test=\"after turn 16\")`" in contract(False, 8) and "until such a line is recorded the test is open" in contract(False, 8))

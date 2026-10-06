@@ -140,20 +140,39 @@ class _Source:
         return (f"DS: the dataset as attached, {self.shape[0]} rows x {self.shape[1]} columns; "
                 f"df = DS.load() restores it")
 
-    def save(self, frame, name):
+    def save(self, frame, name, fmt=None):
         """Save a dataset for the person (2026-10-06): written under the generated-datasets folder the kernel was given,
-        which the Dataset cache lists under Generated and serves for download; one printed line says so. The original
-        BambooAI told the agent where to save in its prompt; the rebuilt analyst had no such place, so a merged dataset
-        it 'returned' landed in the worker's working directory where nothing listed it."""
+        which the Dataset cache lists under Generated and serves for download; one printed line says so. The format
+        follows the name's extension (csv, json, parquet, xlsx, txt as tab-separated) or `fmt`; CSV when neither says.
+        A string is written as a text file whatever the extension. The original BambooAI told the agent where to save
+        in its prompt; the rebuilt analyst had no such place, so a merged dataset it 'returned' landed in the worker's
+        working directory where nothing listed it."""
         import re as _re
-        base = _re.sub(r"\.(csv|parquet)$", "", str(name).strip(), flags=_re.I)
-        base = _re.sub(r"[^A-Za-z0-9_\-]+", "_", base).strip("_") or "dataset"
+        raw = str(name).strip()
+        m = _re.search(r"\.([A-Za-z0-9]{1,8})$", raw)
+        ext = (fmt or (m.group(1) if m else "csv")).lower().lstrip(".")
+        base = _re.sub(r"[^A-Za-z0-9_\-]+", "_", raw[:m.start()] if m else raw).strip("_") or "dataset"
         folder = G.get("_generated_dir") or "generated"
         os.makedirs(folder, exist_ok=True)
-        path = os.path.join(folder, f"{base}.csv")
-        frame.to_csv(path, index=False)
-        rows, cols = (frame.shape if hasattr(frame, "shape") and len(frame.shape) == 2 else (len(frame), 1))
-        print(f"DATASET: {os.path.basename(path)} - {rows:,} rows x {cols} columns, in the Dataset cache under Generated")
+        path = os.path.join(folder, f"{base}.{ext}")
+        if isinstance(frame, (str, bytes)):
+            with open(path, "wb" if isinstance(frame, bytes) else "w", encoding=None if isinstance(frame, bytes) else "utf-8") as fh:
+                fh.write(frame)
+            what = f"{len(frame):,} {'bytes' if isinstance(frame, bytes) else 'characters'}"
+        else:
+            if ext == "json":
+                frame.to_json(path, orient="records", indent=2, date_format="iso")
+            elif ext in ("parquet", "pq"):
+                frame.to_parquet(path, index=False)
+            elif ext in ("xlsx", "xls"):
+                frame.to_excel(path, index=False)
+            elif ext in ("txt", "tsv"):
+                frame.to_csv(path, index=False, sep="\t")
+            else:
+                frame.to_csv(path, index=False)
+            rows, cols = (frame.shape if hasattr(frame, "shape") and len(frame.shape) == 2 else (len(frame), 1))
+            what = f"{rows:,} rows x {cols} columns"
+        print(f"DATASET: {os.path.basename(path)} - {what}, in the Dataset cache under Generated")
         G.setdefault("_DATASETS", []).append(path)
         return path
 

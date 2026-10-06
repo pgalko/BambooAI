@@ -265,6 +265,10 @@
 - **No Generated datasets tab (2026-10-06).** The web output manager had sent a generated_datasets payload with the
   results, and the tab factory made a right-pane tab for every type it did not know - an empty "Generated_datasets" tab.
   The payload is gone (the pane's pills carry the files) and the factory makes no tab for the type; both stories check.
+- **DS.save in other formats (2026-10-06).** The format follows the name's extension - csv (default), json (records),
+  parquet, xlsx, txt/tsv (tab-separated) - or `fmt=`; a string is written as a text file whatever the extension. The
+  replay stub mirrors it; the executor's preview gives a text file its basic information (columns when it reads as a
+  tab-separated table). The contract's sentence names the formats. Executor build v50.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

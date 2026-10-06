@@ -74,6 +74,11 @@ try:
     check("executor: DS.save writes under datasets/<user>/generated, /cache/inspect lists it under generated_datasets, and the download route serves it (the Dataset cache's Generated section, 2026-10-06)",
           "DATASET: Merged_laps.csv - 3 rows x " in (out8.get("stdout") or "") and [d["filename"] for d in listing] == ["Merged_laps.csv"] and served.status_code == 200
           and served.data.decode().splitlines()[0].startswith("a,"), (r2, out8.get("stdout"), out8.get("error"), listing, served.status_code))
+    out9 = (c.post("/kernel/execute", json={"session_id": sid2, "code": "DS.save('a note', 'notes.txt')\nDS.save(df.head(3), 'laps.json')"}).get_json() or {})
+    pv_txt = c.post("/cache/preview_aux", json={"file_path": os.path.join("datasets", "u9", "generated", "notes.txt"), "user_id": "u9"}).get_json() or {}
+    pv_json = c.post("/cache/preview_aux", json={"file_path": os.path.join("datasets", "u9", "generated", "laps.json"), "user_id": "u9"}).get_json() or {}
+    check("executor: a text file saved for the person previews with its basic information (no columns), a json one with its shape and columns (2026-10-06)",
+          not out9.get("error") and pv_txt.get("filename") == "notes.txt" and "columns" not in pv_txt and pv_json.get("shape") == [3, 3] and pv_json.get("columns") == ["a", "b", "c"], (out9.get("error"), pv_txt, pv_json))
 finally:
     c.post("/kernel/stop", json={"session_id": sid2})
 
