@@ -286,6 +286,10 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   of `release.yml` run only when the repository is the public one (2026-10-01): the private remote
   receives every tag too, and its publish step used to fail against the publisher registered for
   `pgalko/BambooAI`. A release is a version bump in `pyproject.toml` within the series, then the tag.
+- **Status 2026-10-06: 2.1.0.** Documents in the analysis (Phase 7), the analyst's contract as one page of
+  Markdown, results recorded by the kernel (`RESULT(...)`), the reviewer with its evidence handed over in one call,
+  a verification ledger and five perspectives, Quick and Deep without a reviewer, generated datasets (`DS.save`) in
+  the Dataset cache, and the run's prompts read turn by turn and tidied - patches 0057-0096, executor build v51.
 
 ### Phase 6 — team mode (O5)
 - A users table, a login page, per-user kernels (subprocess or Docker), one process.
