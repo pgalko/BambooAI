@@ -816,6 +816,12 @@ check("reviewer's note: a REPORT verdict whose problem is not 'none' carries it 
       review_note({"verdict": "REPORT", "requires": "X", "arg": "established", "problem": "the summary understates the lower bound", "established": "", "checked_cells": [3], "cited": [3]})
       == "**Reviewer's note.** The question requires: X. The report answers it as asked: established. One caution: the summary understates the lower bound. Checked against the code of cell 3."
       and " One caution" not in review_note({"verdict": "REPORT", "requires": "X", "arg": "ok", "problem": "none", "established": "", "checked_cells": [], "cited": []}))
+prs = parse_review("###REVIEW###\n- The question requires: X\n- Established: +1 [cell 3]\n- Most consequential problem: none\n- Verdict: REPORT done [cell 3]\n- Re-check: cell 21\n###REVIEW###")
+check("parse_review: a stray marker after a complete review does not lose it (2026-10-06: the review after a report ended with ###REVIEW### and was dropped)",
+      prs and prs["verdict"] == "REPORT" and prs["arg"] == "done [cell 3]" and prs["recheck"] == [21], prs)
+prs2 = parse_review("###REVIEW###\n- Verdict: pending\n###REVIEW###\n- The question requires: X\n- Established: y\n- Most consequential problem: none\n- Verdict: NARROW only y")
+check("parse_review: with several markers, the review is the text after the last one that carries a verdict", prs2 and prs2["verdict"] == "NARROW" and prs2["requires"] == "X", prs2)
+check("reviewer prompt: checking is the reviewer's own work - it does not ask the analyst to verify or re-open cells", "do not ask the analyst to\nverify or re-open cells - ask it for analysis" in REVIEWER)
 from analyst.session import checked_ok, disputed_cells, Run as _Run, Turn as _Turn
 check("checked_ok: 'matches its line' is fine, 'does not match' is not, a line with both ('matches ..., but does not cover ...') stays fine",
       checked_ok("computes the difference; matches its line") and not checked_ok("labelled within-athlete; no athlete term: pooled. Does not match.")

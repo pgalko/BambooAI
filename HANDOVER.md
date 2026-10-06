@@ -236,6 +236,14 @@
   Re-check and Shown lines were riding into the analyst's REVIEW block and the analyst read "Re-check: cell 17,
   cell 18" as an instruction to itself - six turns of SHOW; they are the session's and stay out of the block now.
   And a REPORT verdict's "most consequential problem", when not "none", now reaches the reader's note as a caution.
+- **The second run under the lenses (2026-10-06, 32 turns, $0.59).** The heterogeneity lens did not raise effort this
+  time; the first TEST was a restriction (drop the race laps from the sea-level anchor), and the run concluded "no
+  usable correction" - so the effort split of the first run is one of two, not a rule. Reviews ran 4,000-10,000 output
+  tokens (the reviewer $0.19, a third of the run). Two fixes: the review after the report ended with a stray
+  ###REVIEW### after a complete review and parse_review read the empty text after it - it now takes the last marker
+  that has a verdict after it; and the reviewer's talk of "unchecked cells" and "cite only checked numbers" had the
+  analyst spend six turns on SHOW - the brief now says checking is the reviewer's own work and it asks the analyst
+  for analysis, not verification.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

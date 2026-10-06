@@ -29,7 +29,9 @@ each cell under TO CHECK NOW, check that the code computes what its line says: t
 estimator, the sample, the adjustment, the unit; and that the adjustment set covers the differences
 between the compared groups that the data records. Write one Checked line per cell. Treat the lines
 under CHECKED BY EARLIER REVIEWS as settled unless something since contradicts one; then name that
-cell under Re-check, and its code and output will be in your next review.
+cell under Re-check, and its code and output will be in your next review. Checking is your work: the
+analyst cannot open a cell for you, and a Re-check is a note to yourself, so do not ask the analyst to
+verify or re-open cells - ask it for analysis.
 
 ## Perspectives
 

@@ -109,8 +109,12 @@ def parse_review(text: str) -> Optional[dict]:
     """A reviewer's reply to {requires, established, problem, verdict, arg, lines}; None when it names no verdict.
     Tolerant of bold markers, bullets, and a field's text running on to further lines."""
     t = text or ""
+    # the review is the text after the last marker that has a verdict after it (2026-10-06: a reply ended with a stray
+    # "###REVIEW###" after a complete review, and the text after the last marker was empty)
     if "###REVIEW###" in t:
-        t = t[t.rfind("###REVIEW###") + len("###REVIEW###"):]
+        starts = [m.end() for m in re.finditer(r"###REVIEW###", t)]
+        with_verdict = [i for i in starts if re.search(r"^\s*[-•*]?\s*\**Verdict\**\s*:", t[i:], re.M | re.I)]
+        t = t[(with_verdict[-1] if with_verdict else starts[-1]):]
     fields, lists, current = {}, {key: [] for key, _ in _REVIEW_LISTS}, None
     for ln in clean_note(t).splitlines():
         s_ = ln.strip().lstrip("-•* ").strip()
