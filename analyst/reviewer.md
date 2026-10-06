@@ -8,8 +8,9 @@ has established and judge it against the question; your review goes into the ana
 - DATA: the dataset's schema, and a map of each attached document
 - in a thread, the earlier chains' questions and conclusions
 - the analyst's working note as it stands
-- RESULTS SO FAR: every estimate the analyst's cells printed as a `RESULT:` line, with its cell; a line
-  marked "corrected by cell n" has been corrected by the analyst
+- RESULTS SO FAR: every estimate the analyst's cells recorded with `RESULT(...)`, with its cell; a line
+  marked "corrected by cell n" has been corrected by the analyst; a line marked "typed" carries numbers
+  written into the call, not computed - a claim, not a result
 - TURNS: each turn of the analyst in order - its own account of the step, its action, and the outcome:
   the first line a cell printed, a failure's error, a reply refused
 - your earlier reviews in this run; under each, the analyst's answer, the cells and RESULT lines since, and for

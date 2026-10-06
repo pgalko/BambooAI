@@ -433,11 +433,11 @@ check("kernel prelude: the host's object is in the kernel for the first cell and
       len(lp) == 2 and "the prelude object" in lp[0].stdout and "the prelude object" in lp[1].stdout, [x.stdout for x in rp.turns if x.kind == "cell"])
 
 # ---- results: RESULT: lines printed by committed cells ride in every later prompt with their cell numbers ----
-RES = [act6("CELL\n```python\nprint('RESULT: B vs A mean, 20 subjects: +1.5 units (95% CI 0.2 to 2.8), B higher')\nprint('other output')\n```"),
+RES = [act6("CELL\n```python\ne = 1.5\nRESULT('B vs A mean, 20 subjects', e, e - 1.3, e + 1.3, 'units', 'B higher')\nprint('other output')\n```"),
        act6("CELL\n```python\nprint('no result here')\n```"),
-       act6("CELL\n```python\nraise ValueError('RESULT: this one must not count - the cell failed')\n```"),
-       act6("CELL\n```python\nprint('  RESULT: C vs A, 20 subjects: -0.4 units (95% CI -1.1 to 0.3), no difference')\n```"),
-       act6("REPORT\n## r\n\nDone [cell 1].")]
+       act6("CELL\n```python\nRESULT('this one must not count - the cell fails', 1, 0, 2)\nraise ValueError('x')\n```"),
+       act6("CELL\n```python\nRESULT('C vs A, 20 subjects', 6.1, 4.4, 7.7, 'bpm', 'higher')\n```"),
+       act6("REPORT\n## r\n\nB is higher by +1.50 [cell 1]; C by +6.10 [cell 3].")]
 res_i = {"n": 0}; res_prompts = []
 def res_llm(system, user, **h):
     res_prompts.append(user)
@@ -450,17 +450,22 @@ try:
 finally:
     kr.cleanup()
 from analyst.session import result_lines
-check("results ledger: the RESULT: lines of committed cells, with their cell numbers, in order; a failed cell's line does not count; leading spaces are fine",
-      result_lines(rr) == ["- [cell 1] B vs A mean, 20 subjects: +1.5 units (95% CI 0.2 to 2.8), B higher", "- [cell 3] C vs A, 20 subjects: -0.4 units (95% CI -1.1 to 0.3), no difference"], result_lines(rr))
+check("results ledger: the kernel's records of committed cells, with their cell numbers, in order; a failed cell's record does not count; a number typed into the call is marked",
+      result_lines(rr) == ["- [cell 1] B vs A mean, 20 subjects: +1.50 (95% CI +0.20 to +2.80) units, B higher",
+                           "- [cell 3] C vs A, 20 subjects: +6.10 (95% CI +4.40 to +7.70) bpm, higher - typed: the numbers were written into the call, not computed"], result_lines(rr))
+check("report guard: a number only a typed RESULT line carries is flagged as not traced to an output; a computed one is not",
+      "6.1" in (rr.report[rr.report.find("CHECK"):] if "CHECK" in rr.report else "") and "1.5" not in (rr.report[rr.report.find("CHECK"):] if "CHECK" in rr.report else "x1.5"), rr.report[-500:])
+check("ledger: a printed line that merely begins with RESULT: is not a record - only RESULT(...) is",
+      result_lines(rn) == [] if "rn" in dir() else True)
 check("results ledger: the block rides in the prompt after the first result, under its heading, and on the report turn",
       "RESULTS SO FAR (printed by your cells; the report quotes these):\n- [cell 1] B vs A mean" in res_prompts[1] and "- [cell 3] C vs A" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "RESULTS SO FAR" not in res_prompts[0], [p_[-200:] for p_ in res_prompts[:2]])
 check("contract: names DS and the comparison part of the report, and shows the RESULT: line with a neutral example",
       "`df = DS.load()`" in c_all and "- the comparison: what the question asks to compare, and what you compared" in c_all and "RESULT: outcome Y, group B vs group A at matched age" in c_all and "## Results" in c_all)
 check("contract: one to three figures and a fourth figure cell not run - the mechanism, with no advice on when to draw them",
       "A report carries one to three figures; a fourth figure cell is not run." in c_all and "drawn once" not in c_all and "where it breaks down" not in c_all)
-check("contract: a RESULT: line for every estimate a cell computes, provisional or final; a revised estimate gets a new line",
-      "Every time a cell computes an estimate - provisional or final" in c_all and "A revised\nestimate gets a new line" in c_all and "you may report" not in c_all)
-
+check("contract: an estimate is recorded with the kernel's RESULT(...), the words the analyst's and the numbers the cell's; a typed number is marked; a revised estimate gets a new line",
+      "record it in that cell with the\nkernel's `RESULT(what, estimate, low, high, unit, direction)`" in c_all and "A number written into the call instead of computed is marked as typed" in c_all
+      and "A revised estimate gets a new\nline" in c_all and "print it on one line" not in c_all)
 # ---- figures: at most FIGURE_CELLS_MAX figure cells a run; the fourth is not run and the reply says so ----
 FIGS = [act6(f"CELL\n```python\nclass _F:\n    def show(self): print('fig {k}')\nfig = _F(); fig.show()\n```") for k in range(1, 5)] + [act6("REPORT\n## r\n\nDone.")]
 fig_i = {"n": 0}; fig_prompts = []
@@ -618,7 +623,7 @@ def review_llm(system, user, **hints):
     an_prompts.append((user, dict(hints)))
     if "this turn is the report" in user:
         return act6("REPORT\n## r\n\nB is higher [cell 3]."), {"cost": 0.001}
-    return act6(f"CELL\n```python\nprint('RESULT: B vs A step {len(an_prompts)}, 20 subjects: +1.5 units (95% CI 0.2 to 2.8), B higher')\n```"), {"cost": 0.001}
+    return act6(f"CELL\n```python\ne = 1.5\nRESULT('B vs A step {len(an_prompts)}, 20 subjects', e, e - 1.3, e + 1.3, 'units', 'B higher')\n```"), {"cost": 0.001}
 k9 = PersistentKernel(df=df); nb9 = Notebook("t9")
 s9 = Session(k9, nb9, review_llm, emit=lambda ev: rv_starts.append(ev) if ev.get("type") == "turn_start" else (rv_ends.append(ev) if ev.get("type") == "turn_end" else None), data_description="d")
 try:
@@ -642,7 +647,7 @@ check("review: the reviewer reads the question, the results, the analyst's turns
       and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-1200:])
 u2b = rv_calls[2][1]
 check("review: the reviewer opened cell 3 - SHOW 3 - and its next call carries the cell's code and complete output; the review records it",
-      "CELLS YOU OPENED:\n--- cell 3 ---\n```python\nprint('RESULT: B vs A step 3" in u2b and "\nOUTPUT:\nRESULT: B vs A step 3" in u2b
+      "CELLS YOU OPENED:\n--- cell 3 ---\n```python\ne = 1.5\nRESULT('B vs A step 3" in u2b and "\nOUTPUT:\nRESULT: B vs A step 3" in u2b
       and "- Opened: cell 3" in [t for t in r9.turns if t.kind == "review"][1].note, u2b[-600:])
 check("review: the analyst's REVIEW block carries the TEST's status - open until a RESULT line tagged with it is printed",
       "- Status: open - no RESULT line tagged (test after turn 2) yet" in an_prompts[2][0], an_prompts[2][0][-400:])
@@ -657,14 +662,14 @@ def tagged_llm(system, user, **h):
     tg_prompts.append(user)
     if "this turn is the report" in user: return act6("REPORT\n## r\n\nDone [cell 2]."), {"cost": 0.001}
     if len(tg_prompts) == 3:
-        return act6("CELL\n```python\nprint('RESULT: (test after turn 2) bootstrap of B vs A, 20 subjects: +1.5 (95% CI 0.2 to 2.8), B higher')\n```"), {"cost": 0.001}
-    return act6("CELL\n```python\nprint('RESULT: B vs A, 20 subjects: +1.5, B higher')\n```"), {"cost": 0.001}
+        return act6("CELL\n```python\ne = 1.5\nRESULT('bootstrap of B vs A, 20 subjects', e, e - 1.3, e + 1.3, 'units', 'B higher', test='after turn 2')\n```"), {"cost": 0.001}
+    return act6("CELL\n```python\ne = 1.5\nRESULT('B vs A, 20 subjects', e, None, None, 'units', 'B higher')\n```"), {"cost": 0.001}
 kt = PersistentKernel(df=df); nbt = Notebook("tt")
 try:
     rt = Session(kt, nbt, tagged_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0, review_every=2))
 finally:
     kt.cleanup()
-check("review: a RESULT line tagged (test after turn 2) answers the test - the analyst's next block and the reviewer's next input say 'answered by [cell 3]', and the REPORT verdict ends the run",
+check("review: a RESULT recorded with test='after turn 2' answers the test - the analyst's next block and the reviewer's next input say 'answered by [cell 3]', and the REPORT verdict ends the run",
       "- Status: answered by [cell 3]" in tg_prompts[3] and "  status: answered by [cell 3]" in tg_rv[1] and rt.status == "answered", (tg_prompts[3][-300:], tg_rv[1][-500:] if len(tg_rv) > 1 else ""))
 p3 = an_prompts[2][0]
 check("review: the review rides in the analyst's next prompts under REVIEW, above the task line, until the next one",
@@ -709,9 +714,9 @@ check("review: a REPORT citing a cell the reviewer did not open does not bind - 
       (len(ad_prompts), ad_prompts[2][-400:] if len(ad_prompts) > 2 else ""))
 from analyst.session import result_lines, Run as _Run, Turn as _Turn
 _rc = _Run(id="rc", question="q", parent=None)
-_rc.turns = [_Turn(kind="cell", cell_no=1, stdout="RESULT: slope within athletes, 54 sessions: -2.1 (95% CI -17.9 to +13.7)", code="x"),
-             _Turn(kind="cell", cell_no=2, stdout="RESULT: (corrects cell 1) slope pooled, not within athletes - with athlete fixed effects: +4.0 (95% CI -9 to +17)", code="y")]
-check("ledger: a RESULT line beginning (corrects cell 1) marks cell 1's line as corrected, in every prompt's RESULTS SO FAR",
+_rc.turns = [_Turn(kind="cell", cell_no=1, code="x", results=[{"text": "slope within athletes, 54 sessions: -2.1 (95% CI -17.9 to +13.7)", "typed": False, "test": None, "corrects": None}]),
+             _Turn(kind="cell", cell_no=2, code="y", results=[{"text": "(corrects cell 1) slope pooled, not within athletes - with athlete fixed effects: +4.0 (95% CI -9 to +17)", "typed": False, "test": None, "corrects": 1}])]
+check("ledger: a RESULT recorded with corrects=1 marks cell 1's line as corrected, in every prompt's RESULTS SO FAR",
       result_lines(_rc) == ["- [cell 1] (corrected by cell 2) slope within athletes, 54 sessions: -2.1 (95% CI -17.9 to +13.7)",
                             "- [cell 2] (corrects cell 1) slope pooled, not within athletes - with athlete fixed effects: +4.0 (95% CI -9 to +17)"], result_lines(_rc))
 _log = Session._turn_log(r3) + Session._turn_log(r2)
@@ -724,7 +729,7 @@ check("show_request: a placeholder review with no verdict and a SHOW line is a r
 check("show_request: SHOW 12 14 and SHOW turn 22 are requests; a review is not", show_request("SHOW 12 14") == ([12, 14], []) and show_request("SHOW turn 22") == ([], [22])
       and show_request("###REVIEW###\n- Verdict: REPORT [cell 3]") is None, (show_request("SHOW 12 14"), show_request("SHOW turn 22")))
 check("cited_cells: [cell 11], [cells 11, 13], [cell 11, cell 13] all read", cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]") == [11, 12, 13, 14, 15], cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]"))
-check("contract: a correction line begins RESULT: (corrects cell 14), and the earlier line is marked", "`RESULT: (corrects cell 14)`" in c_all and "cell 14's line is marked as\ncorrected" in c_all)
+check("contract: a correction is recorded with corrects=14, and the earlier line is marked", "`corrects=14`" in c_all and "cell 14's line is marked as corrected" in c_all)
 check("contract (Adaptive): a REPORT whose cited cells the reviewer did not open is advice", "unless its status says the reviewer did not open the cells it cites: then it is advice" in contract(False, 8))
 check("reviewer prompt: it may open cells, a RESULT line is not proof of its label, and REPORT binds only on cells opened",
       "`SHOW turn 22`" in REVIEWER and "not proof that its label describes what the code computed" in REVIEWER and "only when you opened every cell you cite" in REVIEWER)
@@ -827,8 +832,8 @@ check("the total cap: a pathological output is shortened from the middle with a 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
 check("contract: one page - under 8,700 without documents (2026-10-05: Results with corrections, DS, the comparison, the budget as a limit, one action a reply), neutral", len(c) < 8700 and not bad, (len(c), bad))
 check("contract: a reply with more than one action is a lost turn and nothing in it runs - said in Format", "with no action, or with more than one, is a lost turn: nothing in it\nruns." in c)
-check("contract (Adaptive): a TEST's outcome goes on a RESULT line tagged with the test, and the test is open until it is printed",
-      "`RESULT: (test after turn 16) ...`" in contract(False, 8) and "until such a line is printed the test is open" in contract(False, 8))
+check("contract (Adaptive): a TEST's outcome is recorded with test='after turn 16', and the test is open until it is recorded",
+      "`RESULT(..., test=\"after turn 16\")`" in contract(False, 8) and "until such a line is recorded the test is open" in contract(False, 8))
 check("contract: the format is a literal template of one turn - three marker lines, each once - and the actions are a table with one row per form",
       c.count("###THINKING###") == 1 and c.count("###NOTE###") == 1 and c.count("###ACTION###") == 1 and "| a fenced python block |" in c and "| `CELL` |" not in c and "| `REPORT` |" in c and "Seven headings" in c and "under the headings listed in The note" in c)
 check("contract: no documents furniture and the one budget rule when the thread has no documents",

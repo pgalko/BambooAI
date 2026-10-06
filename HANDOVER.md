@@ -153,6 +153,15 @@
   call - the review after the report runs only in a run that has reviews during it (Adaptive). Next, in order:
   RESULT lines the code did not compute are marked; the reviewer gets its evidence in one call with a verification
   ledger instead of SHOW rounds; a reviewer's finding marks the ledger; the replay runs to the last figure cell.
+- **Issue 2 (2026-10-06): a result the code did not compute no longer counts as evidence.** An analyst had typed
+  "+6.1 bpm (95% CI +4.4 to +7.7)" into a RESULT print whose own regression printed -0.19, and the report quoted it;
+  nothing downstream could tell a typed line from a computed one. Now the kernel records results: the cell calls
+  `RESULT(what, estimate, low, high, unit, direction, test=, corrects=)`, the kernel prints the line from the values
+  and keeps a record (both kernel copies, build v47); the ledger reads the records, not printed text - a printed
+  "RESULT:" line is output like any other. A number written into the call - a literal, or an expression of literals,
+  read from the cell's code at the call - is marked "typed" on the line and in the record, and the report guard no
+  longer counts that line's numbers (nor the call's literals in the code) as evidence, so a report quoting them is
+  flagged. The tags became arguments: test="after turn 16", corrects=14. The contract's Results section shows the call.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

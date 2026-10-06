@@ -39,6 +39,7 @@ class Turn:
     stdout: str = ""                # CELL/SHOW/NAMES/RECALL/SEARCH/READ: what came back
     error: str = ""                 # CELL: traceback, if the cell failed
     figures: List[dict] = field(default_factory=list)   # CELL: plot payloads returned by the kernel
+    results: List[dict] = field(default_factory=list)   # CELL: the RESULT(...) records the kernel kept (text, typed, test, corrects)
     cell_no: Optional[int] = None   # CELL: its number along the path (only committed cells get one)
     text: str = ""                  # ask/report/rewrite: the analyst's text
     usage: dict = field(default_factory=dict)            # tokens, cost, elapsed for the model call

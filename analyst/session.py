@@ -176,25 +176,41 @@ def _first_sentence(text: str, cap: int = 160) -> str:
     return sent if len(sent) <= cap else sent[:cap - 3] + "..."
 
 
+def result_records(run):
+    """(cell number, record) for every RESULT(...) the run's committed cells recorded, in order."""
+    return [(x.cell_no, r) for x in run.cells() for r in (x.results or [])]
+
+
 def result_lines(run) -> List[str]:
-    """The RESULT: lines the run's committed cells printed, each with its cell number - the record of what is
+    """The ledger: one line per RESULT(...) a committed cell recorded, with its cell number - the record of what is
     established, kept whole in every prompt whatever the window does to the cells (2026-10-05: a run spent two cells
-    locating the specification behind a number it had printed twenty turns earlier). A line a later cell corrected -
-    its RESULT line begins "(corrects cell 14)" - is marked, so a known-wrong line stops reading as evidence
-    (2026-10-05: the analyst found a slope labelled within-athlete was pooled, and the line stood unmarked)."""
-    rows = []
-    for x in run.cells():
-        for ln in (x.stdout or "").splitlines():
-            if ln.strip().startswith("RESULT:"):
-                rows.append((x.cell_no, ln.strip()[7:].strip()))
+    locating the specification behind a number it had printed twenty turns earlier). The lines come from the kernel's
+    records, not from printed text (2026-10-06: a printed line can carry numbers nobody computed; the kernel marks
+    those). A line a later cell corrected - RESULT(..., corrects=14) - is marked, so a known-wrong line stops reading
+    as evidence."""
+    rows = result_records(run)
     corrected = {}
-    for c, t in rows:
-        m_ = re.match(r"\(\s*corrects\s+cells?\s+([\d ,&and]+)\)", t, re.I)
-        if m_:
-            for n in re.findall(r"\d+", m_.group(1)):
-                if int(n) != c:
-                    corrected.setdefault(int(n), c)
-    return [f"- [cell {c}] " + (f"(corrected by cell {corrected[c]}) " if c in corrected else "") + t for c, t in rows]
+    for c, r in rows:
+        cs = r.get("corrects")
+        for n in (cs if isinstance(cs, (list, tuple)) else ([cs] if cs is not None else [])):
+            if int(n) != c:
+                corrected.setdefault(int(n), c)
+    return [f"- [cell {c}] " + (f"(corrected by cell {corrected[c]}) " if c in corrected else "") + r["text"] for c, r in rows]
+
+
+def evidence_text(turn) -> str:
+    """A cell's output as evidence for the report guard: without the RESULT lines whose numbers were typed into the
+    call (they are claims, printed), so a report that quotes them is flagged as not traced to a computed output."""
+    typed = {("RESULT: " + r["text"]).strip() for r in (turn.results or []) if r.get("typed")}
+    return "\n".join(ln for ln in (turn.stdout or "").splitlines() if ln.strip() not in typed)
+
+
+def evidence_code(turn) -> str:
+    """A cell's code as evidence for the report guard (its thresholds and parameters are numbers a report may quote):
+    without the RESULT(...) calls when any of them typed its numbers in, so those literals are not evidence either."""
+    if not any(r.get("typed") for r in (turn.results or [])):
+        return turn.code or ""
+    return "\n".join(ln for ln in (turn.code or "").splitlines() if "RESULT(" not in ln)
 
 
 def _estimate_line(note: str) -> str:
@@ -566,9 +582,9 @@ class Session:
                 turn.code = action.arg
                 t_cell = time.time()
                 self.emit({"type": "cell_start", "run": run.id, "turn": turn_no})   # the executor is busy from here (2026-09-08)
-                out, err, figs = tools.run_cell(self.kernel, action.arg)
+                out, err, figs, recs = tools.run_cell(self.kernel, action.arg)
                 turn.elapsed = round(time.time() - t_cell, 1)
-                turn.stdout, turn.error, turn.figures = out, err, figs
+                turn.stdout, turn.error, turn.figures, turn.results = out, err, figs, recs
                 if not err:
                     turn.cell_no = self.nb.next_cell_no(run.id)
                     failures = 0
@@ -730,7 +746,7 @@ class Session:
         for uid in cited:
             text_u = self.unit_text(uid) if self.unit_text else None
             (unit_texts if text_u is not None else missing).append(text_u if text_u is not None else uid)
-        check = rep.guard_technical(report_text, [c.stdout for c in cells] + [c.code for c in cells] + unit_texts)
+        check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts)
         check_u = rep.guard_units(missing)
         run.report = report_text + (f"\n\n> {check}" if check else "") + (f"\n\n> {check_u}" if check_u else "")
         # the plain-language rewrite by the same analyst
@@ -789,8 +805,7 @@ class Session:
                 break
             if x.kind == "cell" and x.cell_no is not None:
                 ev["cells"].append(x.cell_no)
-                lines = [ln.strip()[7:].strip() for ln in (x.stdout or "").splitlines() if ln.strip().startswith("RESULT:")]
-                ev["results"] += [(x.cell_no, ln) for ln in lines]
+                ev["results"] += [(x.cell_no, r["text"]) for r in (x.results or [])]
                 if not (x.stdout or "").strip():
                     ev["empty"].append(x.cell_no)
             elif x.kind == "cell" and x.error:
@@ -807,7 +822,7 @@ class Session:
         if j is None:
             return []
         return sorted({x.cell_no for x in run.turns[j + 1:] if x.kind == "cell" and x.cell_no is not None
-                       and any(ln.strip().startswith("RESULT:") and tag.search(ln) for ln in (x.stdout or "").splitlines())})
+                       and any((r.get("test") and tag.search(f"(test {r['test']})")) or tag.search(r.get("text", "")) for r in (x.results or []))})
 
     def _review_block(self, run: Run) -> str:
         """The latest review during the run, for the analyst's prompt; a TEST carries its status, from the evidence: answered

@@ -49,18 +49,20 @@ conclusions and the names they left - the two newest whole; SHOW RUN opens any o
 
 ## Results
 
-Every time a cell computes an estimate - provisional or final - print it on one line that begins
-with `RESULT:`, complete in itself - quantity, estimate, interval, unit, direction, what was
-compared and for whom:
+Every time a cell computes an estimate - provisional or final - record it in that cell with the
+kernel's `RESULT(what, estimate, low, high, unit, direction)`: the words are yours - quantity, what was
+compared and for whom - and the numbers are the values the cell computed. The kernel prints the line:
 
 ```
-RESULT: outcome Y, group B vs group A at matched age, 42 subjects: +3.2 units (95% CI +0.8 to +5.6), B higher
+RESULT("outcome Y, group B vs group A at matched age, 42 subjects", est, lo, hi, "units", "B higher")
+-> RESULT: outcome Y, group B vs group A at matched age, 42 subjects: +3.2 (95% CI +0.8 to +5.6) units, B higher
 ```
 
-Every such line is kept, with its cell number, under RESULTS SO FAR in every later prompt. A revised
-estimate gets a new line; the earlier one stays. When a later cell finds an earlier line wrong or
-mislabelled, its corrected line begins `RESULT: (corrects cell 14)`, and cell 14's line is marked as
-corrected. The lines are what the report quotes, and a result that is there need not be computed again.
+A number written into the call instead of computed is marked as typed on the line. Every line is
+kept, with its cell number, under RESULTS SO FAR in every later prompt. A revised estimate gets a new
+line; the earlier one stays. When a later cell finds an earlier line wrong or mislabelled, record the
+corrected estimate with `corrects=14`, and cell 14's line is marked as corrected. The lines are what the
+report quotes, and a result that is there need not be computed again.
 {REVIEWS}
 ## The note
 

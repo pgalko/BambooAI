@@ -316,6 +316,7 @@ def execute():
     return jsonify({
         "stdout": stdout,
         "error": error,
+        "results": list(getattr(session.kernel, "last_results", []) or []),
         # Container-local paths. Nothing fetches them today: in the planner
         # architecture the Code Generator emits the user-facing visuals. Add a
         # /kernel/plot endpoint if that changes.

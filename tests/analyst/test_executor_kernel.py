@@ -56,6 +56,10 @@ try:
     out6 = (c.post("/kernel/execute", json={"session_id": sid, "code": "print(f\"{eval('2+2')}\")"}).get_json() or {})
     check("executor: a call of a restricted name is still refused, inside an f-string too",
           "Security notice" in ((out5.get("stdout") or "") + (out5.get("error") or "")) and "Security notice" in ((out6.get("stdout") or "") + (out6.get("error") or "")), (out5, out6))
+    out7 = (c.post("/kernel/execute", json={"session_id": sid, "code": "e = float(df.a.mean())\nRESULT('a, 10 rows', e, e - 1, e + 1, 'units', 'up')\nRESULT('b', 6.1, 4.4, 7.7, 'bpm')"}).get_json() or {})
+    check("executor: RESULT(...) prints the line and the route returns the kernel's records, the typed one marked (2026-10-06)",
+          "RESULT: a, 10 rows: +4.50 (95% CI +3.50 to +5.50) units, up" in (out7.get("stdout") or "") and len(out7.get("results") or []) == 2
+          and out7["results"][0]["typed"] is False and out7["results"][1]["typed"] is True and "typed" in out7["results"][1]["text"], out7)
 finally:
     c.post("/kernel/stop", json={"session_id": sid})
 

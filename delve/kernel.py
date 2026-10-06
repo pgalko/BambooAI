@@ -159,6 +159,78 @@ if _df_path:
     G["df"] = _load_df(_df_path)
     G["DS"] = _Source(_df_path, G["df"])      # set at every worker start, never checkpointed, like the aliases
 
+
+def _decimals_for(values):
+    """The decimals a RESULT line uses for its estimate and interval: set by the smallest of them, shared by all."""
+    mags = [abs(float(v)) for v in values if isinstance(v, (int, float)) and not isinstance(v, bool) and float(v) != 0.0]
+    m = min(mags) if mags else 1.0
+    return 0 if m >= 100 else (1 if m >= 10 else (2 if m >= 0.1 else (3 if m >= 0.01 else 5)))
+
+
+def _fmt_num(x, decimals=2):
+    """A number as a RESULT line shows it: signed, with the decimals the line shares."""
+    if x is None or isinstance(x, bool):
+        return str(x)
+    if isinstance(x, int):
+        return f"{x:+,d}"
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return str(x)
+    return f"{v:+,.{decimals}f}"
+
+
+def _literal_number(node):
+    """A number written into the code: a constant, or an expression of constants only."""
+    import ast
+    if isinstance(node, ast.Constant):
+        return True
+    if isinstance(node, ast.UnaryOp):
+        return _literal_number(node.operand)
+    if isinstance(node, ast.BinOp):
+        return _literal_number(node.left) and _literal_number(node.right)
+    return False
+
+
+def RESULT(what, estimate, low=None, high=None, unit="", direction="", test=None, corrects=None, ci=95):
+    """Record an estimate the cell computed (2026-10-06): the words are the analyst's, the numbers are values the
+    cell computed, and the kernel prints the line and keeps a record for the session's ledger. A number written
+    into the call instead of computed - a literal, or an expression of literals - is marked on the line and in
+    the record: it is a claim, not a result (an analyst had typed +6.1 into a line whose own regression printed
+    -0.19, and the report quoted it)."""
+    import ast
+    import sys
+    typed = isinstance(estimate, str)
+    try:
+        fr = sys._getframe(1)
+        code = G.get("_CURRENT_CODE") or ""
+        if fr.f_code.co_filename == "<string>" and code:
+            for node in ast.walk(ast.parse(code)):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "RESULT"
+                        and node.lineno <= fr.f_lineno <= getattr(node, "end_lineno", node.lineno)):
+                    numeric = list(node.args[1:4]) + [kw.value for kw in node.keywords if kw.arg in ("estimate", "low", "high")]
+                    typed = typed or any(_literal_number(a) for a in numeric)
+                    break
+    except Exception:
+        pass
+    if isinstance(corrects, (list, tuple, set)):
+        corr = f"(corrects cells {', '.join(str(c) for c in corrects)}) "
+    else:
+        corr = f"(corrects cell {corrects}) " if corrects is not None else ""
+    tags = (f"(test {test}) " if test else "") + corr
+    dec = _decimals_for((estimate, low, high))
+    interval = f" ({ci}% CI {_fmt_num(low, dec)} to {_fmt_num(high, dec)})" if low is not None and high is not None else ""
+    text = f"{tags}{what}: {_fmt_num(estimate, dec)}{interval}{(' ' + unit) if unit else ''}{(', ' + direction) if direction else ''}"
+    if typed:
+        text += " - typed: the numbers were written into the call, not computed"
+    print("RESULT: " + text)
+    G.setdefault("_RESULTS", []).append({"text": text, "typed": bool(typed), "test": test,
+                                         "corrects": list(corrects) if isinstance(corrects, (list, tuple, set)) else corrects})
+    return estimate
+
+
+G["RESULT"] = RESULT                           # set at every worker start, never checkpointed
+
 # ---- Worker arguments: argv[2] is the package directory (the worker runs from
 # a temp file), argv[3] the checkpoint path. (The vetted-toolkit preload that
 # lived here was retired 2026-09-05: the analyst chooses its own methods.)
@@ -213,7 +285,7 @@ except Exception:
 
 _INTERNAL = {
     "os", "io", "json", "sys", "traceback", "warnings",
-    "matplotlib", "plt", "_mpl_figure", "pd", "np", "df", "DS",
+    "matplotlib", "plt", "_mpl_figure", "pd", "np", "df", "DS", "RESULT", "_RESULTS", "_CURRENT_CODE",
     "_real_savefig", "_saved_plots", "_plot_counter", "_analysis_dir",
     "_patched_show", "_patched_savefig", "redirect_stdout",
 }
@@ -481,6 +553,7 @@ for _line in sys.stdin:
     _result_path = _req.get("result_path")
     G["_analysis_dir"] = _req.get("analysis_dir") or "/tmp"
     G["_saved_plots"] = []
+    G["_RESULTS"] = []
 
     _stdout = None
     _error = None
@@ -490,6 +563,7 @@ for _line in sys.stdin:
     try:
         with open(_code_path, "r", encoding="utf-8") as _f:
             _user_code = _f.read()
+        G["_CURRENT_CODE"] = _user_code
         _buf = io.StringIO()
         plt.close("all")
         with redirect_stdout(_buf):
@@ -516,6 +590,7 @@ for _line in sys.stdin:
         "stdout": _stdout,
         "error": _error,
         "plots": list(G.get("_saved_plots", [])),
+        "results": list(G.get("_RESULTS", [])),
         "namespace": _namespace_summary(),
         "columns": _df_columns(),
         "checkpoint_ok": _ckpt_ok,
@@ -865,6 +940,7 @@ class PersistentKernel:
         stdout = result.get("stdout")
         error = _truncate_traceback(result.get("error"))
         plots = result.get("plots", []) or []
+        self.last_results = list(result.get("results") or []) if error is None else []   # RESULT(...) records of this step
 
         if error is not None:
             # TRANSACTIONAL ROLLBACK. The exception may have fired after part of

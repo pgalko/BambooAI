@@ -215,6 +215,7 @@ class RemoteKernel:
         server_len = res.get("history_len")
         if server_len is not None and server_len != len(self._history):
             self._history = self._fetch_history()
+        self.last_results = list(res.get("results") or [])            # RESULT(...) records of this step
         return res.get("stdout"), res.get("error"), res.get("plots") or []
 
     def _fetch_history(self):
