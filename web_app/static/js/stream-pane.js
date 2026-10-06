@@ -64,7 +64,8 @@
     function fmtSecs(s) {
         s = Number(s || 0);
         if (s < 60) return (s < 10 ? s.toFixed(1) : Math.round(s)) + ' s';
-        return Math.floor(s / 60) + ' min ' + Math.round(s % 60) + ' s';
+        const whole = Math.round(s);                      // round first: 239.6 s had read "3 min 60 s" (2026-10-06)
+        return Math.floor(whole / 60) + ' min ' + (whole % 60) + ' s';
     }
     function fmtCost(c) { return '$' + Number(c || 0).toFixed(2); }
     function kindLabel(kind) {
@@ -171,8 +172,7 @@
                 '<span>Cells <b>' + esc(r.cells || 0) + '</b>' + (r.failed ? ' (' + esc(r.failed) + ' failed)' : '') + '</span>' +
                 '<span>Cost <b>' + fmtCost(r.cost) + '</b></span><span>Time <b>' + esc(fmtSecs(r.seconds)) + '</b></span></div>' +
                 (r.replay_line ? '<div class="rep ' + rep + '">' + (rep === 'ok' ? '✓ ' : '') + esc(r.replay_line) + '</div>' : '') +
-                (r.status === 'answered' ? '<div class="links">' + links + '</div>' : '') +
-                (r.files && r.files.length ? build.datasets({ files: r.files }) : '') + '</div>';
+                (r.status === 'answered' ? '<div class="links">' + links + '</div>' : '') + '</div>';   // the dataset pills ride once, under the REPLAY row (2026-10-06)
         },
         system(text, level) {
             return '<div class="sp-sys' + (level === 'error' ? ' error' : '') + '">' + esc(text) + '</div>';

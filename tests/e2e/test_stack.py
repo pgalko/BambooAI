@@ -97,6 +97,23 @@ def main():
             check("the closing card counts 3 cells with 1 failed", "Cells 3 (1 failed)" in done.replace("\n", " ") or ("3" in done and "1 failed" in done), done)
             turns = page.evaluate("() => document.querySelectorAll('.sp-turn').length")
             check("one card per model call (6 analyst turns and the rewrite; no review outside Adaptive)", turns == 7, turns)
+            # a dataset the analyst saved (DS.save in the estimate cell): one download pill under the REPLAY row, none in the closing card (2026-10-06)
+            ds_pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill.ds')].map(e => e.textContent)")
+            check("the dataset the analyst saved shows as one download pill under the REPLAY row, and the closing card does not repeat it",
+                  len(ds_pills) == 1 and "plot_means.csv" in ds_pills[0] and page.evaluate("() => document.querySelectorAll('.sp-done .sp-pill.ds').length") == 0, ds_pills)
+            if edition == "hosted":
+                # the Dataset cache (through the executor): the file under Generated; its details with the buttons in view without scrolling
+                page.click("#datasetManagerPill")
+                page.wait_for_selector("#generatedDatasetList .dataset-item", timeout=15000)
+                page.click("#generatedDatasetList .dataset-item")
+                page.wait_for_selector("#datasetDetails .dataset-actions .dataset-download-btn", timeout=15000)
+                geom = page.evaluate("""() => { const panel = document.querySelector('.dataset-details-panel'); const pr = panel.getBoundingClientRect();
+                    const ar = document.querySelector('#datasetDetails .dataset-actions').getBoundingClientRect(); const cols = document.querySelector('#datasetDetails .dataset-columns');
+                    return { name: document.querySelector('#generatedDatasetList .dataset-item').textContent, buttonsInView: ar.bottom <= pr.bottom + 1 && ar.top >= pr.top, panelScrolls: panel.scrollHeight > panel.clientHeight + 1,
+                             columnsOwnScroll: cols ? getComputedStyle(cols).overflowY === 'auto' : null }; }""")
+                check("Dataset cache: the saved file is listed under Generated, its Load/Download/Remove buttons are in view without scrolling, and the columns list is the part that scrolls",
+                      "plot_means.csv" in geom["name"] and geom["buttonsInView"] and not geom["panelScrolls"] and geom["columnsOwnScroll"] is True, geom)
+                page.click("#datasetManagerModal .close")
             pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill')].map(e => e.textContent)")
             check("the search row carries the two source pills", any("fao.org" in p for p in pills) and any("wiley" in p for p in pills), pills)
             page.evaluate("activateTab('answer')")

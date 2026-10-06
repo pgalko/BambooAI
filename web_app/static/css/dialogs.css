@@ -225,18 +225,25 @@
 #datasetManagerModal .dataset-size { font-size: var(--fs-small); color: var(--text-quaternary); font-variant-numeric: tabular-nums; white-space: nowrap; }
 #datasetManagerModal .dataset-icon-download { width: 14px; height: 14px; color: var(--c-model); flex-shrink: 0; }
 #datasetManagerModal .dataset-empty { font-size: var(--fs-meta); color: var(--text-quaternary); padding: 4px 9px; }
-#datasetManagerModal .dataset-details-panel { flex: 1; min-width: 0; overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; }
+#datasetManagerModal .dataset-details-panel { flex: 1; min-width: 0; min-height: 0; overflow: hidden; padding: 16px 18px; display: flex; flex-direction: column; }
+/* the columns list scrolls by itself; the file's details above it and the Load/Download/Remove row below stay in view
+   (2026-10-06: a generated file with 845 columns put the buttons a long scroll away). #datasetDetails is the panel's one
+   child and holds the content and the actions, so it is the flex column that fills the panel. */
+#datasetManagerModal #datasetDetails:not(.dataset-details-empty) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#datasetManagerModal .dataset-info-columns { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#datasetManagerModal .dataset-info-columns h3 { flex-shrink: 0; }
+#datasetManagerModal .dataset-columns { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
 #datasetManagerModal .dataset-details-empty { color: var(--text-quaternary); font-size: var(--fs-meta); margin: auto; text-align: center; }
 #datasetManagerModal .dataset-loading { display: flex; align-items: center; gap: 8px; color: var(--text-tertiary); font-size: var(--fs-meta); }
 #datasetManagerModal .dataset-loading-spinner { width: 14px; height: 14px; border: 2px solid var(--border-color); border-top-color: var(--c-model); border-radius: 50%; animation: ui-spin .8s linear infinite; }
-#datasetManagerModal .dataset-details-content { display: flex; flex-direction: column; gap: 16px; flex: 1; }
+#datasetManagerModal .dataset-details-content { display: flex; flex-direction: column; gap: 16px; flex: 1; min-height: 0; }
 #datasetManagerModal .dataset-info-section h3 { margin: 0 0 8px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
 #datasetManagerModal .dataset-metadata { display: grid; grid-template-columns: 110px 1fr; gap: 5px 12px; font-size: var(--fs-meta); }
 #datasetManagerModal .metadata-label { color: var(--text-tertiary); }
 #datasetManagerModal .metadata-value { color: var(--text-primary); word-break: break-word; }
 #datasetManagerModal .column-list { display: flex; flex-wrap: wrap; gap: 5px; }
 #datasetManagerModal .column-chip { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--c-kernel); border: 1px solid var(--chip-kernel-border); border-radius: 10px; padding: 1px 8px; }
-#datasetManagerModal .dataset-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-color); }
+#datasetManagerModal .dataset-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-color); flex-shrink: 0; }
 #datasetManagerModal .dataset-action-btn { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: 12.5px; cursor: pointer; }
 #datasetManagerModal .dataset-action-btn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
 #datasetManagerModal .dataset-load-btn, #datasetManagerModal .dataset-download-btn { border-color: var(--c-model); color: var(--c-model); }

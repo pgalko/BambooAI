@@ -254,6 +254,14 @@
   the /execute route already passes (now in the script's namespace as _generated_dir; the local replay's kernel gets
   it too), and the contract's workspace paragraph has one sentence naming DS.save. The UI, the /cache blueprint and
   the executor routes were intact and unchanged. Executor build v49.
+- **Two amendments after the first DS.save run (2026-10-06).** (1) In the Dataset cache a generated file with 845 columns put
+  the Load/Download/Remove buttons a long scroll away: #datasetDetails (the panel's one child) is now the flex column
+  that fills the panel, the file's details and the buttons stay in view, and the columns list scrolls by itself - the
+  layout was checked in a headless render (845 columns, a 49-column primary, a 640-px window) and in the hosted story
+  through the real executor. (2) The run's dataset pills showed twice; they ride once, under the REPLAY row, and the
+  closing card no longer repeats them. Also seen there: "3 min 60 s" - seconds are rounded before the split now. The
+  stack's scenario saves a dataset (DS.save in its estimate cell), so both stories see the pill; the hosted story opens
+  the Dataset cache and checks the Generated entry and its buttons.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

@@ -427,7 +427,7 @@ window.DatasetManager = (function() {
                     </div>
                 </div>
                 
-                <div class="dataset-info-section">
+                <div class="dataset-info-section dataset-info-columns">
                     <h3>Columns (${details.columns.length})</h3>
                     <div class="dataset-columns">
                         <div class="column-list">
@@ -489,7 +489,7 @@ window.DatasetManager = (function() {
         
         if (details.columns && details.columns.length > 0) {
             html += `
-                <div class="dataset-info-section">
+                <div class="dataset-info-section dataset-info-columns">
                     <h3>Columns (${details.columns.length})</h3>
                     <div class="dataset-columns">
                         <div class="column-list">
@@ -552,7 +552,7 @@ window.DatasetManager = (function() {
         
         if (details.columns && details.columns.length > 0) {
             html += `
-                <div class="dataset-info-section">
+                <div class="dataset-info-section dataset-info-columns">
                     <h3>Columns (${details.columns.length})</h3>
                     <div class="dataset-columns">
                         <div class="column-list">

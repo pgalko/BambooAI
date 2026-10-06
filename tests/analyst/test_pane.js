@@ -53,7 +53,7 @@ const cards = pane.querySelectorAll('.sp-turn');
 check('second turn: reasoning block kept (had content), no think block (empty), peek = code line', cards.length === 2 && cards[1].querySelector('.sp-reasoning') && !cards[1].querySelector('.sp-think') && cards[1].querySelector('summary .peek').textContent === '1/0');
 check('rows: In [1]; a failed row with the exception line; a search row with a source pill; a dataset pill', pane.querySelector('.sp-row .in').textContent.replace(/\s/g,'') === 'In[1]' && pane.querySelector('.sp-row.fail .out').textContent.startsWith('ZeroDivisionError') && pane.querySelector('.sp-pill.src').getAttribute('href') === 'https://x.y/a?b=1&c=2' && pane.querySelector('.sp-pill.ds'));
 check('strip: settled on the final turn and spend, estimate shown, idle dot', pane.querySelector('.sp-strip').textContent.includes('turn 2 of 15') && pane.querySelector('.sp-strip .est').textContent.includes('ratio 1.06') && pane.querySelector('.sp-strip .live').classList.contains('idle'));
-check('closing card: counts, replay line, four links, dataset pill', pane.querySelector('.sp-done .grid').textContent.includes('2 of 15') && pane.querySelector('.sp-done .rep').textContent.includes('Replay reproduced') && pane.querySelectorAll('.sp-done a').length === 4 && pane.querySelector('.sp-done .sp-pill.ds'));
+check('closing card: counts, replay line, four links - and no dataset pill of its own (the pills ride once, under the REPLAY row; 2026-10-06)', pane.querySelector('.sp-done .grid').textContent.includes('2 of 15') && pane.querySelector('.sp-done .rep').textContent.includes('Replay reproduced') && pane.querySelectorAll('.sp-done a').length === 4 && !pane.querySelector('.sp-done .sp-pill.ds') && pane.querySelectorAll('.sp-pill.ds').length === 1);
 
 // 2. save to favourites = innerHTML; restore = innerHTML into a fresh element (a reload, a navigation arrow, a map click)
 w.paneHeartbeat({turn:9, of:15, spent:0.09, dollars:1.5, estimate:'x', mode:'Deep'});
@@ -117,6 +117,10 @@ w.paneSummary('Analyst: 12 calls, 143,000 tokens, $0.44\nImage Generator: 1 call
 check('telemetry: folded into the closing card as a collapsible pre', pane2.querySelector('.sp-done .sp-telemetry pre').textContent.includes('Analyst: 12 calls') && !pane2.querySelector('.sp-done .sp-telemetry').hasAttribute('open'));
 
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
+// a run of 239.6 s reads "4 min 0 s", not "3 min 60 s" (2026-10-06)
+w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneRunEnd({status:'answered', turns:15, of:15, cells:11, failed:2, cost:0.1, seconds:239.6, replay_status:'', replay_line:'', plots:0, files:[]});
+const doneCards = pane.querySelectorAll('.sp-done'); const lastDone = doneCards[doneCards.length - 1];
+check('closing card: seconds are rounded before the split into minutes and seconds', lastDone.querySelector('.grid').textContent.includes('4 min 0 s') && !lastDone.querySelector('.grid').textContent.includes('60 s'), lastDone.querySelector('.grid').textContent);
 // the peek is the step the analyst took, not its account of the last output (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:13, of:15, seat:'Analyst', model:'m'});
 w.paneTurnEnd({turn:13, kind:'cell', thinking:'Cell 6 printed the venue table. Now I fit the within-athlete regression, clustered by session.', note:'- Names: df', code:'print(1)', elapsed:1, cost:0.001});
