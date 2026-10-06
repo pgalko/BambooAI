@@ -111,8 +111,11 @@ After `REPORT`:
 **Modes and budgets.** Each mode sets a turn budget and a dollar budget the analyst can see. The
 budgets are per preset (`tier_properties` in the configuration). At the `performance` preset: Quick 4
 turns, Deep 15, Adaptive 50 with a review after every 8th turn. In Adaptive mode the review runs on
-the `Reviewer` seat - a stronger model with its own brief - which reads the question, the note and the
-results so far, and answers with one verdict: a test to run, a narrower conclusion, or report now.
+the `Reviewer` seat - a stronger model with its own brief - which reads the question, the note, the
+results so far, the analyst's turns since its last review and the code and output of the cells the
+current answer rests on (handed to it by the session, one call per review), and answers with one
+verdict: a test to run, a narrower conclusion, or report now. A verdict to report binds only when every
+cell it cites has been checked by a review.
 After the report, in Adaptive, the same reviewer reads the report against the question and adds
 a short note for the reader.
 

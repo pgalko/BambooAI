@@ -650,9 +650,8 @@ c = open(os.path.join(ROOT, "analyst", "contract.md")).read()
 # ---- the reviewer (2026-10-05): its own prompt and input, no actions; its review rides in the analyst's next prompts; a REPORT
 # ---- verdict binds; and once after every report, its note added for the reader
 from analyst.session import REVIEWER, parse_review, review_note
-REVIEWS_SCRIPT = ["###REVIEW###\n- The question requires: B against A with an interval.\n- Established: the means [cell 1].\n- Most consequential problem: no interval yet.\n- Verdict: TEST bootstrap the difference by subject",
-                  "SHOW 3",
-                  "###REVIEW###\n- **The question requires:** B against A with an interval.\n- **Established:** the difference and its interval [cell 3].\n- **Most consequential problem:** none\n- **Verdict:** **REPORT** the comparison is made and its uncertainty stated",
+REVIEWS_SCRIPT = ["###REVIEW###\n- The question requires: B against A with an interval.\n- Established: the means [cell 1].\n- Checked: cell 2 - computes the mean difference B vs A for 20 subjects; matches its line\n- Checked: cell 1 - the same, step 1; matches its line\n- Most consequential problem: no interval yet.\n- Verdict: TEST bootstrap the difference by subject\n- Re-check: cell 1",
+                  "###REVIEW###\n- **The question requires:** B against A with an interval.\n- **Established:** the difference and its interval [cell 3].\n- **Checked:** cell 4 - computes the step-4 difference; matches its line\n- **Checked:** cell 3 - computes the difference with its interval; matches its line\n- **Most consequential problem:** none\n- **Verdict:** **REPORT** the comparison is made and its uncertainty stated",
                   "###REVIEW###\n- The question requires: B against A with an interval.\n- Established: +1.5 (CI 0.2 to 2.8) [cell 3].\n- Most consequential problem: the difference by sex was not examined.\n- Verdict: TEST the difference by sex"]
 rv_calls, an_prompts, rv_starts, rv_ends, hints_seen = [], [], [], [], []
 rv_i = {"n": 0}
@@ -673,27 +672,33 @@ try:
 finally:
     k9.cleanup()
 an_tasks = [ln for u, _ in an_prompts for ln in u.splitlines() if ln.startswith("TASK:")]
-check("review: the reviewer is called with its own prompt, never the analyst's, as review=True; no analyst turn is review=True",
-      len(rv_calls) == 4 and all(sy == REVIEWER and h.get("review") is True for sy, _, h in rv_calls) and not any(h.get("review") for _, h in an_prompts),
+check("review: one call per review (2026-10-06: no SHOW rounds), on the reviewer's own prompt as review=True; no analyst turn is review=True",
+      len(rv_calls) == 3 and all(sy == REVIEWER and h.get("review") is True for sy, _, h in rv_calls) and not any(h.get("review") for _, h in an_prompts),
       ([h for _, _, h in rv_calls], [h for _, h in an_prompts]))
 check("review: reviews come after every 2nd turn and are not turns - the analyst's task lines run 1 to 5 without a gap",
       [t.split(";")[0] for t in an_tasks] == [f"TASK: turn {k}" for k in (1, 2, 3, 4, 5)], an_tasks)
+u1 = rv_calls[0][1]
+check("review: the first review's input - the question, the ledger, no earlier checks, all turns so far, and the cells to check: the results recorded so far, newest first, code and complete output",
+      "QUESTION:\nis B higher than A" in u1 and "RESULTS SO FAR:\n- [cell 1] B vs A step 1" in u1 and "CHECKED BY EARLIER REVIEWS:\n(none yet)" in u1
+      and "TURNS (the analyst's own account of each turn, its action, and the outcome):\n- turn 1: (no thinking written) | cell 1 -> RESULT: B vs A step 1" in u1
+      and "TO CHECK NOW (code and complete output; no review has checked these):\n--- cell 2 (a result recorded since the last review) ---\n```python\ne = 1.5\nRESULT('B vs A step 2" in u1
+      and "\nOUTPUT:\nRESULT: B vs A step 2" in u1 and "--- cell 1 (a result recorded since the last review) ---" in u1 and u1.rstrip().endswith("TURN: after turn 2; up to 12."), u1[-1500:])
 u2 = rv_calls[1][1]
-check("review: the reviewer reads the question, the results, the analyst's turns one entry each, its earlier review with the analyst's answer, the evidence since and the test's status, and the turn",
-      "QUESTION:\nis B higher than A" in u2 and "RESULTS SO FAR:\n- [cell 1] B vs A step 1" in u2
-      and "TURNS (the analyst's own account of each turn, its action, and the outcome; SHOW opens any cell or turn):\n- turn 1: (no thinking written) | cell 1 -> RESULT: B vs A step 1" in u2
-      and "- (review after turn 2: Verdict: TEST bootstrap the difference by subject)" in u2
+check("review: the second review's input - what the first review checked (its Checked lines), the earlier review with the analyst's answer and the test's status, only the turns since, the new cells and the one asked for again, not the one already checked",
+      "CHECKED BY EARLIER REVIEWS:\n- cell 1: the same, step 1; matches its line (review after turn 2)\n- cell 2: computes the mean difference B vs A for 20 subjects; matches its line (review after turn 2)" in u2
       and "EARLIER REVIEWS:\n- after turn 2: Verdict: TEST bootstrap the difference by subject\n  the analyst then:" in u2
-      and "  since then: cells 3, 4 committed; 0 failed attempts; 0 replies that ran nothing; cells that printed nothing: none" in u2
-      and "  RESULT lines since: [cell 3] B vs A step 3" in u2 and "  status: open - no RESULT line tagged (test after turn 2)" in u2
-      and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-1200:])
-u2b = rv_calls[2][1]
-check("review: the reviewer opened cell 3 - SHOW 3 - and its next call carries the cell's code and complete output; the review records it",
-      "CELLS YOU OPENED:\n--- cell 3 ---\n```python\ne = 1.5\nRESULT('B vs A step 3" in u2b and "\nOUTPUT:\nRESULT: B vs A step 3" in u2b
-      and "- Opened: cell 3" in [t for t in r9.turns if t.kind == "review"][1].note, u2b[-600:])
-check("review: the analyst's REVIEW block carries the TEST's status - open until a RESULT line tagged with it is printed",
+      and "  since then: cells 3, 4 committed; 0 failed attempts; cells that printed nothing: none" in u2 and '  status: open - no RESULT recorded with test="after turn 2"' in u2
+      and "TURNS SINCE YOUR LAST REVIEW (the analyst's own account of each turn, its action, and the outcome):\n- turn 3:" in u2 and "- turn 1:" not in u2
+      and "--- cell 4 (a result recorded since the last review) ---" in u2 and "--- cell 3 (a result recorded since the last review) ---" in u2
+      and "--- cell 1 (you asked to see it again) ---" in u2 and "--- cell 2 (" not in u2 and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-2500:])
+rv_turns = [t for t in r9.turns if t.kind == "review"]
+check("review: the review turn records the cells it was handed, its Checked lines and its Re-check; the card's lines carry them",
+      rv_turns[0].shown == [2, 1] and rv_turns[0].checked == [{"cell": 2, "text": "computes the mean difference B vs A for 20 subjects; matches its line"}, {"cell": 1, "text": "the same, step 1; matches its line"}]
+      and rv_turns[0].recheck == [1] and rv_turns[1].shown == [4, 3, 1] and "- Checked: cell 2 - computes the mean difference" in rv_turns[0].note
+      and "- Re-check: cell 1" in rv_turns[0].note and "- Shown: cell 2, cell 1" in rv_turns[0].note, (rv_turns[0].shown, rv_turns[0].checked, rv_turns[0].recheck, rv_turns[1].shown, rv_turns[0].note))
+check("review: the analyst's REVIEW block carries the TEST's status - open until a RESULT recorded with it",
       "- Status: open - no RESULT line tagged (test after turn 2) yet" in an_prompts[2][0], an_prompts[2][0][-400:])
-# a tagged RESULT line answers the test: the status says so, in the analyst's block and in the reviewer's input
+# a tagged RESULT answers the test: the status says so, in the analyst's block and in the reviewer's input
 tg_prompts, tg_rv = [], []
 def tagged_llm(system, user, **h):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
@@ -711,22 +716,23 @@ try:
     rt = Session(kt, nbt, tagged_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0, review_every=2))
 finally:
     kt.cleanup()
-check("review: a RESULT recorded with test='after turn 2' answers the test - the analyst's next block and the reviewer's next input say 'answered by [cell 3]', and the REPORT verdict ends the run",
-      "- Status: answered by [cell 3]" in tg_prompts[3] and "  status: answered by [cell 3]" in tg_rv[1] and rt.status == "answered", (tg_prompts[3][-300:], tg_rv[1][-500:] if len(tg_rv) > 1 else ""))
+check("review: a RESULT recorded with test='after turn 2' answers the test - the analyst's next block and the reviewer's next input say 'answered by [cell 3]', the tagged cell is handed over, and the REPORT verdict ends the run",
+      "- Status: answered by [cell 3]" in tg_prompts[3] and "  status: answered by [cell 3]" in tg_rv[1] and "--- cell 3 (tagged as answering the TEST after turn 2) ---" in tg_rv[1] and rt.status == "answered",
+      (tg_prompts[3][-300:], tg_rv[1][-900:] if len(tg_rv) > 1 else ""))
 p3 = an_prompts[2][0]
 check("review: the review rides in the analyst's next prompts under REVIEW, above the task line, until the next one",
       "REVIEW (after turn 2 - answer it in your THINKING):\n- The question requires: B against A with an interval." in p3 and p3.index("REVIEW (after turn 2") < p3.index("TASK: turn 3")
       and "REVIEW (after turn 2" in an_prompts[3][0], p3[-500:])
 p5 = an_prompts[4][0]
-check("review: a REPORT verdict binds - the next turn is the report: every cell in view, the review above, the report-now line - and the run is answered",
+check("review: a REPORT verdict citing a cell handed to it binds - the next turn is the report: every cell in view, the review above, the report-now line - and the run is answered",
       "REVIEW (after turn 4 - answer it in your THINKING):" in p5 and "- Verdict: REPORT the comparison is made" in p5 and "this turn is the report. Write REPORT now." in p5
       and "TASK: turn 5;" in p5 and r9.status == "answered" and len(an_prompts) == 5, (r9.status, len(an_prompts), p5[-400:]))
-u3 = rv_calls[3][1]
-check("review after the report: the report is read instead of the note, the input says the analysis is over, and the note is added to the report",
+u3 = rv_calls[2][1]
+check("review after the report: the report is read instead of the note, the input says the analysis is over, the cells it cites that were checked are not sent again, and the note names the cells checked",
       "THE REPORT:\n## r" in u3 and "THE ANALYST'S NOTE" not in u3 and "The analysis is over; this review is added to the report." in u3
-      and r9.report.rstrip().endswith("> **Reviewer's note.** The question requires: B against A with an interval. Not established: the difference by sex was not examined. The analysis that would settle it: the difference by sex. The reviewer did not open the cells it cites."),
-      r9.report[-300:])
-rv_turns = [t for t in r9.turns if t.kind == "review"]
+      and "TO CHECK NOW (code and complete output; no review has checked these):\n(nothing new to check" in u3
+      and r9.report.rstrip().endswith("> **Reviewer's note.** The question requires: B against A with an interval. Not established: the difference by sex was not examined. The analysis that would settle it: the difference by sex. Checked against the code of cell 3."),
+      (u3[-700:], r9.report[-300:]))
 check("review: recorded as turns of kind review with their verdict and lines; the pane gets a Review card for each",
       [t.text for t in rv_turns] == ["after turn 2", "after turn 4", "after the report"] and rv_turns[1].thinking.startswith("Verdict: REPORT")
       and sum(1 for e in rv_starts if e.get("turn") == "review" and e.get("review")) == 3 and sum(1 for e in rv_ends if e.get("kind") == "review") == 3
@@ -737,7 +743,7 @@ check("contract: the Reviews section only when a reviewer runs - none, and no re
       and "## Reviews" not in CONTRACT and contract(True, 8).index("## Reviews") < contract(True, 8).index("## The note"))
 check("rewrite: the plain-language rewrite call carries rewrite=True and no other call does",
       sum(1 for h in hints_seen if h.get("rewrite")) == 1, hints_seen)
-# a REPORT on cells the reviewer did not open is advice: the run goes on, and the analyst's block says why
+# a REPORT citing a cell no review has checked is advice: the run goes on, and the analyst's block says why
 ad_prompts, ad_rv = [], []
 def advice_llm(system, user, **h):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
@@ -751,9 +757,10 @@ try:
     ra = Session(ka, nba, advice_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0, review_every=2))
 finally:
     ka.cleanup()
-check("review: a REPORT citing a cell the reviewer did not open does not bind - the run goes on, and the analyst's block says it is advice and why",
-      len(ad_prompts) == 4 and "- Status: advice, not binding - the reviewer did not open cell 1, which it cites." in ad_prompts[2] and ra.status == "answered",
-      (len(ad_prompts), ad_prompts[2][-400:] if len(ad_prompts) > 2 else ""))
+check("review: a REPORT citing a cell no review has checked (its cells recorded nothing, so nothing was handed over) does not bind - the run goes on, and the analyst's block says it is advice and why",
+      len(ad_prompts) == 4 and "- Status: advice, not binding - no review has checked cell 1, which it cites." in ad_prompts[2] and ra.status == "answered"
+      and "TO CHECK NOW (code and complete output; no review has checked these):\n(nothing new to check" in ad_rv[0],
+      (len(ad_prompts), ad_prompts[2][-400:] if len(ad_prompts) > 2 else "", ad_rv[0][-400:]))
 from analyst.session import result_lines, Run as _Run, Turn as _Turn
 _rc = _Run(id="rc", question="q", parent=None)
 _rc.turns = [_Turn(kind="cell", cell_no=1, code="x", results=[{"text": "slope within athletes, 54 sessions: -2.1 (95% CI -17.9 to +13.7)", "typed": False, "test": None, "corrects": None}]),
@@ -764,16 +771,19 @@ check("ledger: a RESULT recorded with corrects=1 marks cell 1's line as correcte
 _log = Session._turn_log(r3) + Session._turn_log(r2)
 check("the reviewer's turn log: a failed attempt with its error, and a committed cell with its first line",
       any("cell failed, rolled back -> " in x for x in _log) and any(re.search(r"\| cell \d+ -> ", x) for x in _log), _log[:6])
-from analyst.session import show_request, cited_cells
-check("show_request: a placeholder review with no verdict and a SHOW line is a request (2026-10-05: such a reply had been dropped whole)",
-      show_request("###REVIEW###\n- The question requires: X\n- Established: pending\n- Most consequential problem: pending\n- Verdict: pending cell inspection.\n\nSHOW 5 6") == ([5, 6], []))
-check("show_request: SHOW 12 14 and SHOW turn 22 are requests; a review is not", show_request("SHOW 12 14") == ([12, 14], []) and show_request("SHOW turn 22") == ([], [22])
-      and show_request("###REVIEW###\n- Verdict: REPORT [cell 3]") is None, (show_request("SHOW 12 14"), show_request("SHOW turn 22")))
+from analyst.session import cited_cells
+prc = parse_review("###REVIEW###\n- The question requires: X\n- Established: +1 [cell 3]\n- Checked: cell 3 - computes X for 20 subjects; matches its line\n- Checked: cell 7 - labelled within-athlete; no athlete term: pooled.\n  Does not match.\n- Most consequential problem: cell 7's label\n- Verdict: TEST refit with the athlete term\n- Re-check: cells 7, 9")
+check("parse_review: several Checked lines are kept, one per cell, a run-on line joined; Re-check names cells; the lines carry them in order",
+      prc and prc["checked"] == [(3, "computes X for 20 subjects; matches its line"), (7, "labelled within-athlete; no athlete term: pooled. Does not match.")] and prc["recheck"] == [7, 9]
+      and prc["lines"].splitlines()[2:4] == ["- Checked: cell 3 - computes X for 20 subjects; matches its line", "- Checked: cell 7 - labelled within-athlete; no athlete term: pooled. Does not match."]
+      and prc["lines"].splitlines()[-1] == "- Re-check: cell 7, cell 9", prc)
 check("cited_cells: [cell 11], [cells 11, 13], [cell 11, cell 13] all read", cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]") == [11, 12, 13, 14, 15], cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]"))
 check("contract: a correction is recorded with corrects=14, and the earlier line is marked", "`corrects=14`" in c_all and "cell 14's line is marked as corrected" in c_all)
-check("contract (Adaptive): a REPORT whose cited cells the reviewer did not open is advice", "unless its status says the reviewer did not open the cells it cites: then it is advice" in contract(False, 8))
-check("reviewer prompt: it may open cells, a RESULT line is not proof of its label, and REPORT binds only on cells opened",
-      "`SHOW turn 22`" in REVIEWER and "not proof that its label describes what the code computed" in REVIEWER and "only when you opened every cell you cite" in REVIEWER)
+check("contract (Adaptive): a REPORT citing a cell not checked is advice; the reviewer reads the cells the estimate rests on",
+      "unless its status says a cell it cites has not been checked: then it is advice" in contract(False, 8) and "the code and output of the cells your estimate rests on" in contract(False, 8))
+check("reviewer prompt: the cells to check are handed to it, one Checked line per cell, Re-check for a second look, REPORT binds only on checked cells; no SHOW",
+      "TO CHECK NOW" in REVIEWER and "Write one Checked line per cell" in REVIEWER and "name that\ncell under Re-check" in REVIEWER
+      and "It binds only when every cell you cite has been checked" in REVIEWER and "SHOW" not in REVIEWER and "not proof that its label describes what the code computed" in REVIEWER)
 # ---- the standing rule (2026-10-05): no task-specific or model-specific content in any prompt. Every authored text a model
 # ---- reads is scanned for the vocabulary of the tasks this agent was tested on; docstrings and comments are not prompts.
 import ast as _ast

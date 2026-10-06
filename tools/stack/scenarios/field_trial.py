@@ -196,13 +196,14 @@ class Scenario:
         if "infographic" in user[:400].lower() or "infographic" in system[:400].lower():
             return "", ""
         if system.startswith("You are the reviewer"):
-            # as the brief asks: open the cell the verdict rests on, then review citing it (a REPORT binds only then)
-            cells = [int(n) for n in re.findall(r"\bcell (\d+)\b", user)]
+            # as the brief asks (2026-10-06): the cells to check are handed over under TO CHECK NOW; one Checked line per
+            # cell, and a REPORT citing a checked cell binds
+            handed = [int(n) for n in re.findall(r"^--- cell (\d+) \(", user, re.M)]
+            cells = handed or [int(n) for n in re.findall(r"\bcell (\d+)\b", user)]
             last = max(cells) if cells else 1
-            if cells and "CELLS YOU OPENED" not in user and "The analysis is over" not in user:
-                return "", f"SHOW {last}"
+            checked = "".join(f"- Checked: cell {n} - computes the comparison its line names; matches its line\n" for n in handed)
             return "", ("###REVIEW###\n- The question requires: the comparison the question names, with its uncertainty.\n"
-                        f"- Established: the comparison was made and its interval printed [cell {last}].\n"
+                        f"- Established: the comparison was made and its interval printed [cell {last}].\n" + checked +
                         "- Most consequential problem: none\n"
                         f"- Verdict: REPORT the comparison the question requires is made and its uncertainty stated [cell {last}].")
         if system.startswith("You are the analyst"):

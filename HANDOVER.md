@@ -180,6 +180,17 @@
   Executor build v48. (2) The step sentence split at abbreviations - "(e.g. Jan Meda", "i.e. it is venue" - so
   one-liners began mid-sentence; sentences no longer end at e.g., i.e., vs., cf., etc., an initial, in the
   notebook and in the pane's peek.
+- **The reviewer gets its evidence in one call (2026-10-06), replacing the SHOW rounds.** The rounds re-sent the whole
+  input each time (48% of an Adaptive run's cost), the reviewer drafted a review before asking, and it cited cells it
+  had not opened while saying it had checked them. Now the session hands it the cells to check under TO CHECK NOW: the
+  cells behind the best estimate (cited by its line, or whose RESULT line carries its numbers), those tagged as
+  answering a TEST, then those that recorded a result since the last review, and a cell the last review asked to see
+  again - up to 20,000 characters, the rest named; after the report, the cells the report cites. A cell handed to an
+  earlier review is not sent again: its Checked line rides under CHECKED BY EARLIER REVIEWS (the verification ledger,
+  Turn.shown/checked/recheck). The turn log covers the turns since the last review. A REPORT binds only when every
+  cell it cites has been checked, in this review or an earlier one; otherwise it is advice and the analyst's block says
+  which cell. The reader's note names the cited cells checked and not checked. The reviewer's brief has TO CHECK NOW,
+  Checked and Re-check lines, and no SHOW.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

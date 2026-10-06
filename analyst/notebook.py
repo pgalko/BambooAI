@@ -84,6 +84,9 @@ class Turn:
     cell_no: Optional[int] = None   # CELL: its number along the path (only committed cells get one)
     text: str = ""                  # ask/report/rewrite: the analyst's text
     usage: dict = field(default_factory=dict)            # tokens, cost, elapsed for the model call
+    shown: List[int] = field(default_factory=list)       # REVIEW: the cells handed to this review, code and output
+    checked: List[dict] = field(default_factory=list)    # REVIEW: the verification ledger entries it wrote ({cell, text})
+    recheck: List[int] = field(default_factory=list)     # REVIEW: cells it asked to see again at the next review
     elapsed: float = 0.0            # CELL: seconds the kernel took to run it
     created: float = field(default_factory=_now)
 
