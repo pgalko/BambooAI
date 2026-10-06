@@ -191,6 +191,16 @@
   cell it cites has been checked, in this review or an earlier one; otherwise it is advice and the analyst's block says
   which cell. The reader's note names the cited cells checked and not checked. The reviewer's brief has TO CHECK NOW,
   Checked and Re-check lines, and no SHOW.
+- **Seen on the first 0083 run (2026-10-06):** one call per review (three calls, 35,700 input tokens against six calls
+  and 60,000 before); the first review's Checked line on cell 5 - a substantive one - rode into the second review;
+  the test's tagged answer was handed to the review that checked it; no cell sent twice. The reviewer wrote a Checked
+  line for only some of the cells handed to it (one of three, one of four), which is fine - a handed cell counts as
+  checked - and still cited cells it was never handed, which the reader's note now names as not checked. The review
+  after the report ran to 16,700 tokens: its evidence budget is now three fifths of the mid-run one (the report is
+  in view), and earlier verdicts are capped at 400 characters in EARLIER REVIEWS.
+- **docs/RUN_ASSESSMENT_2026-10-06.md:** the altitude question across 21 runs - the spread of headlines against D1,
+  what every solution shares, what decides where one lands (the comparison chosen; effort as a covariate, never as
+  strata), and how to score a new run. Mechanics improve patch by patch; substance has not moved.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

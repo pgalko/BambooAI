@@ -896,12 +896,13 @@ class Session:
         for n in recheck:
             want(n, "you asked to see it again")
         parts, sent, left, used = [], [], [], 0
+        budget_chars = REVIEW_EVIDENCE_CHARS if report is None else REVIEW_EVIDENCE_CHARS * 3 // 5   # the report itself is in view
         for n, reason in why.items():
             c = cells[n]
             out = c.stdout or ""
             out = out if len(out) <= REVIEW_OPEN_CHARS else out[:REVIEW_OPEN_CHARS] + "\n... [output cut for length]"
             block = f"--- cell {n} ({reason}) ---\n```python\n{(c.code or '').rstrip()}\n```\nOUTPUT:\n{out.rstrip() or '(printed nothing)'}"
-            if used + len(block) > REVIEW_EVIDENCE_CHARS and sent:
+            if used + len(block) > budget_chars and sent:
                 left.append(n)
                 continue
             parts.append(block); sent.append(n); used += len(block)
@@ -929,7 +930,8 @@ class Session:
                 nxt = next((y for y in run.turns[j + 1:] if y.kind not in ("review", "rewrite")), None)
                 answer = _first_sentence(nxt.thinking) if nxt is not None and nxt.thinking else "(no turn since)"
                 ev = self._since_review(run, j)
-                entry = [f"- {x.text}: {x.thinking}", f"  the analyst then: {answer}",
+                verdict = x.thinking if len(x.thinking) <= 400 else x.thinking[:397].rsplit(" ", 1)[0] + "..."   # the analyst saw it whole
+                entry = [f"- {x.text}: {verdict}", f"  the analyst then: {answer}",
                          f"  since then: cells {', '.join(map(str, ev['cells'])) or 'none'} committed; {ev['failed']} failed attempts; "
                          f"cells that printed nothing: {', '.join(map(str, ev['empty'])) or 'none'}"]
                 if x.thinking.startswith("Verdict: TEST"):
