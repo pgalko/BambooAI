@@ -535,6 +535,21 @@ _lines = lambda t: [ln.split(" - typed:")[0] for ln in t.splitlines() if ln.star
 check("replay: a replayed cell's RESULT(...) runs where the runtime has no kernel, and prints the kernel's line to the character (the typed mark aside, which the ledger does not take from the replay)",
       _lines(_kout) == _lines(_rout.getvalue()) and len(_lines(_kout)) == 5, (_lines(_kout), _lines(_rout.getvalue())))
 
+# the one-liners (2026-10-06): what a cell was for comes from the analyst's account of the step, what came out from a
+# printed fact; a failed attempt the same way; code is read only when there is no account
+from analyst.notebook import step_sentence, purpose_of, Notebook as _NB
+_t_ok = Turn(kind="cell", cell_no=7, thinking="Cell 6 printed the venue table. Now I fit the within-athlete regression of pace on altitude, clustered by session.",
+             code="import pandas as pd\nm = fit(u)", stdout="laps for model: 14946\nRESULT: slope, pooled: +0.59 (95% CI +0.49 to +0.69) min/km",
+             results=[{"text": "slope, pooled: +0.59 (95% CI +0.49 to +0.69) min/km", "typed": False, "test": None, "corrects": None}])
+_t_fail = Turn(kind="cell", thinking="The last cell gave the table. Now I refit with surface held fixed.", code="import numpy as np\nx = 1/0", error="Traceback...\nZeroDivisionError: division by zero")
+_t_bare = Turn(kind="cell", cell_no=2, thinking="", code="import pandas as pd\npd.set_option('display.width', 200)\nprint(df.groupby('arm').size())", stdout="arm\nA 100\nB 100")
+check("one-liner: a collapsed cell is described by the step the analyst wrote (second sentence on) and by its first RESULT line",
+      _NB.headline(_t_ok) == "[cell 7] Now I fit the within-athlete regression of pace on altitude, clustered by session.  ->  RESULT: slope, pooled: +0.59 (95% CI +0.49 to +0.69) min/km", _NB.headline(_t_ok))
+check("one-liner: a failed attempt - the step it tried, then the error", purpose_of(_t_fail) == "Now I refit with surface held fixed." and _NB.headline(_t_fail).endswith("->  ERROR: ZeroDivisionError: division by zero"), _NB.headline(_t_fail))
+check("one-liner: without an account the code's first working statement stands, never an import or an option line",
+      purpose_of(_t_bare) == "print(df.groupby('arm').size())" and _NB.headline(_t_bare).endswith("->  arm"), (purpose_of(_t_bare), _NB.headline(_t_bare)))
+check("step_sentence: a one-sentence account is the step itself; a long one is cut at a word", step_sentence("Just this one sentence.") == "Just this one sentence." and step_sentence("First. " + "word " * 60).endswith("...") and len(step_sentence("First. " + "word " * 60)) <= 114)
+
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
 SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i in range(6)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nDone."]
 seen_s = {"prompts": []}

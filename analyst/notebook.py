@@ -30,6 +30,31 @@ def new_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
+def step_sentence(thinking: str, width: int = 110) -> str:
+    """The analyst's account of the step: its THINKING from the second sentence on - the first, by the contract's
+    order, says what the last output showed - cut at a word to `width`. A one-sentence THINKING is the step itself."""
+    text = " ".join((thinking or "").split())
+    if not text:
+        return ""
+    sents = re.split(r"(?<=[.!?])\s+", text)
+    body = " ".join(sents[1:]) if len(sents) > 1 else text
+    return body if len(body) <= width else body[:width].rsplit(" ", 1)[0].rstrip(",;:") + "..."
+
+
+def purpose_of(turn: "Turn", width: int = 110) -> str:
+    """What a cell was for: the analyst's account of the step; without one, the code's first comment, else its first
+    working statement (not an import, not an option setting)."""
+    what = step_sentence(turn.thinking, width)
+    if what:
+        return what
+    lines = [ln.strip() for ln in (turn.code or "").splitlines() if ln.strip()]
+    comment = next((ln.lstrip("# ").strip() for ln in lines if ln.startswith("#") and ln.lstrip("# ").strip()), "")
+    if comment:
+        return comment[:width]
+    boiler = re.compile(r"^(import |from |pd\.set_option|plt\.rcParams|warnings\.|%)")
+    return next((ln for ln in lines if not ln.startswith("#") and not boiler.match(ln)), lines[0] if lines else "")[:width]
+
+
 @dataclass
 class Turn:
     kind: str                       # cell | show | names | recall | search | read | ask | report | rewrite | review | error
@@ -119,19 +144,22 @@ class Notebook:
 
     # ----- rendering for the analyst's context ----------------------------
     @staticmethod
-    def headline(turn: Turn, width: int = 160) -> str:
-        """One line for a collapsed cell: number, what it was for (its first
-        comment, else its first code line), and its first output line. A
-        summary with a handle: SHOW n opens the whole cell."""
-        lines = [ln.strip() for ln in (turn.code or "").splitlines() if ln.strip()]
-        first_comment = next((ln.lstrip("# ").strip() for ln in lines if ln.startswith("#")), "")
-        first_code = next((ln for ln in lines if not ln.startswith("#")), "")
-        what = first_comment[:70] if first_comment else first_code[:60]
-        first_out = next((ln.strip() for ln in (turn.stdout or "").splitlines() if ln.strip()), "")
+    def headline(turn: Turn, width: int = 240) -> str:
+        """One line for a collapsed cell: its number, what it was for, and what came out. What it was for is the
+        analyst's own account of the step - its THINKING from the second sentence on (the first, by the contract's
+        order, is what the last output showed) - and only without one the code's first comment or first working
+        statement (2026-10-06: "import pandas as pd" had stood for three cells of five). What came out is a printed
+        fact: the first RESULT line the kernel recorded, else the first printed line; for a failed attempt, the error.
+        A summary with a handle: SHOW n opens the whole cell."""
+        what = purpose_of(turn)
         if turn.error:
             from .tools import exception_line
-            first_out = "ERROR: " + exception_line(turn.error)[:70]
-        line = f"[cell {turn.cell_no}] {what}  ->  {first_out}"
+            out = "ERROR: " + exception_line(turn.error)[:90]
+        elif turn.results:
+            out = "RESULT: " + turn.results[0].get("text", "")[:110]
+        else:
+            out = next((ln.strip() for ln in (turn.stdout or "").splitlines() if ln.strip()), "")[:90]
+        line = f"[cell {turn.cell_no}] {what}  ->  {out}"
         return line[:width]
 
     REPORT_VIEW_CHARS = 160_000   # the report turn's total for outputs (~40k tokens); only a pathological print reaches it
@@ -156,8 +184,7 @@ class Notebook:
         if failed:
             from .tools import exception_line
             failed_lines = "\nFAILED ATTEMPTS THIS RUN (rolled back, nothing persisted):\n" + "\n".join(
-                f"- {next((ln.strip() for ln in (t.code or '').splitlines() if ln.strip() and not ln.strip().startswith('#')), '')[:60]}"
-                f"  ->  {exception_line(t.error)[:110]}" for t in failed[-5:])
+                f"- {purpose_of(t)}  ->  {exception_line(t.error)[:110]}" for t in failed[-5:])
         if not cells:
             return "(no cells yet)" + failed_lines
         older, latest = cells[:-recent] if recent else cells, cells[-recent:] if recent else []

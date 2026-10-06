@@ -42,6 +42,15 @@
         const s = (m ? m[1] : t);
         return s.length > (max || 140) ? s.slice(0, (max || 140) - 1) + '…' : s;
     }
+    // the step itself: the THINKING from its second sentence on - the first, by the contract's order, is what the last
+    // output showed (2026-10-06: the card's peek had described the previous turn); a one-sentence THINKING is the step
+    function stepSentence(text, max) {
+        const t = String(text || '').replace(/\s+/g, ' ').trim();
+        if (!t) return '';
+        const parts = t.split(/(?<=[.!?])\s+/);
+        const s = parts.length > 1 ? parts.slice(1).join(' ') : t;
+        return s.length > (max || 140) ? s.slice(0, (max || 140) - 1) + '…' : s;
+    }
     function firstCodeLine(code) {
         const lines = String(code || '').split('\n');
         for (const ln of lines) {
@@ -268,7 +277,7 @@
         if (t.turn === -1) { card.classList.add('lost'); card.removeAttribute('open'); return; }
         const kind = card.querySelector('summary .kind'); if (kind) kind.textContent = kindLabel(t.kind);
         const peek = card.querySelector('summary .peek');
-        if (peek) peek.textContent = t.peek || firstSentence(t.thinking, 120) || firstCodeLine(t.code);
+        if (peek) peek.textContent = t.peek || stepSentence(t.thinking, 120) || firstCodeLine(t.code);
         const meta = card.querySelector('summary .meta');
         // a self-review turn keeps its seat and model on the finished card (2026-09-10): the Reviewer's model is visible
         if (meta) meta.textContent = [t.elapsed != null ? fmtSecs(t.elapsed) : '', t.cost != null ? fmtCost(t.cost) : '',

@@ -117,6 +117,11 @@ w.paneSummary('Analyst: 12 calls, 143,000 tokens, $0.44\nImage Generator: 1 call
 check('telemetry: folded into the closing card as a collapsible pre', pane2.querySelector('.sp-done .sp-telemetry pre').textContent.includes('Analyst: 12 calls') && !pane2.querySelector('.sp-done .sp-telemetry').hasAttribute('open'));
 
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
+// the peek is the step the analyst took, not its account of the last output (2026-10-06)
+w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:13, of:15, seat:'Analyst', model:'m'});
+w.paneTurnEnd({turn:13, kind:'cell', thinking:'Cell 6 printed the venue table. Now I fit the within-athlete regression, clustered by session.', note:'- Names: df', code:'print(1)', elapsed:1, cost:0.001});
+const peek13 = Array.from(pane.querySelectorAll('.sp-turn')).pop().querySelector('summary .peek');
+check('peek: a two-sentence THINKING shows the step (its second sentence), not what the last output showed', peek13 && peek13.textContent.startsWith('Now I fit the within-athlete regression'), peek13 && peek13.textContent);
 // a stored note with bold markers around a heading: the grid shows the heading plain
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:12, of:15, seat:'Analyst', model:'m'}); w.paneTurnEnd({turn:12, kind:'cell', thinking:'t', note:'- **Best estimate so far:** 7.4%\n- Names: df', code:'print(1)', elapsed:1, cost:0.001});
 const boldRow = Array.from(pane.querySelectorAll('.sp-note b')).map(b => b.textContent);

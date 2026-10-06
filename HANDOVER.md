@@ -168,9 +168,11 @@
   different actions runs the first, and the next prompt says the rest did not run - refusing it had cost one or two
   turns a run (the first two turns of that Deep run, both restarts). (2) The budget line and the whole view come on the
   last turn itself, not the one before: Deep had 14 working turns of 15. (3) The ledger does not repeat the newest
-  cell's RESULT lines while that cell's output is in view whole. Still open: the one-line summaries of collapsed
-  and failed cells describe a cell by its first code line when it has no comment - "import pandas as pd" - to be
-  replaced by the analyst's own account of the step.
+  cell's RESULT lines while that cell's output is in view whole. (4) The one-line summaries of collapsed and failed
+  cells, and the pane card's peek, describe a cell by the analyst's own account of the step - its THINKING from the
+  second sentence on, the first being what the last output showed - and what came out by a printed fact: the first
+  RESULT line the kernel recorded, else the first printed line, or the error. Code is read only without an account,
+  and then never an import or an option line ("import pandas as pd" had stood for three cells of five).
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
