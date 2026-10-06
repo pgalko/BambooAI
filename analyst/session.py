@@ -185,7 +185,8 @@ def review_note(rv: dict) -> str:
     read = (f" Checked against the code of {', '.join(f'cell {c}' for c in seen)}." if seen else "") + (
         f" Not checked: {', '.join(f'cell {c}' for c in unseen)}." if unseen else "")
     if rv["verdict"] == "REPORT":
-        return f"**Reviewer's note.** The question requires: {req}. The report answers it as asked" + (f": {arg}." if arg else ".") + read
+        caution = "" if problem.lower() in ("", "none", "nothing") else f" One caution: {problem}."   # 2026-10-06: a REPORT verdict had found a misstated bound and the note did not say so
+        return f"**Reviewer's note.** The question requires: {req}. The report answers it as asked" + (f": {arg}." if arg else ".") + caution + read
     if rv["verdict"] == "TEST":
         return f"**Reviewer's note.** The question requires: {req}. Not established: {problem}. The analysis that would settle it: {arg}.{read}"
     return f"**Reviewer's note.** The question requires: {req}. {problem}. The evidence supports a narrower conclusion: {arg}.{read}"
@@ -871,7 +872,10 @@ class Session:
         latest = next((x for x in reversed(run.turns) if x.kind == "review" and x.text != "after the report"), None)
         if latest is None:
             return ""
-        block = f"REVIEW ({latest.text} - answer it in your THINKING):\n" + latest.note
+        # the Re-check and Shown lines are the session's, not the analyst's (2026-10-06: the analyst read "Re-check: cell 17,
+        # cell 18" as an instruction to itself and spent six turns re-opening those cells)
+        own = "\n".join(ln for ln in latest.note.splitlines() if not ln.startswith(("- Re-check:", "- Shown:")))
+        block = f"REVIEW ({latest.text} - answer it in your THINKING):\n" + own
         if latest.thinking.startswith("Verdict: TEST"):
             done = self._test_answers(run, latest.text)
             block += ("\n- Status: answered by " + ", ".join(f"[cell {c}]" for c in done) if done

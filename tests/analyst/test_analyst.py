@@ -746,9 +746,10 @@ check("review: a RESULT recorded with test='after turn 2' answers the test - the
       "- Status: answered by [cell 3]" in tg_prompts[3] and "  status: answered by [cell 3]" in tg_rv[1] and "--- cell 3 (tagged as answering the TEST after turn 2) ---" in tg_rv[1] and rt.status == "answered",
       (tg_prompts[3][-300:], tg_rv[1][-900:] if len(tg_rv) > 1 else ""))
 p3 = an_prompts[2][0]
-check("review: the review rides in the analyst's next prompts under REVIEW, above the task line, until the next one",
+check("review: the review rides in the analyst's next prompts under REVIEW, above the task line, until the next one - without the Re-check and Shown lines, which are the session's",
       "REVIEW (after turn 2 - answer it in your THINKING):\n- The question requires: B against A with an interval." in p3 and p3.index("REVIEW (after turn 2") < p3.index("TASK: turn 3")
-      and "REVIEW (after turn 2" in an_prompts[3][0], p3[-500:])
+      and "REVIEW (after turn 2" in an_prompts[3][0] and "- Re-check:" not in p3[p3.index("REVIEW (after turn 2"):] and "- Shown:" not in p3[p3.index("REVIEW (after turn 2"):]
+      and "- Checked: cell 2" in p3[p3.index("REVIEW (after turn 2"):], p3[-700:])
 p5 = an_prompts[4][0]
 check("review: a REPORT verdict citing a cell handed to it binds - the next turn is the report: every cell in view, the review above, the report-now line - and the run is answered",
       "REVIEW (after turn 4 - answer it in your THINKING):" in p5 and "- Verdict: REPORT the comparison is made" in p5 and "this turn is the report. Write REPORT now." in p5
@@ -811,6 +812,10 @@ check("disputed: a Checked line saying the cell's line does not describe its cod
       (dp_prompts[3][-600:], dp_rv[1][-900:] if len(dp_rv) > 1 else ""))
 check("disputed: a report citing the disputed cell is flagged for the reader",
       "> CHECK: this report cites cell 1, whose RESULT line the review after turn 2 found does not describe its code. Treat what it quotes from there as unverified." in rd.report, rd.report[-400:])
+check("reviewer's note: a REPORT verdict whose problem is not 'none' carries it to the reader as a caution",
+      review_note({"verdict": "REPORT", "requires": "X", "arg": "established", "problem": "the summary understates the lower bound", "established": "", "checked_cells": [3], "cited": [3]})
+      == "**Reviewer's note.** The question requires: X. The report answers it as asked: established. One caution: the summary understates the lower bound. Checked against the code of cell 3."
+      and " One caution" not in review_note({"verdict": "REPORT", "requires": "X", "arg": "ok", "problem": "none", "established": "", "checked_cells": [], "cited": []}))
 from analyst.session import checked_ok, disputed_cells, Run as _Run, Turn as _Turn
 check("checked_ok: 'matches its line' is fine, 'does not match' is not, a line with both ('matches ..., but does not cover ...') stays fine",
       checked_ok("computes the difference; matches its line") and not checked_ok("labelled within-athlete; no athlete term: pooled. Does not match.")

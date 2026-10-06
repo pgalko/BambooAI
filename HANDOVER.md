@@ -225,6 +225,17 @@
   (the standing rule's scan covers the brief). The measure of success is in docs/RUN_ASSESSMENT_2026-10-06.md: whether
   the TEST verdicts change kind - a split by a recorded condition where every run so far restricted or adjusted.
   Palo chose not to hand the reviewer the list of unused columns.
+- **The first run under 0088 (2026-10-06, Adaptive, 40 turns, $0.65).** The lenses changed the reviewer: its first
+  review's heterogeneity line noticed the two arms sat at different effort levels, and its TEST asked for the
+  comparison within comparable easy effort without conditioning on it - the first split by a recorded condition in
+  22 runs, where every earlier test restricted or adjusted. The analyst followed; the headline became an
+  effort-stratified bracket (+4.0%/1000 m at easy effort, hard effort not estimable, a 4-athlete sea anchor), in the
+  reference answer's magnitude for the first time though in the other stratum. Later lenses raised terrain
+  measurement and the surface/temperature confound; the review after the report caught a misstated bound in the
+  reader-facing text. Reviews ran 4,000-8,000 output tokens; the reviewer was $0.21 of the run. Two fixes: the
+  Re-check and Shown lines were riding into the analyst's REVIEW block and the analyst read "Re-check: cell 17,
+  cell 18" as an instruction to itself - six turns of SHOW; they are the session's and stay out of the block now.
+  And a REPORT verdict's "most consequential problem", when not "none", now reaches the reader's note as a caution.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
