@@ -173,6 +173,13 @@
   second sentence on, the first being what the last output showed - and what came out by a printed fact: the first
   RESULT line the kernel recorded, else the first printed line, or the error. Code is read only without an account,
   and then never an import or an option line ("import pandas as pd" had stood for three cells of five).
+- **Two faults from the first run under 0080/0081 (2026-10-06).** (1) RESULT marked thirteen computed lines as typed:
+  the analyst had passed its values starred - RESULT("...", *fit()[:3], "units", "up") - so the unit and the
+  direction strings sat in the numeric slots and a string constant counted as a literal. Only numeric constants
+  count now, and a starred argument leaves the positions alone (a text estimate is still caught at runtime).
+  Executor build v48. (2) The step sentence split at abbreviations - "(e.g. Jan Meda", "i.e. it is venue" - so
+  one-liners began mid-sentence; sentences no longer end at e.g., i.e., vs., cf., etc., an initial, in the
+  notebook and in the pane's peek.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

@@ -39,7 +39,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-06 v47 (RESULT in the kernel)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-06 v48 (RESULT: typed numbers, not strings or starred calls)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 

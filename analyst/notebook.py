@@ -36,9 +36,25 @@ def step_sentence(thinking: str, width: int = 110) -> str:
     text = " ".join((thinking or "").split())
     if not text:
         return ""
-    sents = re.split(r"(?<=[.!?])\s+", text)
+    sents = split_sentences(text)
     body = " ".join(sents[1:]) if len(sents) > 1 else text
     return body if len(body) <= width else body[:width].rsplit(" ", 1)[0].rstrip(",;:") + "..."
+
+
+_ABBREV_RE = re.compile(r"(?:\b(?:e\.g|i\.e|vs|cf|etc|approx|ca|no|fig|figs|eq|ref|dr|mr|ms|st)|\b[A-Z]|\(\w)\.$", re.I)
+
+
+def split_sentences(text: str) -> List[str]:
+    """Sentences of a prose text: split after . ! ? and whitespace, except after an abbreviation ("i.e.", "e.g.", "vs.",
+    an initial) - 2026-10-06: "(e.g. Jan Meda" and "i.e. it is venue" had been read as sentence ends."""
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    out: List[str] = []
+    for p in parts:
+        if out and (_ABBREV_RE.search(out[-1]) or len(out[-1]) < 4):
+            out[-1] = out[-1] + " " + p
+        else:
+            out.append(p)
+    return out
 
 
 def purpose_of(turn: "Turn", width: int = 110) -> str:

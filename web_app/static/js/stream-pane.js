@@ -47,7 +47,9 @@
     function stepSentence(text, max) {
         const t = String(text || '').replace(/\s+/g, ' ').trim();
         if (!t) return '';
-        const parts = t.split(/(?<=[.!?])\s+/);
+        const raw = t.split(/(?<=[.!?])\s+/), parts = [];
+        const abbr = /(?:\b(?:e\.g|i\.e|vs|cf|etc|approx|ca|no|fig|figs|eq|ref|dr|mr|ms|st)|\b[A-Z]|\(\w)\.$/i;   // no sentence ends there
+        for (const p of raw) { if (parts.length && (abbr.test(parts[parts.length - 1]) || parts[parts.length - 1].length < 4)) parts[parts.length - 1] += ' ' + p; else parts.push(p); }
         const s = parts.length > 1 ? parts.slice(1).join(' ') : t;
         return s.length > (max || 140) ? s.slice(0, (max || 140) - 1) + '…' : s;
     }

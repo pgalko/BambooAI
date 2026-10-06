@@ -181,10 +181,12 @@ def _fmt_num(x, decimals=2):
 
 
 def _literal_number(node):
-    """A number written into the code: a constant, or an expression of constants only."""
+    """A number written into the code: a numeric constant, or an expression of numeric constants only. A string
+    constant is not a typed number here (a unit or a direction may sit in a numeric position when an earlier
+    argument is starred; the runtime check catches a text estimate)."""
     import ast
     if isinstance(node, ast.Constant):
-        return True
+        return isinstance(node.value, (int, float, complex)) and not isinstance(node.value, bool)
     if isinstance(node, ast.UnaryOp):
         return _literal_number(node.operand)
     if isinstance(node, ast.BinOp):
@@ -208,7 +210,10 @@ def RESULT(what, estimate, low=None, high=None, unit="", direction="", test=None
             for node in ast.walk(ast.parse(code)):
                 if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "RESULT"
                         and node.lineno <= fr.f_lineno <= getattr(node, "end_lineno", node.lineno)):
-                    numeric = list(node.args[1:4]) + [kw.value for kw in node.keywords if kw.arg in ("estimate", "low", "high")]
+                    # a starred argument (*fit(...)[:3]) leaves the positions unknown (2026-10-06: the unit and the
+                    # direction had landed in the numeric slots and thirteen computed lines were marked typed)
+                    positional = [] if any(isinstance(a, ast.Starred) for a in node.args[:4]) else list(node.args[1:4])
+                    numeric = positional + [kw.value for kw in node.keywords if kw.arg in ("estimate", "low", "high")]
                     typed = typed or any(_literal_number(a) for a in numeric)
                     break
     except Exception:

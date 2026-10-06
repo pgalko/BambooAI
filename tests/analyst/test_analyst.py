@@ -495,6 +495,13 @@ try:
 finally:
     kd.cleanup()
 check("DS: the kernel holds the dataset as attached - DS.load() returns a fresh frame of the original shape", "DS: the dataset as attached" in o1 and f"({len(df)}, {df.shape[1]})" in o1, o1[:120])
+kk = PersistentKernel(df=df)
+try:
+    o_star = kk.execute("def est(): return (0.5, 0.1, 0.9)\nRESULT('starred', *est()[:3], 'units', 'up')\nRESULT('kw', estimate=1, low=0, high=2)")[0]
+finally:
+    kk.cleanup()
+check("RESULT: a starred argument of computed values is not marked typed - the unit and direction strings in the numeric slots do not count (2026-10-06: thirteen lines wrongly marked); a literal keyword estimate is",
+      "RESULT: starred: +0.50 (95% CI +0.10 to +0.90) units, up" in o_star and "typed" not in o_star.splitlines()[0] and "RESULT: kw: +1 (95% CI +0 to +2) - typed" in o_star, o_star)
 check("DS: a row filter of df raises no warning; columns lost raise the one-line warning naming DS.load(); the restore is clean",
       "DS.load()" not in o2 and "of the dataset's" in o3 and "DS.load() restores" in o3 and "DS.load()" not in o4 and f"({len(df)}, {df.shape[1]})" in o4, (o2, o3, o4))
 
@@ -548,6 +555,9 @@ check("one-liner: a collapsed cell is described by the step the analyst wrote (s
 check("one-liner: a failed attempt - the step it tried, then the error", purpose_of(_t_fail) == "Now I refit with surface held fixed." and _NB.headline(_t_fail).endswith("->  ERROR: ZeroDivisionError: division by zero"), _NB.headline(_t_fail))
 check("one-liner: without an account the code's first working statement stands, never an import or an option line",
       purpose_of(_t_bare) == "print(df.groupby('arm').size())" and _NB.headline(_t_bare).endswith("->  arm"), (purpose_of(_t_bare), _NB.headline(_t_bare)))
+check("step_sentence: an abbreviation is not a sentence end - (e.g. X), i.e., vs. - and the step stays whole",
+      step_sentence("The ladder (e.g. Jan Meda at 4.5 vs. Kality at 3.8) says it is venue, i.e. not altitude. This turn I test the Ethiopia slope.") == "This turn I test the Ethiopia slope.",
+      step_sentence("The ladder (e.g. Jan Meda at 4.5 vs. Kality at 3.8) says it is venue, i.e. not altitude. This turn I test the Ethiopia slope."))
 check("step_sentence: a one-sentence account is the step itself; a long one is cut at a word", step_sentence("Just this one sentence.") == "Just this one sentence." and step_sentence("First. " + "word " * 60).endswith("...") and len(step_sentence("First. " + "word " * 60)) <= 114)
 
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
