@@ -96,7 +96,7 @@ def main():
             check("the closing card reports the replay reproduced the cited numbers", "Replay reproduced" in done, done)
             check("the closing card counts 3 cells with 1 failed", "Cells 3 (1 failed)" in done.replace("\n", " ") or ("3" in done and "1 failed" in done), done)
             turns = page.evaluate("() => document.querySelectorAll('.sp-turn').length")
-            check("one card per model call (6 analyst turns, the rewrite, the review after the report)", turns == 8, turns)
+            check("one card per model call (6 analyst turns and the rewrite; no review outside Adaptive)", turns == 7, turns)
             pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill')].map(e => e.textContent)")
             check("the search row carries the two source pills", any("fao.org" in p for p in pills) and any("wiley" in p for p in pills), pills)
             page.evaluate("activateTab('answer')")

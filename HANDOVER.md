@@ -148,6 +148,11 @@
   'within' parenthesis, its examples echoing the test question, 'an association reported as a correction', the
   pooled-subgroup example, 'write both out', the empty-cell line and the redundancy examples; the session's advice
   after two failures and after a refused reply (the facts stay). A battery check scans every authored prompt text.
+- **Standing issues, one patch each, verified on one Deep and one Adaptive run (2026-10-05).** The auto-evaluation
+  work (the first 0077) was dropped before it was deployed. Issue 1, this patch: Quick and Deep make no reviewer
+  call - the review after the report runs only in a run that has reviews during it (Adaptive). Next, in order:
+  RESULT lines the code did not compute are marked; the reviewer gets its evidence in one call with a verification
+  ledger instead of SHOW rounds; a reviewer's finding marks the ledger; the replay runs to the last figure cell.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
@@ -188,7 +193,8 @@ must pass is `docs/DESIGN_CHECKLIST.md`; the inventory of what was removed and w
 
 Quick / Deep / Adaptive are budget presets of the one session: ~2 / 15 / 50 turns (the UI's
 planning dial maps to adaptive; `max_investigations` × 4 turns). The adaptive preset is reviewed
-after every 8th turn by the reviewer (its own prompt, `analyst/reviewer.md`); every report is reviewed once.
+after every 8th turn by the reviewer (its own prompt, `analyst/reviewer.md`), and its report once; Quick and Deep make
+no reviewer call (2026-10-05).
 
 ## Behaviour to know
 

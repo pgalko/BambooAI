@@ -744,10 +744,13 @@ class Session:
         check2 = rep.guard_rewrite(rewrite, report_text)
         run.rewrite = rewrite + (f"\n\n> {check2}" if check2 else "")
         run.turns.append(Turn(kind="rewrite", note=run.note, text=run.rewrite, usage=dict(usage or {})))
-        # the review after the report, in every mode: the report read against the question, its note added for the reader
-        rv, _ = self._review(run, budget, report=run.report)
-        if rv is not None:
-            run.report += "\n\n> " + review_note(rv)
+        # the review after the report: only in a run that has reviews during it (Adaptive). Quick and Deep make no reviewer
+        # call at all (2026-10-05, Palo: in Deep it cost 35-40% of the run and 20-40 s, before the replay, for no value a
+        # reader asked for - who wants a review chooses Adaptive)
+        if budget.review_every:
+            rv, _ = self._review(run, budget, report=run.report)
+            if rv is not None:
+                run.report += "\n\n> " + review_note(rv)
         # the replay: the host's runner when it has one (the app's executor, which also
         # yields the figures and the results text), else a fresh kernel
         if run.cells() and (self.replay_runner is not None or self.kernel_factory is not None):

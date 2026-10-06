@@ -45,7 +45,8 @@ is not earning its place.
 - [ ] D4. A session persists every turn and can be continued after any interruption; a dead kernel is rehydrated from the path.
 - [ ] D5. Long budgets are reviewed at fixed intervals (default after every 8th turn) by a reviewer with its own
   prompt and no actions; its verdict (TEST / NARROW / REPORT) rides in the analyst's next prompt and REPORT
-  ends the analysis. Every report, in every mode, is reviewed once against the question.
+  ends the analysis. In Adaptive the report is also reviewed once against the question; Quick and Deep make no
+  reviewer call (2026-10-05).
 - [ ] D6. Budgets attach to a run (one user question), not to the session, so branches never starve each other.
 
 ## E. Modes, routing, tools

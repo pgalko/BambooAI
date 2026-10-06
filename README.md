@@ -113,7 +113,7 @@ budgets are per preset (`tier_properties` in the configuration). At the `perform
 turns, Deep 15, Adaptive 50 with a review after every 8th turn. In Adaptive mode the review runs on
 the `Reviewer` seat - a stronger model with its own brief - which reads the question, the note and the
 results so far, and answers with one verdict: a test to run, a narrower conclusion, or report now.
-After every report, in every mode, the same reviewer reads the report against the question and adds
+After the report, in Adaptive, the same reviewer reads the report against the question and adds
 a short note for the reader.
 
 **Memory.** When you save a run, the `Knowledge Distiller` seat writes a card about the dataset —
@@ -229,7 +229,7 @@ The seats:
 | seat | role |
 |---|---|
 | `Analyst` | runs the analysis: every turn, every cell, the report |
-| `Reviewer` | the reviews - after every 8th turn in Adaptive mode, and after every report in every mode; its own brief, a stronger model |
+| `Reviewer` | the reviews - after every 8th turn in Adaptive mode, and after its report; its own brief, a stronger model |
 | `Rewriter` | the plain-language version of the report |
 | `Reader` | reads the thread's documents for the analyst (the `READ` action): a cheaper model, called once per read over the passages that match the question |
 | `Knowledge Distiller` | writes the memory card when a run is saved |

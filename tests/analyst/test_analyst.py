@@ -750,6 +750,22 @@ for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py"):
 _hits = {name: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for name, t in _texts.items() if _DOMAIN.search(t)}
 check("standing rule: no prompt text a model reads carries the tested tasks' vocabulary - contract, reviewer, rewrite, reader, and every string the session, tools and reader send",
       not _hits, _hits)
+# Quick and Deep make no reviewer call at all - not during the run, not after the report (2026-10-05)
+nr_systems = []
+def noreview_llm(system, user, **h):
+    nr_systems.append(system[:40])
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are the reviewer"): return "###REVIEW###\n- The question requires: x\n- Established: y\n- Most consequential problem: none\n- Verdict: REPORT done", {"cost": 0.01}
+    return (act6("REPORT\n## r\n\nDone [cell 1].") if sum(1 for x in nr_systems if x.startswith("You are the analyst")) >= 2 else act6("CELL\n```python\nprint('RESULT: x, 5 units: +1 (95% CI 0 to 2), up')\n```")), {"cost": 0.001}
+kn = PersistentKernel(df=df); nbn = Notebook("tn")
+try:
+    rn = Session(kn, nbn, noreview_llm, data_description="d").run("q", budget=Budget(turns=6, dollars=1.0, review_every=0))
+finally:
+    kn.cleanup()
+check("no reviews outside Adaptive: a run without reviews during it makes no reviewer call after its report either, and its report carries no reviewer's note",
+      rn.status == "answered" and not any(x.startswith("You are the reviewer") for x in nr_systems) and "Reviewer's note" not in rn.report
+      and not any(t.kind == "review" for t in rn.turns), (rn.status, nr_systems))
+
 # a review with no verdict is not used: no REVIEW block, no review turn, no note; the run goes on
 nv_prompts = []
 def noverdict_llm(system, user, **hints):
