@@ -181,7 +181,7 @@ def result_records(run):
     return [(x.cell_no, r) for x in run.cells() for r in (x.results or [])]
 
 
-def result_lines(run) -> List[str]:
+def result_lines(run, omit=()) -> List[str]:
     """The ledger: one line per RESULT(...) a committed cell recorded, with its cell number - the record of what is
     established, kept whole in every prompt whatever the window does to the cells (2026-10-05: a run spent two cells
     locating the specification behind a number it had printed twenty turns earlier). The lines come from the kernel's
@@ -195,7 +195,8 @@ def result_lines(run) -> List[str]:
         for n in (cs if isinstance(cs, (list, tuple)) else ([cs] if cs is not None else [])):
             if int(n) != c:
                 corrected.setdefault(int(n), c)
-    return [f"- [cell {c}] " + (f"(corrected by cell {corrected[c]}) " if c in corrected else "") + r["text"] for c, r in rows]
+    return [f"- [cell {c}] " + (f"(corrected by cell {corrected[c]}) " if c in corrected else "") + r["text"]
+            for c, r in rows if c not in omit]      # omit: cells whose output is in view whole, so the line is not shown twice
 
 
 def evidence_text(turn) -> str:
@@ -267,11 +268,11 @@ def view_digest(text: str, how_to_see_all: str, cap: int = DIGEST_VIEW_CHARS) ->
 
 
 def parse_turn(text: str) -> tuple[str, str, Action]:
-    """(thinking, note, action). A reply carries one action. Every action in every ###ACTION### block is found; if they
-    are not all the same action, nothing runs - the reply is 'ambiguous' and the analyst is told (2026-10-05: a reply
-    held a 69-line cell and, after it, a four-line restart of imports; the rule 'the last complete action' ran the four
-    lines and the reviewer's test never happened). The same action written twice runs once; a bare marker, or one with
-    an unfinished action under it, carries none. The note and the thinking are the last written before the action."""
+    """(thinking, note, action). A reply carries one action. Every action in every ###ACTION### block is found; the first
+    runs, and any different ones after it are recorded in `more` so the next prompt can say they did not run (2026-10-05:
+    the rule 'the last complete action' had run a four-line restart of imports in place of a 69-line cell; refusing the
+    whole reply then cost a turn each time). The same action written twice runs once; a bare marker, or one with an
+    unfinished action under it, carries none. The note and the thinking are the last written before the action taken."""
     text = text or ""
     if not text.strip():
         return "", "", Action("invalid", "empty reply")
@@ -293,11 +294,12 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     for k, a in found:
         if all((a.verb, a.arg.strip()) != (d.verb, d.arg.strip()) for _, d in distinct):
             distinct.append((k, a))
-    if len(distinct) > 1:
-        chosen = len(marks) - 1
-        action = Action("invalid", f"ambiguous: {len(distinct)} different actions in one reply", more=tuple(a.verb for _, a in distinct))
-    elif distinct:
-        chosen, action = distinct[0]
+    if distinct:
+        # several different actions: the first runs and the rest are named as not run (2026-10-06, Palo: refusing the
+        # reply had cost one or two turns a run - the first two turns of a Deep run, both restarts - and a lost turn is
+        # the certain cost, a draft that runs the occasional one)
+        chosen, first = distinct[0]
+        action = Action(first.verb, first.arg, more=tuple(a.verb for _, a in distinct[1:]))
     else:
         chosen = len(marks) - 1
         action = Action("invalid", reasons[-1] if reasons else "no action under ###ACTION###")
@@ -440,7 +442,9 @@ class Session:
     def _user_prompt(self, run: Run, budget: Budget, turn_no: int, spent: float, extra: str = "",
                      everything: bool = False, tail: str = "") -> str:
         left = budget.turns - turn_no
-        last = (left <= 1 and turn_no > 1) or spent >= 0.9 * budget.dollars      # never on the first turn: even a tiny budget gets one cell
+        # the last turn itself (2026-10-06: at left <= 1 the model reported a turn early, every run, and Deep had 14 working
+        # turns of 15); the forced report after the loop is the safety net if the model does not report here
+        last = (left <= 0 and turn_no > 1) or spent >= 0.9 * budget.dollars      # never on the first turn: even a tiny budget gets one cell
         # the report turn sees everything (2026-09-10): once the session forces the report there is no turn left to
         # SHOW a cell, and a result the report cannot see does not exist for the reader
         everything = everything or last
@@ -455,7 +459,8 @@ class Session:
         parts.append(f"QUESTION:\n{run.question.strip()}")
         parts.append(f"YOUR NOTE (as you last wrote it):\n{run.note or '(none yet - write it this turn)'}")
         parts.append("CELLS SO FAR:\n" + self.nb.render_cells(run.id, everything=everything))
-        results = result_lines(run)
+        shown_whole = {run.cells()[-1].cell_no} if run.cells() and not everything else set()   # the newest cell rides whole
+        results = result_lines(run, omit=shown_whole)
         if results:
             parts.append("RESULTS SO FAR (printed by your cells; the report quotes these):\n" + "\n".join(results))
         # the passages this run's reads returned stay in view for the rest of the run - the lines with their ids, as a
@@ -565,6 +570,8 @@ class Session:
             note = note or run.note
             extra = ""
             turn = Turn(kind=action.verb, note=note, thinking=thinking, usage=usage)
+            held = (f"(Your reply held {len(action.more) + 1} actions - {action.verb.upper()} then "
+                    f"{', '.join(v.upper() for v in action.more)}; only the first ran. A reply carries one action.)") if action.more and action.verb != "report" else ""
             self.emit({"type": "turn_end", "run": run.id, "turn": turn_no, "kind": action.verb,
                        "thinking": thinking, "note": note, "code": action.arg if action.verb == "cell" else "",
                        "elapsed": usage.get("elapsed"), "cost": usage.get("cost", 0.0),
@@ -699,11 +706,7 @@ class Session:
                 return run
             else:
                 turn.kind = "error"
-                if action.arg.startswith("ambiguous"):
-                    logger.warning("Analyst turn %d: %s (%s) - none ran", turn_no, action.arg, ", ".join(action.more))
-                    turn.stdout = (f"Your reply held {len(action.more)} different actions ({', '.join(v.upper() for v in action.more)}); "
-                                   "none of them ran. A reply carries one action under one ###ACTION###.")
-                elif action.arg == "empty reply":
+                if action.arg == "empty reply":
                     logger.warning("Analyst turn %d: the model returned an empty reply (%s completion tokens billed) - re-asking",
                                    turn_no, usage.get("completion_tokens", "?"))
                     turn.stdout = "Your last reply arrived empty - no text reached the workspace. Reply again, in the turn format."
@@ -711,6 +714,8 @@ class Session:
                     logger.warning("Analyst turn %d: malformed reply (%s): %r", turn_no, action.arg, (text or "")[:200])
                     turn.stdout = f"Your last reply had no valid action ({action.arg}). Reply in the exact turn format."
                 extra = turn.stdout
+            if held:
+                extra = (extra + "\n\n" + held) if extra else held
 
             run.turns.append(turn)
             self._emit_turn(run, turn)

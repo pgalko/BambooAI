@@ -312,15 +312,14 @@ check("synthesis: past the character budget the oldest shown runs collapse to a 
       "(run 1 was shown at turn 1; SHOW RUN 1 brings it back whole)" in block and "(run 2 was shown at turn 1; SHOW RUN 2 brings it back whole)" in block
       and "--- run 4 ---" in block and "--- run 3 ---" in block and block.count("--- run 1 ---") == 0, [ln for ln in block.splitlines() if ln.startswith("---") or ln.startswith("(run")])
 pm = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nCELL\n```python\nprint(a + 1)\n```")[2]
-check("parse_turn: two different cells in one reply run nothing - the reply is ambiguous, its actions named (2026-10-05)",
-      pm.verb == "invalid" and pm.arg.startswith("ambiguous") and pm.more == ("cell", "cell"), (pm.verb, pm.arg, pm.more))
+check("parse_turn: two different cells in one reply - the first runs, the second is recorded as not run (2026-10-06)", pm.verb == "cell" and pm.arg == "a = 1" and pm.more == ("cell",), (pm.verb, pm.arg, pm.more))
 pr = parse_turn("###THINKING###\nfirst idea\n###NOTE###\nn1\n###ACTION###\nCELL\n```python\nprint('draft')\n```\n\nWait - one action per turn. Let me redo it.\n\n###THINKING###\nsecond idea\n###NOTE###\nn2\n###ACTION###\nCELL\n```python\nprint('meant')\n```")
-check("parse_turn: a reply that starts over with a different cell (a second THINKING after the first ACTION) runs nothing (2026-10-05: the restart had been a four-line fragment and it ran)",
-      pr[2].verb == "invalid" and pr[2].arg.startswith("ambiguous") and pr[1] == "n2", (pr[2].verb, pr[2].arg, pr[1]))
+check("parse_turn: a reply that starts over with a different cell runs the first and keeps the note written before it; the restart is recorded",
+      pr[2].verb == "cell" and pr[2].arg == "print('draft')" and pr[2].more == ("cell",) and pr[1] == "n1", (pr[2].verb, pr[2].arg, pr[2].more, pr[1]))
 pr2 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###THINKING###\ntrailing thoughts with no action")
 check("parse_turn: a trailing THINKING without an ACTION is not a restart - the turn stands", pr2[2].verb == "cell" and pr2[2].arg == "print('a')", (pr2[2].verb, pr2[2].arg))
 pr3 = parse_turn("###THINKING###\nidea\n###NOTE###\nn1\n###ACTION###\nCELL\n```python\nprint('draft')\n```\n(That is the cell.)\n\nWait - one action per turn.\n###ACTION###\nSHOW 11")
-check("parse_turn: a restart from ###ACTION### alone with another action runs nothing", pr3[2].verb == "invalid" and pr3[2].more == ("cell", "show"), (pr3[2].verb, pr3[2].more))
+check("parse_turn: a restart from ###ACTION### alone with another action - the first runs, the other recorded", pr3[2].verb == "cell" and pr3[2].more == ("show",), (pr3[2].verb, pr3[2].more))
 pr4 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###ACTION###")
 check("parse_turn: a bare ###ACTION### after a complete turn (seen in real logs) is not a turn - the one before it stands", pr4[2].verb == "cell" and pr4[2].arg == "print('a')" and pr4[1] == "n", (pr4[2].verb, pr4[2].arg, pr4[1]))
 pr5 = parse_turn("###THINKING###\nidea\n###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint('a')\n```\n###ACTION###\nCELL")
@@ -338,7 +337,7 @@ check("parse_turn: a fenced block directly under ###ACTION### is a cell - no CEL
 pb2 = parse_turn("###NOTE###\nn\n###ACTION###\n```\nCELL\n```\n```python\nprint(2)\n```")
 check("parse_turn: a fenced CELL word followed by the block is the cell", pb2[2].verb == "cell" and pb2[2].arg == "print(2)", (pb2[2].verb, pb2[2].arg))
 pm2 = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nSHOW 3")[2]
-check("parse_turn: a CELL followed by another kind of action runs nothing", pm2.verb == "invalid" and pm2.more == ("cell", "show"), (pm2.verb, pm2.more))
+check("parse_turn: a CELL followed by another kind of action runs the cell and records the other", pm2.verb == "cell" and pm2.more == ("show",), (pm2.verb, pm2.more))
 check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",
       syn.status == "answered" and len([x for x in syn.turns if x.kind != "rewrite"]) == 3 and "CHECK:" not in syn.report, (syn.status, [x.kind for x in syn.turns], syn.report[-200:]))
 check("synthesis: the prompt with three chains whole stays well inside a 64k context (chars/4)", len(p2) // 4 < 20000, len(p2) // 4)
@@ -400,16 +399,16 @@ try:
     r2 = Session(k2, nb2_, two_llm, data_description="d").run("q", budget=Budget(turns=5, dollars=1.0))
 finally:
     k2.cleanup()
-check("a reply with two different actions runs nothing: the turn is lost, the next prompt names the actions and says none ran",
-      r2.turns[0].kind == "error" and "Your reply held 2 different actions (CELL, CELL); none of them ran." in two_prompts[1]
-      and not any("one" in (x.stdout or "") or "two" in (x.stdout or "") for x in r2.turns if x.kind == "cell"), ([x.kind for x in r2.turns], two_prompts[1][-300:]))
-check("after a rejected reply the run goes on: a single cell runs, a SHOW-then-REPORT reply is rejected too, and the plain REPORT ends the run",
-      [x.kind for x in r2.turns if x.kind != "rewrite"][:4] == ["error", "cell", "error", "report"] and r2.status == "answered" and "Done [cell 1]" in r2.report,
-      ([x.kind for x in r2.turns], r2.status))
+check("a reply with two different actions runs the first; the next prompt names the other and says only the first ran",
+      r2.turns[0].kind == "cell" and r2.turns[0].cell_no == 1 and "(Your reply held 2 actions - CELL then CELL; only the first ran. A reply carries one action.)" in two_prompts[1]
+      and "one" in (r2.turns[0].stdout or "") and "two" not in (r2.turns[0].stdout or ""), ([(x.kind, x.cell_no) for x in r2.turns], two_prompts[1][-300:]))
+check("a SHOW written with a REPORT runs the SHOW alone, and the plain REPORT then ends the run",
+      [x.kind for x in r2.turns if x.kind != "rewrite"][:4] == ["cell", "cell", "show", "report"] and r2.status == "answered" and "Done [cell 1]" in r2.report
+      and "(Your reply held 2 actions - SHOW then REPORT; only the first ran." in two_prompts[3], ([x.kind for x in r2.turns], r2.status, two_prompts[3][-300:]))
 pt = parse_turn("###NOTE###\nn\n###ACTION###\nSHOW 1 2\nNAMES\nREPORT\n## r\n\nx")[2]
-check("parse_turn: SHOW and NAMES before a REPORT run nothing either - any two different actions are ambiguous", pt.verb == "invalid" and pt.more == ("show", "names", "report"), (pt.verb, pt.more))
+check("parse_turn: SHOW and NAMES before a REPORT - the SHOW runs, the rest recorded (a report written beside other actions does not run)", pt.verb == "show" and pt.more == ("names", "report"), (pt.verb, pt.more))
 pt2 = parse_turn("###NOTE###\nn\n###ACTION###\nSEARCH x\nREPORT\n## r")[2]
-check("parse_turn: a SEARCH before a REPORT runs nothing", pt2.verb == "invalid" and pt2.more == ("search", "report"), (pt2.verb, pt2.more))
+check("parse_turn: a SEARCH before a REPORT runs the search and records the report as not run", pt2.verb == "search" and pt2.more == ("report",), (pt2.verb, pt2.more))
 pd_ = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\nprint(1)\n```\n###ACTION###\nCELL\n```python\nprint(1)\n```\n###ACTION###\n```python\nprint(1)\n```")[2]
 check("parse_turn: the same cell written three times (seen in a real log) runs once", pd_.verb == "cell" and pd_.arg == "print(1)", (pd_.verb, pd_.arg))
 prp = parse_turn("###NOTE###\nn\n###ACTION###\nREPORT\n## Answer\n\nRead as a correction, this implies +53 s/km.\nShow this to the coach.\n\nSHOW 3 is not an action here.\n```python\nprint('quoted code')\n```")[2]
@@ -457,8 +456,9 @@ check("report guard: a number only a typed RESULT line carries is flagged as not
       "6.1" in (rr.report[rr.report.find("CHECK"):] if "CHECK" in rr.report else "") and "1.5" not in (rr.report[rr.report.find("CHECK"):] if "CHECK" in rr.report else "x1.5"), rr.report[-500:])
 check("ledger: a printed line that merely begins with RESULT: is not a record - only RESULT(...) is",
       result_lines(rn) == [] if "rn" in dir() else True)
-check("results ledger: the block rides in the prompt after the first result, under its heading, and on the report turn",
-      "RESULTS SO FAR (printed by your cells; the report quotes these):\n- [cell 1] B vs A mean" in res_prompts[1] and "- [cell 3] C vs A" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "RESULTS SO FAR" not in res_prompts[0], [p_[-200:] for p_ in res_prompts[:2]])
+check("results ledger: while the newest cell's output is in view whole its lines are not repeated in the ledger; they appear once that cell has aged out of the whole view, and on the report turn (2026-10-06)",
+      "RESULTS SO FAR" not in res_prompts[1] and "RESULTS SO FAR (printed by your cells; the report quotes these):\n- [cell 1] B vs A mean" in res_prompts[2]
+      and "- [cell 1] B vs A mean" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "- [cell 3] C vs A" not in [p_ for p_ in res_prompts if "TASK:" in p_][-1], [p_[-250:] for p_ in res_prompts[1:3]])
 check("contract: names DS and the comparison part of the report, and shows the RESULT: line with a neutral example",
       "`df = DS.load()`" in c_all and "- the comparison: what the question asks to compare, and what you compared" in c_all and "RESULT: outcome Y, group B vs group A at matched age" in c_all and "## Results" in c_all)
 check("contract: one to three figures and a fourth figure cell not run - the mechanism, with no advice on when to draw them",
@@ -597,7 +597,7 @@ try:
     Session(k11, nb11, _spy_llm, data_description="d").run("q", budget=Budget(turns=2, dollars=1.0))
 finally:
     k11.cleanup()
-check("quick: a two-turn budget's first turn is not told the budget is nearly gone", _seen and "nearly gone" not in _seen[0], _seen[0][-160:] if _seen else "")
+check("quick: a two-turn budget's first turn is not told the budget is nearly gone (it fires on the last turn itself)", _seen and "nearly gone" not in _seen[0], _seen[0][-160:] if _seen else "")
 
 # ---- plain statement over metaphor: in the report's contract and in the rewrite task (2026-09-08) ----
 from analyst.session import REWRITE_TASK as _RW
@@ -737,9 +737,8 @@ check("ledger: a RESULT recorded with corrects=1 marks cell 1's line as correcte
       result_lines(_rc) == ["- [cell 1] (corrected by cell 2) slope within athletes, 54 sessions: -2.1 (95% CI -17.9 to +13.7)",
                             "- [cell 2] (corrects cell 1) slope pooled, not within athletes - with athlete fixed effects: +4.0 (95% CI -9 to +17)"], result_lines(_rc))
 _log = Session._turn_log(r3) + Session._turn_log(r2)
-check("the reviewer's turn log: a failed attempt with its error, a refused reply with the reason, a committed cell with its first line",
-      any("cell failed, rolled back -> " in x for x in _log) and any("refused -> Your reply held 2 different actions" in x for x in _log)
-      and any(re.search(r"\| cell \d+ -> ", x) for x in _log), _log[:6])
+check("the reviewer's turn log: a failed attempt with its error, and a committed cell with its first line",
+      any("cell failed, rolled back -> " in x for x in _log) and any(re.search(r"\| cell \d+ -> ", x) for x in _log), _log[:6])
 from analyst.session import show_request, cited_cells
 check("show_request: a placeholder review with no verdict and a SHOW line is a request (2026-10-05: such a reply had been dropped whole)",
       show_request("###REVIEW###\n- The question requires: X\n- Established: pending\n- Most consequential problem: pending\n- Verdict: pending cell inspection.\n\nSHOW 5 6") == ([5, 6], []))
@@ -847,8 +846,8 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page - under 8,700 without documents (2026-10-05: Results with corrections, DS, the comparison, the budget as a limit, one action a reply), neutral", len(c) < 8700 and not bad, (len(c), bad))
-check("contract: a reply with more than one action is a lost turn and nothing in it runs - said in Format", "with no action, or with more than one, is a lost turn: nothing in it\nruns." in c)
+check("contract: one page - under 8,800 without documents (2026-10-06: Results with RESULT(...), DS, the comparison, the budget as a limit), neutral", len(c) < 8800 and not bad, (len(c), bad))
+check("contract: a reply with more than one action runs the first and the rest does not - said in Format", "A reply with more than one action runs\nthe first; the rest does not run." in c)
 check("contract (Adaptive): a TEST's outcome is recorded with test='after turn 16', and the test is open until it is recorded",
       "`RESULT(..., test=\"after turn 16\")`" in contract(False, 8) and "until such a line is recorded the test is open" in contract(False, 8))
 check("contract: the format is a literal template of one turn - three marker lines, each once - and the actions are a table with one row per form",

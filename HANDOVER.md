@@ -164,6 +164,13 @@
   flagged. The tags became arguments: test="after turn 16", corrects=14. The contract's Results section shows the call. The replayed
   script defines RESULT when its runtime has none (the executor's /execute route runs a plain script), printing the
   kernel's line to the character (2026-10-06: the first Deep replay under 0078 had stopped on NameError).
+- **Prompt hygiene (2026-10-06), from reading every prompt of a Deep run as the model does.** (1) A reply with several
+  different actions runs the first, and the next prompt says the rest did not run - refusing it had cost one or two
+  turns a run (the first two turns of that Deep run, both restarts). (2) The budget line and the whole view come on the
+  last turn itself, not the one before: Deep had 14 working turns of 15. (3) The ledger does not repeat the newest
+  cell's RESULT lines while that cell's output is in view whole. Still open: the one-line summaries of collapsed
+  and failed cells describe a cell by its first code line when it has no comment - "import pandas as pd" - to be
+  replaced by the analyst's own account of the step.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
