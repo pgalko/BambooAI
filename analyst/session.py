@@ -101,6 +101,8 @@ def clean_note(note: str) -> str:
 _REVIEW_HEADS = (("requires", "The question requires"), ("established", "Established"),
                  ("problem", "Most consequential problem"), ("verdict", "Verdict"))
 _REVIEW_LISTS = (("checked", "Checked"), ("recheck", "Re-check"))      # may appear several times; kept as lists
+_REVIEW_LENSES = (("identification", "Identification"), ("alternative", "Alternative explanation"), ("heterogeneity", "Heterogeneity"),
+                  ("measurement", "Measurement"), ("frame", "The question's frame"))   # the perspectives (2026-10-06), one line each
 
 
 def parse_review(text: str) -> Optional[dict]:
@@ -112,7 +114,7 @@ def parse_review(text: str) -> Optional[dict]:
     fields, lists, current = {}, {key: [] for key, _ in _REVIEW_LISTS}, None
     for ln in clean_note(t).splitlines():
         s_ = ln.strip().lstrip("-•* ").strip()
-        hit = next((key for key, head in _REVIEW_HEADS + _REVIEW_LISTS
+        hit = next((key for key, head in _REVIEW_HEADS + _REVIEW_LISTS + _REVIEW_LENSES
                     if s_.lower().startswith(head.lower()) and ":" in s_[len(head):len(head) + 3]), None)
         if hit in lists:
             current = hit
@@ -128,6 +130,8 @@ def parse_review(text: str) -> Optional[dict]:
     if not m:
         return None
     rv = {key: fields.get(key, "") for key, _ in _REVIEW_HEADS}
+    rv["lenses"] = [(head, fields[key].strip()) for key, head in _REVIEW_LENSES
+                    if fields.get(key, "").strip() and fields[key].strip().rstrip(".").lower() not in ("nothing", "none", "-", "n/a")]
     rv["verdict"], rv["arg"] = m.group(1).upper(), m.group(2).strip()
     # Checked lines, one per cell: "cell 12 - what the code computes; matches its line" -> (12, text); Re-check: cells
     rv["checked"] = [(int(mm.group(1)), mm.group(2).strip(" -:")) for c in lists["checked"]
@@ -135,6 +139,7 @@ def parse_review(text: str) -> Optional[dict]:
     rv["recheck"] = sorted({int(n) for c in lists["recheck"] for n in re.findall(r"\d+", c)})
     rv["lines"] = "\n".join([f"- The question requires: {rv['requires']}", f"- Established: {rv['established']}"]
                             + [f"- Checked: cell {c} - {t}" for c, t in rv["checked"]]
+                            + [f"- {head}: {t}" for head, t in rv["lenses"]]      # the perspectives that found something ride to the analyst
                             + [f"- Most consequential problem: {rv['problem']}", f"- Verdict: {rv['verdict']} {rv['arg']}".rstrip()]
                             + ([f"- Re-check: {', '.join(f'cell {c}' for c in rv['recheck'])}"] if rv["recheck"] else []))
     return rv

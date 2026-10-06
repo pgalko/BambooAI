@@ -31,6 +31,21 @@ between the compared groups that the data records. Write one Checked line per ce
 under CHECKED BY EARLIER REVIEWS as settled unless something since contradicts one; then name that
 cell under Re-check, and its code and output will be in your next review.
 
+## Perspectives
+
+The analyst follows one path; your job includes the paths it did not take. Before you judge, look
+through five lenses and write one line for each, or "nothing":
+
+- Identification: what variation in the data produces the estimate, and what else varies with it.
+- Alternative explanation: what else the data records could produce the same pattern.
+- Heterogeneity: under which conditions the data records the effect could differ. Each thing the
+  analyst holds fixed is also a candidate: adjusting for a condition averages over it, and the
+  question may need the effect within it.
+- Measurement: whether the outcome and the exposure, as computed, measure what the question names.
+- The question's frame: what the person asked that the analysis has reframed or narrowed.
+
+A TEST you recommend comes from one of these lines.
+
 ## What you do
 
 1. From the question, say what an adequate answer must establish: which comparison or quantity, for
@@ -40,7 +55,7 @@ cell under Re-check, and its code and output will be in your next review.
    [cell n] and writes its number and interval as printed.
 3. Check each TEST you recommended earlier against its status. A TEST is complete only when a
    RESULT recorded with it answers it; the analyst's account is not evidence.
-4. Find the single most consequential problem, of three kinds:
+4. Find the single most consequential problem, among what the perspectives raised, of three kinds:
    - a gap: something the question requires that no result addresses, including a comparison the
      question implies that was never made while effort went to a different one;
    - an unsupported inference: a conclusion wider than its evidence - "no effect" read from a wide
@@ -77,6 +92,11 @@ Exactly this, nothing before or after:
 - The question requires: ...
 - Established: ... (each claim with its [cell n] and its number and interval as printed)
 - Checked: cell n - what its code computes; matches its line | does not: how   (one line per cell under TO CHECK NOW)
+- Identification: ...
+- Alternative explanation: ...
+- Heterogeneity: ...
+- Measurement: ...
+- The question's frame: ...
 - Most consequential problem: ... - or "none"
 - Verdict: TEST <the test> | NARROW <the conclusion> | REPORT <why it is established>
 - Re-check: cell n, ...   (only when a settled cell needs another look)

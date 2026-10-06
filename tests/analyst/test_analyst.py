@@ -843,6 +843,14 @@ check("contract (Adaptive): a REPORT citing a cell not checked is advice; the re
 check("reviewer prompt: the cells to check are handed to it, one Checked line per cell, Re-check for a second look, REPORT binds only on checked cells; no SHOW",
       "TO CHECK NOW" in REVIEWER and "Write one Checked line per cell" in REVIEWER and "name that\ncell under Re-check" in REVIEWER
       and "It binds only when every cell you cite has been checked" in REVIEWER and "SHOW" not in REVIEWER and "not proof that its label describes what the code computed" in REVIEWER)
+check("reviewer prompt: five perspectives before the verdict - identification, alternative explanation, heterogeneity (each thing held fixed a candidate), measurement, the question's frame - and a TEST comes from one (2026-10-06)",
+      "## Perspectives" in REVIEWER and all(h in REVIEWER for h in ("- Identification:", "- Alternative explanation:", "- Heterogeneity:", "- Measurement:", "- The question's frame:"))
+      and "Each thing the\n  analyst holds fixed is also a candidate" in REVIEWER and "A TEST you recommend comes from one of these lines." in REVIEWER and REVIEWER.index("## Perspectives") < REVIEWER.index("## What you do"))
+prl = parse_review("###REVIEW###\n- The question requires: X\n- Established: +1 [cell 3]\n- Identification: between-group variation only\n- Alternative explanation: nothing\n- Heterogeneity: may differ by the condition held fixed; unchecked\n- Measurement: none\n- The question's frame: the effect within each condition\n- Most consequential problem: the effect within conditions never estimated\n- Verdict: TEST estimate it within each level")
+check("parse_review: the five lens lines are read; those answered 'nothing' or 'none' are dropped; the rest ride in the lines between Checked and the problem, so the analyst sees the perspectives that found something",
+      prl and prl["lenses"] == [("Identification", "between-group variation only"), ("Heterogeneity", "may differ by the condition held fixed; unchecked"), ("The question's frame", "the effect within each condition")]
+      and prl["lines"].splitlines()[2:5] == ["- Identification: between-group variation only", "- Heterogeneity: may differ by the condition held fixed; unchecked", "- The question's frame: the effect within each condition"]
+      and prl["requires"] == "X", prl)
 # ---- the standing rule (2026-10-05): no task-specific or model-specific content in any prompt. Every authored text a model
 # ---- reads is scanned for the vocabulary of the tasks this agent was tested on; docstrings and comments are not prompts.
 import ast as _ast

@@ -217,6 +217,14 @@
   the next review's budget - it now comes first; and a reply cut at the seat's max_tokens (16,000 tokens of reasoning,
   887 characters of text, no action) had been reported as "no valid action" - the app's model call now returns whether
   the reply was truncated, and the analyst is told it was cut off at the length limit.
+- **The reviewer's perspectives (2026-10-06).** The analyst follows one path; the reviewer's brief now makes it look
+  through five generic lenses before it judges - identification, alternative explanation, heterogeneity (each thing
+  the analyst holds fixed is also a candidate for a condition the effect depends on), measurement, the question's
+  frame - one line each or "nothing", and a TEST must come from one of them. The lens lines that found something ride
+  into the analyst's REVIEW block. No task content: the lenses are the questions a second analyst asks of any study
+  (the standing rule's scan covers the brief). The measure of success is in docs/RUN_ASSESSMENT_2026-10-06.md: whether
+  the TEST verdicts change kind - a split by a recorded condition where every run so far restricted or adjusted.
+  Palo chose not to hand the reviewer the list of unused columns.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
