@@ -569,6 +569,22 @@ _scr_b, _ = _assemble(_fig_turns[:2], "The estimate is 1 [cell 2].")
 check("replay: the assembled script runs to the run's last figure cell when the report cites only earlier cells; without a later figure it stops at the last cited cell",
       "plt.plot([1, 2])" in _scr_a and "# --- cell 3" in _scr_a and "# --- cell 3" not in _scr_b and "or this run's last figure cell" in _scr_a, (_scr_a[-300:], _scr_b[-200:]))
 
+# a reply cut at the length limit (2026-10-06): the usage says truncated, and the next prompt says cut off, not "no valid action"
+tr_prompts = []
+def truncated_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    tr_prompts.append(user)
+    if len(tr_prompts) == 1:
+        return "###THINKING###\nA long think.\n###NOTE###\n- Question as understood: q\n- Best estimate so far: none", {"cost": 0.01, "truncated": True}
+    return act6("REPORT\n## r\n\nDone."), {"cost": 0.001}
+ktr = PersistentKernel(df=df); nbtr = Notebook("ttr")
+try:
+    rtr = Session(ktr, nbtr, truncated_llm, data_description="d").run("q", budget=Budget(turns=4, dollars=1.0, review_every=0))
+finally:
+    ktr.cleanup()
+check("a reply cut at the length limit: the next prompt says so, and nothing ran",
+      "Your last reply was cut off at the length limit before it reached an action; nothing ran." in tr_prompts[1] and "no valid action" not in tr_prompts[1] and rtr.status == "answered", tr_prompts[1][-300:])
+
 # ---- search: a per-run budget, the view capped with a handle, the record whole ----
 SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i in range(6)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nDone."]
 seen_s = {"prompts": []}
@@ -699,11 +715,12 @@ check("review: the second review's input - what the first review checked (its Ch
       and "  since then: cells 3, 4 committed; 0 failed attempts; cells that printed nothing: none" in u2 and '  status: open - no RESULT recorded with test="after turn 2"' in u2
       and "TURNS SINCE YOUR LAST REVIEW (the analyst's own account of each turn, its action, and the outcome):\n- turn 3:" in u2 and "- turn 1:" not in u2
       and "--- cell 4 (a result recorded since the last review) ---" in u2 and "--- cell 3 (a result recorded since the last review) ---" in u2
-      and "--- cell 1 (you asked to see it again) ---" in u2 and "--- cell 2 (" not in u2 and u2.rstrip().endswith("TURN: after turn 4; up to 12."), u2[-2500:])
+      and "--- cell 1 (you asked to see it again) ---" in u2 and "--- cell 2 (" not in u2 and u2.rstrip().endswith("TURN: after turn 4; up to 12.")
+      and u2.index("--- cell 1 (you asked to see it again) ---") < u2.index("--- cell 4 (a result recorded since the last review) ---"), u2[-2500:])
 rv_turns = [t for t in r9.turns if t.kind == "review"]
 check("review: the review turn records the cells it was handed, its Checked lines and its Re-check; the card's lines carry them",
       rv_turns[0].shown == [2, 1] and rv_turns[0].checked == [{"cell": 2, "text": "computes the mean difference B vs A for 20 subjects; matches its line", "ok": True}, {"cell": 1, "text": "the same, step 1; matches its line", "ok": True}]
-      and rv_turns[0].recheck == [1] and rv_turns[1].shown == [4, 3, 1] and "- Checked: cell 2 - computes the mean difference" in rv_turns[0].note
+      and rv_turns[0].recheck == [1] and rv_turns[1].shown == [1, 4, 3] and "- Checked: cell 2 - computes the mean difference" in rv_turns[0].note
       and "- Re-check: cell 1" in rv_turns[0].note and "- Shown: cell 2, cell 1" in rv_turns[0].note, (rv_turns[0].shown, rv_turns[0].checked, rv_turns[0].recheck, rv_turns[1].shown, rv_turns[0].note))
 check("review: the analyst's REVIEW block carries the TEST's status - open until a RESULT recorded with it",
       "- Status: open - no RESULT line tagged (test after turn 2) yet" in an_prompts[2][0], an_prompts[2][0][-400:])

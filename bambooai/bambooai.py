@@ -152,7 +152,11 @@ class BambooAI:
                                reasoning_models=self.reasoning_models)
         if isinstance(text, tuple):
             text = text[0]
-        return text or "", {"cost": max(0.0, self._chain_cost() - before)}
+        # whether the reply was cut at the seat's max_tokens (the model layer records it per request; 2026-10-06: a turn
+        # spent its whole 16,000 tokens reasoning and the 887 characters that arrived had no action - the analyst was told
+        # "no valid action", which is true but not what happened)
+        from bambooai.models import prompt_cache
+        return text or "", {"cost": max(0.0, self._chain_cost() - before), "truncated": bool(prompt_cache.last_meta().get("truncated"))}
 
     def _chain_cost(self):
         ts = self.log_and_call_manager.token_summary

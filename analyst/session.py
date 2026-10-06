@@ -734,6 +734,9 @@ class Session:
                     logger.warning("Analyst turn %d: the model returned an empty reply (%s completion tokens billed) - re-asking",
                                    turn_no, usage.get("completion_tokens", "?"))
                     turn.stdout = "Your last reply arrived empty - no text reached the workspace. Reply again, in the turn format."
+                elif (usage or {}).get("truncated"):
+                    logger.warning("Analyst turn %d: the reply was cut at the length limit before a valid action (%s)", turn_no, action.arg)
+                    turn.stdout = "Your last reply was cut off at the length limit before it reached an action; nothing ran."
                 else:
                     logger.warning("Analyst turn %d: malformed reply (%s): %r", turn_no, action.arg, (text or "")[:200])
                     turn.stdout = f"Your last reply had no valid action ({action.arg}). Reply in the exact turn format."
@@ -903,6 +906,8 @@ class Session:
         def want(n, reason):
             if n in cells and n not in why and (n not in before or reason == "you asked to see it again"):
                 why[n] = reason
+        for n in recheck:                     # the last review's explicit ask comes first (2026-10-06: a Re-check had lost to the budget)
+            want(n, "you asked to see it again")
         if report is not None:
             for n in cited_cells(report):
                 want(n, "cited by the report")
@@ -922,8 +927,6 @@ class Session:
             for x in reversed(run.turns[last_review + 1:]):
                 if x.kind == "cell" and x.cell_no is not None and x.results:
                     want(x.cell_no, "a result recorded since the last review")
-        for n in recheck:
-            want(n, "you asked to see it again")
         parts, sent, left, used = [], [], [], 0
         budget_chars = REVIEW_EVIDENCE_CHARS if report is None else REVIEW_EVIDENCE_CHARS * 3 // 5   # the report itself is in view
         for n, reason in why.items():

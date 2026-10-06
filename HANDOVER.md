@@ -210,6 +210,13 @@
   drawn after that cell was never replayed and never reached the reader. Now it runs to the later of the last cited
   cell, the run's last figure cell and the last [fig n] cited. This closes the standing list of issues of 2026-10-05;
   the next runs confirm 0083-0086 together.
+- **From the run that confirmed 0083-0086 (2026-10-06):** reviews one call each (10,400 / 12,000 / 13,500 tokens),
+  the handed cells counted as checked and carried forward, the test's tagged answers handed to the review that judged
+  them; three RESULT lines typed in by the analyst (5.23, -1.05, 11.90 copied from an earlier output; 1.00 for a check
+  that is not an estimate) were marked typed, correctly. Two faults fixed: a Re-check asked by one review had lost to
+  the next review's budget - it now comes first; and a reply cut at the seat's max_tokens (16,000 tokens of reasoning,
+  887 characters of text, no action) had been reported as "no valid action" - the app's model call now returns whether
+  the reply was truncated, and the analyst is told it was cut off at the length limit.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
