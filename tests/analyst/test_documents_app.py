@@ -47,7 +47,7 @@ e1 = docs.attach(tdir, md_path, "meeting.md")
 inst.thread_id = "1002"
 desc = inst._data_description()
 check("DATA block: no dataset, yet the documents block with the map and where the text is",
-      desc.startswith("(no dataset attached)") and "Documents attached to this thread (1)." in desc and "datasets/u1/documents/<id>/" in desc and "D1 - meeting.md (Markdown," in desc, desc)
+      desc.startswith("(no dataset attached:") and "Documents attached to this thread (1)." in desc and "datasets/u1/documents/<id>/" in desc and "D1 - meeting.md (Markdown," in desc, desc)
 check("the kernel root is datasets/<user>/documents in both compute modes", inst._kernel_documents_root() == "datasets/u1/documents")
 
 inst.output_manager.add_user_input("What did the meeting say about the pipeline?")

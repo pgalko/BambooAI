@@ -212,7 +212,8 @@ try:
     _desc2 = _bb._dataset_description()
     check("DATA with a primary and an auxiliary file: the frame first, then the auxiliary block with the file's rows",
           _desc2.startswith("`df`: 2 rows x 1 columns") and "AUXILIARY FILES" in _desc2 and f"Path: {_ath}" in _desc2 and "KEN" in _desc2, _desc2[-400:])
-    check("DATA with nothing attached stays '(no dataset attached)'", B.BambooAI(df=None, df_id=None, user_id="u1", webui=True)._dataset_description() == "(no dataset attached)")
+    check("DATA with nothing attached says so and that df is not defined", B.BambooAI(df=None, df_id=None, user_id="u1", webui=True)._dataset_description()
+          == "(no dataset attached: `df` is not defined and DS has nothing to load; the question stands on its own, or on the documents below if any are attached)")
     from bambooai.models import ModelManager as _MM
     _mm = _MM.__new__(_MM)
     _mm.config = {"agent_configs": [{"agent": "Analyst", "details": {"model": "x-ai/grok-4.7", "provider": "openrouter"}},

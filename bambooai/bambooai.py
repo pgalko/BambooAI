@@ -397,7 +397,8 @@ class BambooAI:
         aux = self._auxiliary_block()
         if self.df is None and not self.df_id:
             if not aux:
-                return "(no dataset attached)"
+                return ("(no dataset attached: `df` is not defined and DS has nothing to load; the question stands on its own, "
+                        "or on the documents below if any are attached)")
             return ("No primary dataset is attached: `df` is not defined and DS has nothing to load. The data are the\n"
                     "auxiliary files below; read one into a frame yourself, e.g. df = pd.read_csv(path).\n\n" + aux)
         head = f"File: {self.df_name}\n" if getattr(self, "df_name", "") else ""
