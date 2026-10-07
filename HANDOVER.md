@@ -284,6 +284,16 @@
   tiers unchanged; every seat's model priced and its effort level valid; no code names a removed model outside
   comments. The direct gpt-5.6-sol entry was aligned to the same price (OpenRouter's is the current one, Palo).
   LLM_CONFIG_sample.json at the repository root still lists the old entries.
+- **Pricing preflight (2026-10-07).** A call's cost is its token counts times the prices of model_properties[model]
+  in the working LLM_CONFIG.json; a model string with no entry costs $0.00 with nothing said (a Reviewer on
+  openai/gpt-5.6-sol ran a whole performance-tier run at $0.00 while OpenRouter billed it). ModelManager now names,
+  at boot, every seat whose model has no priced entry (ModelManager.unpriced_seats, _preflight_pricing - a warning
+  beside the provider preflight).
+- **gpt-6.1-sol (2026-10-07).** OpenRouter's openai/gpt-5.6-sol is superseded by openai/gpt-6.1-sol (released 2026-09-29;
+  checked on openrouter.ai and OpenAI's pricing page: $2 / $10 per 1M tokens, cache read $0.10, cache write $2.50 -
+  the same prices as the 5.6 entry carried; efforts low, medium, high, xhigh, max; 1.05M context, 128k output). The
+  template's three seats on 5.6-sol (the performance Reviewer, the max Analyst and Reviewer) run on 6.1-sol; the 5.6
+  OpenRouter entry is replaced by the 6.1 one. The direct-API gpt-5.6-* entries and the 5.6 -pro entries still stand.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

@@ -55,6 +55,7 @@ class ModelManager:
         self.api_keys = api_keys or {}
         self.config = self._load_llm_config()
         self._preflight_providers()
+        self._preflight_pricing()
     
     def _load_llm_config(self):
         """
@@ -191,6 +192,28 @@ class ModelManager:
                     "Provider preflight: '%s_models' failed to import (%s). "
                     "Every dispatch to provider '%s' will fail until this is "
                     "fixed.", provider, exc, provider)
+
+    def unpriced_seats(self):
+        """(agent, model) for every seat whose model has no model_properties entry with a price. The cost of a call is
+        the token counts times that entry's prices; with no entry every price reads 0.0 and the call is logged at $0
+        with nothing said (2026-10-07: a Reviewer on openai/gpt-5.6-sol ran at $0.00 all run - the working
+        LLM_CONFIG.json priced the model under another key)."""
+        props = self.config.get("model_properties", {}) or {}
+        out = []
+        for item in self.config.get("agent_configs", []) or []:
+            details = item.get("details") or {}
+            model = details.get("model")
+            entry = props.get(model) or {}
+            if model and ("prompt_tokens" not in entry or "completion_tokens" not in entry):
+                out.append((item.get("agent"), model))
+        return out
+
+    def _preflight_pricing(self):
+        """Say at boot which seats will be costed at $0 for want of a pricing entry. Logs, never raises."""
+        for agent, model in self.unpriced_seats():
+            logger.warning("Pricing preflight: seat %r uses model %r, which has no model_properties entry with "
+                           "prompt_tokens and completion_tokens - its calls will be logged at $0.00. Add the entry "
+                           "to LLM_CONFIG.json under that exact model string.", agent, model)
 
     def llm_call(self, log_and_call_manager, messages: str, agent: str = None, chain_id: str = None):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())

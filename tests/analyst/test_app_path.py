@@ -198,6 +198,13 @@ try:
     while not _om.output_queue.empty(): _events2.append(_json.loads(_om.output_queue.get()))
     _ans2 = [e for e in _events2 if e.get('type') == 'answer']
     check("explore: the seedling's answer event carries explore=True; a report's does not", _ans and _ans[0].get('explore') is True and _ans2 and 'explore' not in _ans2[0], (_ans[:1], _ans2[:1]))
+    from bambooai.models import ModelManager as _MM
+    _mm = _MM.__new__(_MM)
+    _mm.config = {"agent_configs": [{"agent": "Analyst", "details": {"model": "x-ai/grok-4.7", "provider": "openrouter"}},
+                                    {"agent": "Reviewer", "details": {"model": "openai/gpt-5.6-sol", "provider": "openrouter"}}],
+                  "model_properties": {"x-ai/grok-4.7": {"prompt_tokens": 0.002, "completion_tokens": 0.006}, "gpt-5.6-sol": {"prompt_tokens": 0.002, "completion_tokens": 0.01}}}
+    check("pricing preflight: a seat whose model string has no model_properties entry (priced under another key) is named; a priced seat is not (2026-10-07: a Reviewer ran at $0.00 all run)",
+          _mm.unpriced_seats() == [("Reviewer", "openai/gpt-5.6-sol")], _mm.unpriced_seats())
     _om.display_results(chain_id="c3", answer="## r", generated_datasets=["datasets/u/generated/x.csv"])
     _events3 = []
     while not _om.output_queue.empty(): _events3.append(_json.loads(_om.output_queue.get()))
