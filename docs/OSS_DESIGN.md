@@ -290,6 +290,9 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   Markdown, results recorded by the kernel (`RESULT(...)`), the reviewer with its evidence handed over in one call,
   a verification ledger and five perspectives, Quick and Deep without a reviewer, generated datasets (`DS.save`) in
   the Dataset cache, and the run's prompts read turn by turn and tidied - patches 0057-0096, executor build v51.
+- **Status 2026-10-07: 2.1.1.** The configuration template tidied and repriced, OpenRouter's gpt-6.1-sol on the
+  sol seats, and a pricing preflight that names any seat whose model has no price - patches 0097-0100. No kernel
+  change: executor build v51 stands.
 
 ### Phase 6 — team mode (O5)
 - A users table, a login page, per-user kernels (subprocess or Docker), one process.

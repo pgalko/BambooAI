@@ -26,7 +26,8 @@
 - **Published.** The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
-  evidence and perspectives, generated datasets - patches 0057-0096).
+  evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
+  tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
