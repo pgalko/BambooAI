@@ -198,6 +198,21 @@ try:
     while not _om.output_queue.empty(): _events2.append(_json.loads(_om.output_queue.get()))
     _ans2 = [e for e in _events2 if e.get('type') == 'answer']
     check("explore: the seedling's answer event carries explore=True; a report's does not", _ans and _ans[0].get('explore') is True and _ans2 and 'explore' not in _ans2[0], (_ans[:1], _ans2[:1]))
+    # auxiliary files in DATA (2026-10-07): described with their first rows; without a primary they are the data
+    os.chdir(tempfile.mkdtemp())                    # an earlier check removed the working directory the constructor writes logs/ into
+    _auxdir = tempfile.mkdtemp(); _laps = os.path.join(_auxdir, "laps.csv"); _ath = os.path.join(_auxdir, "athletes.csv")
+    pd.DataFrame({"athlete": ["a", "b", "c"], "pace": [3.5, 3.6, 3.4]}).to_csv(_laps, index=False)
+    pd.DataFrame({"athlete": ["a", "b"], "nation": ["ETH", "KEN"]}).to_csv(_ath, index=False)
+    _ba = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_laps, _ath])
+    _desc = _ba._dataset_description()
+    check("DATA with auxiliary files and no primary: says df is not defined and the files are the data, then each file's path and first rows (a run had read '(no dataset attached)' and nothing more)",
+          _desc.startswith("No primary dataset is attached: `df` is not defined and DS has nothing to load.") and "AUXILIARY FILES (read them with pandas" in _desc
+          and f"Path: {_laps}" in _desc and f"Path: {_ath}" in _desc and "ETH" in _desc and "3.5" in _desc, _desc[:600])
+    _bb = B.BambooAI(df=pd.DataFrame({"x": [1, 2]}), df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ath])
+    _desc2 = _bb._dataset_description()
+    check("DATA with a primary and an auxiliary file: the frame first, then the auxiliary block with the file's rows",
+          _desc2.startswith("`df`: 2 rows x 1 columns") and "AUXILIARY FILES" in _desc2 and f"Path: {_ath}" in _desc2 and "KEN" in _desc2, _desc2[-400:])
+    check("DATA with nothing attached stays '(no dataset attached)'", B.BambooAI(df=None, df_id=None, user_id="u1", webui=True)._dataset_description() == "(no dataset attached)")
     from bambooai.models import ModelManager as _MM
     _mm = _MM.__new__(_MM)
     _mm.config = {"agent_configs": [{"agent": "Analyst", "details": {"model": "x-ai/grok-4.7", "provider": "openrouter"}},

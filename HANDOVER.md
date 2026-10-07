@@ -295,6 +295,14 @@
   the same prices as the 5.6 entry carried; efforts low, medium, high, xhigh, max; 1.05M context, 128k output). The
   template's three seats on 5.6-sol (the performance Reviewer, the max Analyst and Reviewer) run on 6.1-sol; the 5.6
   OpenRouter entry is replaced by the 6.1 one. The direct-API gpt-5.6-* entries and the 5.6 -pro entries still stand.
+- **Auxiliary files in DATA (2026-10-07).** A run with two auxiliary files and no primary dataset read "(no dataset
+  attached)" and nothing else - the auxiliary line in _dataset_description came after an early return - and the
+  analyst reported having no data; the original BambooAI always described the auxiliary files with their first rows.
+  Now DATA carries an AUXILIARY FILES block in every case: each file's path as the kernel sees it (relative to its
+  working directory, the same in both compute modes) and its first five rows - from the executor's
+  /aux_datasets_to_string in api mode, read here otherwise - a wide head cut at 3,000 characters with a note. With no
+  primary it opens with "No primary dataset is attached: `df` is not defined and DS has nothing to load. The data are
+  the auxiliary files below; read one into a frame yourself". With neither, "(no dataset attached)" stands.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

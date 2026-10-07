@@ -390,8 +390,16 @@ class BambooAI:
             logger.warning("documents: %s could not be removed from the kernel: %s", doc_id, exc)
 
     def _dataset_description(self):
+        """The dataset and the auxiliary files, as the analyst reads them in DATA. With no primary dataset the auxiliary
+        files ARE the data, and the block says so (2026-10-07: a run with two auxiliary files and no primary read
+        "(no dataset attached)" and nothing else - the auxiliary line came after an early return - and the analyst
+        reported having no data; the original BambooAI always described the auxiliary files, with their first rows)."""
+        aux = self._auxiliary_block()
         if self.df is None and not self.df_id:
-            return "(no dataset attached)"
+            if not aux:
+                return "(no dataset attached)"
+            return ("No primary dataset is attached: `df` is not defined and DS has nothing to load. The data are the\n"
+                    "auxiliary files below; read one into a frame yourself, e.g. df = pd.read_csv(path).\n\n" + aux)
         head = f"File: {self.df_name}\n" if getattr(self, "df_name", "") else ""
         try:
             if self.api_client is not None and self.df_id:
@@ -408,9 +416,33 @@ class BambooAI:
                 text = head + "\n".join(lines)
         except Exception as exc:                              # noqa: BLE001
             text = f"`df` is attached (description unavailable: {exc})"
-        if self.auxiliary_datasets:
-            text += f"\nAuxiliary files available in the kernel's working directory: {self.auxiliary_datasets}"
-        return text
+        return text + ("\n\n" + aux if aux else "")
+
+    AUX_HEAD_CHARS = 3000
+
+    def _auxiliary_block(self):
+        """The auxiliary files as the analyst reads them: each one's path as the kernel sees it (relative to its working
+        directory, the same path in both compute modes) and its first rows, from the executor in api mode or read here
+        otherwise - the description the original BambooAI gave; a very wide head is cut with a note."""
+        paths = [p for p in (self.auxiliary_datasets or []) if p]
+        if not paths:
+            return ""
+        try:
+            described = utils.aux_datasets_to_string(paths, num_rows=5, execution_mode=self.execution_mode,
+                                                     executor_client=self.api_client if self.execution_mode == 'api' else None) or ""
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("auxiliary files: description failed (%s) - the paths alone go into DATA", exc)
+            described = ""
+        parts = [p for p in described.split("\n\n") if p.strip()] if described else []
+        if len(parts) != len(paths):                          # the describer could not pair them: paths alone
+            parts = [f"{i}.\nPath: {p}" for i, p in enumerate(paths, 1)]
+        shown = []
+        for part in parts:
+            if len(part) > self.AUX_HEAD_CHARS:
+                part = part[:self.AUX_HEAD_CHARS].rstrip() + "\n... [the head is cut here; read the file for the rest]"
+            shown.append(part)
+        return ("AUXILIARY FILES (read them with pandas from these paths, which are relative to the kernel's working directory):\n"
+                + "\n\n".join(shown))
 
     # ------------------------------------------------------------- the UI
     def _tab(self, kind, data):
