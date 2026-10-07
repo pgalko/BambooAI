@@ -277,6 +277,12 @@
   disk, trying sys.argv and importlib (both stopped by the restricted-module guard) - before reporting files in /app
   that nobody could see. DS now exists in every run: without a dataset, DS.load() prints that nothing is attached and
   returns None, the df check is a no-op, and DS.save works as everywhere. The replay stub likewise. Executor build v51.
+- **The template tidied (Palo, 2026-10-07).** web_app/LLM_CONFIG_template.json: fifteen stale model entries removed
+  (grok-4.3/4.5/4.6, the Mistral and Codestral entries, the Gemini 3.x previews and image models, gemini-3.7-flash,
+  deepseek-v4-flash-0731, the local Qwen 30B and the R1-distill path, claude-sonnet-5/opus-5), claude-sonnet-5-5 and
+  claude-opus-5-5 added, openai/gpt-5.6-sol repriced to 0.002/0.010 per 1k tokens (cache 0.0001/0.0025). Seats and
+  tiers unchanged; every seat's model priced and its effort level valid; no code names a removed model outside
+  comments. LLM_CONFIG_sample.json at the repository root still lists the old entries.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
