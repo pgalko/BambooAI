@@ -282,7 +282,8 @@
   deepseek-v4-flash-0731, the local Qwen 30B and the R1-distill path, claude-sonnet-5/opus-5), claude-sonnet-5-5 and
   claude-opus-5-5 added, openai/gpt-5.6-sol repriced to 0.002/0.010 per 1k tokens (cache 0.0001/0.0025). Seats and
   tiers unchanged; every seat's model priced and its effort level valid; no code names a removed model outside
-  comments. LLM_CONFIG_sample.json at the repository root still lists the old entries.
+  comments. The direct gpt-5.6-sol entry was aligned to the same price (OpenRouter's is the current one, Palo).
+  LLM_CONFIG_sample.json at the repository root still lists the old entries.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
