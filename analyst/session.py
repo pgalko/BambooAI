@@ -351,6 +351,12 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     return thinking, note, action
 
 
+def _reads_like_report(text: str) -> bool:
+    """A reply with no action that is shaped like the report: markdown headings or cell citations, no code fence."""
+    t = text or ""
+    return "```" not in t and bool(re.search(r"^#{1,3} \S", t, re.M) or re.search(r"\[cell \d+\]", t))
+
+
 _ACTION_WORD_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPORT)\b[ \t]*(.*)$")          # as the contract writes them
 _ACTION_WORD_ANY_CASE_RE = re.compile(r"^\s*(cell|show|names|recall|search|read|ask|report)\b[ \t]*(.*)$", re.I)
 
@@ -651,6 +657,7 @@ class Session:
                         halt = (f"STOP: {failures} cells in a row have failed and the analysis could not get past this error. "
                                 "Write REPORT now with what stands: what was established before the failures, what the failing "
                                 "step was meant to add, and what remains unestablished.")
+                        self.emit({"type": "turn_start", "run": run.id, "turn": turn_no + 1, "of": budget.turns})   # a card for the report (2026-10-08)
                         text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, halt + "\n\n" + extra, everything=True))
                         spent += float((usage or {}).get("cost", 0.0) or 0.0)
                         _, note, action = parse_turn(text)
@@ -756,6 +763,12 @@ class Session:
                 elif (usage or {}).get("truncated"):
                     logger.warning("Analyst turn %d: the reply was cut at the length limit before a valid action (%s)", turn_no, action.arg)
                     turn.stdout = "Your last reply was cut off at the length limit before it reached an action; nothing ran."
+                elif action.arg == "no ###ACTION### block" and _reads_like_report(text):
+                    # the answer written without the scaffold (2026-10-08: a Sonnet 5.5 run wrote its report three times with
+                    # no marker lines, once with a bare REPORT line, and was told "no valid action" each time)
+                    logger.warning("Analyst turn %d: a report-shaped reply with no ###ACTION### block: %r", turn_no, (text or "")[:200])
+                    turn.stdout = ("Your last reply read like the report but had no ###ACTION### block, so it was not taken as one; "
+                                   "nothing ran. A report is: ###ACTION### on its own line, REPORT on the next, then the report.")
                 else:
                     logger.warning("Analyst turn %d: malformed reply (%s): %r", turn_no, action.arg, (text or "")[:200])
                     turn.stdout = f"Your last reply had no valid action ({action.arg}). Reply in the exact turn format."
@@ -769,15 +782,19 @@ class Session:
                        "dollars": budget.dollars, "estimate": _estimate_line(run.note)})
             self._save()
 
-        # the report, forced: by a REPORT verdict (this turn is the report), or by the budget exhausted (ask for it once)
-        if forced_by_review:
-            self.emit({"type": "turn_start", "run": run.id, "turn": final_turn, "of": budget.turns})
+        # the report, forced: by a REPORT verdict (this turn is the report), or by the budget exhausted (ask for it once).
+        # Either way the call is a turn with a card (2026-10-08: the exhausted-budget call had a turn_end and no turn_start,
+        # so the report streamed into no card and the pane printed it raw under the closing card)
+        report_turn = final_turn if forced_by_review else budget.turns + 1
+        if not forced_by_review and extra:
+            final_extra = extra + "\n\n" + final_extra      # what the last turn produced rides with the ask: a failure's traceback, a lost reply's note
+        self.emit({"type": "turn_start", "run": run.id, "turn": report_turn, "of": budget.turns})
         text, usage = self.llm(self.system, self._user_prompt(run, budget, final_turn, spent, final_extra, everything=True,
                                                               tail=REPORT_NOW if forced_by_review else ""))
         spent += float((usage or {}).get("cost", 0.0) or 0.0)
         _, note, action = parse_turn(text)
         body = action.arg if action.verb == "report" else (text or "")
-        self.emit({"type": "turn_end", "run": run.id, "turn": final_turn if forced_by_review else budget.turns + 1, "kind": "report", "thinking": "",
+        self.emit({"type": "turn_end", "run": run.id, "turn": report_turn, "kind": "report", "thinking": "",
                    "note": note or run.note, "code": "", "elapsed": (usage or {}).get("elapsed"), "cost": (usage or {}).get("cost", 0.0)})
         turn = Turn(kind="report", note=note or run.note, text=body, usage=dict(usage or {}))
         run.turns.append(turn)

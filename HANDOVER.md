@@ -341,6 +341,15 @@
   times, each time told its reply had no action. The same run's other findings are separate patches: the forced
   report's missing card (0105), the replay's display options (0106). Untested live; a test guards the contract and the
   reviewer prompt against the words thinking, reasoning, scratchpad, memory and private.
+- **The forced report has a card; a report without the marker lines is told so (2026-10-08, patch 0105).** The
+  Sonnet 5.5 run used all fifteen turns; the report the session then asks for once ("Write REPORT now.") had a turn_end
+  and no turn_start, so its text streamed into no card and the app printed it raw under the closing card. The same held
+  for the report forced after five failed cells. Both calls now open a card (turn 16 of 15; turn n+1 after the failures),
+  and the exhausted-budget call carries what the last turn produced (a failure's traceback, a lost reply's note) ahead
+  of the ask. A lost reply shaped like the report - headings or [cell n] citations, no fence, no ###ACTION### - is told
+  "read like the report but had no ###ACTION### block ... A report is: ###ACTION### on its own line, REPORT on the next,
+  then the report" instead of "no valid action". Not done: taking a bare REPORT line as the action - a parser leniency
+  held back until 0104 shows whether the scaffold-dropping persists.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

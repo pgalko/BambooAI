@@ -179,14 +179,44 @@ def loop_llm(system, user, **hints):
         return "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nCould not get past the error; nothing established.\n", {"cost": 0.01}
     i = seen_loop["n"]; seen_loop["n"] += 1
     return LOOP[min(i, len(LOOP) - 1)], {"cost": 0.01}
-k4 = PersistentKernel(df=df); nb4 = Notebook("t4")
+k4 = PersistentKernel(df=df); nb4 = Notebook("t4"); ev4 = []
 try:
-    r4 = Session(k4, nb4, loop_llm, data_description="d").run("q", budget=Budget(turns=15, dollars=1.0))
+    r4 = Session(k4, nb4, loop_llm, data_description="d", emit=ev4.append).run("q", budget=Budget(turns=15, dollars=1.0))
 finally:
     k4.cleanup()
 fails_in_row = sum(1 for t in r4.turns if t.kind == "cell" and t.error)
 check("ceiling: after five consecutive failed cells the session stops trying and forces the report (not fifteen attempts)",
       fails_in_row == 5 and seen_loop["halt_seen"] and r4.status == "answered" and "Could not get past" in r4.report, (fails_in_row, seen_loop["halt_seen"], r4.status))
+_t4 = [(e["type"], e.get("turn")) for e in ev4 if e["type"] in ("turn_start", "turn_end")]
+check("ceiling: the forced report is a turn with a card - turn_start then turn_end, both numbered after the last attempt (2026-10-08)",
+      ("turn_start", 6) in _t4 and ("turn_end", 6) in _t4 and _t4.index(("turn_start", 6)) < _t4.index(("turn_end", 6)), _t4)
+
+# the budget exhausted without a report (2026-10-08): the forced call has a card too - a turn_start before the stream,
+# numbered as its turn_end is - and a reply shaped like the report but without the marker lines is told what was missing
+ex_prompts, ex_events = [], []
+def exhausted_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    ex_prompts.append(user)
+    if len(ex_prompts) == 1:
+        return "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nprint('RESULT: x, 5 units: +1 (95% CI 0 to 2), up')\n```", {"cost": 0.001}
+    if len(ex_prompts) == 2:   # the report written without the scaffold: a lead paragraph, a bare REPORT line, headings
+        return "The data do not identify a stable correction.\n\nREPORT\n\n# Title\n\n## Summary\nNothing [cell 1].", {"cost": 0.001}
+    return "## Summary\n\nTaken whole at the forced call [cell 1].", {"cost": 0.001}
+kex = PersistentKernel(df=df); nbex = Notebook("tex")
+try:
+    rex = Session(kex, nbex, exhausted_llm, data_description="d", emit=ex_events.append).run("q", budget=Budget(turns=2, dollars=1.0, review_every=0))
+finally:
+    kex.cleanup()
+_tex = [(e["type"], e.get("turn"), e.get("kind")) for e in ex_events if e["type"] in ("turn_start", "turn_end")]
+check("a report-shaped reply with no ###ACTION### block loses the turn and is told so precisely - not 'no valid action'",
+      "Your last reply read like the report but had no ###ACTION### block, so it was not taken as one; nothing ran. A report is: ###ACTION### on its own line, REPORT on the next, then the report." in ex_prompts[2]
+      and "no valid action" not in ex_prompts[2] and rex.turns[1].kind == "error", (ex_prompts[2][-400:], [t.kind for t in rex.turns]))
+check("the budget exhausted: the forced report call is turn 3 of 2 with a turn_start before its turn_end, and its text is the report",
+      ("turn_start", 3, None) in _tex and ("turn_end", 3, "report") in _tex and _tex.index(("turn_start", 3, None)) < _tex.index(("turn_end", 3, "report"))
+      and len(ex_prompts) == 3 and "Write REPORT now." in ex_prompts[2] and rex.report.startswith("## Summary") and rex.status == "answered", (_tex, rex.report[:80]))
+_chat = parse_turn("I think the next step should be a within-athlete fit, let me set that up.")
+check("a chatty reply with no headings, citations or fence is not report-shaped: it still reads 'no valid action'",
+      _chat[2].verb == "invalid" and not __import__("analyst.session", fromlist=["_reads_like_report"])._reads_like_report("I think the next step should be a within-athlete fit."))
 
 # ---- the Data tab's page function ----
 import _stubs  # noqa: F401  (the package import pulls the console output manager; the sandbox lacks termcolor)
