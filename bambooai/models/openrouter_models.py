@@ -465,6 +465,24 @@ def _reasoning_efforts():
     return getattr(_routing_local, "reasoning_efforts", None)
 
 
+def set_model_properties(props):
+    """The dispatcher's hand-off: the model's whole properties entry (2026-10-08), for facts the routing, style and
+    efforts hooks do not carry - `no_sampling`: the model takes no temperature (the Claude 5.5 family rejects a
+    non-default value with a 400, and with tools we ask OpenRouter to require every parameter). Same per-thread
+    channel, same reset-before-dispatch discipline."""
+    _routing_local.props = dict(props) if props else {}
+
+
+def _model_props():
+    return getattr(_routing_local, "props", None) or {}
+
+
+def _sampling(temperature):
+    """The temperature to send, or anthropic's NOT_GIVEN-equivalent for the OpenAI client: omitted when the model
+    takes no sampling parameters."""
+    return openai.NOT_GIVEN if _model_props().get("no_sampling") else temperature
+
+
 def _journal_serving(model, provider, tokens_per_second, completion_tokens,
                      elapsed_time):
     """One journal line per call naming which upstream served it, at what
@@ -598,7 +616,7 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str, respo
         response = openai_client.chat.completions.create(
             model=model,
             messages=messages,
-            temperature=temperature,
+            temperature=_sampling(temperature),
             max_tokens=max_tokens,
             response_format=response_format,
             extra_body=_cache_body,
@@ -611,7 +629,7 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str, respo
         response = openai_client.chat.completions.create(
             model=model,
             messages=messages,
-            temperature=temperature,
+            temperature=_sampling(temperature),
             max_tokens=max_tokens,
             response_format=response_format,
             extra_body=_cache_body,
@@ -749,7 +767,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         request_body = {
             "model": model,
             "messages": messages,
-            "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": True,
             # Ask for a final usage chunk so billing is based on the upstream
@@ -763,6 +780,8 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
             # partial-application disease this file already names.
             request_body["extra_headers"] = prompt_cache.grok_headers()
 
+        if not _model_props().get("no_sampling"):      # the Claude 5.5 family takes no temperature (2026-10-08)
+            request_body["temperature"] = temperature
         extra_body = {"usage": {"include": True}}
         # Anthropic-family models routed through OpenRouter take explicit
         # breakpoints; implicit-cache models must not be sent them.

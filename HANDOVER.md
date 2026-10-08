@@ -303,6 +303,26 @@
   /aux_datasets_to_string in api mode, read here otherwise - a wide head cut at 3,000 characters with a note. With no
   primary it opens with "No primary dataset is attached: `df` is not defined and DS has nothing to load. The data are
   the auxiliary files below; read one into a frame yourself". With neither, "(no dataset attached)" stands.
+- **Claude Haiku 5.5 and the Anthropic adapter brought up to the 5.5 API (2026-10-08).** Researched on anthropic.com,
+  platform.claude.com and openrouter.ai: Haiku 5.5 (`claude-haiku-5-5`, released 2026-10-07) is $0.10 / $0.50 per 1M
+  tokens, cache read $0.01, cache write $0.125 for prompts up to 100k tokens (5x those prices above 100k), 1M context,
+  128k output, an adjustable effort setting; Sonnet 5.5 cache reads halved to $0.10 (Opus 5.5 reads $0.20, writes $5).
+  The 5.5 family controls thinking with `output_config.effort` (low, medium, high, xhigh, max) and adaptive thinking
+  (on by default; `budget_tokens` is a 400), returns thinking blocks empty unless `display: "summarized"`, rejects any
+  non-default temperature/top_p/top_k, assistant prefill and (Sonnet) forced tool choice, and declines with
+  `stop_reason: "refusal"`; thinking can be turned off with `disabled` on Haiku 5.5 and `between_tools` on Sonnet 5.5
+  at effort high or below, never on Opus 5.5. Prompt caching is unchanged in shape (explicit `cache_control`
+  breakpoints, 512-token minimum on the 5.5 family) - the adapter's system-prompt breakpoint stands.
+  The template: `claude-haiku-5-5` added, Sonnet's cache read repriced, the three direct 5.5 entries and the three
+  OpenRouter routes (`anthropic/claude-haiku-5.5`, `-sonnet-5.5`, `-opus-5.5`, same prices) carry
+  `reasoning_style: effort`, the five levels, `thinking_off` (disabled / between_tools) and `no_sampling: true`.
+  The Anthropic adapter takes the dispatcher's hand-offs (properties, style, efforts) and shapes the request from
+  them (`request_params`): effort snapped to the declared vocabulary, adaptive thinking with summarized display so the
+  pane sees the reasoning, thinking off where the entry allows it when a seat asks for "none", no temperature on a
+  `no_sampling` model, the effort and thinking type recorded in the call's meta; a refusal stop reason is said in the
+  pane and in the reply. The OpenRouter adapter honours `no_sampling` too (with tools it asks OpenRouter to require
+  every parameter, so a temperature it cannot honour would have failed the route). Untested live: Palo tests direct,
+  then through OpenRouter. The monthly API credit for subscribers is a billing matter, nothing in the code.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

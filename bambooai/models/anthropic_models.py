@@ -40,6 +40,82 @@ def init(api_keys=None):
                               **resilience.timeout_kwargs("anthropic"))
     return client
 
+# ---- The dispatcher's hand-offs (2026-10-08): the model's properties entry, its reasoning style and its declared
+# effort vocabulary, through the same per-thread channel the OpenRouter adapter uses (reset before every dispatch, so a
+# stale entry never dresses the next model in this one's rules). The Claude 5.5 family controls thinking with
+# output_config.effort and adaptive thinking, takes no sampling parameters (a non-default temperature is a 400), and
+# returns thinking blocks empty unless display "summarized" is asked for; the 4.5 models and earlier keep the old shape.
+_props_local = threading.local()
+
+_EFFORT_RANK = {"none": 0, "minimal": 1, "low": 2, "medium": 3, "high": 4, "xhigh": 5, "max": 6}
+
+
+def set_model_properties(props):
+    """The whole model_properties entry for the model being served, or {}."""
+    _props_local.props = dict(props) if props else {}
+
+
+def set_reasoning_style(style):
+    _props_local.style = str(style).strip().lower() if style else None
+
+
+def set_reasoning_efforts(efforts):
+    _props_local.efforts = tuple(str(e).strip().lower() for e in efforts if str(e).strip()) if efforts else None
+
+
+def _props():
+    return getattr(_props_local, "props", None) or {}
+
+
+def _style():
+    return getattr(_props_local, "style", None)
+
+
+def _efforts():
+    return getattr(_props_local, "efforts", None)
+
+
+def _snap_effort(effort):
+    """The requested effort word snapped to the model's declared vocabulary: the lowest declared level at or above the
+    request, else the highest declared; "none" asks for no thinking and snaps to the lowest level."""
+    want = str(effort or "medium").strip().lower()
+    declared = _efforts()
+    if not declared:
+        return want if want in _EFFORT_RANK and want != "none" else "low"
+    rank = _EFFORT_RANK.get(want, 3)
+    above = [e for e in declared if _EFFORT_RANK.get(e, 3) >= rank]
+    return min(above, key=lambda e: _EFFORT_RANK.get(e, 3)) if above else max(declared, key=lambda e: _EFFORT_RANK.get(e, 3))
+
+
+def request_params(model, temperature, max_tokens, effort=None, stream=False):
+    """The request parameters for this model, from its properties entry (2026-10-08).
+
+    - An effort-word model (reasoning_style "effort": the Claude 5.5 family) gets output_config.effort at the snapped
+      level and adaptive thinking with summarized display, so the pane sees the reasoning. A seat that asks for "none"
+      turns thinking off where the model allows it - the entry's `thinking_off` names the way: "disabled" (Haiku 5.5)
+      or "between_tools" (Sonnet 5.5), each accepted at effort high or below and taking no display field - and runs at
+      the lowest effort; a model with no way to turn it off (Opus 5.5) runs adaptive at the lowest effort.
+    - `no_sampling` true on the entry leaves temperature out: these models reject a non-default value with a 400.
+    - Anything else keeps the old shape: temperature when given, no thinking field.
+    """
+    params = {"model": model, "max_tokens": max_tokens}
+    if stream:
+        params["stream"] = True
+    props = _props()
+    if not props.get("no_sampling") and temperature is not False and temperature is not None:
+        params["temperature"] = temperature
+    if _style() == "effort" and effort is not None:
+        want = str(effort).strip().lower()
+        level = _snap_effort(effort)
+        off = props.get("thinking_off")
+        if want == "none" and off and _EFFORT_RANK.get(level, 3) <= _EFFORT_RANK["high"]:
+            params["thinking"] = {"type": str(off)}
+        else:
+            params["thinking"] = {"type": "adaptive", "display": "summarized"}
+        params["output_config"] = {"effort": level}
+    return params
+
+
 def convert_openai_to_anthropic(messages):
     updated_data = []
     system_content = ""
@@ -79,14 +155,9 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str, respo
     # only max_tokens is recorded here. That is what makes a `truncated` entry
     # interpretable on its own.
     prompt_cache.record_meta(max_tokens=max_tokens)
-    api_params = {
-        "model": model,
-        "system": prompt_cache.anthropic_system(system_instruction),
-        "messages": prompt_cache.anthropic_messages(messages),
-        "max_tokens": max_tokens,
-    }
-    if temperature is not False and temperature is not None:
-        api_params["temperature"] = temperature
+    api_params = request_params(model, temperature, max_tokens)
+    api_params["system"] = prompt_cache.anthropic_system(system_instruction)
+    api_params["messages"] = prompt_cache.anthropic_messages(messages)
 
     response = client.messages.create(**api_params)
     end_time = time.time()
@@ -110,7 +181,7 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str, respo
 
     return content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
 
-def call_and_parse_stream(output_manager, collected_messages, tools, messages, system_instruction, model, temperature, max_tokens, chain_id, api_keys=None, stop_event: threading.Event = None):
+def call_and_parse_stream(output_manager, collected_messages, tools, messages, system_instruction, model, temperature, max_tokens, chain_id, api_keys=None, stop_event: threading.Event = None, effort=None):
     """
     Internal function to handle streaming with api_keys support.
 
@@ -137,16 +208,11 @@ def call_and_parse_stream(output_manager, collected_messages, tools, messages, s
     # level, and reasoning_effort is not a parameter of these functions - so
     # only max_tokens is recorded here. That is what makes a `truncated` entry
     # interpretable on its own.
-    prompt_cache.record_meta(max_tokens=max_tokens)
-    api_params = {
-        "model": model,
-        "system": prompt_cache.anthropic_system(system_instruction),
-        "messages": prompt_cache.anthropic_messages(messages),
-        "max_tokens": max_tokens,
-        "stream": True,
-    }
-    if temperature is not False and temperature is not None:
-        api_params["temperature"] = temperature
+    api_params = request_params(model, temperature, max_tokens, effort=effort, stream=True)
+    prompt_cache.record_meta(max_tokens=max_tokens, effort=(api_params.get("output_config") or {}).get("effort"),
+                             thinking=(api_params.get("thinking") or {}).get("type"))
+    api_params["system"] = prompt_cache.anthropic_system(system_instruction)
+    api_params["messages"] = prompt_cache.anthropic_messages(messages)
     if tools:
         api_params["tools"] = tools
 
@@ -245,6 +311,11 @@ def call_and_parse_stream(output_manager, collected_messages, tools, messages, s
                 if _stop == 'max_tokens':
                     resilience.report_truncation(model, max_tokens,
                                                  output_manager, chain_id)
+                elif _stop == 'refusal':
+                    # the Claude 5.5 family's safety classifiers decline a request with this stop reason and no text
+                    # (2026-10-08); said in the pane and in the reply, so the turn does not read as an empty answer
+                    output_manager.display_system_messages(f"{model} declined this request (stop_reason: refusal).")
+                    collected_messages.append(f"[{model} declined this request: stop_reason refusal]")
 
             elif chunk.type == 'message_start':
                 _r, _w, prompt_tokens_used = prompt_cache.from_anthropic_usage(
@@ -302,7 +373,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         (messages, collected_messages, tool_calls, tool_use_block, text_block,
          thinking_blocks, new_prompt_tokens, new_completion_tokens) = call_and_parse_stream(
             output_manager, collected_messages, tools, messages, system_instruction, model, temperature, max_tokens, chain_id, api_keys,
-            stop_event=stop_event)
+            stop_event=stop_event, effort=reasoning_effort)
 
         prompt_tokens_used += new_prompt_tokens
         completion_tokens_used += new_completion_tokens
