@@ -316,6 +316,14 @@ class BambooAI:
         if error:
             logger.warning("Replay of run %s failed (timeout %ds, cells took %.0fs): %s", run.id, timeout, took,
                            str(error).strip().splitlines()[-1][:300] if str(error).strip() else error)
+            # the script sets the kernel's display options and resets them on its last lines; stopped before those, the
+            # executor's process would go on formatting its data views the kernel's way (2026-10-08)
+            try:
+                from analyst.replay import RESET_OPTIONS
+                self.executor.execute(self.output_manager, self.kill_signal, "import pandas as pd\n" + RESET_OPTIONS,
+                                      None, None, None, persist_df=False, timeout=60)
+            except Exception as exc:                               # noqa: BLE001
+                logger.warning("Replay of run %s: the display options could not be reset after the failure: %s", run.id, exc)
         plot_jsons = []
         for i, plot_data in enumerate(plot_images or []):
             plot_jsons.append(json.dumps({'type': 'plot', 'data': plot_data['data'], 'format': plot_data['format'],

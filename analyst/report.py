@@ -76,14 +76,16 @@ def _numbers(text: str, min_len: int = 2) -> Set[str]:
 
 def _present(tok: str, blob: str) -> bool:
     """Exact text, or the same value at the stated precision (1.699e4 ~ 16991.6;
-    1018 ~ 1017.71)."""
+    1018 ~ 1017.71; 1.49e+04 ~ 14901.6 - a mantissa's decimals less the exponent,
+    so a number printed at four significant digits matches its full value)."""
     if tok in blob:
         return True
     try:
         v = float(tok)
     except ValueError:
         return False
-    dec = len(tok.split(".")[1]) if "." in tok and "e" not in tok.lower() else 0
+    mant, _, exp = tok.lower().partition("e")
+    dec = (len(mant.split(".")[1]) if "." in mant else 0) - (int(exp) if exp else 0)
     for m in _NUM_RE.finditer(blob):
         try:
             w = float(m.group(0).replace(",", ""))

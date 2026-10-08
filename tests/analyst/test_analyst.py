@@ -572,6 +572,50 @@ _lines = lambda t: [ln.split(" - typed:")[0] for ln in t.splitlines() if ln.star
 check("replay: a replayed cell's RESULT(...) runs where the runtime has no kernel, and prints the kernel's line to the character (the typed mark aside, which the ledger does not take from the replay)",
       _lines(_kout) == _lines(_rout.getvalue()) and len(_lines(_kout)) == 5, (_lines(_kout), _lines(_rout.getvalue())))
 
+# the replay prints what the kernel printed (2026-10-08): the assembled script sets the kernel's display options, so a
+# wide frame is not elided and floats keep the kernel's four significant digits; the numbers check reads e-notation at
+# its own precision. The Sonnet 5.5 run's "4 of 235 cited numbers did not reappear" was exactly this: 2532 lost to an
+# elided crosstab, 1.49e+04 printed as 14901.6 by the plain executor
+from analyst.replay import compare as _compare
+from analyst.report import _present as _rp
+_wcode = ("ct = pd.DataFrame([[4096, 1873, 2655, 2468, 2532, 2145, 1450], [64, 813, 0, 0, 0, 0, 0]], index=pd.Index([0, 1], name='abroad'),"
+          " columns=['NA', 'asphalt', 'dirt_trail', 'grass_xc', 'mixed_asphalt_gravel', 'mixed_track_gravel', 'synthetic_track'])\n"
+          "med = pd.DataFrame({'spd': [3.63, 4.165], 'session_distance_m': [14901.6, 14011.2]})\nprint(ct); print(med)")
+_wk = PersistentKernel(df=df)
+try:
+    _wout = _wk.execute(_wcode)[0]
+finally:
+    _wk.cleanup()
+_wcell = [Turn(kind="cell", cell_no=1, code=_wcode, stdout=_wout)]
+_wscript, _ = _assemble(_wcell, "see [cell 1]")
+_defaults = {"display.max_columns": 0, "display.width": 80, "display.max_colwidth": 50, "display.max_rows": 60, "display.float_format": None}
+_after = {}
+def _run_plain(script):
+    # as the executor route runs it: pandas at its defaults (max_columns 0 - fit the console width by eliding columns, as the
+    # executor's print of the crosstab did), the script free to set options (undone after, for the next test)
+    with pd.option_context(*[x for kv in _defaults.items() for x in kv]):
+        with _cl.redirect_stdout(_io.StringIO()) as _b:
+            exec(script, {"df": df.copy()})
+        _after.clear(); _after.update({k: pd.get_option(k) for k in _defaults})
+        return _b.getvalue()
+_bare = _run_plain("\n".join(ln for ln in _wscript.splitlines() if not ln.startswith("pd.set_option(")))
+_same = _run_plain(_wscript)
+from analyst.replay import RESET_OPTIONS as _reset
+check("replay: the script's last lines reset the five options, so the executor's process keeps its own formatting for the data views; the app sends the same reset when a replay stopped early",
+      _wscript.rstrip().endswith(_reset) and _after["display.float_format"] is None and _after["display.max_rows"] == 60 and _after["display.max_columns"] is not None
+      and _reset.count("pd.reset_option(") == 5 and "display.float_format" in _reset, (_after, _wscript[-300:]))
+check("replay: without the kernel's display options the plain executor elides the crosstab and prints 14901.6 for 1.49e+04 - the check would say numbers did not reappear",
+      "1.49e+04" in _wout and "2532" in _wout and "..." in _bare and "14901.6" in _bare and _compare(_wcell, "see [cell 1]", _bare)[0] == "differed", (_wout, _bare))
+check("replay: the assembled script sets the kernel's display options, so the replay's output is the kernel's and the check says reproduced",
+      _same == _wout and _compare(_wcell, "see [cell 1]", _same)[0] == "reproduced", (_wout, _same))
+import ast as _ast_k
+_kopts = sorted(ln.strip() for ln in open(os.path.join(ROOT, "delve", "kernel.py")).read().splitlines() if ln.strip().startswith("pd.set_option("))
+_ropts = sorted(ln.strip() for ln in _wscript.splitlines() if ln.strip().startswith("pd.set_option("))
+check("replay: the script's display options are the kernel's, option for option (delve/kernel.py is the one source)",
+      len(_kopts) == 5 and [x.replace("'", '"') for x in _ropts] == [x.replace("'", '"') for x in _kopts], (_kopts, _ropts))
+check("numbers: a value printed in e-notation matches its full value at the mantissa's precision (1.49e+04 ~ 14901.6, 1.401e+04 ~ 14011.2), and not a different one",
+      _rp("1.49e+04", "x 14901.6 y") and _rp("1.401e+04", "14011.2") and _rp("2.5e-3", "0.0025") and not _rp("1.49e+04", "15001.0") and not _rp("2.5e-3", "0.0031") and _rp("1018", "1017.71"))
+
 # the one-liners (2026-10-06): what a cell was for comes from the analyst's account of the step, what came out from a
 # printed fact; a failed attempt the same way; code is read only when there is no account
 from analyst.notebook import step_sentence, purpose_of, Notebook as _NB

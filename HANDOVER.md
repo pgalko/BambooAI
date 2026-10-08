@@ -350,6 +350,16 @@
   "read like the report but had no ###ACTION### block ... A report is: ###ACTION### on its own line, REPORT on the next,
   then the report" instead of "no valid action". Not done: taking a bare REPORT line as the action - a parser leniency
   held back until 0104 shows whether the scaffold-dropping persists.
+- **The replay prints what the kernel printed (2026-10-08, patch 0106).** "Replay ran but 4 of 235 cited numbers did not
+  reappear (0.06428, 1.401e+04, 1.49e+04, 2532)" was formatting, not reproduction: the analysis kernel prints floats at
+  four significant digits with every column shown (delve/kernel.py), the replay runs the assembled script through the
+  plain executor route under pandas' defaults - 14901.6 for 1.49e+04, a seven-column crosstab elided to "..." (2532
+  gone). Reproduced here with the same frame under both settings, to the number. The assembled script now sets the
+  kernel's five display options after its imports (`analyst/replay.py` DISPLAY_OPTIONS, held to kernel.py's lines by a
+  test) and resets them on its last lines, since the executor's process goes on serving the data views; when a replay
+  stops early the app sends the reset on its own (`RESET_OPTIONS`). The numbers check reads e-notation at its own
+  precision (1.49e+04 matches 14901.6: the mantissa's decimals less the exponent), so a report that quotes a kernel line
+  is not held to half a unit. No kernel change, no image rebuild.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

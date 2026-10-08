@@ -17,6 +17,17 @@ from .notebook import Turn
 from .report import cited_cells as _cited, referenced_figures, _numbers, _present
 
 
+# the kernel's display options (delve/kernel.py sets these at import; a test holds the two lists to the same text)
+DISPLAY_OPTIONS = ["pd.set_option('display.max_columns', None)",
+                   "pd.set_option('display.width', None)",
+                   "pd.set_option('display.max_colwidth', 200)",
+                   "pd.set_option('display.max_rows', 2000)",
+                   "pd.set_option('display.float_format', lambda v: f'{v:.4g}')"]
+# back to the process's defaults: the last lines of the assembled script, and what the app sends on its own when a
+# replay stopped before reaching them (the executor's process serves the data views too, with pandas' own formatting)
+RESET_OPTIONS = "\n".join(f"pd.reset_option('{ln.split(chr(39))[1]}')" for ln in DISPLAY_OPTIONS)
+
+
 def cited_cells(report: str):
     """Cells the report cites, as [cell n] or [fig n] - a figure lives in the cell that drew it."""
     return sorted(set(_cited(report)) | set(referenced_figures(report)))
@@ -45,6 +56,11 @@ def assemble(cells: List[Turn], report: str, own: Optional[List[Turn]] = None) -
     parts = ["# Assembled from the analysis notebook: the committed cells in execution order, up to the last cell the report cites or this run's last figure cell.",
              "# `df` is the dataset the analysis ran on.",
              "import pandas as pd", "import numpy as np", "import matplotlib", "matplotlib.use('Agg')", "import matplotlib.pyplot as plt",
+             "# the analysis kernel's display options (delve/kernel.py), so the replay prints what the analysis printed (2026-10-08:",
+             "# under pandas defaults a 7-column crosstab printed with its middle elided to '...' and 1.49e+04 came out as 14901.6,",
+             "# and four cited numbers 'did not reappear' in a replay that had reproduced them); reset at the end, since the",
+             "# executor's process goes on serving the data views with its own defaults",
+             *DISPLAY_OPTIONS,
              "# DS, as in the analysis kernel - a cell may call DS.load() (2026-10-05: the replay route runs a plain script, and",
              "# a figure cell that began with df = DS.load() stopped the replay before any figure was drawn)",
              "if 'DS' not in globals():",
@@ -124,6 +140,7 @@ def assemble(cells: List[Turn], report: str, own: Optional[List[Turn]] = None) -
             parts.append(f"_bamboo_capture[0] = {want}")
             capturing = want
         parts.append(f"\n# --- cell {n} ---\n{by_no[n].code.rstrip()}")
+    parts.append("\n# --- the executor's own display options back ---\n" + RESET_OPTIONS)
     return "\n".join(parts) + "\n", order
 
 
