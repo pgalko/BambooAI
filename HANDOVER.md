@@ -369,6 +369,16 @@
   adaptive thinking skipped thinking - the docs say it may, for a simple request, and that effort "controls how often
   and how deeply it thinks"). The request shape is unchanged and the same for Sonnet, Haiku and Opus; how much a model
   thinks at `high` is its own choice under adaptive thinking - a seat that wants more sets `xhigh` or `max`.
+- **Temperature through extra_body; the preflight names the nearest entry (2026-10-08, patch 0108).** A max-tier
+  run on `claude-opus-5.5` (a dot; the API id and the template's key are `claude-opus-5-5`) died before the request:
+  `Messages.create() got an unexpected keyword argument 'temperature'`. Two things: the current Anthropic SDK's typed
+  create() carries no temperature/top_p/top_k at all, so any seat that still sends one - every model without
+  `no_sampling` on its entry, the Haiku 4.5 shape among them - raised a TypeError on the client; and the misspelt
+  model string had no properties entry, so none of the entry's facts (effort levels, thinking, no_sampling) applied and
+  the request fell to the old shape. Now the adapter passes temperature in `extra_body`, which every SDK version merges
+  into the request body (the API still accepts it on the earlier models; the 5.5 family keeps `no_sampling`), and the
+  pricing preflight's warning names the nearest `model_properties` key when the seat's string is within a character or
+  two of one ("The nearest entry is 'claude-opus-5-5' - a misspelling of it?") and says the entry's facts do not apply.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

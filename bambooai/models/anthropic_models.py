@@ -96,14 +96,18 @@ def request_params(model, temperature, max_tokens, effort=None, stream=False):
       or "between_tools" (Sonnet 5.5), each accepted at effort high or below and taking no display field - and runs at
       the lowest effort; a model with no way to turn it off (Opus 5.5) runs adaptive at the lowest effort.
     - `no_sampling` true on the entry leaves temperature out: these models reject a non-default value with a 400.
-    - Anything else keeps the old shape: temperature when given, no thinking field.
+    - Anything else keeps the old shape: temperature when given (in extra_body, since the SDK's create() no longer
+      takes sampling keywords), no thinking field.
     """
     params = {"model": model, "max_tokens": max_tokens}
     if stream:
         params["stream"] = True
     props = _props()
     if not props.get("no_sampling") and temperature is not False and temperature is not None:
-        params["temperature"] = temperature
+        # through extra_body, which every SDK version merges into the request body: the SDK's typed create() has no
+        # temperature/top_p/top_k any more, and the keyword raised a TypeError before the request was made (2026-10-08,
+        # a seat on a Claude model whose properties entry was missing - its model string had a dot, claude-opus-5.5)
+        params["extra_body"] = {"temperature": temperature}
     if _style() == "effort" and effort is not None:
         want = str(effort).strip().lower()
         level = _snap_effort(effort)

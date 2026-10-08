@@ -209,11 +209,18 @@ class ModelManager:
         return out
 
     def _preflight_pricing(self):
-        """Say at boot which seats will be costed at $0 for want of a pricing entry. Logs, never raises."""
+        """Say at boot which seats will be costed at $0 for want of a pricing entry - naming the nearest entry when the
+        model string looks like a misspelling of one (2026-10-08: claude-opus-5.5 for claude-opus-5-5 lost the entry's
+        no_sampling and effort facts too, and the request failed). Logs, never raises."""
+        import difflib
+        keys = list((self.config.get("model_properties", {}) or {}).keys())
         for agent, model in self.unpriced_seats():
+            near = difflib.get_close_matches(str(model), keys, n=1, cutoff=0.8)
+            hint = f" The nearest entry is {near[0]!r} - a misspelling of it?" if near else ""
             logger.warning("Pricing preflight: seat %r uses model %r, which has no model_properties entry with "
-                           "prompt_tokens and completion_tokens - its calls will be logged at $0.00. Add the entry "
-                           "to LLM_CONFIG.json under that exact model string.", agent, model)
+                           "prompt_tokens and completion_tokens - its calls will be logged at $0.00, and any facts the "
+                           "entry would carry (effort levels, no_sampling) do not apply. Add the entry to LLM_CONFIG.json "
+                           "under that exact model string.%s", agent, model, hint)
 
     def llm_call(self, log_and_call_manager, messages: str, agent: str = None, chain_id: str = None):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())

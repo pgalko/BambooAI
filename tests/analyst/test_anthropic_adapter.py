@@ -34,12 +34,16 @@ check("Opus 5.5 at xhigh: the declared level is sent as is", p["output_config"] 
 p = shape(dict(HAIKU, reasoning_efforts=["low", "high", "max"]), "medium")
 check("a requested level the model does not declare snaps to the lowest declared level at or above it", p["output_config"] == {"effort": "high"}, p)
 p = shape({"reasoning_style": None}, "high", "claude-haiku-4-5-20251001", temperature=0)
-check("an earlier model keeps the old shape: temperature sent, no thinking or effort fields", p == {"model": "claude-haiku-4-5-20251001", "max_tokens": 16000, "stream": True, "temperature": 0}, p)
+check("an earlier model keeps the old shape: temperature sent - in extra_body, since the SDK's create() has no sampling keywords (2026-10-08: a TypeError before the request) - no thinking or effort fields",
+      p == {"model": "claude-haiku-4-5-20251001", "max_tokens": 16000, "stream": True, "extra_body": {"temperature": 0}} and "temperature" not in p, p)
 p = shape(HAIKU, None, "claude-haiku-5-5", stream=False)
 check("the non-streaming path with no effort known: no thinking or effort field (the model's default), still no temperature", "thinking" not in p and "output_config" not in p and "temperature" not in p and "stream" not in p, p)
 A.set_model_properties(None); A.set_reasoning_style(None); A.set_reasoning_efforts(None)
 p = A.request_params("claude-haiku-4-5-20251001", 0.5, 1000)
-check("after a reset hand-off nothing of the last model's rules remains", p == {"model": "claude-haiku-4-5-20251001", "max_tokens": 1000, "temperature": 0.5}, p)
+check("after a reset hand-off nothing of the last model's rules remains", p == {"model": "claude-haiku-4-5-20251001", "max_tokens": 1000, "extra_body": {"temperature": 0.5}}, p)
+p = A.request_params("claude-opus-5-5", 0, 1000, effort="xhigh")
+check("a Claude 5.5 model whose properties entry is missing (a misspelt model string) falls to the old shape: no effort or thinking, temperature in extra_body - the API, not the SDK, then says what is wrong",
+      p == {"model": "claude-opus-5-5", "max_tokens": 1000, "extra_body": {"temperature": 0}}, p)
 
 # a refusal on the stream (2026-10-08: four turns of a Sonnet 5.5 run): stop_details names the category; the pane
 # message and the reply marker carry it, and the request meta records it for the log and the session

@@ -221,6 +221,20 @@ try:
                   "model_properties": {"x-ai/grok-4.7": {"prompt_tokens": 0.002, "completion_tokens": 0.006}, "gpt-5.6-sol": {"prompt_tokens": 0.002, "completion_tokens": 0.01}}}
     check("pricing preflight: a seat whose model string has no model_properties entry (priced under another key) is named; a priced seat is not (2026-10-07: a Reviewer ran at $0.00 all run)",
           _mm.unpriced_seats() == [("Reviewer", "openai/gpt-5.6-sol")], _mm.unpriced_seats())
+    import logging as _lg
+    _mm.config = {"agent_configs": [{"agent": "Analyst", "details": {"model": "claude-opus-5.5", "provider": "anthropic"}}],
+                  "model_properties": {"claude-opus-5-5": {"prompt_tokens": 0.004, "completion_tokens": 0.02, "no_sampling": True}}}
+    class _Catch(_lg.Handler):
+        def __init__(self): super().__init__(); self.lines = []
+        def emit(self, r): self.lines.append(r.getMessage())
+    _h = _Catch(); _lg.getLogger("bambooai.models").addHandler(_h)
+    try:
+        _mm._preflight_pricing()
+    finally:
+        _lg.getLogger("bambooai.models").removeHandler(_h)
+    check("pricing preflight: a model string one character off an entry (claude-opus-5.5 for claude-opus-5-5) is named with the nearest entry, and the warning says the entry's facts do not apply (2026-10-08)",
+          len(_h.lines) == 1 and "'claude-opus-5.5'" in _h.lines[0] and "The nearest entry is 'claude-opus-5-5' - a misspelling of it?" in _h.lines[0]
+          and "effort levels, no_sampling" in _h.lines[0], _h.lines)
     _om.display_results(chain_id="c3", answer="## r", generated_datasets=["datasets/u/generated/x.csv"])
     _events3 = []
     while not _om.output_queue.empty(): _events3.append(_json.loads(_om.output_queue.get()))
