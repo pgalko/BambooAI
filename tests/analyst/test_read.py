@@ -212,7 +212,7 @@ multi = parse_turn("###NOTE###\nn\n###ACTION###\nASK Which season do you mean:\n
 check("parse_turn: a question's own second line still belongs to it; a blank line or a marker ends it", multi.arg == "Which season do you mean:\nthe wet one, or the whole year?", multi)
 chatter = parse_turn("###NOTE###\nn\n###ACTION###\nREAD D1 altitude correction headline\n\n###THINKING###\nI got the document read. Let me digest what it says.\nActually the READ returned a summary")[2]
 check("parse_turn: a READ query is its one line - forty lines of chatter after it are not the question (2026-10-03)", chatter.arg == "D1 altitude correction headline", chatter)
-check("contract: the three marker lines are literal and the template shows each once", "The three marker lines are\nliteral" in open(os.path.join(ROOT, "analyst", "contract.md")).read() and open(os.path.join(ROOT, "analyst", "contract.md")).read().count("###THINKING###") == 1)
+check("contract: the three marker lines are literal and the template shows each once", "The three marker lines are\nliteral" in open(os.path.join(ROOT, "analyst", "contract.md")).read() and open(os.path.join(ROOT, "analyst", "contract.md")).read().count("###STEP###") == 1)
 
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{len(passed)} passed, {len(failed)} failed")

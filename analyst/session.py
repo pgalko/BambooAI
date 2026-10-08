@@ -83,6 +83,7 @@ REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader wh
                 "not 'a dial worth turning'). Reply with the text only.\n\n")
 
 _NOTE_RE = re.compile(r"###NOTE###\s*\n(.*?)\n###ACTION###", re.S)
+_STEP_MARK_RE = re.compile(r"###(?:STEP|THINKING)###[ \t]*\n?")       # the step's marker, and the one it replaced
 
 
 _NOTE_LINE_RE = re.compile(r"^(\s*[-•]\s*)\**\s*([^:*]{2,60}?)\s*\**\s*:\s*\**\s*(.*?)\s*\**\s*$")
@@ -306,7 +307,9 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     runs, and any different ones after it are recorded in `more` so the next prompt can say they did not run (2026-10-05:
     the rule 'the last complete action' had run a four-line restart of imports in place of a 69-line cell; refusing the
     whole reply then cost a turn each time). The same action written twice runs once; a bare marker, or one with an
-    unfinished action under it, carries none. The note and the thinking are the last written before the action taken."""
+    unfinished action under it, carries none. The note and the step are the last written before the action taken. The
+    step's marker is ###STEP###; ###THINKING###, the marker until 0104, is read the same way (2026-10-08: a section named
+    THINKING, filled before the action, is the pattern the Claude 5.5 classifiers decline as reasoning extraction)."""
     text = text or ""
     if not text.strip():
         return "", "", Action("invalid", "empty reply")
@@ -315,7 +318,7 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
         m_note = _NOTE_RE.search(text)
         note = clean_note(m_note.group(1).strip()) if m_note else ""
         thinking = text[:text.find("###NOTE###")].strip() if "###NOTE###" in text else ""
-        thinking = re.sub(r"^###THINKING###\s*", "", thinking).strip()
+        thinking = re.sub(r"^\s*###(?:STEP|THINKING)###\s*", "", thinking).strip()
         return thinking, note, Action("invalid", "no ###ACTION### block")
     found, reasons = [], []
     for k, pos in enumerate(marks):
@@ -343,8 +346,8 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     cut = note_text.find("###ACTION###")                    # the note ends where an earlier action began
     note = clean_note((note_text[:cut] if cut >= 0 else note_text).strip())
     think_end = last_note if last_note >= 0 else len(head)
-    last_think = head.rfind("###THINKING###", 0, think_end)
-    thinking = head[last_think + len("###THINKING###"):think_end].strip() if last_think >= 0 else head[:think_end].strip()
+    last_think = max((m.end() for m in _STEP_MARK_RE.finditer(head, 0, think_end)), default=-1)
+    thinking = head[last_think:think_end].strip() if last_think >= 0 else head[:think_end].strip()
     return thinking, note, action
 
 
@@ -740,7 +743,13 @@ class Session:
                 return run
             else:
                 turn.kind = "error"
-                if action.arg == "empty reply":
+                if usage.get("declined"):
+                    # the provider's classifier declined the request before any text (2026-10-08: four turns of a Claude
+                    # Sonnet 5.5 run, told "no valid action", re-sent the same SHOW three times)
+                    logger.warning("Analyst turn %d: the provider declined the request before any reply (%s)", turn_no, usage["declined"])
+                    turn.stdout = (f"Your last reply did not arrive: the provider declined the request before any text "
+                                   f"({usage['declined']}). Nothing ran; reply again.")
+                elif action.arg == "empty reply":
                     logger.warning("Analyst turn %d: the model returned an empty reply (%s completion tokens billed) - re-asking",
                                    turn_no, usage.get("completion_tokens", "?"))
                     turn.stdout = "Your last reply arrived empty - no text reached the workspace. Reply again, in the turn format."
@@ -879,7 +888,7 @@ class Session:
         # the Re-check and Shown lines are the session's, not the analyst's (2026-10-06: the analyst read "Re-check: cell 17,
         # cell 18" as an instruction to itself and spent six turns re-opening those cells)
         own = "\n".join(ln for ln in latest.note.splitlines() if not ln.startswith(("- Re-check:", "- Shown:")))
-        block = f"REVIEW ({latest.text} - answer it in your THINKING):\n" + own
+        block = f"REVIEW ({latest.text} - answer it in your STEP):\n" + own
         if latest.thinking.startswith("Verdict: TEST"):
             done = self._test_answers(run, latest.text)
             block += ("\n- Status: answered by " + ", ".join(f"[cell {c}]" for c in done) if done
@@ -997,7 +1006,7 @@ class Session:
 
     @staticmethod
     def _turn_log(run: Run, since: int = -1) -> List[str]:
-        """Each analyst turn in order, one entry: its own account (the THINKING), its action, the outcome - the first
+        """Each analyst turn in order, one entry: its own account (the STEP), its action, the outcome - the first
         line a cell printed, a failure's error, a refusal (2026-10-05: an admission that a slope labelled within-athlete
         was pooled sat in a turn the reviewer never saw; it saw a cell list and 'FAILED ATTEMPTS: 7')."""
         lines, k = [], 0
@@ -1023,7 +1032,7 @@ class Session:
                 what = f"{x.kind.upper()} {(x.text or '')[:80]} -> {_first_line(x.stdout)}"
             else:
                 what = f"{x.kind.upper()} {(x.text or '')[:60]}".rstrip()
-            lines.append(f"- turn {k}: {th or '(no thinking written)'} | {what}")
+            lines.append(f"- turn {k}: {th or '(no step written)'} | {what}")
         return lines
 
     def _review(self, run: Run, budget: Budget, after_turn: Optional[int] = None, report: Optional[str] = None):

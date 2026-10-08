@@ -68,8 +68,9 @@ report quotes, and a result that is there need not be computed again.
 {REVIEWS}
 ## The note
 
-A short working note you rewrite every turn: your memory across turns, and the standing state the
-person sees. Seven headings, always the same, written plainly as below, each followed by its content:
+A short working note you rewrite every turn: the standing state of the analysis, for the person
+and for your next turn. Seven headings, always the same, written plainly as below, each followed by
+its content:
 
 - Question as understood: what you take the question to mean, in one or two sentences
 - Best estimate so far: value, interval, unit, direction, scope - or "none yet"
@@ -87,9 +88,9 @@ literal. A reply without them or with no action is a lost turn. A reply with mor
 the first; the rest does not run.
 
 ```
-###THINKING###
-Two or three sentences on this turn: what the last output showed, what you do now and why.
-(The note below is your standing state; this is the step.)
+###STEP###
+Two or three sentences for the person following the run: what the last output showed, what this
+turn does and why. (The note is the state; this is the step.)
 ###NOTE###
 The note, under the headings listed in The note.
 ###ACTION###

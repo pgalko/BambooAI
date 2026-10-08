@@ -41,6 +41,42 @@ A.set_model_properties(None); A.set_reasoning_style(None); A.set_reasoning_effor
 p = A.request_params("claude-haiku-4-5-20251001", 0.5, 1000)
 check("after a reset hand-off nothing of the last model's rules remains", p == {"model": "claude-haiku-4-5-20251001", "max_tokens": 1000, "temperature": 0.5}, p)
 
+# a refusal on the stream (2026-10-08: four turns of a Sonnet 5.5 run): stop_details names the category; the pane
+# message and the reply marker carry it, and the request meta records it for the log and the session
+from types import SimpleNamespace as NS
+from bambooai.models import prompt_cache
+class _OM:
+    def __init__(self): self.msgs = []
+    def display_system_messages(self, m, *a, **k): self.msgs.append(m)
+    def print_wrapper(self, *a, **k): pass
+def _refusal_stream(details):
+    yield NS(type="message_start", message=NS(usage=NS(input_tokens=412, cache_read_input_tokens=0, cache_creation_input_tokens=0)))
+    yield NS(type="message_delta", delta=NS(stop_reason="refusal", stop_sequence=None, stop_details=details), usage=NS(output_tokens=0))
+def _drive(details):
+    om, got = _OM(), []
+    A.init = lambda api_keys=None: NS(messages=NS(create=lambda **kw: _refusal_stream(details)))
+    A.set_model_properties(SONNET); A.set_reasoning_style("effort"); A.set_reasoning_efforts(SONNET["reasoning_efforts"])
+    r = A.call_and_parse_stream(om, got, None, [{"role": "user", "content": "q"}], "sys", "claude-sonnet-5-5", 0, 1000, "c1",
+                                api_keys={"anthropic": "k"}, effort="high")
+    return om, got, r, prompt_cache.last_meta()
+_init = A.init
+try:
+    om, got, r, meta = _drive(NS(type="refusal", category="reasoning_extraction", explanation="The request asks for the model's reasoning."))
+    check("a refusal with stop_details: the pane names the category and the explanation, the reply marker names the category, "
+          "the meta records both, no text, the prompt tokens counted",
+          got == ["[claude-sonnet-5-5 declined this request: stop_reason refusal, reasoning_extraction]"]
+          and om.msgs == ["claude-sonnet-5-5 declined this request (stop_reason: refusal, reasoning_extraction): The request asks for the model's reasoning."]
+          and meta.get("declined") == "reasoning_extraction" and meta.get("declined_why") == "The request asks for the model's reasoning."
+          and r[6] == 412 and r[7] == 0, (got, om.msgs, meta, r[6:]))
+    om, got, r, meta = _drive(None)
+    check("a refusal without stop_details (an older SDK, or no category): 'no category given', and nothing else differs",
+          got == ["[claude-sonnet-5-5 declined this request: stop_reason refusal, no category given]"]
+          and om.msgs == ["claude-sonnet-5-5 declined this request (stop_reason: refusal, no category given)."]
+          and meta.get("declined") == "no category given" and "declined_why" not in meta, (got, om.msgs, meta))
+finally:
+    A.init = _init
+    A.set_model_properties(None); A.set_reasoning_style(None); A.set_reasoning_efforts(None)
+
 # OpenRouter: the same no_sampling fact leaves temperature out of the request
 OR.set_model_properties({"no_sampling": True})
 check("OpenRouter: a model with no_sampling gets no temperature (the client's NOT_GIVEN)", OR._sampling(0) is OR.openai.NOT_GIVEN)

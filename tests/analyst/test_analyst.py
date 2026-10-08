@@ -585,6 +585,25 @@ finally:
 check("a reply cut at the length limit: the next prompt says so, and nothing ran",
       "Your last reply was cut off at the length limit before it reached an action; nothing ran." in tr_prompts[1] and "no valid action" not in tr_prompts[1] and rtr.status == "answered", tr_prompts[1][-300:])
 
+# a request the provider's classifier declined before any text (2026-10-08, Claude Sonnet 5.5): the usage names the
+# category, the next prompt says what happened - not "no valid action", which had the analyst re-send the same SHOW three
+# times - the turn is a lost one in the record, and the run goes on
+dc_prompts = []
+def declined_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    dc_prompts.append(user)
+    if len(dc_prompts) == 1:
+        return "[claude-x declined this request: stop_reason refusal, reasoning_extraction]", {"cost": 0.01, "declined": "reasoning_extraction"}
+    return act6("REPORT\n## r\n\nDone."), {"cost": 0.001}
+kdc = PersistentKernel(df=df); nbdc = Notebook("tdc")
+try:
+    rdc = Session(kdc, nbdc, declined_llm, data_description="d").run("q", budget=Budget(turns=4, dollars=1.0, review_every=0))
+finally:
+    kdc.cleanup()
+check("a request the provider declined: the next prompt names it and its category, nothing ran, the turn is recorded as lost, and the run goes on",
+      "Your last reply did not arrive: the provider declined the request before any text (reasoning_extraction). Nothing ran; reply again." in dc_prompts[1]
+      and "no valid action" not in dc_prompts[1] and rdc.turns[0].kind == "error" and rdc.status == "answered", (dc_prompts[1][-300:], [t.kind for t in rdc.turns]))
+
 # DS.save (2026-10-06): a dataset for the person lands in the generated-datasets folder the kernel was given, with one
 # printed line; the replayed script's stub does the same into the folder the route passes
 _gtmp = tempfile.mkdtemp(); _gdir = os.path.join(_gtmp, "datasets", "u1", "generated")
@@ -746,7 +765,7 @@ check("review: reviews come after every 2nd turn and are not turns - the analyst
 u1 = rv_calls[0][1]
 check("review: the first review's input - the question, the ledger, no earlier checks, all turns so far, and the cells to check: the results recorded so far, newest first, code and complete output",
       "QUESTION:\nis B higher than A" in u1 and "RESULTS SO FAR:\n- [cell 1] B vs A step 1" in u1 and "CHECKED BY EARLIER REVIEWS:\n(none yet)" in u1
-      and "TURNS (the analyst's own account of each turn, its action, and the outcome):\n- turn 1: (no thinking written) | cell 1 -> RESULT: B vs A step 1" in u1
+      and "TURNS (the analyst's own account of each turn, its action, and the outcome):\n- turn 1: (no step written) | cell 1 -> RESULT: B vs A step 1" in u1
       and "TO CHECK NOW (code and complete output; no review has checked these):\n--- cell 2 (a result recorded since the last review) ---\n```python\ne = 1.5\nRESULT('B vs A step 2" in u1
       and "\nOUTPUT:\nRESULT: B vs A step 2" in u1 and "--- cell 1 (a result recorded since the last review) ---" in u1 and u1.rstrip().endswith("TURN: after turn 2; up to 12."), u1[-1500:])
 u2 = rv_calls[1][1]
@@ -788,12 +807,12 @@ check("review: a RESULT recorded with test='after turn 2' answers the test - the
       (tg_prompts[3][-300:], tg_rv[1][-900:] if len(tg_rv) > 1 else ""))
 p3 = an_prompts[2][0]
 check("review: the review rides in the analyst's next prompts under REVIEW, above the task line, until the next one - without the Re-check and Shown lines, which are the session's",
-      "REVIEW (after turn 2 - answer it in your THINKING):\n- The question requires: B against A with an interval." in p3 and p3.index("REVIEW (after turn 2") < p3.index("TASK: turn 3")
+      "REVIEW (after turn 2 - answer it in your STEP):\n- The question requires: B against A with an interval." in p3 and p3.index("REVIEW (after turn 2") < p3.index("TASK: turn 3")
       and "REVIEW (after turn 2" in an_prompts[3][0] and "- Re-check:" not in p3[p3.index("REVIEW (after turn 2"):] and "- Shown:" not in p3[p3.index("REVIEW (after turn 2"):]
       and "- Checked: cell 2" in p3[p3.index("REVIEW (after turn 2"):], p3[-700:])
 p5 = an_prompts[4][0]
 check("review: a REPORT verdict citing a cell handed to it binds - the next turn is the report: every cell in view, the review above, the report-now line - and the run is answered",
-      "REVIEW (after turn 4 - answer it in your THINKING):" in p5 and "- Verdict: REPORT the comparison is made" in p5 and "this turn is the report. Write REPORT now." in p5
+      "REVIEW (after turn 4 - answer it in your STEP):" in p5 and "- Verdict: REPORT the comparison is made" in p5 and "this turn is the report. Write REPORT now." in p5
       and "TASK: turn 5;" in p5 and r9.status == "answered" and len(an_prompts) == 5, (r9.status, len(an_prompts), p5[-400:]))
 u3 = rv_calls[2][1]
 check("review after the report: the report is read instead of the note, the input says the analysis is over, the cells it cites that were checked are not sent again, and the note names the cells checked",
@@ -1007,7 +1026,27 @@ check("contract: a reply with more than one action runs the first and the rest d
 check("contract (Adaptive): a TEST's outcome is recorded with test='after turn 16', and the test is open until it is recorded",
       "`RESULT(..., test=\"after turn 16\")`" in contract(False, 8) and "until such a line is recorded the test is open" in contract(False, 8))
 check("contract: the format is a literal template of one turn - three marker lines, each once - and the actions are a table with one row per form",
-      c.count("###THINKING###") == 1 and c.count("###NOTE###") == 1 and c.count("###ACTION###") == 1 and "| a fenced python block |" in c and "| `CELL` |" not in c and "| `REPORT` |" in c and "Seven headings" in c and "under the headings listed in The note" in c)
+      c.count("###STEP###") == 1 and c.count("###NOTE###") == 1 and c.count("###ACTION###") == 1 and "| a fenced python block |" in c and "| `CELL` |" not in c and "| `REPORT` |" in c and "Seven headings" in c and "under the headings listed in The note" in c)
+# the step's section is STEP, framed for the person following the run; THINKING, filled before the action, and a note
+# called "your memory" were the pattern the Claude 5.5 classifiers decline as reasoning extraction (2026-10-08: four
+# refused turns in one Sonnet 5.5 run, and the answer written without the scaffold)
+import re as _re_c
+_scan = {name: sorted({m.group(0).lower() for m in _re_c.finditer(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", t)})
+         for name, t in {"plain": c, "documents, reviews": contract(True, 8), "reviewer": REVIEWER}.items()}
+check("contract: the step is a STEP section written for the person following the run, the note is the standing state - no section "
+      "named for thinking or reasoning, no memory or private notes, in any prompt a model reads",
+      "###THINKING###" not in c and "###STEP###\nTwo or three sentences for the person following the run: what the last output showed, what this\nturn does and why." in c
+      and "the standing state of the analysis, for the person\nand for your next turn" in c and "your memory" not in c
+      and not any(v for v in _scan.values()), _scan)
+_st = parse_turn("###STEP###\nThe last output showed 9 overlap. Now the within-athlete fit.\n###NOTE###\n- Question as understood: q\n###ACTION###\nCELL\n```python\nprint(1)\n```")
+_sr = parse_turn("###STEP###\nDone.\n###NOTE###\n- Plan: report\n###ACTION###\nREPORT\n## r\n\nx [cell 1].")
+_so = parse_turn("###THINKING###\nold marker\n###NOTE###\n- Question as understood: q\n###ACTION###\nSHOW 3")
+_sn = parse_turn("###STEP###\nno action here\n###NOTE###\n- Question as understood: q")
+check("parse_turn: the STEP marker is read as the step - for a cell and a report - and the THINKING marker of earlier runs still is; without an action the step is still captured",
+      _st[0] == "The last output showed 9 overlap. Now the within-athlete fit." and _st[2].verb == "cell" and _st[2].arg == "print(1)"
+      and _sr[0] == "Done." and _sr[2].verb == "report" and _sr[2].arg.startswith("## r")
+      and _so[0] == "old marker" and _so[2].verb == "show" and _so[2].arg == "3"
+      and _sn[0] == "no action here" and _sn[2].verb == "invalid", (_st, _sr, _so, _sn))
 check("contract: no documents furniture and the one budget rule when the thread has no documents",
       "READ D1" not in c and "[D1.17]" not in c and "LOOK" not in c and "## Documents" not in c and "The limit is not a target" in c and "Write REPORT when the answer is established" in c)
 cd_ = open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()

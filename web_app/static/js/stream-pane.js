@@ -42,8 +42,8 @@
         const s = (m ? m[1] : t);
         return s.length > (max || 140) ? s.slice(0, (max || 140) - 1) + '…' : s;
     }
-    // the step itself: the THINKING from its second sentence on - the first, by the contract's order, is what the last
-    // output showed (2026-10-06: the card's peek had described the previous turn); a one-sentence THINKING is the step
+    // the step itself: the STEP section from its second sentence on - the first, by the contract's order, is what the last
+    // output showed (2026-10-06: the card's peek had described the previous turn); a one-sentence STEP is the step
     function stepSentence(text, max) {
         const t = String(text || '').replace(/\s+/g, ' ').trim();
         if (!t) return '';
@@ -254,7 +254,7 @@
         if (noteSeen) return true;
         const cut = liveRaw.indexOf('###NOTE###');
         let visible = cut >= 0 ? liveRaw.slice(0, cut) : liveRaw;
-        visible = visible.replace(/^\s*###THINKING###\s*/, '');
+        visible = visible.replace(/^\s*###(?:STEP|THINKING)###\s*/, '');      // the step's marker (THINKING until 0104)
         const think = liveCard.querySelector('.sp-think');
         if (think) think.innerHTML = esc(visible) + '<span class="cursor"></span>';
         const peek = liveCard.querySelector('summary .peek');

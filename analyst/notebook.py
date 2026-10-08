@@ -31,8 +31,8 @@ def new_id() -> str:
 
 
 def step_sentence(thinking: str, width: int = 110) -> str:
-    """The analyst's account of the step: its THINKING from the second sentence on - the first, by the contract's
-    order, says what the last output showed - cut at a word to `width`. A one-sentence THINKING is the step itself."""
+    """The analyst's account of the step: its STEP section from the second sentence on - the first, by the contract's
+    order, says what the last output showed - cut at a word to `width`. A one-sentence STEP is the step itself."""
     text = " ".join((thinking or "").split())
     if not text:
         return ""
@@ -165,7 +165,7 @@ class Notebook:
     @staticmethod
     def headline(turn: Turn, width: int = 240) -> str:
         """One line for a collapsed cell: its number, what it was for, and what came out. What it was for is the
-        analyst's own account of the step - its THINKING from the second sentence on (the first, by the contract's
+        analyst's own account of the step - its STEP section from the second sentence on (the first, by the contract's
         order, is what the last output showed) - and only without one the code's first comment or first working
         statement (2026-10-06: "import pandas as pd" had stood for three cells of five). What came out is a printed
         fact: the first RESULT line the kernel recorded, else the first printed line; for a failed attempt, the error.

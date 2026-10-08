@@ -313,9 +313,16 @@ def call_and_parse_stream(output_manager, collected_messages, tools, messages, s
                                                  output_manager, chain_id)
                 elif _stop == 'refusal':
                     # the Claude 5.5 family's safety classifiers decline a request with this stop reason and no text
-                    # (2026-10-08); said in the pane and in the reply, so the turn does not read as an empty answer
-                    output_manager.display_system_messages(f"{model} declined this request (stop_reason: refusal).")
-                    collected_messages.append(f"[{model} declined this request: stop_reason refusal]")
+                    # (2026-10-08); said in the pane and in the reply, so the turn does not read as an empty answer.
+                    # stop_details names the category (cyber, bio, frontier_llm, reasoning_extraction, general_harms,
+                    # or none) and carries an explanation; both go to the pane, the category to the log and the session
+                    _details = getattr(getattr(chunk, 'delta', None), 'stop_details', None)
+                    _category = getattr(_details, 'category', None) or 'no category given'
+                    _why = getattr(_details, 'explanation', None) or ''
+                    output_manager.display_system_messages(
+                        f"{model} declined this request (stop_reason: refusal, {_category}){': ' + _why if _why else '.'}")
+                    prompt_cache.record_meta(declined=_category, declined_why=_why or None)
+                    collected_messages.append(f"[{model} declined this request: stop_reason refusal, {_category}]")
 
             elif chunk.type == 'message_start':
                 _r, _w, prompt_tokens_used = prompt_cache.from_anthropic_usage(

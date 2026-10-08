@@ -88,15 +88,15 @@ def _note(q, est="none yet", held="nothing yet", doubts="-", plan="-", names="df
 
 
 def _cell(thinking, note, code):
-    return thinking, f"###THINKING###\n{thinking}\n###NOTE###\n{note}\n###ACTION###\nCELL\n```python\n{code}\n```"
+    return thinking, f"###STEP###\n{thinking}\n###NOTE###\n{note}\n###ACTION###\nCELL\n```python\n{code}\n```"
 
 
 def _action(thinking, note, line):
-    return thinking, f"###THINKING###\n{thinking}\n###NOTE###\n{note}\n###ACTION###\n{line}"
+    return thinking, f"###STEP###\n{thinking}\n###NOTE###\n{note}\n###ACTION###\n{line}"
 
 
 def _report(thinking, note, body):
-    return thinking, f"###THINKING###\n{thinking}\n###NOTE###\n{note}\n###ACTION###\nREPORT\n{body}"
+    return thinking, f"###STEP###\n{thinking}\n###NOTE###\n{note}\n###ACTION###\nREPORT\n{body}"
 
 
 CELL_INSPECT = """# Shape, dtypes, the soil mix by regime, and raw yield by regime

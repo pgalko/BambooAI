@@ -323,6 +323,24 @@
   pane and in the reply. The OpenRouter adapter honours `no_sampling` too (with tools it asks OpenRouter to require
   every parameter, so a temperature it cannot honour would have failed the route). Untested live: Palo tests direct,
   then through OpenRouter. The monthly API credit for subscribers is a billing matter, nothing in the code.
+- **The refusals of the first Sonnet 5.5 run: the contract's THINKING section (2026-10-08, patch 0104).** Four of the
+  run's sixteen analyst calls came back `stop_reason: refusal` within a second and with no output tokens; each refused
+  prompt differed from the next, accepted one only by the task line and a note sentence. That is Anthropic's
+  `reasoning_extraction` classifier (platform.claude.com/docs/en/build-with-claude/refusals-and-fallback): it declines a
+  prompt that asks the model to fill a thinking/reasoning/scratchpad section before the answer, or to keep private
+  notes or a running log of its reasoning - the wording may sit in the system prompt - and such refusals are billed
+  before any output; the guidance is "change the prompt rather than retrying", and there is no fallback model for the
+  category. The contract's `###THINKING###` section and a note described as "your memory across turns" were that
+  pattern. Now: the section is `###STEP###`, "two or three sentences for the person following the run: what the last
+  output showed, what this turn does and why" (an explanation of an action, which the policy allows), and the note is
+  "the standing state of the analysis, for the person and for your next turn"; the parser and the pane read either
+  marker, so an old record streams and renders as before; the reviews paragraph and the REVIEW block say "answer it in
+  your STEP". The adapter reads `stop_details` on a refusal and records the category (and the explanation) in the
+  call's meta, the pane message and the reply marker; the session tells the model "the provider declined the request
+  before any text (category); nothing ran" instead of "no valid action" - the analyst had re-sent the same SHOW three
+  times, each time told its reply had no action. The same run's other findings are separate patches: the forced
+  report's missing card (0105), the replay's display options (0106). Untested live; a test guards the contract and the
+  reviewer prompt against the words thinking, reasoning, scratchpad, memory and private.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

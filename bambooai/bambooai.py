@@ -156,7 +156,11 @@ class BambooAI:
         # spent its whole 16,000 tokens reasoning and the 887 characters that arrived had no action - the analyst was told
         # "no valid action", which is true but not what happened)
         from bambooai.models import prompt_cache
-        return text or "", {"cost": max(0.0, self._chain_cost() - before), "truncated": bool(prompt_cache.last_meta().get("truncated"))}
+        meta = prompt_cache.last_meta()
+        # a request the provider's classifier declined before any text (2026-10-08: the Claude 5.5 family's stop_reason
+        # "refusal"; the adapter records the category so the session can say what happened rather than "no valid action")
+        return text or "", {"cost": max(0.0, self._chain_cost() - before), "truncated": bool(meta.get("truncated")),
+                            "declined": meta.get("declined") or ""}
 
     def _chain_cost(self):
         ts = self.log_and_call_manager.token_summary
