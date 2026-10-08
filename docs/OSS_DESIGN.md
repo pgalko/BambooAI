@@ -293,6 +293,12 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
 - **Status 2026-10-07: 2.1.1.** The configuration template tidied and repriced, OpenRouter's gpt-6.1-sol on the
   sol seats, and a pricing preflight that names any seat whose model has no price - patches 0097-0100. No kernel
   change: executor build v51 stands.
+- **Status 2026-10-08: 2.2.2.** The Claude 5.5 family on the Anthropic adapter (effort, adaptive thinking with its
+  summary in the card's reasoning fold, refusals named by category, temperature through extra_body), the contract's
+  step section (`###STEP###`, for the person following the run - the THINKING section had tripped the 5.5 models'
+  reasoning-extraction classifier), the forced report's card, the replay printing as the kernel prints, auxiliary
+  files described in DATA, the template's Claude seats - patches 0101-0110. No kernel change: executor build v51
+  stands.
 
 ### Phase 6 — team mode (O5)
 - A users table, a login page, per-user kernels (subprocess or Docker), one process.

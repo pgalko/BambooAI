@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bambooai"
-version = "2.1.1"
+version = "2.2.2"
 description = "An LLM-driven data analyst that works in a persistent Python kernel, one cell at a time, and reproduces its own results before it reports them."
 readme = "docs/PYPI_README.md"     # PyPI cannot resolve the repository-relative images of README.md
 requires-python = ">=3.11"
@@ -26,7 +26,7 @@ dependencies = [
     "requests",
     "httpx",
     "openai>=1.30",
-    "anthropic",
+    "anthropic>=0.88",       # stop_details on a refusal (0.88), the thinking display setting (0.85), output_config.effort
     "google-genai",
     "google-generativeai",
     "groq",
