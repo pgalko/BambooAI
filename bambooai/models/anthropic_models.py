@@ -202,6 +202,7 @@ def call_and_parse_stream(output_manager, collected_messages, tools, messages, s
     # Initialize up front so we never depend on locals() introspection.
     prompt_tokens_used = 0
     completion_tokens_used = 0
+    thinking_chars = 0            # the summarized thinking's length: 0 when the model produced no thinking block
 
     prompt_cache.reset()
     # Anthropic controls thinking with a token budget rather than an effort
@@ -276,6 +277,12 @@ def call_and_parse_stream(output_manager, collected_messages, tools, messages, s
                 elif d.type == "thinking_delta":
                     if current_thinking is not None:
                         current_thinking.thinking = (getattr(current_thinking, "thinking", "") or "") + d.thinking
+                    if d.thinking:
+                        # the summarized thinking to the pane's reasoning fold, as every other reasoning adapter does
+                        # (2026-10-08: it was captured for tool replay and shown nowhere, so a Claude card had no
+                        # reasoning and how much a turn thought could not be seen)
+                        thinking_chars += len(d.thinking)
+                        output_manager.print_wrapper(d.thinking, end='', flush=True, chain_id=chain_id, thought=True)
 
                 elif d.type == "signature_delta":
                     if current_thinking is not None:
@@ -337,6 +344,9 @@ def call_and_parse_stream(output_manager, collected_messages, tools, messages, s
         output_manager.display_system_messages(f"Unexpected error: {str(e)}")
         raise
 
+    # how much the call thought, for the log: the summary's length and the number of thinking blocks - with adaptive
+    # thinking the model may skip thinking altogether, and output_tokens does not separate thinking from text
+    prompt_cache.record_meta(thinking_chars=thinking_chars, thinking_blocks=len(thinking_blocks))
     return messages, collected_messages, tool_calls, tool_use_block, text_block, thinking_blocks, prompt_tokens_used, completion_tokens_used
 
 def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: list, model: str, temperature: float, max_tokens: int,

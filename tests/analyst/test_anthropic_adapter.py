@@ -46,15 +46,27 @@ check("after a reset hand-off nothing of the last model's rules remains", p == {
 from types import SimpleNamespace as NS
 from bambooai.models import prompt_cache
 class _OM:
-    def __init__(self): self.msgs = []
+    def __init__(self): self.msgs = []; self.thoughts = []; self.text = []
     def display_system_messages(self, m, *a, **k): self.msgs.append(m)
-    def print_wrapper(self, *a, **k): pass
+    def print_wrapper(self, m, *a, **k): (self.thoughts if k.get("thought") else self.text).append(m)
 def _refusal_stream(details):
     yield NS(type="message_start", message=NS(usage=NS(input_tokens=412, cache_read_input_tokens=0, cache_creation_input_tokens=0)))
     yield NS(type="message_delta", delta=NS(stop_reason="refusal", stop_sequence=None, stop_details=details), usage=NS(output_tokens=0))
-def _drive(details):
+def _thinking_stream(think_parts):
+    yield NS(type="message_start", message=NS(usage=NS(input_tokens=300, cache_read_input_tokens=0, cache_creation_input_tokens=0)))
+    if think_parts:
+        yield NS(type="content_block_start", index=0, content_block=NS(type="thinking", thinking="", signature=""))
+        for t in think_parts:
+            yield NS(type="content_block_delta", index=0, delta=NS(type="thinking_delta", thinking=t))
+        yield NS(type="content_block_delta", index=0, delta=NS(type="signature_delta", signature="sig"))
+        yield NS(type="content_block_stop", index=0)
+    yield NS(type="content_block_start", index=1, content_block=NS(type="text", text=""))
+    yield NS(type="content_block_delta", index=1, delta=NS(type="text_delta", text="###STEP###\nDone.\n###NOTE###\nn\n###ACTION###\nNAMES"))
+    yield NS(type="content_block_stop", index=1)
+    yield NS(type="message_delta", delta=NS(stop_reason="end_turn", stop_sequence=None, stop_details=None), usage=NS(output_tokens=90))
+def _drive(details, stream=None):
     om, got = _OM(), []
-    A.init = lambda api_keys=None: NS(messages=NS(create=lambda **kw: _refusal_stream(details)))
+    A.init = lambda api_keys=None: NS(messages=NS(create=lambda **kw: (stream if stream is not None else _refusal_stream(details))))
     A.set_model_properties(SONNET); A.set_reasoning_style("effort"); A.set_reasoning_efforts(SONNET["reasoning_efforts"])
     r = A.call_and_parse_stream(om, got, None, [{"role": "user", "content": "q"}], "sys", "claude-sonnet-5-5", 0, 1000, "c1",
                                 api_keys={"anthropic": "k"}, effort="high")
@@ -73,6 +85,16 @@ try:
           got == ["[claude-sonnet-5-5 declined this request: stop_reason refusal, no category given]"]
           and om.msgs == ["claude-sonnet-5-5 declined this request (stop_reason: refusal, no category given)."]
           and meta.get("declined") == "no category given" and "declined_why" not in meta, (got, om.msgs, meta))
+    # the summarized thinking (2026-10-08): streamed to the pane's reasoning fold as it arrives, kept apart from the text,
+    # and the call's meta says how much there was - 0 when the model produced no thinking block
+    om, got, r, meta = _drive(None, stream=_thinking_stream(["Sea-level laps are the abroad ", "sessions; fit within athlete."]))
+    check("a thinking block streams to the pane as thought, the text as text; the meta carries the thinking's length and block count; the reply is the text alone",
+          om.thoughts == ["Sea-level laps are the abroad ", "sessions; fit within athlete."] and "".join(om.text) == "###STEP###\nDone.\n###NOTE###\nn\n###ACTION###\nNAMES"
+          and got == ["###STEP###\nDone.\n###NOTE###\nn\n###ACTION###\nNAMES"] and meta.get("thinking_chars") == 59 and meta.get("thinking_blocks") == 1
+          and r[5][0].thinking == "Sea-level laps are the abroad sessions; fit within athlete." and r[7] == 90, (om.thoughts, om.text, got, meta))
+    om, got, r, meta = _drive(None, stream=_thinking_stream([]))
+    check("a reply with no thinking block (adaptive thinking skipped it): nothing on the thought channel, thinking_chars 0 and thinking_blocks 0 in the meta",
+          om.thoughts == [] and meta.get("thinking_chars") == 0 and meta.get("thinking_blocks") == 0 and got == ["###STEP###\nDone.\n###NOTE###\nn\n###ACTION###\nNAMES"], (om.thoughts, meta))
 finally:
     A.init = _init
     A.set_model_properties(None); A.set_reasoning_style(None); A.set_reasoning_efforts(None)

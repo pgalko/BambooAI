@@ -360,6 +360,15 @@
   stops early the app sends the reset on its own (`RESET_OPTIONS`). The numbers check reads e-notation at its own
   precision (1.49e+04 matches 14901.6: the mantissa's decimals less the exponent), so a report that quotes a kernel line
   is not held to half a unit. No kernel change, no image rebuild.
+- **A Claude card shows its reasoning (2026-10-08, patch 0107).** 0103 asked for `display: "summarized"` "so the pane
+  sees the reasoning" and then captured the thinking deltas for tool replay only: no Claude card had a reasoning fold,
+  and whether a turn had thought at all could not be seen - which is why a Sonnet 5.5 run read as "quick, as if
+  reasoning were off" (the logged run's output tokens put its hidden thinking at roughly 300-1,700 tokens a turn:
+  present, light). The adapter now streams each thinking delta to the pane's thought channel as every other reasoning
+  adapter does, and the call's meta records `thinking_chars` (the summary's length) and `thinking_blocks` (0 when
+  adaptive thinking skipped thinking - the docs say it may, for a simple request, and that effort "controls how often
+  and how deeply it thinks"). The request shape is unchanged and the same for Sonnet, Haiku and Opus; how much a model
+  thinks at `high` is its own choice under adaptive thinking - a seat that wants more sets `xhigh` or `max`.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
