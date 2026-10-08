@@ -379,6 +379,11 @@
   into the request body (the API still accepts it on the earlier models; the 5.5 family keeps `no_sampling`), and the
   pricing preflight's warning names the nearest `model_properties` key when the seat's string is within a character or
   two of one ("The nearest entry is 'claude-opus-5-5' - a misspelling of it?") and says the entry's facts do not apply.
+- **The template's Claude seats (Palo, 2026-10-08, patch 0109).** The performance tier's Analyst, Rewriter and Reader
+  on `claude-sonnet-5-5` (the Analyst at `xhigh`), the max tier's three on `claude-opus-5-5` (the Analyst at `xhigh`);
+  the Reviewers stay on `openai/gpt-6.1-sol` (high / xhigh), the free and cost tiers on DeepSeek with Grok reviewing.
+  `model_properties` unchanged. Every seat's model is priced, every Anthropic seat's entry carries `no_sampling` and its
+  effort levels, every seat's effort is one the entry declares.
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked
