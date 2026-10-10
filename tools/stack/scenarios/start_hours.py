@@ -8,7 +8,9 @@ has another name, the frame has no power column and the wellness file was not wr
 The question (Deep, four turns): inspect; the summary read and the hours counted, three RESULT lines; a figure; the
 report. The promoter makes the hour band an input (numbers, default 9 to 11) and, as the live one did, tries to make
 the loaded window one by writing it into the summary file's name - refused by the host, which keeps the loader's name
-for the run to bind. Any other question gets a short generic answer.
+for the run to bind. The analyst also types the frame's first and last dates into a RESULT label (against the
+contract, as the first live chain did), and the promoter makes them a date window: the host marks it as following the
+data, and each run writes it from the frame. Any other question gets a short generic answer.
 """
 import json
 import re
@@ -45,6 +47,12 @@ def _report(thinking, note, body):
     return thinking, f"###STEP###\n{thinking}\n###NOTE###\n{note}\n###ACTION###\nREPORT\n{body}"
 
 
+def _first_last(user):
+    """The frame's first and last dates as the inspect cell printed them (typed into the label, as the live chain did)."""
+    m = re.search(r"first: (\d{4}-\d{2}-\d{2}) last: (\d{4}-\d{2}-\d{2})", user)
+    return (m.group(1), m.group(2)) if m else ("2026-01-01", "2026-12-31")
+
+
 def _summary_path(user):
     """The summary file's path as DATA lists it (Path: datasets/<user>/activity_summary_<start>_to_<end>.csv)."""
     m = re.search(r"^Path: (\S*activity_summary_\d{8}_to_\d{8}\.csv)", user, re.M)
@@ -55,7 +63,8 @@ CELL_INSPECT = """# The frame: one row per second of every session; the columns 
 print(df.shape)
 print(df.dtypes.to_string())
 print(df['activity_type'].value_counts().to_string())
-print('sessions:', df['activity_id'].nunique())"""
+print('sessions:', df['activity_id'].nunique())
+print('first:', df['datetime'].min().date(), 'last:', df['datetime'].max().date())"""
 
 CELL_HOURS = """# The summary file lists one row per session with its local and UTC start times. The time-zone offset is read off
 # the data: the most common offset is home, the rest is travel.
@@ -78,7 +87,7 @@ c = p + z * z / (2 * n)
 hw = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
 lo, hi = (c - hw) / den, (c + hw) / den
 print(f"n={{n}} peak_hour={{peak_h}} home_offset={{home_offset}} away_sessions={{len(away)}} share={{p:.3f}} lo={{lo:.3f}} hi={{hi:.3f}}")
-RESULT('sessions in the window', float(n), None, None, 'sessions', 'n/a')
+RESULT('sessions in the window {first} to {last}', float(n), None, None, 'sessions', 'n/a')
 RESULT('the local hour most sessions start', float(peak_h), None, None, 'hour', 'n/a')
 RESULT('share of sessions starting in the hour band', p, lo, hi, 'share', 'n/a')"""
 
@@ -137,6 +146,11 @@ class Scenario:
                            "origin": "the period the analysis ran on, also encoded in the summary file's name"})
             edits.append({"cell": cell, "find": f"pd.read_csv('{path}')",
                           "replace": "pd.read_csv(f\"" + path.rsplit("activity_summary_", 1)[0] + "activity_summary_{str(INPUTS['window'][0]).replace('-','')}_to_{str(INPUTS['window'][1]).replace('-','')}.csv\")"})
+        # the frame's first and last dates, typed into a label: proposed as a window (the host marks it as the data's own)
+        d = re.search(r"RESULT\('sessions in the window (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})'", user)
+        if d:
+            inputs.append({"key": "span", "label": "The dates in the label", "type": "date_window", "default": [d.group(1), d.group(2)], "origin": "the first and last session dates, written into the label"})
+            edits.append({"cell": cell, "find": f"'sessions in the window {d.group(1)} to {d.group(2)}'", "replace": "f\"sessions in the window {INPUTS['span'][0]} to {INPUTS['span'][1]}\""})
         return json.dumps({
             "name": "Session start hours", "inputs": inputs, "edits": edits,
             "kept": ["the home offset is read off the data, not typed", "the Wilson interval's z is the method's"]})
@@ -160,9 +174,10 @@ class Scenario:
 
     def t_hours(self, user, q):
         path = _summary_path(user)
+        first, last = _first_last(user)
         return _cell("The summary file carries each session's local and UTC start. The home offset is the most common offset in the data - read off it, so the method holds on another window - and the hours are counted on the local clock.",
                      _note(q, held="the clock (local)", plan="count the hours; a figure; report", names="df, summ, counts, n, peak_h, band"),
-                     CELL_HOURS.format(path=path))
+                     CELL_HOURS.format(path=path, first=first, last=last))
 
     def t_figure(self, user, q):
         return _cell("The numbers are printed in cell 2. One figure of the start hours.",

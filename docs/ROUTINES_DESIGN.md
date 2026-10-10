@@ -99,10 +99,12 @@ version"; later the coach's one line), run_zero (status, line, verified, results
   how the data was asked for (the loader routes put it on the instance when a load completes: intervals — the
   window, the metrics, the auxiliary kinds; endura — the race and its auxiliaries; sweatstack — the sports, the
   subjects, the window; a file — its name), which a run repeats; `aux`, the auxiliary files' paths; `aux_shape`,
-  each file's columns with their types and its row count, read at promotion while the files are still there.
+  each file's columns with their types and its row count, read at promotion while the files are still there;
+  `span`, the period the frame itself covers (its date column, first and last dates), read by the same probe.
 - `parameters`: at most five, each `{key, label, type (number | numbers | date_window | choice | toggle), default,
-  origin ("the exploration used …"), column? (choice), multiple? (choice)}`. The script reads `INPUTS[key]`; the
-  runner writes the `INPUTS = {...}` block at the mark before each run.
+  origin ("the exploration used …"), column? (choice), multiple? (choice), derived? (span | window)}`. The script
+  reads `INPUTS[key]`; the runner writes the `INPUTS = {...}` block at the mark before each run. A derived input is
+  not asked: the run writes it from the data (§4.8).
 - `results`: the expected RESULT lines in order, each `{cell, index, label, typed, dropped, estimate, low, high,
   unit, direction}` — the identity of a line is `(cell, index)`, never the label. `typed` comes from the kernel's
   records; a dropped line stays in the manifest, so the check by position still maps the chain's lines to the
@@ -168,6 +170,17 @@ The promoter proposes the inputs; the coach confirms them; the runner writes the
    promoter's prompt says to leave the names exactly as they are, dates included, and never to make the loaded
    period itself an input. A routine made before this keeps running: its window input is inert, the binding by kind
    reads past it; the next version under the prompt as it is now drops it.
+8. **An input that only restates the period the data covers follows the data** (2026-10-11, the first run that
+   completed on a new window: the labels and figure titles carried the original window, typed by the analyst, and
+   the promoter had made it a date window the coach had to retype beside the load window). At promotion the probe
+   that reads the auxiliary files' shape also records the frame's `span` — its date column, first and last dates —
+   and a date-window input whose default is exactly those dates is marked `derived: span`; one whose default is the
+   load window is marked `derived: window`. Neither is asked in the run dialog (a line says *follows the data: its
+   first and last dates, written at each run*, with the original's dates for the record); the run writes the window
+   one from its data record and the span one in the prelude, from the conformed frame (`_ROUTINE_SPAN`), printing
+   `ROUTINE_INPUTS:` for the record — the line is taken off the kept output, the values go on the run's `inputs`.
+   A window inside the data (a race week) matches neither and is asked as before. The mark is set when the routine
+   is made, so a routine from before needs one next version to get it; the `.py` download keeps the defaults.
 
 Relative windows for files: the "updated lab file with extra rows" case runs on the whole file unless the
 exploration itself filtered by date, in which case the promoter offers "last N days of the file" with N from the
@@ -251,8 +264,9 @@ version's data record, `load`), and offers the data loaded now beside it.
    other path under the user's datasets folder - replaced by this run's path, so the method reads this window's
    summary under the name it was written with and never writes into the person's cache; the
    prelude after the INPUTS block conforms `df`: a recorded column this frame lacks is added empty in its type, a
-   column whose type family changed is read back (`conform_prelude`), and `DS` is rebuilt on the conformed frame.
-   The stored script is not changed; the record keeps the substitutions.
+   column whose type family changed is read back (`conform_prelude`), and `DS` is rebuilt on the conformed frame;
+   then the inputs that follow the frame's own dates are written from it (§4.8). The stored script is not changed;
+   the record keeps the substitutions and the values written.
 4. **The run**: the manager closes, the main panes enter the run's view (S4) - the strip *run n · vX*, the position
    *run n · running* with both arrows off, the composer locked - with a *LOAD* row when the dialog loaded, then the
    *CHECK* row (the fit line and the files), *RUN* (run n · vX · k cells → the status line, the figures, the seconds),
@@ -546,7 +560,9 @@ Each step ships as its own patch, tested on dev before prod, the standing method
   on Jan–June shows it unchanged. Prose is not data: the mechanics bind files and conform columns, they cannot
   rewrite a sentence. For new analyses the contract clause (§4, 2026-10-10) has the range computed into a variable
   and formatted into the title; for routines already made, the option is the promoter pointing at typed ranges and
-  counts in titles as it points at constants. Parked by Palo until the mechanics are settled.
+  counts in titles as it points at constants. Parked by Palo until the mechanics are settled. Where the promoter
+  *did* make the typed period an input, §4.8 (2026-10-11) now writes it from the data; what is left is text the
+  promoter did not touch (a count, a place name, a fixed offset in a label).
 - **How many runs to keep.** All, for now; the table and storage will say when that is wrong.
 - **Auxiliaries that are untickable.** Allowed with a warning (proposed), or fixed as in the original.
 - **The parameter cap of five.** A guess at "simple"; the first live promotions will test it.

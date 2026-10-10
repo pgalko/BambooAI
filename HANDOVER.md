@@ -58,10 +58,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/86/1/1 Python; 39/7/29/56/24/50 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/90/1/1 Python; 39/7/29/56/24/53 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (27; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (30; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -440,6 +440,21 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines: an input that only restates the period the data covers follows the data (2026-10-11, patch 0120).**
+  Palo's first routine made under 0118 had a date-window input "quoted in the result labels and figure titles" (the
+  frame's first and last session dates, typed by the analyst, which the promoter made an input): the run on Jan-June
+  asked for it beside the load window and wrote whatever was typed into the titles. Now the promotion probe
+  (`shape_probe_script`, the aux-shape probe extended) records the frame's `span` (date column, first, last) on the
+  data record; `derive_inputs` marks a date_window input whose default equals it `derived: span`, one equal to the
+  load window `derived: window`; the run dialog shows such an input as a line (*follows the data: its first and
+  last dates, written at each run* + the original's dates), no pickers; `run` writes the window kind from the data
+  record (`derived_window_values`) and the span kind in the conform prelude from the conformed frame (`_ROUTINE_SPAN`,
+  `_routine_span`, printed after `ROUTINE_INPUTS:` and read back by `read_marked`; the marker line is taken off the kept
+  output; the values go on the record's `inputs`). The make dialog's and the manager's inputs tables say which
+  inputs follow the data. A routine from before 0120 has no span on record - a next version gets it; the window
+  kind works on old records too. The integrations walk's scripted analyst now types the frame's first and last
+  dates into a label (as the live chain did) and its promoter proposes them; the walk checks the mark, the dialog
+  and the run's record (30). ROUTINES_DESIGN.md §3, §4.8, F2, §12. test_routines.py 90, test_routines.js 53.
 - **Routines: the runs table's mark sits between the two numbers it compares (2026-10-10, patch 0119).** Palo's
   first run that completed on a new window (Jan-June after Jul-Oct: three of five lines moved, the peak hour held)
   showed the manager's table with the ↑ = ↓ beside the second run's numbers and an empty Trend column - it read as

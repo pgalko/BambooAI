@@ -427,6 +427,45 @@ r5e = out5e["run"]
 check("a bound file gone before the cells ran: the prelude stood an empty table in for it (the file is there, with the recorded columns); the run failed on the empty table, not on a missing file",
       r5e["bindings"][0][2] == "bound" and os.path.exists(now5e["aux"][0]) and pd.read_csv(now5e["aux"][0]).columns.tolist() == ["hour", "load", "note"] and "FileNotFoundError" not in (r5e.get("error") or "")
       and "empty sequence" in (r5e.get("error") or ""), (r5e.get("bindings"), (r5e.get("error") or "")[-160:]))
+# ---- an input that only restates the period the data covers follows the data (2026-10-11: the first run that completed on a
+# new window carried the original window in its labels and titles, typed, and the promoter had made it an input to retype) ----
+df_d = pd.DataFrame({"datetime": pd.to_datetime(["2026-07-13 06:00", "2026-08-01 07:00", "2026-09-10 06:30", "2026-10-07 18:00"]), "v": [1, 2, 3, 4]})
+nb8 = Notebook("t8")
+run8 = nb8.new_run("How many sessions in the window?")
+run8.turns = [Turn(kind="cell", cell_no=1, code="n = int(len(df))\nprint(n)", results=[], stdout="4"),
+              Turn(kind="cell", cell_no=2, code="RESULT('sessions, 2026-07-13 to 2026-10-07', float(n), None, None, 'sessions', 'n/a')\nRESULT('rows loaded 2026-07-12 to 2026-10-10', float(n), None, None, 'rows', 'n/a')",
+                   results=[{"text": "sessions, 2026-07-13 to 2026-10-07: +4", "typed": False}, {"text": "rows loaded 2026-07-12 to 2026-10-10: +4", "typed": False}],
+                   stdout="RESULT: sessions, 2026-07-13 to 2026-10-07: +4\nRESULT: rows loaded 2026-07-12 to 2026-10-10: +4")]
+run8.report = "## Four\n\nFour sessions [cell 2]."
+run8.status = "answered"
+run8.data = {"df_id": "df8", "name": "", "source": "intervals", "columns": [{"name": "datetime", "dtype": "datetime64[ns]"}, {"name": "v", "dtype": "int64"}], "rows": 4, "aux": [],
+             "date_range": "2026-07-12 to 2026-10-10", "load": {"source": "intervals", "start_date": "2026-07-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": []}}
+run8.replay_script, _ = assemble(run8.cells(), run8.report)
+nb8.runs[run8.id] = run8
+def dates_promoter(system, user):
+    return json.dumps({"name": "Sessions in the window", "inputs": [
+        {"key": "span", "label": "The dates in the label", "type": "date_window", "default": ["2026-07-13", "2026-10-07"], "origin": "the first and last session dates, typed into the label"},
+        {"key": "window", "label": "The window loaded", "type": "date_window", "default": ["2026-07-12", "2026-10-10"], "origin": "the load window, typed into a label"},
+        {"key": "cut", "label": "A cut inside the data", "type": "date_window", "default": ["2026-08-01", "2026-09-01"], "origin": "a boundary inside the data"}],
+        "edits": [{"cell": 2, "find": "'sessions, 2026-07-13 to 2026-10-07'", "replace": "f\"sessions, {INPUTS['span'][0]} to {INPUTS['span'][1]}\""},
+                  {"cell": 2, "find": "'rows loaded 2026-07-12 to 2026-10-10'", "replace": "f\"rows loaded {INPUTS['window'][0]} to {INPUTS['window'][1]} ({INPUTS['cut'][0]})\""}]}), {"cost": 0.0}
+p8 = host.propose(nb8, run8.id, dates_promoter, current_data={"df_id": "df8"}, runner=runner_on(df_d))
+check("propose: the probe recorded the period the frame covers (its date column, first and last dates); the window that is the frame's dates follows the data, the one that is the load window follows the load, a cut inside the data is asked",
+      p8["data"].get("span") == {"column": "datetime", "first": "2026-07-13", "last": "2026-10-07"} and [(q["key"], q.get("derived")) for q in p8["inputs"]] == [("span", "span"), ("window", "window"), ("cut", None)], (p8["data"].get("span"), p8["inputs"]))
+made8 = host.create(nb8, p8, {"name": "Sessions in the window", "purpose": "", "drop_inputs": [], "drop_results": []}, runner_on(df_d), store)
+rid8 = made8["routine"]["id"]
+check("create: run zero reproduces (the defaults are the data's own dates); the manifest keeps the marks", made8["run_zero"]["status"] == "reproduced" and [q.get("derived") for q in store.load(rid8)["versions"][0]["manifest"]["parameters"]] == ["span", "window", None], made8["run_zero"])
+df_d2 = pd.DataFrame({"datetime": pd.to_datetime(["2026-01-13 06:00", "2026-03-01 07:00", "2026-07-09 06:30"]), "v": [1, 2, 3]})
+now8 = {"df_id": "df8b", "name": "", "source": "intervals", "columns": [{"name": "datetime", "dtype": "datetime64[ns]"}, {"name": "v", "dtype": "int64"}], "rows": 3, "aux": [],
+        "date_range": "2026-01-12 to 2026-07-10", "load": {"source": "intervals", "start_date": "2026-01-12", "end_date": "2026-07-10", "metrics": [], "aux_kinds": []}}
+out8 = host.run(store.load(rid8), {"span": ["2000-01-01", "2000-01-02"], "window": ["2000-01-01", "2000-01-02"], "cut": ["2026-02-01", "2026-03-01"]}, now8, runner_on(df_d2), store)
+r8 = out8["run"]
+check("run on a later window: the span was written from the frame (first and last dates), the window from this load, the cut as typed; the labels printed carry them; the record keeps the values; the output keeps no marker line",
+      r8["inputs"] == {"span": ["2026-01-13", "2026-07-09"], "window": ["2026-01-12", "2026-07-10"], "cut": ["2026-02-01", "2026-03-01"]}
+      and r8["results"][0]["what"] == "sessions, 2026-01-13 to 2026-07-09" and r8["results"][1]["what"] == "rows loaded 2026-01-12 to 2026-07-10 (2026-02-01)"
+      and rt.INPUTS_MARK_OUT not in out8["stdout"] and rt.INPUTS_MARK_OUT not in open(os.path.join(store.run_dir(rid8, "v1_1"), "stdout.txt"), encoding="utf-8").read(),
+      (r8["inputs"], [x.get("what") for x in r8["results"]], out8["stdout"][:200]))
+check("derive_inputs on a record without a span (a routine made before): nothing follows the frame; the load window still can", [q.get("derived") for q in host.derive_inputs(p8["inputs"], dict(run8.data, span=None))] == [None, "window", None])
 # a choice input whose value is not in the data: refused by the value check through the kernel
 R7 = store.load(rid4); v7 = host.version_of(R7)
 v7["manifest"]["parameters"].append({"key": "grp", "label": "Group", "type": "choice", "default": "a", "column": "g", "multiple": False, "origin": "x"})

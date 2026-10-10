@@ -199,6 +199,10 @@
 .rt-field > label { color: var(--text-primary); }
 .rt-field .ui-input { height: 28px; }
 .rt-field .help { grid-column: 2; font-size: var(--fs-small); color: var(--text-quaternary); margin-top: -2px; }
+.rt-derived { color: var(--c-model); font-size: var(--fs-small); }
+.rt-inputs .rt-derived { display: block; margin-top: 2px; }
+.rt-derived-row { display: flex; flex-direction: column; gap: 2px; min-height: 28px; justify-content: center; }
+.rt-derived-row .n { font-size: var(--fs-small); color: var(--text-quaternary); }
 .rt-window { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
 .rt-window .arrow { color: var(--text-quaternary); text-align: center; }
 .rt-choices { display: flex; flex-direction: column; gap: 6px; }

@@ -12,7 +12,7 @@ import logging
 import os
 import re
 import time
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from analyst import routines as rt
 from analyst.notebook import Notebook, Run, split_sentences
@@ -93,11 +93,13 @@ def data_state(run_data: Optional[dict], current: Optional[dict]) -> str:
 
 
 AUXSHAPE_MARK = "AUXSHAPE:"
+SPAN_MARK = "SPAN:"
 
 
-def aux_shape_script(paths: List[str]) -> str:
-    """A script that reads each auxiliary file's header and a sample of rows and prints, after AUXSHAPE:, its columns
-    with their types and its row count - the shape a run is later made to fit."""
+def shape_probe_script(paths: List[str], date_column: str = "") -> str:
+    """A script, run at promotion on the chain's data, that prints after AUXSHAPE: each auxiliary file's columns with
+    their types and its row count - the shape a run is later made to fit - and after SPAN: the first and last dates
+    of the frame's date column, the period the data itself covers (an input that equals it follows the data)."""
     return ("import json as _j, os as _os\n"
             "import pandas as _pd\n"
             "_out = {}\n"
@@ -108,35 +110,98 @@ def aux_shape_script(paths: List[str]) -> str:
             "        _out[_p] = {'columns': [{'name': str(c), 'dtype': str(_fr[c].dtype)} for c in _fr.columns], 'rows': int(max(_rows, 0))}\n"
             "    except Exception as _exc:\n"
             "        _out[_p] = {'error': str(_exc)[:200]}\n"
-            "print(" + repr(AUXSHAPE_MARK + " ") + " + _j.dumps(_out))\n")
+            "print(" + repr(AUXSHAPE_MARK + " ") + " + _j.dumps(_out))\n"
+            "_col = " + json.dumps(str(date_column or "")) + "\n"
+            "if _col and 'df' in globals() and df is not None and _col in df.columns:\n"
+            "    try:\n"
+            "        _s = _pd.to_datetime(df[_col], errors='coerce').dropna()\n"
+            "        if len(_s):\n"
+            "            print(" + repr(SPAN_MARK + " ") + " + _j.dumps({'column': _col, 'first': str(_s.min().date()), 'last': str(_s.max().date())}))\n"
+            "    except Exception:\n"
+            "        pass\n")
 
 
-def read_aux_shape(stdout: str) -> Optional[dict]:
+def read_marked(stdout: str, mark: str) -> Optional[dict]:
+    """The JSON object printed after `mark` on its own line (the last such line)."""
     for ln in reversed((stdout or "").splitlines()):
-        if ln.strip().startswith(AUXSHAPE_MARK):
+        if ln.strip().startswith(mark):
             try:
-                return json.loads(ln.strip()[len(AUXSHAPE_MARK):].strip())
+                found = json.loads(ln.strip()[len(mark):].strip())
+                return found if isinstance(found, dict) else None
             except ValueError:
                 return None
     return None
 
 
-def record_aux_shape(data: dict, runner: Optional[Callable]) -> dict:
-    """The data record with each auxiliary file's columns (`aux_shape`), read through the runner; left as it is when
-    the files cannot be read now (the record then binds by name alone)."""
+def read_aux_shape(stdout: str) -> Optional[dict]:
+    return read_marked(stdout, AUXSHAPE_MARK)
+
+
+def record_data_shape(data: dict, runner: Optional[Callable]) -> dict:
+    """The data record with each auxiliary file's columns (`aux_shape`) and the period the frame covers (`span`: the
+    date column, its first and last dates), read through the runner; left as it is when nothing can be read now (the
+    record then binds by name alone, and no input follows the data)."""
     paths = [str(p) for p in (data or {}).get("aux") or [] if p]
-    if not paths or runner is None or data.get("aux_shape"):
+    col = rt.date_column((data or {}).get("columns") or [])
+    if runner is None or (not paths and not col) or (data.get("aux_shape") and data.get("span")):
         return data
     try:
-        stdout, err, _f, _g = runner(aux_shape_script(paths), 120)
+        stdout, err, _f, _g = runner(shape_probe_script(paths if not data.get("aux_shape") else [], col if not data.get("span") else ""), 120)
         found = read_aux_shape(stdout or "")
+        span = read_marked(stdout or "", SPAN_MARK)
     except Exception as exc:                                           # noqa: BLE001
-        logger.warning("the auxiliary files' shape could not be read: %s", exc)
-        found = None
-    if found:
+        logger.warning("the data's shape could not be read: %s", exc)
+        found, span = None, None
+    if found or span:
         data = dict(data)
-        data["aux_shape"] = {p: v for p, v in found.items() if isinstance(v, dict) and "columns" in v}
+        if found:
+            data["aux_shape"] = {p: v for p, v in found.items() if isinstance(v, dict) and "columns" in v}
+        if span and span.get("first") and span.get("last"):
+            data["span"] = {"column": str(span.get("column") or col), "first": str(span["first"]), "last": str(span["last"])}
     return data
+
+
+record_aux_shape = record_data_shape                                   # the name before the span was recorded
+
+
+def derive_inputs(inputs: List[dict], data: Optional[dict]) -> List[dict]:
+    """The inputs with the ones that only restate the period the data covers marked `derived` (2026-10-11: the first
+    run that completed on a new window carried the original window in its labels and titles, typed, and the promoter
+    had made it an input the person had to retype beside the load window). A date window whose default is the
+    frame's first and last dates follows the data (`span`: written from the frame at each run); one whose default is
+    the load window follows the load (`window`: written from the run's data record). Nothing else is derived."""
+    d = data or {}
+    span = d.get("span") or {}
+    first_last = [str(span.get("first") or ""), str(span.get("last") or "")] if span.get("first") and span.get("last") else None
+    start, end = _dates_of(d)
+    window = [start, end] if start and end else None
+    out = []
+    for p in inputs or []:
+        q = dict(p)
+        q.pop("derived", None)
+        if q.get("type") == "date_window" and isinstance(q.get("default"), (list, tuple)) and len(q["default"]) == 2:
+            default = [str(x) for x in q["default"]]
+            if first_last and default == first_last:
+                q["derived"] = "span"
+            elif window and default == window:
+                q["derived"] = "window"
+        out.append(q)
+    return out
+
+
+def derived_window_values(params: List[dict], data: Optional[dict]) -> Dict[str, object]:
+    """The values of the inputs that follow the load window, from this run's data record."""
+    start, end = _dates_of(data or {})
+    if not (start and end):
+        return {}
+    return {p["key"]: [start, end] for p in params or [] if p.get("derived") == "window"}
+
+
+def span_inputs(params: List[dict], data: Optional[dict]) -> List[Tuple[str, str]]:
+    """(key, date column) for the inputs that follow the frame's own dates; the column recorded at promotion, else
+    the first date column on record."""
+    col = str(((data or {}).get("span") or {}).get("column") or "") or rt.date_column((data or {}).get("columns") or [])
+    return [(p["key"], col) for p in params or [] if p.get("derived") == "span" and col]
 
 
 def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dict] = None, emit: Optional[Callable] = None,
@@ -161,7 +226,7 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     state = data_state(run.data, current_data)
     data = dict(run.data or {}) if state != "assumed" else dict(current_data or {})
     if state in ("same", "assumed"):
-        data = record_aux_shape(data, runner)             # the auxiliary files are still there: their columns go on record
+        data = record_data_shape(data, runner)            # the data is still there: the auxiliary files' columns and the frame's period go on record
     manifest = None
     if routine:
         cur = next((v for v in routine.get("versions", []) if v.get("number") == routine.get("current_version")), None)
@@ -201,6 +266,7 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         raise RoutineRefused(f"could not make a routine from this chain - the script was not understood ({problem})")
     edited, applied, failed = rt.apply_edits(body, obj.get("edits") or [])
     inputs, notes = rt.finish_inputs(obj.get("inputs") or [], edited, failed)
+    inputs = derive_inputs(inputs, data)                  # a window that is the data's own period follows the data from now on
     kept_keys = {p["key"] for p in inputs}
     stray = {k for e in applied for k in rt._KEY_REF_RE.findall(str(e.get("replace") or ""))} - kept_keys
     if stray:                                           # an input left out after its edits applied: its edits go too
@@ -343,7 +409,8 @@ def load_plan(routine: dict, version_number: Optional[int] = None) -> dict:
 def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable], run_dir: str) -> dict:
     """A run's data made to fit the recorded shape: the recorded auxiliary files bound by kind to this load's (a copy
     with the missing columns added, in the run's folder, when one lacks columns; an empty table for one this load
-    lacks), the executed text with this load's names, and the prelude that conforms `df`."""
+    lacks), the executed text with this load's names, and the prelude that conforms `df` and writes the inputs that
+    follow the frame's own dates."""
     rec = (ver.get("manifest") or {}).get("data") or {}
     d = current_data or {}
     binding = rt.bind_aux(rec.get("aux") or [], d.get("aux") or [])
@@ -373,7 +440,7 @@ def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable],
     logger.info("routine run: %d file(s) bound, %d absent (%s), %d substitution(s) in the executed text%s", len(binding["map"]), len(binding["absent"]),
                 ", ".join(rt.aux_kind(p) for p in binding["absent"]) or "-", len(subs), ("; " + note) if note else "")
     return {"binding": binding, "bound": bound, "placeholders": placeholders, "shape": shape, "script": script, "subs": subs, "note": note,
-            "prelude": rt.conform_prelude(rec.get("columns") or [], files)}
+            "prelude": rt.conform_prelude(rec.get("columns") or [], files, span_inputs((ver.get("manifest") or {}).get("parameters") or [], rec))}
 
 
 def aux_line(binding: dict) -> str:
@@ -453,6 +520,7 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     vals, problems = rt.coerce_values(params, values)
     if problems:
         raise RoutineRefused("; ".join(problems))
+    vals.update(derived_window_values(params, d))         # an input that follows the load window takes this run's
     name = d.get("name") or d.get("source") or "the data loaded now"
     if emit:
         emit({"type": "lookup_start", "kind": "check", "query": name})
@@ -494,6 +562,11 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     except Exception as exc:                                           # noqa: BLE001
         stdout, err, figs, generated = "", f"the run could not start: {exc}", [], None
     elapsed = round(time.time() - t0, 1)
+    # the inputs that follow the frame's own dates were written by the prelude: the values go on the record, the line off the output
+    written = read_marked(stdout or "", rt.INPUTS_MARK_OUT)
+    if written:
+        vals.update({k: v for k, v in written.items() if k in vals})
+        stdout = "\n".join(ln for ln in (stdout or "").splitlines() if not ln.strip().startswith(rt.INPUTS_MARK_OUT))
     got = rt.result_lines_in(stdout or "")
     status, line = rt.run_status(expected, got, err or "", ref_results, script)
     if emit:

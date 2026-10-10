@@ -50,6 +50,11 @@
         if (p.type === 'toggle') return v ? 'on' : 'off';
         return String(v == null ? '' : v);
     }
+    // an input that only restates the period the data covers is not asked: it follows the data (docs/ROUTINES_DESIGN.md §4.8)
+    function derivedText(p) {
+        return p.derived === 'span' ? 'follows the data: its first and last dates, written at each run'
+            : (p.derived === 'window' ? 'follows the data: the window loaded, written at each run' : '');
+    }
     const ICON_ROUTINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>';
     const ICON_BOOKMARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
     const ICON_DOWN = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
@@ -94,8 +99,8 @@
                 return '<div class="rt-line">No inputs: the method runs as it is on data of the same shape.</div>' +
                     (kept && kept.length ? '<div class="rt-line muted">' + kept.map(esc).join(' · ') + '</div>' : '');
             }
-            const rows = inputs.map(p => '<tr data-key="' + esc(p.key) + '"><td>' + esc(p.label) + (p.type === 'choice' && p.column ? '<span class="from"> · from ' + esc(p.column) + '</span>' : '') + '</td>' +
-                '<td><span class="val">' + esc(valueText(p)) + '</span></td><td><span class="from">' + esc(p.origin || '') + '</span></td>' +
+            const rows = inputs.map(p => '<tr data-key="' + esc(p.key) + '"' + (p.derived ? ' data-derived="' + esc(p.derived) + '"' : '') + '><td>' + esc(p.label) + (p.type === 'choice' && p.column ? '<span class="from"> · from ' + esc(p.column) + '</span>' : '') + '</td>' +
+                '<td><span class="val">' + esc(valueText(p)) + '</span>' + (p.derived ? '<span class="rt-derived">' + esc(derivedText(p)) + '</span>' : '') + '</td><td><span class="from">' + esc(p.origin || '') + '</span></td>' +
                 '<td class="keep"><label class="rt-check"><input type="checkbox" data-drop="' + esc(p.key) + '"> keep fixed</label></td></tr>').join('');
             return '<table class="ui-table rt-inputs"><thead><tr><th>Input</th><th>Value now</th><th>Where it comes from</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
                 (kept && kept.length ? '<div class="rt-line muted">Left as they are: ' + kept.map(esc).join(' · ') + '</div>' : '');
@@ -153,7 +158,7 @@
                 '<b>Checked</b><span><span class="rt-status ' + (rz.verified ? 'reproduced' : 'unverified') + '">' + (rz.verified ? 'verified' : 'unverified') + '</span> ' + esc(rz.line || '') + '</span></div></div>';
             const params = m.parameters || [];
             h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— asked before each run</span></div>' + (params.length
-                ? '<table class="ui-table rt-inputs"><thead><tr><th>Input</th><th>Default</th><th>Where it comes from</th></tr></thead><tbody>' + params.map(p => '<tr><td>' + esc(p.label) + '</td><td><span class="val">' + esc(valueText(p)) + '</span></td><td><span class="from">' + esc(p.origin || '') + '</span></td></tr>').join('') + '</tbody></table>'
+                ? '<table class="ui-table rt-inputs"><thead><tr><th>Input</th><th>Default</th><th>Where it comes from</th></tr></thead><tbody>' + params.map(p => '<tr' + (p.derived ? ' data-derived="' + esc(p.derived) + '"' : '') + '><td>' + esc(p.label) + '</td><td><span class="val">' + esc(valueText(p)) + '</span>' + (p.derived ? '<span class="rt-derived">' + esc(derivedText(p)) + '</span>' : '') + '</td><td><span class="from">' + esc(p.origin || '') + '</span></td></tr>').join('') + '</tbody></table>'
                 : '<div class="rt-line">None: the method runs as it is on data of the same shape.</div>') + '</div>';
             const res = (m.results || []).filter(x => !x.dropped);
             h += '<div class="rt-sec"><div class="h">Results <span class="n">— compared run to run' + (m.figures && m.figures.count ? ' · ' + m.figures.count + ' figure' + (m.figures.count === 1 ? '' : 's') : '') + '</span></div>' +
@@ -171,6 +176,10 @@
         // ---- a run (docs/ROUTINES_DESIGN.md F2, S3, S4)
         inputWidget(p) {
             const v = p.default, k = esc(p.key);
+            if (p.derived) {                               // written from the data at the run; nothing to type (the original's value shown for the record)
+                const a = Array.isArray(v) ? v : ['', ''];
+                return '<div class="rt-derived-row" data-derived="' + esc(p.derived) + '"><span class="rt-derived">' + esc(derivedText(p)) + '</span><span class="n">the original: ' + esc(a[0]) + ' → ' + esc(a[1]) + '</span></div>';
+            }
             if (p.type === 'toggle') return '<label class="rt-check"><input type="checkbox" data-key="' + k + '" data-type="toggle"' + (v ? ' checked' : '') + '> on</label>';
             if (p.type === 'date_window') {
                 const a = Array.isArray(v) ? v : ['', ''];

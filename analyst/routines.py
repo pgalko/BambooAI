@@ -24,6 +24,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 INPUT_TYPES = ("number", "numbers", "date_window", "choice", "toggle")
 MAX_INPUTS = 5
 INPUTS_MARK = "# --- INPUTS ---"
+INPUTS_MARK_OUT = "ROUTINE_INPUTS:"          # printed by a run's prelude: the inputs it wrote from the data (date windows that follow it)
 _CELL_MARK_RE = re.compile(r"^# --- cell (\d+) ---$", re.M)
 _TAIL_MARK = "\n# --- the executor's own display options back ---"
 _NUM = r"[-+][\d,]*\.?\d+(?:[eE][-+]?\d+)?"
@@ -508,6 +509,14 @@ def bind_script(script: str, bindings: Dict[str, str], run_dir: str, datasets_di
     return _STRING_RE.sub(repl, script or ""), subs
 
 
+def date_column(columns: Iterable[dict]) -> str:
+    """The first recorded column of the frame that holds dates: the one a window that follows the data is read off."""
+    for c in columns or []:
+        if dtype_family(str(c.get("dtype") or "")) == "datetime" and c.get("name") is not None:
+            return str(c["name"])
+    return ""
+
+
 def dtype_family(dtype: str) -> str:
     d = str(dtype or "").lower()
     if not d:
@@ -566,16 +575,38 @@ def _routine_materialise(files):
         if _kind == 'bound':
             print('ROUTINE: ' + _os.path.basename(_old or _new) + ' was not where this load left it; an empty table stood in for it')
 _routine_materialise(_ROUTINE_FILES)
+# an input that is the data's own period is written from the frame, first and last dates of its date column
+def _routine_span(frame, items):
+    import pandas as _pd
+    _out = {}
+    for _key, _col in items:
+        try:
+            if frame is not None and _col in frame.columns:
+                _s = _pd.to_datetime(frame[_col], errors='coerce').dropna()
+                if len(_s):
+                    _out[_key] = [str(_s.min().date()), str(_s.max().date())]
+        except Exception:
+            pass
+    return _out
+if _ROUTINE_SPAN and 'df' in globals() and df is not None:
+    _written = _routine_span(df, _ROUTINE_SPAN)
+    if _written:
+        import json as _j
+        INPUTS.update(_written)
+        print('ROUTINE_INPUTS: ' + _j.dumps(_written))
 """
 
 
-def conform_prelude(columns: Iterable[dict], files: Optional[Iterable[Tuple[str, str, List[str], str]]] = None) -> str:
-    """The block a run executes after its inputs: the recorded columns of `df` and the files the executed text names
-    (each as [this run's path, the recorded path, the recorded columns, bound | placeholder | cache]), then the conform
-    of the frame and the files made sure of."""
+def conform_prelude(columns: Iterable[dict], files: Optional[Iterable[Tuple[str, str, List[str], str]]] = None,
+                    span: Optional[Iterable[Tuple[str, str]]] = None) -> str:
+    """The block a run executes after its inputs: the recorded columns of `df`, the files the executed text names
+    (each as [this run's path, the recorded path, the recorded columns, bound | placeholder | cache]) and the inputs
+    that follow the frame's own dates (each as [key, date column]); then the conform of the frame, the files made sure
+    of, and those inputs written from the frame and printed after ROUTINE_INPUTS: for the record."""
     cols = [[str(c.get("name")), str(c.get("dtype") or "")] for c in (columns or []) if c.get("name") is not None]
     fl = [[str(n), str(o or ""), [str(c) for c in (cs or [])], str(k or "")] for n, o, cs, k in (files or [])]
-    return "_ROUTINE_COLUMNS = " + json.dumps(cols) + "\n_ROUTINE_FILES = " + json.dumps(fl) + "\n" + CONFORM_PRELUDE
+    sp = [[str(k), str(c)] for k, c in (span or []) if k and c]
+    return "_ROUTINE_COLUMNS = " + json.dumps(cols) + "\n_ROUTINE_FILES = " + json.dumps(fl) + "\n_ROUTINE_SPAN = " + json.dumps(sp) + "\n" + CONFORM_PRELUDE
 
 
 SHAPE_MARK = "SHAPE:"
