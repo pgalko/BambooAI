@@ -134,9 +134,13 @@ const rt = Object.assign({}, routine, { runs: [
   { number: 3, version: 2, created: 1791900000, status: 'failed', data: { name: 'c.csv', source: 'csv' }, inputs: {}, comparison: { moved: 0, compared: 0 }, results: [] }] });
 rt.versions[1].run_zero.results = [{ estimate: '+3.00', low: '+2.00', high: '+4.00' }, { estimate: '+9', low: null, high: null }];
 const tbl = el(b.runsTable(rt));
-check('runs table: a column per run that ran (run 0 first; the failed run left out), the manifest\'s lines as rows (the dropped one left out), the mark against the column before - = within, ↑ moved - and a sparkline with three runs',
-  [...tbl.querySelectorAll('thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \d+$/, '').trim()).join('|') === 'Result|Run 0|Run 1|Run 2|Trend' && tbl.querySelectorAll('tbody tr').length === 1
-  && tbl.querySelectorAll('tbody .rt-mark.same').length === 1 && tbl.querySelectorAll('tbody .rt-mark.up').length === 1 && tbl.querySelector('tbody .rt-spark polyline'), tbl.innerHTML.slice(0, 400));
+check('runs table: a column per run that ran (run 0 first; the failed run left out), the manifest\'s lines as rows (the dropped one left out), the mark in its own column between the two numbers it compares - = within, ↑ moved - and a sparkline under Trend with three runs',
+  [...tbl.querySelectorAll('thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \d+$/, '').trim()).join('|') === 'Result|Run 0||Run 1||Run 2|Trend' && tbl.querySelectorAll('tbody tr').length === 1
+  && [...tbl.querySelectorAll('tbody td')].map(td => td.className).join('|') === 'label|num|mark|num|mark|num|'
+  && [...tbl.querySelectorAll('tbody td.mark')].map(td => td.textContent).join('') === '=↑' && tbl.querySelector('tbody .rt-spark polyline'), [...tbl.querySelectorAll('tbody td')].map(td => td.className + ':' + td.textContent).join(' '));
+const tbl2 = el(b.runsTable(Object.assign({}, rt, { runs: rt.runs.slice(0, 1) })));
+check('runs table with two runs: no Trend column (nothing to draw yet), the mark between the numbers',
+  [...tbl2.querySelectorAll('thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \d+$/, '').trim()).join('|') === 'Result|Run 0||Run 1' && tbl2.querySelector('tbody td.mark .rt-mark.same') && !tbl2.querySelector('.rt-spark') && !tbl2.textContent.includes('Trend'), tbl2.innerHTML.slice(0, 300));
 const lst = el(b.runsList(rt));
 check('runs list: newest first with the data, the version, the inputs and a status chip; run 0 last; each opens', lst.querySelectorAll('.rt-run').length === 4 && lst.querySelector('.rt-run').getAttribute('data-run') === '3' && lst.querySelector('.rt-run .rt-status.failed')
   && lst.querySelector('.rt-run[data-run="2"]').textContent.includes('threshold = 165') && lst.querySelector('.rt-run[data-run="2"] .rt-status').textContent.includes('1 of 1 moved') && lst.querySelector('.rt-run[data-run="0"]') && lst.querySelectorAll('.rt-run .open').length === 4);

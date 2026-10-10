@@ -376,9 +376,11 @@ analysis of 10 Oct ↗ (a favourite; continue it there)"; the actions (Run, .py,
 Checked (verified / unverified, run zero's line); Inputs (asked before each run: label, default, where it comes
 from); Results (compared run to run, with their cells); Versions (newest first, with the change notes); Runs (built):
 the results-across-runs table — a column per run that ran (run 0 first; a failed run left out), the manifest's lines
-as rows (a dropped one left out), a cell the estimate with its interval on hover and a mark against the column
-before (↑ ↓ for a change whose intervals do not overlap, = when they do, · for missing), a sparkline with three or
-more runs; under it the runs list, newest first (the date, the data, the version, the inputs, a status chip — *ran ·
+as rows (a dropped one left out), a cell the estimate with its interval on hover and, in a narrow column of its own
+between two runs, the mark of the second against the first (↑ ↓ for a change whose intervals do not overlap, = when
+they do; · in a cell for a line the run did not print) — it sat beside the second number until 2026-10-10, where it
+read as a misplaced Trend; a Trend column with the sparkline from the third run on, not before; under it the runs
+list, newest first (the date, the data, the version, the inputs, a status chip — *ran ·
 3 of 5 moved*, *reproduced*, *failed*), run 0 last; each opens the run in the main panes.
 
 ### S3 — Run (dialog) — built
@@ -539,6 +541,12 @@ Each step ships as its own patch, tested on dev before prod, the standing method
   executor serves other requests meanwhile). A loader's file name is matched by its kind when the rest of the name
   differs (§4.7), so a name the promoter rebuilt around an input still binds; a path built at run time from pieces
   with no loader prefix in any one literal is not caught; the record shows every substitution made.
+- **Typed text in titles and labels** (2026-10-10, the first run that completed on a new window): a figure's title
+  carried the original window and count, typed by the analyst (*91 sessions, 13 Jul - 7 Oct 2026*), and the run
+  on Jan–June shows it unchanged. Prose is not data: the mechanics bind files and conform columns, they cannot
+  rewrite a sentence. For new analyses the contract clause (§4, 2026-10-10) has the range computed into a variable
+  and formatted into the title; for routines already made, the option is the promoter pointing at typed ranges and
+  counts in titles as it points at constants. Parked by Palo until the mechanics are settled.
 - **How many runs to keep.** All, for now; the table and storage will say when that is wrong.
 - **Auxiliaries that are untickable.** Allowed with a warning (proposed), or fixed as in the original.
 - **The parameter cap of five.** A guess at "simple"; the first live promotions will test it.

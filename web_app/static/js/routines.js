@@ -310,20 +310,25 @@
             (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status)).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [] }));
             if (!lines.length || !cols.length) return '<div class="rt-line muted">' + (!lines.length ? 'This routine records no result lines; its runs keep their output and figures.' : 'No run yet.') + '</div>';
             const all = ((v.manifest || {}).results || []);
-            const head = '<thead><tr><th>Result</th>' + cols.map(c => '<th class="num">Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + '</span></th>').join('') + (cols.length > 1 ? '<th>Trend</th>' : '') + '</tr></thead>';
+            // the mark sits between the two numbers it compares, in a column of its own (2026-10-10: beside the second
+            // number it read as a misplaced Trend); Trend holds the sparkline, so it appears with the third run
+            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num">Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + '</span></th>').join('') + (cols.length > 2 ? '<th>Trend</th>' : '') + '</tr></thead>';
             const body = lines.map(line => {
                 const pos = all.indexOf(line);
                 const cells = cols.map(c => c.results[pos] || null);
                 const vals = cells.map(x => x ? parseFloat(String(x.estimate).replace(/,/g, '')) : null);
                 let tds = '<td class="label" title="' + esc(line.label) + '">' + esc(line.label) + '</td>';
                 cells.forEach((x, i) => {
-                    const mark = i ? build.markOf(x, cells[i - 1]) : '';
-                    tds += '<td class="num"' + (x ? ' title="' + build.ivl(x).replace(/"/g, '') + '"' : '') + '>' + (x ? esc(x.estimate) : '<span class="rt-mark missing">·</span>') + (mark ? ' <span class="rt-mark ' + esc(mark) + '">' + build.markText(mark) + '</span>' : '') + '</td>';
+                    if (i) {
+                        const mark = build.markOf(x, cells[i - 1]);
+                        tds += '<td class="mark">' + (mark === 'missing' ? '' : '<span class="rt-mark ' + esc(mark) + '">' + build.markText(mark) + '</span>') + '</td>';
+                    }
+                    tds += '<td class="num"' + (x ? ' title="' + build.ivl(x).replace(/"/g, '') + '"' : '') + '>' + (x ? esc(x.estimate) : '<span class="rt-mark missing">·</span>') + '</td>';
                 });
-                if (cols.length > 1) tds += '<td>' + build.spark(vals) + '</td>';
+                if (cols.length > 2) tds += '<td>' + build.spark(vals) + '</td>';
                 return '<tr>' + tds + '</tr>';
             }).join('');
-            return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table><div class="rt-legend">Each run against the one before it: ↑ ↓ when the intervals do not overlap, = when they do, · missing. Hover a number for its interval.</div>';
+            return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table><div class="rt-legend">Between two runs: ↑ ↓ when the intervals do not overlap, = when they do; · a line the run did not print. Hover a number for its interval.' + (cols.length > 2 ? ' Trend: the numbers across the runs.' : '') + '</div>';
         },
         runsList(r) {
             const items = (r.runs || []).slice().reverse().map(x => {

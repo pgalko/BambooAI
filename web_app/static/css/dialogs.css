@@ -207,6 +207,7 @@
 .rt-runs td.num, .rt-runs th.num, .rt-cmp-table td.num, .rt-cmp-table th.num { text-align: right; font-family: var(--font-mono); font-size: var(--fs-meta); }
 .rt-runs td.label, .rt-cmp-table td.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; color: var(--text-primary); }
 .rt-runs th .d { display: block; color: var(--text-quaternary); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.rt-runs td.mark, .rt-runs th.mark { width: 22px; padding-left: 4px; padding-right: 4px; text-align: center; }
 .rt-mark { display: inline-block; min-width: 14px; text-align: center; font-weight: 700; }
 .rt-mark.up, .rt-mark.down, .rt-mark.changed { color: var(--c-kernel); }
 .rt-mark.same { color: var(--text-quaternary); font-weight: 400; }

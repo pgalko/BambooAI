@@ -58,7 +58,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/86/1/1 Python; 39/7/29/56/24/49 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/86/1/1 Python; 39/7/29/56/24/50 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (27; hosted only - the loaders need the executor; the
@@ -440,6 +440,14 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines: the runs table's mark sits between the two numbers it compares (2026-10-10, patch 0119).** Palo's
+  first run that completed on a new window (Jan-June after Jul-Oct: three of five lines moved, the peak hour held)
+  showed the manager's table with the ↑ = ↓ beside the second run's numbers and an empty Trend column - it read as
+  a misplaced Trend. The mark now has a narrow column of its own between the runs it compares (`td.mark`; blank when
+  a side is missing, the cell's · says it), and Trend appears with the third run, when there is a sparkline to put
+  in it; the legend rewritten. Parked by Palo, in ROUTINES_DESIGN.md §12: typed text in figure titles (*91 sessions,
+  13 Jul - 7 Oct 2026*) shows the original window on a new one - prose is not data; the contract clause covers new
+  analyses, the pointing promoter the old. test_routines.js 50; the screens re-rendered (s6_manager_runs).
 - **Routines: a loader's file name is bound by its kind; an edit that changes one is refused (2026-10-10, patch
   0118).** The cause of Palo's run under 0116, pinned from its `run.json`: the live promoter had made the loaded window
   an input (`window`, date_window, default the original window) and rewritten the five `read_csv` literals as
