@@ -314,11 +314,18 @@ class BambooAI:
         generated_datasets_path = generated_dir or self._generated_dir()
         self._sync_documents("replay")              # a cited cell may have read a document file
         prelude = self._kernel_prelude()            # ... or used D1.table(2): the objects ride ahead of the cells
+        offset = 0
         if prelude:
+            offset = prelude.count("\n") + 2
             script = prelude + "\n\n" + script
         new_df, results, error, plot_images, generated = self.executor.execute(
             self.output_manager, self.kill_signal, script, self.df, self.df_id, generated_datasets_path,
             persist_df=False, timeout=timeout)
+        if error and offset:
+            # the traceback's line numbers back in the caller's text, which the prelude pushed down (a routine's run names
+            # the failed cell by them, 2026-10-10)
+            import re as _re
+            error = _re.sub(r'(File "<string>", line )(\d+)', lambda m: m.group(1) + str(max(1, int(m.group(2)) - offset)), str(error))
         if error:
             logger.warning("%s failed (timeout %ds): %s", what, timeout,
                            str(error).strip().splitlines()[-1][:300] if str(error).strip() else error)
@@ -435,17 +442,20 @@ class BambooAI:
                     len(proposal["results"]), proposal["data_state"], proposal["cost"])
         return proposal
 
-    def precheck_routine(self, routine_id, values=None):
+    def precheck_routine(self, routine_id, values=None, aux=None):
         """Before a run: is data loaded, does it fit the routine's columns, are the chosen values in it (F2)."""
         from bambooai import routines_host
         routine = self.routine_store().load(routine_id)
         if routine is None:
             raise routines_host.RoutineRefused("no such routine")
-        out = routines_host.precheck(routine, self._data_record(), lambda script, timeout: self.run_script(script, timeout, what="Precheck"), values)
+        data = self._data_record()
+        if aux is not None:
+            data["aux"] = [str(p) for p in aux if p]
+        out = routines_host.precheck(routine, data, lambda script, timeout: self.run_script(script, timeout, what="Precheck"), values)
         out["plan"] = routines_host.load_plan(routine)                 # how the original load asked for its data: the dialog loads the same way
         return out
 
-    def run_routine(self, routine_id, values=None, compare_with="previous"):
+    def run_routine(self, routine_id, values=None, compare_with="previous", aux=None):
         """One run of the routine on the data loaded now (F2): the checks, the script with its INPUTS block through the
         executor, the lines read by position, the comparison with the run before, the record stored; then the tabs as an
         analysis has them (Data, Results, Plots) and the closing card for the pane."""
@@ -455,7 +465,12 @@ class BambooAI:
             raise routines_host.RoutineRefused("no such routine")
         number = len(routine.get("runs", [])) + 1
         run_dir = os.path.join('datasets', self.user_id or '', 'routines', str(routine_id), routines_host.run_tag(routine.get("current_version") or 1, number))
-        out = routines_host.run(routine, values, self._data_record(), lambda script, timeout, d=None: self.run_script(script, timeout, what=f"Routine {routine_id}", generated_dir=d),
+        data = self._data_record()
+        if aux is not None:                                       # the files the dialog's load just produced, as the page saw them - none when it produced none
+            data["aux"] = [str(p) for p in aux if p]
+        logger.info("Routine %s run %d: data %s (%s rows, %d columns, %d auxiliary file(s): %s)", routine_id, number, data.get("source"), data.get("rows"),
+                    len(data.get("columns") or []), len(data.get("aux") or []), ", ".join(os.path.basename(str(p)) for p in (data.get("aux") or [])) or "-")
+        out = routines_host.run(routine, values, data, lambda script, timeout, d=None: self.run_script(script, timeout, what=f"Routine {routine_id}", generated_dir=d),
                                 self.routine_store(), emit=self._emit_routine, compare_with=compare_with, run_dir=run_dir)
         try:
             self.output_manager.display_results(chain_id=None, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df, api_client=self.api_client,

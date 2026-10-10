@@ -58,7 +58,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/80/1/1 Python; 39/7/29/56/24/49 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/82/1/1 Python; 39/7/29/56/24/49 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (25; hosted only - the loaders need the executor; the
@@ -440,6 +440,20 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines: a run is self-sufficient about its files (2026-10-10, patch 0117).** Palo's first run under 0116 on a
+  Jan-June window stopped on `FileNotFoundError` at the stand-in's path for the summary
+  (`datasets/local/routines/<id>/v1_1/activity_summary_<old window>.csv`): the loaded data's file list had no summary
+  in it at run time and the probe had not written the stand-in - the record itself binds correctly when replayed here,
+  so the cause is in the run's state and is not yet pinned (the run.json's `data.aux`, `aux_absent`, `bindings` and
+  `shape` will). Hardened so the class cannot reach the method: `prepare` makes a stand-in path for every absent file
+  whether or not the probe wrote it (a recorded name is never rewritten as a cache path); the conform prelude
+  materialises every path the executed text names before the cells run (`_ROUTINE_FILES`: a stand-in not written is
+  written with the recorded columns; a bound file gone is stood in for and said in the output; a cache file the method
+  reads under its run-folder name is copied there); the page sends the files its load produced (`aux`, an empty list
+  when none) and the run prefers them; `run_script` rebases traceback lines past the kernel prelude; `failed_cell`
+  reads the executor's `Error on line N:` header (its frames are cut at 1,000 characters); the run logs its data and
+  the binding at INFO so the terminal shows the file list next time. test_routines.py 82 (a failed probe, a vanished
+  bound file).
 - **Routines, F2 rebuilt: the routine loads its own data and makes it fit the recorded shape (2026-10-10, patch 0116).**
   The first live run on a new Intervals window (patch 0113's "run on current data") read the loader's summary file by
   its dated name - `activity_summary_20260812_to_20261010.csv` is the auxiliary the Intervals loader writes, named by

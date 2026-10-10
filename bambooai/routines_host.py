@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from typing import Callable, Dict, List, Optional
@@ -363,9 +364,16 @@ def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable],
             if isinstance(info, dict) and info.get("path"):
                 bound[old] = info["path"]
         placeholders = dict(shape.get("placeholders") or {})
+    # a recorded file this load lacks stands in as an empty table in the run's folder whether or not the probe wrote it
+    # (the prelude writes what is not there), so a recorded name is never rewritten as a cache path
+    for old in binding["absent"]:
+        placeholders.setdefault(old, run_dir.rstrip("/") + "/" + os.path.basename(old))
     script, subs = rt.bind_script(ver.get("script") or "", bound, run_dir, rt.datasets_dir_of(rec.get("aux") or []) or rt.datasets_dir_of(d.get("aux") or []), placeholders)
+    files = [(new, old, columns.get(old) or [], kind) for old, new, kind in subs]
+    logger.info("routine run: %d file(s) bound, %d absent (%s), %d substitution(s) in the executed text%s", len(binding["map"]), len(binding["absent"]),
+                ", ".join(rt.aux_kind(p) for p in binding["absent"]) or "-", len(subs), ("; " + note) if note else "")
     return {"binding": binding, "bound": bound, "placeholders": placeholders, "shape": shape, "script": script, "subs": subs, "note": note,
-            "prelude": rt.conform_prelude(rec.get("columns") or [])}
+            "prelude": rt.conform_prelude(rec.get("columns") or [], files)}
 
 
 def aux_line(binding: dict) -> str:

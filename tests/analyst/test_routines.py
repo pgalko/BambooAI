@@ -377,6 +377,34 @@ r5c = out5c["run"]
 check("a run with the summary absent: an empty table with the recorded columns stood in, the method failed on it (nothing to count), the run is kept and names the cell, the record lists the absent file",
       r5c["status"] == "failed" and r5c["line"].startswith("failed at cell 1") and r5c["aux_absent"] == ["summary"] and any("summary absent" in (e.get("peek") or "") for e in ev5c if e.get("kind") == "check")
       and os.path.exists(os.path.join(aux_dir, "routines", rid5, "v1_2", "activity_summary_20260812_to_20261010.csv")), (r5c["status"], r5c["line"], r5c.get("aux_absent")))
+# the run is self-sufficient (2026-10-10, the first live run on a new window stopped on FileNotFoundError at a stand-in's
+# path): the prelude makes sure every path the executed text names is there before the cells run, whether or not the probe
+# ran - a stand-in not written is written, a bound file that is not where the load left it is stood in for and said
+def probe_fails(script, timeout, *rest):
+    if rt.SHAPE_MARK in script:
+        return "", "Traceback (most recent call last):\nRuntimeError: the executor dropped the request", [], []
+    return runner_on(df)(script, timeout)
+ev5d = []
+out5d = host.run(store.load(rid5), {}, now5c, probe_fails, store, emit=ev5d.append, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_3"))
+r5d = out5d["run"]
+check("the probe failed and the summary is absent: the CHECK row says the files could not be prepared, the stand-in path is still what the executed text names (never a cache path), the prelude wrote it, and the method failed on the empty table - not on a missing file",
+      any("could not be prepared" in (e.get("peek") or "") for e in ev5d if e.get("kind") == "check") and r5d["bindings"] and r5d["bindings"][0][2] == "placeholder" and r5d["bindings"][0][1].endswith("/v1_3/activity_summary_20260812_to_20261010.csv")
+      and os.path.exists(os.path.join(aux_dir, "routines", rid5, "v1_3", "activity_summary_20260812_to_20261010.csv")) and "FileNotFoundError" not in (r5d.get("error") or "") and r5d["status"] == "failed",
+      (r5d.get("bindings"), r5d.get("status"), (r5d.get("error") or "")[-160:]))
+# a bound file that is not there when the cells run (the loader's file gone between the probe and the run): stood in for and said
+now5e = dict(now5, aux=[os.path.join(aux_dir, "activity_summary_20260501_to_20260630.csv")])
+def probe_then_gone(script, timeout, *rest):
+    if rt.SHAPE_MARK in script:
+        pd.DataFrame({"hour": [6], "load": [1.0], "note": ["a"]}).to_csv(now5e["aux"][0], index=False)
+        out = runner_on(df)(script, timeout)
+        os.remove(now5e["aux"][0])
+        return out
+    return runner_on(df)(script, timeout)
+out5e = host.run(store.load(rid5), {}, now5e, probe_then_gone, store, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_4"))
+r5e = out5e["run"]
+check("a bound file gone before the cells ran: the prelude stood an empty table in for it (the file is there, with the recorded columns); the run failed on the empty table, not on a missing file",
+      r5e["bindings"][0][2] == "bound" and os.path.exists(now5e["aux"][0]) and pd.read_csv(now5e["aux"][0]).columns.tolist() == ["hour", "load", "note"] and "FileNotFoundError" not in (r5e.get("error") or "")
+      and "empty sequence" in (r5e.get("error") or ""), (r5e.get("bindings"), (r5e.get("error") or "")[-160:]))
 # a choice input whose value is not in the data: refused by the value check through the kernel
 R7 = store.load(rid4); v7 = host.version_of(R7)
 v7["manifest"]["parameters"].append({"key": "grp", "label": "Group", "type": "choice", "default": "a", "column": "g", "multiple": False, "origin": "x"})

@@ -774,7 +774,7 @@
                     if (typeof createIntervalsPill === 'function') createIntervalsPill(info);
                     if (typeof createIntervalsAuxiliaryPills === 'function' && job.result && job.result.aux_datasets && job.result.aux_datasets.length) createIntervalsAuxiliaryPills(job.result.aux_datasets, info);
                     dfTab(job);
-                    return { source: 'intervals', start, end, loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
+                    return { source: 'intervals', start, end, aux: (job.result || {}).aux_datasets || [], loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
                 }
                 if (job.status === 'error' || job.status === 'not_found') throw new Error(job.error || 'the load failed');
                 progress((job.message || 'Loading…') + (job.percent != null ? ' (' + job.percent + '%)' : ''), 'loading');
@@ -793,7 +793,7 @@
                 (res.json.aux_datasets || []).forEach((fp, i) => createOrUpdateDatasetPill('endura-aux-pill-' + Date.now() + '-' + i, 'Auxiliary (' + String(fp).split('/').pop().replace('.csv', '') + ')', 'auxiliary', 'success', false, fp));
             }
             dfTab(res.json);
-            return { source: 'endura', loaded: 'Endura · ' + ((res.json && res.json.race_title) || title) };
+            return { source: 'endura', aux: (res.json && res.json.aux_datasets) || [], loaded: 'Endura · ' + ((res.json && res.json.race_title) || title) };
         }
         if (src === 'sweatstack') {
             const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
@@ -813,6 +813,7 @@
         const r = await window.authService.fetch('/upload', { method: 'POST', body: fd });
         let data = {}; try { data = await r.json(); } catch (e) { data = {}; }
         if (!r.ok) throw new Error(data.message || data.error || 'the upload failed');
+        // an upload replaces the primary only; the auxiliary files loaded before stay as they are (no `aux` sent)
         if (typeof createOrUpdateDatasetPill === 'function') createOrUpdateDatasetPill('primary-dataset-pill-' + Date.now(), 'Primary (' + file.name + ') loaded', 'primary', 'success', false, null);
         if (typeof currentDatasetName !== 'undefined') { try { currentDatasetName = file.name; } catch (e) { /* read-only */ } }
         dfTab(data);
@@ -851,7 +852,8 @@
             progress('Loaded · checking it against the routine…', 'loading');
         }
         // the checks with the values as typed: what differs from the data the method was made on is said here, before the view changes
-        fetchJson('/routines/' + encodeURIComponent(st.id) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values }) }).then(pr => {
+        const auxLoaded = loaded && loaded.aux ? loaded.aux : undefined;   // the files this load produced, as the page saw them (an empty list when it produced none)
+        fetchJson('/routines/' + encodeURIComponent(st.id) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values, aux: auxLoaded }) }).then(pr => {
             if (runState !== st) return;
             if (!pr.ok || !pr.json.ok) {
                 st.busy = false; p.cancelBtn.disabled = false;
@@ -868,7 +870,7 @@
             const numbers = runNumbers(routine);
             enterRunView(summaryOf(routine), numbers.concat([numbers.length ? Math.max.apply(null, numbers) + 1 : 1]), numbers.length, { pending: true, version: routine.current_version });
             if (loaded && typeof paneLookup === 'function') paneLookup({ kind: 'load', query: loaded.loaded || '', peek: (pr.json && pr.json.line) || '', sources: [], passages: [] });
-            stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with }, true, data => {
+            stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with, aux: auxLoaded }, true, data => {
                 if (data.type === 'pane_routine_end' && typeof paneRoutineEnd === 'function') { paneRoutineEnd(data); chipIdle(); return true; }
                 return false;
             }).then(msg => {

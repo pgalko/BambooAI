@@ -170,7 +170,7 @@ def precheck_routine(rid):
     a = _app()
     instance = a.get_bamboo_ai(session['session_id'])
     try:
-        return jsonify(instance.precheck_routine(rid, (request.json or {}).get('values') or {})), 200
+        return jsonify(instance.precheck_routine(rid, (request.json or {}).get('values') or {}, aux=(request.json or {}).get('aux'))), 200
     except Exception as exc:                                    # noqa: BLE001
         from bambooai.routines_host import RoutineRefused
         if isinstance(exc, RoutineRefused):
@@ -190,7 +190,7 @@ def run_routine(rid):
     a.update_user_activity(a.get_user_id())
 
     def work():
-        return {"routine_run": instance.run_routine(rid, data.get('values') or {}, data.get('compare_with') or 'previous')}
+        return {"routine_run": instance.run_routine(rid, data.get('values') or {}, data.get('compare_with') or 'previous', aux=data.get('aux'))}
     return _stream(instance, work)
 
 

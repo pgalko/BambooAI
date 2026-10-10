@@ -455,27 +455,30 @@ def bind_script(script: str, bindings: Dict[str, str], run_dir: str, datasets_di
     this load's path - or the placeholder written for a file this load lacks -, and any other literal under the
     datasets folder becomes a file in the run's own folder, so a run never writes into the person's cache. Returns the
     text and the substitutions made, for the run's record."""
-    subs: List[Tuple[str, str]] = []
-    table: Dict[str, str] = {}
+    subs: List[Tuple[str, str, str]] = []
+    table: Dict[str, Tuple[str, str]] = {}
     for old, new in (bindings or {}).items():
-        table[old] = new
-        table[os.path.basename(old)] = new
+        table[old] = (new, "bound")
+        table[os.path.basename(old)] = (new, "bound")
     for old, new in (placeholders or {}).items():
-        table.setdefault(old, new)
-        table.setdefault(os.path.basename(old), new)
+        table.setdefault(old, (new, "placeholder"))
+        table.setdefault(os.path.basename(old), (new, "placeholder"))
     ddir = (datasets_dir or "").rstrip("/")
+    seen = set()
 
     def repl(m):
         body = m.group("body")
         q = m.group("q")
-        new = None
+        new, kind = None, ""
         if body in table:
-            new = table[body]
+            new, kind = table[body]
         elif ddir and body.startswith(ddir + "/") and run_dir:
-            new = run_dir.rstrip("/") + "/" + os.path.basename(body)
+            new, kind = run_dir.rstrip("/") + "/" + os.path.basename(body), "cache"
         if new is None or new == body:
             return m.group(0)
-        subs.append((body, new))
+        if (body, new) not in seen:
+            seen.add((body, new))
+            subs.append((body, new, kind))
         return q + new + q
     return _STRING_RE.sub(repl, script or ""), subs
 
@@ -519,13 +522,35 @@ if 'df' in globals() and df is not None:
     df = _routine_conform(df, _ROUTINE_COLUMNS)
     if '_BambooSource' in globals():
         DS = _BambooSource(df)
+# every file the executed text names is there before the cells run: a stand-in that was not written gets written now
+# (an empty table with the recorded columns), a bound file that is not there is said and stood in for, a cache file the
+# method reads under its run-folder name is copied there
+def _routine_materialise(files):
+    import os as _os, pandas as _pd
+    for _new, _old, _cols, _kind in files:
+        if not _new or _os.path.exists(_new):
+            continue
+        _d = _os.path.dirname(_new)
+        if _d:
+            _os.makedirs(_d, exist_ok=True)
+        if _kind == 'cache' and _old and _os.path.exists(_old):
+            with open(_old, 'rb') as _s, open(_new, 'wb') as _t:
+                _t.write(_s.read())
+            continue
+        _pd.DataFrame(columns=list(_cols or [])).to_csv(_new, index=False)
+        if _kind == 'bound':
+            print('ROUTINE: ' + _os.path.basename(_old or _new) + ' was not where this load left it; an empty table stood in for it')
+_routine_materialise(_ROUTINE_FILES)
 """
 
 
-def conform_prelude(columns: Iterable[dict]) -> str:
-    """The block a run executes after its inputs: the recorded columns of `df`, then the conform of the frame."""
+def conform_prelude(columns: Iterable[dict], files: Optional[Iterable[Tuple[str, str, List[str], str]]] = None) -> str:
+    """The block a run executes after its inputs: the recorded columns of `df` and the files the executed text names
+    (each as [this run's path, the recorded path, the recorded columns, bound | placeholder | cache]), then the conform
+    of the frame and the files made sure of."""
     cols = [[str(c.get("name")), str(c.get("dtype") or "")] for c in (columns or []) if c.get("name") is not None]
-    return "_ROUTINE_COLUMNS = " + json.dumps(cols) + "\n" + CONFORM_PRELUDE
+    fl = [[str(n), str(o or ""), [str(c) for c in (cs or [])], str(k or "")] for n, o, cs, k in (files or [])]
+    return "_ROUTINE_COLUMNS = " + json.dumps(cols) + "\n_ROUTINE_FILES = " + json.dumps(fl) + "\n" + CONFORM_PRELUDE
 
 
 SHAPE_MARK = "SHAPE:"
@@ -662,9 +687,12 @@ def error_line(err: str) -> str:
 def failed_cell(script: str, error: str) -> Optional[int]:
     """The cell a run failed in, from the traceback's line number in the script (the markers count the lines)."""
     nums = [int(n) for n in re.findall(r'File "<string>", line (\d+)', error or "")]
+    head = re.search(r"^Error on line (\d+):", error or "", re.M)       # the executor's condensed traceback names the line first (its frames may be cut at 1,000 characters)
+    if head:
+        nums = [int(head.group(1))] + nums
     if not nums:
         return None
-    line_no = nums[-1]
+    line_no = nums[0] if head else nums[-1]
     cell = None
     for i, ln in enumerate((script or "").splitlines(), 1):
         if i > line_no:
