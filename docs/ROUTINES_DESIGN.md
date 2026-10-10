@@ -145,6 +145,13 @@ Relative windows for files: the "updated lab file with extra rows" case runs on 
 exploration itself filtered by date, in which case the promoter offers "last N days of the file" with N from the
 exploration.
 
+Upstream of all this, the analyst's contract carries one rule since 2026-10-10 (the first live run of a routine on
+a new window stopped on a time-zone offset typed into a cell): a value read off the data — a date in it, a subject's
+identifier, a threshold — is computed and kept in a named variable, never typed as a literal, so the method holds
+when the data is loaded again; a value the question gives stays a literal. It is the one place the literals that
+make a routine window-bound originate, and the cheapest fix per routine; the promoter and the run's checks handle
+what still arrives as a literal.
+
 ## 5. Flows
 
 ### F1 — Save as routine (promotion) — built

@@ -439,6 +439,15 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The contract: values read off the data are variables, not literals (2026-10-10, patch 0115).** The first routine
+  run on a new Intervals window failed at a cell that had the athlete's time-zone offsets typed in (`offset_h == 2`)
+  and divided by a count that was zero on that window; the literals originate in exploration, so the contract's
+  kernel section now says: a value read off the data - a date in it, a subject's identifier, a threshold - is computed
+  and kept in a named variable, never typed as a literal, so the method holds when the data is loaded again; a value
+  the question gives stays a literal. Kept under the one-page limit (9,000) by trimming redundancy elsewhere (the
+  turn-ends sentence said twice, the figures paragraph, SEARCH's row). The routines design (docs/ROUTINES_DESIGN.md
+  §4) records it as the upstream lever; the rework of F2 (the routine loads its own data and conforms it to the
+  recorded shape; says what differs; fails well; the pointing promoter) follows as 0116-0118.
 - **Routines, two fixes from Palo's Titanic test (2026-10-10, patch 0114).** (1) The executor chip stayed on
   *Executing* after a run: the routine's ROUTINE / RUN rows set it as a cell does (`pane_cell_start`) but only the
   replay's `pane_lookup` released it; now the routine's kinds release it too (query-processing.js), and routines.js
