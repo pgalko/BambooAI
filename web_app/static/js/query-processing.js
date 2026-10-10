@@ -879,6 +879,7 @@ function updateRankButtonVisibility() {
     const rankButton = document.getElementById('rankButton');
     if (!rankButton) return;
 
+    if (window.RoutinesUI && typeof window.RoutinesUI.inRunView === 'function' && window.RoutinesUI.inRunView()) { rankButton.style.display = 'none'; return; }   // a run is recorded as it completes: nothing to save
     const currentResponse = responses[currentResponseIndex];
 
     // the pill shows on any finished chain in view (2026-10-10, routines): saved or not, since its menu offers Save as

@@ -233,6 +233,85 @@ def empty_promoter(system, user):
     return '{"name": "As is", "inputs": [], "edits": []}', {"cost": 0.0}
 p7 = host.propose(nb4, run4.id, empty_promoter, current_data={"df_id": "df4"})
 check("propose: no inputs is a valid proposal - the method runs as it is", p7["inputs"] == [] and p7["script"].count("# --- cell") == 2)
+
+# ---- step 2: a run on the data loaded now - the checks, the status, the comparison, the record ----
+rid4 = made["routine"]["id"]
+R = store.load(rid4)
+data_now = {"df_id": "df4", "name": "small.csv", "source": "csv", "columns": [{"name": "v", "dtype": "int64"}, {"name": "g", "dtype": "object"}], "rows": 5, "aux": []}
+def runner_on(frame):
+    def _r(script, timeout):
+        k = PersistentKernel(df=frame)
+        try:
+            out, err, _ = k.execute(script)
+        finally:
+            k.cleanup()
+        return out or "", err or "", [], []
+    return _r
+pc = host.precheck(R, data_now, runner_on(df))
+check("precheck: data loaded, fits the routine's columns, nothing missing - ok, with the line the dialog shows", pc["loaded"] and pc["ok"] and pc["fit"]["fits"] and pc["line"].startswith("fits the routine (2 of 2 columns)"), pc)
+pc2 = host.precheck(R, {"df_id": None, "source": "none", "columns": []}, runner_on(df))
+check("precheck with nothing loaded: not ok, says to load the data first", not pc2["loaded"] and not pc2["ok"] and "no data is loaded" in pc2["line"], pc2)
+pc3 = host.precheck(R, {"df_id": "x", "columns": [{"name": "v", "dtype": "int64"}], "name": "other.csv"}, runner_on(df))
+check("precheck with a column dropped: does not fit, names it", not pc3["ok"] and pc3["fit"]["missing"] == ["g"] and "missing: g" in pc3["line"], pc3["line"])
+pc4 = host.precheck(R, data_now, runner_on(df), values={"threshold": "abc"})
+check("precheck with an unreadable value: the problem named, not ok", not pc4["ok"] and pc4["problems"] and "could not be read as a number" in pc4["line"], pc4["line"])
+events = []
+out1 = host.run(R, {}, data_now, runner_on(df), store, emit=events.append)
+r1 = out1["run"]
+check("run 1 on the same data with the defaults: reproduced against run zero, the record stored with its files, the routine lists it",
+      r1["number"] == 1 and r1["status"] == "reproduced" and r1["against"] == 0 and r1["comparison"]["rows"][0]["mark"] == "same" and r1["comparison"]["compared"] == 1
+      and store.load(rid4)["runs"][0]["number"] == 1 and os.path.exists(os.path.join(store.run_dir(rid4, "v2_1"), "run.json")) and os.path.exists(os.path.join(store.run_dir(rid4, "v2_1"), "stdout.txt"))
+      and out1["numbers"] == [0, 1], (r1["status"], r1["line"], out1["numbers"]))
+kinds = [(e.get("type"), e.get("kind")) for e in events]
+check("the pane saw the check, the run and the comparison rows", kinds == [("lookup_start", "check"), ("lookup", "check"), ("lookup_start", "run"), ("lookup", "run"), ("lookup", "compare")]
+      and events[1]["peek"].startswith("fits the routine") and events[3]["peek"].startswith("reproduced") and "with run 0" in events[4]["query"], (kinds, events[4]))
+out2 = host.run(store.load(rid4), {"threshold": 165}, data_now, runner_on(df), store)
+r2 = out2["run"]
+check("run 2 with the threshold at 165: ran (the count changed), compared with run 1, the line marked down without intervals",
+      r2["number"] == 2 and r2["status"] == "ran" and r2["against"] == 1 and r2["inputs"] == {"threshold": 165} and r2["results"][0]["estimate"] == "+2.00"
+      and r2["comparison"]["rows"][0]["mark"] == "down" and r2["comparison"]["rows"][0]["change"] == -1.0 and r2["comparison"]["changed"] == 1 and "1 of 1 changed" in r2["comparison"]["line"], (r2["status"], r2["comparison"]))
+out3 = host.run(store.load(rid4), {"threshold": 165}, data_now, runner_on(df), store, compare_with="zero")
+check("compare with run zero on request: against 0, the same change", out3["run"]["against"] == 0 and out3["run"]["comparison"]["rows"][0]["mark"] == "down" and out3["run"]["status"] == "ran")
+out4 = host.run(store.load(rid4), {"threshold": 165}, data_now, runner_on(df), store)
+check("the same values on the same data again: reproduced against the run before", out4["run"]["status"] == "reproduced" and out4["run"]["against"] == 3)
+before = len(store.load(rid4)["runs"])
+try:
+    host.run(store.load(rid4), {}, {"df_id": "x", "name": "other.csv", "columns": [{"name": "v", "dtype": "int64"}]}, runner_on(df), store); refused = ""
+except host.RoutineRefused as exc:
+    refused = str(exc)
+check("a file with a column dropped: refused before anything runs, the column named, no run recorded", "does not fit" in refused and "missing: g" in refused and len(store.load(rid4)["runs"]) == before, refused)
+def broken_runner(script, timeout):
+    return "", 'Traceback (most recent call last):\n  File "<string>", line 999, in <module>\nKeyError: \'v\'', [], []
+out5 = host.run(store.load(rid4), {}, data_now, broken_runner, store)
+check("a script error: the run is kept with status failed, naming the cell, the comparison all missing", out5["run"]["status"] == "failed" and out5["run"]["line"].startswith("failed at cell 2:") and out5["run"]["comparison"]["missing"] == 1
+      and store.load(rid4)["runs"][-1]["status"] == "failed", out5["run"]["line"])
+out6 = host.run(store.load(rid4), {}, data_now, lambda s, t: ("", "TIMEOUT: Code execution exceeded 300 seconds.", [], []), store)
+check("a timeout: status timed_out", out6["run"]["status"] == "timed_out" and out6["run"]["line"].startswith("timed out"))
+R6 = store.load(rid4)
+ref_after_failures = host.reference_run(R6, host.version_of(R6), "previous")
+check("the reference skips failed and timed-out runs: the last run that ran", ref_after_failures[0] == 4, ref_after_failures[0])
+# a choice input whose value is not in the data: refused by the value check through the kernel
+R7 = store.load(rid4); v7 = host.version_of(R7)
+v7["manifest"]["parameters"].append({"key": "grp", "label": "Group", "type": "choice", "default": "a", "column": "g", "multiple": False, "origin": "x"})
+store.save(R7)
+pc7 = host.precheck(store.load(rid4), data_now, runner_on(df), values={"grp": "zzz"})
+try:
+    host.run(store.load(rid4), {"grp": "zzz"}, data_now, runner_on(df), store); refused7 = ""
+except host.RoutineRefused as exc:
+    refused7 = str(exc)
+check("a choice value not in the data: the precheck and the run both say so", not pc7["ok"] and "'zzz' is not in column g" in pc7["line"] and "'zzz' is not in column g" in refused7, (pc7["line"], refused7))
+ok7 = host.precheck(store.load(rid4), data_now, runner_on(df), values={"grp": "a"})
+check("a choice value in the data passes", ok7["ok"], ok7["line"])
+view0 = host.run_view(store.load(rid4), store, 0)
+view2 = host.run_view(store.load(rid4), store, 2)
+check("run_view: run zero from the version's record with its files; run 2 from its record with the comparison, the output and the numbers to step through",
+      view0["run"]["number"] == 0 and view0["run"]["zero"] and view0["run"]["results"][0]["estimate"] == "+3.00" and "RESULT:" in view0["stdout"]
+      and view2["run"]["number"] == 2 and view2["run"]["comparison"]["rows"][0]["mark"] == "down" and "RESULT: rows above the line: +2.00" in view2["stdout"] and view2["numbers"][:3] == [0, 1, 2] and view2["manifest_results"][0]["label"] == "rows above the line", (view0["run"].get("results"), view2.get("numbers")))
+try:
+    host.run_view(store.load(rid4), store, 99); nope = ""
+except host.RoutineRefused as exc:
+    nope = str(exc)
+check("run_view of a run that does not exist is refused", "no run 99" in nope)
 shutil.rmtree(tmp, ignore_errors=True)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")

@@ -165,6 +165,31 @@ check("route /routines: the list; /routines/<id>: the versions without scripts; 
       and _wc.get("/routines/by_origin/1001").get_json()["routines"][0]["id"] == _rid and _wc.get("/routines/by_origin/1001/nope").get_json()["routines"] == [])
 _s = _wc.get(f"/routines/{_rid}/script")
 check("route /routines/<id>/script: a .py download with the INPUTS block and the defaults", _s.status_code == 200 and "attachment; filename=\"Route_made_v1.py\"" in _s.headers.get("Content-Disposition", "") and "INPUTS = {" in _s.get_data(as_text=True) and "'arm_b': 'B'" in _s.get_data(as_text=True))
+# step 2: a run on the data loaded now, through the instance and the routes
+_pc = _wc.post(f"/routines/{_rid}/precheck", json={"values": {}}).get_json()
+check("route precheck: the loaded frame fits the routine (its two columns), nothing missing", _pc["loaded"] and _pc["ok"] and _pc["fit"]["expected"] == 2 and _pc["line"].startswith("fits the routine (2 of 2 columns)"), _pc)
+while not q.empty(): q.get()
+_r = _wc.post(f"/routines/{_rid}/run", json={"values": {}, "compare_with": "previous"})
+_msgs = _lines(_r)
+_types = [m.get("type") or next(iter(m)) for m in _msgs]
+check("route run: the pane's rows (check, run, compare), the tabs (Data, Results), the closing card, then routine_run",
+      _types[:2] == ["pane_lookup_start", "pane_lookup"] and "pane_routine_end" in _types and "dataframe" in _types and "code_exec_results" in _types and "routine_run" in _msgs[-1]
+      and _msgs[-1]["routine_run"]["run"]["number"] == 1 and _msgs[-1]["routine_run"]["run"]["status"] == "ran" and "no result lines to compare" in _msgs[-1]["routine_run"]["run"]["line"] and _msgs[-1]["routine_run"]["numbers"] == [0, 1], (_types, _msgs[-1].get("routine_error")))
+_end = next(m for m in _msgs if m.get("type") == "pane_routine_end")
+check("the closing card's fields: number, name, version, status, results, compared, figures, elapsed, against", _end["number"] == 1 and _end["name"] == "Route made" and _end["version"] == 1 and _end["status"] == "ran" and _end["against"] == 0 and "elapsed" in _end, _end)
+_r2 = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "A"}})
+_run2 = _lines(_r2)[-1]["routine_run"]["run"]
+check("route run with the arm set to A: ran (the difference is now A against A), compared with run 1", _run2["status"] in ("ran", "reproduced") and _run2["against"] == 1 and _run2["inputs"] == {"arm_b": "A"}, _run2.get("line"))
+_v = _wc.get(f"/routines/{_rid}/runs/2").get_json()
+check("route runs/<n>: the stored run with its output, the numbers to step through and the manifest's lines", _v["run"]["number"] == 2 and "reusing" not in _v["stdout"] and _v["numbers"] == [0, 1, 2] and isinstance(_v["figures"], list) and _v["name"] == "Route made", list(_v.keys()))
+_v0 = _wc.get(f"/routines/{_rid}/runs/0").get_json()
+check("route runs/0: run zero as a run", _v0["run"]["number"] == 0 and _v0["run"]["zero"] is True and _v0["run"]["status"] == "reproduced")
+check("route runs/<n> of a run that is not there: 404", _wc.get(f"/routines/{_rid}/runs/9").status_code == 404)
+_rj = _wc.get(f"/routines/{_rid}").get_json()["routine"]
+check("the routine's record lists both runs with their status and data", [x["number"] for x in _rj["runs"]] == [1, 2] and _rj["runs"][0]["status"] == "ran" and _rj["runs"][0]["data"]["rows"] == 200, _rj["runs"])
+_r3 = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "Z"}})
+check("route run with a value the data lacks: refused by the value check, routine_error names it", "routine_error" in _lines(_r3)[-1] and "'Z' is not in column arm" in _lines(_r3)[-1]["routine_error"], _lines(_r3)[-1])
+while not q.empty(): q.get()
 check("route rename / delete", _wc.post(f"/routines/{_rid}/rename", json={"name": "Renamed"}).get_json()["routine"]["name"] == "Renamed" and _wc.delete(f"/routines/{_rid}").status_code == 200 and _wc.get(f"/routines/{_rid}").status_code == 404)
 _r = _wc.post("/routines/create", json={"proposal_id": "gone"})
 check("route /routines/create with a spent proposal: the stream ends with routine_error", "routine_error" in _lines(_r)[-1] and "expired" in _lines(_r)[-1]["routine_error"])

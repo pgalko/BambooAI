@@ -381,6 +381,7 @@ function initializeNavigationButtons() {
 }
 
 function updateNavigationButtons() {
+    if (window.RoutinesUI && typeof window.RoutinesUI.inRunView === 'function' && window.RoutinesUI.inRunView()) { window.RoutinesUI.updateRunNav(); return; }   // a routine's run in view: the arrows step between its runs (2026-10-10)
     const prevButton = document.getElementById('prevResponse');
     const nextButton = document.getElementById('nextResponse');
     const navContainer = document.querySelector('.tab-navigation');

@@ -65,6 +65,7 @@
 #streamOutput .sp-pill svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
 #streamOutput .sp-done { border: 1px solid var(--border-color); border-left: 2px solid var(--accent-color); border-radius: 6px; background: var(--bg-secondary); padding: 10px 12px; font-family: Arial, sans-serif; font-size: 12px; color: var(--text-secondary); }
 #streamOutput .sp-done .title { color: var(--text-primary); font-weight: 600; margin-bottom: 6px; }
+#streamOutput .sp-done.warn .title { color: var(--c-fail); }   /* a routine's run that failed, timed out or differed (2026-10-10) */
 #streamOutput .sp-done .grid { display: grid; grid-template-columns: repeat(4, auto); gap: 4px 18px; margin-bottom: 8px; justify-content: start; }
 #streamOutput .sp-done .grid b { color: var(--text-primary); font-weight: 600; }
 #streamOutput .sp-done .rep { color: var(--text-secondary); }

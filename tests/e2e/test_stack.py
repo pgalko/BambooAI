@@ -35,7 +35,7 @@ passed, failed = [], []
 
 def check(name, cond, detail=""):
     (passed if cond else failed).append(name)
-    print(("  ok   " if cond else "  FAIL ") + name + ("" if cond else f"  <- {str(detail)[:300]}"))
+    print(("  ok   " if cond else "  FAIL ") + name + ("" if cond else f"  <- {str(detail)[:900]}"))
 
 
 def wait_run_end(page, n_responses, timeout=180000):
@@ -323,6 +323,135 @@ def main():
             card_btn = page.evaluate("() => [...document.querySelectorAll('#workflowManagerModal .workflow-card-routine')].map(b => [b.className, (b.querySelector('.n') || {}).textContent || ''])")
             check("the favourites' card carries the Routine button, lit with 1", any("has" in c.split() and n == "1" for c, n in card_btn), card_btn)
             page.evaluate("WorkflowModal.close()")
+            page.wait_for_timeout(300)
+
+            # Run on current data (docs/ROUTINES_DESIGN.md F2, step 2): the run dialog checks the data loaded now against
+            # the routine; run 1 on the same data with the same input reproduces run 0; the run view locks the composer
+            # and opens on the comparison; run 2 with another input is compared with run 1; the arrows step through the
+            # runs (run 0 included); a file missing a column is refused in the dialog before anything runs
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            runs_before = page.evaluate("() => [...document.querySelectorAll('#routinesModal .rt-runlist .rt-run')].map(e => e.dataset.run)")
+            check("the manager before any run: the runs list holds run 0 only", runs_before == ["0"], runs_before)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_selector("#routineRunModal", state="visible", timeout=10000)
+            page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
+            rd = page.evaluate("""() => ({ title: document.querySelector('#routineRunModal .ui-dlg-h .title').textContent, fit: document.querySelector('#routineRunModal .rt-fit').textContent, bad: document.querySelector('#routineRunModal .rt-fit').classList.contains('bad'),
+                data: document.querySelector('#routineRunModal .rt-data').textContent, regime: (document.querySelector('#routineRunModal [data-key="regime"]') || {}).value,
+                compare: [...document.querySelectorAll('#routineRunModal input[name="rt-compare"]')].map(i => [i.value, i.checked]), runOn: !document.querySelector('#routineRunModal [data-act="run"]').disabled })""")
+            check("the run dialog: the data loaded now (field_trial.csv) fits the routine, the regime input carries its default B, the comparison offers run 0 (the only run so far), Run is enabled",
+                  "Regime contrast" in rd["title"] and "fits the routine" in rd["fit"] and not rd["bad"] and "field_trial.csv" in rd["data"] and rd["regime"] == "B" and rd["compare"] == [["zero", True]] and rd["runOn"], rd)
+            page.click("#routineRunModal [data-act='run']")
+            page.wait_for_function("() => document.getElementById('routineRunModal').style.display === 'none' && /run 1/.test(document.getElementById('chainPosition').textContent)", timeout=30000)
+            live = page.evaluate("() => ({ pos: document.getElementById('chainPosition').textContent, locked: document.getElementById('queryInput').disabled, pill: getComputedStyle(document.getElementById('rankButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled] })")
+            check("while run 1 runs: the position says so, both arrows are off, the composer is locked and the Save pill is hidden",
+                  "running" in live["pos"] and live["locked"] and live["pill"] == "none" and live["arrows"] == [True, True], live)
+            wait_text(page, "#chainPosition", "run 1 of 1", 180000)
+            page.wait_for_timeout(600)
+            rv = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
+                tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id), active: (document.querySelector('#contentOutput .tab-content.active') || {}).id, strip: (document.querySelector('.sp-strip') || {}).textContent || '',
+                ids: (document.querySelector('.sp-ids') || {}).textContent || '', locked: document.getElementById('queryInput').disabled && document.getElementById('submitQuery').disabled && document.body.classList.contains('composer-locked'),
+                placeholder: document.getElementById('queryInput').placeholder, pill: getComputedStyle(document.getElementById('rankButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled],
+                cmp: (document.getElementById('content-comparison') || {}).textContent || '', turns: document.querySelectorAll('.sp-turn').length })""")
+            check("run 1 in the pane: the CHECK, RUN and COMPARE rows, no model card, and the closing card says run 1 reproduced run 0's line",
+                  any("CHECK" in r and "field_trial.csv" in r for r in rv["rows"]) and any("RUN" in r and "run 1" in r for r in rv["rows"]) and any("COMPARE" in r and "run 0" in r for r in rv["rows"])
+                  and rv["turns"] == 0 and "Run 1 complete" in rv["done"] and "reproduced: every result line as the run before (1 line)" in rv["done"] and "against run 0" in rv["done"] and not rv["warn"], (rv["rows"], rv["done"][:200]))
+            check("run 1 in the panes: the strip reads run 1 · v1 against run 0, the id line names the routine and the run, the Comparison tab is first and open with the line within its interval",
+                  "run 1" in rv["strip"] and "v1" in rv["strip"] and "run 0" in rv["strip"] and "Routine:" in rv["ids"] and "Run:1·v1" in rv["ids"].replace(" ", "")
+                  and rv["tabs"] and rv["tabs"][0] == "tab-comparison" and rv["active"] == "content-comparison" and "against run 0" in rv["cmp"] and "within" in rv["cmp"] and "regime B vs A" in rv["cmp"], (rv["strip"], rv["ids"], rv["tabs"], rv["active"], rv["cmp"][:200]))
+            check("run 1 in the panes: the Plots and Results tabs came through the stream as an analysis's do", "tab-plot" in rv["tabs"] and "tab-code_exec_results" in rv["tabs"], rv["tabs"])
+            check("after run 1: the composer stays locked with the reason as its placeholder, the Save pill stays hidden, the position reads run 1 of 1 with the next arrow off and the previous one on (run 0)",
+                  rv["locked"] and "open the analysis" in rv["placeholder"] and rv["pill"] == "none" and rv["arrows"] == [False, True], (rv["locked"], rv["placeholder"], rv["pill"], rv["arrows"]))
+            # the run before (run 0) through the arrow, then forward again
+            page.click("#prevResponse")
+            wait_text(page, "#chainPosition", "run 0 of 1", 30000)
+            page.wait_for_timeout(400)
+            r0 = page.evaluate("() => ({ cmp: (document.getElementById('content-comparison') || {}).textContent || '', done: (document.querySelector('.sp-done') || {}).textContent || '', arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled], tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id) })")
+            check("the previous arrow opens run 0 (the version's own check): its own line with the estimate and the interval, nothing it is against, the Results and Data tabs of the stored run, the previous arrow off",
+                  r0["cmp"].startswith("Run 0 — the original data") and "against" not in r0["cmp"] and "regime B vs A" in r0["cmp"] and re.search(r"\[[+-]?\d", r0["cmp"]) is not None
+                  and "Run 0 complete" in r0["done"] and r0["arrows"] == [True, False] and "tab-code_exec_results" in r0["tabs"] and "tab-dataframe" in r0["tabs"], r0)
+            page.click("#nextResponse")
+            wait_text(page, "#chainPosition", "run 1 of 1", 30000)
+            # the favourite unlocks the composer (Saved workflows -> the card)
+            page.click("#workflowManagerPill")
+            page.wait_for_selector("#workflowManagerModal .workflow-card", timeout=15000)
+            page.click("#workflowManagerModal .workflow-card")
+            page.wait_for_function("() => /chain \\d of 4/.test(document.getElementById('chainPosition').textContent) && !document.getElementById('queryInput').disabled", timeout=15000)
+            page.wait_for_timeout(300)
+            unlocked = page.evaluate("() => ({ locked: document.body.classList.contains('composer-locked'), placeholder: document.getElementById('queryInput').placeholder, pos: document.getElementById('chainPosition').textContent, pill: getComputedStyle(document.getElementById('rankButton')).display })")
+            check("loading a favourite leaves the run view: the composer is back with its own placeholder, the chains' navigation and the Save pill return",
+                  not unlocked["locked"] and "open the analysis" not in unlocked["placeholder"] and "chain" in unlocked["pos"] and unlocked["pill"] != "none", unlocked)
+            # run 2 with the other regime, compared with run 1 (the run before, the dialog's default now)
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
+            cmp_choices = page.evaluate("() => [...document.querySelectorAll('#routineRunModal input[name=\"rt-compare\"]')].map(i => [i.value, i.checked])")
+            check("the run dialog after run 1 offers the run before (on) and run 0", cmp_choices == [["previous", True], ["zero", False]], cmp_choices)
+            page.fill("#routineRunModal [data-key='regime']", "C")
+            page.click("#routineRunModal [data-act='run']")
+            wait_text(page, "#chainPosition", "run 2 of 2", 180000)
+            page.wait_for_timeout(600)
+            r2 = page.evaluate("""() => ({ done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'), cmp: (document.getElementById('content-comparison') || {}).textContent || '',
+                marks: [...document.querySelectorAll('#content-comparison .rt-mark')].map(e => e.textContent.trim()), strip: (document.querySelector('.sp-strip') || {}).textContent || '', arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled],
+                results: (document.getElementById('content-code_exec_results') || {}).textContent || '' })""")
+            check("run 2 (regime C): ran with its one result line, compared with run 1 - the closing card and the comparison tab say which run it is against and how many lines moved or stayed within their intervals",
+                  "Run 2 complete" in r2["done"] and "ran: 1 result line" in r2["done"] and "against run 1" in r2["done"] and "of 1" in r2["done"] and not r2["warn"]
+                  and "against run 1" in r2["cmp"] and "run 1" in r2["strip"] and r2["arrows"] == [False, True] and len(r2["marks"]) == 1 and r2["marks"][0] in ("↑", "↓", "="), (r2["done"][:200], r2["cmp"][:200], r2["marks"], r2["strip"]))
+            check("run 2's Results tab holds the printed output of the run with regime C", "regime C vs A" in r2["results"] or "C vs A" in r2["results"], r2["results"][:200])
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => document.querySelectorAll('#routinesModal .rt-runlist .rt-run').length >= 3", timeout=15000)
+            mg2 = page.evaluate("""() => ({ items: [...document.querySelectorAll('#routinesModal .rt-runlist .rt-run')].map(e => [e.dataset.run, (e.querySelector('.rt-status') || {}).textContent || '', e.textContent]),
+                cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.trim()), rows: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, sub: document.querySelector('#routinesModal .rt-right .sub').textContent })""")
+            check("the manager after two runs: the runs table has a column per run (0, 1, 2) and a row for the routine's line; the runs list reads run 2 (ran, regime C), run 1 (reproduced), run 0",
+                  [x[0] for x in mg2["items"]] == ["2", "1", "0"] and mg2["items"][0][1].startswith("ran") and "regime = C" in mg2["items"][0][2] and mg2["items"][1][1] == "reproduced" and mg2["rows"] == 1
+                  and sum(1 for c in mg2["cols"] if re.match(r"Run [012]", c)) == 3 and "Trend" in mg2["cols"], mg2)
+            page.click("#routinesModal .rt-runlist .rt-run[data-run='1']")
+            wait_text(page, "#chainPosition", "run 1 of 2", 30000)
+            page.wait_for_timeout(400)
+            opened = page.evaluate("() => ({ cmp: (document.getElementById('content-comparison') || {}).textContent || '', pos: document.getElementById('chainPosition').textContent, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled], locked: document.getElementById('queryInput').disabled })")
+            check("the runs list opens run 1 in the main panes: its comparison against run 0, both arrows on, the composer locked again",
+                  "against run 0" in opened["cmp"] and opened["arrows"] == [False, False] and opened["locked"], opened)
+            page.click("#nextResponse")
+            wait_text(page, "#chainPosition", "run 2 of 2", 30000)
+            # a file without the soil column: the dialog says what is missing, Run stays off, nothing is recorded
+            import csv
+            no_soil = os.path.join(workdir, "data", "no_soil.csv")
+            with open(st.dataset, newline="", encoding="utf-8") as src, open(no_soil, "w", newline="", encoding="utf-8") as dst:
+                rd_ = csv.DictReader(src)
+                cols = [c for c in rd_.fieldnames if c != "soil"]
+                w = csv.DictWriter(dst, fieldnames=cols, extrasaction="ignore")
+                w.writeheader()
+                for row_ in rd_:
+                    w.writerow(row_)
+            page.set_input_files("#primaryFile", no_soil)
+            page.wait_for_function("() => [...document.querySelectorAll('.primary-dataset-pill')].some(p => /no_soil\\.csv\\) loaded/.test(p.textContent))", timeout=60000)
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
+            nofit = page.evaluate("() => ({ fit: document.querySelector('#routineRunModal .rt-fit').textContent, bad: document.querySelector('#routineRunModal .rt-fit').classList.contains('bad'), data: document.querySelector('#routineRunModal .rt-data').textContent, runOff: document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
+            check("with no_soil.csv loaded the run dialog says the routine cannot run on this data, naming the missing column, and Run is off",
+                  nofit["bad"] and "missing: soil" in nofit["fit"] and "cannot run" in nofit["fit"] and "no_soil.csv" in nofit["data"] and nofit["runOff"], nofit)
+            page.click("#routineRunModal [data-act='cancel']")
+            page.wait_for_timeout(300)
+            page.evaluate("RoutinesUI.closeManager()")
+            run_files = sorted(os.path.basename(p) for p in glob.glob(os.path.join(os.path.dirname(rdirs[0]), "runs", "*"))) if rdirs else []
+            rj2 = json.load(open(rdirs[0])) if rdirs else {}
+            run1 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "run.json"))) if "v1_1" in run_files else {}
+            check("on disk: runs/v1_0 (run zero), v1_1 and v1_2 with run.json and stdout.txt; routine.json lists the two runs with their status, data and comparison; nothing recorded for the refused data",
+                  run_files == ["v1_0", "v1_1", "v1_2"] and os.path.exists(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "stdout.txt"))
+                  and [x["number"] for x in rj2.get("runs", [])] == [1, 2] and rj2["runs"][0]["status"] == "reproduced" and rj2["runs"][1]["status"] == "ran" and rj2["runs"][1]["inputs"] == {"regime": "C"}
+                  and run1.get("against") == 0 and run1.get("comparison", {}).get("compared") == 1 and run1.get("data", {}).get("name") == "field_trial.csv" and len(run1.get("results", [])) == 1, (run_files, [(x.get("number"), x.get("status"), x.get("inputs")) for x in rj2.get("runs", [])], run1.get("against"), run1.get("data", {}).get("name")))
+            # back to the thread for the rest of the walk
+            page.click("#workflowManagerPill")
+            page.wait_for_selector("#workflowManagerModal .workflow-card", timeout=15000)
+            page.click("#workflowManagerModal .workflow-card")
+            page.wait_for_function("() => /chain \\d of 4/.test(document.getElementById('chainPosition').textContent) && !document.getElementById('queryInput').disabled", timeout=15000)
             page.wait_for_timeout(300)
             errs = page.evaluate("window.__stackErrors || []")
             # what landed on disk, in the app's own layout under the stack's web app working directory

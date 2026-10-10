@@ -58,8 +58,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/67/30/19/16/49/44/51/10/51/1/1 Python; 39/7/29/56/24/29 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (58; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (177/76/30/19/16/49/44/51/10/68/1/1 Python; 39/7/29/56/24/44 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (74 hosted, 73 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
@@ -412,9 +412,34 @@
   input; run zero reproduces through the executor; the routine is stored, linked, listed and lit on the card). Also:
   tests/analyst/test_js_refs.py lexes the scripts instead of regex-stripping them (a regex literal holding a quote had
   turned the rest of stream-pane.js inside out, and the scan passed or failed by quote parity); a KaTeX stand-in in
-  the stack's browser; a local-mode upload names its file in the DATA header. Next: Palo's Titanic test with the
-  real promoter on dev; then step 2, Run on current data (the runner, the fingerprint and value checks, the comparison,
-  S4 with the arrows between runs and the composer locked).
+  the stack's browser; a local-mode upload names its file in the DATA header. Palo's Titanic test of step 1 on dev
+  passed with the real promoter.
+- **Routines, step 2 built (2026-10-10, patch 0113).** *Run on current data*: the manager's Run opens the run dialog
+  on the data loaded now (the Data tab's upload, Intervals.icu or Endura; the loaders in the dialog are step 4) with
+  the fit line from `precheck_routine` ("fits the routine (6 of 6 columns, 2 more)" / "missing: soil - the routine
+  cannot run on this data"; Run off until it fits; nothing recorded for data that does not fit - the design's
+  did_not_fit status became a refusal), the inputs as widgets by type, Compare with the run before or run 0; Run
+  rechecks with the typed values (a choice input's values against its column, a small script in the executor) and
+  says a missing value in the dialog. The run (`routines_host.run`, `BambooAI.run_routine`, POST /routines/<id>/run
+  streaming): the version's script with the INPUTS block at the mark through `run_script` (timeout 2x run zero + 2 min
+  within 5-30 min), results parsed by position, status (reproduced | ran | differed | failed at cell n | timed_out -
+  `run_status`, `failed_cell`), the comparison against the reference run (`compare_runs`: change, interval overlap ->
+  moved / within, missing; `reference_run`: previous | zero | n), the record as `runs/v<ver>_<n>/run.json` + stdout +
+  figures and a light summary in routine.json's `runs`. The view (S4): the pane's CHECK / RUN / COMPARE rows and a
+  closing card (`paneRoutineEnd`), the strip in run mode, the id line, the Comparison tab first (`content-rendering`
+  'comparison'), Plots / Results / dataframe through the stream, the Data tab for stored runs, "run n of N" with the
+  arrows stepping through the routine's runs (run 0 included when verified; GET /routines/<id>/runs/<n>), both off
+  while a run is under way; the composer locked, back when a favourite loads; the Save pill hidden. The manager:
+  the results-across-runs table (a column per run, marks against the column before, sparklines) and the runs list
+  (status chips, each opening the run). Found by the e2e walk and fixed: the manager stayed open under the run
+  (closes when the run starts); the run dialog's Cancel stayed disabled after a run (re-enabled on open). Tested:
+  test_routines.py (68: precheck, run, reference, run_view, failed, timed_out, the value check over a real kernel),
+  test_app_path.py (76: precheck / run / runs routes), test_routines.js (44: dialog, comparison and data tabs, runs
+  table and list, run view state), `tools/routines_screens.py` (twelve screens, dark and light, state checks), the
+  e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
+  arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
+  on disk). Next: Palo's Titanic run on dev (run on its own data = reproduced, an input changed, a column dropped);
+  then step 3, Narrate (the Rewriter-seat note under the numbers guard, the What-changed tab and card).
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

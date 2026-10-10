@@ -370,6 +370,192 @@ def check_lines(expected: List[dict], got: List[dict], error: str = "") -> Tuple
     return "reproduced", f"reproduced: {len(exp)} result line(s) identical", []
 
 
+# ----------------------------------------------------------------------------- a run: the checks before it
+def fit_check(expected: Iterable[dict], now: Iterable[dict]) -> dict:
+    """The data loaded now against the routine's schema (the columns the analysis ran on): a run needs every
+    expected column; extra columns are fine; a column whose dtype changed is noted, not refused."""
+    exp = {str(c.get("name")): str(c.get("dtype") or "") for c in (expected or []) if c.get("name") is not None}
+    cur = {str(c.get("name")): str(c.get("dtype") or "") for c in (now or []) if c.get("name") is not None}
+    missing = [n for n in exp if n not in cur]
+    extra = [n for n in cur if n not in exp]
+    retyped = [(n, exp[n], cur[n]) for n in exp if n in cur and exp[n] and cur[n] and exp[n] != cur[n]]
+    fits = not missing and bool(exp) or (not exp and bool(cur))
+    if missing:
+        shown = ", ".join(missing[:6]) + (" ..." if len(missing) > 6 else "")
+        line = f"missing: {shown} - the routine cannot run on this data ({len(exp) - len(missing)} of {len(exp)} columns)"
+    elif not exp:
+        line = "the routine recorded no columns to check against; it will run as it is"
+    else:
+        line = f"fits the routine ({len(exp)} of {len(exp)} columns" + (f", {len(extra)} more" if extra else "") + ")"
+        if retyped:
+            line += "; " + ", ".join(f"{n} is now {b} (was {a})" for n, a, b in retyped[:3])
+    return {"fits": fits, "missing": missing, "extra": extra, "retyped": retyped, "expected": len(exp), "now": len(cur), "line": line}
+
+
+PRECHECK_MARK = "PRECHECK:"
+
+
+def precheck_script(checks: Dict[str, List[str]]) -> str:
+    """A script that reports, for each column named by a choice input, which of its chosen values the frame holds."""
+    spec = json.dumps({str(k): [str(x) for x in v] for k, v in (checks or {}).items()})
+    return ("import json as _j\n"
+            "_spec = _j.loads(" + repr(spec) + ")\n"
+            "_out = {'rows': int(len(df)), 'columns': [str(c) for c in df.columns], 'values': {}}\n"
+            "for _col, _vals in _spec.items():\n"
+            "    if _col in df.columns:\n"
+            "        _have = set(df[_col].dropna().astype(str).unique().tolist())\n"
+            "        _out['values'][_col] = {v: (v in _have) for v in _vals}\n"
+            "    else:\n"
+            "        _out['values'][_col] = None\n"
+            "print(" + repr(PRECHECK_MARK + " ") + " + _j.dumps(_out))\n")
+
+
+def read_precheck(stdout: str) -> Optional[dict]:
+    for ln in reversed((stdout or "").splitlines()):
+        if ln.strip().startswith(PRECHECK_MARK):
+            try:
+                return json.loads(ln.strip()[len(PRECHECK_MARK):].strip())
+            except ValueError:
+                return None
+    return None
+
+
+def value_checks(parameters: List[dict], values: Dict[str, object]) -> Dict[str, List[str]]:
+    """column -> the chosen values to look for: the choice inputs that name a column."""
+    out: Dict[str, List[str]] = {}
+    for p in parameters or []:
+        if p.get("type") == "choice" and p.get("column"):
+            v = values.get(p["key"], p.get("default"))
+            vals = v if isinstance(v, (list, tuple)) else [v]
+            out.setdefault(str(p["column"]), []).extend(str(x) for x in vals if x is not None and str(x) != "")
+    return out
+
+
+def missing_values(checks: Dict[str, List[str]], found: Optional[dict]) -> List[str]:
+    """What the precheck did not find: 'x is not in column c'; a column the frame lacks counts for every value."""
+    out = []
+    vals = (found or {}).get("values") or {}
+    for col, wanted in (checks or {}).items():
+        have = vals.get(col)
+        for v in wanted:
+            if have is None or not have.get(str(v)):
+                out.append(f"'{v}' is not in column {col}" if have is not None else f"column {col} is not in this data (for '{v}')")
+    return out
+
+
+def coerce_values(parameters: List[dict], values: Optional[Dict[str, object]]) -> Tuple[Dict[str, object], List[str]]:
+    """The values a run uses, each in its input's form; an input not given keeps its default; an unreadable value is
+    a problem named for the person."""
+    out, problems = {}, []
+    given = values or {}
+    for p in parameters or []:
+        key = p["key"]
+        raw = given.get(key, p.get("default"))
+        v = _coerce_default(p["type"], raw, bool(p.get("multiple")))
+        if v is None:
+            problems.append(f"{p.get('label', key)}: {raw!r} could not be read as a {p['type']}")
+            v = p.get("default")
+        out[key] = v
+    return out, problems
+
+
+# ----------------------------------------------------------------------------- a run: its status and the comparison
+def failed_cell(script: str, error: str) -> Optional[int]:
+    """The cell a run failed in, from the traceback's line number in the script (the markers count the lines)."""
+    nums = [int(n) for n in re.findall(r'File "<string>", line (\d+)', error or "")]
+    if not nums:
+        return None
+    line_no = nums[-1]
+    cell = None
+    for i, ln in enumerate((script or "").splitlines(), 1):
+        if i > line_no:
+            break
+        m = _CELL_MARK_RE.match(ln)
+        if m:
+            cell = int(m.group(1))
+    return cell
+
+
+def run_status(expected: List[dict], got: List[dict], error: str, reference: Optional[List[dict]], script: str = "") -> Tuple[str, str]:
+    """The run's status: failed (with the cell), timed_out, differed (a line missing), reproduced (every number as the
+    reference run's) or ran (the normal case on new data)."""
+    if error:
+        text = str(error).strip()
+        last = text.splitlines()[-1][:200] if text else "unknown error"
+        if "TIMEOUT" in text.upper() or "timed out" in text.lower():
+            return "timed_out", "timed out: " + last
+        cell = failed_cell(script, text)
+        return "failed", (f"failed at cell {cell}: " if cell else "failed: ") + last
+    exp = [e for e in expected if e.get("estimate") is not None]
+    if not exp:
+        return "ran", "ran without error (no result lines to compare)" + (f"; {len(got)} line(s) printed" if got else "")
+    if len(got) < len(exp):
+        gone = exp[len(got):]
+        return "differed", f"{len(exp) - len(got)} of {len(exp)} result lines did not come back (" + "; ".join(f"[cell {e['cell']}] {str(e.get('label', ''))[:50]}" for e in gone[:3]) + ")"
+    if len(got) > len(exp):
+        return "differed", f"{len(got)} result lines came back, {len(exp)} expected"
+    if reference is not None and len(reference) == len(got) and all(
+            all((number(a.get(k)) == number(b.get(k))) or (a.get(k) == b.get(k)) for k in ("estimate", "low", "high")) for a, b in zip(got, reference)):
+        return "reproduced", f"reproduced: every result line as the run before ({len(got)} line{'s' if len(got) != 1 else ''})"
+    return "ran", f"ran: {len(got)} result line{'s' if len(got) != 1 else ''}" + (", 0 to compare" if not exp else "")
+
+
+def _ivl(r: Optional[dict]) -> Optional[Tuple[float, float]]:
+    if not r:
+        return None
+    lo, hi = number(r.get("low")), number(r.get("high"))
+    return (lo, hi) if lo is not None and hi is not None else None
+
+
+def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional[List[dict]]) -> dict:
+    """This run's lines against a reference run's, by position: the change, whether the intervals overlap, what is
+    missing on either side. Dropped lines are printed but not compared. Marks: up / down when the intervals do not
+    overlap (or, without intervals, when the estimate changed), same when they do, missing when a side lacks the line."""
+    rows = []
+    moved = within = missing = changed = 0
+    for i, m in enumerate(manifest_results or []):
+        if m.get("dropped") or m.get("estimate") is None:
+            continue
+        a = now[i] if i < len(now or []) else None
+        b = before[i] if before is not None and i < len(before) else None
+        row = {"cell": m.get("cell"), "index": m.get("index"), "label": m.get("label", ""), "unit": m.get("unit", ""), "direction": m.get("direction", ""), "typed": bool(m.get("typed")),
+               "now": {"estimate": a.get("estimate"), "low": a.get("low"), "high": a.get("high")} if a else None,
+               "before": {"estimate": b.get("estimate"), "low": b.get("low"), "high": b.get("high")} if b else None,
+               "change": None, "overlap": None, "mark": "missing"}
+        if a and b:
+            ea, eb = number(a.get("estimate")), number(b.get("estimate"))
+            ia, ib = _ivl(a), _ivl(b)
+            if ea is not None and eb is not None:
+                row["change"] = ea - eb
+            if ia and ib:
+                row["overlap"] = not (ia[0] > ib[1] or ia[1] < ib[0])
+                if row["overlap"]:
+                    row["mark"] = "same"; within += 1
+                else:
+                    row["mark"] = "up" if (row["change"] or 0) > 0 else "down"; moved += 1
+            elif ea is not None and eb is not None:
+                if ea == eb:
+                    row["mark"] = "same"; within += 1
+                else:
+                    row["mark"] = "up" if ea > eb else "down"; changed += 1
+            else:
+                row["mark"] = "same" if a.get("estimate") == b.get("estimate") else "changed"; within += 1
+        else:
+            missing += 1
+        rows.append(row)
+    compared = len(rows) - missing
+    if before is None:
+        line = "nothing to compare with: the first run of this version"
+    elif compared == 0:
+        line = "no result line to compare"
+    else:
+        parts = [f"{moved} of {compared} moved beyond their intervals" if any(r["overlap"] is not None for r in rows) else f"{changed} of {compared} changed"]
+        if missing:
+            parts.append(f"{missing} missing")
+        line = ", ".join(parts)
+    return {"rows": rows, "moved": moved, "within": within, "changed": changed, "missing": missing, "compared": compared, "line": line}
+
+
 # ----------------------------------------------------------------------------- the store
 def _safe(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "", str(s or ""))
@@ -450,6 +636,35 @@ class RoutineStore:
                 key = (str(pf.get("thread_id", "")), str(pf.get("chain_id", "")))
                 out.setdefault(key, []).append({"id": r["id"], "name": r.get("name", ""), "version": v.get("number", 1)})
         return out
+
+    def run_dir(self, rid: str, tag: str) -> str:
+        return os.path.join(self.path(rid), "runs", _safe(tag))
+
+    def save_run(self, rid: str, tag: str, record: dict) -> None:
+        folder = self.run_dir(rid, tag)
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, "run.json"), "w", encoding="utf-8") as fh:
+            json.dump(record, fh, indent=1, ensure_ascii=False)
+
+    def load_run(self, rid: str, tag: str) -> Optional[dict]:
+        f = os.path.join(self.run_dir(rid, tag), "run.json")
+        if not os.path.exists(f):
+            return None
+        with open(f, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def run_files(self, rid: str, tag: str) -> Tuple[str, List[str]]:
+        """(the printed output, the figures as their JSON strings) of a run, from its folder."""
+        folder = self.run_dir(rid, tag)
+        out, figs = "", []
+        p = os.path.join(folder, "stdout.txt")
+        if os.path.exists(p):
+            with open(p, encoding="utf-8", errors="replace") as fh:
+                out = fh.read()
+        for name in sorted(f for f in (os.listdir(folder) if os.path.isdir(folder) else []) if f.startswith("fig_") and f.endswith(".json")):
+            with open(os.path.join(folder, name), encoding="utf-8", errors="replace") as fh:
+                figs.append(fh.read())
+        return out, figs
 
     def save_run_files(self, rid: str, tag: str, stdout: str, figures: List[str]) -> dict:
         folder = os.path.join(self.path(rid), "runs", _safe(tag))

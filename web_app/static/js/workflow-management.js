@@ -544,6 +544,7 @@ function _reattachRestoredListeners() {
 }
 
 function navigateResponses(direction) {
+    if (window.RoutinesUI && typeof window.RoutinesUI.inRunView === 'function' && window.RoutinesUI.inRunView()) { window.RoutinesUI.navigateRuns(direction); return; }   // a routine's run in view (2026-10-10)
     const prevIndex = currentResponseIndex;
     currentResponseIndex += direction;
     if (currentResponseIndex < 0) currentResponseIndex = 0;
@@ -1308,7 +1309,8 @@ async function loadThreadContent(threadId, chainId) {
         
         currentResponseIndex = targetIndex >= 0 ? targetIndex : responses.length - 1;
         
-        if (typeof composerUnlock === 'function') composerUnlock();   // a run's view locks the composer; a favourite is an analysis again (2026-10-10)
+        if (window.RoutinesUI && typeof window.RoutinesUI.exitRunView === 'function') window.RoutinesUI.exitRunView();   // a run's view locks the composer; a favourite is an analysis again (2026-10-10)
+        else if (typeof composerUnlock === 'function') composerUnlock();
         loadResponseContent(responses[currentResponseIndex]);
         
         if (typeof updateNavigationButtons === 'function') {

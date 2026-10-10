@@ -242,7 +242,8 @@ function createOrUpdateTab(type, data, id = null, format = null) {
         tab.textContent = tabName;
 
         tab.onclick = () => (typeof activateTabInView === 'function' ? activateTabInView(type) : activateTab(type));
-        tabContainer.appendChild(tab);
+        if (type === 'comparison' && tabContainer.firstChild) tabContainer.insertBefore(tab, tabContainer.firstChild);   // a routine's run opens on its comparison (2026-10-10)
+        else tabContainer.appendChild(tab);
 
         // Create new tab content
         tabContent = document.createElement('div');
@@ -427,6 +428,9 @@ async function updateTabContent(type, data, id = null, format = null) {
             
             break;
         }
+        case 'comparison':
+            content = String(data == null ? '' : data);          // a routine's run against the run before (routines.js builds it)
+            break;
         case 'code_exec_results': {
             // the reproduction script's printed output, verbatim, in the app's code block
             const escaped = String(data == null ? '' : data).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

@@ -147,12 +147,147 @@
             h += '<div class="rt-sec"><div class="h">Results <span class="n">— compared run to run' + (m.figures && m.figures.count ? ' · ' + m.figures.count + ' figure' + (m.figures.count === 1 ? '' : 's') : '') + '</span></div>' +
                 (res.length ? '<div class="rt-results">' + res.map(x => '<div class="r"><span class="g">✓</span><span class="l" title="' + esc(x.label) + '">' + esc(x.label) + '</span><span class="c">cell ' + esc(x.cell) + '</span></div>').join('') + '</div>' : '<div class="rt-line">None recorded: runs keep their printed output and figures.</div>') + '</div>';
             h += '<div class="rt-sec"><div class="h">Versions</div><div class="rt-vers">' + (r.versions || []).slice().reverse().map(x => '<div class="v"><b>v' + esc(x.number) + '</b><span>' + esc(fmtDate(x.created)) + ' · from the analysis of ' + esc(chainDate((x.promoted_from || {}).chain_id) || (x.promoted_from || {}).chain_id) + (x.change_note ? ' · “' + esc(x.change_note) + '”' : '') + '</span></div>').join('') + '</div></div>';
-            h += '<div class="rt-sec"><div class="h">Runs</div><div class="rt-line muted">None yet — running a routine on new data is the next step of this feature.</div></div>';
+            h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">— each run against the one before it</span></div>' + build.runsTable(r) + '</div>';
+            h += '<div class="rt-sec"><div class="h">Runs <span class="n">— a run opens in the main panes</span></div>' + build.runsList(r) + '</div>';
             return h;
         },
         actions(r) {
-            return '<a class="ui-btn ghost" href="/routines/' + esc(r.id) + '/script" download title="the script, with its inputs at the top">' + ICON_DOWN + '.py</a>' +
+            return '<button class="ui-btn primary" data-act="run" title="run the method on the data loaded now">' + ICON_ROUTINE + 'Run</button>' +
+                '<a class="ui-btn ghost" href="/routines/' + esc(r.id) + '/script" download title="the script, with its inputs at the top">' + ICON_DOWN + '.py</a>' +
                 '<button class="ui-btn ghost" data-act="rename">Rename</button><button class="ui-btn ghost danger-text" data-act="delete">Delete</button>';
+        },
+        // ---- a run (docs/ROUTINES_DESIGN.md F2, S3, S4)
+        inputWidget(p) {
+            const v = p.default, k = esc(p.key);
+            if (p.type === 'toggle') return '<label class="rt-check"><input type="checkbox" data-key="' + k + '" data-type="toggle"' + (v ? ' checked' : '') + '> on</label>';
+            if (p.type === 'date_window') {
+                const a = Array.isArray(v) ? v : ['', ''];
+                return '<div class="rt-window"><input type="date" class="ui-input" data-key="' + k + '" data-type="date_window" data-part="0" value="' + esc(a[0]) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-key="' + k + '" data-type="date_window" data-part="1" value="' + esc(a[1]) + '"></div>';
+            }
+            const text = Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
+            const help = p.type === 'numbers' ? 'numbers, separated by commas' : (p.type === 'choice' ? (p.multiple ? 'values of ' + esc(p.column || 'the column') + ', separated by commas' : 'a value of ' + esc(p.column || 'the column')) : '');
+            return '<input class="ui-input" data-key="' + k + '" data-type="' + esc(p.type) + '" value="' + esc(text) + '"' + (p.type === 'number' ? ' inputmode="decimal"' : '') + (help ? ' title="' + help + '"' : '') + '>';
+        },
+        runDialog(r, pre) {
+            const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
+            const params = (v.manifest || {}).parameters || [];
+            const d = (pre && pre.data) || {};
+            const fit = pre && pre.fit;
+            let h = '<div class="rt-sec"><div class="h">Data loaded now</div>';
+            if (!pre || !pre.loaded) {
+                h += '<div class="rt-line warn">No data is loaded. Load the data on the Data tab — upload a file, or Intervals.icu / Endura from the settings — then run.</div>';
+            } else {
+                h += '<div class="rt-data"><span class="ui-chip model"><span class="t">' + esc(sourceLabel(d.source)) + '</span></span>' + (d.name ? '<span class="name">' + esc(d.name) + '</span>' : '') +
+                    '<span class="meta">' + [d.rows != null ? Number(d.rows).toLocaleString() + ' rows' : '', d.columns ? d.columns + ' columns' : '', d.date_range ? esc(d.date_range) : ''].filter(Boolean).join(' · ') + '</span></div>' +
+                    '<div class="rt-fit' + (pre.ok ? '' : ' bad') + '">' + (pre.ok ? '✓ ' : '! ') + esc(pre.line || (fit && fit.line) || '') + '</div>';
+            }
+            h += '</div>';
+            h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— the only things that change; the method runs as it was saved</span></div>';
+            if (!params.length) h += '<div class="rt-line">None: the method runs as it is.</div>';
+            else h += params.map(p => '<div class="rt-field"><label>' + esc(p.label) + '</label>' + build.inputWidget(p) + (p.origin ? '<div class="help">' + esc(p.origin) + '</div>' : '') + '</div>').join('');
+            h += '</div>';
+            const runs = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status));
+            const last = runs.length ? runs[runs.length - 1] : null;
+            const zero = v.run_zero && v.run_zero.verified;
+            if (last || zero) {
+                h += '<div class="rt-sec"><div class="h">Compare with</div><div class="rt-choices">' +
+                    (last ? '<label class="rt-check"><input type="radio" name="rt-compare" value="previous" checked> run ' + esc(last.number) + ' (' + esc(fmtDate(last.created)) + ', the run before)</label>' : '') +
+                    (zero ? '<label class="rt-check"><input type="radio" name="rt-compare" value="zero"' + (last ? '' : ' checked') + '> run 0 (the original data)</label>' : '') + '</div></div>';
+            }
+            return h;
+        },
+        num(x) { return x == null || x === '' ? '' : String(x); },
+        ivl(s) { return s && s.low != null && s.high != null ? '[' + esc(s.low) + ', ' + esc(s.high) + ']' : ''; },
+        markText(m) { return ({ up: '↑', down: '↓', same: '=', missing: '·', changed: '≠' })[m] || ''; },
+        markWord(row) {
+            if (row.mark === 'missing') return 'missing';
+            if (row.overlap === true) return 'within';
+            if (row.overlap === false) return 'moved';
+            return row.mark === 'same' ? 'same' : 'changed';
+        },
+        comparisonTab(view) {
+            const run = view.run || {}, c = run.comparison || {};
+            const d = run.data || {};
+            const head = run.number === 0 ? 'Run 0 — the original data' : ('Run ' + esc(run.number) + (d.name ? ' (' + esc(d.name) + ')' : '') + (run.against != null ? ' against run ' + esc(run.against) : ''));
+            let h = '<div class="rt-cmp"><div class="rt-sec"><div class="h">' + head + ' <span class="n">— v' + esc(run.version) + (run.against != null ? ' · ' + esc(c.line || '') : '') + '</span></div>';
+            if (run.status === 'failed' || run.status === 'timed_out') {
+                h += '<div class="rt-error"><div class="msg">' + esc(run.line || '') + '</div>' + (run.error ? '<pre class="ui-code">' + esc(run.error) + '</pre>' : '') + '</div>';
+            }
+            const rows = c.rows || [];
+            if (!rows.length) {
+                h += '<div class="rt-line">' + (run.number === 0 || run.against == null ? 'Nothing to compare with: the first run of this version. Its results are on the Results tab.' : 'No result line to compare.') + '</div>';
+            } else if (run.against == null) {
+                h += '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th><th class="num">Run ' + esc(run.number) + '</th></tr></thead><tbody>' +
+                    rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(x.label) + '</td><td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td></tr>').join('') + '</tbody></table>';
+            } else {
+                h += '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th><th class="num">Run ' + esc(run.against) + '</th><th class="num">Run ' + esc(run.number) + '</th><th class="num">Change</th><th>Intervals</th></tr></thead><tbody>' +
+                    rows.map(x => '<tr class="' + esc(x.mark) + '"><td class="label" title="' + esc(x.label) + '">' + esc(x.label) + '</td>' +
+                        '<td class="num">' + esc(build.num((x.before || {}).estimate)) + '<div class="ci">' + build.ivl(x.before) + '</div></td>' +
+                        '<td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' +
+                        '<td class="num change">' + (x.change == null ? '' : esc((x.change > 0 ? '+' : '') + Number(x.change.toPrecision(3)))) + '</td>' +
+                        '<td><span class="rt-mark ' + esc(x.mark) + '">' + build.markText(x.mark) + '</span> ' + build.markWord(x) + '</td></tr>').join('') + '</tbody></table>' +
+                    '<div class="rt-legend">Estimates with their 95% intervals, as the routine printed them. "moved" means the two intervals do not overlap; "within" means they do; without intervals, "changed" and "same" compare the estimates. Nothing here is written by a model.</div>';
+            }
+            return h + '</div></div>';
+        },
+        dataTab(d) {
+            const cols = d.columns || [];
+            return '<div class="rt-cmp"><div class="rt-sec"><div class="h">What this run ran on</div><div class="ui-kv">' +
+                '<b>Source</b><span>' + esc(sourceLabel(d.source)) + '</span>' + (d.name ? '<b>Name</b><span>' + esc(d.name) + '</span>' : '') +
+                (d.rows != null ? '<b>Rows</b><span>' + esc(Number(d.rows).toLocaleString()) + '</span>' : '') + (d.date_range ? '<b>Range</b><span>' + esc(d.date_range) + '</span>' : '') +
+                (d.aux && d.aux.length ? '<b>Auxiliary</b><span>' + d.aux.map(a => esc(String(a).split('/').pop())).join(', ') + '</span>' : '') +
+                '<b>Columns</b><span>' + (Array.isArray(cols) && cols.length && typeof cols[0] === 'object' ? cols.map(c => esc(c.name) + (c.dtype ? ' <span class="ui-muted">' + esc(c.dtype) + '</span>' : '')).join(', ') : esc(String(cols))) + '</span></div></div></div>';
+        },
+        spark(values) {
+            const v = values.filter(x => x != null);
+            if (v.length < 3) return '';
+            const min = Math.min.apply(null, v), max = Math.max.apply(null, v), span = (max - min) || 1;
+            const pts = v.map((x, i) => (4 + i * (64 / (v.length - 1))).toFixed(1) + ',' + (15 - (x - min) / span * 12).toFixed(1));
+            return '<svg class="rt-spark" viewBox="0 0 72 18"><polyline points="' + pts.join(' ') + '"/><circle cx="' + pts[pts.length - 1].split(',')[0] + '" cy="' + pts[pts.length - 1].split(',')[1] + '" r="1.8"/></svg>';
+        },
+        markOf(now, before) {
+            if (!now || !before) return 'missing';
+            const a = parseFloat(String(now.estimate).replace(/,/g, '')), b = parseFloat(String(before.estimate).replace(/,/g, ''));
+            const ia = now.low != null && now.high != null ? [parseFloat(String(now.low).replace(/,/g, '')), parseFloat(String(now.high).replace(/,/g, ''))] : null;
+            const ib = before.low != null && before.high != null ? [parseFloat(String(before.low).replace(/,/g, '')), parseFloat(String(before.high).replace(/,/g, ''))] : null;
+            if (ia && ib) return (ia[0] > ib[1] || ia[1] < ib[0]) ? (a > b ? 'up' : 'down') : 'same';
+            if (isNaN(a) || isNaN(b)) return now.estimate === before.estimate ? 'same' : 'changed';
+            return a === b ? 'same' : (a > b ? 'up' : 'down');
+        },
+        runsTable(r) {
+            const v = (r.versions || []).find(x => x.number === r.current_version) || {};
+            const lines = ((v.manifest || {}).results || []).filter(x => !x.dropped && x.estimate != null);
+            const cols = [];
+            if (v.run_zero && v.run_zero.verified) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [] });
+            (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status)).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [] }));
+            if (!lines.length || !cols.length) return '<div class="rt-line muted">' + (!lines.length ? 'This routine records no result lines; its runs keep their output and figures.' : 'No run yet.') + '</div>';
+            const all = ((v.manifest || {}).results || []);
+            const head = '<thead><tr><th>Result</th>' + cols.map(c => '<th class="num">Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + '</span></th>').join('') + (cols.length > 1 ? '<th>Trend</th>' : '') + '</tr></thead>';
+            const body = lines.map(line => {
+                const pos = all.indexOf(line);
+                const cells = cols.map(c => c.results[pos] || null);
+                const vals = cells.map(x => x ? parseFloat(String(x.estimate).replace(/,/g, '')) : null);
+                let tds = '<td class="label" title="' + esc(line.label) + '">' + esc(line.label) + '</td>';
+                cells.forEach((x, i) => {
+                    const mark = i ? build.markOf(x, cells[i - 1]) : '';
+                    tds += '<td class="num"' + (x ? ' title="' + build.ivl(x).replace(/"/g, '') + '"' : '') + '>' + (x ? esc(x.estimate) : '<span class="rt-mark missing">·</span>') + (mark ? ' <span class="rt-mark ' + esc(mark) + '">' + build.markText(mark) + '</span>' : '') + '</td>';
+                });
+                if (cols.length > 1) tds += '<td>' + build.spark(vals) + '</td>';
+                return '<tr>' + tds + '</tr>';
+            }).join('');
+            return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table><div class="rt-legend">Each run against the one before it: ↑ ↓ when the intervals do not overlap, = when they do, · missing. Hover a number for its interval.</div>';
+        },
+        runsList(r) {
+            const items = (r.runs || []).slice().reverse().map(x => {
+                const d = x.data || {};
+                const inputs = Object.keys(x.inputs || {}).length ? Object.entries(x.inputs).map(([k, val]) => esc(k) + ' = ' + esc(Array.isArray(val) ? val.join(', ') : val)).join(' · ') : '';
+                const status = x.status === 'reproduced' ? 'reproduced' : (x.status === 'ran' ? ((x.comparison || {}).moved ? 'ran · ' + x.comparison.moved + ' of ' + x.comparison.compared + ' moved' : 'ran') : x.status.replace('_', ' '));
+                return '<div class="ui-item rt-run" data-run="' + esc(x.number) + '"><span class="n">run ' + esc(x.number) + '</span><span class="w"><b>' + esc(fmtDate(x.created)) + '</b> ' + esc(sourceLabel(d.source)) + (d.name ? ': ' + esc(d.name) : '') + (d.date_range ? ' · ' + esc(d.date_range) : '') + ' · v' + esc(x.version) + (inputs ? ' · ' + inputs : '') + '</span>' +
+                    '<span class="rt-status ' + esc(x.status) + '">' + status + '</span><span class="open">open →</span></div>';
+            });
+            const v = (r.versions || []).find(x => x.number === r.current_version) || {};
+            if (v.run_zero && v.run_zero.verified) items.push('<div class="ui-item rt-run" data-run="0"><span class="n">run 0</span><span class="w"><b>' + esc(fmtDate(v.run_zero.created)) + '</b> the analysis\u2019s own data · v' + esc(v.number) + '</span><span class="rt-status reproduced">reproduced</span><span class="open">open →</span></div>');
+            return items.length ? '<div class="ui-list rt-runlist">' + items.join('') + '</div>' : '<div class="rt-line muted">None yet.</div>';
         },
         // the favourites' cards' button
         cardButton(n) {
@@ -172,7 +307,7 @@
         return f(url, opts).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j })).catch(() => ({ ok: r.ok, status: r.status, json: {} })));
     }
     // a streaming route: each line is a pane event (forwarded to the pane when `toPane`) or the closing message
-    function stream(url, body, toPane) {
+    function stream(url, body, toPane, intercept) {
         const f = (window.authService && window.authService.fetch) ? window.authService.fetch.bind(window.authService) : fetch;
         return f(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(async resp => {
             if (!resp.ok) {
@@ -180,6 +315,7 @@
                 throw new Error(j.message || j.error || ('the server answered ' + resp.status));
             }
             const reader = resp.body.getReader(); const dec = new TextDecoder(); let buf = ''; let closing = null;
+            const take = typeof intercept === 'function' ? intercept : null;   // messages the caller handles itself (the run's closing card)
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
@@ -190,7 +326,8 @@
                     if (!line) continue;
                     let data = null;
                     try { data = JSON.parse(line); } catch (e) { continue; }
-                    if (data.routine_proposal || data.routine_made || data.routine_error) { closing = data; continue; }
+                    if (data.routine_proposal || data.routine_made || data.routine_run || data.routine_error) { closing = data; continue; }
+                    if (take && take(data)) continue;
                     if (toPane && typeof processChunk === 'function') processChunk(line + '\n');
                 }
             }
@@ -430,8 +567,11 @@
                 if (typeof loadThreadContent === 'function') loadThreadContent(t, c);
                 return;
             }
+            const runItem = e.target.closest('.rt-run');
+            if (runItem && managerState.current) { const n = Number(runItem.getAttribute('data-run')); closeManager(); viewRun(managerState.current.id, n); return; }
             const b = e.target.closest('[data-act]'); if (!b || !managerState.current) return;
             const r = managerState.current;
+            if (b.getAttribute('data-act') === 'run') { openRun(r.id); return; }
             if (b.getAttribute('data-act') === 'delete') {
                 if (!confirm('Delete the routine “' + r.name + '” and its runs? The analysis it was made from stays in Saved workflows.')) return;
                 const res = await fetchJson('/routines/' + encodeURIComponent(r.id), { method: 'DELETE' });
@@ -476,6 +616,168 @@
             const hd = build.routineHeader(r);
             title.innerHTML = hd.title; sub.innerHTML = hd.sub; actions.innerHTML = build.actions(r); body.innerHTML = build.routineBody(r);
         });
+    }
+
+    // ------------------------------------------------------------ the run dialog (S3, the data loaded now)
+    let runDlg = null, runState = null;
+    function ensureRunDialog() {
+        if (runDlg) return runDlg;
+        runDlg = document.createElement('div'); runDlg.id = 'routineRunModal'; runDlg.className = 'modal ui-modal'; runDlg.style.display = 'none';
+        runDlg.innerHTML = '<div class="modal-content ui-dlg routine-dlg run-dlg">' +
+            '<div class="ui-dlg-h"><div><div class="title">Run</div><div class="sub"></div></div><span class="sp"></span><button class="x" aria-label="Close">×</button></div>' +
+            '<div class="ui-dlg-b"></div>' +
+            '<div class="ui-dlg-f"><span class="note">The method runs as it was saved; only the inputs change. The run is recorded as it completes.</span><span class="sp"></span><button class="ui-btn" data-act="cancel">Cancel</button><button class="ui-btn primary" data-act="run">' + ICON_ROUTINE + '<span>Run</span></button></div></div>';
+        document.body.appendChild(runDlg);
+        runDlg.addEventListener('click', e => {
+            if (e.target === runDlg || e.target.closest('.ui-dlg-h .x')) { closeRun(); return; }
+            const b = e.target.closest('[data-act]'); if (!b) return;
+            if (b.getAttribute('data-act') === 'cancel') closeRun();
+            else if (b.getAttribute('data-act') === 'run') startRun();
+        });
+        return runDlg;
+    }
+    function runParts() {
+        const d = ensureRunDialog();
+        return { d, sub: d.querySelector('.ui-dlg-h .sub'), title: d.querySelector('.ui-dlg-h .title'), body: d.querySelector('.ui-dlg-b'), runBtn: d.querySelector('[data-act="run"]'), cancelBtn: d.querySelector('[data-act="cancel"]') };
+    }
+    function openRun(routineId) {
+        if (typeof queryRunning !== 'undefined' && queryRunning) { toast('An analysis is running; run the routine when it has finished.'); return; }
+        runState = { id: routineId, routine: null, pre: null, busy: false };
+        const p = runParts();
+        p.d.style.display = 'flex'; p.title.textContent = 'Run'; p.sub.textContent = ''; p.body.innerHTML = build.loading('', '').replace('The analyst is reading the chain and naming its inputs…', 'Reading the routine and checking the data loaded now…');
+        p.runBtn.disabled = true; p.cancelBtn.disabled = false;             // Cancel was held while the last run started
+        Promise.all([fetchJson('/routines/' + encodeURIComponent(routineId)), fetchJson('/routines/' + encodeURIComponent(routineId) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })]).then(([rr, pr]) => {
+            if (!runState || runState.id !== routineId) return;
+            if (!rr.ok) { p.body.innerHTML = build.error('This routine could not be loaded.', false); return; }
+            runState.routine = rr.json.routine; runState.pre = pr.ok ? pr.json : { loaded: false, ok: false, line: (pr.json && pr.json.error) || 'the check could not run' };
+            const r = runState.routine;
+            p.title.textContent = 'Run: ' + r.name; p.sub.textContent = 'v' + r.current_version + ' · ' + (r.runs || []).length + ' run' + ((r.runs || []).length === 1 ? '' : 's') + ' so far';
+            p.body.innerHTML = build.runDialog(r, runState.pre);
+            p.runBtn.disabled = !runState.pre.ok;
+        }).catch(err => { if (runState && runState.id === routineId) p.body.innerHTML = build.error(err.message || String(err), false); });
+    }
+    function closeRun() { if (runState && runState.busy) return; const p = runParts(); p.d.style.display = 'none'; runState = null; }
+    function readRunValues() {
+        const p = runParts(), values = {};
+        p.d.querySelectorAll('[data-key]').forEach(el => {
+            const k = el.getAttribute('data-key'), t = el.getAttribute('data-type');
+            if (t === 'toggle') values[k] = !!el.checked;
+            else if (t === 'date_window') { values[k] = values[k] || ['', '']; values[k][Number(el.getAttribute('data-part'))] = el.value; }
+            else values[k] = el.value;
+        });
+        const cmp = p.d.querySelector('input[name="rt-compare"]:checked');
+        return { values, compare_with: cmp ? cmp.value : 'previous' };
+    }
+    function startRun() {
+        const st = runState; if (!st || !st.routine || st.busy) return;
+        const p = runParts();
+        const { values, compare_with } = readRunValues();
+        st.busy = true; p.runBtn.disabled = true; p.cancelBtn.disabled = true;
+        // the checks once more with the values as typed: a value the data lacks is said here, before the view changes
+        fetchJson('/routines/' + encodeURIComponent(st.id) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values }) }).then(pr => {
+            if (runState !== st) return;
+            if (!pr.ok || !pr.json.ok) {
+                st.busy = false; p.runBtn.disabled = false; p.cancelBtn.disabled = false;
+                const fitEl = p.d.querySelector('.rt-fit'); if (fitEl) { fitEl.className = 'rt-fit bad'; fitEl.textContent = '! ' + ((pr.json && (pr.json.line || pr.json.error)) || 'the check failed'); }
+                return;
+            }
+            const routine = st.routine;
+            p.d.style.display = 'none'; runState = null;
+            closeManager();                                   // the run shows in the main panes; the manager would cover them
+            const numbers = runNumbers(routine);
+            enterRunView(summaryOf(routine), numbers.concat([numbers.length ? Math.max.apply(null, numbers) + 1 : 1]), numbers.length, { pending: true, version: routine.current_version });
+            stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with }, true, data => {
+                if (data.type === 'pane_routine_end' && typeof paneRoutineEnd === 'function') { paneRoutineEnd(data); return true; }
+                return false;
+            }).then(msg => {
+                const out = msg.routine_run;
+                finishRunView(out);
+                refreshBadge();
+                if (manager && manager.style.display !== 'none') loadManager(routine.id);
+            }).catch(err => {
+                if (typeof paneSystem === 'function') paneSystem(err.message || String(err), 'error');
+                toast('The run did not go through: ' + (err.message || err));
+                if (viewState) { viewState.numbers = runNumbers(routine); viewState.index = Math.max(0, viewState.numbers.length - 1); viewState.pending = false; updateRunNav(); }
+            });
+        });
+    }
+    function summaryOf(r) { return { id: r.id, name: r.name, current_version: r.current_version, source: r.source }; }
+    function runNumbers(r) {
+        const v = (r.versions || []).find(x => x.number === r.current_version) || {};
+        const out = (v.run_zero && v.run_zero.verified) ? [0] : [];
+        return out.concat((r.runs || []).map(x => x.number));
+    }
+
+    // ------------------------------------------------------------ a run in the main panes (S4): one run per view, the arrows between runs
+    let viewState = null;
+    function inRunView() { return !!viewState; }
+    function enterRunView(routine, numbers, index, meta) {
+        viewState = { routine, numbers: numbers || [], index: index || 0, pending: !!(meta && meta.pending), version: meta && meta.version };
+        const so = document.getElementById('streamOutput'); if (so) so.innerHTML = '';
+        if (typeof clearAllTabs === 'function') clearAllTabs();
+        const number = viewState.numbers[viewState.index];
+        if (typeof paneRunIds === 'function') paneRunIds({ name: routine.name, run: (number != null ? number : '…') + ' · v' + (viewState.version || routine.current_version), df_id: (typeof currentData !== 'undefined' && currentData.df_id) || '' });
+        if (typeof paneRunStrip === 'function') paneRunStrip({ mode: 'Routine', run: number != null ? number : '…', version: viewState.version || routine.current_version, estimate: '' });
+        composerLock();
+        if (typeof updateRankButtonVisibility === 'function') updateRankButtonVisibility();
+        updateRunNav();
+    }
+    function finishRunView(out) {
+        if (!viewState) return;
+        const run = out.run, numbers = out.numbers || viewState.numbers;
+        viewState.numbers = numbers; viewState.index = Math.max(0, numbers.indexOf(run.number)); viewState.pending = false; viewState.routine = out.routine || viewState.routine;
+        if (typeof paneRunIds === 'function') paneRunIds({ name: viewState.routine.name, run: run.number + ' · v' + run.version, df_id: (run.data || {}).df_id || '' });
+        const c = run.comparison || {};
+        if (typeof paneRunStrip === 'function') paneRunStrip({ mode: 'Routine', run: run.number, version: run.version, idle: true, estimate: run.against != null ? 'run ' + run.against + ' — ' + (c.line || '') : (c.line || '') });
+        if (typeof createOrUpdateTab === 'function') createOrUpdateTab('comparison', build.comparisonTab({ run }));
+        updateRunNav();
+        toast('Run ' + run.number + ' recorded · ' + (run.line || run.status));
+    }
+    function viewRun(routineId, number) {
+        if (typeof queryRunning !== 'undefined' && queryRunning) { toast('An analysis is running; open the run when it has finished.'); return; }
+        return fetchJson('/routines/' + encodeURIComponent(routineId) + '/runs/' + encodeURIComponent(number)).then(res => {
+            if (!res.ok) { toast('This run could not be opened: ' + ((res.json && res.json.error) || res.status), 'error'); return; }
+            const view = res.json, run = view.run;
+            const numbers = view.numbers || [number];
+            enterRunView(view.routine, numbers, Math.max(0, numbers.indexOf(run.number)), { version: run.version });
+            const d = run.data || {};
+            const cells = run.cells != null ? run.cells + ' cell' + (run.cells === 1 ? '' : 's') : '';
+            if (typeof paneLookup === 'function') {
+                paneLookup({ kind: 'check', query: d.name || sourceLabel(d.source), peek: (d.rows != null ? Number(d.rows).toLocaleString() + ' rows · ' : '') + ((d.columns || []).length || d.columns || 0) + ' columns' + (run.number === 0 ? ' · the analysis\u2019s own data' : ''), sources: [], passages: [] });
+                paneLookup({ kind: run.number === 0 ? 'routine' : 'run', query: 'run ' + run.number + ' · v' + run.version + (cells ? ' · ' + cells : ''), peek: (run.line || run.status) + ' · ' + (run.figures || 0) + ' figure' + (run.figures === 1 ? '' : 's') + (run.elapsed != null ? ' · ' + run.elapsed + ' s' : ''), sources: [], passages: [] });
+                if (run.against != null) paneLookup({ kind: 'compare', query: 'with run ' + run.against, peek: (run.comparison || {}).line || '', sources: [], passages: [] });
+            }
+            const c = run.comparison || {};
+            if (typeof paneRoutineEnd === 'function') paneRoutineEnd({ number: run.number, name: view.name, version: run.version, status: run.status, line: run.line, results: (run.results || []).length, compared: c.compared || 0, moved: c.moved || 0, changed: c.changed || 0, missing: c.missing || 0, figures: run.figures || 0, elapsed: run.elapsed, against: run.against, comparison_line: c.line });
+            if (typeof createOrUpdateTab === 'function') {
+                createOrUpdateTab('comparison', build.comparisonTab(view));
+                (view.figures || []).forEach(f => createOrUpdateTab('plot', f.data, f.id, f.format));
+                if (view.stdout) createOrUpdateTab('code_exec_results', view.stdout);
+                createOrUpdateTab('dataframe', build.dataTab(d));
+                if (typeof activateTab === 'function') activateTab('comparison');
+            }
+            if (typeof paneRunIds === 'function') paneRunIds({ name: view.name, run: run.number + ' · v' + run.version, df_id: d.df_id || '' });
+            updateRunNav();
+        });
+    }
+    function exitRunView() {
+        viewState = null;
+        composerUnlock();
+    }
+    function navigateRuns(direction) {
+        if (!viewState || viewState.pending) return;
+        const i = viewState.index + direction;
+        if (i < 0 || i >= viewState.numbers.length) return;
+        viewRun(viewState.routine.id, viewState.numbers[i]);
+    }
+    function updateRunNav() {
+        const prev = document.getElementById('prevResponse'), next = document.getElementById('nextResponse'), nav = document.querySelector('.tab-navigation'), pos = document.getElementById('chainPosition');
+        if (!viewState || !nav) return;
+        nav.style.display = 'flex';
+        const n = viewState.numbers.length, i = viewState.index;
+        if (pos) pos.textContent = viewState.pending ? 'run ' + viewState.numbers[i] + ' · running' : 'run ' + viewState.numbers[i] + ' of ' + (n ? viewState.numbers[n - 1] : 0);
+        if (prev) prev.disabled = viewState.pending || i <= 0;
+        if (next) next.disabled = viewState.pending || i >= n - 1;
     }
 
     // ------------------------------------------------------------ the rail entry and its badge
@@ -526,7 +828,8 @@
     }
 
     window.RoutinesUI = { initialize, openMake, openManager, closeManager, toggleSaveMenu: toggleMenu, hideSaveMenu: hideMenu, refreshBadge, forgetOrigins,
-                          cardButton: build.cardButton, cardCount, bindCardButton, composerLock, composerUnlock, build };
+                          cardButton: build.cardButton, cardCount, bindCardButton, composerLock, composerUnlock, build,
+                          openRun, viewRun, exitRunView, inRunView, navigateRuns, updateRunNav, enterRunView, runNumbers };
     window.composerLock = composerLock; window.composerUnlock = composerUnlock;
     window.__routinesBuild = build;
 })();

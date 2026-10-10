@@ -93,6 +93,13 @@
             return '<div class="sp-ids">' + v('Workflow ID:', d.thread_id) + '<span class="sep">·</span>' + v('Chain ID:', d.chain_id) + '<span class="sep">·</span>' + v('Dataframe ID:', d.df_id) + '</div>';
         },
         strip(h) {
+            if (h.run != null) {
+                // a routine's run (docs/ROUTINES_DESIGN.md S4): no turns, no budget - the run, its version, what it is compared with
+                return '<span class="live' + (h.idle ? ' idle' : '') + '"></span><span class="mode">' + esc(h.mode || 'Routine') + '</span>' +
+                    '<span>run <b>' + esc(h.run) + '</b>' + (h.version != null ? ' · v' + esc(h.version) : '') + '</span>' +
+                    (h.spent != null ? '<span>' + fmtCost(h.spent) + '</span>' : '') +
+                    '<span class="est"' + (h.estimate ? ' title="' + esc(h.estimate) + '"' : '') + '><b>' + esc(h.estimate_label || 'Against the run before:') + '</b> ' + esc(h.estimate || 'nothing yet') + '</span>';
+            }
             const pct = h.of ? Math.min(100, Math.round(100 * (h.turn || 0) / h.of)) : 0;
             return '<span class="live"></span>' +
                 (h.mode ? '<span class="mode">' + esc(h.mode) + '</span>' : '') +
@@ -100,6 +107,10 @@
                 '<span class="bar"><i style="width:' + pct + '%"></i></span>' +
                 '<span>' + fmtCost(h.spent) + (h.dollars ? ' / ' + fmtCost(h.dollars) : '') + '</span>' +
                 '<span class="est"' + (h.estimate ? ' title="' + esc(h.estimate) + '"' : '') + '><b>Best estimate so far:</b> ' + esc(h.estimate || 'none yet') + '</span>';
+        },
+        runIds(d) {
+            const v = (k, val) => '<span><span class="k">' + k + '</span><span class="v">' + esc(val || 'N/A') + '</span></span>';
+            return '<div class="sp-ids">' + v('Routine:', d.name) + '<span class="sep">·</span>' + v('Run:', d.run) + (d.df_id ? '<span class="sep">·</span>' + v('Dataframe ID:', d.df_id) : '') + '</div>';
         },
         turnStart(t) {
             const label = typeof t.turn === 'number' ? 'Turn ' + esc(t.turn) : (t.turn === 'rewrite' ? 'Rewrite' : (t.turn === 'review' ? 'Review' : (t.turn === 'infographic' ? 'Infographic' : (t.turn === 'routine' ? 'Routine' : esc(t.turn)))));
@@ -133,17 +144,16 @@
         },
         lookupStart(l) {
             // a READ or SEARCH in progress (2026-10-03): the row pulses until paneLookup replaces it
-            const label = ({ search: 'SEARCH', read: 'READ', recall: 'RECALL', replay: 'REPLAY', routine: 'ROUTINE' })[l.kind] || String(l.kind || '').toUpperCase();
-            const doing = l.kind === 'read' ? 'reading' + (l.model ? ' · Reader on ' + esc(String(l.model).split('/').pop()) : '') + '…'
-                        : (l.kind === 'search' ? 'searching the web…'
-                        : (l.kind === 'replay' ? 'reproducing the cited cells in a fresh kernel…'
-                        : (l.kind === 'routine' ? 'checking the method on this chain\'s own data…' : 'working…')));
+            const label = ({ search: 'SEARCH', read: 'READ', recall: 'RECALL', replay: 'REPLAY', routine: 'ROUTINE', check: 'CHECK', run: 'RUN', compare: 'COMPARE', load: 'LOAD' })[l.kind] || String(l.kind || '').toUpperCase();
+            const doing = ({ search: 'searching the web…', replay: 'reproducing the cited cells in a fresh kernel…', routine: 'checking the method on this chain\'s own data…',
+                             check: 'checking the data against the routine…', run: 'running the method on the data loaded now…', compare: 'comparing with the run before…', load: 'loading…' })[l.kind]
+                        || (l.kind === 'read' ? 'reading' + (l.model ? ' · Reader on ' + esc(String(l.model).split('/').pop()) : '') + '…' : 'working…');
             return '<div class="sp-row tool pending" data-pending="' + esc(l.kind || '') + '"><span class="live"></span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
                 '<span class="out">' + doing + '</span><span class="t"></span></div>';
         },
         lookup(l) {
-            const label = ({ show: 'SHOW', names: 'NAMES', recall: 'RECALL', search: 'SEARCH', read: 'READ', replay: 'REPLAY', routine: 'ROUTINE' })[l.kind] || String(l.kind || '').toUpperCase();
-            const glyph = l.kind === 'search' ? '⌕' : (l.kind === 'recall' ? '✦' : (l.kind === 'read' ? '¶' : (l.kind === 'replay' || l.kind === 'routine' ? '↻' : '↺')));
+            const label = ({ show: 'SHOW', names: 'NAMES', recall: 'RECALL', search: 'SEARCH', read: 'READ', replay: 'REPLAY', routine: 'ROUTINE', check: 'CHECK', run: 'RUN', compare: 'COMPARE', load: 'LOAD' })[l.kind] || String(l.kind || '').toUpperCase();
+            const glyph = ({ search: '⌕', recall: '✦', read: '¶', replay: '↻', routine: '↻', run: '↻', check: '✓', compare: '⇄', load: '⇩' })[l.kind] || '↺';
             const right = l.kind === 'search' && l.sources && l.sources.length ? l.sources.length + ' source' + (l.sources.length === 1 ? '' : 's')
                         : (l.kind === 'read' ? (l.passages && l.passages.length ? l.passages.length + ' passage' + (l.passages.length === 1 ? '' : 's') : 'no passage') : '');
             let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
@@ -174,6 +184,20 @@
                 '<span>Cost <b>' + fmtCost(r.cost) + '</b></span><span>Time <b>' + esc(fmtSecs(r.seconds)) + '</b></span></div>' +
                 (r.replay_line ? '<div class="rep ' + rep + '">' + (rep === 'ok' ? '✓ ' : '') + esc(r.replay_line) + '</div>' : '') +
                 (r.status === 'answered' ? '<div class="links">' + links + '</div>' : '') + '</div>';   // the dataset pills ride once, under the REPLAY row (2026-10-06)
+        },
+        routineEnd(r) {
+            // the closing card of a routine's run (S4): what came out, the verdict, the tabs
+            const bad = r.status === 'failed' || r.status === 'timed_out' || r.status === 'differed';
+            const title = 'Run ' + esc(r.number) + (r.status === 'failed' ? ' failed' : (r.status === 'timed_out' ? ' timed out' : (r.status === 'differed' ? ' differed' : ' complete'))) + (r.name ? ' · ' + esc(r.name) : '');
+            const compared = r.compared ? ((r.moved || r.changed || 0) + ' of ' + r.compared) : '—';
+            const links = ['Comparison'].concat(r.figures ? ['Plots (' + r.figures + ')'] : []).concat(['Results', 'Data']).map(l =>
+                '<a href="#" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'' + l.split(' ')[0] + '\');return false;">' + l + ' →</a>').join('');
+            return '<div class="sp-done' + (bad ? ' warn' : '') + '"><div class="title">' + title + '</div>' +
+                '<div class="grid"><span>Results <b>' + esc(r.results || 0) + '</b></span><span>Moved <b>' + compared + '</b></span>' +
+                '<span>Figures <b>' + esc(r.figures || 0) + '</b></span><span>Time <b>' + esc(fmtSecs(r.elapsed)) + '</b></span></div>' +
+                (r.line ? '<div class="rep ' + (r.status === 'reproduced' ? 'ok' : (bad ? 'warn' : '')) + '">' + (r.status === 'reproduced' ? '✓ ' : '') + esc(r.line) + '</div>' : '') +
+                (r.comparison_line && r.against != null ? '<div class="rep">against run ' + esc(r.against) + ': ' + esc(r.comparison_line) + '</div>' : '') +
+                (!bad ? '<div class="links">' + links + '</div>' : '') + '</div>';
         },
         system(text, level) {
             return '<div class="sp-sys' + (level === 'error' ? ' error' : '') + '">' + esc(text) + '</div>';
@@ -237,6 +261,19 @@
         liveCard = null; liveRaw = ''; noteSeen = false;
     };
     window.paneHeartbeat = function (h) { renderStrip(h); };
+    // a routine's run in the pane (S4): its id line, its strip, its closing card
+    window.paneRunIds = function (d) {
+        const p = ensure(); if (!p) return;
+        const slot = p.querySelector('.sp-ids-slot');
+        if (slot) slot.innerHTML = build.runIds(d);
+    };
+    window.paneRunStrip = function (h) { lastStrip = null; renderStrip(h); liveCard = null; liveRaw = ''; noteSeen = false; };
+    window.paneRoutineEnd = function (r) {
+        window.paneTurnEnd({ turn: -1 });
+        const p = ensure(); if (!p) return;
+        if (lastStrip && lastStrip.run != null) renderStrip({ idle: true, estimate: r.comparison_line && r.against != null ? 'run ' + r.against + ' — ' + r.comparison_line : (lastStrip.estimate || '') });
+        append(build.routineEnd(r));
+    };
     window.paneTurnStart = function (t) {
         window.paneTurnEnd({ turn: -1 });            // a card left open by a lost turn closes quietly
         if (typeof t.turn === 'number' && lastStrip) renderStrip({ turn: t.turn });

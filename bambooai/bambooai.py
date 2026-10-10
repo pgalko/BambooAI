@@ -381,10 +381,11 @@ class BambooAI:
         elif kind == "turn_end":
             self._pane('pane_turn_end', turn='routine', kind='routine', peek=ev.get("peek") or '', elapsed=ev.get("elapsed"), cost=ev.get("cost"), thinking='', note='', code='')
         elif kind == "lookup_start":
-            self._pane('pane_lookup_start', kind='routine', query=ev.get("query") or '', model='')
-            self._pane('pane_cell_start', turn='routine')
+            self._pane('pane_lookup_start', kind=ev.get("kind") or 'routine', query=ev.get("query") or '', model='')
+            if (ev.get("kind") or 'routine') in ('routine', 'run'):
+                self._pane('pane_cell_start', turn='routine')           # the executor chip on Executing while the method runs
         elif kind == "lookup":
-            self._pane('pane_lookup', kind='routine', query=ev.get("query") or '', peek=(ev.get("peek") or '')[:200], sources=[], passages=[])
+            self._pane('pane_lookup', kind=ev.get("kind") or 'routine', query=ev.get("query") or '', peek=(ev.get("peek") or '')[:200], sources=[], passages=[])
 
     def propose_routine(self, thread_id, chain_id, routine_id=None, billing_chain_id=None):
         """Save as routine, step one: the promoter reads the chain and proposes its inputs. The call is accounted to
@@ -418,6 +419,36 @@ class BambooAI:
         logger.info("Routine proposed for chain %s: %d input(s), %d result line(s), data %s, $%.3f", chain_id, len(proposal["inputs"]),
                     len(proposal["results"]), proposal["data_state"], proposal["cost"])
         return proposal
+
+    def precheck_routine(self, routine_id, values=None):
+        """Before a run: is data loaded, does it fit the routine's columns, are the chosen values in it (F2)."""
+        from bambooai import routines_host
+        routine = self.routine_store().load(routine_id)
+        if routine is None:
+            raise routines_host.RoutineRefused("no such routine")
+        return routines_host.precheck(routine, self._data_record(), lambda script, timeout: self.run_script(script, timeout, what="Precheck"), values)
+
+    def run_routine(self, routine_id, values=None, compare_with="previous"):
+        """One run of the routine on the data loaded now (F2): the checks, the script with its INPUTS block through the
+        executor, the lines read by position, the comparison with the run before, the record stored; then the tabs as an
+        analysis has them (Data, Results, Plots) and the closing card for the pane."""
+        from bambooai import routines_host
+        routine = self.routine_store().load(routine_id)
+        if routine is None:
+            raise routines_host.RoutineRefused("no such routine")
+        out = routines_host.run(routine, values, self._data_record(), lambda script, timeout: self.run_script(script, timeout, what=f"Routine {routine_id}"),
+                                self.routine_store(), emit=self._emit_routine, compare_with=compare_with)
+        try:
+            self.output_manager.display_results(chain_id=None, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df, api_client=self.api_client,
+                                                code_exec_results=out["stdout"] or None, plot_jsons=out["figures"] or None)
+        except Exception:                                          # noqa: BLE001
+            logger.warning("The run's tabs could not be sent", exc_info=True)
+        r, c = out["run"], out["run"]["comparison"]
+        self._pane('pane_routine_end', number=r["number"], name=routine.get("name", ""), version=r["version"], status=r["status"], line=r["line"],
+                   results=len(r["results"]), compared=c["compared"], moved=c["moved"], changed=c["changed"], missing=c["missing"], figures=r["figures"],
+                   elapsed=r["elapsed"], against=r["against"], comparison_line=c["line"])
+        logger.info("Routine %s run %d (v%d): %s; %s", routine_id, r["number"], r["version"], r["line"], c["line"])
+        return {k: out[k] for k in ("run", "summary", "routine", "numbers", "name")}
 
     def create_routine(self, proposal_id, choices, routine_id=None):
         """Save as routine, step two: the person's choices, run zero on the chain's data through the executor, the

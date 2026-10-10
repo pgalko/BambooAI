@@ -163,6 +163,65 @@ def routine_script(rid):
     return Response(body, mimetype='text/x-python', headers={'Content-Disposition': f'attachment; filename="{name}_v{number}.py"'})
 
 
+@routines_bp.route('/routines/<rid>/precheck', methods=['POST'])
+@requires_auth
+def precheck_routine(rid):
+    """Before a run: whether the data loaded now fits the routine and the chosen values are in it (the run dialog's line)."""
+    a = _app()
+    instance = a.get_bamboo_ai(session['session_id'])
+    try:
+        return jsonify(instance.precheck_routine(rid, (request.json or {}).get('values') or {})), 200
+    except Exception as exc:                                    # noqa: BLE001
+        from bambooai.routines_host import RoutineRefused
+        if isinstance(exc, RoutineRefused):
+            return jsonify({'error': str(exc)}), 404
+        logger.exception("routines: precheck failed")
+        return jsonify({'error': str(exc)}), 500
+
+
+@routines_bp.route('/routines/<rid>/run', methods=['POST'])
+@requires_auth
+def run_routine(rid):
+    """A run on the data loaded now: the pane's rows and the tabs stream as an analysis's do; the closing message is
+    routine_run (the record, the comparison, the numbers to step through) or routine_error."""
+    a = _app()
+    data = request.json or {}
+    instance = a.get_bamboo_ai(session['session_id'])
+    a.update_user_activity(a.get_user_id())
+
+    def work():
+        return {"routine_run": instance.run_routine(rid, data.get('values') or {}, data.get('compare_with') or 'previous')}
+    return _stream(instance, work)
+
+
+@routines_bp.route('/routines/<rid>/runs/<int:number>', methods=['GET'])
+@requires_auth
+def routine_run_view(rid, number):
+    """A stored run as the main panes show it: the record, its printed output, its figures as the pane's plot messages."""
+    from bambooai.routines_host import run_view, RoutineRefused
+    st = _store()
+    r = st.load(rid)
+    if not r:
+        return jsonify({'error': 'no such routine'}), 404
+    try:
+        view = run_view(r, st, number)
+    except RoutineRefused as exc:
+        return jsonify({'error': str(exc)}), 404
+    figs = []
+    for i, f in enumerate(view.pop('figures', []) or [], 1):
+        try:
+            obj = json.loads(f)
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and obj.get('type') == 'plot':
+            obj['id'] = obj.get('id') or f'plot_{i}'
+            figs.append(obj)
+        else:
+            figs.append({'type': 'plot', 'data': f, 'format': 'json', 'id': f'plot_{i}'})
+    view['figures'] = figs
+    return jsonify(view), 200
+
+
 @routines_bp.route('/routines/propose', methods=['POST'])
 @requires_auth
 def propose_routine():

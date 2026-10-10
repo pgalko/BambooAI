@@ -177,6 +177,55 @@
 .rt-side .it span { font-size: var(--fs-small); color: var(--text-quaternary); }
 .rt-empty { padding: 24px; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.6; max-width: 560px; }
 .rt-empty b { color: var(--text-primary); }
+/* a run (step 2): the run dialog's fields, the runs table in the manager, the Comparison tab in the right pane, the runs list */
+#routineRunModal .ui-dlg.run-dlg { width: min(640px, 100%); }
+#routineRunModal .ui-dlg-b { display: flex; flex-direction: column; gap: 14px; }
+#routineRunModal .ui-dlg-f .note { max-width: 420px; line-height: 1.4; }
+.rt-fit { font-size: var(--fs-small); color: var(--c-model); display: flex; align-items: center; gap: 6px; line-height: 1.4; }
+.rt-fit.bad { color: var(--c-fail); }
+.rt-field { display: grid; grid-template-columns: 220px 1fr; gap: 4px 10px; align-items: center; font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-field > label { color: var(--text-primary); }
+.rt-field .ui-input { height: 28px; }
+.rt-field .help { grid-column: 2; font-size: var(--fs-small); color: var(--text-quaternary); margin-top: -2px; }
+.rt-window { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+.rt-window .arrow { color: var(--text-quaternary); text-align: center; }
+.rt-choices { display: flex; flex-direction: column; gap: 6px; }
+.rt-runs { width: 100%; }
+.rt-runs td, .rt-runs th { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rt-runs td.num, .rt-runs th.num, .rt-cmp-table td.num, .rt-cmp-table th.num { text-align: right; font-family: var(--font-mono); font-size: var(--fs-meta); }
+.rt-runs td.label, .rt-cmp-table td.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; color: var(--text-primary); }
+.rt-runs th .d { display: block; color: var(--text-quaternary); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.rt-mark { display: inline-block; min-width: 14px; text-align: center; font-weight: 700; }
+.rt-mark.up, .rt-mark.down, .rt-mark.changed { color: var(--c-kernel); }
+.rt-mark.same { color: var(--text-quaternary); font-weight: 400; }
+.rt-mark.missing { color: var(--text-quaternary); }
+.rt-spark { width: 72px; height: 18px; vertical-align: middle; }
+.rt-spark polyline { fill: none; stroke: var(--c-model); stroke-width: 1.5; }
+.rt-spark circle { fill: var(--c-model); }
+.rt-legend { font-size: var(--fs-small); color: var(--text-quaternary); margin-top: 10px; line-height: 1.5; }
+.rt-runlist .ui-item { padding: 6px 10px; gap: 12px; cursor: pointer; }
+.rt-runlist .ui-item .n { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--text-tertiary); width: 46px; flex-shrink: 0; }
+.rt-runlist .ui-item .w { font-size: var(--fs-meta); color: var(--text-secondary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rt-runlist .ui-item .w b { color: var(--text-primary); font-weight: 600; }
+.rt-runlist .ui-item .open { font-size: var(--fs-small); color: var(--c-model); white-space: nowrap; }
+.rt-status.ran { color: var(--c-model); border-color: var(--chip-model-border); }
+.rt-status.failed, .rt-status.timed_out { color: var(--c-fail); border-color: var(--chip-fail-border); }
+.rt-status.differed { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
+/* the Comparison tab (S4): the right pane's own padding, a table, the legend */
+#content-comparison .rt-cmp { padding: 16px 20px; font-family: var(--font-ui); }
+.rt-cmp-table { table-layout: fixed; }
+.rt-cmp-table th:first-child { width: 34%; }
+.rt-cmp-table th.num { width: 15%; }
+.rt-cmp-table th:last-child { width: 14%; }
+.rt-cmp-table td:last-child { white-space: nowrap; }
+#content-comparison .rt-cmp .rt-sec > .h { margin-bottom: 4px; }
+.rt-cmp-table td.change { color: var(--text-primary); }
+.rt-cmp-table .ci { color: var(--text-quaternary); font-size: var(--fs-small); white-space: nowrap; }
+.rt-cmp-table tr.up td, .rt-cmp-table tr.down td { color: var(--text-primary); }
+.rt-cmp .ui-code { margin-top: 6px; }
+.rt-cmp .ui-kv { grid-template-columns: 90px 1fr; }
+.rt-cmp .ui-kv span { color: var(--text-secondary); line-height: 1.6; }
+
 /* the favourites' cards: the Routine button, grey with nothing, lit with the count of versions born from the analysis */
 #workflowManagerModal .workflow-card-routine { color: var(--text-tertiary); }
 #workflowManagerModal .workflow-card-routine .n { min-width: 16px; height: 16px; padding: 0 5px; border-radius: 8px; background: var(--c-model); color: var(--bg-primary); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
