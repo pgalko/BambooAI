@@ -158,6 +158,16 @@ The promoter proposes the inputs; the coach confirms them; the runner writes the
    "athlete07, athlete09" on a file that has neither is said ("'athlete07' is not in column athlete") rather than
    silently doing nothing; a column the data lacks is said too ("column athlete is not in this data"). The check is
    a small script in the executor that prints the membership, run with the run dialog's values before the run.
+7. **A loader's file name is the loader's, never an input's** (2026-10-10, the second live run: the promoter had
+   made the loaded window an input and written it into the summary's name as an f-string, so the recorded name was
+   gone from the text and the run bound nothing). The period is chosen when the data is loaded, before the method
+   runs, and each run binds the names the loaders write (`activity_summary_<start>_to_<end>.csv`,
+   `race_turns_race_<id>.csv`…) to the files that run loads — by their *kind*, whatever the rest of the name says, so
+   a name built from an input, a variable or another window is still this load's file of that kind. An edit that
+   changes such a literal in any way is refused and its input dropped with the reason in the dialog's notes; the
+   promoter's prompt says to leave the names exactly as they are, dates included, and never to make the loaded
+   period itself an input. A routine made before this keeps running: its window input is inert, the binding by kind
+   reads past it; the next version under the prompt as it is now drops it.
 
 Relative windows for files: the "updated lab file with extra rows" case runs on the whole file unless the
 exploration itself filtered by date, in which case the promoter offers "last N days of the file" with N from the
@@ -189,8 +199,9 @@ as routine; the first item then reads "Saved as favourite".
    can spend its whole allowance thinking about; the Analyst seat when the config has no Promoter) with a generic
    prompt (`analyst/routines.py` PROMOTER_SYSTEM; no domain words, DESIGN_CHECKLIST C5): name the constants that
    would change on other data of the same shape; make the data's own range the data's range; propose each remaining
-   constant as an input of one of the five types, at most five, fewer is better; rewrite as find/replace edits; leave
-   the method, the markers and every RESULT call otherwise untouched; return JSON, kept short. A reply that cannot be
+   constant as an input of one of the five types, at most five, fewer is better; leave a loader's file name exactly
+   as it is and never make the loaded period an input (§4.7); rewrite as find/replace edits; leave the method, the
+   markers and every RESULT call otherwise untouched; return JSON, kept short. A reply that cannot be
    read is asked for once more, then refused ("the script was not understood"); a reply cut at the seat's token limit
    is asked for once more, shorter — unless nothing but reasoning arrived, when a second try would go the same way —
    and the refusal then names the cause and the seat to adjust. The call runs on a chain id of its own, so the hosted
@@ -236,8 +247,9 @@ version's data record, `load`), and offers the data loaded now beside it.
    (`datasets/<user>/routines/<id>/<tag>/`): each recorded auxiliary file bound, by kind, to this load's file - a
    copy with the recorded columns it lacks added empty when it lacks any; an empty table with the recorded columns
    for a file this load did not write; the executed text is the stored script with every string literal that names
-   a recorded file - or any other path under the user's datasets folder - replaced by this run's path, so the method
-   reads this window's summary under the name it was written with and never writes into the person's cache; the
+   a recorded file - by its exact name, or by its loader kind when the rest of the name differs (§4.7) - or any
+   other path under the user's datasets folder - replaced by this run's path, so the method reads this window's
+   summary under the name it was written with and never writes into the person's cache; the
    prelude after the INPUTS block conforms `df`: a recorded column this frame lacks is added empty in its type, a
    column whose type family changed is read back (`conform_prelude`), and `DS` is rebuilt on the conformed frame.
    The stored script is not changed; the record keeps the substitutions.
@@ -498,7 +510,10 @@ with them — coaches do not edit scripts; the analyst in another domain downloa
    a real kernel (a method reading a dated summary file, run on a later window's file with a column fewer, and with
    the file absent), the routes, the markup, the screens (the Intervals dialog), and two end-to-end walks: the file
    routine (the dialog's upload; the file without `soil` runs to a kept failure at the cell that divides by zero,
-   named) and the integrations (above, §9).
+   named) and the integrations (above, §9). **The second live run** (a Jan–June window after a Jul–Oct original)
+   stopped on the promoter's own edit — the loaded window made an input and written into the summary's name — met
+   by §4.7: the binding by kind, the refusal, the prompt rule; the integrations walk's scripted promoter now makes
+   the same proposal and the make dialog's notes show it refused.
 3. **Narrate** — the Narrator, the guard, the What-changed tab and card. Accepted when: a narrative's numbers all
    come from the two tables; a run without a comparison (run zero) gets no narrative.
 4. **Say what differs; fail well** — the differences said in full sentences from the shape probe (the rows each
@@ -521,8 +536,9 @@ Each step ships as its own patch, tested on dev before prod, the standing method
 - **The executed text.** A run substitutes, in the stored script's text, the recorded file names and any path under
   the datasets folder with this run's paths. Chosen over shadowing pandas' readers (a cell may `import pandas as pd`
   again, and a patch in the executor's process would outlive the run) and over changing the working directory (the
-  executor serves other requests meanwhile). A path built at run time from pieces is not caught; the record shows
-  every substitution made.
+  executor serves other requests meanwhile). A loader's file name is matched by its kind when the rest of the name
+  differs (§4.7), so a name the promoter rebuilt around an input still binds; a path built at run time from pieces
+  with no loader prefix in any one literal is not caught; the record shows every substitution made.
 - **How many runs to keep.** All, for now; the table and storage will say when that is wrong.
 - **Auxiliaries that are untickable.** Allowed with a warning (proposed), or fixed as in the original.
 - **The parameter cap of five.** A guess at "simple"; the first live promotions will test it.

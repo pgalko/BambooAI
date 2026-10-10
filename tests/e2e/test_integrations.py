@@ -11,6 +11,7 @@ Skips (exit 0) when playwright is not installed.
 import glob
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -104,8 +105,10 @@ def main():
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
             page.click("#saveMenu .it[data-act='routine']")
             page.wait_for_selector("#routineMakeModal .rt-inputs", timeout=120000)
-            dlg = page.evaluate("() => ({ inputs: [...document.querySelectorAll('#routineMakeModal .rt-inputs tbody tr')].map(r => [r.dataset.key, r.querySelector('.val').textContent]), results: document.querySelectorAll('#routineMakeModal .rt-results .r').length, data: document.querySelector('#routineMakeModal .rt-data').textContent })")
+            dlg = page.evaluate("() => ({ inputs: [...document.querySelectorAll('#routineMakeModal .rt-inputs tbody tr')].map(r => [r.dataset.key, r.querySelector('.val').textContent]), results: document.querySelectorAll('#routineMakeModal .rt-results .r').length, data: document.querySelector('#routineMakeModal .rt-data').textContent, notes: [...document.querySelectorAll('#routineMakeModal .rt-sec')].filter(s => s.querySelector('.h') && s.querySelector('.h').textContent === 'Notes').map(s => s.textContent).join(' ') })")
             check("the make dialog: the band as the one input (9, 11), the three result lines, the data as Intervals.icu", dlg["inputs"] == [["band", "9, 11"]] and dlg["results"] == 3 and "Intervals" in dlg["data"], dlg)
+            check("the promoter's other proposal - the loaded window as an input written into the summary's file name, as the live promoter did - is refused with the reason in the notes: the name is the loader's, bound at each run",
+                  "The period: could not be made an input" in dlg["notes"] and "the loader's" in dlg["notes"], dlg["notes"])
             page.fill("#routineMakeModal [data-field='purpose']", "when training starts, window by window")
             page.click("#routineMakeModal [data-act='create']")
             page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
@@ -114,6 +117,10 @@ def main():
             rdirs = glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json"))
             rj = json.load(open(rdirs[0])) if rdirs else {}
             rec = rj["versions"][0]["manifest"]["data"] if rdirs else {}
+            vs = rj["versions"][0] if rdirs else {}
+            check("the stored script: the band read from INPUTS, the summary still read by the loader's dated name (the refused edit left no trace), the band the only parameter",
+                  "INPUTS['band']" in (vs.get("script") or "") and "INPUTS['window']" not in (vs.get("script") or "") and re.search(r"pd\.read_csv\('datasets/\S*activity_summary_\d{8}_to_\d{8}\.csv'\)", vs.get("script") or "")
+                  and [p["key"] for p in vs.get("manifest", {}).get("parameters", [])] == ["band"], ((vs.get("script") or "")[:300], vs.get("manifest", {}).get("parameters")))
             check("the routine's data record: the source, how it was loaded (the window, the auxiliary kinds), the two auxiliary files and their columns (the shape a run is made to fit)",
                   rec.get("source") == "intervals" and rec.get("load", {}).get("source") == "intervals" and sorted(rec["load"]["aux_kinds"]) == ["summary", "wellness"] and rec["load"]["start_date"] == a_start.isoformat()
                   and len(rec.get("aux") or []) == 2 and set(rec.get("aux_shape") or {}) == set(rec["aux"]) and any(c["name"] == "avg_power" for c in rec["aux_shape"][rec["aux"][0]]["columns"])

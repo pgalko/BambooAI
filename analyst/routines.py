@@ -166,7 +166,7 @@ PROMOTER_SYSTEM = """You are preparing an analysis so that it can be run again, 
 You receive the question the analysis answered, the summary of its answer, a description of the data it ran on, the cells of the script in execution order, and the ledger of RESULT lines the cells recorded. Reply with one JSON object and nothing else.
 
 What to do:
-1. Name the constants written into the code that would have to change for the method to apply to other data of the same shape: period boundaries, identifiers of subjects or groups, thresholds, filters, bin edges, exclusions. Leave alone the constants that belong to the method itself (plausibility bounds, a bootstrap size, a seed, column names) and anything that is the data's own vocabulary.
+1. Name the constants written into the code that would have to change for the method to apply to other data of the same shape: period boundaries inside the data, identifiers of subjects or groups, thresholds, filters, bin edges, exclusions. Leave alone the constants that belong to the method itself (plausibility bounds, a bootstrap size, a seed, column names) and anything that is the data's own vocabulary. A file name under the datasets folder is the loader's, written for the period it loaded: leave it exactly as it is, dates included - each run binds it to the file that run loads - and never make the loaded period itself an input; the period is chosen when the data is loaded, before the method runs.
 2. Where a date literal is the data's own first or last date, make it the data's range (the column's .min() or .max()) so the period chosen at load time is the only period there is. Where it is a boundary inside the data, make it an input.
 3. Propose each remaining constant as an input: at most five, each of one type - number, numbers (a short list of numbers), date_window (two dates), choice (one value of a column, or several when "multiple" is true), toggle. Keep a constant a constant when unsure; fewer inputs is better than more.
 4. Rewrite the code as find/replace edits, never by retyping it: each edit's "find" is a verbatim fragment that occurs exactly once in the cell it names, and "replace" is the same fragment with the constant replaced by INPUTS["key"]. A label written into a RESULT call that carries a constant (a count, an identifier) may read the input through an f-string. Leave the method, the cell markers, the order of the cells and every RESULT call otherwise untouched. The block INPUTS = {...} is written at the top of the script before each run; do not write it yourself.
@@ -275,6 +275,11 @@ def apply_edits(cells: str, edits: List[dict]) -> Tuple[str, List[dict], List[di
                 cell = None
             if not find or find == rep:
                 ok = False; failed.append({"keys": list(keys), "reason": "an edit has no fragment to find, or changes nothing"}); break
+            if loader_file_literals(find) != loader_file_literals(rep):
+                # the loaded period written into the loader's file name (2026-10-10): the name is the loader's, and a run
+                # binds it to the file this load produced - an input there, or any change to the name, would only break
+                # the binding
+                ok = False; failed.append({"keys": list(keys), "reason": "the period or the file name is the loader's, not an input - each run binds the name to the file it loaded"}); break
             block = next(((s, t) for n, s, t in cell_blocks(work) if n == cell), None)
             region = work[block[0]:block[1]] if block else ""
             n_in_cell = region.count(find) if block else 0
@@ -421,6 +426,17 @@ def aux_kind(path: str) -> str:
     return "file:" + base
 
 
+def loader_file_literals(text: str) -> List[str]:
+    """The string literals in a fragment that name a loader's file (datasets/<user>/<kind>_..., whole or in part): the
+    names are the loader's, bound at each run, so an edit must leave them exactly as they are."""
+    out = []
+    for m in _STRING_RE.finditer(text or ""):
+        body = m.group("body")
+        if body.lstrip("./").startswith("datasets/") and not aux_kind(body).startswith("file:"):
+            out.append(body)
+    return sorted(out)
+
+
 def datasets_dir_of(paths: Iterable[str]) -> str:
     """The datasets folder the recorded paths live in (datasets/<user>), from the first path that has one."""
     for p in paths or []:
@@ -457,12 +473,15 @@ def bind_script(script: str, bindings: Dict[str, str], run_dir: str, datasets_di
     text and the substitutions made, for the run's record."""
     subs: List[Tuple[str, str, str]] = []
     table: Dict[str, Tuple[str, str]] = {}
+    by_kind: Dict[str, Tuple[str, str]] = {}
     for old, new in (bindings or {}).items():
         table[old] = (new, "bound")
         table[os.path.basename(old)] = (new, "bound")
+        by_kind.setdefault(aux_kind(old), (new, "bound"))
     for old, new in (placeholders or {}).items():
         table.setdefault(old, (new, "placeholder"))
         table.setdefault(os.path.basename(old), (new, "placeholder"))
+        by_kind.setdefault(aux_kind(old), (new, "placeholder"))
     ddir = (datasets_dir or "").rstrip("/")
     seen = set()
 
@@ -470,8 +489,14 @@ def bind_script(script: str, bindings: Dict[str, str], run_dir: str, datasets_di
         body = m.group("body")
         q = m.group("q")
         new, kind = None, ""
+        name_kind = aux_kind(body) if (ddir and body.startswith(ddir + "/")) or body.startswith(("datasets/", "./datasets/")) else ""
         if body in table:
             new, kind = table[body]
+        elif name_kind and not name_kind.startswith("file:") and name_kind in by_kind:
+            # a loader's file named with something other than the recorded dates - an f-string built from an input, a
+            # variable, another window (2026-10-10: a promoter wrote the window into the name) - is this load's file of
+            # that kind, whatever the rest of the name says
+            new, kind = by_kind[name_kind]
         elif ddir and body.startswith(ddir + "/") and run_dir:
             new, kind = run_dir.rstrip("/") + "/" + os.path.basename(body), "cache"
         if new is None or new == body:

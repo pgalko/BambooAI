@@ -58,10 +58,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/82/1/1 Python; 39/7/29/56/24/49 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/86/1/1 Python; 39/7/29/56/24/49 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (25; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (27; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -440,6 +440,21 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines: a loader's file name is bound by its kind; an edit that changes one is refused (2026-10-10, patch
+  0118).** The cause of Palo's run under 0116, pinned from its `run.json`: the live promoter had made the loaded window
+  an input (`window`, date_window, default the original window) and rewritten the five `read_csv` literals as
+  f-strings on `INPUTS['window']`, so the recorded name was gone from the text; the generic datasets-folder rule moved
+  the f-string into the run folder and the stand-in was never written for a name that did not exist - while the
+  loaded files themselves bound fine (`shape.files`, fit 17/17). Three things: `bind_script` binds any datasets-folder
+  literal whose basename carries a loader's prefix by its kind (`by_kind`) when the exact name is not on the table,
+  so a name built around an input, a variable or another window is this load's file of that kind; `apply_edits`
+  refuses an edit whose loader-file literals differ between find and replace (`loader_file_literals`) and the input
+  is dropped with the reason in the dialog's notes ("the period or the file name is the loader's, not an input -
+  each run binds the name to the file it loaded"); PROMOTER_SYSTEM rule 1 says to leave such names exactly as they
+  are, dates included, and never to make the loaded period an input. His routine 53d031cf746c runs as it is (the
+  `window` input inert; a next version under the prompt drops it). The integrations walk's scripted promoter now
+  makes the same proposal as the live one and the make dialog's notes show it refused, the stored script still
+  reading the dated name. ROUTINES_DESIGN.md §4.7. test_routines.py 86, test_integrations.py 27.
 - **Routines: a run is self-sufficient about its files (2026-10-10, patch 0117).** Palo's first run under 0116 on a
   Jan-June window stopped on `FileNotFoundError` at the stand-in's path for the summary
   (`datasets/local/routines/<id>/v1_1/activity_summary_<old window>.csv`): the loaded data's file list had no summary

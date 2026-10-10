@@ -377,6 +377,28 @@ r5c = out5c["run"]
 check("a run with the summary absent: an empty table with the recorded columns stood in, the method failed on it (nothing to count), the run is kept and names the cell, the record lists the absent file",
       r5c["status"] == "failed" and r5c["line"].startswith("failed at cell 1") and r5c["aux_absent"] == ["summary"] and any("summary absent" in (e.get("peek") or "") for e in ev5c if e.get("kind") == "check")
       and os.path.exists(os.path.join(aux_dir, "routines", rid5, "v1_2", "activity_summary_20260812_to_20261010.csv")), (r5c["status"], r5c["line"], r5c.get("aux_absent")))
+# a loader's file named with something other than the recorded dates (2026-10-10, Palo's second live run: the promoter had
+# written the loaded window into the summary's name as an f-string on an input, so the recorded name was gone from the text
+# and the run could not bind it): bound by kind, whatever the rest of the name says
+fs = "au = pd.read_csv(f\"datasets/local/activity_summary_{str(INPUTS['window'][0]).replace('-','')}_to_{str(INPUTS['window'][1]).replace('-','')}.csv\")\nw = pd.read_csv('datasets/local/wellness_data_20260712_to_20261010.csv')\nx = pd.read_csv('datasets/local/own_notes.csv')"
+bt, bsubs = rt.bind_script(fs, {"datasets/local/activity_summary_20260712_to_20261010.csv": "datasets/local/activity_summary_20260112_to_20260710.csv"}, "datasets/local/routines/r/v1_1", "datasets/local",
+                           {"datasets/local/wellness_data_20260712_to_20261010.csv": "datasets/local/routines/r/v1_1/wellness_data_20260712_to_20261010.csv"})
+check("bind_script: a summary named by an f-string on an input is bound to this load's summary by its kind; the wellness name to its stand-in; a file of the person's own under the datasets folder to the run's folder",
+      "pd.read_csv(f\"datasets/local/activity_summary_20260112_to_20260710.csv\")" in bt and [k for _, _, k in bsubs] == ["bound", "placeholder", "cache"] and "routines/r/v1_1/own_notes.csv" in bt, (bt, bsubs))
+# the promoter's edit that writes an input into a loader's file name is refused, and the input dropped with the reason
+ed_cells = "# --- cell 1 ---\nau = pd.read_csv(\"datasets/local/activity_summary_20260712_to_20261010.csv\")\nband = [9, 11]\n"
+ed_text, ed_applied, ed_failed = rt.apply_edits(ed_cells, [
+    {"cell": 1, "find": "pd.read_csv(\"datasets/local/activity_summary_20260712_to_20261010.csv\")", "replace": "pd.read_csv(f\"datasets/local/activity_summary_{INPUTS['window'][0]}_to_{INPUTS['window'][1]}.csv\")"},
+    {"cell": 1, "find": "band = [9, 11]", "replace": "band = INPUTS['band']"}])
+ed_inputs, ed_notes = rt.finish_inputs([{"key": "window", "label": "The period", "type": "date_window", "default": ["2026-07-12", "2026-10-10"]}, {"key": "band", "label": "Band", "type": "numbers", "default": [9, 11]}], ed_text, ed_failed)
+check("apply_edits: an edit that writes an input into a loader's file name is refused (the name is the loader's; a run binds it), the other input's edit applies; finish_inputs drops the window with the reason",
+      "activity_summary_20260712_to_20261010.csv\")" in ed_text and "band = INPUTS['band']" in ed_text and [p["key"] for p in ed_inputs] == ["band"] and any("the loader's" in n and "The period" in n for n in ed_notes), (ed_text, ed_failed, ed_notes))
+ed2_text, _a, ed2_failed = rt.apply_edits(ed_cells, [
+    {"cell": 1, "find": "pd.read_csv(\"datasets/local/activity_summary_20260712_to_20261010.csv\")", "replace": "pd.read_csv(\"datasets/local/activity_summary_\" + INPUTS['start'] + \"_to_\" + INPUTS['end'] + \".csv\")"},
+    {"cell": 1, "find": "pd.read_csv(\"datasets/local/activity_summary_20260712_to_20261010.csv\")\nband = [9, 11]", "replace": "pd.read_csv(\"datasets/local/activity_summary_20260712_to_20261010.csv\")\nband = INPUTS['hours']"}])
+check("apply_edits: the name built by concatenation is refused the same way (the loader's literal changed); an edit whose fragment merely contains the name unchanged applies",
+      [sorted(f["keys"]) for f in ed2_failed] == [["end", "start"]] and "band = INPUTS['hours']" in ed2_text and "activity_summary_20260712_to_20261010.csv\")" in ed2_text, (ed2_text, ed2_failed))
+check("the promoter is told: a loader's file name stays as it is, dates included, and the loaded period is never an input", "A file name under the datasets folder is the loader's" in rt.PROMOTER_SYSTEM and "never make the loaded period itself an input" in rt.PROMOTER_SYSTEM)
 # the run is self-sufficient (2026-10-10, the first live run on a new window stopped on FileNotFoundError at a stand-in's
 # path): the prelude makes sure every path the executed text names is there before the cells run, whether or not the probe
 # ran - a stand-in not written is written, a bound file that is not where the load left it is stood in for and said

@@ -6,8 +6,9 @@ has another name, the frame has no power column and the wellness file was not wr
 (apis_data.py), met by the run's binding and conform.
 
 The question (Deep, four turns): inspect; the summary read and the hours counted, three RESULT lines; a figure; the
-report. The promoter makes the hour band an input (numbers, default 9 to 11). Any other question gets a short generic
-answer.
+report. The promoter makes the hour band an input (numbers, default 9 to 11) and, as the live one did, tries to make
+the loaded window one by writing it into the summary file's name - refused by the host, which keeps the loader's name
+for the run to bind. Any other question gets a short generic answer.
 """
 import json
 import re
@@ -124,10 +125,20 @@ class Scenario:
         if not m:
             return json.dumps({"name": "Start hours", "inputs": [], "edits": [], "kept": ["nothing varies with the data"]})
         cell = int(m.group(1))
+        inputs = [{"key": "band", "label": "The hour band counted", "type": "numbers", "default": [9, 11], "origin": "the analysis counted 9 to 11", "multiple": False}]
+        edits = [{"cell": cell, "find": "band = [9, 11]", "replace": "band = INPUTS['band']"}]
+        # what the live promoter did on the first Intervals routine (2026-10-10): the loaded window made an input and
+        # written into the summary's file name as an f-string - the name is the loader's, so the host refuses the edit,
+        # drops the input with the reason in the dialog's notes, and the dated name stays for the run to bind
+        p = re.search(r"pd\.read_csv\('(datasets/\S*activity_summary_(\d{8})_to_(\d{8})\.csv)'\)", user)
+        if p:
+            path, s, e = p.groups()
+            inputs.append({"key": "window", "label": "The period", "type": "date_window", "default": [f"{s[:4]}-{s[4:6]}-{s[6:]}", f"{e[:4]}-{e[4:6]}-{e[6:]}"],
+                           "origin": "the period the analysis ran on, also encoded in the summary file's name"})
+            edits.append({"cell": cell, "find": f"pd.read_csv('{path}')",
+                          "replace": "pd.read_csv(f\"" + path.rsplit("activity_summary_", 1)[0] + "activity_summary_{str(INPUTS['window'][0]).replace('-','')}_to_{str(INPUTS['window'][1]).replace('-','')}.csv\")"})
         return json.dumps({
-            "name": "Session start hours",
-            "inputs": [{"key": "band", "label": "The hour band counted", "type": "numbers", "default": [9, 11], "origin": "the analysis counted 9 to 11", "multiple": False}],
-            "edits": [{"cell": cell, "find": "band = [9, 11]", "replace": "band = INPUTS['band']"}],
+            "name": "Session start hours", "inputs": inputs, "edits": edits,
             "kept": ["the home offset is read off the data, not typed", "the Wilson interval's z is the method's"]})
 
     # ------------------------------------------------------------ the analyst
