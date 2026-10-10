@@ -213,6 +213,9 @@ def load_data():
         endura_bp.bamboo_ai_instances[session_id] = endura_bp.get_bamboo_ai(session_id)
         endura_bp.bamboo_ai_instances[session_id].df_id = prefs.get('df_id')
         endura_bp.bamboo_ai_instances[session_id].auxiliary_datasets = prefs.get('auxiliary_datasets', [])
+        # how the data was asked for (2026-10-10, routines): a run of a routine made from it loads the same way
+        endura_bp.bamboo_ai_instances[session_id].load_params = {'source': 'endura', 'race_id': race_id, 'race_title': result.get('race_title', ''),
+                                                                 'aux_kinds': list(aux_datasets), 'df_id': new_df_id}
         
         # Generate DataFrame sample
         executor_client = endura_bp.executor_client.ExecutorAPIClient(

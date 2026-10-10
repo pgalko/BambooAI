@@ -7,6 +7,8 @@ The standing rule (DESIGN_CHECKLIST C5) holds for every string here that a model
 """
 from __future__ import annotations
 
+import json
+import logging
 import re
 import time
 from typing import Callable, Dict, List, Optional
@@ -14,6 +16,8 @@ from typing import Callable, Dict, List, Optional
 from analyst import routines as rt
 from analyst.notebook import Notebook, Run, split_sentences
 from analyst.replay import assemble
+
+logger = logging.getLogger(__name__)
 
 
 class RoutineRefused(Exception):
@@ -87,8 +91,55 @@ def data_state(run_data: Optional[dict], current: Optional[dict]) -> str:
     return "same" if cur and str(cur) == str(run_data.get("df_id")) else "gone"
 
 
+AUXSHAPE_MARK = "AUXSHAPE:"
+
+
+def aux_shape_script(paths: List[str]) -> str:
+    """A script that reads each auxiliary file's header and a sample of rows and prints, after AUXSHAPE:, its columns
+    with their types and its row count - the shape a run is later made to fit."""
+    return ("import json as _j, os as _os\n"
+            "import pandas as _pd\n"
+            "_out = {}\n"
+            "for _p in " + json.dumps([str(p) for p in paths]) + ":\n"
+            "    try:\n"
+            "        _fr = _pd.read_csv(_p, nrows=5000) if _p.lower().endswith('.csv') else _pd.read_parquet(_p)\n"
+            "        _rows = sum(1 for _ in open(_p, 'rb')) - 1 if _p.lower().endswith('.csv') else int(len(_fr))\n"
+            "        _out[_p] = {'columns': [{'name': str(c), 'dtype': str(_fr[c].dtype)} for c in _fr.columns], 'rows': int(max(_rows, 0))}\n"
+            "    except Exception as _exc:\n"
+            "        _out[_p] = {'error': str(_exc)[:200]}\n"
+            "print(" + repr(AUXSHAPE_MARK + " ") + " + _j.dumps(_out))\n")
+
+
+def read_aux_shape(stdout: str) -> Optional[dict]:
+    for ln in reversed((stdout or "").splitlines()):
+        if ln.strip().startswith(AUXSHAPE_MARK):
+            try:
+                return json.loads(ln.strip()[len(AUXSHAPE_MARK):].strip())
+            except ValueError:
+                return None
+    return None
+
+
+def record_aux_shape(data: dict, runner: Optional[Callable]) -> dict:
+    """The data record with each auxiliary file's columns (`aux_shape`), read through the runner; left as it is when
+    the files cannot be read now (the record then binds by name alone)."""
+    paths = [str(p) for p in (data or {}).get("aux") or [] if p]
+    if not paths or runner is None or data.get("aux_shape"):
+        return data
+    try:
+        stdout, err, _f, _g = runner(aux_shape_script(paths), 120)
+        found = read_aux_shape(stdout or "")
+    except Exception as exc:                                           # noqa: BLE001
+        logger.warning("the auxiliary files' shape could not be read: %s", exc)
+        found = None
+    if found:
+        data = dict(data)
+        data["aux_shape"] = {p: v for p, v in found.items() if isinstance(v, dict) and "columns" in v}
+    return data
+
+
 def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dict] = None, emit: Optional[Callable] = None,
-            routine: Optional[dict] = None, seat: str = "", model: str = "") -> dict:
+            routine: Optional[dict] = None, seat: str = "", model: str = "", runner: Optional[Callable] = None) -> dict:
     """Read the chain, call the promoter once (twice when its reply cannot be read), apply its edits, and return the
     proposal the dialog shows. Raises RoutineRefused with a readable reason."""
     run: Optional[Run] = nb.runs.get(str(run_id))
@@ -108,6 +159,8 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     figures = [c.cell_no for c in run.cells() if c.figures and c.cell_no in order]
     state = data_state(run.data, current_data)
     data = dict(run.data or {}) if state != "assumed" else dict(current_data or {})
+    if state in ("same", "assumed"):
+        data = record_aux_shape(data, runner)             # the auxiliary files are still there: their columns go on record
     manifest = None
     if routine:
         cur = next((v for v in routine.get("versions", []) if v.get("number") == routine.get("current_version")), None)
@@ -246,6 +299,84 @@ def light_data(data: Optional[dict]) -> dict:
             "date_range": d.get("date_range"), "aux": [str(a).split("/")[-1] for a in (d.get("aux") or [])], "extra": d.get("extra") or {}}
 
 
+def _dates_of(d: dict) -> Tuple[Optional[str], Optional[str]]:
+    load = d.get("load") or {}
+    if load.get("start_date") and load.get("end_date"):
+        return str(load["start_date"]), str(load["end_date"])
+    m = re.match(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-|→)\s*(\d{4}-\d{2}-\d{2})\s*$", str(d.get("date_range") or ""))
+    return (m.group(1), m.group(2)) if m else (None, None)
+
+
+def load_plan(routine: dict, version_number: Optional[int] = None) -> dict:
+    """How a run loads its data, from the version's data record: the source and, per source, what the original load
+    asked for - the window's length, the metrics and auxiliary kinds; the race; the sports and subjects; the file."""
+    d = (version_of(routine, version_number).get("manifest") or {}).get("data") or {}
+    load = d.get("load") or {}
+    extra = d.get("extra") or {}
+    src = rt.source_kind(dict(d, source=load.get("source") or d.get("source")))
+    aux = [str(p) for p in d.get("aux") or []]
+    plan = {"source": src, "name": d.get("name") or "", "aux": aux, "aux_kinds": [rt.aux_kind(p) for p in aux], "rows": d.get("rows"),
+            "columns": len(d.get("columns") or []), "date_range": d.get("date_range")}
+    start, end = _dates_of(d)
+    if start and end:
+        try:
+            days = (time.mktime(time.strptime(end, "%Y-%m-%d")) - time.mktime(time.strptime(start, "%Y-%m-%d"))) / 86400.0
+            plan["window_days"] = int(round(days))
+        except ValueError:
+            pass
+        plan["start"], plan["end"] = start, end
+    if src == "intervals":
+        plan["metrics"] = list(load.get("metrics") or extra.get("metrics") or [])
+        plan["aux_kinds"] = [k for k in (load.get("aux_kinds") or plan["aux_kinds"]) if k in ("summary", "wellness", "intervals")]
+    elif src == "endura":
+        plan["race_id"] = load.get("race_id") or extra.get("race_id")
+        plan["race_title"] = load.get("race_title") or extra.get("race_title") or ""
+        plan["aux_kinds"] = [k for k in (load.get("aux_kinds") or plan["aux_kinds"]) if k in ("profile", "turns", "climbs", "waymarkers")]
+    elif src == "sweatstack":
+        plan["sports"] = list(load.get("sports") or extra.get("sports") or [])
+        plan["metrics"] = list(load.get("metrics") or extra.get("metrics") or [])
+        plan["users"] = list(load.get("users") or [])
+    return plan
+
+
+def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable], run_dir: str) -> dict:
+    """A run's data made to fit the recorded shape: the recorded auxiliary files bound by kind to this load's (a copy
+    with the missing columns added, in the run's folder, when one lacks columns; an empty table for one this load
+    lacks), the executed text with this load's names, and the prelude that conforms `df`."""
+    rec = (ver.get("manifest") or {}).get("data") or {}
+    d = current_data or {}
+    binding = rt.bind_aux(rec.get("aux") or [], d.get("aux") or [])
+    shape_rec = rec.get("aux_shape") or {}
+    columns = {p: [c.get("name") for c in (shape_rec.get(p) or {}).get("columns") or []] for p in (rec.get("aux") or [])}
+    shape, placeholders, note = None, {}, ""
+    if runner is not None and (binding["map"] or binding["absent"]):
+        try:
+            stdout, err, _f, _g = runner(rt.shape_script(binding["map"], columns, run_dir, binding["absent"]), 180)
+            shape = rt.read_shape(stdout or "")
+            if shape is None and err:
+                note = f"the auxiliary files could not be prepared ({str(err).strip().splitlines()[-1][:160]})"
+        except Exception as exc:                                       # noqa: BLE001
+            note = f"the auxiliary files could not be prepared ({exc})"
+    bound = dict(binding["map"])
+    if shape:
+        for old, info in (shape.get("files") or {}).items():
+            if isinstance(info, dict) and info.get("path"):
+                bound[old] = info["path"]
+        placeholders = dict(shape.get("placeholders") or {})
+    script, subs = rt.bind_script(ver.get("script") or "", bound, run_dir, rt.datasets_dir_of(rec.get("aux") or []) or rt.datasets_dir_of(d.get("aux") or []), placeholders)
+    return {"binding": binding, "bound": bound, "placeholders": placeholders, "shape": shape, "script": script, "subs": subs, "note": note,
+            "prelude": rt.conform_prelude(rec.get("columns") or [])}
+
+
+def aux_line(binding: dict) -> str:
+    """The auxiliary files in a sentence: which recorded ones this load lacks (the method will see empty tables)."""
+    absent = [rt.aux_kind(p) for p in (binding or {}).get("absent") or []]
+    if not absent:
+        return ""
+    names = ", ".join(k[5:] if k.startswith("file:") else k for k in absent)
+    return f"{names} absent in this data - the method will see {'an empty table' if len(absent) == 1 else 'empty tables'} there"
+
+
 def reference_run(routine: dict, version: dict, compare_with="previous") -> Tuple[Optional[int], Optional[List[dict]]]:
     """(run number, its result lines) this run is compared with: the preceding run of the version, else run zero;
     'zero' for run zero; a number for that run. None when there is nothing to compare with."""
@@ -280,6 +411,8 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
         return out
     fit = rt.fit_check((manifest.get("data") or {}).get("columns") or [], d.get("columns") or [])
     out["fit"] = fit
+    binding = rt.bind_aux((manifest.get("data") or {}).get("aux") or [], d.get("aux") or [])
+    out["aux"] = {"absent": [rt.aux_kind(p) for p in binding["absent"]], "bound": {rt.aux_kind(k): str(v).split("/")[-1] for k, v in binding["map"].items()}, "line": aux_line(binding)}
     vals, problems = rt.coerce_values(params, values)
     out["problems"] = problems
     if fit["fits"] and runner is not None:
@@ -292,12 +425,12 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
             found = rt.read_precheck(stdout or "")
             out["values_missing"] = rt.missing_values(checks, found) if found is not None else ([f"the values could not be checked ({str(err).strip().splitlines()[-1][:120]})"] if err else [])
     out["ok"] = bool(fit["fits"]) and not out["values_missing"] and not problems
-    out["line"] = fit["line"] + (("; " + "; ".join(out["values_missing"])) if out["values_missing"] else "") + (("; " + "; ".join(problems)) if problems else "")
+    out["line"] = fit["line"] + (("; " + out["aux"]["line"]) if out["aux"]["line"] else "") + (("; " + "; ".join(out["values_missing"])) if out["values_missing"] else "") + (("; " + "; ".join(problems)) if problems else "")
     return out
 
 
 def run(routine: dict, values: Optional[dict], current_data: Optional[dict], runner: Callable, store: rt.RoutineStore, emit: Optional[Callable] = None,
-        compare_with="previous", version_number: Optional[int] = None) -> dict:
+        compare_with="previous", version_number: Optional[int] = None, run_dir: str = "") -> dict:
     """One run of the routine's version on the data loaded now: the checks (refused before anything runs), the
     script with the INPUTS block, the lines read by position, the status against the reference run, the comparison,
     the record stored (a failed run too). Returns the record with the printed output and the figures for the tabs."""
@@ -329,9 +462,16 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
             if emit:
                 emit({"type": "lookup", "kind": "check", "query": name, "peek": "; ".join(miss)})
             raise RoutineRefused("; ".join(miss))
-    if emit:
-        emit({"type": "lookup", "kind": "check", "query": name, "peek": fit["line"] + ("; the chosen values are in the data" if checks else "")})
     number = len(routine.get("runs", [])) + 1
+    # the data made to fit the recorded shape: the auxiliary files bound by kind (copies with the missing columns added,
+    # empty tables for the absent ones) in the run's own folder, the executed text with this load's names, `df` conformed
+    run_dir = run_dir or f"routines/{routine.get('id', 'routine')}/{run_tag(vnum, number)}"
+    prep = prepare(ver, d, runner, run_dir)
+    check_line = fit["line"] + (("; " + aux_line(prep["binding"])) if prep["binding"]["absent"] else "") + ("; the chosen values are in the data" if checks else "")
+    if prep["note"]:
+        check_line += "; " + prep["note"]
+    if emit:
+        emit({"type": "lookup", "kind": "check", "query": name, "peek": check_line})
     ref_number, ref_results = reference_run(routine, ver, compare_with)
     cells = (manifest.get("figures") or {}).get("cells")
     n_cells = len(re.findall(r"^# --- cell \d+ ---$", ver.get("script") or "", re.M))
@@ -340,9 +480,9 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     if emit:
         emit({"type": "lookup_start", "kind": "run", "query": f"run {number} · v{vnum} · {n_cells} cell{'s' if n_cells != 1 else ''}"})
     t0 = time.time()
-    script = rt.with_inputs(ver.get("script") or "", vals)
+    script = rt.with_inputs(prep["script"], vals, prep["prelude"])
     try:
-        stdout, err, figs, generated = runner(script, timeout)
+        stdout, err, figs, generated = _call_runner(runner, script, timeout, run_dir)
     except Exception as exc:                                           # noqa: BLE001
         stdout, err, figs, generated = "", f"the run could not start: {exc}", [], None
     elapsed = round(time.time() - t0, 1)
@@ -359,7 +499,9 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     now = time.time()
     record = {"number": number, "version": vnum, "created": t0, "finished": now, "elapsed": elapsed, "status": status, "line": line,
               "data": d, "inputs": vals, "results": got, "figures": len(figs or []), "stdout_chars": len(stdout or ""), "cells": n_cells,
-              "against": ref_number, "comparison": cmp, "narrative": "", "error": (str(err).strip()[-2000:] if err else "")}
+              "against": ref_number, "comparison": cmp, "narrative": "", "error": (str(err).strip()[-2000:] if err else ""),
+              "fit": {k: fit[k] for k in ("missing", "extra", "retyped", "line")}, "bindings": prep["subs"], "aux_absent": [rt.aux_kind(p) for p in prep["binding"]["absent"]],
+              "shape": prep["shape"], "run_dir": run_dir, "generated": list(generated or []) if isinstance(generated, (list, tuple)) else []}
     summary = {k: record[k] for k in ("number", "version", "created", "finished", "elapsed", "status", "line", "inputs", "results", "figures", "against", "cells")}
     summary["data"] = light_data(d)
     summary["comparison"] = {k: cmp[k] for k in ("moved", "within", "changed", "missing", "compared", "line")}
@@ -372,6 +514,16 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     except OSError:
         pass
     return {"run": record, "summary": summary, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, vnum), "stdout": stdout or "", "figures": figs or [], "name": routine.get("name")}
+
+
+def _call_runner(runner: Callable, script: str, timeout: int, run_dir: str = ""):
+    """The runner with the run's folder when it takes one (the instance's run_script does; a test's may not)."""
+    try:
+        import inspect
+        takes_dir = len(inspect.signature(runner).parameters) >= 3
+    except (TypeError, ValueError):
+        takes_dir = False
+    return runner(script, timeout, run_dir) if takes_dir and run_dir else runner(script, timeout)
 
 
 def _when(ts) -> str:

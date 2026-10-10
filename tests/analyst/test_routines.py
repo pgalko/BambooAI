@@ -281,7 +281,9 @@ check("precheck: data loaded, fits the routine's columns, nothing missing - ok, 
 pc2 = host.precheck(R, {"df_id": None, "source": "none", "columns": []}, runner_on(df))
 check("precheck with nothing loaded: not ok, says to load the data first", not pc2["loaded"] and not pc2["ok"] and "no data is loaded" in pc2["line"], pc2)
 pc3 = host.precheck(R, {"df_id": "x", "columns": [{"name": "v", "dtype": "int64"}], "name": "other.csv"}, runner_on(df))
-check("precheck with a column dropped: does not fit, names it", not pc3["ok"] and pc3["fit"]["missing"] == ["g"] and "missing: g" in pc3["line"], pc3["line"])
+check("precheck with a column dropped: said, not refused - the run adds it empty (2026-10-10: conform); ok, the column named", pc3["ok"] and pc3["fit"]["fits"] and pc3["fit"]["missing"] == ["g"] and "1 of 2 columns empty in this data: g" in pc3["line"], pc3["line"])
+pc3b = host.precheck(R, {"df_id": "x", "columns": [{"name": "q", "dtype": "int64"}], "name": "other.csv"}, runner_on(df))
+check("precheck with none of the routine's columns: nothing to run on, refused", not pc3b["ok"] and not pc3b["fit"]["fits"] and "nothing to run on" in pc3b["line"], pc3b["line"])
 pc4 = host.precheck(R, data_now, runner_on(df), values={"threshold": "abc"})
 check("precheck with an unreadable value: the problem named, not ok", not pc4["ok"] and pc4["problems"] and "could not be read as a number" in pc4["line"], pc4["line"])
 events = []
@@ -305,10 +307,17 @@ out4 = host.run(store.load(rid4), {"threshold": 165}, data_now, runner_on(df), s
 check("the same values on the same data again: reproduced against the run before", out4["run"]["status"] == "reproduced" and out4["run"]["against"] == 3)
 before = len(store.load(rid4)["runs"])
 try:
-    host.run(store.load(rid4), {}, {"df_id": "x", "name": "other.csv", "columns": [{"name": "v", "dtype": "int64"}]}, runner_on(df), store); refused = ""
+    host.run(store.load(rid4), {}, {"df_id": "x", "name": "other.csv", "columns": [{"name": "q", "dtype": "int64"}]}, runner_on(df.rename(columns={"v": "q", "g": "h"})), store); refused = ""
 except host.RoutineRefused as exc:
     refused = str(exc)
-check("a file with a column dropped: refused before anything runs, the column named, no run recorded", "does not fit" in refused and "missing: g" in refused and len(store.load(rid4)["runs"]) == before, refused)
+check("a file with none of the routine's columns: refused before anything runs, no run recorded", "does not fit" in refused and "nothing to run on" in refused and len(store.load(rid4)["runs"]) == before, refused)
+# a file with one column dropped: the run adds it empty (the conform prelude) and the method runs; the record says what was missing
+ev_drop = []
+out_drop = host.run(store.load(rid4), {}, {"df_id": "x", "name": "other.csv", "columns": [{"name": "v", "dtype": "int64"}]}, runner_on(df.drop(columns=["g"])), store, emit=ev_drop.append)
+check("a file with a column dropped: the CHECK row says the column is empty in this data, the method runs on the frame with it added empty, the record keeps the fit",
+      out_drop["run"]["status"] in ("ran", "reproduced", "differed") and out_drop["run"]["fit"]["missing"] == ["g"] and any(e.get("kind") == "check" and "empty in this data: g" in (e.get("peek") or "") for e in ev_drop)
+      and "_ROUTINE_COLUMNS" in rt.with_inputs(host.prepare(host.version_of(store.load(rid4)), {"columns": []}, None, "r")["script"], {}, host.prepare(host.version_of(store.load(rid4)), {"columns": []}, None, "r")["prelude"]),
+      (out_drop["run"]["status"], out_drop["run"]["line"], [e.get("peek") for e in ev_drop if e.get("kind") == "check"]))
 def broken_runner(script, timeout):
     return "", 'Traceback (most recent call last):\n  File "<string>", line 999, in <module>\nKeyError: \'v\'', [], []
 out5 = host.run(store.load(rid4), {}, data_now, broken_runner, store)
@@ -318,7 +327,56 @@ out6 = host.run(store.load(rid4), {}, data_now, lambda s, t: ("", "TIMEOUT: Code
 check("a timeout: status timed_out", out6["run"]["status"] == "timed_out" and out6["run"]["line"].startswith("timed out"))
 R6 = store.load(rid4)
 ref_after_failures = host.reference_run(R6, host.version_of(R6), "previous")
-check("the reference skips failed and timed-out runs: the last run that ran", ref_after_failures[0] == 4, ref_after_failures[0])
+check("the reference skips failed and timed-out runs: the last run that ran", ref_after_failures[0] == 5, ref_after_failures[0])
+# ---- the data made to fit the recorded shape (2026-10-10): a method that reads a loader's auxiliary file by its dated name ----
+aux_dir = os.path.join(tempfile.mkdtemp(), "datasets", "local")
+os.makedirs(aux_dir)
+aux_old = os.path.join(aux_dir, "activity_summary_20260812_to_20261010.csv")
+pd.DataFrame({"hour": [6, 6, 7, 18], "load": [1.0, 2.0, 3.0, 4.0], "note": ["a", "b", "c", "d"]}).to_csv(aux_old, index=False)
+nb5 = Notebook("t5")
+run5 = nb5.new_run("At what hour do most sessions start?")
+run5.turns = [Turn(kind="cell", cell_no=1, code=f"summ = pd.read_csv({aux_old!r})\nn = int(len(summ))\npeak = int(summ.hour.value_counts().idxmax())\nprint(n, peak)", results=[], stdout="4 6"),
+              Turn(kind="cell", cell_no=2, code="RESULT('sessions in the file', float(n), None, None, 'sessions', 'n/a')\nRESULT('the hour most sessions start', float(peak), None, None, 'hour', 'n/a')",
+                   results=[{"text": "sessions in the file: +4", "typed": False}, {"text": "the hour most sessions start: +6", "typed": False}], stdout="RESULT: sessions in the file: +4\nRESULT: the hour most sessions start: +6")]
+run5.report = "## Six\n\nMost sessions start at six [cell 2]."
+run5.status = "answered"
+run5.data = {"df_id": "df5", "name": "sessions.csv", "source": "csv", "columns": [{"name": "v", "dtype": "int64"}], "rows": 5, "aux": [aux_old],
+             "load": {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"]}}
+run5.replay_script, _ = assemble(run5.cells(), run5.report)
+nb5.runs[run5.id] = run5
+p5 = host.propose(nb5, run5.id, empty_promoter, current_data={"df_id": "df5", "aux": [aux_old]}, runner=runner_on(df))
+shape5 = p5["data"].get("aux_shape") or {}
+check("propose with the data still loaded: the auxiliary files' columns and types go on record (the shape a run is made to fit)",
+      aux_old in shape5 and [c["name"] for c in shape5[aux_old]["columns"]] == ["hour", "load", "note"] and shape5[aux_old]["rows"] == 4, shape5)
+made5 = host.create(nb5, p5, {"name": "Start hour", "purpose": "p", "drop_inputs": [], "drop_results": []}, runner_on(df), store)
+rid5 = made5["routine"]["id"]
+check("run zero binds the recorded file to itself and reproduces", made5["run_zero"]["status"] == "reproduced", made5["run_zero"])
+plan5 = host.load_plan(store.load(rid5))
+check("load_plan: the source, the window's length, the auxiliary kinds and the metrics as the original load asked", plan5["source"] == "intervals" and plan5["window_days"] == 59 and plan5["aux_kinds"] == ["summary"] and plan5["start"] == "2026-08-12", plan5)
+# a later window: the loader wrote a differently named summary, with one column fewer and more rows
+aux_new = os.path.join(aux_dir, "activity_summary_20260910_to_20261010.csv")
+pd.DataFrame({"hour": [7, 7, 7, 18, 19, 7], "load": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}).to_csv(aux_new, index=False)
+now5 = {"df_id": "df5b", "name": "sessions.csv", "source": "csv", "columns": [{"name": "v", "dtype": "int64"}], "rows": 5, "aux": [aux_new]}
+pc5 = host.precheck(store.load(rid5), now5, runner_on(df))
+check("precheck binds the recorded summary to this load's by kind: nothing absent, the line says the data fits", pc5["ok"] and pc5["aux"]["bound"] == {"summary": "activity_summary_20260910_to_20261010.csv"} and not pc5["aux"]["absent"], pc5["aux"])
+ev5 = []
+run_dir5 = os.path.join(aux_dir, "routines", rid5, "v1_1")
+out5b = host.run(store.load(rid5), {}, now5, runner_on(df), store, emit=ev5.append, run_dir=run_dir5)
+r5 = out5b["run"]
+check("a run on the later window: the method read this window's summary under the recorded name (bound in the executed text, the stored script untouched), its lines moved, the copy in the run's folder carries the column the new file lacked",
+      r5["status"] == "ran" and [rt.number(x["estimate"]) for x in r5["results"]] == [6.0, 7.0] and r5["bindings"] and r5["bindings"][0][0] == aux_old and r5["bindings"][0][1].startswith(run_dir5)
+      and r5["shape"]["files"][aux_old]["missing"] == ["note"] and r5["shape"]["files"][aux_old]["rows"] == 6 and aux_old in store.load(rid5)["versions"][0]["script"]
+      and os.path.exists(os.path.join(run_dir5, "activity_summary_20260910_to_20261010.csv")), (r5["status"], r5["results"], r5.get("bindings"), r5.get("shape")))
+# a window whose load produced no summary at all: the method sees an empty table, the CHECK row and the record say so
+now5c = dict(now5, aux=[])
+pc5c = host.precheck(store.load(rid5), now5c, runner_on(df))
+check("precheck with the summary absent: ok (the coach decides), the line says the method will see an empty table", pc5c["ok"] and pc5c["aux"]["absent"] == ["summary"] and "summary absent in this data" in pc5c["line"], pc5c["line"])
+ev5c = []
+out5c = host.run(store.load(rid5), {}, now5c, runner_on(df), store, emit=ev5c.append, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_2"))
+r5c = out5c["run"]
+check("a run with the summary absent: an empty table with the recorded columns stood in, the method failed on it (nothing to count), the run is kept and names the cell, the record lists the absent file",
+      r5c["status"] == "failed" and r5c["line"].startswith("failed at cell 1") and r5c["aux_absent"] == ["summary"] and any("summary absent" in (e.get("peek") or "") for e in ev5c if e.get("kind") == "check")
+      and os.path.exists(os.path.join(aux_dir, "routines", rid5, "v1_2", "activity_summary_20260812_to_20261010.csv")), (r5c["status"], r5c["line"], r5c.get("aux_absent")))
 # a choice input whose value is not in the data: refused by the value check through the kernel
 R7 = store.load(rid4); v7 = host.version_of(R7)
 v7["manifest"]["parameters"].append({"key": "grp", "label": "Group", "type": "choice", "default": "a", "column": "g", "multiple": False, "origin": "x"})

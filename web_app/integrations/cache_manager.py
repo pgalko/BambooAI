@@ -177,6 +177,7 @@ def load_primary_from_cache():
         cache_bp.bamboo_ai_instances[session_id] = cache_bp.get_bamboo_ai(session_id)
 
         cache_bp.bamboo_ai_instances[session_id].df_id = prefs.get('df_id')
+        cache_bp.bamboo_ai_instances[session_id].load_params = {'source': 'cache', 'df_id': df_id}      # (2026-10-10, routines)
         
         # Generate DataFrame preview
         user_id = cache_bp.get_user_id()

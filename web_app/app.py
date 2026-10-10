@@ -538,6 +538,8 @@ def load_dataframe_to_bamboo_ai_instance(session_id, df=None, file=None, executi
         bamboo_ai_instances[session_id].df_name = getattr(file, 'filename', None) or getattr(df, 'attrs', {}).get('name') or ''
     except Exception:                                   # noqa: BLE001
         pass
+    # how the data was loaded (2026-10-10, routines): a run of a routine made from this data loads the same way
+    bamboo_ai_instances[session_id].load_params = {'source': 'file', 'name': bamboo_ai_instances[session_id].df_name or '', 'df_id': new_df_id}
 
     # the Data tab (2026-09-07): the first page for the grid; the 100-row HTML preview only if no page could be made
     page = _dataframe_first_page(df, execution_mode, new_df_id, get_executor_client(get_user_id()))

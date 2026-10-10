@@ -88,7 +88,7 @@ def _wait(url, ok, timeout=60, what=""):
 
 
 class Stack:
-    def __init__(self, workdir=DEFAULT_WORKDIR, scenario="field_trial", executor_port=5055, orchestrator_port=5056,
+    def __init__(self, workdir=DEFAULT_WORKDIR, scenario="field_trial", executor_port=5055, orchestrator_port=5056, apis_port=5057,
                  app_port=5001, auto_ports=False, fresh=False, detached=False, pause=0.0, edition="hosted", compute="orchestrator"):
         """compute: orchestrator (the hosted path: executor via the fake orchestrator), direct (the executor named
         by EXECUTOR_API_BASE_URL, standing in for a docker run), or local (no executor: the kernel in a subprocess)."""
@@ -101,6 +101,8 @@ class Stack:
         self.app_url = f"http://127.0.0.1:{self.app_port}"
         self.executor_url = f"http://127.0.0.1:{self.executor_port}"
         self.orchestrator_url = f"http://127.0.0.1:{self.orchestrator_port}"
+        self.apis_port = free_port() if auto_ports else apis_port
+        self.apis_url = f"http://127.0.0.1:{self.apis_port}"
         self.dataset = None
 
     # ----------------------------------------------------------- lifecycle
@@ -128,6 +130,9 @@ class Stack:
             mod.make_dataset(self.dataset)
 
         if self.compute != "local":
+            # the integrations' APIs, faked (fake_apis.py): the executor's requests to them are routed there
+            self._spawn("apis", [os.path.join(HERE, "fake_apis.py"), "--port", str(self.apis_port)])
+            os.environ["STACK_FAKE_APIS"] = self.apis_url
             self._spawn("executor", [os.path.join(HERE, "executor_launcher.py"), "--port", str(self.executor_port),
                                      "--workdir", os.path.join(self.workdir, "executor")])
         if self.compute == "orchestrator":
@@ -141,6 +146,7 @@ class Stack:
         self._spawn("webapp", web)
         try:
             if self.compute != "local":
+                _wait(f"{self.apis_url}/health", lambda r: r.ok, 30, "fake apis")
                 _wait(f"{self.executor_url}/health", lambda r: r.ok and r.json().get("status") == "healthy", 90, "executor")
             if self.compute == "orchestrator":
                 _wait(f"{self.orchestrator_url}/health", lambda r: r.ok, 30, "orchestrator")
@@ -149,7 +155,7 @@ class Stack:
             self.stop()
             raise
         with open(os.path.join(self.workdir, "stack.json"), "w") as fh:
-            json.dump({"ports": {"executor": self.executor_port, "orchestrator": self.orchestrator_port, "app": self.app_port},
+            json.dump({"ports": {"executor": self.executor_port, "orchestrator": self.orchestrator_port, "app": self.app_port, "apis": self.apis_port},
                        "pids": {k: p.pid for k, p in self.procs.items()}, "scenario": self.scenario, "dataset": self.dataset,
                        "workdir": self.workdir}, fh, indent=1)
         return self

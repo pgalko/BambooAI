@@ -183,6 +183,18 @@
 #routineRunModal .ui-dlg-f .note { max-width: 420px; line-height: 1.4; }
 .rt-fit { font-size: var(--fs-small); color: var(--c-model); display: flex; align-items: center; gap: 6px; line-height: 1.4; }
 .rt-fit.bad { color: var(--c-fail); }
+.rt-fit.note { color: var(--c-kernel); }
+/* the run dialog's Data section (2026-10-10): the load as the original did, or the data loaded now; the load's progress */
+.rt-load { gap: 6px; }
+.rt-load .rt-loadwin, .rt-load .rt-race, .rt-load .rt-upload, .rt-load .rt-now { margin: 0 0 4px 22px; }
+.rt-load .rt-race { grid-template-columns: 1fr; }
+.rt-load .rt-race select { max-width: 100%; }
+.rt-load .help { margin: 0 0 6px 22px; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }
+.rt-load .rt-check .n { font-weight: 400; color: var(--text-quaternary); }
+.rt-load .rt-fit { margin-left: 22px; }
+.rt-progress { margin: 6px 0 0 22px; font-size: var(--fs-small); color: var(--text-secondary); line-height: 1.4; }
+.rt-progress.loading::before { content: '…'; margin-right: 6px; }
+.rt-progress.bad { color: var(--c-fail); }
 .rt-field { display: grid; grid-template-columns: 220px 1fr; gap: 4px 10px; align-items: center; font-size: var(--fs-meta); color: var(--text-secondary); }
 .rt-field > label { color: var(--text-primary); }
 .rt-field .ui-input { height: 28px; }

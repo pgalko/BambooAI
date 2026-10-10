@@ -230,6 +230,10 @@ def load_data():
         # Store df_id in session for later
         session['intervals_df_id'] = new_df_id
         session['intervals_job_id'] = job_data['job_id']
+        # how the data was asked for (2026-10-10, routines): kept with the job, put on the instance when it completes
+        prefs = intervals_bp.user_preferences.setdefault(session_id, {'planning': False, 'auxiliary_datasets': []})
+        prefs['load'] = {'source': 'intervals', 'start_date': data['start_date'], 'end_date': data['end_date'],
+                         'metrics': list(data.get('metrics', []) or []), 'aux_kinds': list(data.get('aux_datasets', []) or []), 'df_id': new_df_id}
         
         return jsonify({'job_id': job_data['job_id']}), 202
         
@@ -285,6 +289,8 @@ def get_job_status(job_id):
             # 3. Always update the properties (in case it was an existing instance)
             intervals_bp.bamboo_ai_instances[session_id].df_id = prefs.get('df_id')
             intervals_bp.bamboo_ai_instances[session_id].auxiliary_datasets = prefs.get('auxiliary_datasets', [])
+            if (prefs.get('load') or {}).get('df_id') == result['df_id']:
+                intervals_bp.bamboo_ai_instances[session_id].load_params = dict(prefs['load'])
             
             # Generate DataFrame sample
             executor_client = intervals_bp.executor_client.ExecutorAPIClient(

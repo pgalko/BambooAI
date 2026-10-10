@@ -10,7 +10,8 @@ class _Layout:
 
 class Figure:
     def __init__(self, data=None, layout=None):
-        self.data = list(data or [])
+        # one trace, or a list of them, as the real Figure takes (2026-10-10: go.Figure(go.Bar(...)) made a dict of a trace's keys)
+        self.data = [data] if isinstance(data, dict) else list(data or [])
         self.layout = _Layout()
 
     def update_layout(self, **kwargs):

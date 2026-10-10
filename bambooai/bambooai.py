@@ -75,6 +75,7 @@ class BambooAI:
         self.df = df
         self.df_id = df_id
         self.auxiliary_datasets = auxiliary_datasets or []
+        self.load_params = None          # how the data loaded now was loaded (the integration routes set it; a routine's run repeats it)
         self.memory_path = memory_path
         self.search_tool = bool(search_tool)
         self.exploratory = exploratory
@@ -306,10 +307,11 @@ class BambooAI:
         return reading.unit_text(u) if u else None
 
     # ---------------------------------------------------------- the replay
-    def run_script(self, script, timeout, what="Replay"):
+    def run_script(self, script, timeout, what="Replay", generated_dir=None):
         """One script through the executor against the loaded data, as the replay runs (2026-10-10: a routine's run
-        zero takes the same path). Returns (stdout, error, figures as the tabs' JSON strings, generated datasets)."""
-        generated_datasets_path = self._generated_dir()
+        zero takes the same path; a routine's run passes its own folder, where its files and datasets go). Returns
+        (stdout, error, figures as the tabs' JSON strings, generated datasets)."""
+        generated_datasets_path = generated_dir or self._generated_dir()
         self._sync_documents("replay")              # a cited cell may have read a document file
         prelude = self._kernel_prelude()            # ... or used D1.table(2): the objects ride ahead of the cells
         if prelude:
@@ -353,6 +355,9 @@ class BambooAI:
         so a routine made from it later knows its data; `light` gives the identity alone."""
         rec = {"df_id": self.df_id, "name": getattr(self, "df_name", "") or "", "source": "", "columns": [], "rows": None,
                "date_range": None, "aux": [p for p in (self.auxiliary_datasets or []) if p], "extra": {}}
+        lp = getattr(self, "load_params", None) or {}
+        if lp and (not lp.get("df_id") or str(lp.get("df_id")) == str(self.df_id)):
+            rec["load"] = {k: v for k, v in lp.items() if k != "df_id"}       # how it was loaded: a routine's run repeats this
         if self.df is None and not self.df_id:
             rec["source"] = "none"
             return rec
@@ -416,7 +421,8 @@ class BambooAI:
         self.chain_id = billing_chain_id or self.chain_id
         try:
             proposal = routines_host.propose(nb, str(chain_id), lambda s, u: self._llm(s, u, seat=seat), current_data=self._data_record(light=True),
-                                             emit=self._emit_routine, routine=routine, seat=seat, model=model)
+                                             emit=self._emit_routine, routine=routine, seat=seat, model=model,
+                                             runner=lambda s, t: self.run_script(s, t, what="Shape"))
         finally:
             self.chain_id = keep
         pending = getattr(self, "_proposals", None)
@@ -435,7 +441,9 @@ class BambooAI:
         routine = self.routine_store().load(routine_id)
         if routine is None:
             raise routines_host.RoutineRefused("no such routine")
-        return routines_host.precheck(routine, self._data_record(), lambda script, timeout: self.run_script(script, timeout, what="Precheck"), values)
+        out = routines_host.precheck(routine, self._data_record(), lambda script, timeout: self.run_script(script, timeout, what="Precheck"), values)
+        out["plan"] = routines_host.load_plan(routine)                 # how the original load asked for its data: the dialog loads the same way
+        return out
 
     def run_routine(self, routine_id, values=None, compare_with="previous"):
         """One run of the routine on the data loaded now (F2): the checks, the script with its INPUTS block through the
@@ -445,8 +453,10 @@ class BambooAI:
         routine = self.routine_store().load(routine_id)
         if routine is None:
             raise routines_host.RoutineRefused("no such routine")
-        out = routines_host.run(routine, values, self._data_record(), lambda script, timeout: self.run_script(script, timeout, what=f"Routine {routine_id}"),
-                                self.routine_store(), emit=self._emit_routine, compare_with=compare_with)
+        number = len(routine.get("runs", [])) + 1
+        run_dir = os.path.join('datasets', self.user_id or '', 'routines', str(routine_id), routines_host.run_tag(routine.get("current_version") or 1, number))
+        out = routines_host.run(routine, values, self._data_record(), lambda script, timeout, d=None: self.run_script(script, timeout, what=f"Routine {routine_id}", generated_dir=d),
+                                self.routine_store(), emit=self._emit_routine, compare_with=compare_with, run_dir=run_dir)
         try:
             self.output_manager.display_results(chain_id=None, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df, api_client=self.api_client,
                                                 code_exec_results=out["stdout"] or None, plot_jsons=out["figures"] or None)

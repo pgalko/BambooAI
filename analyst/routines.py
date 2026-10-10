@@ -142,9 +142,10 @@ def inputs_block(values: Dict[str, object]) -> str:
     return "# the inputs of this run, written before it starts; the cells read INPUTS[...]\nINPUTS = {\n" + rows + ("\n" if rows else "") + "}"
 
 
-def with_inputs(script: str, values: Dict[str, object]) -> str:
-    """The script with its INPUTS block in place of the mark (a script without the mark gets the block at the top)."""
-    block = inputs_block(values)
+def with_inputs(script: str, values: Dict[str, object], prelude: str = "") -> str:
+    """The script with its INPUTS block in place of the mark (a script without the mark gets the block at the top);
+    `prelude` - the run's conform block (conform_prelude) - goes after the inputs, before the first cell."""
+    block = inputs_block(values) + (("\n" + prelude.rstrip("\n")) if prelude else "")
     if INPUTS_MARK in script:
         return script.replace(INPUTS_MARK, block, 1)
     return block + "\n" + script
@@ -381,18 +382,197 @@ def fit_check(expected: Iterable[dict], now: Iterable[dict]) -> dict:
     cur = {str(c.get("name")): str(c.get("dtype") or "") for c in (now or []) if c.get("name") is not None}
     missing = [n for n in exp if n not in cur]
     extra = [n for n in cur if n not in exp]
-    retyped = [(n, exp[n], cur[n]) for n in exp if n in cur and exp[n] and cur[n] and exp[n] != cur[n]]
-    fits = not missing and bool(exp) or (not exp and bool(cur))
-    if missing:
+    retyped = [(n, exp[n], cur[n]) for n in exp if n in cur and exp[n] and cur[n] and dtype_family(exp[n]) != dtype_family(cur[n])]
+    present = len(exp) - len(missing)
+    # a column this data lacks is added empty before the method runs (conform_prelude): said here, refused only when
+    # none of the recorded columns is in this data - nothing of the method's data to run on (2026-10-10)
+    fits = (present > 0) if exp else bool(cur)
+    if exp and not present:
+        line = f"none of the routine's {len(exp)} columns is in this data - nothing to run on"
+    elif missing:
         shown = ", ".join(missing[:6]) + (" ..." if len(missing) > 6 else "")
-        line = f"missing: {shown} - the routine cannot run on this data ({len(exp) - len(missing)} of {len(exp)} columns)"
+        line = f"{len(missing)} of {len(exp)} columns empty in this data: {shown}" + (f"; {len(extra)} more" if extra else "")
     elif not exp:
         line = "the routine recorded no columns to check against; it will run as it is"
     else:
         line = f"fits the routine ({len(exp)} of {len(exp)} columns" + (f", {len(extra)} more" if extra else "") + ")"
-        if retyped:
-            line += "; " + ", ".join(f"{n} is now {b} (was {a})" for n, a, b in retyped[:3])
+    if retyped and present:
+        line += "; " + ", ".join(f"{n} is now {dtype_family(b)} (was {dtype_family(a)})" for n, a, b in retyped[:3]) + " - read back as it was"
     return {"fits": fits, "missing": missing, "extra": extra, "retyped": retyped, "expected": len(exp), "now": len(cur), "line": line}
+
+
+# ----------------------------------------------------------------------------- the data's shape, and a run's data made to fit it
+# The loaders name their auxiliary files after the window or the race (activity_summary_<start>_to_<end>.csv,
+# athlete_profiles_race_<id>.csv); a method reads them by those names. A run binds each recorded file, by kind, to the
+# file this load produced, and the executed text carries this load's names; the stored method is not changed.
+AUX_KINDS = (("activity_summary_", "summary"), ("wellness_data_", "wellness"), ("activity_intervals_", "intervals"),
+             ("athlete_profiles_race_", "profile"), ("race_turns_race_", "turns"), ("race_climbs_race_", "climbs"),
+             ("race_waymarkers_race_", "waymarkers"))
+_STRING_RE = re.compile(r"""(?P<q>'|")(?P<body>(?:(?!(?P=q)).)*)(?P=q)""")
+
+
+def aux_kind(path: str) -> str:
+    """The kind of an auxiliary file from its name: a loader's kind (summary, wellness, intervals, profile, turns,
+    climbs, waymarkers) or, for a file the person attached, its name."""
+    base = os.path.basename(str(path or ""))
+    for prefix, kind in AUX_KINDS:
+        if base.startswith(prefix):
+            return kind
+    return "file:" + base
+
+
+def datasets_dir_of(paths: Iterable[str]) -> str:
+    """The datasets folder the recorded paths live in (datasets/<user>), from the first path that has one."""
+    for p in paths or []:
+        m = re.match(r"^(datasets/[^/]+)/", str(p).replace("\\", "/"))
+        if m:
+            return m.group(1)
+    return ""
+
+
+def bind_aux(recorded: Iterable[str], now: Iterable[str]) -> dict:
+    """Each recorded auxiliary file against this load's: `map` recorded path -> this load's path (by kind; an attached
+    file by its name), `absent` the recorded files this load lacks, `extra` this load's files the record did not have."""
+    rec = [str(p) for p in (recorded or []) if p]
+    cur = [str(p) for p in (now or []) if p]
+    by_kind: Dict[str, str] = {}
+    for p in cur:
+        by_kind.setdefault(aux_kind(p), p)
+    out: Dict[str, str] = {}
+    absent: List[str] = []
+    for p in rec:
+        k = aux_kind(p)
+        if k in by_kind:
+            out[p] = by_kind[k]
+        else:
+            absent.append(p)
+    used = set(out.values())
+    return {"map": out, "absent": absent, "extra": [p for p in cur if p not in used]}
+
+
+def bind_script(script: str, bindings: Dict[str, str], run_dir: str, datasets_dir: str = "", placeholders: Optional[Dict[str, str]] = None) -> Tuple[str, List[Tuple[str, str]]]:
+    """The executed text of a run: every string literal that is a recorded auxiliary path (or its bare name) becomes
+    this load's path - or the placeholder written for a file this load lacks -, and any other literal under the
+    datasets folder becomes a file in the run's own folder, so a run never writes into the person's cache. Returns the
+    text and the substitutions made, for the run's record."""
+    subs: List[Tuple[str, str]] = []
+    table: Dict[str, str] = {}
+    for old, new in (bindings or {}).items():
+        table[old] = new
+        table[os.path.basename(old)] = new
+    for old, new in (placeholders or {}).items():
+        table.setdefault(old, new)
+        table.setdefault(os.path.basename(old), new)
+    ddir = (datasets_dir or "").rstrip("/")
+
+    def repl(m):
+        body = m.group("body")
+        q = m.group("q")
+        new = None
+        if body in table:
+            new = table[body]
+        elif ddir and body.startswith(ddir + "/") and run_dir:
+            new = run_dir.rstrip("/") + "/" + os.path.basename(body)
+        if new is None or new == body:
+            return m.group(0)
+        subs.append((body, new))
+        return q + new + q
+    return _STRING_RE.sub(repl, script or ""), subs
+
+
+def dtype_family(dtype: str) -> str:
+    d = str(dtype or "").lower()
+    if not d:
+        return ""
+    if d.startswith(("int", "uint", "float", "number")):
+        return "number"
+    if d.startswith("datetime"):
+        return "datetime"
+    if d.startswith("bool"):
+        return "bool"
+    return "text"
+
+
+CONFORM_PRELUDE = """# --- the data as the method saw it: a column this load lacks is added empty, a column whose type changed is read back
+def _routine_family(d):
+    d = str(d or '').lower()
+    return 'number' if d.startswith(('int', 'uint', 'float')) else ('datetime' if d.startswith('datetime') else ('bool' if d.startswith('bool') else ('text' if d else '')))
+def _routine_conform(frame, columns):
+    import pandas as _pd, numpy as _np
+    if frame is None or not hasattr(frame, 'columns'):
+        return frame
+    for _name, _dtype in columns:
+        _fam = _routine_family(_dtype)
+        if _name not in frame.columns:
+            frame[_name] = _pd.Series([_pd.NaT if _fam == 'datetime' else _np.nan] * len(frame), index=frame.index, dtype=('datetime64[ns]' if _fam == 'datetime' else ('float64' if _fam == 'number' else 'object')))
+            continue
+        _have = _routine_family(frame[_name].dtype)
+        if _fam and _have != _fam:
+            try:
+                if _fam == 'number': frame[_name] = _pd.to_numeric(frame[_name], errors='coerce')
+                elif _fam == 'datetime': frame[_name] = _pd.to_datetime(frame[_name], errors='coerce')
+                elif _fam == 'text': frame[_name] = frame[_name].where(frame[_name].isna(), frame[_name].astype(str))
+            except Exception:
+                pass
+    return frame
+if 'df' in globals() and df is not None:
+    df = _routine_conform(df, _ROUTINE_COLUMNS)
+    if '_BambooSource' in globals():
+        DS = _BambooSource(df)
+"""
+
+
+def conform_prelude(columns: Iterable[dict]) -> str:
+    """The block a run executes after its inputs: the recorded columns of `df`, then the conform of the frame."""
+    cols = [[str(c.get("name")), str(c.get("dtype") or "")] for c in (columns or []) if c.get("name") is not None]
+    return "_ROUTINE_COLUMNS = " + json.dumps(cols) + "\n" + CONFORM_PRELUDE
+
+
+SHAPE_MARK = "SHAPE:"
+
+
+def shape_script(bindings: Dict[str, str], aux_columns: Dict[str, List[str]], run_dir: str, absent: Iterable[str] = ()) -> str:
+    """A script, run before the method, that makes this load's auxiliary files fit the recorded ones: for each binding
+    a copy in the run's folder with the recorded columns it lacks added empty; for a recorded file this load lacks an
+    empty table with its columns; and prints what it found - rows, the columns added - as JSON after SHAPE:."""
+    spec = {"bindings": dict(bindings or {}), "columns": {k: list(v) for k, v in (aux_columns or {}).items()},
+            "run_dir": run_dir, "absent": list(absent or [])}
+    return ("import json as _j, os as _os\n"
+            "import pandas as _pd\n"
+            "_spec = _j.loads(" + repr(json.dumps(spec)) + ")\n"
+            "_os.makedirs(_spec['run_dir'], exist_ok=True)\n"
+            "_out = {'files': {}, 'placeholders': {}}\n"
+            "for _old, _new in _spec['bindings'].items():\n"
+            "    _rec = _spec['columns'].get(_old) or []\n"
+            "    try:\n"
+            "        _fr = _pd.read_csv(_new) if _new.lower().endswith('.csv') else _pd.read_parquet(_new)\n"
+            "    except Exception as _exc:\n"
+            "        _out['files'][_old] = {'path': _new, 'error': str(_exc)[:200]}\n"
+            "        continue\n"
+            "    _missing = [c for c in _rec if c not in _fr.columns]\n"
+            "    _empty = [c for c in _fr.columns if _fr[c].isna().all()]\n"
+            "    _target = _new\n"
+            "    if _missing:\n"
+            "        for c in _missing: _fr[c] = _pd.NA\n"
+            "        _target = _os.path.join(_spec['run_dir'], _os.path.basename(_new))\n"
+            "        _fr.to_csv(_target, index=False)\n"
+            "    _out['files'][_old] = {'path': _target, 'rows': int(len(_fr)), 'missing': _missing, 'empty': _empty, 'columns': [str(c) for c in _fr.columns]}\n"
+            "for _old in _spec['absent']:\n"
+            "    _rec = _spec['columns'].get(_old) or []\n"
+            "    _target = _os.path.join(_spec['run_dir'], _os.path.basename(_old))\n"
+            "    _pd.DataFrame(columns=_rec).to_csv(_target, index=False)\n"
+            "    _out['placeholders'][_old] = _target\n"
+            "print(" + repr(SHAPE_MARK + " ") + " + _j.dumps(_out))\n")
+
+
+def read_shape(stdout: str) -> Optional[dict]:
+    for ln in reversed((stdout or "").splitlines()):
+        if ln.strip().startswith(SHAPE_MARK):
+            try:
+                return json.loads(ln.strip()[len(SHAPE_MARK):].strip())
+            except ValueError:
+                return None
+    return None
 
 
 PRECHECK_MARK = "PRECHECK:"
@@ -463,6 +643,22 @@ def coerce_values(parameters: List[dict], values: Optional[Dict[str, object]]) -
 
 
 # ----------------------------------------------------------------------------- a run: its status and the comparison
+_EXC_LINE_RE = re.compile(r"^[A-Za-z_][\w.]*(?:Error|Exception|Warning|Interrupt|Exit)\b")
+
+
+def error_line(err: str) -> str:
+    """The one line that names what went wrong: the exception line, else the last line that is not the kernel's
+    rollback notice (the local edition's kernel appends one after the traceback)."""
+    lines = [ln.strip() for ln in (err or "").strip().splitlines() if ln.strip()]
+    for ln in reversed(lines):
+        if _EXC_LINE_RE.match(ln):
+            return ln
+    for ln in reversed(lines):
+        if not ln.startswith("[delv-e:") and ln not in ("[...truncated]", "^^^^^^"):
+            return ln
+    return ""
+
+
 def failed_cell(script: str, error: str) -> Optional[int]:
     """The cell a run failed in, from the traceback's line number in the script (the markers count the lines)."""
     nums = [int(n) for n in re.findall(r'File "<string>", line (\d+)', error or "")]
@@ -484,7 +680,7 @@ def run_status(expected: List[dict], got: List[dict], error: str, reference: Opt
     reference run's) or ran (the normal case on new data)."""
     if error:
         text = str(error).strip()
-        last = text.splitlines()[-1][:200] if text else "unknown error"
+        last = (error_line(text) or "unknown error")[:200]
         if "TIMEOUT" in text.upper() or "timed out" in text.lower():
             return "timed_out", "timed out: " + last
         cell = failed_cell(script, text)
@@ -497,6 +693,9 @@ def run_status(expected: List[dict], got: List[dict], error: str, reference: Opt
         return "differed", f"{len(exp) - len(got)} of {len(exp)} result lines did not come back (" + "; ".join(f"[cell {e['cell']}] {str(e.get('label', ''))[:50]}" for e in gone[:3]) + ")"
     if len(got) > len(exp):
         return "differed", f"{len(got)} result lines came back, {len(exp)} expected"
+    blank = [g for g in got if number(g.get("estimate")) is not None and number(g["estimate"]) != number(g["estimate"])]   # nan: the line printed, no number in it
+    if blank:
+        return "differed", f"{len(blank)} of {len(got)} result line{'s' if len(got) != 1 else ''} came back without a number (nan)"
     if reference is not None and len(reference) == len(got) and all(
             all((number(a.get(k)) == number(b.get(k))) or (a.get(k) == b.get(k)) for k in ("estimate", "low", "high")) for a, b in zip(got, reference)):
         return "reproduced", f"reproduced: every result line as the run before ({len(got)} line{'s' if len(got) != 1 else ''})"
@@ -525,6 +724,8 @@ def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional
                "now": {"estimate": a.get("estimate"), "low": a.get("low"), "high": a.get("high")} if a else None,
                "before": {"estimate": b.get("estimate"), "low": b.get("low"), "high": b.get("high")} if b else None,
                "change": None, "overlap": None, "mark": "missing"}
+        if a and number(a.get("estimate")) is not None and (number(a["estimate"]) != number(a["estimate"])):   # nan: no number came out
+            a = None
         if a and b:
             ea, eb = number(a.get("estimate")), number(b.get("estimate"))
             ia, ib = _ivl(a), _ivl(b)
@@ -690,7 +891,7 @@ def script_with_defaults(version: dict) -> str:
 
 def source_kind(data: Optional[dict]) -> str:
     s = str((data or {}).get("source") or "").lower()
-    if s in ("csv", "file", "parquet", "json", "xlsx", "upload"):
+    if s in ("csv", "file", "parquet", "json", "xlsx", "upload", "cache", "frame"):
         return "file"
     if s in ("intervals", "endura", "sweatstack"):
         return s

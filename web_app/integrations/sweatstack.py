@@ -456,6 +456,8 @@ def _load_data_via_executor(session_id, access_token, data):
     sweatstack_bp.bamboo_ai_instances[session_id] = sweatstack_bp.get_bamboo_ai(session_id) # Update Preferences
 
     sweatstack_bp.bamboo_ai_instances[session_id].df_id = prefs.get('df_id')
+    # how the data was asked for (2026-10-10, routines): a run of a routine made from it loads the same way
+    sweatstack_bp.bamboo_ai_instances[session_id].load_params = dict(fetch_params, source='sweatstack', df_id=new_df_id)
     
     executor_client = sweatstack_bp.executor_client.ExecutorAPIClient(
         base_url=executor_urls['EXECUTOR_API_BASE_URL']

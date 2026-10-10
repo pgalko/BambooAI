@@ -501,7 +501,9 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
 - `bambooai/db/local_store.py` is a SQLite client with the same query interface the hosted edition
   uses against Supabase, so the routes above it are shared between the two.
 - `tools/stack/` runs the app, an executor and stand-ins for the external services with a scripted
-  analyst, so the product can be driven end to end offline.
+  analyst, so the product can be driven end to end offline - including Intervals.icu and Endura, served
+  by `fake_apis.py` from a calendar with the loaders' own variation (FIT files the executor's parser
+  reads, windows without a sensor, a wellness log that ends, a race without power).
 
 ## Logging and Usage
 
@@ -522,6 +524,7 @@ pip install -e ".[dev]" && python -m playwright install chromium
 ./run_battery.sh                                                  # unit suites: analyst, kernel, notebook, report, replay
 python tests/e2e/test_stack.py --edition local --compute local    # the real app, page and kernel; a scripted model, no network
 python tests/e2e/test_stack.py --edition local --compute direct   # the same against an executor process
+python tests/e2e/test_integrations.py                             # the loaders against the fake Intervals.icu and Endura; a routine run on the next window and the next race
 python tests/e2e/test_local_store.py                              # the store survives a server restart
 python tests/e2e/test_package.py                                  # the wheel in a fresh virtualenv; serve with a docker stand-in
 python tools/render_gallery.py --out /tmp/gallery                 # every page state, both themes, for visual comparison

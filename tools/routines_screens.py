@@ -61,9 +61,16 @@ ROUTINE["runs"] = [{k: v for k, v in r.items() if k != "full_comparison"} for r 
 RUN_VIEW = {"run": dict({k: v for k, v in RUNS[2].items() if k != "full_comparison"}, comparison=RUNS[2]["full_comparison"], narrative="", data=dict(RUNS[2]["data"], columns=PROPOSAL["data"]["columns"])),
             "stdout": "RESULT: log speed, abroad (sea level) vs Ethiopia altitude laps: +0.160 (95% CI +0.140 to +0.180) log units\nRESULT: ...\n", "figures": [], "routine": None, "numbers": [0, 1, 2, 3], "name": ROUTINE["name"], "manifest_results": []}
 PRECHECK_OK = {"loaded": True, "ok": True, "line": "fits the routine (49 of 49 columns); the chosen values are in the data", "fit": {"fits": True, "missing": [], "expected": 49}, "values_missing": [], "problems": [],
+               "aux": {"absent": [], "bound": {}, "line": ""}, "plan": {"source": "file", "name": "EEDR_laps_2026-07.csv", "aux": [], "aux_kinds": []},
                "data": {"df_id": "df_x", "name": "EEDR_laps_2026-07.csv", "source": "csv", "rows": 10200, "columns": 49, "date_range": None}}
-PRECHECK_BAD = {"loaded": True, "ok": False, "line": "missing: venue_altitude_m, surface_category - the routine cannot run on this data (47 of 49 columns)", "fit": {"fits": False, "missing": ["venue_altitude_m", "surface_category"], "expected": 49},
-                "values_missing": [], "problems": [], "data": {"df_id": "df_y", "name": "EEDR_laps_trimmed.csv", "source": "csv", "rows": 10200, "columns": 47, "date_range": None}}
+PRECHECK_BAD = {"loaded": True, "ok": False, "line": "none of the routine's 49 columns is in this data - nothing to run on", "fit": {"fits": False, "missing": ["venue_altitude_m", "surface_category"], "expected": 49},
+                "values_missing": [], "problems": [], "aux": {"absent": [], "bound": {}, "line": ""}, "plan": {"source": "file", "name": "EEDR_laps_2026-07.csv", "aux": [], "aux_kinds": []},
+                "data": {"df_id": "df_y", "name": "wellness_export.csv", "source": "csv", "rows": 180, "columns": 12, "date_range": None}}
+# an Intervals.icu routine (2026-10-10): the dialog loads the next window itself - the original's length ending today, the auxiliaries as the original
+PRECHECK_INTERVALS = {"loaded": True, "ok": True, "line": "2 of 49 columns empty in this data: power, temperature; wellness absent in this data - the method will see an empty table there", "fit": {"fits": True, "missing": ["power", "temperature"], "expected": 49},
+                      "values_missing": [], "problems": [], "aux": {"absent": ["wellness"], "bound": {"summary": "activity_summary_20260812_to_20261010.csv"}, "line": "wellness absent in this data - the method will see an empty table there"},
+                      "plan": {"source": "intervals", "name": "", "aux_kinds": ["summary", "wellness"], "metrics": [], "window_days": 59, "start": "2026-07-02", "end": "2026-08-30", "date_range": "2026-07-02 to 2026-08-30"},
+                      "data": {"df_id": "df_z", "name": "", "source": "intervals", "rows": 10200, "columns": 47, "date_range": "2026-08-12 to 2026-10-10"}}
 SUMMARY = {"id": "r1", "name": ROUTINE["name"], "created": 1791460000, "updated": 1791460000, "source": "file", "purpose": ROUTINE["purpose"], "question": ROUTINE["question"], "origin": ROUTINE["origin"],
            "current_version": 1, "versions": 1, "runs": 0, "verified": True, "run_zero_status": "reproduced", "run_zero_line": "reproduced: 5 result line(s) identical", "inputs": 3, "results": 5, "figures": 1, "data": PROPOSAL["data"]}
 SCREENS = {
@@ -76,6 +83,7 @@ SCREENS = {
     's3_favourite_card':  {"js": "WorkflowModal.open()", "routines": [SUMMARY], "card": True},
     's4_run_dialog':      {"js": "RoutinesUI.openRun('r1')", "routines": [SUMMARY], "precheck": PRECHECK_OK},
     's4b_run_dialog_nofit': {"js": "RoutinesUI.openRun('r1')", "routines": [SUMMARY], "precheck": PRECHECK_BAD},
+    's4c_run_dialog_intervals': {"js": "RoutinesUI.openRun('r1')", "routines": [SUMMARY], "precheck": PRECHECK_INTERVALS},
     's5_run_view':        {"js": "RoutinesUI.viewRun('r1', 3)", "routines": [SUMMARY]},
     's5b_run_live':       {"js": "window.__shot.live()", "routines": [SUMMARY], "precheck": PRECHECK_OK},
     's6_manager_runs':    {"js": "RoutinesUI.openManager('r1')", "routines": [SUMMARY]},
@@ -132,6 +140,8 @@ def render(out, light=False, width=1440, height=900):
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps({"routine": ROUTINE}))
                     if path == '/routines/r1/precheck':
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps(spec_.get('precheck') or PRECHECK_OK))
+                    if path == '/intervals/get_data_limits':
+                        return route.fulfill(status=200, content_type='application/json', body=json.dumps({"max_days": 365, "compute_tier": "pro"}))
                     if path == '/routines/r1/runs/3' or path == '/routines/r1/runs/2':
                         v = json.loads(json.dumps(RUN_VIEW)); v["routine"] = SUMMARY
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps(v))
@@ -171,11 +181,13 @@ def render(out, light=False, width=1440, height=900):
                 if name == 's5b_run_live': pg.wait_for_timeout(2500)
                 state = pg.evaluate("({pill: getComputedStyle(document.getElementById('rankButton')).display, menu: !!document.querySelector('#saveMenu') && document.querySelector('#saveMenu').style.display !== 'none', dialog: !!document.querySelector('#routineMakeModal') && document.querySelector('#routineMakeModal').style.display === 'flex', inputs: document.querySelectorAll('#routineMakeModal .rt-inputs tbody tr').length, error: !!document.querySelector('#routineMakeModal .rt-error'), manager: !!document.querySelector('#routinesModal') && document.querySelector('#routinesModal').style.display === 'flex', mgrItems: document.querySelectorAll('#routinesModal .rt-side .it').length, cards: document.querySelectorAll('#workflowManagerModal .workflow-card-routine').length, lit: document.querySelectorAll('#workflowManagerModal .workflow-card-routine.has').length, pane: (document.getElementById('streamOutput').textContent || '').includes('Routine'),"
                                     " runDlg: !!document.querySelector('#routineRunModal') && document.querySelector('#routineRunModal').style.display === 'flex', runBtn: !!document.querySelector('#routineRunModal [data-act=\"run\"]') && !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled, fitBad: !!document.querySelector('#routineRunModal .rt-fit.bad'), widgets: document.querySelectorAll('#routineRunModal [data-key]').length,"
+                                    " dataChoice: (document.querySelector('#routineRunModal input[name=\"rt-data\"]:checked') || {}).value || '', loadWin: document.querySelectorAll('#routineRunModal input[data-load]').length,"
                                     " inRun: RoutinesUI.inRunView(), position: document.getElementById('chainPosition').textContent, cmpRows: document.querySelectorAll('#content-comparison tbody tr').length, locked: document.getElementById('queryInput').disabled, done: !!document.querySelector('#streamOutput .sp-done'), runsTable: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, runItems: document.querySelectorAll('#routinesModal .rt-run').length, tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent)})")
                 want = {'s0_save_menu': state['pill'] != 'none' and state['menu'], 's1_make_dialog': state['dialog'] and state['inputs'] == 3 and state['pane'], 's1b_next_version': state['dialog'] and state['inputs'] == 3,
                         's1c_refused': state['dialog'] and state['error'], 's2_manager': state['manager'] and state['mgrItems'] == 1, 's2b_manager_empty': state['manager'] and state['mgrItems'] == 0,
                         's3_favourite_card': state['cards'] >= 1 and state['lit'] >= 1,
-                        's4_run_dialog': state['runDlg'] and state['runBtn'] and state['widgets'] == 3 and not state['fitBad'], 's4b_run_dialog_nofit': state['runDlg'] and not state['runBtn'] and state['fitBad'],
+                        's4_run_dialog': state['runDlg'] and state['runBtn'] and state['widgets'] == 3 and not state['fitBad'] and state['dataChoice'] == 'now', 's4b_run_dialog_nofit': state['runDlg'] and not state['runBtn'] and state['fitBad'],
+                        's4c_run_dialog_intervals': state['runDlg'] and state['runBtn'] and state['widgets'] == 3 and state['dataChoice'] == 'load' and state['loadWin'] == 2 and not state['fitBad'],
                         's5_run_view': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 5 and state['locked'] and state['done'] and state['pill'] == 'none' and state['tabs'][0] == 'Comparison',
                         's5b_run_live': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 5 and state['locked'] and state['done'] and state['tabs'][0] == 'Comparison',
                         's6_manager_runs': state['manager'] and state['runsTable'] == 5 and state['runItems'] == 4}[name]

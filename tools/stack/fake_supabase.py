@@ -9,15 +9,19 @@ so the account, usage and label dialogs render with real data flowing through th
 Unknown RPCs answer with an empty dict; unknown tables are empty and accept inserts.
 """
 import itertools
+import os
 import threading
 from datetime import datetime
 
+# the account's compute tier (2026-10-10): free by default; STACK_COMPUTE_TIER=pro gives the Intervals loader a year's
+# window instead of fourteen days, which the integrations' walk needs for a routine's "later window"
+TIER = os.environ.get("STACK_COMPUTE_TIER", "free")
 _ids = itertools.count(1)
 _lock = threading.Lock()
 
 TABLES = {
     "users": [{"id": 1, "auth0_id": "auth0|localuser", "bamboo_user_id": "localuser", "email": "local@stack", "name": "Local Stack"}],
-    "user_subscription": [{"user_id": 1, "model_tier": "free", "compute_tier": "free", "integration_config": {},
+    "user_subscription": [{"user_id": 1, "model_tier": "free", "compute_tier": TIER, "integration_config": {},
                            "anniversary_date": "2026-09-01", "updated_at": "2026-09-01T00:00:00"}],
     "tier_limits": [
         {"category": "compute", "tier": "free", "variable_rate": 0.0, "max_queries": 20, "max_data_days": 14, "description": "Free"},
@@ -32,11 +36,11 @@ TABLES = {
     "sweatstack_integration": [], "intervals_integration": [], "endura_integration": [],
 }
 RPC = {
-    "can_execute_chain": lambda p: {"allowed": True, "reason": "ok", "compute_tier": "free", "balance": 0.0, "query_cost": 0.0,
+    "can_execute_chain": lambda p: {"allowed": True, "reason": "ok", "compute_tier": TIER, "balance": 0.0, "query_cost": 0.0,
                                     "queries_used": _counter(), "max_queries": 20},
     "increment_queries_counter": lambda p: _bump(),
     "get_monthly_usage": lambda p: {"period_start": "2026-09-01", "period_end": "2026-10-01", "queries_used": _counter(), "max_queries": 20},
-    "get_compute_tier": lambda p: "free",
+    "get_compute_tier": lambda p: TIER,
     "charge_query_completion": lambda p: {"ok": True, "charged": 0.0},
     "can_continue_exploration": lambda p: {"allowed": True},
     "insert_usage_with_chain": lambda p: {"ok": True},

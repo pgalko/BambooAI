@@ -56,6 +56,24 @@ def main():
             return _read_parquet(*args, **kw)
         pd.read_csv, pd.read_parquet = read_csv, read_parquet
 
+    # the integrations' APIs (2026-10-10): with STACK_FAKE_APIS set to the stack's fake_apis.py server, the executor's
+    # requests to intervals.icu and team-hub.co.uk go there instead - the executor's own code untouched, its real
+    # parsers (fitparse on the FIT files, the summary's field map, the loaders' column dropping) exercised end to end
+    fake = os.environ.get("STACK_FAKE_APIS", "").rstrip("/")
+    if fake:
+        import requests
+        _request = requests.sessions.Session.request
+        _hosts = {"https://intervals.icu": fake, "https://team-hub.co.uk": fake}
+
+        def request(self, method, url, *args, **kw):
+            for host, there in _hosts.items():
+                if isinstance(url, str) and url.startswith(host):
+                    url = there + url[len(host):]
+                    break
+            return _request(self, method, url, *args, **kw)
+        requests.sessions.Session.request = request
+        print(f"[executor] the integrations' APIs are routed to {fake}", flush=True)
+
     import code_executor_api                            # the real module; registers the kernel blueprint
     print(f"[executor] build {code_executor_api.EXECUTOR_BUILD}; kernel service {code_executor_api.KERNEL_SERVICE}; "
           f"workdir {a.workdir}; port {a.port}; faked packages: {faked or 'none'}", flush=True)

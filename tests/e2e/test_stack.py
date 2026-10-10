@@ -420,7 +420,30 @@ def main():
                   "against run 0" in opened["cmp"] and opened["arrows"] == [False, False] and opened["locked"], opened)
             page.click("#nextResponse")
             wait_text(page, "#chainPosition", "run 2 of 2", 30000)
-            # a file without the soil column: the dialog says what is missing, Run stays off, nothing is recorded
+            # the dialog loads the data itself (2026-10-10): a file routine offers an upload beside the data loaded now; the same file
+            # again, compared with run 0, reproduces, and the pane opens with a LOAD row
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
+            choices = page.evaluate("() => [...document.querySelectorAll('#routineRunModal input[name=\"rt-data\"]')].map(i => [i.value, i.checked])")
+            check("the run dialog of a file routine offers an upload beside the data loaded now (on)", choices == [["upload", False], ["now", True]], choices)
+            page.set_input_files("#routineRunModal input[data-load='file']", st.dataset)
+            page.wait_for_timeout(200)
+            up_state = page.evaluate("() => ({ upload: document.querySelector('#routineRunModal input[name=\"rt-data\"][value=\"upload\"]').checked, runOn: !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
+            check("choosing a file switches the choice to the upload and keeps Run on", up_state["upload"] and up_state["runOn"], up_state)
+            page.click("#routineRunModal input[name='rt-compare'][value='zero']")
+            page.click("#routineRunModal [data-act='run']")
+            wait_text(page, "#chainPosition", "run 3 of 3", 240000)
+            page.wait_for_timeout(600)
+            r3 = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '',
+                pills: [...document.querySelectorAll('.primary-dataset-pill')].map(p => p.textContent), data: (document.getElementById('content-dataframe') || {}).textContent || '' })""")
+            check("run 3 through the dialog's upload: a LOAD row names the file, the CHECK and RUN rows follow, and the same file with the default input reproduces run 0",
+                  any("LOAD" in r and "field_trial.csv" in r for r in r3["rows"]) and "Run 3 complete" in r3["done"] and "reproduced" in r3["done"] and "against run 0" in r3["done"] and any("field_trial.csv) loaded" in p_ for p_ in r3["pills"]), (r3["rows"], r3["done"][:160]))
+            # a file without the soil column: the dialog says the column will be empty (the coach decides), the run goes ahead, and the
+            # method fails where it divides by a count that is zero without soil - kept as a run, named at its cell (2026-10-10: the first
+            # live run on a new window stopped exactly so, and the terminal was the only place it showed)
             import csv
             no_soil = os.path.join(workdir, "data", "no_soil.csv")
             with open(st.dataset, newline="", encoding="utf-8") as src, open(no_soil, "w", newline="", encoding="utf-8") as dst:
@@ -437,19 +460,28 @@ def main():
             page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
             page.click("#routinesModal [data-act='run']")
             page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
-            nofit = page.evaluate("() => ({ fit: document.querySelector('#routineRunModal .rt-fit').textContent, bad: document.querySelector('#routineRunModal .rt-fit').classList.contains('bad'), data: document.querySelector('#routineRunModal .rt-data').textContent, runOff: document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
-            check("with no_soil.csv loaded the run dialog says the routine cannot run on this data, naming the missing column, and Run is off",
-                  nofit["bad"] and "missing: soil" in nofit["fit"] and "cannot run" in nofit["fit"] and "no_soil.csv" in nofit["data"] and nofit["runOff"], nofit)
-            page.click("#routineRunModal [data-act='cancel']")
-            page.wait_for_timeout(300)
+            nofit = page.evaluate("() => ({ fit: document.querySelector('#routineRunModal .rt-fit').textContent, bad: document.querySelector('#routineRunModal .rt-fit').classList.contains('bad'), data: document.querySelector('#routineRunModal .rt-data').textContent, runOn: !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
+            check("with no_soil.csv loaded the run dialog says soil will be empty in this data - not a refusal: the run adds the column empty and the coach decides; Run stays on",
+                  not nofit["bad"] and "1 of 6 columns empty in this data: soil" in nofit["fit"] and "no_soil.csv" in nofit["data"] and nofit["runOn"], nofit)
+            page.click("#routineRunModal [data-act='run']")
+            wait_text(page, "#chainPosition", "run 4 of 4", 240000)
+            page.wait_for_timeout(600)
+            r4 = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
+                cmp: (document.getElementById('content-comparison') || {}).textContent || '', pos: document.getElementById('chainPosition').textContent })""")
+            check("run 4 on the file without soil: the CHECK row says the column is empty, the method fails at its cell dividing by a count that is zero (kept as a run, the card in the warning tone, the error on the Comparison tab)",
+                  any("CHECK" in r and "empty in this data: soil" in r for r in r4["rows"]) and "Run 4 failed" in r4["done"] and "failed at cell" in r4["done"] and "ZeroDivisionError" in r4["done"] and r4["warn"]
+                  and "ZeroDivisionError" in r4["cmp"] and "run 4 of 4" in r4["pos"], (r4["rows"][-3:], r4["done"][:200]))
             page.evaluate("RoutinesUI.closeManager()")
             run_files = sorted(os.path.basename(p) for p in glob.glob(os.path.join(os.path.dirname(rdirs[0]), "runs", "*"))) if rdirs else []
             rj2 = json.load(open(rdirs[0])) if rdirs else {}
             run1 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "run.json"))) if "v1_1" in run_files else {}
-            check("on disk: runs/v1_0 (run zero), v1_1 and v1_2 with run.json and stdout.txt; routine.json lists the two runs with their status, data and comparison; nothing recorded for the refused data",
-                  run_files == ["v1_0", "v1_1", "v1_2"] and os.path.exists(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "stdout.txt"))
-                  and [x["number"] for x in rj2.get("runs", [])] == [1, 2] and rj2["runs"][0]["status"] == "reproduced" and rj2["runs"][1]["status"] == "ran" and rj2["runs"][1]["inputs"] == {"regime": "C"}
-                  and run1.get("against") == 0 and run1.get("comparison", {}).get("compared") == 1 and run1.get("data", {}).get("name") == "field_trial.csv" and len(run1.get("results", [])) == 1, (run_files, [(x.get("number"), x.get("status"), x.get("inputs")) for x in rj2.get("runs", [])], run1.get("against"), run1.get("data", {}).get("name")))
+            run4 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_4", "run.json"))) if "v1_4" in run_files else {}
+            check("on disk: runs/v1_0 (run zero) to v1_4 with run.json and stdout.txt; routine.json lists the four runs with their status, data and comparison; the failed run keeps its traceback, the fit it ran under and its own folder on the executor's side",
+                  run_files == ["v1_0", "v1_1", "v1_2", "v1_3", "v1_4"] and os.path.exists(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "stdout.txt"))
+                  and [x["number"] for x in rj2.get("runs", [])] == [1, 2, 3, 4] and [x["status"] for x in rj2["runs"]] == ["reproduced", "ran", "reproduced", "failed"] and rj2["runs"][1]["inputs"] == {"regime": "C"}
+                  and run1.get("against") == 0 and run1.get("comparison", {}).get("compared") == 1 and run1.get("data", {}).get("name") == "field_trial.csv" and len(run1.get("results", [])) == 1
+                  and "ZeroDivisionError" in run4.get("error", "") and run4.get("fit", {}).get("missing") == ["soil"] and run4.get("run_dir", "").endswith("/v1_4") and run4.get("data", {}).get("load", {}).get("source") == "file",
+                  (run_files, [(x.get("number"), x.get("status"), x.get("inputs")) for x in rj2.get("runs", [])], run4.get("fit"), run4.get("run_dir")))
             # back to the thread for the rest of the walk
             page.click("#workflowManagerPill")
             page.wait_for_selector("#workflowManagerModal .workflow-card", timeout=15000)

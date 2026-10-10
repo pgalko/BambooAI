@@ -29,7 +29,19 @@
         return fmtDate(n);
     }
     function sourceLabel(kind) {
-        return ({ file: 'File', intervals: 'Intervals.icu', endura: 'Endura', sweatstack: 'SweatStack', frame: 'File', csv: 'File', none: 'No data' })[kind] || (kind || 'Data');
+        return ({ file: 'File', intervals: 'Intervals.icu', endura: 'Endura', sweatstack: 'SweatStack', frame: 'File', csv: 'File', cache: 'File', none: 'No data' })[kind] || (kind || 'Data');
+    }
+    function loadLabel(ld) {
+        if (!ld || !ld.source) return '';
+        const src = sourceKind(ld.source);
+        if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '');
+        if (src === 'endura') return 'Endura · ' + (ld.race_title || ('race ' + (ld.race_id || '')));
+        return ld.name ? 'File · ' + ld.name : '';
+    }
+    function sourceKind(s) {
+        s = String(s || '').toLowerCase();
+        if (s === 'intervals' || s === 'endura' || s === 'sweatstack') return s;
+        return s === 'none' || !s ? 'none' : 'file';
     }
     function valueText(p) {
         const v = p.default;
@@ -168,20 +180,52 @@
             const help = p.type === 'numbers' ? 'numbers, separated by commas' : (p.type === 'choice' ? (p.multiple ? 'values of ' + esc(p.column || 'the column') + ', separated by commas' : 'a value of ' + esc(p.column || 'the column')) : '');
             return '<input class="ui-input" data-key="' + k + '" data-type="' + esc(p.type) + '" value="' + esc(text) + '"' + (p.type === 'number' ? ' inputmode="decimal"' : '') + (help ? ' title="' + help + '"' : '') + '>';
         },
-        runDialog(r, pre) {
+        isoDay(d) { return d.toISOString().slice(0, 10); },
+        loadSection(plan, pre, limits) {
+            // the data: loaded as the original load asked for it (the window shifted to end today, the race picked, the
+            // file uploaded), or the data loaded now; the fit line for the data loaded now - a load's is checked after it
+            const d = (pre && pre.data) || {};
+            const loaded = !!(pre && pre.loaded);
+            const src = (plan && plan.source) || sourceKind(d.source);
+            const nowLine = loaded ? '<span class="ui-chip model"><span class="t">' + esc(sourceLabel(d.source)) + '</span></span>' + (d.name ? '<span class="name">' + esc(d.name) + '</span>' : '') +
+                '<span class="meta">' + [d.rows != null ? Number(d.rows).toLocaleString() + ' rows' : '', d.columns ? d.columns + ' columns' : '', d.date_range ? esc(d.date_range) : ''].filter(Boolean).join(' · ') + '</span>' : '';
+            // the line under the data loaded now: green when nothing differs from the data the method was made on; a note when a
+            // column will be empty or a file absent (the run goes ahead, the coach decides); bad when there is nothing to run on
+            const differs = !!(pre && pre.ok && (((pre.fit || {}).missing || []).length || ((pre.aux || {}).absent || []).length || ((pre.fit || {}).retyped || []).length));
+            const fitLine = loaded ? '<div class="rt-fit' + (pre.ok ? (differs ? ' note' : '') : ' bad') + '" data-for="now">' + (pre.ok ? (differs ? '△ ' : '✓ ') : '! ') + esc(pre.line || '') + '</div>' : '';
+            const today = new Date();
+            let h = '<div class="rt-sec" data-source="' + esc(src) + '"><div class="h">Data</div><div class="rt-choices rt-load">';
+            if (src === 'intervals' || src === 'sweatstack') {
+                const days = Math.max(1, Number((plan && plan.window_days) || 28));
+                const maxDays = limits && limits.max_days ? Number(limits.max_days) : null;
+                const span = maxDays ? Math.min(days, maxDays) : days;
+                const start = new Date(today.getTime() - span * 86400000);
+                const label = src === 'intervals' ? 'Intervals.icu' : 'SweatStack';
+                const withWhat = (src === 'intervals' ? (plan.aux_kinds || []) : (plan.sports || [])).join(', ');
+                h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from ' + label + '</label>' +
+                    '<div class="rt-window rt-loadwin"><input type="date" class="ui-input" data-load="start" value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end" value="' + build.isoDay(today) + '"></div>' +
+                    '<div class="help">the original’s ' + esc(days) + ' days, ending today' + (maxDays && days > maxDays ? ' (your plan allows ' + esc(maxDays) + ')' : '') +
+                    (withWhat ? ' · with ' + esc(withWhat) : '') + (src === 'intervals' ? ' · metrics as the original' : (plan.users && plan.users.length ? ' · ' + esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')) + '</div>';
+            } else if (src === 'endura') {
+                h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from Endura</label>' +
+                    '<div class="rt-field rt-race"><select class="ui-input" data-load="race"><option value="">loading the races…</option></select>' +
+                    '<div class="help">the original: ' + esc(plan.race_title || plan.race_id || 'a race') + (plan.aux_kinds && plan.aux_kinds.length ? ' · with ' + esc(plan.aux_kinds.join(', ')) : '') + '</div></div>';
+            } else {
+                h += '<label class="rt-check"><input type="radio" name="rt-data" value="upload"' + (loaded ? '' : ' checked') + '> Upload a file' + (plan.name ? ' <span class="n">(the original: ' + esc(plan.name) + ')</span>' : '') + '</label>' +
+                    '<div class="rt-field rt-upload"><input type="file" class="ui-input" data-load="file" accept=".csv,.parquet,.json,.xlsx,.xls,.txt,.tsv"></div>';
+            }
+            if (loaded) {
+                h += '<label class="rt-check"><input type="radio" name="rt-data" value="now"' + (src !== 'intervals' && src !== 'endura' && src !== 'sweatstack' ? ' checked' : '') + '> The data loaded now</label><div class="rt-data rt-now">' + nowLine + '</div>' + fitLine;
+            } else if (src !== 'intervals' && src !== 'endura' && src !== 'sweatstack') {
+                h += '<div class="rt-line muted">Nothing is loaded now; upload the file to run on.</div>';
+            }
+            h += '<div class="rt-progress" style="display:none"></div></div></div>';
+            return h;
+        },
+        runDialog(r, pre, limits) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const params = (v.manifest || {}).parameters || [];
-            const d = (pre && pre.data) || {};
-            const fit = pre && pre.fit;
-            let h = '<div class="rt-sec"><div class="h">Data loaded now</div>';
-            if (!pre || !pre.loaded) {
-                h += '<div class="rt-line warn">No data is loaded. Load the data on the Data tab — upload a file, or Intervals.icu / Endura from the settings — then run.</div>';
-            } else {
-                h += '<div class="rt-data"><span class="ui-chip model"><span class="t">' + esc(sourceLabel(d.source)) + '</span></span>' + (d.name ? '<span class="name">' + esc(d.name) + '</span>' : '') +
-                    '<span class="meta">' + [d.rows != null ? Number(d.rows).toLocaleString() + ' rows' : '', d.columns ? d.columns + ' columns' : '', d.date_range ? esc(d.date_range) : ''].filter(Boolean).join(' · ') + '</span></div>' +
-                    '<div class="rt-fit' + (pre.ok ? '' : ' bad') + '">' + (pre.ok ? '✓ ' : '! ') + esc(pre.line || (fit && fit.line) || '') + '</div>';
-            }
-            h += '</div>';
+            let h = build.loadSection((pre && pre.plan) || {}, pre, limits);
             h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— the only things that change; the method runs as it was saved</span></div>';
             if (!params.length) h += '<div class="rt-line">None: the method runs as it is.</div>';
             else h += params.map(p => '<div class="rt-field"><label>' + esc(p.label) + '</label>' + build.inputWidget(p) + (p.origin ? '<div class="help">' + esc(p.origin) + '</div>' : '') + '</div>').join('');
@@ -230,10 +274,14 @@
             }
             return h + '</div></div>';
         },
-        dataTab(d) {
+        dataTab(d, run) {
             const cols = d.columns || [];
+            const ld = loadLabel(d.load);
+            const subs = (run && run.bindings) || [];
+            const absent = (run && run.aux_absent) || [];
+            const bound = subs.length ? '<b>Files</b><span>' + subs.map(x => esc(String(x[0]).split('/').pop()) + ' → ' + esc(String(x[1]).split('/').pop())).join('<br>') + (absent.length ? '<br>' + esc(absent.join(', ')) + ': absent in this data (an empty table stood in)' : '') + '</span>' : (absent.length ? '<b>Files</b><span>' + esc(absent.join(', ')) + ': absent in this data (an empty table stood in)</span>' : '');
             return '<div class="rt-cmp"><div class="rt-sec"><div class="h">What this run ran on</div><div class="ui-kv">' +
-                '<b>Source</b><span>' + esc(sourceLabel(d.source)) + '</span>' + (d.name ? '<b>Name</b><span>' + esc(d.name) + '</span>' : '') +
+                '<b>Source</b><span>' + esc(sourceLabel(d.source)) + '</span>' + (ld ? '<b>Loaded as</b><span>' + esc(ld) + '</span>' : '') + (d.name ? '<b>Name</b><span>' + esc(d.name) + '</span>' : '') + bound +
                 (d.rows != null ? '<b>Rows</b><span>' + esc(Number(d.rows).toLocaleString()) + '</span>' : '') + (d.date_range ? '<b>Range</b><span>' + esc(d.date_range) + '</span>' : '') +
                 (d.aux && d.aux.length ? '<b>Auxiliary</b><span>' + d.aux.map(a => esc(String(a).split('/').pop())).join(', ') + '</span>' : '') +
                 '<b>Columns</b><span>' + (Array.isArray(cols) && cols.length && typeof cols[0] === 'object' ? cols.map(c => esc(c.name) + (c.dtype ? ' <span class="ui-muted">' + esc(c.dtype) + '</span>' : '')).join(', ') : esc(String(cols))) + '</span></div></div></div>';
@@ -634,6 +682,12 @@
             if (b.getAttribute('data-act') === 'cancel') closeRun();
             else if (b.getAttribute('data-act') === 'run') startRun();
         });
+        runDlg.addEventListener('change', e => {
+            if (e.target.matches('input[name="rt-data"]') || e.target.matches('input[data-load="file"]')) {
+                if (e.target.matches('input[data-load="file"]')) { const up = runDlg.querySelector('input[name="rt-data"][value="upload"]'); if (up) up.checked = true; }
+                updateRunButton();
+            }
+        });
         return runDlg;
     }
     function runParts() {
@@ -650,11 +704,119 @@
             if (!runState || runState.id !== routineId) return;
             if (!rr.ok) { p.body.innerHTML = build.error('This routine could not be loaded.', false); return; }
             runState.routine = rr.json.routine; runState.pre = pr.ok ? pr.json : { loaded: false, ok: false, line: (pr.json && pr.json.error) || 'the check could not run' };
+            runState.plan = (runState.pre && runState.pre.plan) || {};
             const r = runState.routine;
             p.title.textContent = 'Run: ' + r.name; p.sub.textContent = 'v' + r.current_version + ' · ' + (r.runs || []).length + ' run' + ((r.runs || []).length === 1 ? '' : 's') + ' so far';
-            p.body.innerHTML = build.runDialog(r, runState.pre);
-            p.runBtn.disabled = !runState.pre.ok;
+            const src = runState.plan.source || 'file';
+            const after = limits => {
+                if (!runState || runState.id !== routineId) return;
+                runState.limits = limits || null;
+                p.body.innerHTML = build.runDialog(r, runState.pre, limits);
+                if (src === 'endura') fillRaces(p, runState.plan);
+                updateRunButton();
+            };
+            // the window a plan allows (Intervals): the dialog's default window is clamped to it, as the Data tab's is
+            if (src === 'intervals') fetchJson('/intervals/get_data_limits').then(res => after(res.ok ? res.json : null)).catch(() => after(null));
+            else after(null);
         }).catch(err => { if (runState && runState.id === routineId) p.body.innerHTML = build.error(err.message || String(err), false); });
+    }
+    function dataChoice() {
+        const p = runParts();
+        const el = p.d.querySelector('input[name="rt-data"]:checked');
+        return el ? el.value : 'now';
+    }
+    function updateRunButton() {
+        // Run is on when the choice can run: a load (checked after it), an upload with a file chosen, or the data loaded now when it fits
+        const st = runState; if (!st) return;
+        const p = runParts();
+        const c = dataChoice();
+        let on = false;
+        if (c === 'load') on = true;
+        else if (c === 'upload') { const f = p.d.querySelector('input[data-load="file"]'); on = !!(f && f.files && f.files.length); }
+        else on = !!(st.pre && st.pre.ok);
+        p.runBtn.disabled = st.busy || !on;
+    }
+    function fillRaces(p, plan) {
+        const sel = p.d.querySelector('select[data-load="race"]'); if (!sel) return;
+        fetchJson('/endura/get_races').then(res => {
+            const races = (res.ok && res.json && res.json.races) || [];
+            if (!races.length) { sel.innerHTML = '<option value="">no races (is the Endura key set?)</option>'; updateRunButton(); return; }
+            sel.innerHTML = races.map(x => { const id = x.race_id != null ? x.race_id : (x.id != null ? x.id : x.raceid); const title = x.race_title || x.title || x.name || ('race ' + id);
+                return '<option value="' + esc(id) + '"' + (String(id) === String(plan.race_id) ? ' selected' : '') + '>' + esc(title) + (x.race_date ? ' · ' + esc(x.race_date) : '') + '</option>'; }).join('');
+        }).catch(() => { sel.innerHTML = '<option value="">the races could not be listed</option>'; });
+    }
+    function progress(text, kind) {
+        const p = runParts(); const el = p.d.querySelector('.rt-progress'); if (!el) return;
+        if (!text) { el.style.display = 'none'; el.textContent = ''; return; }
+        el.style.display = ''; el.className = 'rt-progress' + (kind ? ' ' + kind : ''); el.textContent = text;
+    }
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    // the load, as the original load asked for its data (the integration routes the Data tab uses; its pills and the
+    // dataframe tab refreshed the way the Data tab refreshes them)
+    async function loadData(plan, p) {
+        const src = plan.source;
+        const q = sel => p.d.querySelector(sel);
+        const dfTab = job => { if (job && job.dataframe && typeof createOrUpdateTab === 'function') { try { const o = JSON.parse(job.dataframe); createOrUpdateTab('dataframe', o.data); } catch (e) { /* no tab */ } } };
+        if (src === 'intervals') {
+            const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
+            if (!start || !end || start >= end) throw new Error('the window needs a start before its end');
+            progress('Starting the load from Intervals.icu…', 'loading');
+            const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [] }) });
+            if (!res.ok) throw new Error((res.json && res.json.error) || 'the load could not start');
+            const jobId = res.json.job_id;
+            const t0 = Date.now();
+            while (Date.now() - t0 < 600000) {
+                await sleep(1000);
+                const jr = await fetchJson('/intervals/job/' + encodeURIComponent(jobId));
+                const job = jr.json || {};
+                if (job.status === 'completed') {
+                    const info = { start_date: start, end_date: end, aux_datasets: plan.aux_kinds || [], shape: (job.result || {}).shape, columns: (job.result || {}).columns };
+                    if (typeof createIntervalsPill === 'function') createIntervalsPill(info);
+                    if (typeof createIntervalsAuxiliaryPills === 'function' && job.result && job.result.aux_datasets && job.result.aux_datasets.length) createIntervalsAuxiliaryPills(job.result.aux_datasets, info);
+                    dfTab(job);
+                    return { source: 'intervals', start, end, loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
+                }
+                if (job.status === 'error' || job.status === 'not_found') throw new Error(job.error || 'the load failed');
+                progress((job.message || 'Loading…') + (job.percent != null ? ' (' + job.percent + '%)' : ''), 'loading');
+            }
+            throw new Error('the load did not finish in ten minutes');
+        }
+        if (src === 'endura') {
+            const race = q('select[data-load="race"]'); const raceId = race && race.value;
+            if (!raceId) throw new Error('pick a race');
+            const title = race.options[race.selectedIndex].textContent;
+            progress('Loading ' + title + ' from Endura…', 'loading');
+            const res = await fetchJson('/endura/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ race_id: raceId, aux_datasets: plan.aux_kinds || ['profile'] }) });
+            if (!res.ok) throw new Error((res.json && res.json.error) || 'the load failed');
+            if (typeof createOrUpdateDatasetPill === 'function') {
+                createOrUpdateDatasetPill('endura-pill-' + Date.now(), 'Endura (' + ((res.json && res.json.race_title) || title) + ') loaded', 'endura', 'success', false, null);
+                (res.json.aux_datasets || []).forEach((fp, i) => createOrUpdateDatasetPill('endura-aux-pill-' + Date.now() + '-' + i, 'Auxiliary (' + String(fp).split('/').pop().replace('.csv', '') + ')', 'auxiliary', 'success', false, fp));
+            }
+            dfTab(res.json);
+            return { source: 'endura', loaded: 'Endura · ' + ((res.json && res.json.race_title) || title) };
+        }
+        if (src === 'sweatstack') {
+            const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
+            progress('Loading from SweatStack…', 'loading');
+            const res = await fetchJson('/sweatstack/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sports: plan.sports || [], metrics: plan.metrics || [], users: plan.users || [], start_date: start, end_date: end }) });
+            if (!res.ok) throw new Error((res.json && res.json.error) || 'the load failed');
+            if (typeof createSweatStackPill === 'function') createSweatStackPill({ start_date: start, end_date: end, sports: plan.sports || [], users: plan.users || [] });
+            dfTab(res.json);
+            return { source: 'sweatstack', start, end, loaded: 'SweatStack ' + start + ' → ' + end };
+        }
+        // a file: the Data tab's upload route
+        const f = q('input[data-load="file"]');
+        if (!f || !f.files || !f.files.length) throw new Error('choose a file');
+        const file = f.files[0];
+        progress('Uploading ' + file.name + '…', 'loading');
+        const fd = new FormData(); fd.append('file', file);
+        const r = await window.authService.fetch('/upload', { method: 'POST', body: fd });
+        let data = {}; try { data = await r.json(); } catch (e) { data = {}; }
+        if (!r.ok) throw new Error(data.message || data.error || 'the upload failed');
+        if (typeof createOrUpdateDatasetPill === 'function') createOrUpdateDatasetPill('primary-dataset-pill-' + Date.now(), 'Primary (' + file.name + ') loaded', 'primary', 'success', false, null);
+        if (typeof currentDatasetName !== 'undefined') { try { currentDatasetName = file.name; } catch (e) { /* read-only */ } }
+        dfTab(data);
+        return { source: 'file', loaded: file.name };
     }
     function closeRun() { if (runState && runState.busy) return; const p = runParts(); p.d.style.display = 'none'; runState = null; }
     function readRunValues() {
@@ -668,24 +830,44 @@
         const cmp = p.d.querySelector('input[name="rt-compare"]:checked');
         return { values, compare_with: cmp ? cmp.value : 'previous' };
     }
-    function startRun() {
+    async function startRun() {
         const st = runState; if (!st || !st.routine || st.busy) return;
         const p = runParts();
         const { values, compare_with } = readRunValues();
         st.busy = true; p.runBtn.disabled = true; p.cancelBtn.disabled = true;
-        // the checks once more with the values as typed: a value the data lacks is said here, before the view changes
+        const choice = dataChoice();
+        let loaded = null;
+        if (choice !== 'now') {
+            // the load, as the original load asked for its data; its progress here, in the dialog
+            try {
+                loaded = await loadData(st.plan || {}, p);
+            } catch (err) {
+                if (runState !== st) return;
+                st.busy = false; p.cancelBtn.disabled = false; updateRunButton();
+                progress('! ' + (err.message || err), 'bad');
+                return;
+            }
+            if (runState !== st) return;
+            progress('Loaded · checking it against the routine…', 'loading');
+        }
+        // the checks with the values as typed: what differs from the data the method was made on is said here, before the view changes
         fetchJson('/routines/' + encodeURIComponent(st.id) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values }) }).then(pr => {
             if (runState !== st) return;
             if (!pr.ok || !pr.json.ok) {
-                st.busy = false; p.runBtn.disabled = false; p.cancelBtn.disabled = false;
-                const fitEl = p.d.querySelector('.rt-fit'); if (fitEl) { fitEl.className = 'rt-fit bad'; fitEl.textContent = '! ' + ((pr.json && (pr.json.line || pr.json.error)) || 'the check failed'); }
+                st.busy = false; p.cancelBtn.disabled = false;
+                const line = '! ' + ((pr.json && (pr.json.line || pr.json.error)) || 'the check failed');
+                if (choice === 'now') { const fitEl = p.d.querySelector('.rt-fit'); if (fitEl) { fitEl.className = 'rt-fit bad'; fitEl.textContent = line; } }
+                else progress(line, 'bad');
+                updateRunButton();
                 return;
             }
+            progress('');
             const routine = st.routine;
             p.d.style.display = 'none'; runState = null;
             closeManager();                                   // the run shows in the main panes; the manager would cover them
             const numbers = runNumbers(routine);
             enterRunView(summaryOf(routine), numbers.concat([numbers.length ? Math.max.apply(null, numbers) + 1 : 1]), numbers.length, { pending: true, version: routine.current_version });
+            if (loaded && typeof paneLookup === 'function') paneLookup({ kind: 'load', query: loaded.loaded || '', peek: (pr.json && pr.json.line) || '', sources: [], passages: [] });
             stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with }, true, data => {
                 if (data.type === 'pane_routine_end' && typeof paneRoutineEnd === 'function') { paneRoutineEnd(data); chipIdle(); return true; }
                 return false;
@@ -745,6 +927,8 @@
             const d = run.data || {};
             const cells = run.cells != null ? run.cells + ' cell' + (run.cells === 1 ? '' : 's') : '';
             if (typeof paneLookup === 'function') {
+                const ld = loadLabel(d.load);
+                if (ld && run.number !== 0 && sourceKind((d.load || {}).source) !== 'file') paneLookup({ kind: 'load', query: ld, peek: '', sources: [], passages: [] });
                 paneLookup({ kind: 'check', query: d.name || sourceLabel(d.source), peek: (d.rows != null ? Number(d.rows).toLocaleString() + ' rows · ' : '') + ((d.columns || []).length || d.columns || 0) + ' columns' + (run.number === 0 ? ' · the analysis\u2019s own data' : ''), sources: [], passages: [] });
                 paneLookup({ kind: run.number === 0 ? 'routine' : 'run', query: 'run ' + run.number + ' · v' + run.version + (cells ? ' · ' + cells : ''), peek: (run.line || run.status) + ' · ' + (run.figures || 0) + ' figure' + (run.figures === 1 ? '' : 's') + (run.elapsed != null ? ' · ' + run.elapsed + ' s' : ''), sources: [], passages: [] });
                 if (run.against != null) paneLookup({ kind: 'compare', query: 'with run ' + run.against, peek: (run.comparison || {}).line || '', sources: [], passages: [] });
@@ -755,7 +939,7 @@
                 createOrUpdateTab('comparison', build.comparisonTab(view));
                 (view.figures || []).forEach(f => createOrUpdateTab('plot', f.data, f.id, f.format));
                 if (view.stdout) createOrUpdateTab('code_exec_results', view.stdout);
-                createOrUpdateTab('dataframe', build.dataTab(d));
+                createOrUpdateTab('dataframe', build.dataTab(d, run));
                 if (typeof activateTab === 'function') activateTab('comparison');
             }
             if (typeof paneRunIds === 'function') paneRunIds({ name: view.name, run: run.number + ' · v' + run.version, df_id: d.df_id || '' });

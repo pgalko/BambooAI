@@ -209,7 +209,15 @@ _s = _wc.get(f"/routines/{_rid}/script")
 check("route /routines/<id>/script: a .py download with the INPUTS block and the defaults", _s.status_code == 200 and "attachment; filename=\"Route_made_v1.py\"" in _s.headers.get("Content-Disposition", "") and "INPUTS = {" in _s.get_data(as_text=True) and "'arm_b': 'B'" in _s.get_data(as_text=True))
 # step 2: a run on the data loaded now, through the instance and the routes
 _pc = _wc.post(f"/routines/{_rid}/precheck", json={"values": {}}).get_json()
-check("route precheck: the loaded frame fits the routine (its two columns), nothing missing", _pc["loaded"] and _pc["ok"] and _pc["fit"]["expected"] == 2 and _pc["line"].startswith("fits the routine (2 of 2 columns)"), _pc)
+check("route precheck: the loaded frame fits the routine (its two columns), nothing missing; the plan says how the original load asked for its data (a frame: no loader)", _pc["loaded"] and _pc["ok"] and _pc["fit"]["expected"] == 2 and _pc["line"].startswith("fits the routine (2 of 2 columns)")
+      and _pc["plan"]["source"] == "file" and _pc["aux"] == {"absent": [], "bound": {}, "line": ""}, _pc)
+# how the data was loaded rides on the instance (the loader routes set it) and into the run's record, so a routine's run can load the same way
+BAMBOO.load_params = {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "df_id": "d1"}
+_rec = BAMBOO._data_record()
+check("the data record carries how the data was loaded (without the frame's id), when the loaded frame is the one it describes", _rec.get("load") == {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"]}, _rec.get("load"))
+BAMBOO.load_params = {"source": "intervals", "df_id": "someone-else"}
+check("a load record for another frame is not carried", "load" not in BAMBOO._data_record())
+BAMBOO.load_params = None
 while not q.empty(): q.get()
 _r = _wc.post(f"/routines/{_rid}/run", json={"values": {}, "compare_with": "previous"})
 _msgs = _lines(_r)
@@ -217,6 +225,8 @@ _types = [m.get("type") or next(iter(m)) for m in _msgs]
 check("route run: the pane's rows (check, run, compare), the tabs (Data, Results), the closing card, then routine_run",
       _types[:2] == ["pane_lookup_start", "pane_lookup"] and "pane_routine_end" in _types and "dataframe" in _types and "code_exec_results" in _types and "routine_run" in _msgs[-1]
       and _msgs[-1]["routine_run"]["run"]["number"] == 1 and _msgs[-1]["routine_run"]["run"]["status"] == "ran" and "no result lines to compare" in _msgs[-1]["routine_run"]["run"]["line"] and _msgs[-1]["routine_run"]["numbers"] == [0, 1], (_types, _msgs[-1].get("routine_error")))
+check("the run's record names its own folder on the executor's side (datasets/<user>/routines/<id>/<tag>), where its files and datasets go, and the fit it ran under",
+      _msgs[-1]["routine_run"]["run"]["run_dir"] == f"datasets/u1/routines/{_rid}/v1_1" and _msgs[-1]["routine_run"]["run"]["fit"]["missing"] == [] and _msgs[-1]["routine_run"]["run"]["bindings"] == [], _msgs[-1]["routine_run"]["run"].get("run_dir"))
 _end = next(m for m in _msgs if m.get("type") == "pane_routine_end")
 check("the closing card's fields: number, name, version, status, results, compared, figures, elapsed, against", _end["number"] == 1 and _end["name"] == "Route made" and _end["version"] == 1 and _end["status"] == "ran" and _end["against"] == 0 and "elapsed" in _end, _end)
 _r2 = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "A"}})

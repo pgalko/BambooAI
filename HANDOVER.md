@@ -58,10 +58,11 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/81/30/19/16/49/44/51/10/71/1/1 Python; 39/7/29/56/24/45 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (75 hosted, 74 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/80/1/1 Python; 39/7/29/56/24/49 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (25; hosted only - the loaders need the executor; the
+  stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
   right unit, when wanted, is one generic OpenAI-compatible gateway provider with a table of gateways.
@@ -439,6 +440,44 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines, F2 rebuilt: the routine loads its own data and makes it fit the recorded shape (2026-10-10, patch 0116).**
+  The first live run on a new Intervals window (patch 0113's "run on current data") read the loader's summary file by
+  its dated name - `activity_summary_20260812_to_20261010.csv` is the auxiliary the Intervals loader writes, named by
+  the window - so the method read the old window or nothing, and divided by zero. The concept now (ROUTINES_DESIGN.md,
+  the opening and F2): adapt the data to the method, never the method to the data. Built: (1) the run dialog loads as
+  the original load did - `load_params` set by every loader route (intervals: the window, metrics, aux kinds, kept
+  with the job; endura: the race; sweatstack: the fetch params; a file: its name; the cache) rides into the run's data
+  record as `load`, and `routines_host.load_plan` reads it (or derives it from the record's date range and file
+  names for routines made before); the dialog (routines.js `build.loadSection`, `loadData`) offers Intervals.icu
+  (a window of the original's length ending today, clamped by `/intervals/get_data_limits`, with the auxiliaries and
+  metrics as the original, polling `/intervals/job`), Endura (the race list), SweatStack, or an upload, beside the
+  data loaded now; the Data tab's pills and frame view refresh as the Data tab does; a LOAD row in the pane. (2) The
+  data made to fit (`analyst/routines.py` aux_kind / bind_aux / bind_script / conform_prelude / shape_script;
+  `routines_host.prepare`): the recorded auxiliary files bound by kind (activity_summary_ -> summary, wellness_data_,
+  activity_intervals_, athlete_profiles_race_, race_turns_race_, race_climbs_race_, race_waymarkers_race_; an
+  attached file by its name) to this load's; a probe script in the executor writes, in the run's own folder
+  (`datasets/<user>/routines/<id>/<tag>/`), a copy with the recorded columns the new file lacks and an empty table for
+  a recorded file this load did not write; the executed text is the stored script with every string literal naming a
+  recorded file (or any path under the datasets folder) replaced by this run's path - the stored script untouched, the
+  substitutions in the record (`bindings`); the prelude after INPUTS conforms `df` (missing columns added empty in
+  their type, a type family that changed read back) and rebuilds DS on it. The aux files' columns go on record at
+  promotion (`record_aux_shape`, `aux_shape`) while the files are there. (3) The fit is no longer a refusal: a column
+  missing is said (`fit_check`: "2 of 49 columns empty in this data: power, temperature"; the dialog's line is an
+  amber note) and the run goes ahead; the one refusal is data with none of the method's columns; a line that comes
+  back as nan reads as differed; the error line named as the analysis names it (`error_line`, never the kernel's
+  rollback notice). Testing from the get go: `tools/stack/fake_apis.py` + `apis_data.py` (a calendar with the
+  loaders' variation: rides and power until sixty days ago, temperature until forty, wellness until sixty, a travel
+  block every hundred days; three races, the second without power or climbs) + `fit_writer.py` (a FIT encoder
+  fitparse reads); the executor's requests to intervals.icu / team-hub.co.uk are routed to it by executor_launcher.py
+  (`STACK_FAKE_APIS`), nothing in the executor changes; `STACK_COMPUTE_TIER=pro` for a year's window; the plotly
+  stand-in takes a single trace. `tests/e2e/test_integrations.py` (25): the original window loaded through the
+  Intervals dialog, the scripted analyst (scenario `start_hours`) reading the summary by its dated name with the home
+  offset read off the data, Save as routine, Run loading the next window itself (power absent, wellness absent, the
+  summary bound and copied with the columns added), the arrows, the Data tab's bindings, a run on the data loaded
+  now, then Endura: race 1 -> a routine -> run on the flat crit picked in the dialog. test_stack.py's tail: the
+  dialog's upload, the LOAD row, the file without `soil` running to a kept failure at the cell that divides by zero.
+  Next: 0117 (say what differs from the probe's counts; partial lines on a failure; the failed cell's code), 0118
+  (the pointing promoter with silent derivations; the make dialog without choices), then Narrate.
 - **The contract: values read off the data are variables, not literals (2026-10-10, patch 0115).** The first routine
   run on a new Intervals window failed at a cell that had the athlete's time-zone offsets typed in (`offset_h == 2`)
   and divided by a count that was zero on that window; the literals originate in exploration, so the contract's

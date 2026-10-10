@@ -23,6 +23,15 @@ never confused with a run. Two rules make the line visible on screen: the only t
 before a run, and under a run's view the composer is disabled — it comes back on a new thread or when a favourite is
 loaded.
 
+One principle governs how a run meets new data (settled 2026-10-10, after the first live run on a new window stopped
+at a cell that read the loader's summary file by its dated name): **adapt the data to the method, never the method to
+the data**. The routine records the shape of the data the analysis ran on — the frame's columns and types, each
+auxiliary file with its name and columns, how the load was asked for — and a run loads new data the same way, then
+makes it fit that shape before the cells run: the recorded file names open this load's files, a column this load
+lacks is added empty, a type that changed is read back. The stored method is never edited after promotion; the
+coach is told what differs before anything runs; a failure is a run, kept and named at its cell. Nothing in the
+loaders, the analyst, the kernel or the cache changes for this.
+
 ## 1. Vocabulary
 
 - **Routine** — a named method, with a current version and a history of runs. Made from one chain.
@@ -86,8 +95,11 @@ markers and an `# --- INPUTS ---` mark between the preamble and the first cell),
 version"; later the coach's one line), run_zero (status, line, verified, results, figures, data, inputs).
 
 **manifest**:
-- `data`: the run's data record (above) — for a file the columns are the schema fingerprint a later run is checked
-  against; for intervals the window and the auxiliaries; for endura the race.
+- `data`: the run's data record (above) — the columns with their types, which a later run is made to fit; `load`,
+  how the data was asked for (the loader routes put it on the instance when a load completes: intervals — the
+  window, the metrics, the auxiliary kinds; endura — the race and its auxiliaries; sweatstack — the sports, the
+  subjects, the window; a file — its name), which a run repeats; `aux`, the auxiliary files' paths; `aux_shape`,
+  each file's columns with their types and its row count, read at promotion while the files are still there.
 - `parameters`: at most five, each `{key, label, type (number | numbers | date_window | choice | toggle), default,
   origin ("the exploration used …"), column? (choice), multiple? (choice)}`. The script reads `INPUTS[key]`; the
   runner writes the `INPUTS = {...}` block at the mark before each run.
@@ -100,20 +112,26 @@ version"; later the coach's one line), run_zero (status, line, verified, results
 
 **run** — built (step 2): number (0 is run zero), version, created, finished, elapsed, status (reproduced | ran |
 differed | failed | timed_out), line (the status in words), data (the loaded data's record: source, name, columns
-with their types, rows, range, auxiliaries), inputs (the values the run was given), results (the lines parsed from
-the printed output by position), figures (the count; the files beside it), stdout_chars, cells, against (the
-reference run's number), comparison (rows, moved, within, changed, missing, compared, line), narrative (step 3;
-empty until then), error. Each run is `runs/v<version>_<number>/run.json` with `stdout.txt` and `fig_n.json`
-(run zero is `v1_0`); a light summary — the data without its columns, the comparison's counts — is appended to
-`routine.json`'s `runs` list, which the manager and the run dialog read.
+with their types, rows, range, auxiliaries, how it was loaded), inputs (the values the run was given), results (the
+lines parsed from the printed output by position), figures (the count; the files beside it), stdout_chars, cells,
+against (the reference run's number), comparison (rows, moved, within, changed, missing, compared, line), narrative
+(step 3; empty until then), error; and, since the rebuild of F2, how the data was made to fit: `fit` (the columns
+missing, extra, retyped; the line), `bindings` (each recorded file name and the path it opened in this run),
+`aux_absent` (the recorded files this load lacked, by kind), `shape` (what the probe found in each bound file and
+the copies it wrote), `run_dir` (the run's own folder on the executor's side), `generated` (the files the run
+wrote). Each run is `runs/v<version>_<number>/run.json` with `stdout.txt` and `fig_n.json` (run zero is `v1_0`); a
+light summary — the data without its columns, the comparison's counts — is appended to `routine.json`'s `runs`
+list, which the manager and the run dialog read.
 
 Status meanings: *reproduced* — every expected line reappeared with the same numbers (run zero, or a run on the same
 data with the same inputs); *ran* — every line reappeared, numbers differ (the normal case on new data); *differed* —
 a line is missing, or more came back than expected; *failed* — the script stopped at cell n (the run is kept, so the
 history shows it); *timed_out* — likewise; *unverified* — run zero could not run because the analysis's data was no
-longer loaded; the first run on data tells. Data that does not fit is not a run: the check before the run says so in
-the dialog and nothing is recorded (the design had a *did_not_fit* status; built as a refusal, since a record of
-nothing would only pad the table).
+longer loaded; the first run on data tells. A line that comes back without a number (nan, from a column that was
+empty in this data) counts as *differed*. Data with nothing of the method's in it is not a run: the check before
+the run says so in the dialog and nothing is recorded (the design had a *did_not_fit* status; built as a refusal,
+since a record of nothing would only pad the table); data that differs - a column empty, a file absent - is said and
+the coach decides.
 
 ## 4. The inputs model
 
@@ -194,55 +212,58 @@ as routine; the first item then reads "Saved as favourite".
    run zero's verdict; a toast says "Routine made: <name> · v1 · verified on the original data"; the Routines rail
    entry shows a count.
 
-### F2 — Run on current data — built (step 2); the loaders are step 4
+### F2 — Run — built (rebuilt 2026-10-10: the routine loads its own data and makes it fit)
 
-Entry: *Run* on the routine (S2). The run is on the data loaded now — a file uploaded on the Data tab, or
-Intervals.icu / Endura loaded from the settings, as for an analysis — and the dialog (S3) opens on the check of
-that data against the routine:
+Entry: *Run* on the routine (S2). The dialog (S3) opens on the way the original load asked for its data (the
+version's data record, `load`), and offers the data loaded now beside it.
 
-1. **The check** (`precheck`): the data loaded now, described as the run's record describes it (source, name,
-   rows, columns); the fit line — *fits the routine (6 of 6 columns, 2 more)* or *missing: soil — the routine cannot
-   run on this data (5 of 6 columns)*; with nothing loaded, the dialog says to load the data on the Data tab. The
-   inputs as widgets by type (a number, a list of numbers as text, two dates, a choice as text, a toggle), with where
-   each comes from under it. *Compare with*: the run before (the version's last run that ran, reproduced or
-   differed — the default) or run 0 (when verified). *Run* is off until the data fits. Pressing *Run* runs the
-   check once more with the values as typed — a choice input's values against its column — and a value the data
-   lacks is said in the dialog; nothing runs.
-2. **The run**: the manager closes, the main panes enter the run's view (S4) — the strip *run n · vX*, the
-   position *run n · running* with both arrows off, the composer locked — and the run streams as an analysis does:
-   the pane rows *CHECK* (the data), *RUN* (run n · vX · k cells → the status line, the figures, the seconds),
-   *COMPARE with run k* (the comparison's line); the Plots, Results and dataframe tabs through the same stream; the
-   closing card; then the Comparison tab is written and opened. The script is the version's with the INPUTS block
-   written at the mark; the timeout is twice run zero's time plus two minutes, within five and thirty minutes (ten
-   minutes when run zero did not run).
-3. **Results** parsed from the printed output by position against the manifest's lines (a dropped line is printed
-   but not compared); the status; the figures and the output kept beside the record.
-4. **The comparison** against the reference run: for each expected line, this run's estimate and interval against
+1. **The load, as the original did.** Intervals.icu: a window of the original's length ending today (clamped to
+   what the plan allows, and the dialog says so), the metrics and the auxiliary kinds as the original - through the
+   same loader job the Data tab uses, with its progress shown in the dialog. Endura: the race list, the original
+   race selected. SweatStack: the window shifted, the sports and subjects as the original. A file: an upload, or
+   the Dataset cache's pick. The Data tab's pills and the frame view refresh as the Data tab refreshes them, so the
+   session's data is the run's data afterwards, as it was after a v1 replay. *The data loaded now* is the other
+   choice when something is loaded (the default for a file routine).
+2. **The check** (`precheck`): the data against the recorded shape - the columns the method ran on, by family
+   (number, date, text): *fits the routine (49 of 49 columns)*, or *2 of 49 columns empty in this data: power,
+   temperature* (a note - the run adds them empty), or *none of the routine's 49 columns is in this data - nothing to
+   run on* (the one refusal); the auxiliary files bound by kind to this load's (*wellness absent in this data - the
+   method will see an empty table there*); the chosen values of the choice inputs against their columns. The inputs
+   as widgets by type, at their defaults. *Compare with*: the run before or run 0. Pressing *Run* loads first when a
+   load is chosen, then checks once more with the values as typed; what fails is said in the dialog and nothing
+   runs.
+3. **The data made to fit** (`prepare`), in the run's own folder on the executor's side
+   (`datasets/<user>/routines/<id>/<tag>/`): each recorded auxiliary file bound, by kind, to this load's file - a
+   copy with the recorded columns it lacks added empty when it lacks any; an empty table with the recorded columns
+   for a file this load did not write; the executed text is the stored script with every string literal that names
+   a recorded file - or any other path under the user's datasets folder - replaced by this run's path, so the method
+   reads this window's summary under the name it was written with and never writes into the person's cache; the
+   prelude after the INPUTS block conforms `df`: a recorded column this frame lacks is added empty in its type, a
+   column whose type family changed is read back (`conform_prelude`), and `DS` is rebuilt on the conformed frame.
+   The stored script is not changed; the record keeps the substitutions.
+4. **The run**: the manager closes, the main panes enter the run's view (S4) - the strip *run n · vX*, the position
+   *run n · running* with both arrows off, the composer locked - with a *LOAD* row when the dialog loaded, then the
+   *CHECK* row (the fit line and the files), *RUN* (run n · vX · k cells → the status line, the figures, the seconds),
+   *COMPARE with run k*; the Plots, Results and frame tabs through the stream; the closing card; then the Comparison
+   tab, opened. The timeout is twice run zero's time plus two minutes, within five and thirty minutes (ten minutes
+   when run zero did not run).
+5. **Results** parsed from the printed output by position against the manifest's lines (a dropped line is printed
+   but not compared); the status (a line that comes back without a number counts as differed); the figures and the
+   output kept beside the record.
+6. **The comparison** against the reference run: for each expected line, this run's estimate and interval against
    the reference's; the change; whether the intervals overlap (*moved* when they do not, *within* when they do;
    without intervals, *changed* / *same* on the estimates); a line missing on either side marked. The line reads
    *3 of 5 moved beyond their intervals*.
-5. The run is recorded as it completes, the routine's `runs` list and the rail badge updated. The composer stays
-   locked under the view and comes back on a new thread or when a favourite is loaded (`loadThreadContent` leaves
-   the run view).
+7. The run is recorded as it completes, the routine's `runs` list and the rail badge updated. The composer stays
+   locked under the view and comes back on a new thread or when a favourite is loaded.
 
-The design's per-source loaders, kept for step 4 — the dialog loads the data itself instead of asking for it to be
-loaded first:
-   - Intervals.icu: window — start and end, default the original's length ending today (tier day-limits apply as on
-     the Data tab); auxiliaries ticked as in the original (untickable, with the warning that a cell may need one);
-     metrics as in the original.
-   - Endura: a race picked from `get_races`; auxiliaries as in the original.
-   - File: the primary file — upload, or pick from the Dataset cache — with the fingerprint check shown inline as
-     soon as it is chosen ("fits: 49 of 49 columns" / "missing: venue_altitude_m, surface_category — the routine
-     cannot run on this file"); each auxiliary likewise.
-   - The load through the existing loader job, with the Data tab's own progress, then the checks above; a *Loading
-     Intervals.icu 12 Jul → 10 Oct · wellness* row in the pane before *CHECK*.
-
-Failure states, as built: did not fit — said in the dialog with the columns named, *Run* off, nothing recorded; a
-value not in the data — said in the dialog, nothing runs; failed at cell n — the run kept with status failed, the
-closing card in the warning tone with the last line of the error, the Comparison tab with the error block and the
-rows marked missing; timed out — likewise; a result line missing — status differed, the count in the line; a typed
-line — present as a constant, flagged in the dialog at promotion; the stream broke — the pane says so and the view
-returns to the last recorded run.
+Failure states, as built: nothing of the method's data in this data - said in the dialog, *Run* off, nothing
+recorded; a value not in the data - said in the dialog, nothing runs; a load that fails (no activities in the
+window, a key not set) - the loader's own message in the dialog, nothing runs; failed at cell n - the run kept with
+status failed, the closing card in the warning tone with the line that names the error (never the kernel's rollback
+notice), the Comparison tab with the error block and the rows marked missing; timed out - likewise; a result line
+missing or without a number - status differed, the count in the line; the stream broke - the pane says so and the
+view returns to the last recorded run.
 
 ### F3 — Narrate (step 3)
 
@@ -348,36 +369,40 @@ before (↑ ↓ for a change whose intervals do not overlap, = when they do, · 
 more runs; under it the runs list, newest first (the date, the data, the version, the inputs, a status chip — *ran ·
 3 of 5 moved*, *reproduced*, *failed*), run 0 last; each opens the run in the main panes.
 
-### S3 — Run (dialog) — built for the data loaded now; the loaders are step 4
+### S3 — Run (dialog) — built
 
 ```
-┌ Run: Altitude pace correction ──────────────────────────────────┐
-│ v2 · 4 runs so far                                              │
-│ Data loaded now  (Intervals.icu) 2026-07-12 → 2026-10-10        │
-│                  10,200 rows · 49 columns                        │
-│   ✓ fits the routine (49 of 49 columns)                         │
-│ Inputs — the only things that change; the method runs as saved  │
-│   HR bands      [130, 145, 155, 165, 175]  the exploration's …   │
-│   Minimum laps  [20]                                            │
-│ Compare with   (•) run 4 (3 Oct, the run before)  ( ) run 0     │
+┌ Run: Session start hours ───────────────────────────────────────┐
+│ v1 · 2 runs so far                                              │
+│ DATA                                                            │
+│ (•) Load from Intervals.icu  [2026-08-12] → [2026-10-10]         │
+│     the original's 59 days, ending today · with summary,        │
+│     wellness · metrics as the original                          │
+│ ( ) The data loaded now  (Intervals.icu) 10,200 rows · 47 cols  │
+│     △ 2 of 49 columns empty in this data: power, temperature;   │
+│       wellness absent in this data - the method will see an     │
+│       empty table there                                         │
+│ INPUTS — the only things that change; the method runs as saved  │
+│   The hour band counted   [9, 11]   the analysis counted 9-11   │
+│ COMPARE WITH   (•) run 2 (10 Oct, the run before)  ( ) run 0    │
 │ The method runs as it was saved; only the inputs change. The    │
 │ run is recorded as it completes.            [Cancel] [Run]      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-With a column missing the fit line reads *! missing: venue_altitude_m — the routine cannot run on this data (48 of
-49 columns)* and *Run* is off; with nothing loaded, *No data is loaded. Load the data on the Data tab — upload a
-file, or Intervals.icu / Endura from the settings — then run.* A value typed into a choice input that is not in its
-column is said in the same line when *Run* is pressed. Step 4 adds the loading to the dialog — a window and
-auxiliaries for Intervals.icu, a race list for Endura, a file chooser with the Dataset cache for files — so the
-dialog loads the data itself.
+Endura: *Load from Endura* with the race list (the original race selected; its auxiliaries named). A file: *Upload
+a file* (the original's name shown) beside *The data loaded now*, which is the default when something is loaded. The
+line under the data loaded now is green when nothing differs, a note (△) when a column will be empty or a file is
+absent, red when there is nothing to run on - the one case *Run* is off. While a load runs, its progress shows
+under the choices (*Downloading activities… (12/60)*); a load that fails leaves its message there.
 
 ### S4 — A run in the main panes — built
 
 The strip reads *Routine · run 3 · v1 · Against the run before: run 2 — 3 of 5 moved beyond their intervals*; the
-id line *Routine: <name> · Run: 3 · v1 · Dataframe ID*. Left pane rows, as an analysis: *CHECK EEDR_laps_2026-07.csv
-10,200 rows · 49 columns*, *RUN run 3 · v1 · 5 cells — ran: 6 result lines · 1 figure · 31 s*, *COMPARE with run 2 —
-3 of 5 moved beyond their intervals* (step 3 adds the narrative card, and step 4 a *Loading …* row first), then the
+id line *Routine: <name> · Run: 3 · v1 · Dataframe ID*. Left pane rows, as an analysis: *LOAD Intervals.icu
+2026-08-12 → 2026-10-10 · summary, wellness* when the dialog loaded, *CHECK intervals — 2 of 49 columns empty in
+this data: power, temperature; wellness absent in this data*, *RUN run 3 · v1 · 5 cells — ran: 6 result lines · 1
+figure · 31 s*, *COMPARE with run 2 — 3 of 5 moved beyond their intervals* (step 3 adds the narrative card), then the
 closing card: *Run 3 complete · <routine>* with Results 6, Moved 3 of 5, Figures 1, Time 31 s, the status line, the
 line against run 2, and Comparison → Plots (1) → Results → Data links (What changed with step 3). A failed or
 differed run's card is in the warning tone. The position reads "run 3 of 3" and the arrows move between the
@@ -390,8 +415,9 @@ is loaded.
 Right pane tabs: **Comparison** (the table of this run against the reference: label, the reference's estimate and
 interval, this run's, the change, the mark — moved / within, or changed / same without intervals, missing; the
 legend says nothing there is written by a model; a failed run's error block above the table), **What changed** (the
-note, step 3), **Plots**, **Results** (printed output), **Data** (what the run ran on: source, name, rows, range,
-auxiliaries, the columns with their types).
+note, step 3), **Plots**, **Results** (printed output), **Data** (what the run ran on: source, how it was loaded,
+name, rows, range, the method's file names and what they opened in this run, a file absent, the columns with their
+types).
 
 ### S5 — Save on a chain of the origin thread
 
@@ -412,15 +438,23 @@ from the analysis of. Not: promote, manifest, procedure, replay, amend, update, 
 ## 8. Storage
 
 Files beside the favourites, in both editions: `storage/<user>/routines/<id>/routine.json` and
-`runs/<tag>/run.json`, `stdout.txt`, `fig_n.json` (the tag `v<version>_<number>`; run zero `v1_0`). Sizes: a run's
-figures are the replay's Plotly JSON (hundreds of kilobytes each); a deleted routine removes its folder. No pruning
-in this version.
+`runs/<tag>/run.json`, `stdout.txt`, `fig_n.json` (the tag `v<version>_<number>`; run zero `v1_0`). On the
+executor's side a run has its own folder, `datasets/<user>/routines/<id>/<tag>/`: the copies of auxiliary files made
+to fit, the empty tables standing in for absent ones, anything the method writes under the datasets folder, and its
+`DS.save` datasets - never the person's cache, which lists only `datasets/<user>/` itself and its `generated/`.
+Sizes: a run's figures are the replay's Plotly JSON (hundreds of kilobytes each); a deleted routine removes its
+storage folder (the executor-side folders are left to the executor's housekeeping). No pruning in this version.
 
 ## 9. Editions
 
 Everything above is the same in both editions. The integrations need the executor container, as they do today; a
 file routine works on the local kernel too (`--compute local`), because the runner uses the same executor client the
-replay uses — the end-to-end walk (tests/e2e/test_stack.py) makes and runs a routine in both editions.
+replay uses — the end-to-end walk (tests/e2e/test_stack.py) makes and runs a routine in both editions. The
+integrations' path is walked end to end too (tests/e2e/test_integrations.py): the stack's fake Intervals.icu and
+Endura (tools/stack/fake_apis.py, with FIT files the executor's own parser reads, served from a calendar with the
+loaders' variation built in - a window without a power meter, a device that stopped logging temperature, a wellness
+log that ends, a flat race without power or climbs), the real loaders, a routine made on one window and run on the
+next, then one made on one race and run on another.
 
 ## 10. Retired by this feature
 
@@ -454,11 +488,24 @@ with them — coaches do not edit scripts; the analyst in another domain downloa
    locks and comes back with a favourite, a file without the `soil` column is refused in the dialog with nothing
    recorded, the files on disk). The first live test is a Titanic routine run on its own data, then on a copy with
    a column dropped.
+   **Rebuilt (2026-10-10, after the first live run on a new Intervals window)**: the routine loads its own data as
+   the original load did (the dialog, per source, through the Data tab's own loader routes) and makes it fit the
+   recorded shape before the cells run - the auxiliary files bound by kind, copies with the missing columns added,
+   empty tables for absent files, the executed text carrying this run's paths, `df` conformed - the stored script
+   never edited; a column missing is said and the run goes ahead (refused only with nothing to run on); the run's
+   own folder on the executor's side; the LOAD row and the Data tab's bindings. Accepted by: the pure module (the
+   kinds, the binding, the bound text, the conform prelude run on a frame, the shape probe on files), the host over
+   a real kernel (a method reading a dated summary file, run on a later window's file with a column fewer, and with
+   the file absent), the routes, the markup, the screens (the Intervals dialog), and two end-to-end walks: the file
+   routine (the dialog's upload; the file without `soil` runs to a kept failure at the cell that divides by zero,
+   named) and the integrations (above, §9).
 3. **Narrate** — the Narrator, the guard, the What-changed tab and card. Accepted when: a narrative's numbers all
    come from the two tables; a run without a comparison (run zero) gets no narrative.
-4. **The loaders in the run dialog** — S3 for Intervals.icu, Endura and files (the dialog loads the data itself);
-   retirements (§10). Accepted when: the e2e story runs a file routine from the dialog's file chooser on the local
-   stack; the Intervals dialog is exercised on dev with a real key.
+4. **Say what differs; fail well** — the differences said in full sentences from the shape probe (the rows each
+   file has, a column empty, a file written empty), the lines printed before a failure compared, the failed cell's
+   code beside the traceback; the Dataset cache's pick in the file dialog; retirements (§10). Accepted when: the
+   e2e walks show the sentences and the partial comparison; the Intervals dialog is exercised on dev with a real
+   key.
 5. **Versions** — the next-version choice is built; the inputs carried through the manifest, the boundary in the
    table, the warning on deleting an origin. Accepted when: v2's inputs keep their keys; the runs table shows the
    divider and the gaps; a deleted origin leaves the routine runnable and marked.
@@ -468,8 +515,14 @@ Each step ships as its own patch, tested on dev before prod, the standing method
 ## 12. Open decisions
 
 - **Run zero when the original data is gone.** Built as: create unverified and say so; the first run on data tells.
-- **Data that does not fit.** Built as a refusal in the dialog, not a run with a *did_not_fit* status: nothing ran,
-  so nothing is recorded; the runs table stays a table of runs.
+- **Data that does not fit.** Rebuilt 2026-10-10: a column missing is added empty and said, a file absent stands
+  in as an empty table and is said; the coach decides. The one refusal is data with none of the method's columns:
+  nothing ran, nothing recorded.
+- **The executed text.** A run substitutes, in the stored script's text, the recorded file names and any path under
+  the datasets folder with this run's paths. Chosen over shadowing pandas' readers (a cell may `import pandas as pd`
+  again, and a patch in the executor's process would outlive the run) and over changing the working directory (the
+  executor serves other requests meanwhile). A path built at run time from pieces is not caught; the record shows
+  every substitution made.
 - **How many runs to keep.** All, for now; the table and storage will say when that is wrong.
 - **Auxiliaries that are untickable.** Allowed with a warning (proposed), or fixed as in the original.
 - **The parameter cap of five.** A guess at "simple"; the first live promotions will test it.
