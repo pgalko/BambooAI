@@ -159,13 +159,17 @@ as routine; the first item then reads "Saved as favourite".
    cells' text. Refused before any call: a chain not in the thread's record, one that ended `asked`, `failed` or
    `stopped`, one with no cells. A chain that recorded no RESULT lines is not refused: runs will not be compared
    number by number, and the dialog says so.
-2. **The promoter**, one call on the Analyst seat with a generic prompt (`analyst/routines.py` PROMOTER_SYSTEM; no
-   domain words, DESIGN_CHECKLIST C5): name the constants that would change on other data of the same shape; make
-   the data's own range the data's range; propose each remaining constant as an input of one of the five types, at
-   most five, fewer is better; rewrite as find/replace edits; leave the method, the markers and every RESULT call
-   otherwise untouched; return JSON. A reply that cannot be read is asked for once more, then refused ("the script
-   was not understood"). The call runs on a chain id of its own, so the hosted edition charges it as a query; the
-   pane shows it as a quiet *Routine* card.
+2. **The promoter**, one call on the Promoter seat (its own entry in the model config since 2026-10-10 — a moderate
+   effort and a roomy `max_tokens`, because the reply is a JSON object of edits that a seat tuned for long reasoning
+   can spend its whole allowance thinking about; the Analyst seat when the config has no Promoter) with a generic
+   prompt (`analyst/routines.py` PROMOTER_SYSTEM; no domain words, DESIGN_CHECKLIST C5): name the constants that
+   would change on other data of the same shape; make the data's own range the data's range; propose each remaining
+   constant as an input of one of the five types, at most five, fewer is better; rewrite as find/replace edits; leave
+   the method, the markers and every RESULT call otherwise untouched; return JSON, kept short. A reply that cannot be
+   read is asked for once more, then refused ("the script was not understood"); a reply cut at the seat's token limit
+   is asked for once more, shorter — unless nothing but reasoning arrived, when a second try would go the same way —
+   and the refusal then names the cause and the seat to adjust. The call runs on a chain id of its own, so the hosted
+   edition charges it as a query; the pane shows it as a quiet *Routine* card with the seat and its model.
 3. **The dialog** (S1) shows the proposal: name (the promoter's title), purpose (prefilled from the question; one
    line for the card and the narrator), the data (source chip, name, rows, columns; whether the chain's data is
    still loaded), the inputs as rows (label, value now, where it comes from, "keep fixed"), the expected results with
@@ -273,7 +277,7 @@ users in this version.
 
 | call | seat | when | input | output | guard |
 |---|---|---|---|---|---|
-| Promoter | Analyst | Save as routine; a next version | question, summary, the data record, the cells, the ledger, (the manifest on a next version) | edits + inputs JSON | the edits apply whole per input; run zero must reproduce |
+| Promoter | Promoter (else Analyst) | Save as routine; a next version | question, summary, the data record, the cells, the ledger, (the manifest on a next version) | edits + inputs JSON | the edits apply whole per input; run zero must reproduce |
 | Narrator | Rewriter | after a run with a comparison | question, purpose, summary, two runs' data and inputs, comparison table | a short note | numbers guard against both results tables |
 
 The run itself never calls a model, and nothing can be asked of a run. Continuing the analysis is an ordinary chain in

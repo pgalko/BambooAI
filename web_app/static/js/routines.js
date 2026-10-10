@@ -687,7 +687,7 @@
             const numbers = runNumbers(routine);
             enterRunView(summaryOf(routine), numbers.concat([numbers.length ? Math.max.apply(null, numbers) + 1 : 1]), numbers.length, { pending: true, version: routine.current_version });
             stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with }, true, data => {
-                if (data.type === 'pane_routine_end' && typeof paneRoutineEnd === 'function') { paneRoutineEnd(data); return true; }
+                if (data.type === 'pane_routine_end' && typeof paneRoutineEnd === 'function') { paneRoutineEnd(data); chipIdle(); return true; }
                 return false;
             }).then(msg => {
                 const out = msg.routine_run;
@@ -695,6 +695,7 @@
                 refreshBadge();
                 if (manager && manager.style.display !== 'none') loadManager(routine.id);
             }).catch(err => {
+                chipIdle();
                 if (typeof paneSystem === 'function') paneSystem(err.message || String(err), 'error');
                 toast('The run did not go through: ' + (err.message || err));
                 if (viewState) { viewState.numbers = runNumbers(routine); viewState.index = Math.max(0, viewState.numbers.length - 1); viewState.pending = false; updateRunNav(); }
@@ -702,6 +703,7 @@
         });
     }
     function summaryOf(r) { return { id: r.id, name: r.name, current_version: r.current_version, source: r.source }; }
+    function chipIdle() { if (window.containerStatus && typeof window.containerStatus.setExecuting === 'function') window.containerStatus.setExecuting(false); }   // the executor chip back to its polled status (a run sets it as a cell does)
     function runNumbers(r) {
         const v = (r.versions || []).find(x => x.number === r.current_version) || {};
         const out = (v.run_zero && v.run_zero.verified) ? [0] : [];

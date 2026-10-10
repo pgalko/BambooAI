@@ -228,6 +228,35 @@ try:
 except host.RoutineRefused as exc:
     got = str(exc)
 check("propose: an unreadable reply is asked for once more, then refused as 'not understood'", calls["n"] == 2 and "not understood" in got, (calls, got))
+# a reply cut at the seat's token limit (the model layer's `truncated` flag): nothing but reasoning - refused at once, since a
+# second try would go the same way; cut mid-object - asked for once more, shorter; cut twice - refused with the cause
+cut_calls = []
+def cut_promoter(replies):
+    def f(system, user):
+        cut_calls.append(user)
+        text = replies.pop(0)
+        return text, {"cost": 0.0, "truncated": True}
+    return f
+try:
+    host.propose(nb4, run4.id, cut_promoter([""]), current_data={"df_id": "df4"}); got = ""
+except host.RoutineRefused as exc:
+    got = str(exc)
+check("propose: a reply with nothing but reasoning inside the limit is refused after one call, naming the limit and the seat to adjust",
+      len(cut_calls) == 1 and "cut off at its token limit" in got and "nothing arrived but reasoning" in got and "Promoter" in got, (len(cut_calls), got))
+cut_calls.clear()
+ok_json = '{"name": "As is", "inputs": [], "edits": []}'
+def cut_then_fine(system, user):
+    cut_calls.append(user)
+    return (ok_json[:20], {"cost": 0.0, "truncated": True}) if len(cut_calls) == 1 else (ok_json, {"cost": 0.0})
+p8 = host.propose(nb4, run4.id, cut_then_fine, current_data={"df_id": "df4"})
+check("propose: a reply cut mid-object is asked for once more with the note that it was cut (and how much arrived), and the second reply is taken",
+      len(cut_calls) == 2 and "cut off at the token limit" in cut_calls[1] and "20 characters arrived" in cut_calls[1] and "shorter" in cut_calls[1] and p8["inputs"] == [], cut_calls[-1][-200:])
+cut_calls.clear()
+try:
+    host.propose(nb4, run4.id, cut_promoter([ok_json[:20], ok_json[:12]]), current_data={"df_id": "df4"}); got = ""
+except host.RoutineRefused as exc:
+    got = str(exc)
+check("propose: cut twice is refused, the reason saying twice", len(cut_calls) == 2 and "cut off at its token limit twice" in got, (len(cut_calls), got))
 # a promoter that declares nothing: the routine runs as it is
 def empty_promoter(system, user):
     return '{"name": "As is", "inputs": [], "edits": []}', {"cost": 0.0}

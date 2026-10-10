@@ -58,8 +58,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/76/30/19/16/49/44/51/10/68/1/1 Python; 39/7/29/56/24/44 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (74 hosted, 73 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (177/81/30/19/16/49/44/51/10/71/1/1 Python; 39/7/29/56/24/45 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (75 hosted, 74 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
@@ -438,8 +438,23 @@
   table and list, run view state), `tools/routines_screens.py` (twelve screens, dark and light, state checks), the
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
-  on disk). Next: Palo's Titanic run on dev (run on its own data = reproduced, an input changed, a column dropped);
-  then step 3, Narrate (the Rewriter-seat note under the numbers guard, the What-changed tab and card).
+  on disk).
+- **Routines, two fixes from Palo's Titanic test (2026-10-10, patch 0114).** (1) The executor chip stayed on
+  *Executing* after a run: the routine's ROUTINE / RUN rows set it as a cell does (`pane_cell_start`) but only the
+  replay's `pane_lookup` released it; now the routine's kinds release it too (query-processing.js), and routines.js
+  releases it on the closing card and on a broken stream. (2) The promoter has its own seat, **Promoter**, in every
+  tier of `web_app/LLM_CONFIG_template.json` (and `LLM_CONFIG_sample.json`, the README's table): Palo saw a Sonnet
+  seat at xhigh spend its whole allowance reasoning, twice, and the dialog said "invalid JSON". `_promoter_seat()`
+  returns 'Promoter' when the config carries one, else the analyst's seat (`_llm(..., seat=)` names a seat outright);
+  a reply the model layer flags as truncated is now said as such - nothing but reasoning: refused after one call (a
+  second would go the same way); cut mid-object: one more try asking for a shorter object (`PROMOTER_CUT`); cut
+  twice: refused - and the refusal names the Promoter seat's `max_tokens` / effort as the thing to change. The
+  prompt also asks for a short object. Deployed templates need the four Promoter lines (or the patched template).
+  Tests: test_app_path.py 81 (the seat with and without an entry; the three cut cases through the instance),
+  test_routines.py 71, test_routines.js 45 (the chip release), the e2e walk (the chip back to Ready after a run;
+  the promoter's card on the Promoter seat). Next: Palo's Titanic run on dev (run on its own data = reproduced,
+  an input changed, a column dropped); then step 3, Narrate (the Rewriter-seat note under the numbers guard, the
+  What-changed tab and card).
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

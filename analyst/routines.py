@@ -174,9 +174,12 @@ What to do:
  "inputs": [{"key": "snake_case", "label": "what the person sees", "type": "number | numbers | date_window | choice | toggle", "default": "the value the analysis used, in the type's form", "origin": "one short clause: where the value came from in the analysis", "column": "for a choice: the column its values come from", "multiple": false}],
  "edits": [{"cell": 3, "find": "verbatim fragment", "replace": "the same fragment reading INPUTS[...]"}],
  "kept": ["one clause per constant left as it is, and why"]}
-With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape."""
+With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape.
+Keep the object short: each "find" the shortest fragment that still occurs once in its cell, the clauses brief, nothing outside the object."""
 
 PROMOTER_RETRY = "Your reply could not be read ({problem}). Reply again with the JSON object only, as specified."
+PROMOTER_CUT = ("Your reply was cut off at the token limit before the object was complete ({got} characters arrived). Reply again, shorter: "
+                "the JSON object only, each \"find\" the shortest fragment that still occurs once in its cell, nothing outside the object.")
 
 
 def promoter_user(question: str, summary: str, data_text: str, cells: str, ledger: Iterable[str], manifest: Optional[dict] = None) -> str:

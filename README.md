@@ -212,6 +212,7 @@ turn budgets per preset (`tier_properties`), and the properties of every model n
   {"agent": "Reviewer",                 "details": {"model": "openai/gpt-6.1-sol",          "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 48000, "temperature": 0}},
   {"agent": "Rewriter",                 "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "low",  "max_tokens": 16000, "temperature": 0}},
   {"agent": "Reader",                   "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "low",  "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Promoter",                 "details": {"model": "x-ai/grok-4.7",               "provider": "openrouter", "reasoning_effort": "medium", "max_tokens": 32000, "temperature": 0}},
   {"agent": "Knowledge Distiller",      "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "none", "max_tokens": 24000, "temperature": 0}},
   {"agent": "Google Search Executor",   "details": {"model": "gemini-flash-latest",          "provider": "gemini",     "reasoning_effort": "none", "max_tokens": 8000,  "temperature": 0}},
   {"agent": "Google Search Summarizer", "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "none", "max_tokens": 12000, "temperature": 0}},
@@ -235,6 +236,7 @@ The seats:
 | `Reviewer` | the reviews - after every 8th turn in Adaptive mode, and after its report; its own brief, a stronger model |
 | `Rewriter` | the plain-language version of the report |
 | `Reader` | reads the thread's documents for the analyst (the `READ` action): a cheaper model, called once per read over the passages that match the question |
+| `Promoter` | *Save as routine*: reads a finished chain once and names its inputs as find/replace edits (a JSON reply, so a moderate effort and a roomy `max_tokens`; the analyst's seat when absent) |
 | `Knowledge Distiller` | writes the memory card when a run is saved |
 | `Google Search Executor` | the grounded search itself (a Gemini model) |
 | `Google Search Summarizer` | condenses search results into a cited digest |

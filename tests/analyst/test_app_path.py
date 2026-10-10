@@ -34,6 +34,11 @@ class FakeModels:
         if user.startswith("Rewrite the technical report"):
             return "Plain: B is higher by DIFF."
         if messages[0]["content"].startswith("You are preparing an analysis so that it can be run again"):
+            from bambooai.models import prompt_cache
+            prompt_cache.reset()
+            cut = (state.get("cut") or [])
+            if cut:                                     # the reply cut at the seat's token limit (the adapters record it per request)
+                prompt_cache.record_meta(truncated=True); return cut.pop(0)
             return state.get("promoter") or '{"name": "B against A", "inputs": [{"key": "arm_b", "label": "The arm compared", "type": "choice", "default": "B", "origin": "the analysis compared B", "column": "arm"}], "edits": [{"cell": 2, "find": "m[\'B\']", "replace": "m[INPUTS[\'arm_b\']]"}], "kept": ["A stays the baseline"]}'
         if messages[0]["content"].startswith("You are the reviewer"):
             return ("###REVIEW###\n- The question requires: B against A.\n- Established: the difference [cell 1].\n"
@@ -134,6 +139,43 @@ while not q.empty(): q.get()
 check("dropping the proposed input makes a routine without inputs; run zero on a chain without RESULT lines checks that the script runs",
       st.load(made2["routine"]["id"])["versions"][0]["manifest"]["parameters"] == [] and "INPUTS[" not in st.load(made2["routine"]["id"])["versions"][0]["script"] and "ran without error" in made2["run_zero"]["line"], made2.get("run_zero"))
 state["promoter"] = None
+# the Promoter seat (2026-10-10): its own entry when the config carries one, the analyst's seat otherwise
+check("without a Promoter entry the promoter's call ran on the analyst's seat", BAMBOO._promoter_seat() == "Investigator" and all(a_ == "Investigator" for a_, u_ in state["calls"] if u_.startswith("QUESTION:")),
+      [a_ for a_, u_ in state["calls"] if u_.startswith("QUESTION:")])
+FakeModels.config["agent_configs"].append({"agent": "Promoter", "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "medium", "max_tokens": 32000}})
+while not q.empty(): q.get()
+prop3 = BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9003")
+pev3 = [json.loads(q.get()) for _ in range(q.qsize())]
+check("with a Promoter entry the call runs on it: the pane's card names the seat, the log's call is on it",
+      BAMBOO._promoter_seat() == "Promoter" and pev3[0].get("seat") == "Promoter" and state["calls"][-1][0] == "Promoter" and prop3["inputs"][0]["key"] == "arm_b", (pev3[0].get("seat"), state["calls"][-1][0]))
+# a reply cut at the token limit: a cut with nothing but reasoning is refused at once (a second try would go the same way); a cut
+# mid-object is asked for once more, shorter; cut twice, the refusal names the cause and the seat
+ncalls = len(state["calls"])
+state["cut"] = [""]
+while not q.empty(): q.get()
+try:
+    BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9004"); cut_msg = ""
+except RoutineRefused as exc:
+    cut_msg = str(exc)
+pev4 = [json.loads(q.get()) for _ in range(q.qsize())]
+check("a reply with nothing but reasoning inside the token limit: one call, refused, the reason names the limit and the Promoter seat",
+      len(state["calls"]) == ncalls + 1 and "cut off at its token limit" in cut_msg and "nothing arrived but reasoning" in cut_msg and "Promoter" in cut_msg and "max_tokens" in cut_msg
+      and "cut off" in (pev4[-1].get("peek") or ""), (cut_msg, pev4[-1].get("peek")))
+ncalls = len(state["calls"])
+state["cut"] = ['{"name": "B against A", "inputs": [{"key": "arm_b", "label": "The arm", "type": "choice", "default": "B", "origin": "x", "column": "arm"}], "edits": [{"cell": 2, "fi']
+while not q.empty(): q.get()
+prop5 = BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9005")
+check("a reply cut mid-object: asked for once more, shorter (the note says it was cut and how much arrived), and the second reply is taken",
+      len(state["calls"]) == ncalls + 2 and "cut off at the token limit" in state["calls"][-1][1] and "characters arrived" in state["calls"][-1][1] and prop5["inputs"][0]["key"] == "arm_b", state["calls"][-1][1][-240:])
+state["cut"] = ['{"name": "B against', '{"name": "B aga']
+try:
+    BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9006"); cut2 = ""
+except RoutineRefused as exc:
+    cut2 = str(exc)
+check("cut twice: refused, the reason says twice and names the seat to adjust", "cut off at its token limit twice" in cut2 and "Promoter" in cut2, cut2)
+state["cut"] = []
+FakeModels.config["agent_configs"] = [a_ for a_ in FakeModels.config["agent_configs"] if a_["agent"] != "Promoter"]
+while not q.empty(): q.get()
 for rid_ in [made["routine"]["id"], made2["routine"]["id"]]:
     st.delete(rid_)
 # the routes (web_app/routines_routes.py) on a test app, the app's names faked: the two streams end with their one message

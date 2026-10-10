@@ -115,24 +115,35 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     summary = summary_of(run)
     user = rt.promoter_user(run.question, summary, describe_data(data), body, _ledger(expected), manifest)
     obj, usage, cost = None, {}, 0.0
-    problem = ""
+    problem, note, cut, cuts = "", "", False, 0
     for attempt in range(2):
         if emit:
             emit({"type": "turn_start", "turn": "routine", "quiet": True, "seat": seat, "model": model})
         t0 = time.time()
-        text, usage = llm(rt.PROMOTER_SYSTEM, user if not attempt else user + "\n\n" + rt.PROMOTER_RETRY.format(problem=problem))
+        text, usage = llm(rt.PROMOTER_SYSTEM, user if not attempt else user + "\n\n" + note)
         cost += float((usage or {}).get("cost") or 0.0)
+        cut = bool((usage or {}).get("truncated"))
+        cuts += int(cut)
         try:
             obj = rt.parse_promoter(text)
         except ValueError as exc:
-            problem = str(exc)
+            # a reply cut at the seat's token allowance is said as such (2026-10-10: a seat tuned for long reasoning spent the
+            # allowance thinking, twice; "invalid JSON" was true but not what happened)
+            problem = ("the reply was cut off at the token limit" + (f" ({len(text.strip())} characters arrived)" if (text or "").strip() else " (nothing arrived but reasoning)")) if cut else str(exc)
             obj = None
         if emit:
             emit({"type": "turn_end", "turn": "routine", "kind": "routine", "elapsed": round(time.time() - t0, 1), "cost": float((usage or {}).get("cost") or 0.0),
                   "peek": (f"{len(obj.get('inputs') or [])} input(s) proposed, {len(obj.get('edits') or [])} edit(s)" if obj else f"the reply could not be read ({problem})")})
         if obj is not None:
             break
+        if cut and not (text or "").strip():
+            break                                       # the whole allowance went on reasoning: a second try would go the same way
+        note = rt.PROMOTER_CUT.format(got=len((text or "").strip())) if cut else rt.PROMOTER_RETRY.format(problem=problem)
     if obj is None:
+        if cut:
+            raise RoutineRefused("could not make a routine from this chain - the model's reply was cut off at its token limit"
+                                 + (" (nothing arrived but reasoning)" if not (text or "").strip() else (" twice" if cuts == 2 else ""))
+                                 + "; the seat that proposes routines (Promoter in the model config) needs a larger max_tokens or a lower reasoning effort")
         raise RoutineRefused(f"could not make a routine from this chain - the script was not understood ({problem})")
     edited, applied, failed = rt.apply_edits(body, obj.get("edits") or [])
     inputs, notes = rt.finish_inputs(obj.get("inputs") or [], edited, failed)

@@ -278,10 +278,11 @@ def main():
             dlg = page.evaluate("""() => ({ sub: document.querySelector('#routineMakeModal .ui-dlg-h .sub').textContent, name: document.querySelector('#routineMakeModal [data-field="name"]').value,
                 inputs: [...document.querySelectorAll('#routineMakeModal .rt-inputs tbody tr')].map(r => [r.dataset.key, r.querySelector('.val').textContent]),
                 results: [...document.querySelectorAll('#routineMakeModal .rt-results .r .l')].map(e => e.textContent), data: document.querySelector('#routineMakeModal .rt-data').textContent,
-                state: [...document.querySelectorAll('#routineMakeModal .rt-line')].map(e => e.textContent).join(' | '), card: !![...document.querySelectorAll('.sp-turn .n')].find(e => e.textContent === 'Routine') })""")
-            check("Save as routine: the dialog shows the promoter's proposal - the name, the regime as the one input (B), the chain's RESULT line, the data, and that the check runs on this chain's own data; the pane shows the promoter's card",
+                state: [...document.querySelectorAll('#routineMakeModal .rt-line')].map(e => e.textContent).join(' | '), card: !![...document.querySelectorAll('.sp-turn .n')].find(e => e.textContent === 'Routine'),
+                seat: (() => { const c = [...document.querySelectorAll('.sp-turn')].find(t => (t.querySelector('.n') || {}).textContent === 'Routine'); return c ? ((c.querySelector('.sp-prompt') || {}).dataset || {}).agent || '' : ''; })() })""")
+            check("Save as routine: the dialog shows the promoter's proposal - the name, the regime as the one input (B), the chain's RESULT line, the data, and that the check runs on this chain's own data; the pane shows the promoter's card on the Promoter seat",
                   dlg["name"] == "Regime contrast within soil, plot means" and dlg["inputs"] == [["regime", "B"]] and len(dlg["results"]) == 1 and "regime B vs A" in dlg["results"][0]
-                  and "field_trial.csv" in dlg["data"] and "Checked once" in dlg["state"] and dlg["card"], dlg)
+                  and "field_trial.csv" in dlg["data"] and "Checked once" in dlg["state"] and dlg["card"] and "Promoter" in dlg["seat"], dlg)
             page.fill("#routineMakeModal [data-field='purpose']", "the within-soil regime contrast, for the next season")
             page.click("#routineMakeModal [data-act='create']")
             page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
@@ -353,7 +354,9 @@ def main():
                 tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id), active: (document.querySelector('#contentOutput .tab-content.active') || {}).id, strip: (document.querySelector('.sp-strip') || {}).textContent || '',
                 ids: (document.querySelector('.sp-ids') || {}).textContent || '', locked: document.getElementById('queryInput').disabled && document.getElementById('submitQuery').disabled && document.body.classList.contains('composer-locked'),
                 placeholder: document.getElementById('queryInput').placeholder, pill: getComputedStyle(document.getElementById('rankButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled],
-                cmp: (document.getElementById('content-comparison') || {}).textContent || '', turns: document.querySelectorAll('.sp-turn').length })""")
+                cmp: (document.getElementById('content-comparison') || {}).textContent || '', turns: document.querySelectorAll('.sp-turn').length, chip: document.querySelector('#containerStatusText').textContent })""")
+            check("after run 1 the executor chip is back to " + {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute] + " (2026-10-10: it stayed on Executing)",
+                  rv["chip"] == {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute], rv["chip"])
             check("run 1 in the pane: the CHECK, RUN and COMPARE rows, no model card, and the closing card says run 1 reproduced run 0's line",
                   any("CHECK" in r and "field_trial.csv" in r for r in rv["rows"]) and any("RUN" in r and "run 1" in r for r in rv["rows"]) and any("COMPARE" in r and "run 0" in r for r in rv["rows"])
                   and rv["turns"] == 0 and "Run 1 complete" in rv["done"] and "reproduced: every result line as the run before (1 line)" in rv["done"] and "against run 0" in rv["done"] and not rv["warn"], (rv["rows"], rv["done"][:200]))

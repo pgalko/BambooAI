@@ -168,6 +168,14 @@ check('stylesheets: the pill\'s menu, its saved and open states and the rail bad
 const qp = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'query-processing.js'), 'utf8');
 check('the Save pill: a click opens the menu (the rank dialog from its first item); the pill stays on a saved chain, marked .saved',
   qp.includes('window.RoutinesUI.toggleSaveMenu()') && qp.includes("rankButton.classList.toggle('saved', saved)") && !qp.includes("currentResponse.bookmark_type === 'individual') {\n        rankButton.style.display = 'none'"));
+// the executor chip (2026-10-10, Palo's test: it stayed on Executing after a run): the routine's ROUTINE / RUN rows set it as a
+// cell does, so their completion releases it as the replay's does; the closing card and a broken stream release it too
+const lookupLine = qp.split('\n').find(l => l.includes('data.type === "pane_lookup")')) || '';
+const rtSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
+check('the executor chip goes back to its polled status when the ROUTINE or RUN row completes, on the closing card, and when the run\'s stream breaks',
+  lookupLine.includes("data.kind === 'replay' || data.kind === 'routine' || data.kind === 'run'") && lookupLine.includes('setExecuting(false)')
+  && rtSrc.includes("paneRoutineEnd(data); chipIdle();") && /catch\(err => \{\s*chipIdle\(\);/.test(rtSrc) && rtSrc.includes('function chipIdle() { if (window.containerStatus'),
+  lookupLine.slice(0, 200));
 const wm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflow-modal.js'), 'utf8');
 check('the favourites\' cards carry the Routine button in place of the v1 Replay button, bound through RoutinesUI', wm.includes('window.RoutinesUI.cardButton(') && wm.includes('window.RoutinesUI.bindCardButton(routineBtn') && !wm.includes('class="workflow-card-replay"'));
 const core = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'core.js'), 'utf8');

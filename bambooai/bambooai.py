@@ -138,17 +138,25 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Rewriter' if 'Rewriter' in agents else self._seat()
 
-    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, **hints):
+    def _promoter_seat(self):
+        """The seat Save as routine's one model call runs on (2026-10-10): 'Promoter' when the config carries one -
+        its own model, effort and token allowance, since the reply is a JSON object of edits that a seat tuned for
+        long reasoning can cut short - else the analyst seat."""
+        agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
+        return 'Promoter' if 'Promoter' in agents else self._seat()
+
+    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, seat: str = None, **hints):
         """The model call the session uses: the app's model layer (streaming,
         telemetry, retries), returning (text, {'cost': delta}). A self-review
         turn (review=True) runs on the Reviewer seat; its cost is accounted to
-        that seat and counts against the run's budget like any other call."""
+        that seat and counts against the run's budget like any other call.
+        `seat` names the seat outright (the routines' promoter)."""
         if self.kill_signal or self._stop_event.is_set():
             raise ExecutionInterrupted("stopped by the user")
         before = self._chain_cost()
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         text = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, messages,
-                               agent=self._review_seat() if review else (self._rewrite_seat() if rewrite else self._seat()), chain_id=self.chain_id,
+                               agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite else self._seat())), chain_id=self.chain_id,
                                reasoning_models=self.reasoning_models)
         if isinstance(text, tuple):
             text = text[0]
@@ -396,8 +404,9 @@ class BambooAI:
         routine = self.routine_store().load(routine_id) if routine_id else None
         if routine_id and routine is None:
             raise routines_host.RoutineRefused("the routine this version was meant for no longer exists")
+        seat = self._promoter_seat()
         try:
-            model = self.models.get_model_name(self._seat())
+            model = self.models.get_model_name(seat)
             model = model[0] if isinstance(model, (tuple, list)) else model
         except Exception:                                          # noqa: BLE001
             model = ''
@@ -406,8 +415,8 @@ class BambooAI:
         keep = self.chain_id
         self.chain_id = billing_chain_id or self.chain_id
         try:
-            proposal = routines_host.propose(nb, str(chain_id), lambda s, u: self._llm(s, u), current_data=self._data_record(light=True),
-                                             emit=self._emit_routine, routine=routine, seat=self._seat(), model=model)
+            proposal = routines_host.propose(nb, str(chain_id), lambda s, u: self._llm(s, u, seat=seat), current_data=self._data_record(light=True),
+                                             emit=self._emit_routine, routine=routine, seat=seat, model=model)
         finally:
             self.chain_id = keep
         pending = getattr(self, "_proposals", None)

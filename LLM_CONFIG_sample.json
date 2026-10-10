@@ -31,6 +31,16 @@
       }
     },
     {
+      "agent": "Promoter",
+      "details": {
+        "reasoning_effort": "medium",
+        "model": "x-ai/grok-4.6",
+        "provider": "openrouter",
+        "temperature": 0,
+        "max_tokens": 32000
+      }
+    },
+    {
       "agent": "Knowledge Distiller",
       "details": {
         "reasoning_effort": "none",
