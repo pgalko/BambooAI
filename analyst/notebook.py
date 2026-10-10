@@ -103,6 +103,7 @@ class Run:
     replay_script: str = ""
     status: str = "running"         # running | answered | asked | stopped | failed
     created: float = field(default_factory=_now)
+    data: dict = field(default_factory=dict)   # what the run ran on (df_id, name, source, columns, rows, aux): a routine made from it later needs it (2026-10-10)
 
     @property
     def note(self) -> str:

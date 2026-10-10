@@ -70,7 +70,7 @@
     function fmtCost(c) { return '$' + Number(c || 0).toFixed(2); }
     function kindLabel(kind) {
         return ({ cell: 'cell', show: 'look-up', names: 'look-up', recall: 'memory', search: 'search', review: 'review',
-                  ask: 'question', report: 'report', rewrite: 'plain-language version', infographic: 'infographic', error: 'lost' })[kind] || kind || '';
+                  ask: 'question', report: 'report', rewrite: 'plain-language version', infographic: 'infographic', routine: 'routine', error: 'lost' })[kind] || kind || '';
     }
     function noteGrid(note) {
         const rows = [];
@@ -102,7 +102,7 @@
                 '<span class="est"' + (h.estimate ? ' title="' + esc(h.estimate) + '"' : '') + '><b>Best estimate so far:</b> ' + esc(h.estimate || 'none yet') + '</span>';
         },
         turnStart(t) {
-            const label = typeof t.turn === 'number' ? 'Turn ' + esc(t.turn) : (t.turn === 'rewrite' ? 'Rewrite' : (t.turn === 'review' ? 'Review' : (t.turn === 'infographic' ? 'Infographic' : esc(t.turn))));
+            const label = typeof t.turn === 'number' ? 'Turn ' + esc(t.turn) : (t.turn === 'rewrite' ? 'Rewrite' : (t.turn === 'review' ? 'Review' : (t.turn === 'infographic' ? 'Infographic' : (t.turn === 'routine' ? 'Routine' : esc(t.turn)))));
             const seatModel = t.seat ? esc(t.seat) + (t.model ? ' · ' + esc(String(t.model).split('/').pop()) : '') : '';
             return '<details class="sp-turn live' + (t.quiet ? ' quiet' : '') + (t.review ? ' review' : '') + '"' + (t.quiet ? '' : ' open') + ' data-turn="' + esc(t.turn) + '"' +
                 (t.review ? ' data-review="1" data-seat-model="' + seatModel + '"' : '') + '>' +
@@ -133,16 +133,17 @@
         },
         lookupStart(l) {
             // a READ or SEARCH in progress (2026-10-03): the row pulses until paneLookup replaces it
-            const label = ({ search: 'SEARCH', read: 'READ', recall: 'RECALL', replay: 'REPLAY' })[l.kind] || String(l.kind || '').toUpperCase();
+            const label = ({ search: 'SEARCH', read: 'READ', recall: 'RECALL', replay: 'REPLAY', routine: 'ROUTINE' })[l.kind] || String(l.kind || '').toUpperCase();
             const doing = l.kind === 'read' ? 'reading' + (l.model ? ' · Reader on ' + esc(String(l.model).split('/').pop()) : '') + '…'
                         : (l.kind === 'search' ? 'searching the web…'
-                        : (l.kind === 'replay' ? 'reproducing the cited cells in a fresh kernel…' : 'working…'));
+                        : (l.kind === 'replay' ? 'reproducing the cited cells in a fresh kernel…'
+                        : (l.kind === 'routine' ? 'checking the method on this chain\'s own data…' : 'working…')));
             return '<div class="sp-row tool pending" data-pending="' + esc(l.kind || '') + '"><span class="live"></span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
                 '<span class="out">' + doing + '</span><span class="t"></span></div>';
         },
         lookup(l) {
-            const label = ({ show: 'SHOW', names: 'NAMES', recall: 'RECALL', search: 'SEARCH', read: 'READ', replay: 'REPLAY' })[l.kind] || String(l.kind || '').toUpperCase();
-            const glyph = l.kind === 'search' ? '⌕' : (l.kind === 'recall' ? '✦' : (l.kind === 'read' ? '¶' : (l.kind === 'replay' ? '↻' : '↺')));
+            const label = ({ show: 'SHOW', names: 'NAMES', recall: 'RECALL', search: 'SEARCH', read: 'READ', replay: 'REPLAY', routine: 'ROUTINE' })[l.kind] || String(l.kind || '').toUpperCase();
+            const glyph = l.kind === 'search' ? '⌕' : (l.kind === 'recall' ? '✦' : (l.kind === 'read' ? '¶' : (l.kind === 'replay' || l.kind === 'routine' ? '↻' : '↺')));
             const right = l.kind === 'search' && l.sources && l.sources.length ? l.sources.length + ' source' + (l.sources.length === 1 ? '' : 's')
                         : (l.kind === 'read' ? (l.passages && l.passages.length ? l.passages.length + ' passage' + (l.passages.length === 1 ? '' : 's') : 'no passage') : '');
             let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +

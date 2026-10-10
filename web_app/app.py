@@ -52,6 +52,7 @@ from agent_instructions_routes import agent_instructions_bp
 from replay_routes import replay_bp
 from dataframe_routes import dataframe_bp
 from documents_routes import documents_bp
+from routines_routes import routines_bp
 
 # Logs
 from logger_config import setup_logging, get_logger
@@ -220,6 +221,7 @@ app.register_blueprint(agent_instructions_bp)
 app.register_blueprint(dataframe_bp)
 app.register_blueprint(documents_bp)
 app.register_blueprint(replay_bp)
+app.register_blueprint(routines_bp)
 
 # Initialize authentication
 init_auth(app)
@@ -958,6 +960,10 @@ def upload_file():
                     df = load_excel_with_datetime(filepath)
                 else:  # .parquet
                     df = load_parquet_with_datetime(filepath)
+                try:
+                    df.attrs['name'] = file.filename          # the DATA header and a run's data record name the file in local mode too (2026-10-10)
+                except Exception:                              # noqa: BLE001
+                    pass
                 df_json, new_df_id = load_dataframe_to_bamboo_ai_instance(
                     session_id=session_id,
                     df=df,
@@ -1798,6 +1804,13 @@ def get_threads():
             return jsonify({'threads': []}), 200
             
         threads_info = []
+        # the routine versions born from each chain, for the cards' Routine button (2026-10-10)
+        try:
+            from analyst.routines import RoutineStore
+            routines_by_origin = RoutineStore(user_path('storage')).by_origin()
+        except Exception as _rex:                                # noqa: BLE001
+            logger.warning(f"routines index unavailable: {_rex}")
+            routines_by_origin = {}
         
         # Process each thread directory
         for thread_id in thread_dirs:
@@ -1846,7 +1859,8 @@ def get_threads():
                         'dataset_name': dataset_name,
                         'label_id': chain_data.get('label_id'),
                         'label_name': chain_data.get('label_name'),
-                        'bookmark_type': chain_data.get('bookmark_type')
+                        'bookmark_type': chain_data.get('bookmark_type'),
+                        'routines': routines_by_origin.get((str(thread_id), str(chain_id)), [])
                     }
                     
                     # Include preview if requested

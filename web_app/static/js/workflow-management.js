@@ -1308,6 +1308,7 @@ async function loadThreadContent(threadId, chainId) {
         
         currentResponseIndex = targetIndex >= 0 ? targetIndex : responses.length - 1;
         
+        if (typeof composerUnlock === 'function') composerUnlock();   // a run's view locks the composer; a favourite is an analysis again (2026-10-10)
         loadResponseContent(responses[currentResponseIndex]);
         
         if (typeof updateNavigationButtons === 'function') {

@@ -117,6 +117,18 @@ w.paneRunEnd({status:'answered', turns:1, of:15, cells:0, failed:0, cost:0.05, s
 w.paneSummary('Analyst: 12 calls, 143,000 tokens, $0.44\nImage Generator: 1 call');
 check('telemetry: folded into the closing card as a collapsible pre', pane2.querySelector('.sp-done .sp-telemetry pre').textContent.includes('Analyst: 12 calls') && !pane2.querySelector('.sp-done .sp-telemetry').hasAttribute('open'));
 
+// the routine's rows (2026-10-10, docs/ROUTINES_DESIGN.md): the promoter's quiet card, then run zero as a look-up row
+pane2.innerHTML = '<div>Ready for your query.</div>';
+w.paneTurnStart({turn:'routine', of:null, seat:'Analyst', model:'anthropic/claude-sonnet-5-5', quiet:true});
+const rc = pane2.querySelector('.sp-turn');
+check('routine card: labelled Routine, quiet (working…, nothing streamed into it)', rc && rc.querySelector('summary .n').textContent === 'Routine' && rc.querySelector('summary .kind').textContent === 'working…' && w.paneToken('{"inputs": []}') === true && !rc.querySelector('.sp-think').textContent.includes('inputs'));
+w.paneTurnEnd({turn:'routine', kind:'routine', peek:'2 input(s) proposed, 3 edit(s)', elapsed:9.1, cost:0.03, thinking:'', note:'', code:''});
+check('routine card ended: kind routine, the peek says what was proposed, the meta its time and cost', rc.querySelector('summary .kind').textContent === 'routine' && rc.querySelector('summary .peek').textContent === '2 input(s) proposed, 3 edit(s)' && rc.querySelector('summary .meta').textContent === '9.1 s · $0.03');
+w.paneLookupStart({kind:'routine', query:'Rows above a line', model:''});
+check('run zero under way: a pending ROUTINE row saying the method is being checked on this chain\'s data', pane2.querySelector('.sp-row.tool.pending .in').textContent === 'ROUTINE Rows above a line' && pane2.querySelector('.sp-row.tool.pending .out').textContent === 'checking the method on this chain\'s own data…');
+w.paneLookup({kind:'routine', query:'Rows above a line', peek:'reproduced: 9 result line(s) identical', sources:[], passages:[]});
+check('run zero done: the ROUTINE row with the ↻ glyph replaces the pending one and carries the verdict', !pane2.querySelector('.sp-row.tool.pending') && pane2.querySelector('.sp-row.tool').textContent.startsWith('↻ROUTINE Rows above a line') && pane2.querySelector('.sp-row.tool .out').textContent.startsWith('reproduced: 9'));
+
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 // a run of 239.6 s reads "4 min 0 s", not "3 min 60 s" (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneRunEnd({status:'answered', turns:15, of:15, cells:11, failed:2, cost:0.1, seconds:239.6, replay_status:'', replay_line:'', plots:0, files:[]});

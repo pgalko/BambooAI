@@ -73,7 +73,7 @@
 .rail .rb > span { display: contents; }
 .rail .rb .workflow-manager-text, .rail .rb .dataset-manager-text { display: none; }
 .rail .rb .memory-review-text { display: contents; font-size: 0; }
-.rail .rb .memory-review-badge { position: absolute; top: -3px; right: -3px; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: var(--c-model); color: #000; font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; box-shadow: 0 0 0 2px var(--bg-primary); }
+.rail .rb .memory-review-badge, .rail .rb .rb-badge { position: absolute; top: -3px; right: -3px; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: var(--c-model); color: #000; font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; box-shadow: 0 0 0 2px var(--bg-primary); }
 .rail .rb[data-tip]:hover::after { content: attr(data-tip); position: absolute; left: 40px; top: 6px; padding: 3px 8px; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-tertiary); color: var(--text-primary); font-size: var(--fs-small); white-space: nowrap; z-index: 1003; pointer-events: none; }
 .rail #memoryReviewPill.rb { display: grid; }
 .rail #memoryReviewPill.rb[style*="display: none"], .rail #memoryReviewPill.rb[style*="display:none"] { display: none; }
@@ -448,6 +448,17 @@
 .topbar #rankButton .rank-label { vertical-align: 0; }
 .topbar #rankButton.replay-success { background: var(--c-model); color: var(--bg-primary); border-color: var(--c-model); }
 .topbar #rankButton.replay-success svg { fill: currentColor; }
+/* the pill's menu (2026-10-10, routines.js): Save as favourite / Save as routine, under the pill on hover or click; a chain
+   that is a favourite marks the pill .saved (the bookmark filled) and keeps it, since the menu still offers Save as routine */
+.topbar #rankButton.saved svg { fill: currentColor; }
+.topbar #rankButton.menu-open { border-color: var(--text-tertiary); color: var(--text-primary); background: var(--bg-tertiary); }
+.save-menu { position: fixed; z-index: 1200; min-width: 250px; max-width: 360px; padding: 6px; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); display: flex; flex-direction: column; gap: 2px; font-family: var(--font-ui); }
+.save-menu::before { content: ''; position: absolute; left: 0; right: 0; top: -8px; height: 8px; }   /* the gap to the pill stays hoverable */
+.save-menu .it { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; border-radius: var(--r-2); cursor: pointer; }
+.save-menu .it:hover { background: var(--bg-tertiary); }
+.save-menu .it b { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+.save-menu .it span { font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }
+.save-menu .it.done { cursor: default; } .save-menu .it.done:hover { background: none; } .save-menu .it.done b { color: var(--c-model); }
 
 /* ---- the Documents pill (2026-10-03, docs/DOCUMENTS_DESIGN.md D53-D54): one pill for the thread's documents, blue so it
    reads apart from the green dataset pills. The spinner and "parsing name…" while a file is parsed; the refusal sentence

@@ -155,7 +155,11 @@ def resolve(url):
     for prefix, folder in PREFIXES.items():
         if url.startswith(prefix):
             p = os.path.join(VENDOR, folder, url[len(prefix):].split("?")[0])
-            return (open(p, "rb").read(), _ctype(p)) if os.path.exists(p) else (b"", _ctype(p))
+            if os.path.exists(p):
+                return open(p, "rb").read(), _ctype(p)
+            if p.endswith(".js"):                                       # KaTeX absent: the stand-in defines the two globals the page calls
+                return open(os.path.join(HERE, "libs_stub_katex.js"), "rb").read(), "application/javascript"
+            return b"", _ctype(p)
     rel = FILES.get(url.split("?")[0])
     if rel:
         p = os.path.join(VENDOR, rel)

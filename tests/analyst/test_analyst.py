@@ -1012,11 +1012,11 @@ def _authored_strings(path):
     return [n.value for n in _ast.walk(tree) if isinstance(n, _ast.Constant) and isinstance(n.value, str) and id(n) not in docs]
 _texts = {"contract (plain)": contract(False, 0), "contract (documents, reviews)": contract(True, 8), "reviewer": REVIEWER,
           "rewrite task": REWRITE_TASK, "reader": READER_SYSTEM, "last turns": LAST_TURNS_LINE, "report now": REPORT_NOW}
-for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py"):
+for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py", "analyst/routines.py", "bambooai/routines_host.py"):
     for _k, _t in enumerate(_authored_strings(_path)):
         _texts[f"{_path} string {_k}"] = _t
 _hits = {name: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for name, t in _texts.items() if _DOMAIN.search(t)}
-check("standing rule: no prompt text a model reads carries the tested tasks' vocabulary - contract, reviewer, rewrite, reader, and every string the session, tools and reader send",
+check("standing rule: no prompt text a model reads carries the tested tasks' vocabulary - contract, reviewer, rewrite, reader, the routines' promoter, and every string the session, tools, reader and routines send",
       not _hits, _hits)
 # Quick and Deep make no reviewer call at all - not during the run, not after the report (2026-10-05)
 nr_systems = []

@@ -522,7 +522,7 @@
             if (!thread.chains || thread.chains.length === 0) return;
             
             const chain = thread.chains[0];
-            const card = createWorkflowCard(chain, thread.chains.length, true);
+            const card = createWorkflowCard(chain, thread.chains.length, true, thread.chains);
             
             // If multiple chains, add the view chains button
             if (thread.chains.length > 1) {
@@ -608,8 +608,8 @@
             </div>`;
     }
     
-    // Create workflow card
-    function createWorkflowCard(chain, chainCount, isThreadLevel = false) {
+    // Create workflow card; `chains` (the thread's, on a thread-level card) decides the Routine button's count
+    function createWorkflowCard(chain, chainCount, isThreadLevel = false, chains = null) {
         const card = document.createElement('div');
         card.className = 'workflow-card';
         card.setAttribute('data-chain-id', chain.chain_id);
@@ -670,14 +670,7 @@
                 <div class="workflow-card-task">${chain.task || `Chain ${chain.chain_id}`}</div>
             </div>
             <div class="workflow-card-footer">
-                <button class="workflow-card-replay" title="Re-run analysis">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="17 1 21 5 17 9"></polyline>
-                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-                        <polyline points="7 23 3 19 7 15"></polyline>
-                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-                    </svg>
-                </button>
+                ${(window.RoutinesUI && typeof window.RoutinesUI.cardButton === 'function') ? window.RoutinesUI.cardButton(window.RoutinesUI.cardCount(chains || chain)) : ''}
                 ${chain.bookmark_type ? `
                     <span class="workflow-card-memory-badge ${chain.bookmark_type}" 
                           title="${chain.bookmark_type === 'individual' ? 'Saved to agent memory' : 'Saved to agent memory (trajectory)'}">
@@ -689,7 +682,7 @@
             </div>
         `;
         
-        setupCardHandlers(card, chain, isThreadLevel);
+        setupCardHandlers(card, chain, isThreadLevel, chains);
         
         // Only load preview if not included in chain data and not explicitly empty
         if (!chain.hasOwnProperty('plotPreview')) {
@@ -760,7 +753,7 @@
     }
     
     // Setup card handlers
-    function setupCardHandlers(card, chain, isThreadLevel = false) {
+    function setupCardHandlers(card, chain, isThreadLevel = false, chains = null) {
         // Label button
         const labelBtn = card.querySelector('.workflow-card-label');
         if (labelBtn) {
@@ -771,13 +764,10 @@
             });
         }
 
-        // Replay button
-        const replayBtn = card.querySelector('.workflow-card-replay');
-        if (replayBtn) {
-            replayBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                enterReplayView(chain.thread_id, chain.chain_id);
-            });
+        // the Routine button (2026-10-10): grey when none, lit with the count of versions born from this analysis
+        const routineBtn = card.querySelector('.workflow-card-routine');
+        if (routineBtn && window.RoutinesUI && typeof window.RoutinesUI.bindCardButton === 'function') {
+            window.RoutinesUI.bindCardButton(routineBtn, chain, chains);
         }
         
         // Delete button

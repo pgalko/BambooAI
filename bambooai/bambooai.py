@@ -298,14 +298,10 @@ class BambooAI:
         return reading.unit_text(u) if u else None
 
     # ---------------------------------------------------------- the replay
-    def _run_replay(self, run, script):
-        """Run the assembled script through the executor. Returns (stdout, error) to the
-        session and keeps the figures, results and datasets for the tabs."""
+    def run_script(self, script, timeout, what="Replay"):
+        """One script through the executor against the loaded data, as the replay runs (2026-10-10: a routine's run
+        zero takes the same path). Returns (stdout, error, figures as the tabs' JSON strings, generated datasets)."""
         generated_datasets_path = self._generated_dir()
-        # the replay re-runs every committed cell: give it twice the time they took, within limits
-        path_cells = self.notebook.path_cells(run.id)
-        took = sum(float(c.elapsed or 0.0) for c in path_cells)
-        timeout = int(min(1800, max(300, 2 * took + 120)))
         self._sync_documents("replay")              # a cited cell may have read a document file
         prelude = self._kernel_prelude()            # ... or used D1.table(2): the objects ride ahead of the cells
         if prelude:
@@ -314,7 +310,7 @@ class BambooAI:
             self.output_manager, self.kill_signal, script, self.df, self.df_id, generated_datasets_path,
             persist_df=False, timeout=timeout)
         if error:
-            logger.warning("Replay of run %s failed (timeout %ds, cells took %.0fs): %s", run.id, timeout, took,
+            logger.warning("%s failed (timeout %ds): %s", what, timeout,
                            str(error).strip().splitlines()[-1][:300] if str(error).strip() else error)
             # the script sets the kernel's display options and resets them on its last lines; stopped before those, the
             # executor's process would go on formatting its data views the kernel's way (2026-10-08)
@@ -323,14 +319,128 @@ class BambooAI:
                 self.executor.execute(self.output_manager, self.kill_signal, "import pandas as pd\n" + RESET_OPTIONS,
                                       None, None, None, persist_df=False, timeout=60)
             except Exception as exc:                               # noqa: BLE001
-                logger.warning("Replay of run %s: the display options could not be reset after the failure: %s", run.id, exc)
+                logger.warning("%s: the display options could not be reset after the failure: %s", what, exc)
         plot_jsons = []
         for i, plot_data in enumerate(plot_images or []):
             plot_jsons.append(json.dumps({'type': 'plot', 'data': plot_data['data'], 'format': plot_data['format'],
                                           'id': f'plot_{i + 1}', 'chain_id': self.chain_id}))
-        self._replay[run.id] = {"results": results or "", "plots": plot_jsons, "datasets": generated or None}
+        return results or "", error or "", plot_jsons, generated or None
+
+    def _run_replay(self, run, script):
+        """Run the assembled script through the executor. Returns (stdout, error) to the
+        session and keeps the figures, results and datasets for the tabs."""
+        # the replay re-runs every committed cell: give it twice the time they took, within limits
+        path_cells = self.notebook.path_cells(run.id)
+        took = sum(float(c.elapsed or 0.0) for c in path_cells)
+        timeout = int(min(1800, max(300, 2 * took + 120)))
+        results, error, plot_jsons, generated = self.run_script(script, timeout, what=f"Replay of run {run.id} (cells took {took:.0f}s)")
+        self._replay[run.id] = {"results": results or "", "plots": plot_jsons, "datasets": generated}
         logger.info("Replay of run %s: %d chars of results, %d figure(s), error=%s", run.id, len(results or ""), len(plot_jsons), bool(error))
         return results or "", error or ""
+
+    # ------------------------------------------------------------ the data record
+    def _data_record(self, light=False):
+        """What a run ran on (2026-10-10, routines): the frame's identity and name, its source as the executor's cache
+        knows it, its columns with their types, its size, the loader's details, the auxiliary files. Kept on the run,
+        so a routine made from it later knows its data; `light` gives the identity alone."""
+        rec = {"df_id": self.df_id, "name": getattr(self, "df_name", "") or "", "source": "", "columns": [], "rows": None,
+               "date_range": None, "aux": [p for p in (self.auxiliary_datasets or []) if p], "extra": {}}
+        if self.df is None and not self.df_id:
+            rec["source"] = "none"
+            return rec
+        if light:
+            return rec
+        try:
+            if self.api_client is not None and self.df_id:
+                pv = self.api_client.cache_preview(self.df_id) or {}
+                meta = pv.get("metadata") or {}
+                dtypes = pv.get("dtypes") or {}
+                rec.update(source=str(meta.get("source") or ("file" if rec["name"] else "")),
+                           columns=[{"name": str(c), "dtype": str(dtypes.get(c, ""))} for c in (pv.get("columns") or [])][:400],
+                           rows=(pv.get("shape") or [None])[0], date_range=meta.get("date_range"),
+                           name=meta.get("original_filename") or rec["name"],
+                           extra={k: meta.get(k) for k in ("metrics", "activities_count", "race_id", "race_title", "race_date", "athletes_count") if meta.get(k) is not None})
+            elif self.df is not None:
+                rec.update(source="file" if rec["name"] else "frame", rows=int(len(self.df)),
+                           columns=[{"name": str(c), "dtype": str(t)} for c, t in self.df.dtypes.items()][:400])
+        except Exception as exc:                                   # noqa: BLE001
+            logger.warning("The run's data record is partial: %s", exc)
+        return rec
+
+    # ------------------------------------------------------------ routines (docs/ROUTINES_DESIGN.md)
+    def routine_store(self):
+        from analyst.routines import RoutineStore
+        base = os.path.join(os.getcwd(), 'storage', self.user_id) if self.user_id else os.path.join(os.getcwd(), 'storage')
+        return RoutineStore(base)
+
+    def _emit_routine(self, ev):
+        """The pane's rows for a routine being made: a quiet card for the promoter's call, a look-up row for run zero."""
+        kind = ev.get("type")
+        if kind == "turn_start":
+            self._pane('pane_turn_start', turn='routine', of=None, seat=ev.get("seat") or self._seat(), model=ev.get("model") or '', quiet=True)
+        elif kind == "turn_end":
+            self._pane('pane_turn_end', turn='routine', kind='routine', peek=ev.get("peek") or '', elapsed=ev.get("elapsed"), cost=ev.get("cost"), thinking='', note='', code='')
+        elif kind == "lookup_start":
+            self._pane('pane_lookup_start', kind='routine', query=ev.get("query") or '', model='')
+            self._pane('pane_cell_start', turn='routine')
+        elif kind == "lookup":
+            self._pane('pane_lookup', kind='routine', query=ev.get("query") or '', peek=(ev.get("peek") or '')[:200], sources=[], passages=[])
+
+    def propose_routine(self, thread_id, chain_id, routine_id=None, billing_chain_id=None):
+        """Save as routine, step one: the promoter reads the chain and proposes its inputs. The call is accounted to
+        `billing_chain_id` (a chain of its own, so the hosted edition charges it as a query). Returns the proposal,
+        kept on the instance until create_routine takes it; raises RoutineRefused with a readable reason."""
+        from bambooai import routines_host
+        nb = self.notebook if (self.notebook is not None and self.notebook.thread_id == str(thread_id)) else self.store.load(thread_id)
+        routine = self.routine_store().load(routine_id) if routine_id else None
+        if routine_id and routine is None:
+            raise routines_host.RoutineRefused("the routine this version was meant for no longer exists")
+        try:
+            model = self.models.get_model_name(self._seat())
+            model = model[0] if isinstance(model, (tuple, list)) else model
+        except Exception:                                          # noqa: BLE001
+            model = ''
+        if not self.log_and_call_manager.thread_id:
+            self.log_and_call_manager.thread_id = str(thread_id)        # the usage rows need a thread (a fresh instance has none yet)
+        keep = self.chain_id
+        self.chain_id = billing_chain_id or self.chain_id
+        try:
+            proposal = routines_host.propose(nb, str(chain_id), lambda s, u: self._llm(s, u), current_data=self._data_record(light=True),
+                                             emit=self._emit_routine, routine=routine, seat=self._seat(), model=model)
+        finally:
+            self.chain_id = keep
+        pending = getattr(self, "_proposals", None)
+        if pending is None:
+            pending = self._proposals = {}
+        pending[proposal["proposal_id"]] = proposal
+        for old in list(pending)[:-6]:                              # the last few only
+            pending.pop(old, None)
+        logger.info("Routine proposed for chain %s: %d input(s), %d result line(s), data %s, $%.3f", chain_id, len(proposal["inputs"]),
+                    len(proposal["results"]), proposal["data_state"], proposal["cost"])
+        return proposal
+
+    def create_routine(self, proposal_id, choices, routine_id=None):
+        """Save as routine, step two: the person's choices, run zero on the chain's data through the executor, the
+        routine stored. Raises RoutineRefused when run zero does not reproduce the chain's lines."""
+        from bambooai import routines_host
+        pending = getattr(self, "_proposals", None) or {}
+        proposal = pending.get(proposal_id)
+        if proposal is None:
+            raise routines_host.RoutineRefused("this proposal has expired - open Save as routine again")
+        nb = self.notebook if (self.notebook is not None and self.notebook.thread_id == str(proposal["thread_id"])) else self.store.load(proposal["thread_id"])
+        # the data may have changed since the proposal: the chain's frame still loaded, or not
+        now_loaded = self._data_record(light=True).get("df_id")
+        if proposal.get("data_state") == "same" and str(now_loaded) != str((proposal.get("data") or {}).get("df_id")):
+            proposal["data_state"] = "gone"
+        elif proposal.get("data_state") == "assumed":
+            proposal["data"] = self._data_record()                  # the chain predates the record: the frame loaded now stands for its data
+            if not now_loaded:
+                proposal["data_state"] = "gone"
+        made = routines_host.create(nb, proposal, choices or {}, lambda script, timeout: self.run_script(script, timeout, what="Run zero"),
+                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id or proposal.get("routine_id"))
+        pending.pop(proposal_id, None)
+        logger.info("Routine %s v%d made from chain %s: %s", made["routine"]["id"], made["version"], proposal["chain_id"], made["run_zero"]["line"])
+        return made
 
     # -------------------------------------------------------- the data view
     def _data_description(self):
@@ -631,6 +741,7 @@ class BambooAI:
                     logger.warning("Data preview skipped", exc_info=True)
 
         kernel = self._kernel_for(parent)
+        data_record = self._data_record()                   # what this run runs on, kept on the run (2026-10-10, routines)
         session = Session(kernel, self.notebook, self._llm, store=self.store, emit=self._emit,
                           recall=self._recall if self.memory_path else None, search=self._search,
                           read=self._read, unit_text=self._unit_text, kernel_prelude=self._kernel_prelude(),
@@ -664,6 +775,13 @@ class BambooAI:
                     self.log_and_call_manager.charge_for_completed_query(self.chain_id)
             except Exception:                                  # noqa: BLE001
                 pass
+            try:
+                _run = self.notebook.runs.get(str(self.chain_id)) if self.notebook else None
+                if _run is not None and not _run.data:
+                    _run.data = data_record
+                    self.store.save(self.notebook)
+            except Exception:                                  # noqa: BLE001
+                logger.warning("The run's data record was not kept", exc_info=True)
         self._kernel_tip = run.id
 
         # what the reader sees: the tabs the browser already has

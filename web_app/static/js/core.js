@@ -285,6 +285,11 @@ function continueAppInitialization() {
         initializeWorkflowModal();
     }
 
+    // Routines (docs/ROUTINES_DESIGN.md): the Save pill's menu, the rail entry, the favourites' cards' button
+    if (typeof window.RoutinesUI !== 'undefined' && typeof window.RoutinesUI.initialize === 'function') {
+        window.RoutinesUI.initialize();
+    }
+
     // Initialize Labels Manager
     if (typeof window.LabelsManager !== 'undefined' && typeof window.LabelsManager.initialize === 'function') {
         window.LabelsManager.initialize();

@@ -250,11 +250,80 @@ def main():
                 page.click("#nextResponse")
                 page.wait_for_timeout(400)
 
+            # Save (2026-10-10, routines): the pill opens its menu; Save as favourite is the rank dialog as before
             page.click("#rankButton")
+            page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+            menu_items = page.evaluate("() => [...document.querySelectorAll('#saveMenu .it b')].map(e => e.textContent)")
+            check("the Save pill opens its menu: Save as favourite and Save as routine", menu_items == ["Save as favourite", "Save as routine"], menu_items)
+            page.click("#saveMenu .it[data-act='favourite']")
             page.wait_for_selector("#rankModal", state="visible", timeout=10000)
             page.click("#rankModal .rating-segment[data-value='7']")
             page.click("#submit-rank")
             page.wait_for_timeout(3000)
+            pill_after = page.evaluate("() => { const p = document.getElementById('rankButton'); return [getComputedStyle(p).display, p.className]; }")
+            check("after the save the pill stays, marked saved (its menu still offers Save as routine)", pill_after[0] != "none" and "saved" in pill_after[1].split(), pill_after)
+
+            # Save as routine on chain 1 (docs/ROUTINES_DESIGN.md F1): the promoter (scripted) names the regime as the one
+            # input, run zero runs through the real executor and reproduces the chain's RESULT line, the routine is stored
+            # with the favourite as its origin, and the manager and the favourites' card show it
+            for _ in range(3):
+                page.click("#prevResponse")
+                page.wait_for_timeout(400)
+            wait_text(page, "#chainPosition", "chain 1 of 4", 10000)
+            page.hover("#rankButton")
+            page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+            page.click("#saveMenu .it[data-act='routine']")
+            page.wait_for_selector("#routineMakeModal", state="visible", timeout=10000)
+            page.wait_for_selector("#routineMakeModal .rt-inputs", timeout=120000)
+            dlg = page.evaluate("""() => ({ sub: document.querySelector('#routineMakeModal .ui-dlg-h .sub').textContent, name: document.querySelector('#routineMakeModal [data-field="name"]').value,
+                inputs: [...document.querySelectorAll('#routineMakeModal .rt-inputs tbody tr')].map(r => [r.dataset.key, r.querySelector('.val').textContent]),
+                results: [...document.querySelectorAll('#routineMakeModal .rt-results .r .l')].map(e => e.textContent), data: document.querySelector('#routineMakeModal .rt-data').textContent,
+                state: [...document.querySelectorAll('#routineMakeModal .rt-line')].map(e => e.textContent).join(' | '), card: !![...document.querySelectorAll('.sp-turn .n')].find(e => e.textContent === 'Routine') })""")
+            check("Save as routine: the dialog shows the promoter's proposal - the name, the regime as the one input (B), the chain's RESULT line, the data, and that the check runs on this chain's own data; the pane shows the promoter's card",
+                  dlg["name"] == "Regime contrast within soil, plot means" and dlg["inputs"] == [["regime", "B"]] and len(dlg["results"]) == 1 and "regime B vs A" in dlg["results"][0]
+                  and "field_trial.csv" in dlg["data"] and "Checked once" in dlg["state"] and dlg["card"], dlg)
+            page.fill("#routineMakeModal [data-field='purpose']", "the within-soil regime contrast, for the next season")
+            page.click("#routineMakeModal [data-act='create']")
+            page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
+            err_box = page.evaluate("() => { const e = document.querySelector('#routineMakeModal .rt-error'); return e ? e.textContent : null; }")
+            check("Create routine: run zero reproduced the chain's line through the executor and the dialog closed (no refusal)", err_box is None, err_box)
+            page.wait_for_timeout(1500)
+            pane_rows = page.evaluate("() => [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent)")
+            check("the pane carries the ROUTINE row with run zero's verdict", any("ROUTINE" in r and "reproduced: 1 result line(s) identical" in r for r in pane_rows), pane_rows[-2:])
+            rdirs = glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json"))
+            rj = json.load(open(rdirs[0])) if rdirs else {}
+            check("the routine is stored under storage/<user>/routines with v1 verified by run zero, the regime input, and the chain as its origin",
+                  len(rdirs) == 1 and rj.get("current_version") == 1 and rj["versions"][0]["run_zero"]["verified"] and rj["versions"][0]["run_zero"]["status"] == "reproduced"
+                  and [p["key"] for p in rj["versions"][0]["manifest"]["parameters"]] == ["regime"] and "INPUTS['regime']" in rj["versions"][0]["script"]
+                  and rj["origin"]["thread_id"] == str(page.evaluate("() => currentData.thread_id")) and rj.get("purpose", "").startswith("the within-soil"), (len(rdirs), rj.get("versions", [{}])[0].get("run_zero")))
+            fav1 = os.path.join(workdir, "webapp", "storage", USER, "favourites", rj["origin"]["thread_id"], rj["origin"]["chain_id"] + ".json") if rdirs else ""
+            check("Save as routine saved the chain as a favourite too (individually)", fav1 and os.path.exists(fav1) and json.load(open(fav1)).get("bookmark_type") == "individual", fav1)
+            page.hover("#rankButton")
+            page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#saveMenu .it[data-act=\"routine\"] span') || {}).textContent.includes('made from this chain')", timeout=10000)
+            menu2 = page.evaluate("() => [...document.querySelectorAll('#saveMenu .it')].map(e => [e.className, e.querySelector('span').textContent])")
+            check("the menu now says the chain is a favourite and names the routine made from it", "done" in menu2[0][0] and "Regime contrast" in menu2[1][1], menu2)
+            page.mouse.move(10, 400)
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_selector("#routinesModal .rt-side .it", timeout=15000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            mgr = page.evaluate("""() => ({ items: [...document.querySelectorAll('#routinesModal .rt-side .it b')].map(e => e.textContent), title: document.querySelector('#routinesModal .rt-right .title').textContent,
+                sub: document.querySelector('#routinesModal .rt-right .sub').textContent, origin: !!document.querySelector('#routinesModal .rt-origin'), checked: (document.querySelector('#routinesModal .rt-status') || {}).textContent,
+                inputs: document.querySelectorAll('#routinesModal .rt-inputs tbody tr').length, badge: document.getElementById('routinesBadge').textContent })""")
+            check("the Routines manager lists the routine, verified, with its one input and the link to the analysis it was made from; the rail badge counts 1",
+                  mgr["items"] == ["Regime contrast within soil, plot means"] and mgr["origin"] and mgr["checked"] == "verified" and mgr["inputs"] == 1 and "a favourite" in mgr["sub"] and mgr["badge"] == "1", mgr)
+            script_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes(\"'regime': 'B'\"))", rj["id"])
+            check("the .py download carries the INPUTS block with the default", script_status is True, script_status)
+            page.click("#routinesModal .rt-origin")
+            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none' && /chain 1 of 4/.test(document.getElementById('chainPosition').textContent)", timeout=15000)
+            check("open the analysis: the routine's origin loads from favourites into the main panes", True)
+            page.click("#workflowManagerPill")
+            page.wait_for_selector("#workflowManagerModal .workflow-card-routine", timeout=15000)
+            card_btn = page.evaluate("() => [...document.querySelectorAll('#workflowManagerModal .workflow-card-routine')].map(b => [b.className, (b.querySelector('.n') || {}).textContent || ''])")
+            check("the favourites' card carries the Routine button, lit with 1", any("has" in c.split() and n == "1" for c, n in card_btn), card_btn)
+            page.evaluate("WorkflowModal.close()")
+            page.wait_for_timeout(300)
             errs = page.evaluate("window.__stackErrors || []")
             # what landed on disk, in the app's own layout under the stack's web app working directory
             wa = os.path.join(workdir, "webapp")

@@ -9,6 +9,7 @@ column name (rolled back), the adjusted comparison with a plot-level bootstrap, 
 the report. A follow-up ("and regime C?") reuses the warm kernel in two turns. Any other
 question gets a short generic two-turn answer, so the stack can be driven interactively.
 """
+import json
 import re
 
 import numpy as np
@@ -211,7 +212,28 @@ class Scenario:
             return self.analyst(user)
         if system.startswith("You are the Reader"):
             return "", self.reader(user)
+        if system.startswith("You are preparing an analysis so that it can be run again"):
+            return "", self.promoter(user)
         return "", "OK"
+
+    # ------------------------------------------------------------ the promoter (routines, docs/ROUTINES_DESIGN.md)
+    def promoter(self, user):
+        """The routine's inputs for the story's first chain: the regime compared becomes a choice from the regime
+        column (the analysis compared B against A); the bootstrap size and seed stay the method's. The edits name
+        the cell that defines adj_diff, wherever the chain numbered it."""
+        m = re.search(r"# --- cell (\d+) ---\n(?:(?!# --- cell).)*?def adj_diff", user, re.S)
+        if not m:
+            return json.dumps({"name": "As it is", "inputs": [], "edits": [], "kept": ["nothing in this chain varies with the data"]})
+        cell = int(m.group(1))
+        return json.dumps({
+            "name": "Regime contrast within soil, plot means",
+            "inputs": [{"key": "regime", "label": "The regime compared with A", "type": "choice", "default": "B", "origin": "the analysis compared B against A", "column": "regime", "multiple": False}],
+            "edits": [
+                {"cell": cell, "find": "def adj_diff(pm, a='A', b='B', rng=None):", "replace": "def adj_diff(pm, a='A', b=INPUTS['regime'], rng=None):"},
+                {"cell": cell, "find": "raw = plot_means[plot_means.regime == 'B']['yield_t_ha'].mean()", "replace": "raw = plot_means[plot_means.regime == INPUTS['regime']]['yield_t_ha'].mean()"},
+                {"cell": cell, "find": "RESULT('yield, regime B vs A within soil type, plot means', est, lo, hi, 't/ha', 'B higher')",
+                 "replace": "RESULT(f\"yield, regime {INPUTS['regime']} vs A within soil type, plot means\", est, lo, hi, 't/ha', f\"{INPUTS['regime']} higher\")"}],
+            "kept": ["the 500 bootstrap draws and the seed are the method's", "soil is the stratification, not an input"]})
 
     # ------------------------------------------------------------ the Reader seat
     def reader(self, user):

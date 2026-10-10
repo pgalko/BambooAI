@@ -58,8 +58,9 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (83/45/30/19/49/44/50/1/1 Python; 29/7/29/56/24 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (32); `tests/e2e/test_local_store.py` (16);
+- **The tests.** `run_battery.sh` (177/67/30/19/16/49/44/51/10/51/1/1 Python; 39/7/29/56/24/29 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (58; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+  `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -387,6 +388,33 @@
   the Reviewers stay on `openai/gpt-6.1-sol` (high / xhigh), the free and cost tiers on DeepSeek with Grok reviewing.
   `model_properties` unchanged. Every seat's model is priced, every Anthropic seat's entry carries `no_sampling` and its
   effort levels, every seat's effort is one the entry declares.
+- **Routines, step 1 built (2026-10-10, patches 0111-0112; docs/ROUTINES_DESIGN.md v1.0).** An analysis kept as a
+  method and run again without a model on new data, with exploration and exploitation kept apart (Palo's design: the
+  only thing a person sets is the inputs before a run; a run is a record, nothing to ask; under a run's view the
+  composer is disabled, back on a new thread or a favourite load). Built now - *Save as routine*: the Save pill's menu
+  (Save as favourite = the rank dialog as before; Save as routine, which saves the favourite too, so the pill now
+  stays on a saved chain with the bookmark filled), the promoter (one Analyst-seat call with a generic prompt that
+  returns find/replace edits and inputs as JSON, never a retyped script; edits apply whole per input; `analyst/routines.py`,
+  `bambooai/routines_host.py`), the dialog (name, purpose, data, inputs with "keep fixed", results with typed lines
+  flagged, the next-version choice on an origin thread), run zero on the chain's data through `BambooAI.run_script`
+  (the replay's path) checked by position against the kernel's RESULT records (differed = refused with the lines
+  named; data gone = created unverified), the records as files beside the favourites (`storage/<user>/routines/<id>/`),
+  the routes (`web_app/routines_routes.py`; the two slow ones stream the pane's rows like /submit_rank; propose is
+  authorised and charged as a query on a chain id of its own), the Routines rail entry with its count and the manager
+  (list, verified mark, inputs, results, versions, .py download with the INPUTS block, rename, delete, "made from the
+  analysis of … ↗" opening the favourite), the favourites' cards' Routine button (grey / lit with the number of
+  versions born from the analysis, in place of the v1 Replay button), and `composerLock/composerUnlock`. A run now
+  records what it ran on (`Run.data`: df_id, name, source, columns, rows, aux; `ExecutorAPIClient.cache_preview`).
+  Tested: the pure module and the host over a real kernel with a scripted promoter (test_routines.py, 51), the
+  instance and the routes on the fake model layer (test_app_path.py), the markup (test_routines.js, test_pane.js),
+  the real page with the backend faked (`tools/routines_screens.py --out DIR --light`, seven screens with state
+  checks), and the end-to-end walk in both editions (the scripted scenario's promoter names the regime as the one
+  input; run zero reproduces through the executor; the routine is stored, linked, listed and lit on the card). Also:
+  tests/analyst/test_js_refs.py lexes the scripts instead of regex-stripping them (a regex literal holding a quote had
+  turned the rest of stream-pane.js inside out, and the scan passed or failed by quote parity); a KaTeX stand-in in
+  the stack's browser; a local-mode upload names its file in the DATA header. Next: Palo's Titanic test with the
+  real promoter on dev; then step 2, Run on current data (the runner, the fingerprint and value checks, the comparison,
+  S4 with the arrows between runs and the composer locked).
 - **Next candidates:** the CI badge back in the README (the public workflow exists now); an 8-bit Ollama
   tag (`qwen3.8:27b-q8_0`) to compare quality with vLLM on equal footing; O5 team mode (a users table
   exists in the store); O9 integrations on the local kernel. Parked

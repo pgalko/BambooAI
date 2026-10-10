@@ -359,10 +359,13 @@ function initializeRankingSystem() {
     const closeModalButton = modal?.querySelector('.close');
 
     if (rankButton) {
-        // Modified click handler to check for replay
+        // the pill's menu (2026-10-10, routines): Save as favourite opens the rank dialog as before, Save as routine the
+        // routine dialog; the pill shows the menu on hover and on click
         rankButton.addEventListener('click', () => {
             if (currentRankData && currentRankData.replay) {
                 handleReplayStorage();
+            } else if (window.RoutinesUI && typeof window.RoutinesUI.toggleSaveMenu === 'function') {
+                window.RoutinesUI.toggleSaveMenu();
             } else {
                 showRankModal();
             }
@@ -878,21 +881,23 @@ function updateRankButtonVisibility() {
 
     const currentResponse = responses[currentResponseIndex];
 
-    // Already individually saved to vector DB
-    if (!currentResponse || currentResponse.bookmark_type === 'individual') {
+    // the pill shows on any finished chain in view (2026-10-10, routines): saved or not, since its menu offers Save as
+    // routine beside Save as favourite; a running chain, or none, hides it. A saved chain marks the pill .saved.
+    const finished = currentResponse && currentResponse.status !== 'running' && (currentRankData || currentResponse.bookmark_type || currentResponse.chain_id);
+    if (!finished) {
         rankButton.style.display = 'none';
+        rankButton.classList.remove('saved');
+        if (window.RoutinesUI && typeof window.RoutinesUI.hideSaveMenu === 'function') window.RoutinesUI.hideSaveMenu();
         return;
     }
-
-    if (currentRankData) {
-        rankButton.style.display = 'block';
-        if (currentRankData.replay) {
-            rankButton.classList.add('replay');
-        } else {
-            rankButton.classList.remove('replay');
-        }
+    rankButton.style.display = 'block';
+    const saved = currentResponse.bookmark_type === 'individual';
+    rankButton.classList.toggle('saved', saved);
+    rankButton.setAttribute('data-tip', saved ? 'Saved · Save as routine' : 'Save this chain');
+    if (currentRankData && currentRankData.replay) {
+        rankButton.classList.add('replay');
     } else {
-        rankButton.style.display = 'none';
+        rankButton.classList.remove('replay');
     }
 }
 

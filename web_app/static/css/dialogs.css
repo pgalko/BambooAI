@@ -112,6 +112,80 @@
 #usageTrackingModal .chart-container h4 { margin: 0 0 6px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
 #usageTrackingModal .chart-container > div { flex: 1; min-height: 200px; }
 
+/* ---- routines (2026-10-10, routines.js; docs/ROUTINES_DESIGN.md): the Save-as-routine dialog (#routineMakeModal), the
+   manager behind the rail entry (#routinesModal), the favourites' cards' Routine button, the composer lock. The rt-*
+   classes are the few the ui-* grammar lacks: a data row, the inputs table, the results list, the versions list. ---- */
+#routineMakeModal .ui-dlg.routine-dlg { width: min(780px, 100%); max-height: min(90vh, 900px); }
+#routineMakeModal .ui-dlg-b { display: flex; flex-direction: column; gap: 14px; }
+#routineMakeModal .ui-dlg-f .note { max-width: 520px; line-height: 1.4; }
+#routineMakeModal .ui-field { margin-bottom: 0; }
+#routineMakeModal .ui-field > label .ui-muted { text-transform: none; letter-spacing: 0; }
+.rt-sec { display: flex; flex-direction: column; gap: 6px; }
+.rt-sec > .h { font-size: var(--fs-small); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .03em; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rt-sec > .h .n { color: var(--text-quaternary); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.rt-data { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); font-size: var(--fs-meta); color: var(--text-secondary); flex-wrap: wrap; }
+.rt-data .name { color: var(--text-primary); font-weight: 600; }
+.rt-data .meta { color: var(--text-quaternary); }
+.rt-line { font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.5; }
+.rt-line.muted { color: var(--text-quaternary); font-size: var(--fs-small); }
+.rt-line.warn { color: var(--c-kernel); }
+.rt-inputs td:first-child { color: var(--text-primary); }
+.rt-inputs td.keep { white-space: nowrap; text-align: right; }
+.rt-inputs .from { color: var(--text-quaternary); font-size: var(--fs-small); }
+.rt-inputs .val { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--text-tertiary); cursor: pointer; }
+.rt-check input { accent-color: var(--c-model); margin: 0; }
+.rt-results { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-results .r { display: flex; align-items: center; gap: 8px; padding: 2px 0; line-height: 1.35; }
+.rt-results .r .g { color: var(--c-model); width: 12px; text-align: center; flex-shrink: 0; }
+.rt-results .r.flag { color: var(--text-primary); padding: 6px 8px; border: 1px solid var(--chip-kernel-border); border-radius: var(--r-2); margin-top: 4px; flex-wrap: wrap; }
+.rt-results .r.flag .g { color: var(--c-kernel); }
+.rt-results .r .l { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rt-results .r.flag .l { white-space: normal; }
+.rt-results .r .c { color: var(--text-quaternary); font-size: var(--fs-small); white-space: nowrap; }
+.rt-wait { display: flex; align-items: center; gap: 10px; padding: 18px 4px; font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-wait .live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); flex-shrink: 0; animation: rt-pulse 1.2s ease-in-out infinite; }
+@keyframes rt-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.rt-error { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--chip-fail-border); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-primary); }
+.rt-error .msg { line-height: 1.5; }
+.rt-version .ui-choice span { line-height: 1.4; }
+.rt-vers { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-vers .v { display: flex; gap: 10px; align-items: baseline; }
+.rt-vers .v b { color: var(--text-primary); font-family: var(--font-mono); font-size: var(--fs-meta); }
+.rt-vers .v span { color: var(--text-quaternary); font-size: var(--fs-small); }
+.rt-status { font-size: var(--fs-small); padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; }
+.rt-status.reproduced { color: var(--c-model); border-color: var(--chip-model-border); }
+.rt-status.unverified { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
+/* the manager: the shape of the saved-workflows dialog, a list on the left and one routine on the right */
+#routinesModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+#routinesModal .ui-dlg.rt-mgr { width: min(1240px, 100%); max-height: min(90vh, 900px); flex-direction: row; overflow: hidden; }
+#routinesModal .rt-left { width: 270px; flex-shrink: 0; border-right: 1px solid var(--border-color); padding: 14px 10px 12px; display: flex; flex-direction: column; gap: 6px; overflow: auto; }
+#routinesModal .rt-left .ui-side-label { margin: 0 0 4px 6px; }
+#routinesModal .rt-right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#routinesModal .rt-right .ui-dlg-h .sub a { color: var(--c-model); text-decoration: none; }
+#routinesModal .rt-right .ui-dlg-h .sub a:hover { text-decoration: underline; }
+#routinesModal .rt-actions { display: flex; gap: 6px; align-items: center; }
+#routinesModal .rt-actions .ui-btn { height: 26px; padding: 0 9px; font-size: var(--fs-small); text-decoration: none; }
+#routinesModal .rt-actions .danger-text { color: var(--c-fail); }
+#routinesModal .rt-body { padding: 14px 16px; overflow: auto; display: flex; flex-direction: column; gap: 18px; flex: 1; min-height: 0; }
+#routinesModal .rt-body .ui-kv { grid-template-columns: 90px 1fr; }
+#routinesModal .rt-body .ui-kv span { color: var(--text-secondary); line-height: 1.5; }
+.rt-side { display: flex; flex-direction: column; gap: 2px; }
+.rt-side .it { display: flex; flex-direction: column; gap: 2px; padding: 7px 8px; border-radius: 5px; cursor: pointer; }
+.rt-side .it:hover, .rt-side .it.on { background: var(--bg-tertiary); }
+.rt-side .it b { font-size: 12.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-side .it span { font-size: var(--fs-small); color: var(--text-quaternary); }
+.rt-empty { padding: 24px; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.6; max-width: 560px; }
+.rt-empty b { color: var(--text-primary); }
+/* the favourites' cards: the Routine button, grey with nothing, lit with the count of versions born from the analysis */
+#workflowManagerModal .workflow-card-routine { color: var(--text-tertiary); }
+#workflowManagerModal .workflow-card-routine .n { min-width: 16px; height: 16px; padding: 0 5px; border-radius: 8px; background: var(--c-model); color: var(--bg-primary); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
+#workflowManagerModal .workflow-card-routine.has { color: var(--c-model); border-color: var(--chip-model-border); }
+#workflowManagerModal .workflow-card-routine.has:hover { background: var(--accent-bg-hover); }
+/* the composer locked under a run's view: a run is a record, nothing to ask (docs/ROUTINES_DESIGN.md S4) */
+body.composer-locked .left-panel .textarea-container { opacity: .55; }
+body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
+
 /* ---- saved workflows dialog (#workflowManagerModal): workflow-modal.css and workflow-replay.css are retired ----
    The JS swaps the left panel's HTML, replaces the header's title, inserts a thread navigation bar before the
    grid, and builds the cards; every class it touches is styled here. */

@@ -33,6 +33,8 @@ class FakeModels:
         lacm.write_to_log(agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
         if user.startswith("Rewrite the technical report"):
             return "Plain: B is higher by DIFF."
+        if messages[0]["content"].startswith("You are preparing an analysis so that it can be run again"):
+            return state.get("promoter") or '{"name": "B against A", "inputs": [{"key": "arm_b", "label": "The arm compared", "type": "choice", "default": "B", "origin": "the analysis compared B", "column": "arm"}], "edits": [{"cell": 2, "find": "m[\'B\']", "replace": "m[INPUTS[\'arm_b\']]"}], "kept": ["A stays the baseline"]}'
         if messages[0]["content"].startswith("You are the reviewer"):
             return ("###REVIEW###\n- The question requires: B against A.\n- Established: the difference [cell 1].\n"
                     "- Most consequential problem: no interval.\n- Verdict: TEST bootstrap the difference")
@@ -94,6 +96,81 @@ tf = os.path.join(work, "storage", "u1", "threads", "1001.json")
 check("stored under storage/<user>/threads/<thread>.json as the notebook tree", os.path.exists(tf) and "runs" in json.load(open(tf)))
 check("the model layer was called with the analyst seat and the contract as system prompt",
       all(a == "Investigator" for a, _ in state["calls"]) and "You are the analyst" in "".join(m["content"] for m in [{"content": B.__dict__["Session"].__module__ and ""}]) or True)
+
+# the run keeps what it ran on (2026-10-10, routines): the frame's identity, columns and size
+check("the run records its data: df_id, the columns with dtypes, the row count, the source",
+      run1.data.get("df_id") == "d1" and [c["name"] for c in run1.data.get("columns", [])] == ["arm", "x"] and run1.data.get("rows") == 200 and run1.data.get("source") == "frame"
+      and json.load(open(tf))["runs"][run1.id]["data"]["rows"] == 200, run1.data)
+# Save as routine through the instance: the promoter on the fake model layer, run zero through the executor, the store
+from bambooai.routines_host import RoutineRefused
+while not q.empty(): q.get()
+prop = BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9001")
+pev = [json.loads(q.get()) for _ in range(q.qsize())]
+check("propose_routine: the promoter's call is a quiet card on the pane, accounted to the billing chain; the proposal names the input the fake promoter made and the data the run recorded",
+      [e.get("type") for e in pev] == ["pane_turn_start", "pane_turn_end"] and pev[0].get("quiet") and pev[0].get("chain_id") == "9001" and pev[0].get("turn") == "routine"
+      and prop["inputs"][0]["key"] == "arm_b" and prop["data"]["rows"] == 200 and prop["data_state"] == "same" and prop["results"] == [] and "INPUTS['arm_b']" in prop["script"], (pev, prop.get("inputs")))
+_pu = next((u for _, u in state["calls"] if u.startswith("QUESTION:")), "")
+check("the promoter's prompt carried the question, the two cells and the data's columns", _pu.startswith("QUESTION:\nIs B higher") and "# --- cell 2 ---" in _pu and "arm: " in _pu and "ANSWER SUMMARY:\nB exceeds A by" in _pu, _pu[:300])
+check("the billing chain was charged as a query would be (the fake log manager wrote under it)", any(str(e.get("chain_id")) == "9001" for e in json.load(open(_runlog))), [e.get("chain_id") for e in json.load(open(_runlog))][-3:])
+made = BAMBOO.create_routine(prop["proposal_id"], {"name": "B against A", "purpose": "the difference, again", "drop_inputs": [], "drop_results": []})
+cev = [json.loads(q.get()) for _ in range(q.qsize())]
+check("create_routine: run zero ran through the executor (a pending row, the executor chip, the routine row) and the routine is stored verified",
+      [e.get("type") for e in cev] == ["pane_lookup_start", "pane_cell_start", "pane_lookup"] and cev[0].get("kind") == "routine" and cev[-1].get("kind") == "routine"
+      and made["run_zero"]["verified"] and made["run_zero"]["status"] == "reproduced" and made["routine"]["origin"] == {"thread_id": "1001", "chain_id": run1.id}
+      and os.path.exists(os.path.join(work, "storage", "u1", "routines", made["routine"]["id"], "routine.json")), (cev, made.get("run_zero")))
+st = BAMBOO.routine_store()
+check("the store lists it with the favourite's card index pointing at run1", [r["id"] for r in st.all()] == [made["routine"]["id"]] and st.by_origin() == {("1001", run1.id): [{"id": made["routine"]["id"], "name": "B against A", "version": 1}]})
+try:
+    BAMBOO.create_routine(prop["proposal_id"], {}); twice = ""
+except RoutineRefused as exc:
+    twice = str(exc)
+check("a spent proposal is refused with a readable reason", "expired" in twice, twice)
+state["promoter"] = '{"name": "Broken", "inputs": [{"key": "arm_b", "label": "x", "type": "choice", "default": "A", "origin": "x", "column": "arm"}], "edits": [{"cell": 2, "find": "m[\'B\']", "replace": "m[INPUTS[\'arm_b\']]"}]}'
+# a rewrite that changes the method: the chain printed no RESULT lines, so run zero can only check that it runs
+prop2 = BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9002")
+while not q.empty(): q.get()
+made2 = BAMBOO.create_routine(prop2["proposal_id"], {"name": "", "purpose": "", "drop_inputs": ["arm_b"], "drop_results": []})
+while not q.empty(): q.get()
+check("dropping the proposed input makes a routine without inputs; run zero on a chain without RESULT lines checks that the script runs",
+      st.load(made2["routine"]["id"])["versions"][0]["manifest"]["parameters"] == [] and "INPUTS[" not in st.load(made2["routine"]["id"])["versions"][0]["script"] and "ran without error" in made2["run_zero"]["line"], made2.get("run_zero"))
+state["promoter"] = None
+for rid_ in [made["routine"]["id"], made2["routine"]["id"]]:
+    st.delete(rid_)
+# the routes (web_app/routines_routes.py) on a test app, the app's names faked: the two streams end with their one message
+import types as _types, importlib as _il
+sys.path.insert(0, os.path.join(ROOT, "web_app"))
+_fa = _types.ModuleType("auth"); _fa.requires_auth = lambda f: f; _fa.get_current_user_id = lambda: "auth0|u1"; sys.modules["auth"] = _fa
+_fs = _types.ModuleType("auth.supabase_client"); _fs.can_execute_chain = lambda a: {"ok": True, "data": {"allowed": True}}; _fs.increment_queries_counter = lambda a: {"ok": True}; sys.modules["auth.supabase_client"] = _fs
+_fapp = _types.ModuleType("app"); _fapp.user_path = lambda root, *p: os.path.join(os.getcwd(), root, "u1", *p); _fapp.get_bamboo_ai = lambda sid: BAMBOO; _fapp.get_user_id = lambda: "u1"; _fapp.update_user_activity = lambda u: None
+sys.modules["app"] = _fapp
+import routines_routes as RR
+from flask import Flask
+_w = Flask("t"); _w.secret_key = "t"; _w.register_blueprint(RR.routines_bp); _wc = _w.test_client()
+with _wc.session_transaction() as _sess: _sess["session_id"] = "s1"
+def _lines(resp): return [json.loads(x) for x in resp.get_data(as_text=True).splitlines() if x.strip()]
+_r = _wc.post("/routines/propose", json={"thread_id": "1001", "chain_id": run1.id})
+_msgs = _lines(_r)
+check("route /routines/propose: streams the pane's rows and ends with routine_proposal (no scripts in it)",
+      _r.status_code == 200 and [m.get("type") for m in _msgs[:2]] == ["pane_turn_start", "pane_turn_end"] and "routine_proposal" in _msgs[-1]
+      and _msgs[-1]["routine_proposal"]["inputs"][0]["key"] == "arm_b" and "script" not in _msgs[-1]["routine_proposal"], _msgs[-1])
+_pid = _msgs[-1]["routine_proposal"]["proposal_id"]
+_r = _wc.post("/routines/create", json={"proposal_id": _pid, "name": "Route made", "purpose": "p", "drop_inputs": [], "drop_results": []})
+_msgs = _lines(_r)
+check("route /routines/create: streams run zero's rows and ends with routine_made", "routine_made" in _msgs[-1] and _msgs[-1]["routine_made"]["run_zero"]["verified"] and _msgs[0].get("type") == "pane_lookup_start", _msgs[-1])
+_rid = _msgs[-1]["routine_made"]["routine"]["id"]
+check("route /routines: the list; /routines/<id>: the versions without scripts; by_origin: the card's index",
+      [x["id"] for x in _wc.get("/routines").get_json()["routines"]] == [_rid] and _wc.get(f"/routines/{_rid}").get_json()["routine"]["versions"][0]["script_chars"] > 100
+      and "script" not in _wc.get(f"/routines/{_rid}").get_json()["routine"]["versions"][0]
+      and _wc.get(f"/routines/by_origin/1001/{run1.id}").get_json()["routines"] == [{"id": _rid, "name": "Route made", "version": 1, "chain_id": run1.id}]
+      and _wc.get("/routines/by_origin/1001").get_json()["routines"][0]["id"] == _rid and _wc.get("/routines/by_origin/1001/nope").get_json()["routines"] == [])
+_s = _wc.get(f"/routines/{_rid}/script")
+check("route /routines/<id>/script: a .py download with the INPUTS block and the defaults", _s.status_code == 200 and "attachment; filename=\"Route_made_v1.py\"" in _s.headers.get("Content-Disposition", "") and "INPUTS = {" in _s.get_data(as_text=True) and "'arm_b': 'B'" in _s.get_data(as_text=True))
+check("route rename / delete", _wc.post(f"/routines/{_rid}/rename", json={"name": "Renamed"}).get_json()["routine"]["name"] == "Renamed" and _wc.delete(f"/routines/{_rid}").status_code == 200 and _wc.get(f"/routines/{_rid}").status_code == 404)
+_r = _wc.post("/routines/create", json={"proposal_id": "gone"})
+check("route /routines/create with a spent proposal: the stream ends with routine_error", "routine_error" in _lines(_r)[-1] and "expired" in _lines(_r)[-1]["routine_error"])
+_r = _wc.post("/routines/propose", json={"thread_id": "1001", "chain_id": "nope"})
+check("route /routines/propose on an unknown chain: routine_error with the reason", "routine_error" in _lines(_r)[-1] and "not in this thread" in _lines(_r)[-1]["routine_error"], _lines(_r)[-1])
+for _m in ("auth", "auth.supabase_client", "app"): sys.modules.pop(_m, None)
 
 # follow-up on the same thread, standing on run1: the kernel is reused (d is still defined)
 state.update(i=0, script=FOLLOW); BAMBOO.output_manager.add_user_input("And again?")

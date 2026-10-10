@@ -290,6 +290,18 @@ class ExecutorAPIClient:
         removed = sum(1 for rel in delete if self.remove_document(user_id, rel))
         return sent, removed
 
+    def cache_preview(self, df_id: str) -> Optional[dict]:
+        """What the executor knows about a cached frame (2026-10-10, routines): its metadata (source, original
+        filename, date range, the loader's details), columns, dtypes and shape; None when it is not in the cache."""
+        try:
+            r = requests.get(f"{self.base_url}/cache/preview/{df_id}", timeout=30)
+            if r.status_code == 200:
+                return r.json()
+            self.log_to_file(f"cache_preview: {r.status_code} for {df_id}")
+        except Exception as exc:                                # noqa: BLE001
+            self.log_to_file(f"cache_preview error: {exc}")
+        return None
+
     def executor_build(self) -> Optional[str]:
         """The executor image's build stamp from /health (None for images before 2026-09-07)."""
         try:
