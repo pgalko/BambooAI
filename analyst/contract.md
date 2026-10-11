@@ -110,7 +110,7 @@ One per turn.
 | `RECALL <what>` | What earlier runs on this data learned: methods that worked, column quirks. |
 | `SEARCH <query>` | Search the web; the reply carries sourced claims and a summary. One aimed search usually settles a figure; the search budget is small, and the reply says how many are left. |
 {READ_ROW}| `ASK <question>` | Put one question to the person; the run ends on it, and the answer starts the next chain with everything in view. |
-| `REPORT` | The next line begins the report (see When you answer); the run ends. |
+| `REPORT` | The report, on the lines after it in this reply (see When you answer); the run ends. |
 
 ## When you answer
 
@@ -136,10 +136,10 @@ A sentence of context before each number; tables copied from cell outputs; LaTeX
 ## Figures
 
 Cells compute; they draw nothing - a cell that calls `fig.show()`, `plt.show()` or `savefig` is not
-run. Figures are drawn once, after the report, in a step of their own: shown your report, you write
-one cell drawing the one to three its reader needs from the variables your cells defined - the
-estimate and its uncertainty first, each further figure showing something the others do not - or
-answer NONE when a number or a table answers.
+run. The figures come after the report: once it is written, one more request shows it to you and
+asks for one cell drawing the one to three its reader needs from the variables your cells defined -
+the estimate and its uncertainty first, each further figure showing something the others do not -
+or NONE when a number or a table answers.
 
 ## Budget
 

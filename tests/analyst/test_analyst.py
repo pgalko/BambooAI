@@ -529,9 +529,12 @@ check("results ledger: while the newest cell's output is in view whole its lines
       and "- [cell 1] B vs A mean" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "- [cell 3] C vs A" not in [p_ for p_ in res_prompts if "TASK:" in p_][-1], [p_[-250:] for p_ in res_prompts[1:3]])
 check("contract: names DS and the comparison part of the report, and shows the RESULT: line with a neutral example",
       "`df = DS.load()`" in c_all and "- the comparison: what the question asks to compare, and what you compared" in c_all and "RESULT: outcome Y, group B vs group A at matched age" in c_all and "## Results" in c_all)
-check("contract: cells compute and draw nothing - a figure cell is not run; the figures are drawn once after the report, one to three, or NONE - the mechanism, no advice on when",
-      "a cell that calls `fig.show()`, `plt.show()` or `savefig` is not\nrun" in c_all and "drawn once, after the report, in a step of their own" in c_all
-      and "answer NONE when a number or a table answers" in c_all and "[fig 7]" not in c_all and "where it breaks down" not in c_all)
+from analyst.session import FIGURES_LATER as FIGURES_LATER_
+check("contract: cells compute and draw nothing - a figure cell is not run; the figures come after the report from one more request, one to three, or NONE - the mechanism, no advice on when; "
+      "the REPORT row says the report is in the same reply; no 'step' beside the reply's STEP (2026-10-11: 'in a step of their own' had two runs end at the word REPORT)",
+      "a cell that calls `fig.show()`, `plt.show()` or `savefig` is not\nrun" in c_all and "once it is written, one more request shows it to you" in c_all
+      and "or NONE when a number or a table answers" in c_all and "[fig 7]" not in c_all and "where it breaks down" not in c_all
+      and "| `REPORT` | The report, on the lines after it in this reply" in c_all and "step of their own" not in c_all and "step of their own" not in FIGURES_LATER_)
 check("contract: an estimate is recorded with the kernel's RESULT(...), the words the analyst's and the numbers the cell's; a typed number is marked; a revised estimate gets a new line",
       "record it in that cell with the\nkernel's `RESULT(what, estimate, low, high, unit, direction)`" in c_all and "A number written into the call instead of computed is marked as typed" in c_all
       and "A revised estimate gets a new\nline" in c_all and "print it on one line" not in c_all)
@@ -573,8 +576,8 @@ finally:
 analysis_prompts = [u for s_, u in fig_prompts if not s_.startswith("You are drawing") and not u.startswith("Rewrite")]
 step_prompts = [u for s_, u in fig_prompts if s_.startswith("You are drawing")]
 check("figures: a cell that draws during the analysis is not run - no cell number, its output says figures come after the report, the refusal reaches the next prompt - and the run goes on",
-      rf.turns[1].kind == "cell" and rf.turns[1].cell_no is None and not rf.turns[1].error and "Figures are drawn after the report" in rf.turns[1].stdout
-      and any("Figures are drawn after the report" in u for u in analysis_prompts) and [x.cell_no for x in rf.cells() if not x.step] == [1, 2] and rf.status == "answered",
+      rf.turns[1].kind == "cell" and rf.turns[1].cell_no is None and not rf.turns[1].error and "Figures come after the report" in rf.turns[1].stdout
+      and any("Figures come after the report" in u for u in analysis_prompts) and [x.cell_no for x in rf.cells() if not x.step] == [1, 2] and rf.status == "answered",
       [(x.kind, x.cell_no, x.step) for x in rf.turns])
 step_turns = [x for x in rf.turns if x.step == "figures"]
 check("figures: the step after the report - its first cell failed and is on the record with its error and no number; the corrected cell committed as cell 3 with the two Plotly figures it showed",

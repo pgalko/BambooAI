@@ -65,8 +65,8 @@ SHOW_VIEW_CHARS = 40_000     # a SHOW of several cells at once rides whole up to
 SHOWN_RUNS_CHARS = 60_000    # the runs SHOW RUN re-opened stay in the prompt for the rest of the run, whole, while together they fit
                              # this; beyond it the oldest collapse to a line each (2026-10-03: a count of three kept a five-chain
                              # synthesis cycling - ten of its fourteen turns re-opened runs it had already shown)
-FIGURES_LATER = ("(Figures are drawn after the report, in a step of their own: this cell was not run. "
-                 "Write the computation without the figure.)")     # 2026-10-11: cells compute; the figures step draws
+FIGURES_LATER = ("(Figures come after the report, from a request of their own, not from a cell of the analysis: this cell "
+                 "was not run. Write the computation without the figure.)")     # 2026-10-11: cells compute; the figures request draws
 FIGURES_ATTEMPTS = 4         # the figures step's cell: one try and up to three corrections of a cell that fails
 # the figures cell runs wrapped (the record keeps the analyst's code alone): the analysis kernel's Plotly show is silent,
 # so the wrap collects the figures shown and prints their titles after FIGURES: for the step to read. The collector

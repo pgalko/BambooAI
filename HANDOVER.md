@@ -441,6 +441,21 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **What steered the model to an empty REPORT, and the sentence rewritten (2026-10-11, patch 0129).** Palo, after the
+  second run in a row ended at the word REPORT (caught by 0127 this time, the report written on the next turn): "why
+  does it keep happening? The condition we introduced is only a patch that should almost never trigger". Read as the
+  standing rule asks: the only text that changed between the runs that wrote their reports and the two that did not is
+  0126's Figures paragraph - "Figures are drawn once, after the report, in a step of their own: shown your report, you
+  write one cell ...". In the contract a *step* is one reply (the reply's first section is STEP), so the paragraph
+  reads as a system-driven step after REPORT in which the analyst is shown a report and writes; both replies echo it
+  ("I will now write the report; the figure itself is drawn in the step that follows", "This turn writes the report;
+  the histogram is drawn in the step after it"), then give REPORT alone - the word taken as the action that starts that
+  sequence, the text expected to be asked for the way the figures are. Told once that the report is the text under
+  REPORT in the same reply (0127's line), the model wrote it at once. Rewritten, not supplemented: the REPORT row of
+  the actions table says "The report, on the lines after it in this reply"; the Figures paragraph says "The figures
+  come after the report: once it is written, one more request shows it to you and asks for one cell ..." - no step,
+  nothing shown before it is written; FIGURES_LATER likewise ("from a request of their own, not from a cell of the
+  analysis"). 8,995 characters. 0127 stays as the guard it is. test_analyst.py 189.
 - **The plain-language version cites the figures (2026-10-11, patch 0128).** Palo: the simplified answer "could also
   benefit from figure citations". REWRITE_TASK: where the report cites a figure as [fig n], keep that citation at the
   end of the sentence that says what the figure shows (the cell citations still go, as before); the Simplified view
