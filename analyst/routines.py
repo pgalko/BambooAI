@@ -1112,12 +1112,24 @@ def _ivl(r: Optional[dict]) -> Optional[Tuple[float, float]]:
     return (lo, hi) if lo is not None and hi is not None else None
 
 
-def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional[List[dict]]) -> dict:
+def cell_text(script: str, cell: int) -> str:
+    """The code of cell `cell` in a script - from its marker to the next marker or the tail - without the marker."""
+    lines = (script or "").splitlines()
+    start = next((i for i, ln in enumerate(lines) if _CELL_MARK_RE.match(ln) and int(_CELL_MARK_RE.match(ln).group(1)) == int(cell)), None)
+    if start is None:
+        return ""
+    end = next((i for i in range(start + 1, len(lines)) if _CELL_MARK_RE.match(lines[i]) or lines[i].startswith(_TAIL_MARK.strip("\n"))), len(lines))
+    return "\n".join(lines[start + 1:end]).strip("\n")
+
+
+def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional[List[dict]], failed: bool = False) -> dict:
     """This run's lines against a reference run's, by position: the change, whether the intervals overlap, what is
     missing on either side. Dropped lines are printed but not compared. Marks: up / down when the intervals do not
-    overlap (or, without intervals, when the estimate changed), same when they do, missing when a side lacks the line."""
+    overlap (or, without intervals, when the estimate changed), same when they do, missing when a side lacks the line
+    - and, in a run that failed (`failed`), unreached for a line the run did not get to: the lines printed before
+    the failure are compared like any other (step 4, 2026-10-11), the rest said as not reached, not as missing."""
     rows = []
-    moved = within = missing = changed = 0
+    moved = within = missing = changed = unreached = 0
     for i, m in enumerate(manifest_results or []):
         if m.get("dropped") or m.get("estimate") is None:
             continue
@@ -1127,6 +1139,10 @@ def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional
                "now": {"estimate": a.get("estimate"), "low": a.get("low"), "high": a.get("high")} if a else None,
                "before": {"estimate": b.get("estimate"), "low": b.get("low"), "high": b.get("high")} if b else None,
                "change": None, "overlap": None, "mark": "missing"}
+        if failed and a is None:
+            row["mark"] = "unreached"; unreached += 1
+            rows.append(row)
+            continue
         if a and number(a.get("estimate")) is not None and (number(a["estimate"]) != number(a["estimate"])):   # nan: no number came out
             a = None
         if a and b:
@@ -1150,17 +1166,20 @@ def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional
         else:
             missing += 1
         rows.append(row)
-    compared = len(rows) - missing
+    compared = len(rows) - missing - unreached
     if before is None:
-        line = "nothing to compare with: the first run of this version"
+        line = "nothing to compare with: the first run of this version" + (f" ({unreached} line{'s' if unreached != 1 else ''} not reached)" if unreached else "")
     elif compared == 0:
-        line = "no result line to compare"
+        line = (f"no result line came before the failure ({unreached} not reached)" if unreached else "no result line to compare")
     else:
         parts = [f"{moved} of {compared} moved beyond their intervals" if any(r["overlap"] is not None for r in rows) else f"{changed} of {compared} changed"]
+        if unreached:
+            parts[0] += " before the failure"
+            parts.append(f"{unreached} not reached")
         if missing:
             parts.append(f"{missing} missing")
         line = ", ".join(parts)
-    return {"rows": rows, "moved": moved, "within": within, "changed": changed, "missing": missing, "compared": compared, "line": line}
+    return {"rows": rows, "moved": moved, "within": within, "changed": changed, "missing": missing, "unreached": unreached, "compared": compared, "line": line}
 
 
 # ----------------------------------------------------------------------------- the store

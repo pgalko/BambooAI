@@ -321,8 +321,26 @@ check("a file with a column dropped: the CHECK row says the column is empty in t
 def broken_runner(script, timeout):
     return "", 'Traceback (most recent call last):\n  File "<string>", line 999, in <module>\nKeyError: \'v\'', [], []
 out5 = host.run(store.load(rid4), {}, data_now, broken_runner, store)
-check("a script error: the run is kept with status failed, naming the cell, the comparison all missing", out5["run"]["status"] == "failed" and out5["run"]["line"].startswith("failed at cell 2:") and out5["run"]["comparison"]["missing"] == 1
-      and store.load(rid4)["runs"][-1]["status"] == "failed", out5["run"]["line"])
+check("a script error: the run is kept with status failed, naming the cell; its line not printed is 'not reached', not missing; the failed cell's code is on the record (step 4)",
+      out5["run"]["status"] == "failed" and out5["run"]["line"].startswith("failed at cell 2:") and out5["run"]["comparison"]["missing"] == 0 and out5["run"]["comparison"]["unreached"] == 1
+      and out5["run"]["comparison"]["rows"][0]["mark"] == "unreached" and "not reached" in out5["run"]["comparison"]["line"]
+      and out5["run"]["failed_cell"]["number"] == 2 and "RESULT(" in out5["run"]["failed_cell"]["code"] and "# --- cell" not in out5["run"]["failed_cell"]["code"]
+      and store.load(rid4)["runs"][-1]["status"] == "failed" and store.load(rid4)["runs"][-1]["comparison"]["unreached"] == 1, (out5["run"]["line"], out5["run"]["comparison"], out5["run"].get("failed_cell")))
+# the lines printed before a failure are compared like any other (step 4, 2026-10-11): a runner that prints the first line and dies
+def half_runner(script, timeout):
+    return "RESULT: rows above the line: +3\n", 'Traceback (most recent call last):\n  File "<string>", line 999, in <module>\nKeyError: \'v\'', [], []
+_m4 = store.load(rid4)
+_exp4 = host.version_of(_m4)["manifest"]["results"]
+_cmp_half = rt.compare_runs(_exp4 + [dict(_exp4[0], index=1, label="a second line", estimate="4")], [{"estimate": "3", "low": None, "high": None}], [{"estimate": "3", "low": None, "high": None}, {"estimate": "4", "low": None, "high": None}], failed=True)
+check("compare_runs of a failed run: the line printed before the failure compared (same), the one after it not reached; the line says so",
+      [r["mark"] for r in _cmp_half["rows"]] == ["same", "unreached"] and _cmp_half["compared"] == 1 and _cmp_half["unreached"] == 1 and _cmp_half["missing"] == 0
+      and _cmp_half["line"] == "0 of 1 changed before the failure, 1 not reached", _cmp_half)
+check("compare_runs: without a reference, a failed run's unreached lines are counted in the line; a completed run's absent line is still 'missing'",
+      "1 line not reached" in rt.compare_runs(_exp4, [], None, failed=True)["line"] and rt.compare_runs(_exp4, [], [{"estimate": "3"}], failed=False)["rows"][0]["mark"] == "missing"
+      and rt.compare_runs(_exp4, [], [{"estimate": "3"}], failed=True)["line"] == "no result line came before the failure (1 not reached)")
+check("cell_text: a cell's code from the script without its marker; nothing for a cell that is not there",
+      rt.cell_text("# --- cell 1 ---\na = 1\n\n# --- cell 2 ---\nb = 2\n_bamboo_capture[0] = True\n\n# --- the executor's own display options back ---\npd.reset_option('x')\n", 2) == "b = 2\n_bamboo_capture[0] = True"
+      and rt.cell_text("# --- cell 1 ---\na = 1\n", 1) == "a = 1" and rt.cell_text("# --- cell 1 ---\na = 1\n", 3) == "")
 out6 = host.run(store.load(rid4), {}, data_now, lambda s, t: ("", "TIMEOUT: Code execution exceeded 300 seconds.", [], []), store)
 check("a timeout: status timed_out", out6["run"]["status"] == "timed_out" and out6["run"]["line"].startswith("timed out"))
 R6 = store.load(rid4)

@@ -59,8 +59,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (195/94/30/19/16/49/44/51/10/107/1/1 Python; 44/7/29/56/24/60 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (88 hosted, 87 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (195/94/30/19/16/49/44/51/10/110/1/1 Python; 44/7/29/56/24/61 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (89 hosted, 88 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (43; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -441,6 +441,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines, step 4: fail well (2026-10-11, patch 0132).** A failed run's Comparison tab showed the traceback and every
+  row *missing*. Now the record carries `failed_cell` (the number and the cell's code, `cell_text`), shown under its
+  own heading beside the traceback; `compare_runs(..., failed=True)` compares the lines the run printed before it
+  failed like any other and marks the rest *unreached* (the row reads *not reached*, the line *0 of 1 changed before
+  the failure, 1 not reached* / *no result line came before the failure (2 not reached)*; the summary's comparison
+  carries the count). Found on the way: with documents in the thread the cell named was one too high - `run_script`
+  moved the `File "<string>", line n` frames back by the kernel prelude's lines but not the executor's *Error on
+  line n* head, which `failed_cell` reads first; both are moved now, and the stack walk's run without `soil` says
+  cell 2, as it should. The local edition's reproduction run (`code_executor._execute_locally`) had the same fault
+  for another reason - its prelude and patch pushed the kernel's traceback lines down and nothing moved them back;
+  it moves them now, as the executor's filter does with its patch. ROUTINES_DESIGN.md F2 (failure states), §11.4.
+  test_routines.py 110, test_routines.js 61, the stack walk 89 in both editions.
 - **Routines, step 4 begun: what differs, said in sentences (2026-10-11, patch 0131).** The CHECK row had said the
   fit (columns empty, files absent, values) and nothing of the rows. Now `analyst.routines.shape_sentences(record,
   data, shape, binding)` says, from the promotion's record (`rows`, `aux_shape`) and the run's shape probe: the

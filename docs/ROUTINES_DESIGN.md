@@ -344,9 +344,14 @@ Failure states, as built: nothing of the method's data in this data - said in th
 recorded; a value not in the data - said in the dialog, nothing runs; a load that fails (no activities in the
 window, a key not set) - the loader's own message in the dialog, nothing runs; failed at cell n - the run kept with
 status failed, the closing card in the warning tone with the line that names the error (never the kernel's rollback
-notice), the Comparison tab with the error block and the rows marked missing; timed out - likewise; a result line
-missing or without a number - status differed, the count in the line; the stream broke - the pane says so and the
-view returns to the last recorded run.
+notice), the Comparison tab with the error block - the failed cell's code under its own heading beside the
+traceback (`failed_cell` on the record, step 4, 2026-10-11) - and the result lines the run printed before the
+failure compared like any other, the ones it did not reach marked *not reached* (`compare_runs(..., failed=True)`;
+the COMPARE row reads *1 of 3 moved beyond their intervals before the failure, 2 not reached*); timed out -
+likewise; a result line missing or without a number - status differed, the count in the line; the stream broke -
+the pane says so and the view returns to the last recorded run. The cell named is the right one with documents in
+the thread too: the executor's *Error on line n* head is moved back by the kernel prelude's lines as the frames
+are (a failure in cell 2 had been named at cell 3).
 
 ### F3 — Narrate (step 3)
 
@@ -601,7 +606,10 @@ with them — coaches do not edit scripts; the analyst in another domain downloa
    key. **The sentences — built (2026-10-11, patch 0131)**: the dialog's line, the CHECK row, the record and the
    stored run's Data tab (F2.2); the pure cases in test_routines.py, the host path on a later window (the summary's
    rows against the original's, the column added), the two walks (the file routine's rows as the original; the
-   Intervals routine's summary rows and columns added).
+   Intervals routine's summary rows and columns added). **Fail well — built (2026-10-11, patch 0132)**: the failed
+   cell's code beside the traceback, the lines printed before the failure compared and the rest *not reached*, the
+   cell named right with documents in the thread; the pure module, the host path, the markup and the stack walk
+   (the run without `soil`: cell 2's code on the Comparison tab, its line not reached).
 5. **Versions** — the next-version choice is built; the inputs carried through the manifest, the boundary in the
    table, the warning on deleting an origin. Accepted when: v2's inputs keep their keys; the runs table shows the
    divider and the gaps; a deleted origin leaves the routine runnable and marked.

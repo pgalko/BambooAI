@@ -617,7 +617,9 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     if emit:
         emit({"type": "lookup", "kind": "run", "query": f"run {number} · v{vnum} · {n_cells} cell{'s' if n_cells != 1 else ''}",
               "peek": f"{line} · {len(figs or [])} figure{'s' if len(figs or []) != 1 else ''} · {elapsed} s"})
-    cmp = rt.compare_runs(expected, got, ref_results)
+    cmp = rt.compare_runs(expected, got, ref_results, failed=bool(err))     # the lines printed before a failure compared, the rest said as not reached
+    cell_no = rt.failed_cell(script, str(err)) if err else None
+    failed_cell = {"number": cell_no, "code": rt.cell_text(script, cell_no)} if cell_no else None       # beside the traceback on the Comparison tab (step 4)
     if emit and ref_results is not None:
         ref_run = next((x for x in routine.get("runs", []) if x.get("number") == ref_number), None)
         when = _when(ref_run.get("created") if ref_run else rz.get("created"))
@@ -627,11 +629,11 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
               "data": d, "inputs": vals, "results": got, "figures": len(figs or []), "stdout_chars": len(stdout or ""), "cells": n_cells,
               "against": ref_number, "comparison": cmp, "narrative": "", "error": (str(err).strip()[-2000:] if err else ""),
               "fit": {k: fit[k] for k in ("missing", "extra", "retyped", "line")}, "bindings": prep["subs"], "aux_absent": [rt.aux_kind(p) for p in prep["binding"]["absent"]],
-              "differences": differences, "check": check_line,
+              "differences": differences, "check": check_line, "failed_cell": failed_cell,
               "shape": prep["shape"], "run_dir": run_dir, "generated": list(generated or []) if isinstance(generated, (list, tuple)) else []}
     summary = {k: record[k] for k in ("number", "version", "created", "finished", "elapsed", "status", "line", "inputs", "results", "figures", "against", "cells")}
     summary["data"] = light_data(d)
-    summary["comparison"] = {k: cmp[k] for k in ("moved", "within", "changed", "missing", "compared", "line")}
+    summary["comparison"] = {k: cmp[k] for k in ("moved", "within", "changed", "missing", "unreached", "compared", "line")}
     routine.setdefault("runs", []).append(summary)
     store.save(routine)
     tag = run_tag(vnum, number)

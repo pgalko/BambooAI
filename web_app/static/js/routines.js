@@ -254,9 +254,10 @@
         },
         num(x) { return x == null || x === '' ? '' : String(x); },
         ivl(s) { return s && s.low != null && s.high != null ? '[' + esc(s.low) + ', ' + esc(s.high) + ']' : ''; },
-        markText(m) { return ({ up: '↑', down: '↓', same: '=', missing: '·', changed: '≠' })[m] || ''; },
+        markText(m) { return ({ up: '↑', down: '↓', same: '=', missing: '·', unreached: '·', changed: '≠' })[m] || ''; },
         markWord(row) {
             if (row.mark === 'missing') return 'missing';
+            if (row.mark === 'unreached') return 'not reached';
             if (row.overlap === true) return 'within';
             if (row.overlap === false) return 'moved';
             return row.mark === 'same' ? 'same' : 'changed';
@@ -267,7 +268,11 @@
             const head = run.number === 0 ? 'Run 0 — the original data' : ('Run ' + esc(run.number) + (d.name ? ' (' + esc(d.name) + ')' : '') + (run.against != null ? ' against run ' + esc(run.against) : ''));
             let h = '<div class="rt-cmp"><div class="rt-sec"><div class="h">' + head + ' <span class="n">— v' + esc(run.version) + (run.against != null ? ' · ' + esc(c.line || '') : '') + '</span></div>';
             if (run.status === 'failed' || run.status === 'timed_out') {
-                h += '<div class="rt-error"><div class="msg">' + esc(run.line || '') + '</div>' + (run.error ? '<pre class="ui-code">' + esc(run.error) + '</pre>' : '') + '</div>';
+                // the failed cell's code beside the traceback (step 4, 2026-10-11): what ran, and where it stopped
+                const fc = run.failed_cell || null;
+                h += '<div class="rt-error"><div class="msg">' + esc(run.line || '') + '</div>' +
+                    (fc && fc.code ? '<div class="rt-error-cell"><div class="h">cell ' + esc(fc.number) + ' — the code that failed</div><pre class="ui-code"><code class="language-python">' + esc(fc.code) + '</code></pre></div>' : '') +
+                    (run.error ? '<div class="rt-error-tb"><div class="h">the error</div><pre class="ui-code">' + esc(run.error) + '</pre></div>' : '') + '</div>';
             }
             const rows = c.rows || [];
             if (!rows.length) {
@@ -282,7 +287,7 @@
                         '<td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' +
                         '<td class="num change">' + (x.change == null ? '' : esc((x.change > 0 ? '+' : '') + Number(x.change.toPrecision(3)))) + '</td>' +
                         '<td><span class="rt-mark ' + esc(x.mark) + '">' + build.markText(x.mark) + '</span> ' + build.markWord(x) + '</td></tr>').join('') + '</tbody></table>' +
-                    '<div class="rt-legend">Estimates with their 95% intervals, as the routine printed them. "moved" means the two intervals do not overlap; "within" means they do; without intervals, "changed" and "same" compare the estimates. Nothing here is written by a model.</div>';
+                    '<div class="rt-legend">Estimates with their 95% intervals, as the routine printed them. "moved" means the two intervals do not overlap; "within" means they do; without intervals, "changed" and "same" compare the estimates' + ((c.unreached || 0) ? '; "not reached" is a line the run failed before printing' : '') + '. Nothing here is written by a model.</div>';
             }
             return h + '</div></div>';
         },

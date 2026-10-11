@@ -148,6 +148,12 @@ pio.show = show
         try:
             kernel = PersistentKernel(df=df, generated_dir=generated_datasets_path)   # DS.save in the replay (2026-10-06)
             stdout, error, plots = kernel.execute(script, analysis_dir=os.path.join(tmp, "analysis"))
+            if error:
+                # the traceback's line numbers back in the caller's code, which the prelude and the patch pushed down - as the
+                # executor's filter does with its patch (2026-10-11: a routine's run named its failed cell one too high here)
+                import re as _re
+                offset = (prelude + patch + "\n").count("\n")
+                error = _re.sub(r'(File "<string>", line )(\d+)', lambda m: m.group(1) + str(max(1, int(m.group(2)) - offset)), str(error))
             for path in plots or []:                                    # matplotlib figures the kernel saved
                 try:
                     with open(path, "rb") as fh:

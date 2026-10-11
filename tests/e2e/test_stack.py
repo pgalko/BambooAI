@@ -500,9 +500,13 @@ def main():
             page.wait_for_timeout(600)
             r4 = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
                 cmp: (document.getElementById('content-comparison') || {}).textContent || '', pos: document.getElementById('chainPosition').textContent })""")
-            check("run 4 on the file without soil: the CHECK row says the column is empty, the method fails at its cell dividing by a count that is zero (kept as a run, the card in the warning tone, the error on the Comparison tab)",
-                  any("CHECK" in r and "empty in this data: soil" in r for r in r4["rows"]) and "Run 4 failed" in r4["done"] and "failed at cell" in r4["done"] and "ZeroDivisionError" in r4["done"] and r4["warn"]
+            check("run 4 on the file without soil: the CHECK row says the column is empty, the method fails at cell 2 dividing by a count that is zero (kept as a run, the card in the warning tone, the error on the Comparison tab)",
+                  any("CHECK" in r and "empty in this data: soil" in r for r in r4["rows"]) and "Run 4 failed" in r4["done"] and "failed at cell 2" in r4["done"] and "ZeroDivisionError" in r4["done"] and r4["warn"]
                   and "ZeroDivisionError" in r4["cmp"] and "run 4 of 4" in r4["pos"], (r4["rows"][-3:], r4["done"][:200]))
+            # fail well (step 4, 2026-10-11): the cell that failed, with its code, beside the traceback; the line it did not reach said as such
+            check("the Comparison tab of the failed run shows cell 2's code (the adjusted difference) beside the error, and its result line as not reached - not missing",
+                  "cell 2 — the code that failed" in r4["cmp"] and "def adj_diff" in r4["cmp"] and "not reached" in r4["cmp"] and "missing" not in r4["cmp"].split("Nothing here")[0].split("not reached")[-1]
+                  and any("COMPARE" in r and "not reached" in r for r in r4["rows"]), r4["cmp"][:500])
             # what differs, said in sentences (step 4, 2026-10-11): the CHECK row says the rows against the original's; the Data tab lists it
             check("the CHECK rows say the rows against the original's: run 3's file the same rows as the original, run 4's too, the column empty said beside it",
                   any("CHECK" in r and "rows as the original" in r for r in r3["rows"]) and any("CHECK" in r and "rows as the original" in r and "empty in this data: soil" in r for r in r4["rows"]), (r3["rows"], r4["rows"]))

@@ -334,6 +334,9 @@ class BambooAI:
             # the failed cell by them, 2026-10-10)
             import re as _re
             error = _re.sub(r'(File "<string>", line )(\d+)', lambda m: m.group(1) + str(max(1, int(m.group(2)) - offset)), str(error))
+            # ... and the executor's own head line, which names the line first and is what failed_cell reads (2026-10-11: with
+            # documents in the thread a failure in cell 2 was named at cell 3)
+            error = _re.sub(r'^(Error on line )(\d+)(:)', lambda m: m.group(1) + str(max(1, int(m.group(2)) - offset)) + m.group(3), error, flags=_re.M)
         if error:
             logger.warning("%s failed (timeout %ds): %s", what, timeout,
                            str(error).strip().splitlines()[-1][:300] if str(error).strip() else error)

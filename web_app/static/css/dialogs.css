@@ -148,6 +148,8 @@
 @keyframes rt-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 .rt-error { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--chip-fail-border); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-primary); }
 .rt-error .msg { line-height: 1.5; }
+.rt-error .h { font-size: var(--fs-small); color: var(--text-tertiary); margin-bottom: 4px; }     /* the failed cell's code beside the traceback (step 4, 2026-10-11) */
+.rt-error .rt-error-cell pre { max-height: 320px; overflow: auto; }
 .rt-version .ui-choice span { line-height: 1.4; }
 .rt-vers { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-meta); color: var(--text-secondary); }
 .rt-vers .v { display: flex; gap: 10px; align-items: baseline; }
@@ -217,7 +219,8 @@
 .rt-mark { display: inline-block; min-width: 14px; text-align: center; font-weight: 700; }
 .rt-mark.up, .rt-mark.down, .rt-mark.changed { color: var(--c-kernel); }
 .rt-mark.same { color: var(--text-quaternary); font-weight: 400; }
-.rt-mark.missing { color: var(--text-quaternary); }
+.rt-mark.missing, .rt-mark.unreached { color: var(--text-quaternary); }
+.rt-cmp-table tr.unreached td { color: var(--text-quaternary); }
 .rt-spark { width: 72px; height: 18px; vertical-align: middle; }
 .rt-spark polyline { fill: none; stroke: var(--c-model); stroke-width: 1.5; }
 .rt-spark circle { fill: var(--c-model); }
