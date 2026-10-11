@@ -398,6 +398,13 @@ check("shape_sentences: a file empty in this data, one that could not be read, a
                          {"map": {"/a/wellness_data_x.csv": "/b/w.csv", "/a/activity_intervals_x.csv": "/b/i.csv", "/a/own.csv": "/b/o.csv"}, "absent": []})
       == ["12 rows where the original had 10", "the wellness file is empty in this data (0 rows)", "the intervals file could not be read (bad file)", "the own.csv: 30 rows, 1 column empty (hrv)"]
       and rt.shape_sentences({}, {}, None, {"map": {}}) == [] and rt.shape_sentences({}, {"rows": 3}, None, {"map": {}}) == ["3 rows"])
+check("cached_files: the cache's frames that came from a file, newest first, by name with their rows; a loader's frame left out; a nameless frame by its id",
+      rt.cached_files({"cached_dataframes": [{"df_id": "a1", "source": "csv", "original_filename": "old.csv", "shape": [720, 6], "cached_at": "2026-10-10T10:00:00"},
+                                             {"df_id": "b2", "source": "intervals", "shape": [100, 3], "cached_at": "2026-10-11T10:00:00"},
+                                             {"df_id": "c3", "source": "csv", "original_filename": "new.csv", "shape": [12, 2], "cached_at": "2026-10-11T09:00:00"},
+                                             {"df_id": "d4e5f6g7h8", "shape": [1, 1]}]})
+      == [{"df_id": "c3", "name": "new.csv", "rows": 12, "cached_at": "2026-10-11T09:00:00"}, {"df_id": "a1", "name": "old.csv", "rows": 720, "cached_at": "2026-10-10T10:00:00"}, {"df_id": "d4e5f6g7h8", "name": "frame d4e5f6g7", "rows": 1, "cached_at": ""}]
+      and rt.cached_files({}) == [], rt.cached_files({"cached_dataframes": [{"df_id": "a1", "source": "csv", "original_filename": "old.csv", "shape": [720, 6], "cached_at": "2026-10-10T10:00:00"}]}))
 # a window whose load produced no summary at all: the method sees an empty table, the CHECK row and the record say so
 now5c = dict(now5, aux=[])
 pc5c = host.precheck(store.load(rid5), now5c, runner_on(df))

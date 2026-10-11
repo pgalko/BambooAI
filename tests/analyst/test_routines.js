@@ -89,6 +89,13 @@ check('run dialog (a file routine): the data loaded now on, with the fit line (o
   && rd.querySelector('[data-key="threshold"][data-type="number"]').getAttribute('value') === '155' && rd.querySelector('[data-key="bands"][data-type="numbers"]').getAttribute('value') === '130, 145'
   && rd.querySelectorAll('[data-key="window"][data-type="date_window"]').length === 2 && rd.querySelector('[data-key="who"]').getAttribute('value') === 'a, b' && rd.querySelector('[data-key="flag"][data-type="toggle"]').hasAttribute('checked')
   && rd.querySelector('input[name="rt-compare"][value="previous"]').hasAttribute('checked') && rd.querySelector('input[name="rt-compare"][value="zero"]') && rd.textContent.includes('run 1 (') && rd.textContent.includes('the run before'));
+// the Dataset cache's pick (step 4, 2026-10-11): a third choice for a file routine, hidden until the page has the cache's answer; none for a loader routine
+const rtSrcPick = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
+check('run dialog (a file routine): a hidden choice for a file from the Dataset cache with its select, shown by the page once the cache answers; a loader routine has none',
+  rd.querySelector('.rt-cachepick input[name="rt-data"][value="cache"]') && rd.querySelector('.rt-cachepick').getAttribute('style').includes('display:none') && rd.querySelector('.rt-cachepick select[data-load="cached"]')
+  && !el(b.runDialog(rr, { loaded: false, ok: false, line: '', plan: { source: 'intervals', window_days: 28, aux_kinds: ['summary'] } })).querySelector('.rt-cachepick')
+  && rtSrcPick.includes("fetchJson('/routines/cache_files')") && rtSrcPick.includes("if (dataChoice() === 'cache')") && rtSrcPick.includes("choice === 'upload' || choice === 'cache' ? 'primary' : 'all'"));
+check('a run loaded from the Dataset cache says so where its load is named', el(b.dataTab({ source: 'file', load: { source: 'file', name: 'a.csv', cached: true } }, {})).textContent.includes('File · a.csv · from the Dataset cache'));
 rd = el(b.runDialog(rr, { loaded: false, ok: false, line: 'no data is loaded', plan: { source: 'file', name: 'small.csv' } }));
 check('run dialog (a file routine) with nothing loaded: the upload is the choice, on, naming the original file; Run waits for a file', rd.querySelector('input[name="rt-data"][value="upload"]').hasAttribute('checked') && rd.textContent.includes('the original: small.csv') && !rd.querySelector('input[name="rt-data"][value="now"]') && rd.querySelector('.rt-line.muted').textContent.includes('upload the file'));
 rd = el(b.runDialog(rr, { loaded: true, ok: true, line: '1 of 2 columns empty in this data: g', fit: { missing: ['g'] }, data: { name: 'other.csv', source: 'csv', rows: 9, columns: 1 }, plan: { source: 'file' } }));
@@ -253,7 +260,7 @@ const fm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static',
   check('clearLoaded: an upload clears the primary pills and keeps the auxiliaries; a load from an integration clears everything; file-management exposes the removal the x uses, with a quiet mode for this',
     n1 === 2 && left.join(',') === 'auxiliary' && n2 === 1 && doc.querySelectorAll('.dataset-status-pill').length === 0
     && fm.includes('async function removeDatasetPill(pillElement, removeButton, quiet = false)') && fm.includes('return removeDatasetPill(document.getElementById(removeButton.dataset.pillId), removeButton);'), [n1, left, n2]);
-  check('startRun clears what the load replaces before loading - the primary for an upload, everything for an integration', rtSrc.includes("await clearLoaded(choice === 'upload' ? 'primary' : 'all');"));
+  check('startRun clears what the load replaces before loading - the primary for an upload or a cache pick, everything for an integration', rtSrc.includes("await clearLoaded(choice === 'upload' || choice === 'cache' ? 'primary' : 'all');"));
   finish();
 })();
 

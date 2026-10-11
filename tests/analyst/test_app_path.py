@@ -220,6 +220,8 @@ check("route precheck: the loaded frame fits the routine (its two columns), noth
 # plan against what the executor's cache lists - the frame of the same source and window and every file the routine wants
 _cc = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10"})
 check("route cached without an executor (the local edition): no hit and nothing to say", _cc.status_code == 200 and _cc.get_json() == {"hit": False, "line": ""}, _cc.get_json())
+_cf0 = _wc.get("/routines/cache_files")
+check("route cache_files without an executor (the local edition): an empty list, never an error (step 4, 2026-10-11)", _cf0.status_code == 200 and _cf0.get_json() == {"files": []}, _cf0.get_json())
 import requests as _rq
 _fapp.get_dynamic_executor_urls = lambda uid: {"EXECUTOR_API_BASE_URL": "http://executor"}
 from analyst.routines import key_fingerprint as _kf
@@ -233,6 +235,9 @@ _real_get = _rq.get
 _rq.get = lambda url, **kw: (_seen.append((url, kw.get("params"))), _Resp())[1]
 _st = RR._store(); _rt_ = _st.load(_rid); _rt_["versions"][0]["manifest"]["data"]["load"] = {"source": "intervals", "start_date": "2026-06-01", "end_date": "2026-07-30", "metrics": [], "aux_kinds": ["summary"]}; _st.save(_rt_)
 try:
+    _inspect["cached_dataframes"].append({"df_id": "dfu", "shape": [720, 6], "source": "csv", "original_filename": "field_trial.csv", "cached_at": "2026-10-11T08:00:00"})
+    _cf1 = _wc.get("/routines/cache_files").get_json()
+    _inspect["cached_dataframes"].pop()
     _cc2 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10"}).get_json()
     _cc3 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-01", "end": "2026-10-10"}).get_json()
     _cc4 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-13", "end": "2026-10-10"}).get_json()
@@ -247,6 +252,8 @@ check("route cached with an executor: the executor's cache inspected for the use
       _seen and _seen[0][0] == "http://executor/cache/inspect" and _seen[0][1] == {"user_id": "u1"} and _cc2["hit"] and _cc2["df_id"] == "dfc" and _cc2["files"] == [f"datasets/u1/{_kf('key-one')}/activity_summary_20260812_to_20261010.csv"] and "no download" in _cc2["line"] and _cc2.get("key") == _kf("key-one")
       and not _cc3["hit"] and "not in the cache" in _cc3["line"] and _cc4["hit"] and _cc4.get("cut") == ["2026-08-12", "2026-10-10"] and "cut to the window" in _cc4["line"]
       and not _cc5["hit"] and "loaded under another key" in _cc5["line"], (_seen, _cc2, _cc3, _cc4, _cc5))
+check("route cache_files with an executor: the frames that came from a file, by name with their rows; the Intervals frame left out",
+      _cf1 == {"files": [{"df_id": "dfu", "name": "field_trial.csv", "rows": 720, "cached_at": "2026-10-11T08:00:00"}]}, _cf1)
 # how the data was loaded rides on the instance (the loader routes set it) and into the run's record, so a routine's run can load the same way
 BAMBOO.load_params = {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "df_id": "d1"}
 _rec = BAMBOO._data_record()

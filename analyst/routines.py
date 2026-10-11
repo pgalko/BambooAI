@@ -899,6 +899,24 @@ def shape_sentences(record: dict, data: dict, shape: Optional[dict], binding: di
     return out
 
 
+def cached_files(inspect: dict) -> List[dict]:
+    """The frames in the executor's cache that came from a file, for a file routine's run dialog (step 4, 2026-10-11):
+    [{df_id, name, rows, cached_at}], newest first. A loader's frame (Intervals.icu, Endura, SweatStack) is not a
+    file; a frame with no file name is listed by its id."""
+    out = []
+    for f in (inspect or {}).get("cached_dataframes") or []:
+        if not isinstance(f, dict) or not f.get("df_id"):
+            continue
+        src = str(f.get("source") or "").lower()
+        if src in ("intervals", "endura", "sweatstack"):
+            continue
+        name = str(f.get("original_filename") or "").strip() or f"frame {str(f['df_id'])[:8]}"
+        shape = f.get("shape") or []
+        out.append({"df_id": str(f["df_id"]), "name": name, "rows": int(shape[0]) if shape and isinstance(shape[0], (int, float)) else None,
+                    "cached_at": str(f.get("cached_at") or "")})
+    return sorted(out, key=lambda x: x["cached_at"], reverse=True)
+
+
 PRECHECK_MARK = "PRECHECK:"
 
 

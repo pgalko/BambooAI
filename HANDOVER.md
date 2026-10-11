@@ -59,8 +59,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (195/94/30/19/16/49/44/51/10/110/1/1 Python; 44/7/29/56/24/61 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (89 hosted, 88 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (195/96/30/19/16/49/44/51/10/111/1/1 Python; 44/7/29/56/24/63 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (92 hosted, 89 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (43; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -441,6 +441,17 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines, step 4: the Dataset cache's pick in the file dialog (2026-10-11, patch 0133).** A file routine's run
+  dialog offered an upload or the data loaded now; a file the person had uploaded before sat in the executor's cache
+  with no way to run on it. Now a third choice, *A file from the Dataset cache*, with a select of the cache's file
+  frames (name · rows · the day, newest first), shown once `/routines/cache_files` has answered with any
+  (`analyst.routines.cached_files` over the executor's listing: a loader's frame is not a file; the route answers an
+  empty list without an executor or when the listing fails - never an error, so the local edition's dialog keeps the
+  choice hidden and the page makes no failing call). The pick goes through `/cache/load_primary` as a cached window
+  does, clears the primary only, the pill as an upload's; the LOAD row and the Data tab's *Loaded as* read *from the
+  Dataset cache*; the record's `load` is `{source: file, name, cached: true}` and its name the file's. ROUTINES_DESIGN.md
+  F2.1, §11.4. test_routines.py 111, test_app_path.py 96, test_routines.js 63; the hosted walk 92 (run 5 on the
+  cached field_trial.csv reproduces run 0), the local walk 89 (the choice hidden).
 - **Routines, step 4: fail well (2026-10-11, patch 0132).** A failed run's Comparison tab showed the traceback and every
   row *missing*. Now the record carries `failed_cell` (the number and the cell's code, `cell_text`), shown under its
   own heading beside the traceback; `compare_runs(..., failed=True)` compares the lines the run printed before it

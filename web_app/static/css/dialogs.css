@@ -189,6 +189,7 @@
 /* the run dialog's Data section (2026-10-10): the load as the original did, or the data loaded now; the load's progress */
 .rt-load { gap: 6px; }
 .rt-load .rt-loadwin, .rt-load .rt-race, .rt-load .rt-upload, .rt-load .rt-now { margin: 0 0 4px 22px; }
+.rt-load .rt-cachepick .rt-field { margin: 0 0 4px 22px; }     /* the Dataset cache's pick (step 4, 2026-10-11) */
 .rt-load .rt-race { grid-template-columns: 1fr; }
 .rt-load .rt-race select { max-width: 100%; }
 .rt-load .help { margin: 0 0 6px 22px; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }

@@ -210,6 +210,32 @@ def routine_cached(rid):
     return jsonify(out), 200
 
 
+@routines_bp.route('/routines/cache_files', methods=['GET'])
+@requires_auth
+def routine_cache_files():
+    """The files the executor's cache holds, for a file routine's run dialog (step 4, 2026-10-11): the frames that came
+    from a file (an upload, or a file loaded from the cache before), newest first - name, rows, when. An empty list
+    without an executor (the local edition) or when nothing is cached; never an error, the dialog just keeps the
+    choice hidden."""
+    import requests as _requests
+    from analyst.routines import cached_files
+    a = _app()
+    try:
+        urls = a.get_dynamic_executor_urls(a.get_user_id())
+    except Exception:                                              # noqa: BLE001
+        urls = None
+    if not urls:
+        return jsonify({'files': []}), 200
+    try:
+        resp = _requests.get(f"{urls['EXECUTOR_API_BASE_URL']}/cache/inspect", params={'user_id': a.get_user_id()}, timeout=5)
+        resp.raise_for_status()
+        inspect = resp.json()
+    except Exception as exc:                                       # noqa: BLE001
+        logger.warning("routines: the cache could not be listed for the dialog (%s)", exc)
+        return jsonify({'files': []}), 200
+    return jsonify({'files': cached_files(inspect)}), 200
+
+
 @routines_bp.route('/routines/<rid>/precheck', methods=['POST'])
 @requires_auth
 def precheck_routine(rid):

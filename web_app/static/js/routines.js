@@ -37,7 +37,7 @@
         const from = ld.cached ? (ld.cached_from && ld.cached_from.length === 2 ? ' · cut from the cached load ' + ld.cached_from[0] + ' → ' + ld.cached_from[1] : ' · from the cache') : '';
         if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '') + from;
         if (src === 'endura') return 'Endura · ' + (ld.race_title || ('race ' + (ld.race_id || ''))) + from;
-        return ld.name ? 'File · ' + ld.name : '';
+        return ld.name ? 'File · ' + ld.name + (ld.cached ? ' · from the Dataset cache' : '') : '';
     }
     function sourceKind(s) {
         s = String(s || '').toLowerCase();
@@ -224,7 +224,10 @@
                     '<div class="rt-cache" style="display:none"></div></div>';
             } else {
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="upload"' + (loaded ? '' : ' checked') + '> Upload a file' + (plan.name ? ' <span class="n">(the original: ' + esc(plan.name) + ')</span>' : '') + '</label>' +
-                    '<div class="rt-field rt-upload"><input type="file" class="ui-input" data-load="file" accept=".csv,.parquet,.json,.xlsx,.xls,.txt,.tsv"></div>';
+                    '<div class="rt-field rt-upload"><input type="file" class="ui-input" data-load="file" accept=".csv,.parquet,.json,.xlsx,.xls,.txt,.tsv"></div>' +
+                    // a file the Dataset cache holds (step 4, 2026-10-11): the choice shows once the cache has answered with files; gone when it has none
+                    '<div class="rt-cachepick" style="display:none"><label class="rt-check"><input type="radio" name="rt-data" value="cache"> A file from the Dataset cache</label>' +
+                    '<div class="rt-field"><select class="ui-input" data-load="cached"><option value="">choose a file</option></select></div></div>';
             }
             if (loaded) {
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="now"' + (src !== 'intervals' && src !== 'endura' && src !== 'sweatstack' ? ' checked' : '') + '> The data loaded now</label><div class="rt-data rt-now">' + nowLine + '</div>' + fitLine;
@@ -708,8 +711,9 @@
             else if (b.getAttribute('data-act') === 'run') startRun();
         });
         runDlg.addEventListener('change', e => {
-            if (e.target.matches('input[name="rt-data"]') || e.target.matches('input[data-load="file"]')) {
+            if (e.target.matches('input[name="rt-data"]') || e.target.matches('input[data-load="file"]') || e.target.matches('select[data-load="cached"]')) {
                 if (e.target.matches('input[data-load="file"]')) { const up = runDlg.querySelector('input[name="rt-data"][value="upload"]'); if (up) up.checked = true; }
+                if (e.target.matches('select[data-load="cached"]')) { const ck = runDlg.querySelector('input[name="rt-data"][value="cache"]'); if (ck) ck.checked = true; }
                 updateRunButton();
             }
             if (e.target.matches('input[data-load="start"], input[data-load="end"], select[data-load="race"]')) { clearTimeout(cacheTimer); cacheTimer = setTimeout(checkCache, 250); }
@@ -742,6 +746,7 @@
                 runState.limits = limits || null;
                 p.body.innerHTML = build.runDialog(r, runState.pre, limits);
                 if (src === 'endura') fillRaces(p, runState.plan);
+                if (src !== 'intervals' && src !== 'endura' && src !== 'sweatstack') fillCachePick(p);
                 updateRunButton();
                 checkCache();
             };
@@ -757,8 +762,26 @@
         if (src === 'intervals') return { source: 'intervals', start_date: q('input[data-load="start"]').value, end_date: q('input[data-load="end"]').value, metrics: plan.metrics || [], aux_kinds: plan.aux_kinds || [] };
         if (src === 'endura') { const race = q('select[data-load="race"]'); return { source: 'endura', race_id: race ? race.value : '', race_title: race && race.selectedIndex >= 0 ? race.options[race.selectedIndex].textContent : '', aux_kinds: plan.aux_kinds || [] }; }
         if (src === 'sweatstack') return { source: 'sweatstack', start_date: q('input[data-load="start"]').value, end_date: q('input[data-load="end"]').value, sports: plan.sports || [], metrics: plan.metrics || [], users: plan.users || [] };
+        const pick = q('select[data-load="cached"]');
+        if (dataChoice() === 'cache' && pick && pick.value) return { source: 'file', name: pick.options[pick.selectedIndex].getAttribute('data-name') || '', cached: true };
         const f = q('input[data-load="file"]');
         return { source: 'file', name: f && f.files && f.files.length ? f.files[0].name : '' };
+    }
+    // the files the Dataset cache holds, for a file routine's dialog (step 4, 2026-10-11): the frames the executor keeps
+    // that came from a file (an upload, or a file loaded from the cache before), newest first; nothing without an executor
+    // (the local edition) or with nothing cached - the choice stays hidden
+    function fillCachePick(p) {
+        const box = p.d.querySelector('.rt-cachepick'); if (!box) return;
+        const sel = box.querySelector('select[data-load="cached"]');
+        fetchJson('/routines/cache_files').then(res => {
+            const files = (res.ok && res.json && res.json.files) || [];
+            if (!files.length || !runState) return;
+            sel.innerHTML = '<option value="">choose a file</option>' + files.map(f => {
+                const rows = f.rows != null ? ' · ' + Number(f.rows).toLocaleString() + ' rows' : '';
+                const when = f.cached_at ? ' · ' + fmtDate(Date.parse(f.cached_at) / 1000) : '';
+                return '<option value="' + esc(f.df_id) + '" data-name="' + esc(f.name) + '">' + esc(f.name) + esc(rows + when) + '</option>'; }).join('');
+            box.style.display = '';
+        }).catch(() => { /* no cache to pick from */ });
     }
     // whether the load asked for is already in the executor's cache with every file the routine wants (2026-10-11: a run
     // re-downloaded a window loaded minutes before): asked once the dialog is up and again as the window or the race
@@ -802,6 +825,7 @@
         let on = false;
         if (c === 'load') on = true;
         else if (c === 'upload') { const f = p.d.querySelector('input[data-load="file"]'); on = !!(f && f.files && f.files.length); }
+        else if (c === 'cache') { const pick = p.d.querySelector('select[data-load="cached"]'); on = !!(pick && pick.value); }
         else on = !!(st.pre && st.pre.ok);
         p.runBtn.disabled = st.busy || !on;
     }
@@ -927,6 +951,19 @@
             dfTab(res.json);
             return { source: 'sweatstack', start, end, load: asked, loaded: 'SweatStack ' + start + ' → ' + end };
         }
+        if (dataChoice() === 'cache') {
+            // a file the Dataset cache holds: the frame taken through the cache's own route, the pill as an upload's
+            const pick = q('select[data-load="cached"]');
+            if (!pick || !pick.value) throw new Error('choose a file from the cache');
+            const name = pick.options[pick.selectedIndex].getAttribute('data-name') || 'the cached file';
+            progress('Taking ' + name + ' from the Dataset cache…', 'loading');
+            const res = await fetchJson('/cache/load_primary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ df_id: pick.value }) });
+            if (!res.ok) throw new Error((res.json && res.json.error) || 'the cached file could not be loaded');
+            if (typeof createOrUpdateDatasetPill === 'function') createOrUpdateDatasetPill('primary-dataset-pill-' + Date.now(), 'Primary (' + name + ') loaded', 'primary', 'success', false, null);
+            if (typeof currentDatasetName !== 'undefined') { try { currentDatasetName = name; } catch (e) { /* read-only */ } }
+            dfTab(res.json);
+            return { source: 'file', load: { source: 'file', name, cached: true }, loaded: name + ' · from the Dataset cache' };
+        }
         // a file: the Data tab's upload route
         const f = q('input[data-load="file"]');
         if (!f || !f.files || !f.files.length) throw new Error('choose a file');
@@ -965,7 +1002,7 @@
             // the load, as the original load asked for its data; its progress here, in the dialog - what it replaces cleared first
             try {
                 progress('Clearing the data loaded now…', 'loading');
-                await clearLoaded(choice === 'upload' ? 'primary' : 'all');
+                await clearLoaded(choice === 'upload' || choice === 'cache' ? 'primary' : 'all');
                 if (runState !== st) return;
                 loaded = await loadData(st.plan || {}, p);
             } catch (err) {

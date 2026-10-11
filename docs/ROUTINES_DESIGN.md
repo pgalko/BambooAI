@@ -252,7 +252,11 @@ version's data record, `load`), and offers the data loaded now beside it.
    what the plan allows, and the dialog says so), the metrics and the auxiliary kinds as the original - through the
    same loader job the Data tab uses, with its progress shown in the dialog. Endura: the race list, the original
    race selected. SweatStack: the window shifted, the sports and subjects as the original. A file: an upload, or
-   the Dataset cache's pick. A load clears what it replaces first (2026-10-11: the run's pills used to stack beside
+   a file from the Dataset cache (step 4, 2026-10-11: the dialog asks `/routines/cache_files` for the frames the
+   executor's cache holds that came from a file - uploads, newest first, with their rows and the day - and shows
+   the choice when there are any; the pick is taken through `/cache/load_primary` as a cached window is, the pill
+   as an upload's, the LOAD row and the record's `load` read *from the Dataset cache*; without an executor the
+   choice stays hidden). A load clears what it replaces first (2026-10-11: the run's pills used to stack beside
    the old ones) — a load from Intervals.icu, Endura or SweatStack clears the primary and the auxiliaries, an upload
    the primary only, each pill removed the way its × removes it (the session's reference dropped, the file left in
    the cache). **The cache first** (2026-10-11: a run re-downloaded a window the Data tab had loaded minutes
@@ -610,6 +614,8 @@ with them — coaches do not edit scripts; the analyst in another domain downloa
    cell's code beside the traceback, the lines printed before the failure compared and the rest *not reached*, the
    cell named right with documents in the thread; the pure module, the host path, the markup and the stack walk
    (the run without `soil`: cell 2's code on the Comparison tab, its line not reached).
+   **The Dataset cache's pick — built (2026-10-11, patch 0133)**: the choice in the file routine's dialog, the route,
+   the pure filter; the hosted walk runs on a cached upload (run 5), the local walk finds the choice hidden.
 5. **Versions** — the next-version choice is built; the inputs carried through the manifest, the boundary in the
    table, the warning on deleting an origin. Accepted when: v2's inputs keep their keys; the runs table shows the
    divider and the gaps; a deleted origin leaves the routine runnable and marked.

@@ -460,7 +460,7 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
             choices = page.evaluate("() => [...document.querySelectorAll('#routineRunModal input[name=\"rt-data\"]')].map(i => [i.value, i.checked])")
-            check("the run dialog of a file routine offers an upload beside the data loaded now (on)", choices == [["upload", False], ["now", True]], choices)
+            check("the run dialog of a file routine offers an upload and a file from the Dataset cache beside the data loaded now (on)", choices == [["upload", False], ["cache", False], ["now", True]], choices)
             page.set_input_files("#routineRunModal input[data-load='file']", st.dataset)
             page.wait_for_timeout(200)
             up_state = page.evaluate("() => ({ upload: document.querySelector('#routineRunModal input[name=\"rt-data\"][value=\"upload\"]').checked, runOn: !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
@@ -520,14 +520,48 @@ def main():
             page.click("#nextResponse")
             wait_text(page, "#chainPosition", "run 4 of 4", 30000)
             page.wait_for_timeout(300)
+            # the Dataset cache's pick (step 4, 2026-10-11): a file routine's dialog offers the files the executor's cache holds - the
+            # uploads of this walk - and a run on one of them; the local edition has no executor cache, so the choice stays hidden
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
+            page.wait_for_timeout(1200)
+            pick = page.evaluate("""() => { const box = document.querySelector('#routineRunModal .rt-cachepick'); const sel = box && box.querySelector('select[data-load="cached"]');
+                return { shown: !!box && box.style.display !== 'none', options: sel ? [...sel.options].map(o => o.textContent) : [] }; }""")
+            if edition == "hosted":
+                check("the file routine's dialog offers a file from the Dataset cache: the walk's uploads, newest first, with their rows and the day",
+                      pick["shown"] and len(pick["options"]) >= 3 and any("no_soil.csv" in o for o in pick["options"]) and any("field_trial.csv" in o and "720 rows" in o for o in pick["options"]), pick)
+                # run 5 on field_trial.csv taken from the cache: no upload, the LOAD row says so, and it reproduces run 3's line
+                page.evaluate("""() => { const sel = document.querySelector('#routineRunModal select[data-load="cached"]'); const opt = [...sel.options].find(o => o.textContent.includes('field_trial.csv'));
+                    sel.value = opt.value; sel.dispatchEvent(new Event('change', { bubbles: true })); }""")
+                page.wait_for_timeout(200)
+                check("choosing a cached file checks its choice and turns Run on", page.evaluate("() => document.querySelector('#routineRunModal input[name=\"rt-data\"][value=\"cache\"]').checked && !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled"))
+                page.click("#routineRunModal input[name='rt-compare'][value='zero']")
+                page.click("#routineRunModal [data-act='run']")
+                wait_text(page, "#chainPosition", "run 5 of 5", 240000)
+                page.wait_for_timeout(600)
+                r5 = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '',
+                    pills: [...document.querySelectorAll('.primary-dataset-pill')].map(p => p.textContent) })""")
+                check("run 5 from the Dataset cache: the LOAD row names the file and the cache, the CHECK row the rows as the original, one primary pill, and the run reproduces run 0",
+                      any("LOAD" in r and "field_trial.csv" in r and "from the Dataset cache" in r for r in r5["rows"]) and any("CHECK" in r and "rows as the original" in r for r in r5["rows"])
+                      and "Run 5 complete" in r5["done"] and "reproduced" in r5["done"] and "against run 0" in r5["done"] and len(r5["pills"]) == 1 and "field_trial.csv" in r5["pills"][0], (r5["rows"][-4:], r5["done"][:200], r5["pills"]))
+            else:
+                check("the local edition has no executor cache: the file routine's dialog keeps the Dataset cache's choice hidden", not pick["shown"], pick)
+                page.click("#routineRunModal [data-act='cancel']")
+                page.wait_for_timeout(200)
             page.evaluate("RoutinesUI.closeManager()")
             run_files = sorted(os.path.basename(p) for p in glob.glob(os.path.join(os.path.dirname(rdirs[0]), "runs", "*"))) if rdirs else []
             rj2 = json.load(open(rdirs[0])) if rdirs else {}
             run1 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "run.json"))) if "v1_1" in run_files else {}
             run4 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_4", "run.json"))) if "v1_4" in run_files else {}
-            check("on disk: runs/v1_0 (run zero) to v1_4 with run.json and stdout.txt; routine.json lists the four runs with their status, data and comparison; the failed run keeps its traceback, the fit it ran under and its own folder on the executor's side",
-                  run_files == ["v1_0", "v1_1", "v1_2", "v1_3", "v1_4"] and os.path.exists(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "stdout.txt"))
-                  and [x["number"] for x in rj2.get("runs", [])] == [1, 2, 3, 4] and [x["status"] for x in rj2["runs"]] == ["reproduced", "ran", "reproduced", "failed"] and rj2["runs"][1]["inputs"] == {"regime": "C"}
+            _n_runs = 5 if edition == "hosted" else 4
+            run5 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_5", "run.json"))) if "v1_5" in run_files else {}
+            check("on disk: runs/v1_0 (run zero) to the last run with run.json and stdout.txt; routine.json lists the runs with their status, data and comparison; the failed run keeps its traceback, the fit it ran under and its own folder on the executor's side; the cache-picked run's load says the file and the cache",
+                  run_files == ["v1_%d" % i for i in range(_n_runs + 1)] and os.path.exists(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "stdout.txt"))
+                  and [x["number"] for x in rj2.get("runs", [])] == list(range(1, _n_runs + 1)) and [x["status"] for x in rj2["runs"]][:4] == ["reproduced", "ran", "reproduced", "failed"] and rj2["runs"][1]["inputs"] == {"regime": "C"}
+                  and (edition != "hosted" or (rj2["runs"][4]["status"] == "reproduced" and run5.get("data", {}).get("load") == {"source": "file", "name": "field_trial.csv", "cached": True} and run5.get("data", {}).get("name") == "field_trial.csv"))
                   and run1.get("against") == 0 and run1.get("comparison", {}).get("compared") == 1 and run1.get("data", {}).get("name") == "field_trial.csv" and len(run1.get("results", [])) == 1
                   and "ZeroDivisionError" in run4.get("error", "") and run4.get("fit", {}).get("missing") == ["soil"] and run4.get("run_dir", "").endswith("/v1_4") and run4.get("data", {}).get("load", {}).get("source") == "file",
                   (run_files, [(x.get("number"), x.get("status"), x.get("inputs")) for x in rj2.get("runs", [])], run4.get("fit"), run4.get("run_dir")))
