@@ -435,22 +435,36 @@ def kind_prefix(kind: str) -> str:
 _RANGE_RE = re.compile(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-|→)\s*(\d{4}-\d{2}-\d{2})\s*$")
 
 
-def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None, end: Optional[str] = None, race_id=None) -> dict:
+def key_fingerprint(key) -> str:
+    """A short, one-way mark of an API key (2026-10-11): whose data a load is, without the key itself. The executor's
+    loader writes the same mark on each frame it caches (`key_mark` there, the same formula) and keeps that key's
+    auxiliary files under a folder of that name, so a coach who changes the key to look at another subject is never
+    served the first one's cached windows."""
+    import hashlib
+    k = str(key or "").strip()
+    return hashlib.sha256(k.encode("utf-8")).hexdigest()[:12] if k else ""
+
+
+def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None, end: Optional[str] = None, race_id=None,
+                key: Optional[str] = None) -> dict:
     """Whether the load a run dialog asks for is already in the executor's cache (2026-10-11: a run re-downloaded a
     window the Data tab had loaded minutes before): a cached frame of the same source with the same window (Intervals:
     date_range, and the same metrics) or the same race (Endura), and every auxiliary file of the kinds the routine
     wants there beside it under the loader's name for that load. A cached window that *contains* the one asked is a
     hit too (the same day: a window inside a cached load was downloaded again) - the run then cuts the frame and the
     files to the window before the method runs (`cut`: the cached load's window). SweatStack's entries do not say
-    which subjects they hold, so they never match. Returns {hit, df_id, files, rows, cut?, line}; `line` says why
-    when there is no hit."""
+    which subjects they hold, so they never match. With `key` (the mark of the key in use), an Intervals frame counts
+    only when the loader marked it with the same key, and its files are looked for in that key's folder; a frame
+    without a mark (cached before the loader marked them) is downloaded this once. Returns {hit, df_id, files,
+    rows, cut?, line}; `line` says why when there is no hit."""
     src = str((plan or {}).get("source") or "")
     frames = [f for f in ((inspect or {}).get("cached_dataframes") or []) if isinstance(f, dict)]
-    have = {}
+    have: Dict[Tuple[str, str], str] = {}                       # (the key's folder, the file's name) -> its path
     for f in (inspect or {}).get("auxiliary_datasets") or []:
         p = str((f or {}).get("path") or (f or {}).get("filename") or "")
         if p:
-            have[os.path.basename(p)] = p
+            folder = str((f or {}).get("key_mark") or "")
+            have[(folder, os.path.basename(p))] = p
     kinds = [str(k) for k in (plan or {}).get("aux_kinds") or []]
     if src == "intervals":
         if not (start and end):
@@ -470,18 +484,30 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
                 around.append((f, cs, ce))
         if not exact and not around:
             return {"hit": False, "line": f"{what} is not in the cache - it will be downloaded"}
-        # the exact window first; else the smallest cached load around it (the least to cut)
+        if key is not None:
+            # whose: only the frames the loader marked with the key in use; a frame marked with another key is another
+            # subject's window, an unmarked one is from before the loader marked them
+            covering = exact + around
+            exact = [t for t in exact if str(t[0].get("key_mark") or "") == str(key)]
+            around = [t for t in around if str(t[0].get("key_mark") or "") == str(key)]
+            if not exact and not around:
+                if any(str(t[0].get("key_mark") or "") for t in covering):
+                    return {"hit": False, "line": f"{what} is in the cache but was loaded under another key - it will be downloaded"}
+                return {"hit": False, "line": f"{what} is in the cache from before loads were marked with their key - it will be downloaded this once"}
+        # the exact window first, the newest of them; else the smallest cached load around it (the least to cut)
+        exact.reverse()
         around.sort(key=lambda t: ((t[0].get("shape") or [0])[0] or 0))
-        candidates = exact or around
+        candidates = exact + around
         for f, cs, ce in candidates:
             tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
+            folder = str(f.get("key_mark") or "")
             names = {k: f"{kind_prefix(k)}{tag}.csv" for k in kinds if kind_prefix(k)}
-            missing = [k for k, n in names.items() if n not in have]
+            missing = [k for k, n in names.items() if (folder, n) not in have]
             if missing:
                 continue
             rows = (f.get("shape") or [None])[0]
             size = (f" ({int(rows):,} rows" + (", with " + ", ".join(names) if names else "") + ")") if rows is not None else ""
-            out = {"hit": True, "df_id": str(f.get("df_id") or ""), "files": [have[n] for n in names.values()], "rows": rows, "date_range": f"{cs} to {ce}"}
+            out = {"hit": True, "df_id": str(f.get("df_id") or ""), "files": [have[(folder, n)] for n in names.values()], "rows": rows, "date_range": f"{cs} to {ce}"}
             if (cs, ce) == (str(start), str(end)):
                 out["line"] = f"{what} is in the cache{size} - no download"
             else:
@@ -490,7 +516,8 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
             return out
         f, cs, ce = candidates[0]
         tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
-        missing = [k for k in kinds if kind_prefix(k) and f"{kind_prefix(k)}{tag}.csv" not in have]
+        folder = str(f.get("key_mark") or "")
+        missing = [k for k in kinds if kind_prefix(k) and (folder, f"{kind_prefix(k)}{tag}.csv") not in have]
         held = what if exact else f"the cached load around {what}"
         return {"hit": False, "line": f"{held} is in the cache without {', '.join(missing)} - it will be downloaded"}
     elif src == "endura":
@@ -503,12 +530,12 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
         return {"hit": False, "line": ""}
     if not hits:
         return {"hit": False, "line": f"{what} is not in the cache - it will be downloaded"}
-    missing = [k for k, n in names.items() if n not in have]
+    missing = [k for k, n in names.items() if ("", n) not in have]
     if missing:
         return {"hit": False, "line": f"{what} is in the cache without {', '.join(missing)} - it will be downloaded"}
     hit = hits[-1]
     rows = (hit.get("shape") or [None])[0]
-    return {"hit": True, "df_id": str(hit.get("df_id") or ""), "files": [have[n] for n in names.values()], "rows": rows, "date_range": hit.get("date_range"),
+    return {"hit": True, "df_id": str(hit.get("df_id") or ""), "files": [have[("", n)] for n in names.values()], "rows": rows, "date_range": hit.get("date_range"),
             "line": f"{what} is in the cache" + (f" ({int(rows):,} rows" + (", with " + ", ".join(names) if names else "") + ")" if rows is not None else "") + " - no download"}
 
 

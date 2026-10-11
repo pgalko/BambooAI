@@ -192,7 +192,20 @@ def routine_cached(rid):
     except Exception as exc:                                       # noqa: BLE001
         logger.warning("routines: the cache could not be inspected (%s)", exc)
         return jsonify({'hit': False, 'line': ''}), 200
-    out = cache_match(plan, inspect, start=body.get('start'), end=body.get('end'), race_id=body.get('race_id'))
+    # whose data the cache holds: the loader marks each Intervals frame with the key that loaded it and keeps that key's
+    # files in their own folder; a cached window counts only under the same key (2026-10-11)
+    key = None
+    if plan.get('source') == 'intervals':
+        from analyst.routines import key_fingerprint
+        try:
+            from auth.supabase_client import get_intervals_api_key
+            key = key_fingerprint(get_intervals_api_key(a.get_user_id(), get_current_user_id()))
+        except Exception as exc:                                       # noqa: BLE001
+            logger.warning("routines: the key could not be read for the cache check (%s)", exc)
+            key = ""
+    out = cache_match(plan, inspect, start=body.get('start'), end=body.get('end'), race_id=body.get('race_id'), key=key)
+    if out.get('hit') and key:
+        out['key'] = key
     logger.info("routines: the cache asked for %s (%s %s | %s): %s", rid, body.get('start'), body.get('end'), body.get('race_id'), out.get('line') or 'nothing to ask')
     return jsonify(out), 200
 

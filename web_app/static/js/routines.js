@@ -855,7 +855,7 @@
                 if (!ar.ok) throw new Error((ar.json && ar.json.error) || ('the cached file ' + String(fp).split('/').pop() + ' could not be loaded'));
             }
             // a cached load around the window: the run cuts it to the window (the record says so); the session holds the cached load itself
-            const load = Object.assign({}, asked, { cached: true }, cached.cut && cached.cut.length === 2 ? { cached_from: cached.cut } : {});
+            const load = Object.assign({}, asked, { cached: true }, cached.cut && cached.cut.length === 2 ? { cached_from: cached.cut } : {}, cached.key ? { key: cached.key } : {});
             if (src === 'intervals') {
                 const held = cached.cut && cached.cut.length === 2 ? { start_date: cached.cut[0], end_date: cached.cut[1] } : { start_date: asked.start_date, end_date: asked.end_date };
                 const info = Object.assign({ aux_datasets: plan.aux_kinds || [], shape: [cached.rows, null], columns: [] }, held);

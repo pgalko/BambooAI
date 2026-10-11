@@ -83,10 +83,13 @@ def main():
             pills = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
             check("the original window loads from the fake Intervals.icu through the real loader: the primary pill with its days and [W+S], an auxiliary pill each for the activity summary and the wellness log",
                   any("Intervals ICU (59 days [W+S]) loaded" in p for p in pills) and any("Activity Summary" in p for p in pills) and any("Wellness" in p for p in pills), pills)
-            exec_ds = os.path.join(workdir, "executor", "datasets", USER)
+            import hashlib
+            _kf = lambda k: hashlib.sha256(k.encode("utf-8")).hexdigest()[:12]      # analyst.routines.key_fingerprint = the loader's key_mark
+            exec_ds = os.path.join(workdir, "executor", "datasets", USER, _kf("stack-key"))                                # the key's own folder (2026-10-11)
             aux_a = sorted(os.path.basename(p) for p in glob.glob(os.path.join(exec_ds, "*.csv")))
             tag_a = f"{a_start.strftime('%Y%m%d')}_to_{a_end.strftime('%Y%m%d')}"
-            check("the loader wrote the summary and the wellness files named after the window", aux_a == [f"activity_summary_{tag_a}.csv", f"wellness_data_{tag_a}.csv"], aux_a)
+            check("the loader wrote the summary and the wellness files named after the window, under the folder of the key that loaded them; nothing at the user's folder itself",
+                  aux_a == [f"activity_summary_{tag_a}.csv", f"wellness_data_{tag_a}.csv"] and not glob.glob(os.path.join(workdir, "executor", "datasets", USER, "*.csv")), aux_a)
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
 
             page.fill("#queryInput", mod.QUESTIONS[0])
@@ -125,8 +128,9 @@ def main():
                   "INPUTS['band']" in (vs.get("script") or "") and "INPUTS['window']" not in (vs.get("script") or "") and re.search(r"pd\.read_csv\('datasets/\S*activity_summary_\d{8}_to_\d{8}\.csv'\)", vs.get("script") or "")
                   and [(p["key"], p.get("derived")) for p in vs.get("manifest", {}).get("parameters", [])] == [("band", None), ("kinds", None), ("span", "span")]
                   and (vs.get("manifest", {}).get("data", {}).get("span") or {}).get("column") == "datetime", ((vs.get("script") or "")[:300], vs.get("manifest", {}).get("parameters"), vs.get("manifest", {}).get("data", {}).get("span")))
-            check("the routine's data record: the source, how it was loaded (the window, the auxiliary kinds), the two auxiliary files and their columns (the shape a run is made to fit)",
+            check("the routine's data record: the source, how it was loaded (the window, the auxiliary kinds, the mark of the key - never the key), the two auxiliary files in the key's folder and their columns (the shape a run is made to fit)",
                   rec.get("source") == "intervals" and rec.get("load", {}).get("source") == "intervals" and sorted(rec["load"]["aux_kinds"]) == ["summary", "wellness"] and rec["load"]["start_date"] == a_start.isoformat()
+                  and rec["load"].get("key") == _kf("stack-key") and "stack-key" not in json.dumps(rec) and all(f"/{_kf('stack-key')}/" in p for p in rec.get("aux") or [])
                   and len(rec.get("aux") or []) == 2 and set(rec.get("aux_shape") or {}) == set(rec["aux"]) and any(c["name"] == "avg_power" for c in rec["aux_shape"][rec["aux"][0]]["columns"])
                   and any(c["name"] == "power" for c in rec.get("columns", [])), (rec.get("load"), list((rec.get("aux_shape") or {}).keys())))
 
@@ -264,6 +268,44 @@ def main():
                   and sessions4 is not None and float(sessions4) == n_days and run4["inputs"].get("span") == [c_start.isoformat(), c_end.isoformat()] and run4["status"] in ("ran", "reproduced"),
                   (r4["rows"], (fits_after, fits_after4), run4["data"].get("load"), run4["data"].get("date_range"), run4["data"].get("rows"), run4.get("bindings"), got4, run4.get("inputs"), run4.get("status"), (run4.get("error") or "")[-200:]))
             check("the Data tab's pills after the cut run show what the session holds - the cached load's window - not the run's", any(f"Intervals ICU (59 days [W+S]) loaded" in p for p in r4["pills"]), r4["pills"])
+
+            # the coach changes the key (another subject): the cached windows are the first subject's and must not be served
+            r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key-two"})
+            check("another Intervals.icu key stored", r["status"] == 200, r)
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
+            page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
+            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /another key/.test(c.textContent); }", timeout=15000)
+            cl5 = page.inner_text("#routineRunModal .rt-cache")
+            check("under another key the original window, though cached, is not used: the line says it was loaded under another key and will be downloaded", "loaded under another key" in cl5 and "will be downloaded" in cl5, cl5)
+            page.click("#routineRunModal [data-act='run']")
+            wait_text(page, "#chainPosition", "run 5 of 5", 300000)
+            page.wait_for_timeout(800)
+            r5 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '' })")
+            fits_after5 = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
+            run5 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_5", "run.json")))
+            check("run 5 downloaded the window afresh under the new key (new FIT requests, no 'from the cache'), and its record carries the new key's mark - never the key",
+                  fits_after5 > fits_after4 and any("LOAD" in r and "from the cache" not in r for r in r5["rows"]) and "Run 5 complete" in r5["done"] and run5["data"]["load"].get("key") == _kf("stack-key-two") and "stack-key-two" not in json.dumps(run5),
+                  (r5["rows"], (fits_after4, fits_after5), run5["data"].get("load")))
+            exec_ds2 = os.path.join(workdir, "executor", "datasets", USER, _kf("stack-key-two"))
+            check("the second key's files went to its own folder; the first key's are where they were", os.path.exists(os.path.join(exec_ds2, f"activity_summary_{tag_a}.csv")) and os.path.exists(os.path.join(exec_ds, f"activity_summary_{tag_a}.csv")), (sorted(os.listdir(exec_ds2)), sorted(os.listdir(exec_ds))))
+            # the first key again: its window is still in the cache, untouched by the second key's load
+            r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
+            page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
+            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /hit|another key/.test(c.className + ' ' + c.textContent); }", timeout=15000)
+            cl6 = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-cache').textContent, cls: document.querySelector('#routineRunModal .rt-cache').className })")
+            check("back under the first key, the original window is a hit again - the second key's load did not overwrite it", "hit" in cl6["cls"] and "no download" in cl6["text"], cl6)
+            page.click("#routineRunModal [data-act='cancel']")
+            page.evaluate("RoutinesUI.closeManager()")
+            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
 
             # Endura: a routine made on one race, run on another picked in the dialog (the flat crit has no power channel, no climbs)
             page.click("#routinesPill")

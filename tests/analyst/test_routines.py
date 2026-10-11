@@ -490,6 +490,29 @@ check("cache_match: a window inside a cached load is a hit to be cut (the cached
 check("cache_match: an Endura event by its id with its files; a file missing is no hit; SweatStack never matches (its entries do not say which subjects they hold); no window or event asked - nothing to say",
       cm5["hit"] and cm5["df_id"] == "e" and cm5["files"] == ["datasets/u/race_turns_race_2.csv"] and not cm6["hit"] and "without climbs" in cm6["line"] and cm7 == {"hit": False, "line": ""}
       and rt.cache_match({"source": "intervals", "aux_kinds": []}, insp) == {"hit": False, "line": ""} and rt.cache_match({"source": "intervals"}, None, "2026-07-12", "2026-10-10")["hit"] is False, (cm5, cm6, cm7))
+# whose data the cache holds (2026-10-11, Palo: a coach who changes the key to look at another subject must not be served the
+# first one's windows): the loader marks each frame with the key that loaded it (the same one-way formula as key_fingerprint) and
+# keeps that key's files in a folder of that name; a cached window counts only under the same key, in that folder
+k1, k2 = rt.key_fingerprint("key-one"), rt.key_fingerprint("key-two")
+insp_k = {"cached_dataframes": [{"df_id": "a", "shape": [1000, 17], "source": "intervals", "date_range": "2026-01-13 to 2026-06-11", "metrics": [], "key_mark": k1},
+                                {"df_id": "b", "shape": [900, 17], "source": "intervals", "date_range": "2026-01-13 to 2026-06-11", "metrics": [], "key_mark": k2},
+                                {"df_id": "old", "shape": [500, 17], "source": "intervals", "date_range": "2026-08-01 to 2026-08-31", "metrics": []}],
+          "auxiliary_datasets": [{"path": f"datasets/u/{k1}/activity_summary_20260113_to_20260611.csv", "key_mark": k1}, {"path": f"datasets/u/{k2}/activity_summary_20260113_to_20260611.csv", "key_mark": k2},
+                                 {"path": "datasets/u/activity_summary_20260801_to_20260831.csv", "key_mark": ""}]}
+plan_k = {"source": "intervals", "aux_kinds": ["summary"], "metrics": []}
+ck1 = rt.cache_match(plan_k, insp_k, "2026-01-13", "2026-06-11", key=k1)
+ck2 = rt.cache_match(plan_k, insp_k, "2026-01-13", "2026-06-11", key=k2)
+ck3 = rt.cache_match(plan_k, insp_k, "2026-01-13", "2026-06-11", key=rt.key_fingerprint("key-three"))
+ck4 = rt.cache_match(plan_k, insp_k, "2026-08-01", "2026-08-31", key=k1)
+ck5 = rt.cache_match(plan_k, insp_k, "2026-03-01", "2026-03-31", key=k1)
+check("cache_match by key: the same window loaded under two keys - each key gets its own frame and the file in its own folder; a third key gets neither, said; a frame from before the loader marked them is not used, said; a window inside this key's load is cut from it",
+      ck1["hit"] and ck1["df_id"] == "a" and ck1["files"] == [f"datasets/u/{k1}/activity_summary_20260113_to_20260611.csv"] and ck2["hit"] and ck2["df_id"] == "b" and ck2["files"][0].startswith(f"datasets/u/{k2}/")
+      and not ck3["hit"] and "loaded under another key" in ck3["line"] and not ck4["hit"] and "before loads were marked" in ck4["line"] and ck5["hit"] and ck5["df_id"] == "a" and ck5.get("cut") == ["2026-01-13", "2026-06-11"],
+      (ck1, ck2, ck3["line"], ck4["line"], ck5))
+check("the key's mark is one-way and twelve characters, empty for no key, and the formula is the loader's (sha256 of the key, the first twelve hex characters)",
+      len(k1) == 12 and k1 != k2 and rt.key_fingerprint("") == "" and "key-one" not in k1 and k1 == __import__("hashlib").sha256(b"key-one").hexdigest()[:12])
+check("without a key the match is as before (the newest exact window); Endura's files are the event's, at the user's folder", rt.cache_match(plan_k, insp_k, "2026-01-13", "2026-06-11")["df_id"] == "b"
+      and rt.cache_match({"source": "endura", "aux_kinds": ["turns"]}, {"cached_dataframes": [{"df_id": "e", "source": "endura", "race_id": 2}], "auxiliary_datasets": [{"path": "datasets/u/race_turns_race_2.csv", "key_mark": ""}]}, race_id=2)["hit"])
 # ---- a run on a cached load around the window asked (2026-10-11, Palo: Feb-May inside a cached Jan-June was downloaded again,
 # and used whole it would have shown the cached window's numbers): the frame and the files are cut to the window first ----
 cut_dir = os.path.join(aux_dir, "cut")

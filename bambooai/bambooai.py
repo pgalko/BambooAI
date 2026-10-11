@@ -452,7 +452,7 @@ class BambooAI:
         if aux is not None:
             data["aux"] = [str(p) for p in aux if p]
         if load:
-            data["load"] = self._load_as_said(load)
+            data["load"] = {**(data.get("load") or {}), **self._load_as_said(load)}   # what the loader route noted (the key's mark) under what the page says
         out = routines_host.precheck(routine, data, lambda script, timeout: self.run_script(script, timeout, what="Precheck"), values)
         out["plan"] = routines_host.load_plan(routine)                 # how the original load asked for its data: the dialog loads the same way
         return out
@@ -485,7 +485,7 @@ class BambooAI:
         if aux is not None:                                       # the files the dialog's load just produced, as the page saw them - none when it produced none
             data["aux"] = [str(p) for p in aux if p]
         if load:                                                  # the load as the page did it (a cached one would otherwise read 'cache')
-            data["load"] = self._load_as_said(load)
+            data["load"] = {**(data.get("load") or {}), **self._load_as_said(load)}   # over what the loader route noted (the key's mark)
         logger.info("Routine %s run %d: data %s (%s rows, %d columns, %d auxiliary file(s): %s)", routine_id, number, data.get("source"), data.get("rows"),
                     len(data.get("columns") or []), len(data.get("aux") or []), ", ".join(os.path.basename(str(p)) for p in (data.get("aux") or [])) or "-")
         out = routines_host.run(routine, values, data, lambda script, timeout, d=None: self.run_script(script, timeout, what=f"Routine {routine_id}", generated_dir=d),

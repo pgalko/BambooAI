@@ -39,7 +39,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-06 v51 (DS in every run)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-11 v52 (each Intervals load marked with its key; its files in the key\'s folder)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -209,23 +209,28 @@ def inspect_cache():
         # Get cached DataFrames info
         cached_dataframes = df_cache.get_all_metadata()
         
-        # Get auxiliary datasets info
+        # Get auxiliary datasets info: the user's folder and, one level down, the folders of the keys that loaded
+        # them (2026-10-11); the generated and routines folders are the app's own and are not auxiliary datasets
         auxiliary_datasets = []
         user_datasets_dir = os.path.join('datasets', user_id)
         
         if os.path.exists(user_datasets_dir):
-            for filename in os.listdir(user_datasets_dir):
-                filepath = os.path.join(user_datasets_dir, filename)
-                if os.path.isfile(filepath):
-                    file_stat = os.stat(filepath)
-                    
-                    auxiliary_datasets.append({
-                        'filename': filename,
-                        'path': filepath,
-                        'size_mb': file_stat.st_size / (1024 * 1024),
-                        'created_at': datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
-                        'modified_at': datetime.fromtimestamp(file_stat.st_mtime).isoformat()
-                    })
+            folders = [user_datasets_dir] + [os.path.join(user_datasets_dir, d) for d in sorted(os.listdir(user_datasets_dir))
+                                             if d not in ('generated', 'routines') and os.path.isdir(os.path.join(user_datasets_dir, d))]
+            for folder in folders:
+                for filename in os.listdir(folder):
+                    filepath = os.path.join(folder, filename)
+                    if os.path.isfile(filepath):
+                        file_stat = os.stat(filepath)
+                        
+                        auxiliary_datasets.append({
+                            'filename': filename,
+                            'path': filepath,
+                            'key_mark': os.path.basename(folder) if folder != user_datasets_dir else '',
+                            'size_mb': file_stat.st_size / (1024 * 1024),
+                            'created_at': datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
+                            'modified_at': datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                        })
         
         # Get generated datasets info
         generated_datasets = []
@@ -1565,6 +1570,14 @@ def fetch_intervals_data():
     # Return immediately with job_id
     return jsonify({'job_id': job_id}), 202
 
+def key_mark(api_key):
+    """A short, one-way mark of an API key (2026-10-11): whose data a load is, without the key itself. The same
+    formula as analyst.routines.key_fingerprint in the app, which compares the two."""
+    import hashlib
+    k = str(api_key or '').strip()
+    return hashlib.sha256(k.encode('utf-8')).hexdigest()[:12] if k else ''
+
+
 def fetch_intervals_background(data, job_id):
     """Background worker for fetching Intervals data"""
     try:
@@ -1576,6 +1589,7 @@ def fetch_intervals_background(data, job_id):
         selected_metrics = data.get('metrics', [])
         aux_datasets = data.get('aux_datasets', [])
         user_id = data.get('user_id', 'default')
+        mark = key_mark(api_key)                # whose key: the frame carries it, the auxiliary files live under it
         
         # Update status
         intervals_jobs[job_id]['status'] = 'processing'
@@ -1634,7 +1648,8 @@ def fetch_intervals_background(data, job_id):
             'source': 'intervals',
             'activities_count': len(activities_with_files),
             'date_range': f"{start_date} to {end_date}",
-            'metrics': selected_metrics
+            'metrics': selected_metrics,
+            'key_mark': mark                    # whose key loaded it (2026-10-11): a cached window is reused only under the same key
         }
         
         # Cache the DataFrame with metadata
@@ -1647,21 +1662,21 @@ def fetch_intervals_background(data, job_id):
             intervals_jobs[job_id]['message'] = 'Fetching activity intervals data...'
             intervals_df = fetch_activity_intervals_data(session, base_url, activities, job_id)
             if not intervals_df.empty:
-                intervals_path = save_aux_dataset(intervals_df, 'intervals', user_id, start_date, end_date)
+                intervals_path = save_aux_dataset(intervals_df, 'intervals', user_id, start_date, end_date, subdir=mark)
                 aux_filepaths.append(intervals_path)
         
         if 'summary' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Preparing summary data...'
             summary_df = create_activity_summary(activities)
             if not summary_df.empty:
-                summary_path = save_aux_dataset(summary_df, 'summary', user_id, start_date, end_date)
+                summary_path = save_aux_dataset(summary_df, 'summary', user_id, start_date, end_date, subdir=mark)
                 aux_filepaths.append(summary_path)
         
         if 'wellness' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching wellness data...'
             wellness_df = fetch_wellness_data(session, base_url, start_date, end_date)
             if not wellness_df.empty:
-                wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date)
+                wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date, subdir=mark)
                 aux_filepaths.append(wellness_path)
         
         # Mark as completed
@@ -2230,11 +2245,12 @@ def fetch_wellness_data(session, base_url, start_date, end_date):
         log_info(f"Error fetching wellness data: {e}")
         return pd.DataFrame()
 
-def save_aux_dataset(df, dataset_type, user_id, start_date, end_date):
-    """Save auxiliary dataset to filesystem"""
+def save_aux_dataset(df, dataset_type, user_id, start_date, end_date, subdir=''):
+    """Save auxiliary dataset to filesystem. With `subdir` - the mark of the key that loaded it (2026-10-11) - the file
+    goes under datasets/<user>/<mark>/, so two keys' loads of the same window do not overwrite each other."""
     
     # Create user-specific directory
-    executor_datasets_dir = os.path.join('datasets', user_id)
+    executor_datasets_dir = os.path.join('datasets', user_id, subdir) if subdir else os.path.join('datasets', user_id)
     os.makedirs(executor_datasets_dir, exist_ok=True)
     
     # Create descriptive filename - simplified format

@@ -117,7 +117,10 @@ class _Query:
                     row.setdefault("id", next(_ids))
                     row.setdefault("created_at", datetime.now().isoformat())
                     if self.op == "upsert":
-                        self.rows[:] = [r for r in self.rows if r.get("id") != row["id"]]
+                        # as Supabase does: on the table's unique key - the integration tables are one row per user (a second
+                        # key stored replaces the first, 2026-10-11), the rest by id
+                        key = "bamboo_user_id" if self.table.endswith("_integration") and row.get("bamboo_user_id") is not None else "id"
+                        self.rows[:] = [r for r in self.rows if r.get(key) != row[key]]
                     self.rows.append(row); out.append(dict(row))
                 return Result(out, len(out))
             if self.op == "update":

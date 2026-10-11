@@ -232,8 +232,10 @@ def load_data():
         session['intervals_job_id'] = job_data['job_id']
         # how the data was asked for (2026-10-10, routines): kept with the job, put on the instance when it completes
         prefs = intervals_bp.user_preferences.setdefault(session_id, {'planning': False, 'auxiliary_datasets': []})
+        from analyst.routines import key_fingerprint
         prefs['load'] = {'source': 'intervals', 'start_date': data['start_date'], 'end_date': data['end_date'],
-                         'metrics': list(data.get('metrics', []) or []), 'aux_kinds': list(data.get('aux_datasets', []) or []), 'df_id': new_df_id}
+                         'metrics': list(data.get('metrics', []) or []), 'aux_kinds': list(data.get('aux_datasets', []) or []), 'df_id': new_df_id,
+                         'key': key_fingerprint(api_key)}             # whose data this is - a one-way mark of the key, never the key (2026-10-11, routines)
         
         return jsonify({'job_id': job_data['job_id']}), 202
         

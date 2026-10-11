@@ -273,7 +273,21 @@ version's data record, `load`), and offers the data loaded now beside it.
    record's `load` carries `cached_from`, its `date_range` and `rows` are the window's as the method saw them, its
    `bindings` read *cut*. The Data tab afterwards holds the cached load itself (that is what the executor has), and
    its pills say so; the record says what the run used. The one approximation: a session that starts on the
-   window's last day and runs past midnight keeps its records (the loader would too);
+   window's last day and runs past midnight keeps its records (the loader would too). **Whose data the cache
+   holds** (2026-10-11, Palo: a coach who changes the Intervals key to look at another subject must not be served
+   the first one's windows) is settled where the data lives — in the executor (image v52): the Intervals loader
+   marks each frame it caches with a one-way mark of the key that loaded it (`key_mark`: sha256 of the key, twelve
+   hex characters, never the key — `metadata.key_mark`) and writes that load's auxiliary files under a folder of
+   that name (`datasets/<user>/<mark>/activity_summary_<window>.csv`), so two keys' loads of the same window sit
+   side by side; `/cache/inspect` lists the key folders with each file's `key_mark`. The app computes the same
+   mark from the key in use (`key_fingerprint`) and the cache check uses a frame only when its mark is the same,
+   looking for its files in that folder; a frame marked with another key is said (*loaded under another key - it
+   will be downloaded*), one from before the loader marked them is downloaded this once. The Intervals route puts
+   the mark on the load record (`load.key`), so a routine and each run say which key they were made and run under.
+   The cut, the derived inputs and the binding go by file name, so the folder changes nothing for them; the DATA
+   block shows the longer path. Endura's files are the event's, at the user's folder: no such check. Chosen over an
+   app-side ledger of loads with file stamps (built as 0125/0126, set aside): identity recorded by the loader is
+   direct and stays right; the ledger reconstructed it from timing and the files still overwrote each other;
    on Run the page asks again for the window as it stands (the line's earlier answer can lag behind a date typed
    and committed by the click on Run itself — Safari commits a date on blur) and a hit is taken through the Dataset
    cache's own routes (`/cache/load_primary`, `/cache/load_auxiliary`), the pills as a load's, and the LOAD row and
@@ -518,6 +532,11 @@ Endura (tools/stack/fake_apis.py, with FIT files the executor's own parser reads
 loaders' variation built in - a window without a power meter, a device that stopped logging temperature, a wellness
 log that ends, a flat race without power or climbs), the real loaders, a routine made on one window and run on the
 next, then one made on one race and run on another.
+
+The executor image carries the key marks since v52; a hosted container recreated after the roll-out marks its
+loads from then on, an older one answers "from before loads were marked" for its cached frames until it is
+recreated — quiet in both editions, no coordination. The self-hosted edition rebuilds the image on the next serve
+(the tag carries the build stamp).
 
 ## 10. Retired by this feature
 

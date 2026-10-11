@@ -30,7 +30,8 @@
   tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands),
   2.2.2 (2026-10-08: the Claude 5.5 family on the Anthropic adapter, the contract's STEP section, the forced report's
   card, the replay's display options, auxiliary files in DATA, the template's Claude seats - patches 0101-0110;
-  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands).
+  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands). **Next ship carries executor image v52**
+  (patch 0125: each Intervals load marked with its key, its files in the key's folder) - rebuild and roll out.
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
@@ -58,10 +59,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/87/30/19/16/49/44/51/10/101/1/1 Python; 39/7/29/56/24/59 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (177/88/30/19/16/49/44/51/10/104/1/1 Python; 39/7/29/56/24/59 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (37; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (42; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -440,6 +441,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines: whose data the cache holds - each Intervals load marked with its key, its files in the key's folder;
+  executor image v52 (2026-10-11, patch 0125).** Palo: a coach who changes the Intervals key to look at another subject
+  would have been served the first subject's cached windows. Settled in the container, where the data lives (chosen
+  over an app-side ledger of loads with file stamps, built as 0125/0126 and set aside unapplied - `superseded/`):
+  `code_executor_api.py` `key_mark(api_key)` (sha256, twelve hex characters, never the key; the same formula as
+  `analyst.routines.key_fingerprint`), `metadata['key_mark']` on each Intervals frame, `save_aux_dataset(...,
+  subdir=mark)` -> `datasets/<user>/<mark>/`, `/cache/inspect` lists the key folders (not `generated`/`routines`)
+  with each file's `key_mark`; `EXECUTOR_BUILD` v52 - the self-hosted image tag follows it, the hosted containers
+  pick it up as they are recreated (an older container's frames read 'from before loads were marked' until then).
+  App: `cache_match(..., key)` uses a frame only with the same mark, its files from that folder (`have` keyed by
+  (folder, name)); the exact window's newest frame first; `/routines/<id>/cached` reads the key through
+  `get_intervals_api_key` and returns the mark on a hit, which the page passes in `load`; the Intervals route stamps
+  `prefs['load']['key']` so the data record's `load.key` says which key a routine and its runs were made under;
+  `run_routine`/`precheck_routine` merge the page's load over the instance's. `tools/stack/fake_supabase.py`: upsert
+  on `bamboo_user_id` for the integration tables, as Supabase does. test_routines.py 104, test_app_path.py 88,
+  test_documents_app.py (v52); the integrations walk: the files under the key's folder, a second key stored -> the
+  line, a fresh download into its own folder, the first key's files untouched, the first key's window a hit again
+  (42). ROUTINES_DESIGN.md F2.1, §9.
 - **Routines: a cached load that contains the window is used, cut to the window before the method runs (2026-10-11,
   patch 0124).** Palo: Feb-May inside a cached Jan-June was downloaded again - and, as he saw, used whole it would show
   the cached window's numbers. `cache_match` now takes the exact window first, else the smallest cached load (same
