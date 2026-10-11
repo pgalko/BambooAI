@@ -877,6 +877,8 @@ check("quick: a two-turn budget's first turn is not told the budget is nearly go
 # ---- plain statement over metaphor: in the report's contract and in the rewrite task (2026-09-08) ----
 from analyst.session import REWRITE_TASK as _RW
 check("prose: the contract and the rewrite both ask for direct statements, never metaphor", "never metaphor" in open(os.path.join(ROOT, "analyst", "contract.md")).read() and "never let a metaphor" in _RW)
+check("rewrite task: the figure citations stay, at the end of the sentence that says what the figure shows (2026-10-11); a [fig n] in the rewrite is no unverified number for the guard",
+      "keep that citation at the end of the sentence that says what the figure shows" in _RW and report.guard_rewrite("The spread is in the figure [fig 12].", "x [fig 12]") == "")
 
 # ---- the prompt window: newest cell whole, earlier recent cells collapsed ----
 nbw = Notebook("tw"); rw = nbw.new_run("q")

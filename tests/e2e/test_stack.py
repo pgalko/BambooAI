@@ -143,6 +143,16 @@ def main():
             check("the Answer tab ends with the Figures section - two captions, each citing the figures cell as a fig 3 chip",
                   "Figures" in answer and "plot-level yield by regime within each soil type" in answer and "mean plot yield by regime" in answer and fig_chips == ["fig 3", "fig 3"]
                   and answer.find("Figures") > answer.find("Next steps"), (fig_chips, answer[-300:]))
+            # the plain-language version keeps the figure citation, as a chip (2026-10-11)
+            page.wait_for_selector("#content-answer .simplified-summary-btn:not(.loading)", timeout=15000)
+            page.click("#content-answer .simplified-summary-btn")
+            page.wait_for_timeout(300)
+            simp = page.evaluate("() => ({ text: document.querySelector('#content-answer .content-body').textContent, chips: [...document.querySelectorAll('#content-answer .content-body .cite.fig')].map(e => e.textContent) })")
+            check("Simplified: the plain-language version cites the figure at the end of the sentence that says what it shows, and the citation is a fig 3 chip",
+                  "What was found" in simp["text"] and simp["chips"] == ["fig 3"] and "[fig 3]" not in simp["text"], simp)
+            page.click("#content-answer .simplified-summary-btn")
+            page.wait_for_timeout(300)
+            check("Simplified toggled back: the technical report with its chips", page.evaluate("() => document.querySelectorAll('#content-answer .content-body .cite.fig').length") == 2)
             page.evaluate("activateTab('plot')")
             page.wait_for_timeout(300)
             imgs = page.evaluate("() => document.querySelectorAll('#content-plot img').length")

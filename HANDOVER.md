@@ -59,8 +59,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (188/93/30/19/16/49/44/51/10/104/1/1 Python; 44/7/29/56/24/59 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (83 hosted, 82 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (189/93/30/19/16/49/44/51/10/104/1/1 Python; 44/7/29/56/24/59 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (85 hosted, 84 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (42; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -441,6 +441,12 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The plain-language version cites the figures (2026-10-11, patch 0128).** Palo: the simplified answer "could also
+  benefit from figure citations". REWRITE_TASK: where the report cites a figure as [fig n], keep that citation at the
+  end of the sentence that says what the figure shows (the cell citations still go, as before); the Simplified view
+  passes its text through `paneCiteHtml`, so the citation is the same chip as in the technical answer, opening the
+  Plots tab. The stack scenario's rewrite cites [fig 3]; the walk toggles to Simplified and finds the chip (85 hosted /
+  84 local). test_analyst.py 189.
 - **REPORT with nothing under it is not a report (2026-10-11, patch 0127).** Palo's first run under 0126 (Titanic, the
   age distribution of survivors, deepseek-v4.1-flash at xhigh) showed the Answer tab holding the Figures section and the
   replay line alone. The run log: the report turn's reply ended at `###ACTION###\nREPORT` - its STEP said "I will now

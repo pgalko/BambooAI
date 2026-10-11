@@ -452,7 +452,8 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
                     "association rather than a proof of cause.\n\n## What it does not mean\nIt does not say what would happen "
                     f"on a single new plot; the plain gap between all B plots and all A plots was larger, {v['RAW_DIFF']:.2f} "
                     "tonnes per hectare, and part of that is the soil.\n\n## How it was checked\nEach plot was averaged over "
-                    "its seasons first, so a plot counts once; the range comes from re-drawing plots many times.\n\n"
+                    "its seasons first, so a plot counts once; the range comes from re-drawing plots many times. The spread "
+                    "of plot yields by regime within each soil is in the first figure [fig 3].\n\n"
                     "## What to do next\nAllow for rainfall, look season by season, and compare regime C the same way.")
         if "ADJ_DIFF_C" in v and v.get("ADJ_DIFF_C") is not None:
             return (f"## What was found\nOn like-for-like soil, regime C and regime A are about level: the difference is "

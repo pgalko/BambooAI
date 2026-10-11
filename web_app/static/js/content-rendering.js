@@ -1225,7 +1225,9 @@ function handleSimplifiedSummaryToggle() {
             // Format and display simplified content
             const { text: protectedContent, placeholders } = protectLatexDelimiters(currentData.simplifiedAnswer);
             let parsedContent = marked.parse(protectedContent);
-            const finalContent = restoreLatexDelimiters(parsedContent, placeholders);
+            let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
+            // the figure citations the rewrite keeps become chips, as in the technical answer (2026-10-11)
+            if (typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent);
             
             answerContent.innerHTML = finalContent;
             currentData.summaryViewMode = 'simplified';
