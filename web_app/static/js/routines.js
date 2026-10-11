@@ -201,7 +201,7 @@
                 '<span class="meta">' + [d.rows != null ? Number(d.rows).toLocaleString() + ' rows' : '', d.columns ? d.columns + ' columns' : '', d.date_range ? esc(d.date_range) : ''].filter(Boolean).join(' · ') + '</span>' : '';
             // the line under the data loaded now: green when nothing differs from the data the method was made on; a note when a
             // column will be empty or a file absent (the run goes ahead, the coach decides); bad when there is nothing to run on
-            const differs = !!(pre && pre.ok && (((pre.fit || {}).missing || []).length || ((pre.aux || {}).absent || []).length || ((pre.fit || {}).retyped || []).length));
+            const differs = !!(pre && pre.ok && (((pre.fit || {}).missing || []).length || ((pre.aux || {}).absent || []).length || ((pre.fit || {}).retyped || []).length || (pre.values_notes || []).length));
             const fitLine = loaded ? '<div class="rt-fit' + (pre.ok ? (differs ? ' note' : '') : ' bad') + '" data-for="now">' + (pre.ok ? (differs ? '△ ' : '✓ ') : '! ') + esc(pre.line || '') + '</div>' : '';
             const today = new Date();
             let h = '<div class="rt-sec" data-source="' + esc(src) + '"><div class="h">Data</div><div class="rt-choices rt-load">';
@@ -706,6 +706,9 @@
             }
             if (e.target.matches('input[data-load="start"], input[data-load="end"], select[data-load="race"]')) { clearTimeout(cacheTimer); cacheTimer = setTimeout(checkCache, 250); }
         });
+        runDlg.addEventListener('input', e => {             // a date being typed (Safari commits it on blur only): the line follows the typing
+            if (e.target.matches('input[data-load="start"], input[data-load="end"]')) { clearTimeout(cacheTimer); cacheTimer = setTimeout(checkCache, 400); }
+        });
         return runDlg;
     }
     function runParts() {
@@ -753,29 +756,30 @@
     // re-downloaded a window loaded minutes before): asked once the dialog is up and again as the window or the race
     // changes; the answer under the window, and the load takes the cached frame and files instead of downloading
     let cacheTimer = null;
-    function checkCache() {
-        const st = runState; if (!st || !st.plan) return;
-        const src = st.plan.source;
-        if (src !== 'intervals' && src !== 'endura') return;
-        const p = runParts();
-        const el = p.d.querySelector('.rt-cache'); if (!el) return;
-        const asked = loadAsked(st.plan, p);
-        const key = src === 'intervals' ? asked.start_date + '|' + asked.end_date : String(asked.race_id || '');
-        if (src === 'intervals' && !(asked.start_date && asked.end_date)) { el.style.display = 'none'; st.cache = null; return; }
-        if (src === 'endura' && !asked.race_id) { el.style.display = 'none'; st.cache = null; return; }
-        fetchJson('/routines/' + encodeURIComponent(st.id) + '/cached', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(src === 'intervals' ? { start: asked.start_date, end: asked.end_date } : { race_id: asked.race_id }) }).then(res => {
-            if (runState !== st) return;
-            const c = (res.ok && res.json) || { hit: false, line: '' };
-            st.cache = Object.assign({ key }, c);
-            if (!c.line) { el.style.display = 'none'; el.textContent = ''; return; }
-            el.style.display = ''; el.className = 'rt-cache ' + (c.hit ? 'hit' : 'miss'); el.textContent = (c.hit ? '✓ ' : '') + c.line;
-        }).catch(() => { if (runState === st) { st.cache = null; el.style.display = 'none'; } });
+    function cacheAsk(asked) {
+        // what to ask the cache about, or null when the dialog has no complete window or event yet
+        if (asked.source === 'intervals') return asked.start_date && asked.end_date ? { start: asked.start_date, end: asked.end_date } : null;
+        if (asked.source === 'endura') return asked.race_id ? { race_id: asked.race_id } : null;
+        return null;
     }
-    function cacheFor(st, asked) {
-        const c = st && st.cache;
-        if (!c || !c.hit) return null;
-        const key = asked.source === 'intervals' ? asked.start_date + '|' + asked.end_date : String(asked.race_id || '');
-        return c.key === key ? c : null;
+    function askCache(st, asked) {
+        const body = cacheAsk(asked);
+        if (!body) return Promise.resolve(null);
+        return fetchJson('/routines/' + encodeURIComponent(st.id) + '/cached', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+            .then(res => (res.ok && res.json) || { hit: false, line: '' }).catch(() => ({ hit: false, line: '' }));
+    }
+    function showCache(p, c) {
+        const el = p.d.querySelector('.rt-cache'); if (!el) return;
+        if (!c || !c.line) { el.style.display = 'none'; el.textContent = ''; el.className = 'rt-cache'; return; }
+        el.style.display = ''; el.className = 'rt-cache ' + (c.hit ? 'hit' : 'miss'); el.textContent = (c.hit ? '✓ ' : '') + c.line;
+    }
+    function checkCache() {
+        // the line under the window: a preview as the dates are set; the load asks again for itself when Run is pressed
+        const st = runState; if (!st || !st.plan) return;
+        const p = runParts();
+        const asked = loadAsked(st.plan, p);
+        if (!cacheAsk(asked)) { showCache(p, null); return; }
+        askCache(st, asked).then(c => { if (runState === st) showCache(p, c); });
     }
     function dataChoice() {
         const p = runParts();
@@ -830,8 +834,17 @@
         const q = sel => p.d.querySelector(sel);
         const dfTab = job => { if (job && job.dataframe && typeof createOrUpdateTab === 'function') { try { const o = JSON.parse(job.dataframe); createOrUpdateTab('dataframe', o.data); } catch (e) { /* no tab */ } } };
         const asked = loadAsked(plan, p);
-        const cached = cacheFor(runState, asked);
-        if (cached && (src === 'intervals' || src === 'endura')) {
+        // the cache asked here, for the window or the event as it stands when Run is pressed - not the line's earlier answer,
+        // which can lag behind a date typed and committed by the click on Run itself (2026-10-11: a window loaded minutes
+        // before was downloaded again)
+        let cached = null;
+        if (src === 'intervals' || src === 'endura') {
+            progress('Asking the cache…', 'loading');
+            const c = await askCache(runState, asked);
+            cached = c && c.hit ? c : null;
+            showCache(p, c);
+        }
+        if (cached) {
             // the load is in the cache with every file the routine wants: the cached frame and files are taken through the
             // Dataset cache's own routes, the pills as a load's, no download
             progress('Taking it from the cache…', 'loading');

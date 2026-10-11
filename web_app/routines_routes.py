@@ -192,7 +192,9 @@ def routine_cached(rid):
     except Exception as exc:                                       # noqa: BLE001
         logger.warning("routines: the cache could not be inspected (%s)", exc)
         return jsonify({'hit': False, 'line': ''}), 200
-    return jsonify(cache_match(plan, inspect, start=body.get('start'), end=body.get('end'), race_id=body.get('race_id'))), 200
+    out = cache_match(plan, inspect, start=body.get('start'), end=body.get('end'), race_id=body.get('race_id'))
+    logger.info("routines: the cache asked for %s (%s %s | %s): %s", rid, body.get('start'), body.get('end'), body.get('race_id'), out.get('line') or 'nothing to ask')
+    return jsonify(out), 200
 
 
 @routines_bp.route('/routines/<rid>/precheck', methods=['POST'])

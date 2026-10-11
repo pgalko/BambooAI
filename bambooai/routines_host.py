@@ -480,7 +480,7 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
     params = manifest.get("parameters") or []
     d = current_data or {}
     loaded = bool(d.get("df_id")) or bool(d.get("columns"))
-    out = {"loaded": loaded, "data": light_data(d), "fit": None, "values_missing": [], "problems": [], "ok": False, "line": ""}
+    out = {"loaded": loaded, "data": light_data(d), "fit": None, "values_missing": [], "values_notes": [], "problems": [], "ok": False, "line": ""}
     if not loaded:
         out["line"] = "no data is loaded: load the data on the Data tab, then run"
         return out
@@ -494,13 +494,17 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
         checks = rt.value_checks(params, vals)
         if checks:
             try:
-                stdout, err, _f, _g = runner(rt.precheck_script(checks), 120)
+                stdout, err, _f, _g = runner(rt.precheck_script(checks, d.get("aux") or []), 120)
             except Exception as exc:                                   # noqa: BLE001
                 stdout, err = "", str(exc)
             found = rt.read_precheck(stdout or "")
-            out["values_missing"] = rt.missing_values(checks, found) if found is not None else ([f"the values could not be checked ({str(err).strip().splitlines()[-1][:120]})"] if err else [])
+            if found is not None:
+                out["values_missing"], out["values_notes"] = rt.value_verdict(params, vals, found)
+            else:
+                out["values_missing"] = [f"the values could not be checked ({str(err).strip().splitlines()[-1][:120]})"] if err else []
     out["ok"] = bool(fit["fits"]) and not out["values_missing"] and not problems
-    out["line"] = fit["line"] + (("; " + out["aux"]["line"]) if out["aux"]["line"] else "") + (("; " + "; ".join(out["values_missing"])) if out["values_missing"] else "") + (("; " + "; ".join(problems)) if problems else "")
+    out["line"] = fit["line"] + (("; " + out["aux"]["line"]) if out["aux"]["line"] else "") + (("; " + "; ".join(out["values_missing"])) if out["values_missing"] else "") \
+        + (("; " + "; ".join(out["values_notes"])) if out["values_notes"] else "") + (("; " + "; ".join(problems)) if problems else "")
     return out
 
 
@@ -530,10 +534,11 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
             emit({"type": "lookup", "kind": "check", "query": name, "peek": fit["line"]})
         raise RoutineRefused("the data does not fit the routine: " + fit["line"])
     checks = rt.value_checks(params, vals)
+    value_notes: List[str] = []
     if checks:
-        stdout, err, _f, _g = runner(rt.precheck_script(checks), 120)
+        stdout, err, _f, _g = runner(rt.precheck_script(checks, d.get("aux") or []), 120)
         found = rt.read_precheck(stdout or "")
-        miss = rt.missing_values(checks, found) if found is not None else []
+        miss, value_notes = rt.value_verdict(params, vals, found) if found is not None else ([], [])
         if miss:
             if emit:
                 emit({"type": "lookup", "kind": "check", "query": name, "peek": "; ".join(miss)})
@@ -543,7 +548,7 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     # empty tables for the absent ones) in the run's own folder, the executed text with this load's names, `df` conformed
     run_dir = run_dir or f"routines/{routine.get('id', 'routine')}/{run_tag(vnum, number)}"
     prep = prepare(ver, d, runner, run_dir)
-    check_line = fit["line"] + (("; " + aux_line(prep["binding"])) if prep["binding"]["absent"] else "") + ("; the chosen values are in the data" if checks else "")
+    check_line = fit["line"] + (("; " + aux_line(prep["binding"])) if prep["binding"]["absent"] else "") + (("; " + "; ".join(value_notes)) if value_notes else ("; the chosen values are in the data" if checks else ""))
     if prep["note"]:
         check_line += "; " + prep["note"]
     if emit:

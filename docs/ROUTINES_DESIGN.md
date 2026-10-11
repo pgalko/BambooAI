@@ -159,7 +159,12 @@ The promoter proposes the inputs; the coach confirms them; the runner writes the
 6. **A choice input's values are checked against the data** before a run (built), like the columns: an exclusion of
    "athlete07, athlete09" on a file that has neither is said ("'athlete07' is not in column athlete") rather than
    silently doing nothing; a column the data lacks is said too ("column athlete is not in this data"). The check is
-   a small script in the executor that prints the membership, run with the run dialog's values before the run.
+   a small script in the executor that prints the membership, run with the run dialog's values before the run. The
+   column is looked for in the frame first, then in the auxiliary files loaded now (2026-10-11: a choice over the
+   summary file's `type` was refused as not in the data), and the message names the file ("'Ride' is not in column
+   type of the summary file"). One of several chosen values absent is a note, not a refusal — the method keeps the
+   other values; a single value absent, every chosen value absent, or a column in neither the frame nor the files
+   refuses: nothing to run on for that input.
 7. **A loader's file name is the loader's, never an input's** (2026-10-10, the second live run: the promoter had
    made the loaded window an input and written it into the summary's name as an f-string, so the recorded name was
    gone from the text and the run bound nothing). The period is chosen when the data is loaded, before the method
@@ -255,8 +260,10 @@ version's data record, `load`), and offers the data loaded now beside it.
    or the same event (Endura), and every auxiliary file of the kinds the routine wants there under the loader's
    name for that load (`cache_match`). A line under the window says *✓ this window (… → …) is in the cache (10,200
    rows, with summary, wellness) - no download*, or why not (*not in the cache*, *in the cache without wellness*);
-   on Run a hit is taken through the Dataset cache's own routes (`/cache/load_primary`, `/cache/load_auxiliary`),
-   the pills as a load's, and the LOAD row and the run's record say *from the cache*. SweatStack's entries do not
+   on Run the page asks again for the window as it stands (the line's earlier answer can lag behind a date typed
+   and committed by the click on Run itself — Safari commits a date on blur) and a hit is taken through the Dataset
+   cache's own routes (`/cache/load_primary`, `/cache/load_auxiliary`), the pills as a load's, and the LOAD row and
+   the run's record say *from the cache*. SweatStack's entries do not
    say which subjects they hold, so they never match; the local edition has no executor cache. The page sends the
    load as it did it (`load`: the source, window or event, kinds, `cached`) with the precheck and the run, so the
    record says what was loaded rather than the cache route's *cache*. The Data tab's pills and the frame view then

@@ -6,7 +6,8 @@ has another name, the frame has no power column and the wellness file was not wr
 (apis_data.py), met by the run's binding and conform.
 
 The question (Deep, four turns): inspect; the summary read and the hours counted, three RESULT lines; a figure; the
-report. The promoter makes the hour band an input (numbers, default 9 to 11) and, as the live one did, tries to make
+report. The promoter makes the hour band an input (numbers, default 9 to 11), the session types kept a choice over the
+summary file's `type` column (a column the frame does not have), and, as the live one did, tries to make
 the loaded window one by writing it into the summary file's name - refused by the host, which keeps the loader's name
 for the run to bind. The analyst also types the frame's first and last dates into a RESULT label (against the
 contract, as the first live chain did), and the promoter makes them a date window: the host marks it as following the
@@ -69,6 +70,7 @@ print('first:', df['datetime'].min().date(), 'last:', df['datetime'].max().date(
 CELL_HOURS = """# The summary file lists one row per session with its local and UTC start times. The time-zone offset is read off
 # the data: the most common offset is home, the rest is travel.
 summ = pd.read_csv({path!r})
+summ = summ[summ['type'].isin(['Ride', 'Run'])]
 summ['start_local'] = pd.to_datetime(summ['start_date_local'])
 summ['start_utc'] = pd.to_datetime(summ['start_date_utc'], utc=True)
 summ['offset_h'] = ((summ['start_local'] - summ['start_utc'].dt.tz_localize(None)).dt.total_seconds() / 3600).round().astype(int)
@@ -146,6 +148,10 @@ class Scenario:
                            "origin": "the period the analysis ran on, also encoded in the summary file's name"})
             edits.append({"cell": cell, "find": f"pd.read_csv('{path}')",
                           "replace": "pd.read_csv(f\"" + path.rsplit("activity_summary_", 1)[0] + "activity_summary_{str(INPUTS['window'][0]).replace('-','')}_to_{str(INPUTS['window'][1]).replace('-','')}.csv\")"})
+        # the session types kept, a choice over a column of the summary file - not of the frame (2026-10-11, Palo's routine:
+        # the check looked for the column in the frame alone and refused)
+        inputs.append({"key": "kinds", "label": "Session types counted", "type": "choice", "multiple": True, "column": "type", "default": ["Ride", "Run"], "origin": "the two types the analysis kept"})
+        edits.append({"cell": cell, "find": "isin(['Ride', 'Run'])", "replace": "isin(INPUTS['kinds'])"})
         # the frame's first and last dates, typed into a label: proposed as a window (the host marks it as the data's own)
         d = re.search(r"RESULT\('sessions in the window (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})'", user)
         if d:

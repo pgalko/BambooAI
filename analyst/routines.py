@@ -706,18 +706,41 @@ def read_shape(stdout: str) -> Optional[dict]:
 PRECHECK_MARK = "PRECHECK:"
 
 
-def precheck_script(checks: Dict[str, List[str]]) -> str:
-    """A script that reports, for each column named by a choice input, which of its chosen values the frame holds."""
+def precheck_script(checks: Dict[str, List[str]], files: Optional[Iterable[str]] = None) -> str:
+    """A script that reports, for each column named by a choice input, which of its chosen values the data holds: the
+    frame first, then the auxiliary files loaded now (2026-10-11: a choice column that lives in the summary file,
+    not in the frame, was reported as not in the data). `where` says which table answered."""
     spec = json.dumps({str(k): [str(x) for x in v] for k, v in (checks or {}).items()})
-    return ("import json as _j\n"
+    paths = json.dumps([str(p) for p in (files or []) if p])
+    return ("import json as _j, os as _os\n"
+            "import pandas as _pd\n"
             "_spec = _j.loads(" + repr(spec) + ")\n"
-            "_out = {'rows': int(len(df)), 'columns': [str(c) for c in df.columns], 'values': {}}\n"
+            "_files = " + paths + "\n"
+            "_out = {'rows': int(len(df)), 'columns': [str(c) for c in df.columns], 'values': {}, 'where': {}}\n"
+            "def _column_of(_p, _col):\n"
+            "    try:\n"
+            "        _head = _pd.read_csv(_p, nrows=0) if _p.lower().endswith('.csv') else _pd.read_parquet(_p)\n"
+            "        if _col not in _head.columns:\n"
+            "            return None\n"
+            "        return (_pd.read_csv(_p, usecols=[_col]) if _p.lower().endswith('.csv') else _head)[_col]\n"
+            "    except Exception:\n"
+            "        return None\n"
             "for _col, _vals in _spec.items():\n"
+            "    _series, _where = None, None\n"
             "    if _col in df.columns:\n"
-            "        _have = set(df[_col].dropna().astype(str).unique().tolist())\n"
-            "        _out['values'][_col] = {v: (v in _have) for v in _vals}\n"
+            "        _series, _where = df[_col], 'the frame'\n"
             "    else:\n"
+            "        for _p in _files:\n"
+            "            _series = _column_of(_p, _col)\n"
+            "            if _series is not None:\n"
+            "                _where = _os.path.basename(_p)\n"
+            "                break\n"
+            "    if _series is None:\n"
             "        _out['values'][_col] = None\n"
+            "        continue\n"
+            "    _have = set(_series.dropna().astype(str).unique().tolist())\n"
+            "    _out['values'][_col] = {v: (v in _have) for v in _vals}\n"
+            "    _out['where'][_col] = _where\n"
             "print(" + repr(PRECHECK_MARK + " ") + " + _j.dumps(_out))\n")
 
 
@@ -743,15 +766,52 @@ def value_checks(parameters: List[dict], values: Dict[str, object]) -> Dict[str,
 
 
 def missing_values(checks: Dict[str, List[str]], found: Optional[dict]) -> List[str]:
-    """What the precheck did not find: 'x is not in column c'; a column the frame lacks counts for every value."""
+    """What the precheck did not find: 'x is not in column c' (naming the file when the column lives in one); a
+    column neither the frame nor the files loaded have counts for every value."""
     out = []
     vals = (found or {}).get("values") or {}
+    where = (found or {}).get("where") or {}
     for col, wanted in (checks or {}).items():
         have = vals.get(col)
+        table = str(where.get(col) or "")
+        kind = aux_kind(table) if table and table != "the frame" else ""
+        of = "" if not table or table == "the frame" else (f" of the {kind} file" if kind and not kind.startswith("file:") else f" of {table}")
         for v in wanted:
             if have is None or not have.get(str(v)):
-                out.append(f"'{v}' is not in column {col}" if have is not None else f"column {col} is not in this data (for '{v}')")
+                out.append(f"'{v}' is not in column {col}{of}" if have is not None else f"column {col} is not in this data (for '{v}')")
     return out
+
+
+def value_verdict(parameters: List[dict], values: Dict[str, object], found: Optional[dict]) -> Tuple[List[str], List[str]]:
+    """What the precheck found for each choice input, as (refusals, notes): a column in neither the frame nor the files
+    loaded, or a single value absent, or every chosen value absent, refuses - nothing to run on for that input; one of
+    several chosen values absent is a note (2026-10-11: the method keeps what is there), said before the run."""
+    refusals, notes = [], []
+    vals = (found or {}).get("values") or {}
+    where = (found or {}).get("where") or {}
+    for p in parameters or []:
+        if p.get("type") != "choice" or not p.get("column"):
+            continue
+        col = str(p["column"])
+        v = values.get(p["key"], p.get("default"))
+        wanted = [str(x) for x in (v if isinstance(v, (list, tuple)) else [v]) if x is not None and str(x) != ""]
+        if not wanted:
+            continue
+        have = vals.get(col)
+        if have is None:
+            refusals.extend(f"column {col} is not in this data (for '{x}')" for x in wanted)
+            continue
+        table = str(where.get(col) or "")
+        kind = aux_kind(table) if table and table != "the frame" else ""
+        of = "" if not table or table == "the frame" else (f" of the {kind} file" if kind and not kind.startswith("file:") else f" of {table}")
+        absent = [x for x in wanted if not have.get(x)]
+        if not absent:
+            continue
+        if len(absent) < len(wanted):
+            notes.append(("'" + "', '".join(absent) + "'") + (" is" if len(absent) == 1 else " are") + f" not in column {col}{of} - the method keeps the other" + (" value" if len(wanted) - len(absent) == 1 else " values"))
+        else:
+            refusals.extend(f"'{x}' is not in column {col}{of}" for x in absent)
+    return refusals, notes
 
 
 def coerce_values(parameters: List[dict], values: Optional[Dict[str, object]]) -> Tuple[Dict[str, object], List[str]]:

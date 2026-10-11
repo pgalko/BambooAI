@@ -106,10 +106,10 @@ def main():
             page.click("#saveMenu .it[data-act='routine']")
             page.wait_for_selector("#routineMakeModal .rt-inputs", timeout=120000)
             dlg = page.evaluate("() => ({ inputs: [...document.querySelectorAll('#routineMakeModal .rt-inputs tbody tr')].map(r => [r.dataset.key, r.querySelector('.val').textContent, r.dataset.derived || '', (r.querySelector('.rt-derived') || {}).textContent || '']), results: document.querySelectorAll('#routineMakeModal .rt-results .r').length, data: document.querySelector('#routineMakeModal .rt-data').textContent, notes: [...document.querySelectorAll('#routineMakeModal .rt-sec')].filter(s => s.querySelector('.h') && s.querySelector('.h').textContent === 'Notes').map(s => s.textContent).join(' ') })")
-            check("the make dialog: the band (9, 11) and the dates typed into the label as the inputs, the three result lines, the data as Intervals.icu",
-                  [i[:2] for i in dlg["inputs"]] == [["band", "9, 11"], ["span", f"{a_start.isoformat()} → {a_end.isoformat()}"]] and dlg["results"] == 3 and "Intervals" in dlg["data"], dlg)
+            check("the make dialog: the band (9, 11), the session types (a choice over the summary file's column) and the dates typed into the label as the inputs, the three result lines, the data as Intervals.icu",
+                  [i[:2] for i in dlg["inputs"]] == [["band", "9, 11"], ["kinds", "Ride, Run"], ["span", f"{a_start.isoformat()} → {a_end.isoformat()}"]] and dlg["results"] == 3 and "Intervals" in dlg["data"], dlg)
             check("the dates typed into the label are the frame's first and last: the row says the input follows the data, written at each run (the probe recorded the frame's period at promotion)",
-                  dlg["inputs"][1][2] == "span" and "follows the data: its first and last dates" in dlg["inputs"][1][3] and dlg["inputs"][0][2] == "", dlg["inputs"])
+                  dlg["inputs"][2][2] == "span" and "follows the data: its first and last dates" in dlg["inputs"][2][3] and dlg["inputs"][0][2] == "" and dlg["inputs"][1][2] == "", dlg["inputs"])
             check("the promoter's other proposal - the loaded window as an input written into the summary's file name, as the live promoter did - is refused with the reason in the notes: the name is the loader's, bound at each run",
                   "The period: could not be made an input" in dlg["notes"] and "the loader's" in dlg["notes"], dlg["notes"])
             page.fill("#routineMakeModal [data-field='purpose']", "when training starts, window by window")
@@ -123,7 +123,7 @@ def main():
             vs = rj["versions"][0] if rdirs else {}
             check("the stored script: the band read from INPUTS, the summary still read by the loader's dated name (the refused edit left no trace), the band the only parameter",
                   "INPUTS['band']" in (vs.get("script") or "") and "INPUTS['window']" not in (vs.get("script") or "") and re.search(r"pd\.read_csv\('datasets/\S*activity_summary_\d{8}_to_\d{8}\.csv'\)", vs.get("script") or "")
-                  and [(p["key"], p.get("derived")) for p in vs.get("manifest", {}).get("parameters", [])] == [("band", None), ("span", "span")]
+                  and [(p["key"], p.get("derived")) for p in vs.get("manifest", {}).get("parameters", [])] == [("band", None), ("kinds", None), ("span", "span")]
                   and (vs.get("manifest", {}).get("data", {}).get("span") or {}).get("column") == "datetime", ((vs.get("script") or "")[:300], vs.get("manifest", {}).get("parameters"), vs.get("manifest", {}).get("data", {}).get("span")))
             check("the routine's data record: the source, how it was loaded (the window, the auxiliary kinds), the two auxiliary files and their columns (the shape a run is made to fit)",
                   rec.get("source") == "intervals" and rec.get("load", {}).get("source") == "intervals" and sorted(rec["load"]["aux_kinds"]) == ["summary", "wellness"] and rec["load"]["start_date"] == a_start.isoformat()
@@ -139,10 +139,13 @@ def main():
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=15000)
             rd = page.evaluate("""() => ({ choice: (document.querySelector('#routineRunModal input[name="rt-data"]:checked') || {}).value, start: document.querySelector('#routineRunModal input[data-load="start"]').value, end: document.querySelector('#routineRunModal input[data-load="end"]').value,
                 help: document.querySelector('#routineRunModal .rt-load .help').textContent, now: !!document.querySelector('#routineRunModal input[name="rt-data"][value="now"]'), runOn: !document.querySelector('#routineRunModal [data-act="run"]').disabled, band: document.querySelector('#routineRunModal [data-key="band"]').value,
-                span: (document.querySelector('#routineRunModal .rt-derived-row') || {}).textContent || '', spanPickers: document.querySelectorAll('#routineRunModal [data-key="span"]').length })""")
+                span: (document.querySelector('#routineRunModal .rt-derived-row') || {}).textContent || '', spanPickers: document.querySelectorAll('#routineRunModal [data-key="span"]').length,
+                kinds: document.querySelector('#routineRunModal [data-key="kinds"]').value, fit: (document.querySelector('#routineRunModal .rt-fit') || {}).textContent || '' })""")
             b_start, b_end = today - timedelta(days=59), today
             check("the run dialog of an Intervals routine: Load from Intervals.icu on, the window of the original's 59 days ending today, with summary, wellness and the metrics as the original; the data loaded now as the other choice; the band at its default; Run on",
                   rd["choice"] == "load" and rd["start"] == b_start.isoformat() and rd["end"] == b_end.isoformat() and "the original\u2019s 59 days, ending today" in rd["help"] and "summary" in rd["help"] and "wellness" in rd["help"] and "metrics as the original" in rd["help"] and rd["now"] and rd["runOn"] and rd["band"] == "9, 11", rd)
+            check("the session types (a choice over the summary file's column, not the frame's) are checked where they live: the data loaded now passes, nothing missing",
+                  rd["kinds"] == "Ride, Run" and rd["fit"].startswith("✓ fits the routine") and "is not in" not in rd["fit"] and "not in this data" not in rd["fit"], rd["fit"])
             check("the dates input is not asked: no pickers, a line saying it follows the data, the original's dates for the record",
                   rd["spanPickers"] == 0 and "follows the data: its first and last dates" in rd["span"] and f"the original: {a_start.isoformat()} → {a_end.isoformat()}" in rd["span"], rd["span"])
             page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && c.textContent.length > 0; }", timeout=15000)
@@ -160,9 +163,9 @@ def main():
                 cmp: (document.getElementById('content-comparison') || {}).textContent || '', tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id), pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()),
                 locked: document.getElementById('queryInput').disabled, chip: document.querySelector('#containerStatusText').textContent })""")
             tag_b = f"{b_start.strftime('%Y%m%d')}_to_{b_end.strftime('%Y%m%d')}"
-            check("the run view: a LOAD row naming the window and its auxiliaries, a CHECK row saying power is empty in this window and the wellness file absent, a RUN row, a COMPARE row; the closing card ran against run 0; the composer locked, the chip back to Ready",
+            check("the run view: a LOAD row naming the window and its auxiliaries, a CHECK row saying power is empty in this window, the wellness file absent and one of the chosen session types not in this window's summary (the method keeps the other), a RUN row, a COMPARE row; the closing card ran against run 0; the composer locked, the chip back to Ready",
                   any("LOAD" in r and f"Intervals.icu {b_start.isoformat()} → {b_end.isoformat()}" in r and "summary" in r and "wellness" in r for r in rv["rows"])
-                  and any("CHECK" in r and "columns empty in this data: power" in r and "wellness absent in this data" in r for r in rv["rows"])
+                  and any("CHECK" in r and "columns empty in this data: power" in r and "wellness absent in this data" in r and "'Ride' is not in column type of the summary file - the method keeps the other value" in r for r in rv["rows"])
                   and any("RUN" in r and "run 1" in r for r in rv["rows"]) and any("COMPARE" in r and "run 0" in r for r in rv["rows"])
                   and "Run 1 complete" in rv["done"] and ("ran: 3 result lines" in rv["done"] or "reproduced" in rv["done"]) and "against run 0" in rv["done"] and not rv["warn"] and rv["locked"] and rv["chip"] == "Ready", (rv["rows"], rv["done"][:240], rv["chip"]))
             check("the Comparison tab opened with the three lines against run 0, each marked", "tab-comparison" in rv["tabs"] and rv["cmp"].count("sessions") >= 1 and "against run 0" in rv["cmp"] and ("within" in rv["cmp"] or "same" in rv["cmp"] or "moved" in rv["cmp"]), rv["cmp"][:300])

@@ -58,10 +58,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/87/30/19/16/49/44/51/10/92/1/1 Python; 39/7/29/56/24/58 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (177/87/30/19/16/49/44/51/10/95/1/1 Python; 39/7/29/56/24/59 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (33; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (34; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -440,6 +440,21 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines: a choice column is looked for in the auxiliary files too; a partly absent choice is a note; the cache
+  asked at Run time (2026-10-11, patch 0123).** Palo's third routine ("Rides by local start hour and midday share")
+  refused every run with "column type is not in this data (for 'Ride')": the choice input's column `type` is the
+  summary file's, not the frame's, and `precheck_script` looked in the frame alone. Now it looks in the frame first,
+  then in each file loaded now (the header, then only that column: `_column_of`), and reports `where`; `value_verdict`
+  (replacing `missing_values` in the host) refuses when the column is nowhere, a single value is absent or every chosen
+  value is absent, and makes one of several absent a note ("'Ride' is not in column type of the summary file - the
+  method keeps the other value") - `precheck` returns `values_notes`, the dialog shows them as a △ note, the run's
+  CHECK row carries them. Also from his report: the second run re-downloaded a window already in the cache - the
+  line's answer was stale (Safari commits a typed date on blur, which the click on Run itself causes, so the
+  debounced check ran after `startRun`); `loadData` now asks the cache itself for the window as it stands
+  (`askCache`), the line being a preview, and an `input` listener follows the typing; the route logs each answer at
+  INFO. The integrations walk's scripted promoter proposes a choice over the summary's `type` (default Ride, Run);
+  on the next window there are no rides, so the walk shows the note and the run going ahead (34). test_routines.py 95,
+  test_routines.js 59. ROUTINES_DESIGN.md §4.6, F2.1.
 - **Routines: a load already in the executor's cache is taken from there (2026-10-11, patch 0122).** Palo: "it would
   be good if cache and the files could be checked whether they exist for the desired window. Otherwise it
   re-downloads every time which is wasteful". `rt.cache_match(plan, inspect, start, end, race_id)` (pure) reads the

@@ -495,6 +495,29 @@ try:
 except host.RoutineRefused as exc:
     refused7 = str(exc)
 check("a choice value not in the data: the precheck and the run both say so", not pc7["ok"] and "'zzz' is not in column g" in pc7["line"] and "'zzz' is not in column g" in refused7, (pc7["line"], refused7))
+# a choice column that lives in an auxiliary file, not in the frame (2026-10-11, Palo's routine: the summary's `type` was
+# reported as not in this data): the check looks in the frame first, then in the files loaded now, and names the file
+aux_notes = os.path.join(aux_dir, "activity_summary_20260601_to_20260630.csv")
+pd.DataFrame({"hour": [7, 8], "load": [1.0, 2.0], "note": ["a", "b"]}).to_csv(aux_notes, index=False)
+R8 = store.load(rid5); v8 = host.version_of(R8)
+v8["manifest"]["parameters"].append({"key": "notes", "label": "Notes", "type": "choice", "default": ["a", "b"], "column": "note", "multiple": True, "origin": "x"})
+store.save(R8)
+now8n = dict(now5, aux=[aux_notes])
+pc8a = host.precheck(store.load(rid5), now8n, runner_on(df))
+pc8b = host.precheck(store.load(rid5), now8n, runner_on(df), values={"notes": ["a", "zzz"]})
+pc8b2 = host.precheck(store.load(rid5), now8n, runner_on(df), values={"notes": ["zzz"]})
+pc8c = host.precheck(store.load(rid5), dict(now5, aux=[]), runner_on(df))
+check("a choice column in the summary file: the values found there, ok; one of several chosen values the file lacks is a note naming the file (the method keeps the other), still ok; every chosen value absent refuses; with no file loaded the column is not in this data",
+      pc8a["ok"] and pc8a["values_missing"] == [] and pc8b["ok"] and pc8b["values_missing"] == [] and pc8b["values_notes"] == ["'zzz' is not in column note of the summary file - the method keeps the other value"] and "keeps the other value" in pc8b["line"]
+      and not pc8b2["ok"] and pc8b2["values_missing"] == ["'zzz' is not in column note of the summary file"]
+      and not pc8c["ok"] and pc8c["values_missing"] == ["column note is not in this data (for 'a')", "column note is not in this data (for 'b')"],
+      (pc8a["values_missing"], pc8b["values_missing"], pc8b["values_notes"], pc8b2["values_missing"], pc8c["values_missing"]))
+ev8 = []
+out8n = host.run(store.load(rid5), {"notes": ["a", "zzz"]}, now8n, runner_on(df), store, emit=ev8.append, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_9"))
+check("the run with one of the chosen values absent goes ahead and the CHECK row carries the note", out8n["run"]["status"] in ("ran", "reproduced", "differed", "failed") and any(e.get("kind") == "check" and "keeps the other value" in (e.get("peek") or "") for e in ev8), [e.get("peek") for e in ev8 if e.get("kind") == "check"])
+ps = rt.precheck_script({"note": ["a"]}, [aux_notes, "datasets/x/own_notes.csv"])
+check("precheck_script reads the frame first, then each file's header and only the column it needs; a file that cannot be read is skipped", "_pd.read_csv(_p, nrows=0)" in ps and "usecols=[_col]" in ps and "own_notes.csv" in ps)
+v8["manifest"]["parameters"].pop(); store.save(R8)
 ok7 = host.precheck(store.load(rid4), data_now, runner_on(df), values={"grp": "a"})
 check("a choice value in the data passes", ok7["ok"], ok7["line"])
 view0 = host.run_view(store.load(rid4), store, 0)
