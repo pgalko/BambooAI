@@ -129,6 +129,28 @@ check('run zero under way: a pending ROUTINE row saying the method is being chec
 w.paneLookup({kind:'routine', query:'Rows above a line', peek:'reproduced: 9 result line(s) identical', sources:[], passages:[]});
 check('run zero done: the ROUTINE row with the ↻ glyph replaces the pending one and carries the verdict', !pane2.querySelector('.sp-row.tool.pending') && pane2.querySelector('.sp-row.tool').textContent.startsWith('↻ROUTINE Rows above a line') && pane2.querySelector('.sp-row.tool .out').textContent.startsWith('reproduced: 9'));
 
+// the figures step after the report (2026-10-11): a quiet 'Figures' card per attempt, a correction named as such, its end line
+// from the session; a cell the analysis did not run as a skipped row
+pane2.innerHTML = ''; w.paneIds({thread_id:'t', chain_id:7, df_id:'d'}); w.paneRunStart({mode:'Deep', of:15, dollars:1});
+w.paneCell({cell_no:null, ok:true, skipped:true, peek:'not run: figures are drawn after the report', elapsed:null, chars:0, figs:0});
+const skippedRow = Array.from(pane2.querySelectorAll('.sp-row')).pop();
+check('a skipped cell row: In [–], the dash glyph, the peek, "not run" in the meta, no fail colour, not clickable',
+      skippedRow.classList.contains('skipped') && !skippedRow.classList.contains('fail') && /In.\[(&ndash;|–)\]/.test(skippedRow.querySelector('.in').textContent) && skippedRow.querySelector('.out').textContent.startsWith('not run: figures')
+      && skippedRow.querySelector('.t').textContent === 'not run' && !skippedRow.hasAttribute('data-cell'), skippedRow.outerHTML);
+w.paneTurnStart({turn:'figures', of:15, seat:'Analyst', model:'m', quiet:true, attempt:1});
+const figCard1 = Array.from(pane2.querySelectorAll('.sp-turn')).pop();
+w.paneToken('```python\nfig.show()\n```');
+check('the Figures card: labelled Figures, quiet (nothing streams, "working…"), collapsed while live', figCard1.querySelector('summary .n').textContent === 'Figures' && figCard1.classList.contains('quiet') && figCard1.querySelector('summary .kind').textContent === 'working…' && !figCard1.querySelector('.sp-think').textContent.includes('fig.show') && !figCard1.hasAttribute('open'), figCard1.outerHTML);
+w.paneTurnEnd({turn:'figures', kind:'figures', thinking:'', note:'', code:'fig.show()', elapsed:4, cost:0.002, peek:'figure cell: the estimate with its interval'});
+check('the Figures card ended: kind "figures", the peek the session sent, the code folded', figCard1.querySelector('summary .kind').textContent === 'figures' && figCard1.querySelector('summary .peek').textContent === 'figure cell: the estimate with its interval' && figCard1.querySelector('.sp-detail pre code').textContent === 'fig.show()', figCard1.outerHTML);
+w.paneCell({cell_no:null, ok:false, error_line:'ValueError: bad trace', elapsed:0.3});
+w.paneTurnStart({turn:'figures', of:15, seat:'Analyst', model:'m', quiet:true, attempt:2});
+const figCard2 = Array.from(pane2.querySelectorAll('.sp-turn')).pop();
+check('a second attempt is "Figures · correction 1"', figCard2.querySelector('summary .n').textContent === 'Figures · correction 1', figCard2.querySelector('summary .n').textContent);
+w.paneTurnEnd({turn:'figures', kind:'figures', thinking:'', note:'', code:'fig.show()', elapsed:4, cost:0.002, peek:'figure cell: the estimate with its interval'});
+w.paneCell({cell_no:12, ok:true, peek:'', elapsed:0.3, chars:0, figs:2});
+check('the figures cell row: In [12] with 2 fig', Array.from(pane2.querySelectorAll('.sp-row')).pop().querySelector('.t').textContent.includes('2 fig'));
+
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 // a run of 239.6 s reads "4 min 0 s", not "3 min 60 s" (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneRunEnd({status:'answered', turns:15, of:15, cells:11, failed:2, cost:0.1, seconds:239.6, replay_status:'', replay_line:'', plots:0, files:[]});

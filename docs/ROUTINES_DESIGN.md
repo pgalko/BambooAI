@@ -109,7 +109,9 @@ version"; later the coach's one line), run_zero (status, line, verified, results
   unit, direction}` — the identity of a line is `(cell, index)`, never the label. `typed` comes from the kernel's
   records; a dropped line stays in the manifest, so the check by position still maps the chain's lines to the
   routine's.
-- `figures`: how many the script draws, and which cells.
+- `figures`: how many the script draws, and which cells. Since 2026-10-11 a chain draws in one cell, the figures
+  step's after the report (a cell that draws during the analysis is not run), so a routine's figures are that
+  cell's; the report's *Figures* section cites it as `[fig n]`, which is how the assembly reaches it.
 - `notes`: what the promotion left out and why (an input whose edit did not apply, a sixth input).
 
 **run** — built (step 2): number (0 is run zero), version, created, finished, elapsed, status (reproduced | ran |
@@ -616,7 +618,9 @@ Each step ships as its own patch, tested on dev before prod, the standing method
   and formatted into the title; for routines already made, the option is the promoter pointing at typed ranges and
   counts in titles as it points at constants. Parked by Palo until the mechanics are settled. Where the promoter
   *did* make the typed period an input, §4.8 (2026-10-11) now writes it from the data; what is left is text the
-  promoter did not touch (a count, a place name, a fixed offset in a label).
+  promoter did not touch (a count, a place name, a fixed offset in a label). The figures step (2026-10-11) narrows
+  it further for new chains: its one instruction on titles is that any number in a title or a label comes from a
+  variable, never typed.
 - **How many runs to keep.** All, for now; the table and storage will say when that is wrong.
 - **Auxiliaries that are untickable.** Allowed with a warning (proposed), or fixed as in the original.
 - **The parameter cap of five.** A guess at "simple"; the first live promotions will test it.

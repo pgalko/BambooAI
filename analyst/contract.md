@@ -125,7 +125,7 @@ its keep"), with markdown headings for its parts:
 - the answer: the estimate, its interval, unit, direction and scope, and one sentence on what it does
   and does not mean
 - the conditions it depends on
-- how it was established, citing cells as [cell 7] and figures as [fig 7]
+- how it was established, citing cells as [cell 7]
 - limitations, in three kinds: what the data cannot support; how much the answer moves under other
   defensible choices; anything you are not certain was computed as stated
 - two or three next steps
@@ -135,11 +135,11 @@ A sentence of context before each number; tables copied from cell outputs; LaTeX
 
 ## Figures
 
-A report carries one to three figures; a fourth figure cell is not run. The reader wants to see the
-estimate and its uncertainty; a question answered by a number, a table or a definition needs none.
-Draw them with Plotly and call `fig.show()`: the kernel has no display, so you see nothing, but the
-reproduction run captures every `fig.show()`; a figure reaches the reader only from a cell you cite
-as [fig n].
+Cells compute; they draw nothing - a cell that calls `fig.show()`, `plt.show()` or `savefig` is not
+run. Figures are drawn once, after the report, in a step of their own: shown your report, you write
+one cell drawing the one to three its reader needs from the variables your cells defined - the
+estimate and its uncertainty first, each further figure showing something the others do not - or
+answer NONE when a number or a table answers.
 
 ## Budget
 

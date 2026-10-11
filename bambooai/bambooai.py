@@ -698,10 +698,12 @@ class BambooAI:
                 model = model[0] if isinstance(model, (tuple, list)) else model
             except Exception:                                  # noqa: BLE001
                 model = ""
-            self._pane('pane_turn_start', turn=ev.get("turn"), of=ev.get("of"), seat=seat, model=model, review=bool(ev.get("review")))
+            # a quiet card shows nothing while its reply streams (the figures step's code, 2026-10-11); the attempt names a correction
+            self._pane('pane_turn_start', turn=ev.get("turn"), of=ev.get("of"), seat=seat, model=model, review=bool(ev.get("review")),
+                       quiet=bool(ev.get("quiet")), attempt=ev.get("attempt"))
         elif kind == "turn_end":
             th = (ev.get("thinking") or "").strip()
-            peek = th.split(". ")[0][:140] if th else ""
+            peek = ev.get("peek") or (th.split(". ")[0][:140] if th else "")     # a step's own line first (the figures step says what it drew)
             self._pane('pane_turn_end', turn=ev.get("turn"), kind=ev.get("kind"), peek=peek, elapsed=ev.get("elapsed"),
                        cost=ev.get("cost"), thinking=th[:4000], note=ev.get("note") or "", code=ev.get("code") or "")
         elif kind == "heartbeat":
@@ -711,11 +713,12 @@ class BambooAI:
             self._pane('pane_cell_start', turn=ev.get("turn"))
         elif kind == "cell":
             ok = not ev.get('error')
+            skipped = ok and ev.get('cell_no') is None          # a cell the session did not run: a figure cell during the analysis (2026-10-11)
             out = (ev.get('stdout') or '').strip()
-            peek = next((ln.strip() for ln in out.splitlines() if ln.strip()), '') if ok else ''
+            peek = ('not run: figures are drawn after the report' if skipped else next((ln.strip() for ln in out.splitlines() if ln.strip()), '')) if ok else ''
             from analyst.tools import exception_line
             t = next((x for x in reversed(run.turns) if x.kind == kind), None)
-            self._pane('pane_cell', cell_no=ev.get('cell_no'), ok=ok, peek=peek[:160], elapsed=(t.elapsed if t else None),
+            self._pane('pane_cell', cell_no=ev.get('cell_no'), ok=ok, skipped=skipped, peek=peek[:160], elapsed=(None if skipped else (t.elapsed if t else None)),
                        chars=len(ev.get('stdout') or ''), figs=len(ev.get('figures') or []),
                        error_line=exception_line(ev.get('error') or '')[:220] if not ok else '')
             self._tab('plan', self._notebook_view(run))
@@ -875,7 +878,7 @@ class BambooAI:
         replay_line = ''
         if run.report and '> Replay' in run.report:
             replay_line = run.report.rsplit('> ', 1)[-1].strip().splitlines()[0]
-        self._pane('pane_run_end', status=run.status, turns=len([t for t in run.turns if t.kind not in ('rewrite', 'review')]),
+        self._pane('pane_run_end', status=run.status, turns=len([t for t in run.turns if t.kind not in ('rewrite', 'review') and not getattr(t, 'step', '')]),
                    cells_of=budget.turns, cells=len(run.cells()), failed=sum(1 for t in run.turns if t.kind == 'cell' and t.error),
                    cost=round(self._chain_cost(), 3),
                    seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns), 1),

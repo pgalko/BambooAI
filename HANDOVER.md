@@ -59,8 +59,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/88/30/19/16/49/44/51/10/104/1/1 Python; 39/7/29/56/24/59 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (186/93/30/19/16/49/44/51/10/104/1/1 Python; 44/7/29/56/24/59 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (83 hosted, 82 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (42; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -441,6 +441,32 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Figures drawn once, after the report, in a step of their own (2026-10-11, patch 0126).** Palo, from reading
+  his runs: the analyst redrew near-identical charts across cells as it refined the numbers, the reader saw every
+  version, each cell cost a turn and tokens, and a routine carried them all; he wanted fewer figures, only the final
+  ones, none duplicated. The mechanism, settled with him: cells compute and draw nothing - a cell that calls
+  `fig.show()`, `plt.show()` or `savefig` during the analysis is not run (`FIGURES_LATER` in its output and in the
+  next prompt; a skipped row *In [–] · not run* in the pane and the notebook) - and after the report the session makes
+  one call outside the turn budget, like the rewrite (`_figures`, `FIGURES_SYSTEM`, on the analyst seat): shown the
+  question, the report as written, every cell's code, the RESULT lines and the note, the analyst answers NONE or one
+  cell that draws one to three figures from the kernel's variables, with a `CAPTION:` line per figure. The cell runs
+  wrapped (`FIGURES_WRAP_HEAD/TAIL`: the kernel's silent Plotly show replaced for the cell by a collector that prints
+  the titles after `FIGURES:`; the record keeps the analyst's code alone, the traceback's lines mapped back by
+  `unwrap_error`); a cell that fails comes back with its error for a corrected one, three corrections at most
+  (`FIGURES_ATTEMPTS = 4`), each attempt a quiet *Figures* / *Figures · correction n* card followed by its cell row;
+  the committed cell gets the next cell number, `step = "figures"` on its Turn (the strip's turn count leaves it out),
+  and `figures` carrying the kernel's saved plots plus `{plotly, title}` per Plotly figure shown. The report gains
+  `## Figures` with one `- [fig n] caption` line per figure (a figure without a caption is named by its title), and
+  from there the section is part of the report: the guards, the rewrite, the replay's assembly (so the figures cell
+  is cited and captured) and a routine's method read it as such. The contract's Figures section says the rule in
+  four lines (8,980 characters); FIGURE_CELLS_MAX and the three-cell cap are gone. Executor and kernel unchanged.
+  test_analyst.py 186 (the parser, the unwrap, a refused cell, the step with a failure and its correction, the
+  section, the cards, the replay, NONE, the vocabulary scan of FIGURES_SYSTEM), test_app_path.py 93 (the step
+  through the app: the skipped row, two cards, the failed row and cell 3, the Plots count, the notebook view),
+  test_pane.js 44; the stack walk 83 hosted / 82 local (turn 5 draws anyway and is skipped; the Figures card; the
+  rows in order; the Answer tab's Figures section with two fig 3 chips; Plots (2) still); the integrations walk 42
+  (the start-hours story is contract-clean: two cells, the figure drawn by the step as cell 3, the routine made from
+  it carries the figure). The stack's fake plotly keeps `update_layout` kwargs so titles read back.
 - **Routines: whose data the cache holds - each Intervals load marked with its key, its files in the key's folder;
   executor image v52 (2026-10-11, patch 0125).** Palo: a coach who changes the Intervals key to look at another subject
   would have been served the first subject's cached windows. Settled in the container, where the data lives (chosen
@@ -684,6 +710,8 @@ no reviewer call (2026-10-05).
   thread gets a fresh kernel rehydrated from the parent's path (the same mechanism replays the
   assembled script at the end of every run).
 - ASK ends the run with the question as the answer; the person's reply is the next run.
+- Cells compute; the figures are drawn once, after the report, by the figures step (2026-10-11): a cell that
+  draws during the analysis is not run, and the report's `## Figures` section cites the one cell that drew.
 - Thread files from the previous design are read tolerantly (their keys are preserved; the
   notebook tree is added beside them). Favourites, previews, replays and the workflow map are
   browser-saved snapshots and are unaffected.

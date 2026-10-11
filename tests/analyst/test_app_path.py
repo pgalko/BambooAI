@@ -33,6 +33,9 @@ class FakeModels:
         lacm.write_to_log(agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
         if user.startswith("Rewrite the technical report"):
             return "Plain: B is higher by DIFF."
+        if messages[0]["content"].startswith("You are drawing the figures"):
+            fs = state.get("figures")
+            return fs.pop(0) if isinstance(fs, list) and fs else (fs if isinstance(fs, str) and fs else "NONE")
         if messages[0]["content"].startswith("You are preparing an analysis so that it can be run again"):
             from bambooai.models import prompt_cache
             prompt_cache.reset()
@@ -66,8 +69,8 @@ check("web events: id, the Data tab (no Query tab), live Investigation-tab updat
       types[0] == "id" and "query" not in types and "dataframe" in types and "plan" in types
       and all(t in types for t in ("answer", "simplified_answer", "code", "code_exec_results")) and types[-1] == "end", types)
 pane_types = [e.get("type") for e in events if str(e.get("type", "")).startswith("pane_")]
-check("the pane protocol: run_start, a turn_start/turn_end pair per model call (three turns, the rewrite - no review outside Adaptive), a cell row per cell, heartbeats, run_end",
-      pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 4 and pane_types.count("pane_turn_end") == 4
+check("the pane protocol: run_start, a turn_start/turn_end pair per model call (three turns, the figures step, the rewrite - no review outside Adaptive), a cell row per cell, heartbeats, run_end",
+      pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 5 and pane_types.count("pane_turn_end") == 5
       and pane_types.count("pane_cell") == 2 and pane_types.count("pane_heartbeat") == 2 and pane_types[-1] == "pane_run_end", pane_types)
 te = [e for e in events if e.get("type") == "pane_turn_end"]
 check("turn_end carries the note and the code for the fold, and the heartbeat carries the estimate line",
@@ -80,8 +83,10 @@ check("run_end carries turns, cells, cost, the replay line and the plots count",
 plan = [e for e in events if e.get("type") == "plan"][-1]["data"]
 check("the Investigation tab is a notebook: one HTML block, cells with collapsed outputs, no blank line inside it",
       plan.startswith('<div class="nb">') and plan.count('<details class="nb-out"') == 2 and "\n\n" not in plan and 'language-python' in plan)
-check("each turn opened a card labelled with the seat, the rewrite too; no review card outside Adaptive",
-      sum(1 for e in events if e.get("type") == "pane_turn_start" and e.get("seat") == "Investigator") == 4
+check("each turn opened a card labelled with the seat, the figures step (quiet, on the analyst seat) and the rewrite too; no review card outside Adaptive",
+      sum(1 for e in events if e.get("type") == "pane_turn_start" and e.get("seat") == "Investigator") == 5
+      and [(e.get("quiet"), e.get("attempt")) for e in events if e.get("type") == "pane_turn_start" and e.get("turn") == "figures"] == [(True, 1)]
+      and [e.get("peek") for e in events if e.get("type") == "pane_turn_end" and e.get("turn") == "figures"] == ["no figure: a number or a table answers"]
       and not any(e.get("type") == "pane_turn_start" and e.get("turn") == "review" for e in events))
 _runlog = os.path.join(work, "logs", "u1", "bambooai_run_log.json")
 check("the run log is written per model call (the real LogAndCallManager, under logs/<user>/) and the budget saw the cost",
@@ -114,7 +119,7 @@ pev = [json.loads(q.get()) for _ in range(q.qsize())]
 check("propose_routine: the promoter's call is a quiet card on the pane, accounted to the billing chain; the proposal names the input the fake promoter made and the data the run recorded",
       [e.get("type") for e in pev] == ["pane_turn_start", "pane_turn_end"] and pev[0].get("quiet") and pev[0].get("chain_id") == "9001" and pev[0].get("turn") == "routine"
       and prop["inputs"][0]["key"] == "arm_b" and prop["data"]["rows"] == 200 and prop["data_state"] == "same" and prop["results"] == [] and "INPUTS['arm_b']" in prop["script"], (pev, prop.get("inputs")))
-_pu = next((u for _, u in state["calls"] if u.startswith("QUESTION:")), "")
+_pu = next((u for _, u in state["calls"] if u.startswith("QUESTION:") and "ANSWER SUMMARY:" in u), "")     # the promoter's, not the figures step's
 check("the promoter's prompt carried the question, the two cells and the data's columns", _pu.startswith("QUESTION:\nIs B higher") and "# --- cell 2 ---" in _pu and "arm: " in _pu and "ANSWER SUMMARY:\nB exceeds A by" in _pu, _pu[:300])
 check("the billing chain was charged as a query would be (the fake log manager wrote under it)", any(str(e.get("chain_id")) == "9001" for e in json.load(open(_runlog))), [e.get("chain_id") for e in json.load(open(_runlog))][-3:])
 made = BAMBOO.create_routine(prop["proposal_id"], {"name": "B against A", "purpose": "the difference, again", "drop_inputs": [], "drop_results": []})
@@ -460,8 +465,8 @@ try:
     BAMBOO.output_manager.add_user_input("review me")
     BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
     agents = [a for a, u in state["calls"] if not u.startswith("Rewrite")]
-    check("review seat: in Adaptive with analyst_review_every=2 a review runs on the Reviewer after turns 2 and 4 and after the report; the turns on the analyst seat",
-          agents == ["Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer", "Investigator", "Reviewer"], agents)
+    check("review seat: in Adaptive with analyst_review_every=2 a review runs on the Reviewer after turns 2 and 4 and after the report; the turns and the figures step's call on the analyst seat",
+          agents == ["Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer"], agents)
     check("review seat: the reviewer is sent its own prompt, never the analyst's contract",
           all(u.startswith("QUESTION:") for a, u in state["calls"] if a == "Reviewer"), [u[:40] for a, u in state["calls"] if a == "Reviewer"])
     q = BAMBOO.output_manager.output_queue; ev = []
@@ -474,8 +479,8 @@ try:
     state.update(i=0, calls=[], script=[cell(1), cell(2), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
     BAMBOO.output_manager.add_user_input("no review"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
     _ag = [a for a, u in state["calls"] if not u.startswith("Rewrite")]
-    check("review seat: analyst_review_every=0 - no review during the run and none after the report: no reviewer call at all (2026-10-05)",
-          _ag == ["Investigator", "Investigator", "Investigator"], _ag)
+    check("review seat: analyst_review_every=0 - no review during the run and none after the report: no reviewer call at all (2026-10-05); the figures step's call after the report",
+          _ag == ["Investigator", "Investigator", "Investigator", "Investigator"], _ag)
     check("rewrite seat: without a Rewriter in the config the rewrite ran on the analyst seat",
           [a for a, u in state["calls"] if u.startswith("Rewrite")] == ["Investigator"], [(a, u[:20]) for a, u in state["calls"]])
     # with a Rewriter seat (2026-09-11): the rewrite, and only the rewrite, runs on it
@@ -484,8 +489,8 @@ try:
     state.update(i=0, calls=[], script=[cell(1), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
     BAMBOO.output_manager.add_user_input("rewrite me"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="deep")
     agents = [(a, u.startswith("Rewrite")) for a, u in state["calls"]]
-    check("rewrite seat: the rewrite call runs on the Rewriter, the analysis turns on the analyst seat",
-          agents == [("Investigator", False), ("Investigator", False), ("Rewriter", True)], agents)
+    check("rewrite seat: the rewrite call runs on the Rewriter, the analysis turns and the figures step on the analyst seat",
+          agents == [("Investigator", False), ("Investigator", False), ("Investigator", False), ("Rewriter", True)], agents)
     q = BAMBOO.output_manager.output_queue; ev = []
     while not q.empty(): ev.append(json.loads(q.get()))
     rw = [(e.get("seat"), e.get("model")) for e in ev if e.get("type") == "pane_turn_start" and e.get("turn") == "rewrite"]
@@ -493,6 +498,44 @@ try:
     FakeModels.config["agent_configs"].pop(); FakeModels.config["agent_configs"].pop(); FakeModels.get_model_name = _get_model_name; BAMBOO.review_every = 8
 except Exception as exc:                                     # noqa: BLE001
     check("review seat: the checks ran", False, repr(exc))
+
+# ---- the figures step through the app (2026-10-11): a figure cell during the analysis is not run; after the report the step
+# draws once from the kernel's variables (a first cell failing, corrected), the pane shows each attempt and its cell row, the
+# report carries the Figures section, the replay through the executor yields the figure to the Plots tab
+try:
+    _cell = lambda code: "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\n" + code + "\n```"
+    state.update(i=0, calls=[], script=[_cell("m = df.groupby('arm')['x'].mean().round(3)\nprint('means', m.to_dict())"),
+                                        _cell("import matplotlib.pyplot as plt\nplt.plot([1, 2]); plt.show()"),          # not run
+                                        _cell("spread = df['x'].std()\nprint('spread', round(spread, 3))"),
+                                        "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nB is higher [cell 1]; the spread [cell 2].\n"],
+                 figures=["```python\nimport matplotlib.pyplot as plt\nplt.bar(['A', 'B'], [m['A'], m['B']])\nplt.title(f'means, spread {spread:.2f}')\nplt.show()\nraise RuntimeError('no good')\n```\nCAPTION: the two means",
+                          "```python\nimport matplotlib.pyplot as plt\nplt.bar(['A', 'B'], [m['A'], m['B']])\nplt.title(f'means, spread {spread:.2f}')\nplt.show()\n```\nCAPTION: the two means, the spread in the title"])
+    BAMBOO.output_manager.add_user_input("draw it"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="deep")
+    q = BAMBOO.output_manager.output_queue; ev = []
+    while not q.empty(): ev.append(json.loads(q.get()))
+    _run = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+    _cells = [e for e in ev if e.get("type") == "pane_cell"]
+    check("figures (app): the figure cell during the analysis is a skipped row - no number, 'not run', figures come after the report - and the record keeps it without a number",
+          [(c.get("ok"), c.get("skipped"), c.get("cell_no")) for c in _cells[:3]] == [(True, False, 1), (True, True, None), (True, False, 2)]
+          and _cells[1]["peek"].startswith("not run: figures are drawn after the report") and _run.turns[1].cell_no is None and not _run.turns[1].error, [(c.get("ok"), c.get("skipped"), c.get("cell_no"), c.get("peek")) for c in _cells])
+    _fcards = [(e.get("attempt"), e.get("quiet"), e.get("seat")) for e in ev if e.get("type") == "pane_turn_start" and e.get("turn") == "figures"]
+    _fends = [(e.get("kind"), e.get("peek"), bool(e.get("code"))) for e in ev if e.get("type") == "pane_turn_end" and e.get("turn") == "figures"]
+    check("figures (app): two quiet Figures cards on the analyst seat - the attempt and its correction - each ending with what the cell draws and its code for the fold",
+          _fcards == [(1, True, "Investigator"), (2, True, "Investigator")] and _fends == [("figures", "figure cell: the two means", True), ("figures", "figure cell: the two means, the spread in the title", True)], (_fcards, _fends))
+    check("figures (app): the failed attempt is a rolled-back row with its error line, the corrected cell is cell 3 with one figure; the step's cells carry their step mark",
+          [(c.get("ok"), c.get("cell_no"), c.get("figs"), (c.get("error_line") or "")[:20]) for c in _cells[3:]] == [(False, None, 0, "RuntimeError: no goo"), (True, 3, 1, "")]
+          and [t.step for t in _run.turns if t.kind == "cell" and t.step] == ["figures", "figures"], [(c.get("ok"), c.get("cell_no"), c.get("figs"), c.get("error_line")) for c in _cells[3:]])
+    _ans = next((e.get("data") or e.get("text") or "" for e in ev if e.get("type") == "answer"), "")
+    _rend = [e for e in ev if e.get("type") == "pane_run_end"][-1]
+    check("figures (app): the report carries the Figures section citing cell 3; the replay through the executor yields the one figure to the Plots tab; the strip's turn count leaves the step out",
+          "## Figures" in _run.report and "- [fig 3] the two means, the spread in the title" in _run.report and _rend["plots"] == 1 and _rend["turns"] == 4 and _rend["cells"] == 3
+          and _rend["replay_status"] == "reproduced" and "[fig 3]" in str(_ans), (_run.report[-400:], {k: _rend.get(k) for k in ("plots", "turns", "cells", "replay_status")}))
+    _plan = [e for e in ev if e.get("type") == "plan"][-1]["data"]
+    check("figures (app): the Investigation tab's notebook shows the skipped cell as In [–] · not run and the figures cell marked as the figures step",
+          "nb-cell--skipped" in _plan and "In&nbsp;[&ndash;]" in _plan and "· not run" in _plan and "· figures step" in _plan and "· 1 fig" in _plan, _plan[:300])
+    state["figures"] = None
+except Exception as exc:                                     # noqa: BLE001
+    check("figures (app): the checks ran", False, repr(exc))
 
 # ---- the effort law for an effort-scale model with reasoning-off seats (2026-09-10, DeepSeek V4.1 Flash)
 try:

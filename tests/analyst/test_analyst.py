@@ -1,6 +1,6 @@
 """The analyst package: the tree, the turn format, the loop over a real kernel,
 the guards, assembly and replay. Run: python3 tests/analyst/test_analyst.py"""
-import os, sys, json, tempfile
+import os, sys, json, tempfile, re
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.dirname(os.path.abspath(__file__)), ROOT, os.path.join(ROOT, "delve")]
 import pandas as pd, numpy as np
@@ -51,6 +51,7 @@ def fake_llm(system, user, **hints):
     calls["prompts"].append(user)
     if user.startswith("Rewrite the technical report"):
         return "B is higher than A by about {DIFF} units; and 7.777 is invented.", {"cost": 0.01}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = min(calls["n"], len(SCRIPT) - 1); calls["n"] += 1
     return SCRIPT[i], {"cost": 0.05, "prompt_tokens": 100, "completion_tokens": 50}
 kernel = PersistentKernel(df=df); store = NotebookStore(tempfile.mkdtemp()); nb2 = Notebook("t2")
@@ -111,6 +112,7 @@ seen = {"prompts": []}
 def fail_llm(system, user, **hints):
     seen["prompts"].append(user)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = min(len(seen["prompts"]) - 1, len(FAILS) - 1); return FAILS[i], {"cost": 0.01}
 k2 = PersistentKernel(df=df); nb3 = Notebook("t3")
 s3 = Session(k2, nb3, fail_llm, data_description="d")
@@ -174,6 +176,7 @@ seen_loop = {"n": 0, "halt_seen": False, "prompts": []}
 def loop_llm(system, user, **hints):
     seen_loop["prompts"].append(user)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if "STOP:" in user and "could not get past this error" in user:
         seen_loop["halt_seen"] = True
         return "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nCould not get past the error; nothing established.\n", {"cost": 0.01}
@@ -196,6 +199,7 @@ check("ceiling: the forced report is a turn with a card - turn_start then turn_e
 ex_prompts, ex_events = [], []
 def exhausted_llm(system, user, **h):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     ex_prompts.append(user)
     if len(ex_prompts) == 1:
         return "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nprint('RESULT: x, 5 units: +1 (95% CI 0 to 2), up')\n```", {"cost": 0.001}
@@ -245,6 +249,7 @@ def thread_llm_factory(script):
     calls = {"i": 0}
     def llm(system, user, **hints):
         if user.startswith("Rewrite"): return "plain", {"cost": 0}
+        if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
         i = calls["i"]; calls["i"] += 1
         return script[min(i, len(script) - 1)], {"cost": 0.001}
     return llm
@@ -319,6 +324,7 @@ syn_i = {"n": 0}
 def syn_llm(system, user, **h):
     syn_prompts.append(user)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = syn_i["n"]; syn_i["n"] += 1
     return SYN[min(i, len(SYN) - 1)], {"cost": 0.001}
 try:
@@ -380,6 +386,7 @@ cap_i = {"n": 0}
 def cap_llm(system, user, **h):
     cap_prompts.append(user)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = cap_i["n"]; cap_i["n"] += 1
     return big_cells[min(i, len(big_cells) - 1)], {"cost": 0.001}
 try:
@@ -397,6 +404,7 @@ pl_i = {"n": 0}
 def plain_llm(system, user, **h):
     plain_prompts.append(user)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = pl_i["n"]; pl_i["n"] += 1
     return PLAIN[min(i, len(PLAIN) - 1)], {"cost": 0.001}
 kp = PersistentKernel(df=df); nbp = Notebook("tp")
@@ -422,6 +430,7 @@ two_i = {"n": 0}
 def two_llm(system, user, **h):
     two_prompts.append(user)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = two_i["n"]; two_i["n"] += 1
     return TWO[min(i, len(TWO) - 1)], {"cost": 0.001}
 k2 = PersistentKernel(df=df); nb2_ = Notebook("t2")
@@ -450,6 +459,7 @@ PRE_SCRIPT = [act("CELL\n```python\nprint(D9.name)\n```"), act("CELL\n```python\
 pre_n = {"n": 0}
 def pre_llm(system, user, **hints):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = pre_n["n"]; pre_n["n"] += 1
     return PRE_SCRIPT[min(i, len(PRE_SCRIPT) - 1)], {"cost": 0.001}
 kp = PersistentKernel(df=df); nbp = Notebook("tp")
@@ -471,6 +481,7 @@ res_i = {"n": 0}; res_prompts = []
 def res_llm(system, user, **h):
     res_prompts.append(user)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = res_i["n"]; res_i["n"] += 1
     return RES[min(i, len(RES) - 1)], {"cost": 0.001}
 kr = PersistentKernel(df=df); nbr = Notebook("tr")
@@ -491,29 +502,79 @@ check("results ledger: while the newest cell's output is in view whole its lines
       and "- [cell 1] B vs A mean" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "- [cell 3] C vs A" not in [p_ for p_ in res_prompts if "TASK:" in p_][-1], [p_[-250:] for p_ in res_prompts[1:3]])
 check("contract: names DS and the comparison part of the report, and shows the RESULT: line with a neutral example",
       "`df = DS.load()`" in c_all and "- the comparison: what the question asks to compare, and what you compared" in c_all and "RESULT: outcome Y, group B vs group A at matched age" in c_all and "## Results" in c_all)
-check("contract: one to three figures and a fourth figure cell not run - the mechanism, with no advice on when to draw them",
-      "A report carries one to three figures; a fourth figure cell is not run." in c_all and "drawn once" not in c_all and "where it breaks down" not in c_all)
+check("contract: cells compute and draw nothing - a figure cell is not run; the figures are drawn once after the report, one to three, or NONE - the mechanism, no advice on when",
+      "a cell that calls `fig.show()`, `plt.show()` or `savefig` is not\nrun" in c_all and "drawn once, after the report, in a step of their own" in c_all
+      and "answer NONE when a number or a table answers" in c_all and "[fig 7]" not in c_all and "where it breaks down" not in c_all)
 check("contract: an estimate is recorded with the kernel's RESULT(...), the words the analyst's and the numbers the cell's; a typed number is marked; a revised estimate gets a new line",
       "record it in that cell with the\nkernel's `RESULT(what, estimate, low, high, unit, direction)`" in c_all and "A number written into the call instead of computed is marked as typed" in c_all
       and "A revised estimate gets a new\nline" in c_all and "print it on one line" not in c_all)
-# ---- figures: at most FIGURE_CELLS_MAX figure cells a run; the fourth is not run and the reply says so ----
-FIGS = [act6(f"CELL\n```python\nclass _F:\n    def show(self): print('fig {k}')\nfig = _F(); fig.show()\n```") for k in range(1, 5)] + [act6("REPORT\n## r\n\nDone.")]
-fig_i = {"n": 0}; fig_prompts = []
+# ---- figures (2026-10-11): a figure cell during the analysis is not run; after the report the figures step draws once from the
+# kernel's variables - a failed cell corrected with its error, the section in the report, each attempt a card, the record ----
+from analyst.session import parse_figures_reply, FIGURES_SYSTEM, FIGURES_ATTEMPTS, unwrap_error
+check("parse_figures_reply: NONE or prose is no cell; python blocks are joined in order; CAPTION lines - plain, bold, numbered, bulleted - in order",
+      parse_figures_reply("NONE") == (None, []) and parse_figures_reply("no block here\nCAPTION: x") == (None, [])
+      and parse_figures_reply("```python\na = 1\n```\ntext\n```py\nb = 2\n```\n**CAPTION 1:** first\n- Caption 2: second\nCAPTION: third") == ("a = 1\n\nb = 2", ["first", "second", "third"]),
+      parse_figures_reply("```python\na = 1\n```\ntext\n```py\nb = 2\n```\n**CAPTION 1:** first\n- Caption 2: second\nCAPTION: third"))
+check("unwrap_error: a figures cell's traceback line numbers are counted from the analyst's code, not the wrap's head",
+      unwrap_error('  File "<string>", line 12, in <module>\nValueError: x') == '  File "<string>", line 5, in <module>\nValueError: x' and unwrap_error("") == "")
+FIG_CELL = "import plotly.graph_objects as go\nfig = go.Figure(go.Bar(x=[1], y=[m]))\nfig.update_layout(title=f'the mean, {m:.2f}')\nfig.show()"
+FIGS = [act6("CELL\n```python\nm = df['x'].mean()\nprint('mean', round(m, 3))\n```"),
+        act6("CELL\n```python\nimport matplotlib.pyplot as plt\nplt.plot([1, 2]); plt.show()\n```"),          # a figure cell: not run
+        act6("CELL\n```python\nprint('no figure here')\n```"),
+        act6("REPORT\n## r\n\nThe mean [cell 1].")]
+FIG_STEP = ["```python\n" + FIG_CELL + "\nraise ValueError('bad trace')\n```\nCAPTION: the mean",                      # fails: comes back with its error
+            "Here it is.\n```python\n" + FIG_CELL + "\nfig2 = go.Figure(go.Bar(x=[2], y=[m])); fig2.update_layout(title='again'); fig2.show()\nprint('drawn')\n```\n**CAPTION 1:** the mean with its interval"]
+fig_i = {"n": 0, "f": 0}; fig_prompts = []; fig_events = []
 def fig_llm(system, user, **h):
-    fig_prompts.append(user)
+    fig_prompts.append((system, user))
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"):
+        k = fig_i["f"]; fig_i["f"] += 1
+        return FIG_STEP[min(k, len(FIG_STEP) - 1)], {"cost": 0.002}
     i = fig_i["n"]; fig_i["n"] += 1
     return FIGS[min(i, len(FIGS) - 1)], {"cost": 0.001}
+_pp = os.environ.get("PYTHONPATH")
+if "plotly" in _stubs.FAKE:                  # the kernel's worker imports plotly: the stack's stand-in where the real one is absent
+    os.environ["PYTHONPATH"] = os.path.join(ROOT, "tools", "stack", "fakepkgs") + (os.pathsep + _pp if _pp else "")
 kf = PersistentKernel(df=df); nbf = Notebook("tf")
 try:
-    rf = Session(kf, nbf, fig_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0))
+    rf = Session(kf, nbf, fig_llm, data_description="d", emit=fig_events.append, kernel_factory=lambda: PersistentKernel(df=df)).run("q", budget=Budget(turns=8, dollars=1.0))
 finally:
     kf.cleanup()
-fig_cells = [x for x in rf.turns if x.kind == "cell" and x.cell_no]
-check("figure cap: three figure cells commit, the fourth is not run - no cell number, the output says 'Figure limit' and what to do - and the run goes on to its report",
-      len(fig_cells) == 3 and rf.turns[3].kind == "cell" and rf.turns[3].cell_no is None and "Figure limit" in (rf.turns[3].stdout or "") and rf.status == "answered",
-      ([(x.kind, x.cell_no) for x in rf.turns], (rf.turns[3].stdout or "")[:80]))
-check("figure cap: the refusal reaches the next prompt", any("Figure limit" in p_ for p_ in fig_prompts), len(fig_prompts))
+    if _pp is None: os.environ.pop("PYTHONPATH", None)
+    else: os.environ["PYTHONPATH"] = _pp
+analysis_prompts = [u for s_, u in fig_prompts if not s_.startswith("You are drawing") and not u.startswith("Rewrite")]
+step_prompts = [u for s_, u in fig_prompts if s_.startswith("You are drawing")]
+check("figures: a cell that draws during the analysis is not run - no cell number, its output says figures come after the report, the refusal reaches the next prompt - and the run goes on",
+      rf.turns[1].kind == "cell" and rf.turns[1].cell_no is None and not rf.turns[1].error and "Figures are drawn after the report" in rf.turns[1].stdout
+      and any("Figures are drawn after the report" in u for u in analysis_prompts) and [x.cell_no for x in rf.cells() if not x.step] == [1, 2] and rf.status == "answered",
+      [(x.kind, x.cell_no, x.step) for x in rf.turns])
+step_turns = [x for x in rf.turns if x.step == "figures"]
+check("figures: the step after the report - its first cell failed and is on the record with its error and no number; the corrected cell committed as cell 3 with the two Plotly figures it showed",
+      len(step_turns) == 2 and step_turns[0].error and step_turns[0].cell_no is None and step_turns[1].cell_no == 3 and not step_turns[1].error
+      and step_turns[1].figures == [{"plotly": True, "title": f"the mean, {df['x'].mean():.2f}"}, {"plotly": True, "title": "again"}] and step_turns[1].stdout.strip() == "drawn"
+      and "FIGURES:" not in step_turns[1].stdout, [(x.cell_no, x.error[-80:], x.figures, x.stdout) for x in step_turns])
+check("figures: the failed cell came back with its error, the attempt counted, the traceback's line in the analyst's own code (line 5, not the wrap's)",
+      len(step_prompts) == 2 and "YOUR LAST CELL FAILED" in step_prompts[1] and f"attempt 1 of {FIGURES_ATTEMPTS}" in step_prompts[1] and "ValueError: bad trace" in step_prompts[1]
+      and "in your cell, line 5:  raise ValueError" in step_prompts[1] and "YOUR LAST CELL FAILED" not in step_prompts[0], step_prompts[1][-500:])
+check("figures: the step's prompt carries the question, the report as written, every cell's code, the RESULT lines and the note",
+      "QUESTION:\nq" in step_prompts[0] and "THE REPORT, AS WRITTEN:\n## r" in step_prompts[0] and "--- cell 1 ---" in step_prompts[0] and "--- cell 2 ---" in step_prompts[0]
+      and "YOUR NOTE" in step_prompts[0] and "THE CELLS (their code" in step_prompts[0], step_prompts[0][:600])
+check("figures: the report gains a Figures section citing the figures cell - a caption written for the first, the second named by its title - and the rewrite saw it",
+      rf.report.split("\n\n> ")[0].endswith("## Figures\n\n- [fig 3] the mean with its interval\n- [fig 3] again")
+      and "## Figures" in [u for s_, u in fig_prompts if u.startswith("Rewrite")][0], rf.report)
+fig_cards = [(e["type"], e.get("attempt"), e.get("peek"), e.get("quiet")) for e in fig_events if e.get("turn") == "figures" and e["type"] in ("turn_start", "turn_end")]
+check("figures: each attempt is a quiet card - 'figures' with its attempt number - whose end line says what the cell draws; then its cell row",
+      fig_cards == [("turn_start", 1, None, True), ("turn_end", None, "figure cell: the mean", None), ("turn_start", 2, None, True), ("turn_end", None, "figure cell: the mean with its interval", None)]
+      and [e["type"] for e in fig_events if e.get("turn") == "figures"] == ["turn_start", "turn_end", "cell_start", "turn_start", "turn_end", "cell_start"], fig_cards)
+check("figures: the replay ran the figures cell and reproduced the report; the step's turns round-trip through JSON with their step",
+      rf.replay_status == "reproduced" and "# --- cell 3 ---" in rf.replay_script and "fig.show()" in rf.replay_script
+      and Notebook.from_dict(json.loads(json.dumps(nbf.to_dict()))).runs[rf.id].turns[-2].step == "figures", (rf.replay_status, rf.replay_script[-300:]))
+check("figures: a run whose step answers NONE has no Figures section and no figures turn; a cell count excludes the step's cells only by their step mark",
+      "## Figures" not in rr.report and not [x for x in rr.turns if x.step] and len([x for x in rf.turns if x.kind == "cell" and not x.step]) == 3, rr.report[-200:])
+check("figures: the system prompt names the two replies, the f-string rule and the three corrections; nothing task-specific",
+      "the single word NONE" in FIGURES_SYSTEM and "one Python cell" in FIGURES_SYSTEM and "CAPTION:" in FIGURES_SYSTEM and "f-string" in FIGURES_SYSTEM
+      and "three times at most" in FIGURES_SYSTEM and not re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", FIGURES_SYSTEM, re.I))
 
 # ---- the kernel's DS: the dataset recoverable, the df check in a step's output ----
 kd = PersistentKernel(df=df)
@@ -647,6 +708,7 @@ check("replay: the assembled script runs to the run's last figure cell when the 
 tr_prompts = []
 def truncated_llm(system, user, **h):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     tr_prompts.append(user)
     if len(tr_prompts) == 1:
         return "###THINKING###\nA long think.\n###NOTE###\n- Question as understood: q\n- Best estimate so far: none", {"cost": 0.01, "truncated": True}
@@ -665,6 +727,7 @@ check("a reply cut at the length limit: the next prompt says so, and nothing ran
 dc_prompts = []
 def declined_llm(system, user, **h):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     dc_prompts.append(user)
     if len(dc_prompts) == 1:
         return "[claude-x declined this request: stop_reason refusal, reasoning_extraction]", {"cost": 0.01, "declined": "reasoning_extraction"}
@@ -725,6 +788,7 @@ seen_s = {"prompts": []}
 def search_llm(system, user, **hints):
     seen_s["prompts"].append(user)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = len([p for p in seen_s["prompts"] if not p.startswith("Rewrite")]) - 1
     return SEARCHES[min(i, len(SEARCHES) - 1)], {"cost": 0.001}
 calls = {"n": 0}
@@ -817,6 +881,7 @@ rv_i = {"n": 0}
 def review_llm(system, user, **hints):
     hints_seen.append(dict(hints))
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         rv_calls.append((system, user, dict(hints))); i_ = rv_i["n"]; rv_i["n"] += 1
         return REVIEWS_SCRIPT[min(i_, len(REVIEWS_SCRIPT) - 1)], {"cost": 0.002}
@@ -862,6 +927,7 @@ check("review: the analyst's REVIEW block carries the TEST's status - open until
 tg_prompts, tg_rv = [], []
 def tagged_llm(system, user, **h):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         tg_rv.append(user)
         return ("###REVIEW###\n- The question requires: B against A.\n- Established: the difference [cell 1] +1.5.\n- Most consequential problem: no interval.\n- Verdict: TEST bootstrap the difference" if len(tg_rv) == 1
@@ -908,6 +974,7 @@ check("rewrite: the plain-language rewrite call carries rewrite=True and no othe
 ad_prompts, ad_rv = [], []
 def advice_llm(system, user, **h):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         ad_rv.append(user)
         return "###REVIEW###\n- The question requires: X.\n- Established: X is +1 [cell 1].\n- Most consequential problem: none\n- Verdict: REPORT X is established [cell 1]", {"cost": 0.001}
@@ -927,6 +994,7 @@ check("review: a REPORT citing a cell no review has checked (its cells recorded 
 dp_prompts, dp_rv = [], []
 def disputed_llm(system, user, **h):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         dp_rv.append(user)
         return ("###REVIEW###\n- The question requires: X.\n- Established: +1.5 [cell 1].\n- Checked: cell 1 - labelled within-subject; no subject term in the fit: pooled. Does not match.\n"
@@ -1023,6 +1091,7 @@ nr_systems = []
 def noreview_llm(system, user, **h):
     nr_systems.append(system[:40])
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"): return "###REVIEW###\n- The question requires: x\n- Established: y\n- Most consequential problem: none\n- Verdict: REPORT done", {"cost": 0.01}
     return (act6("REPORT\n## r\n\nDone [cell 1].") if sum(1 for x in nr_systems if x.startswith("You are the analyst")) >= 2 else act6("CELL\n```python\nprint('RESULT: x, 5 units: +1 (95% CI 0 to 2), up')\n```")), {"cost": 0.001}
 kn = PersistentKernel(df=df); nbn = Notebook("tn")
@@ -1038,6 +1107,7 @@ check("no reviews outside Adaptive: a run without reviews during it makes no rev
 nv_prompts = []
 def noverdict_llm(system, user, **hints):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"): return "It looks fine to me.", {"cost": 0.001}
     nv_prompts.append(user)
     return (act6("REPORT\n## r\n\nDone [cell 1].") if len(nv_prompts) >= 3 else act6("CELL\n```python\nprint(1)\n```")), {"cost": 0.001}
@@ -1061,6 +1131,7 @@ def view_llm(system, user, **hints):
     seen_prompts.append(user)
     n = len(seen_prompts)
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     note = "- Question as understood: q"
     if n == 1: return "###THINKING###\nt\n###NOTE###\n" + note + "\n###ACTION###\nCELL\n```python\nprint('A' * 2400 + '\\nZTAIL=42')\n```", {"cost": 0.001}
     if n in (2, 3, 5): return "###THINKING###\nt\n###NOTE###\n" + note + "\n###ACTION###\nCELL\n```python\nprint(%d)\n```" % n, {"cost": 0.001}

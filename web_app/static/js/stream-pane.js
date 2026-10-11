@@ -70,7 +70,7 @@
     function fmtCost(c) { return '$' + Number(c || 0).toFixed(2); }
     function kindLabel(kind) {
         return ({ cell: 'cell', show: 'look-up', names: 'look-up', recall: 'memory', search: 'search', review: 'review',
-                  ask: 'question', report: 'report', rewrite: 'plain-language version', infographic: 'infographic', routine: 'routine', error: 'lost' })[kind] || kind || '';
+                  ask: 'question', report: 'report', rewrite: 'plain-language version', figures: 'figures', infographic: 'infographic', routine: 'routine', error: 'lost' })[kind] || kind || '';
     }
     function noteGrid(note) {
         const rows = [];
@@ -113,7 +113,9 @@
             return '<div class="sp-ids">' + v('Routine:', d.name) + '<span class="sep">·</span>' + v('Run:', d.run) + (d.df_id ? '<span class="sep">·</span>' + v('Dataframe ID:', d.df_id) : '') + '</div>';
         },
         turnStart(t) {
-            const label = typeof t.turn === 'number' ? 'Turn ' + esc(t.turn) : (t.turn === 'rewrite' ? 'Rewrite' : (t.turn === 'review' ? 'Review' : (t.turn === 'infographic' ? 'Infographic' : (t.turn === 'routine' ? 'Routine' : esc(t.turn)))));
+            // the figures step after the report (2026-10-11): one card per attempt, a correction named as such
+            const label = typeof t.turn === 'number' ? 'Turn ' + esc(t.turn) : (t.turn === 'rewrite' ? 'Rewrite' : (t.turn === 'review' ? 'Review' : (t.turn === 'infographic' ? 'Infographic' : (t.turn === 'routine' ? 'Routine' :
+                          (t.turn === 'figures' ? 'Figures' + (t.attempt > 1 ? ' · correction ' + esc(t.attempt - 1) : '') : esc(t.turn))))));
             const seatModel = t.seat ? esc(t.seat) + (t.model ? ' · ' + esc(String(t.model).split('/').pop()) : '') : '';
             return '<details class="sp-turn live' + (t.quiet ? ' quiet' : '') + (t.review ? ' review' : '') + '"' + (t.quiet ? '' : ' open') + ' data-turn="' + esc(t.turn) + '"' +
                 (t.review ? ' data-review="1" data-seat-model="' + seatModel + '"' : '') + '>' +
@@ -134,11 +136,13 @@
         },
         cell(c) {
             const ok = !!c.ok;
-            const badge = ok ? 'In&nbsp;[' + esc(c.cell_no) + ']' : 'In&nbsp;[&times;]';
-            const meta = [c.elapsed != null ? fmtSecs(c.elapsed) : '', ok && c.chars != null ? Number(c.chars).toLocaleString() + ' chars' : '',
-                          ok && c.figs ? c.figs + ' fig' : '', !ok ? 'rolled back' : ''].filter(Boolean).join(' · ');
-            return '<div class="sp-row' + (ok ? '' : ' fail') + '"' + (ok && c.cell_no ? ' data-cell="' + esc(c.cell_no) + '" title="open on the Investigation tab" onclick="if(typeof paneOpenCell===\'function\')paneOpenCell(' + esc(c.cell_no) + ')"' : '') + '>' +
-                '<span>' + (ok ? '✓' : '✗') + '</span><span class="in">' + badge + '</span>' +
+            // a cell the session did not run (2026-10-11: a figure cell during the analysis - figures come after the report)
+            const skipped = ok && !!c.skipped;
+            const badge = skipped ? 'In&nbsp;[&ndash;]' : (ok ? 'In&nbsp;[' + esc(c.cell_no) + ']' : 'In&nbsp;[&times;]');
+            const meta = [c.elapsed != null ? fmtSecs(c.elapsed) : '', ok && !skipped && c.chars != null ? Number(c.chars).toLocaleString() + ' chars' : '',
+                          ok && c.figs ? c.figs + ' fig' : '', !ok ? 'rolled back' : '', skipped ? 'not run' : ''].filter(Boolean).join(' · ');
+            return '<div class="sp-row' + (ok ? '' : ' fail') + (skipped ? ' skipped' : '') + '"' + (ok && c.cell_no ? ' data-cell="' + esc(c.cell_no) + '" title="open on the Investigation tab" onclick="if(typeof paneOpenCell===\'function\')paneOpenCell(' + esc(c.cell_no) + ')"' : '') + '>' +
+                '<span>' + (skipped ? '–' : (ok ? '✓' : '✗')) + '</span><span class="in">' + badge + '</span>' +
                 '<span class="out">' + esc(ok ? (c.peek || '(no output)') : (c.error_line || 'failed')) + '</span>' +
                 '<span class="t">' + esc(meta) + '</span></div>';
         },

@@ -96,7 +96,23 @@ def main():
             check("the closing card reports the replay reproduced the cited numbers", "Replay reproduced" in done, done)
             check("the closing card counts 3 cells with 1 failed", "Cells 3 (1 failed)" in done.replace("\n", " ") or ("3" in done and "1 failed" in done), done)
             turns = page.evaluate("() => document.querySelectorAll('.sp-turn').length")
-            check("one card per model call (6 analyst turns and the rewrite; no review outside Adaptive)", turns == 7, turns)
+            check("one card per model call (6 analyst turns, the figures step, the rewrite; no review outside Adaptive)", turns == 8, turns)
+            # the figures step (2026-10-11): the figure cell of turn 5 was not run - a skipped row; after the report one quiet
+            # 'Figures' card, then its cell row as cell 3 with the two figures; the Answer tab's Figures section cites them
+            fig = page.evaluate("""() => { const rows = [...document.querySelectorAll('.sp-row')];
+                const skipped = rows.filter(r => r.classList.contains('skipped')).map(r => r.textContent);
+                const cards = [...document.querySelectorAll('.sp-turn')].map(t => [(t.querySelector('.n') || {}).textContent || '', (t.querySelector('summary .kind') || {}).textContent || '', (t.querySelector('summary .peek') || {}).textContent || '']);
+                const figCard = cards.find(c => c[0] === 'Figures');
+                const order = rows.map(r => r.classList.contains('skipped') ? 'skipped' : (r.classList.contains('fail') ? 'fail' : (r.classList.contains('tool') ? 'tool' : 'cell')));
+                const last = rows.filter(r => !r.classList.contains('tool')).pop();
+                return { skipped, figCard, order, last: last ? last.textContent : '', cellRows: rows.filter(r => /In.\\[\\d+\\]/.test(r.textContent)).map(r => r.textContent) }; }""")
+            check("the figure cell of turn 5 is a skipped row - In [–], 'not run', figures come after the report - and the analysis went on to its report",
+                  len(fig["skipped"]) == 1 and "not run" in fig["skipped"][0] and "figures are drawn after the report" in fig["skipped"][0], fig["skipped"])
+            check("the Figures card: quiet, kind 'figures', its line naming the two figures the cell draws; then the cell row In [3] with 2 fig",
+                  fig["figCard"] and fig["figCard"][1] == "figures" and fig["figCard"][2].startswith("figure cell: plot-level yield by regime")
+                  and "In\xa0[3]" in fig["last"].replace("In [", "In\xa0[") and "2 fig" in fig["last"], (fig["figCard"], fig["last"]))
+            check("the rows in order: cell 1, the search, the failed cell, cell 2, the skipped figure cell, then the figures cell after the report",
+                  fig["order"][:5] == ["cell", "tool", "fail", "cell", "skipped"] and fig["order"].count("cell") == 3 and len(fig["cellRows"]) == 3, fig["order"])
             # a dataset the analyst saved (DS.save in the estimate cell): one download pill under the REPLAY row, none in the closing card (2026-10-06)
             ds_pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill.ds')].map(e => e.textContent)")
             check("the dataset the analyst saved shows as one download pill under the REPLAY row, and the closing card does not repeat it",
@@ -123,6 +139,10 @@ def main():
             answer = page.inner_text("#content-answer")
             check("the Answer tab shows the report with the estimate the kernel printed",
                   "t/ha" in answer and "cell 2" in answer.lower() or "cell 2" in answer, answer[:200])
+            fig_chips = page.evaluate("() => [...document.querySelectorAll('#content-answer .cite.fig')].map(e => e.textContent)")
+            check("the Answer tab ends with the Figures section - two captions, each citing the figures cell as a fig 3 chip",
+                  "Figures" in answer and "plot-level yield by regime within each soil type" in answer and "mean plot yield by regime" in answer and fig_chips == ["fig 3", "fig 3"]
+                  and answer.find("Figures") > answer.find("Next steps"), (fig_chips, answer[-300:]))
             page.evaluate("activateTab('plot')")
             page.wait_for_timeout(300)
             imgs = page.evaluate("() => document.querySelectorAll('#content-plot img').length")

@@ -15,6 +15,8 @@ class Figure:
         self.layout = _Layout()
 
     def update_layout(self, **kwargs):
+        for k, v in kwargs.items():             # the title and the axis titles, readable back as the real layout's are (2026-10-11)
+            setattr(self.layout, k, v)
         return self
 
     def add_trace(self, trace):

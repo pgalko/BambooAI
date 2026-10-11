@@ -124,6 +124,12 @@ class Scenario:
                         f"- Verdict: REPORT the question is answered [cell {last}].")
         if system.startswith("You are the analyst"):
             return self.analyst(user)
+        if system.startswith("You are drawing the figures"):
+            # the figures step after the report (2026-10-11): the story's one figure, from the counts cell 2 left in the kernel
+            m = re.search(r"QUESTION:\n(.*?)\n\nTHE REPORT", user, re.S)
+            if (m.group(1) if m else "").strip() != QUESTIONS[0]:
+                return "", "NONE"
+            return "", "```python\n" + CELL_FIGURE + "\n```\nCAPTION: sessions by local start hour over the window"
         if system.startswith("You are the Reader"):
             return "", "NOTHING ANSWERS - no documents in this story."
         if system.startswith("You are preparing an analysis so that it can be run again"):
@@ -167,9 +173,10 @@ class Scenario:
         turn, of = _turn(user)
         forced = "STOP:" in user or "Write REPORT now" in user
         if q == QUESTIONS[0]:
-            if forced or turn >= 4:
+            # turn 1 inspects, turn 2 counts, turn 3 reports; the figure is the figures step's, after the report (2026-10-11)
+            if forced or turn >= 3:
                 return self.report(user, q)
-            return {1: self.t_inspect, 2: self.t_hours, 3: self.t_figure}[turn](user, q)
+            return {1: self.t_inspect, 2: self.t_hours}[turn](user, q)
         if forced or turn >= 2:
             return _report("Nothing scripted for this question.", _note(q, plan="report"), "## Answer\n\nA first look was taken [cell 1]; nothing more is scripted for this question.")
         return _cell("A question outside the scripted story: one look at the data.", _note(q, plan="describe, then report"), CELL_GENERIC)
@@ -182,12 +189,8 @@ class Scenario:
         path = _summary_path(user)
         first, last = _first_last(user)
         return _cell("The summary file carries each session's local and UTC start. The home offset is the most common offset in the data - read off it, so the method holds on another window - and the hours are counted on the local clock.",
-                     _note(q, held="the clock (local)", plan="count the hours; a figure; report", names="df, summ, counts, n, peak_h, band"),
+                     _note(q, held="the clock (local)", plan="count the hours; report", names="df, summ, counts, n, peak_h, band"),
                      CELL_HOURS.format(path=path, first=first, last=last))
-
-    def t_figure(self, user, q):
-        return _cell("The numbers are printed in cell 2. One figure of the start hours.",
-                     _note(q, est="see cell 2", held="the clock (local)", plan="figure; then report", names="df, summ, counts, n, peak_h"), CELL_FIGURE)
 
     def report(self, user, q):
         m = re.search(r"n=(\d+) peak_hour=(\d+) home_offset=(-?\d+) away_sessions=(\d+) share=([\d.]+) lo=([\d.]+) hi=([\d.]+)", user)
@@ -198,6 +201,6 @@ class Scenario:
                 f"{float(share):.1%} of sessions start between 9:00 and 11:59 (95% interval {float(lo):.1%} to {float(hi):.1%}) [cell 2]. "
                 f"The home offset read off the data is UTC{int(off):+d}; {away} sessions were away from it [cell 2].\n\n"
                 f"## The comparison\n\nThe question asks when sessions start; the answer counts local start hours over the loaded window [cell 2].\n\n"
-                f"## How it was established\n\nThe summary file's local and UTC starts give the offset and the local hour; a Wilson interval for the share [cell 2]; the distribution is in [fig 3].\n\n"
+                f"## How it was established\n\nThe summary file's local and UTC starts give the offset and the local hour; a Wilson interval for the share [cell 2].\n\n"
                 f"## Limitations\n\nOne window; the away block is short.\n\n## Next steps\n\nWeekday against weekend; rides against runs.")
-        return _report("Every number is in cell 2 and the figure is cell 3. Report.", _note(q, est=f"peak hour {peak}:00; band share {float(share):.3f}", held="the clock (local)", plan="report"), body)
+        return _report("Every number is in cell 2; the figure comes after the report. Report.", _note(q, est=f"peak hour {peak}:00; band share {float(share):.3f}", held="the clock (local)", plan="report"), body)

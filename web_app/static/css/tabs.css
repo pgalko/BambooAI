@@ -75,6 +75,7 @@
 }
 .briefing-content .nb-cell-idx { color: var(--accent-color); white-space: nowrap; }
 .briefing-content .nb-cell--failed .nb-cell-idx { color: var(--error-color); }
+.briefing-content .nb-cell--skipped .nb-cell-idx { color: var(--text-quaternary); }     /* a cell not run: a figure cell during the analysis (2026-10-11) */
 .briefing-content .nb-cell-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Courier New', Courier, monospace; }
 .briefing-content .nb-cell-meta { color: var(--text-quaternary); white-space: nowrap; margin-left: auto; }
 .briefing-content .nb-think {

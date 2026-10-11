@@ -51,6 +51,8 @@
 #streamOutput .sp-row .t { color: var(--text-quaternary); font-size: 11px; white-space: nowrap; }
 #streamOutput .sp-row.fail { border-left-color: var(--error-color); }
 #streamOutput .sp-row.fail .in, #streamOutput .sp-row.fail .out { color: var(--error-color); }
+#streamOutput .sp-row.skipped { border-left-color: var(--text-quaternary); }                   /* a cell not run: a figure cell during the analysis (2026-10-11) */
+#streamOutput .sp-row.skipped .in, #streamOutput .sp-row.skipped .out { color: var(--text-quaternary); }
 #streamOutput .sp-row.tool { border-left-color: var(--accent-replay); }
 #streamOutput .sp-row.tool .in { color: var(--accent-replay); }
 #streamOutput .sp-row:hover { background: var(--bg-tertiary); }

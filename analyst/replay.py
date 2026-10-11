@@ -52,6 +52,9 @@ def assemble(cells: List[Turn], report: str, own: Optional[List[Turn]] = None) -
     # Figures: earlier runs' cells must RUN (the state), but their figures are not this
     # run's plots (2026-09-07: a follow-up that fixed a plot returned both). Capture is
     # on for this run's own cells and for any earlier figure the report cites as [fig n].
+    # Of a run's own cells only the figures step's draws (2026-10-11: a cell that draws
+    # during the analysis is not run), so the reader sees the figures drawn once, after
+    # the report, and nothing a cell drew on the way.
     wanted = set(own_nos) | {n for n in referenced_figures(report) if n in by_no}
     parts = ["# Assembled from the analysis notebook: the committed cells in execution order, up to the last cell the report cites or this run's last figure cell.",
              "# `df` is the dataset the analysis ran on.",

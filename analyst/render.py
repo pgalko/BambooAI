@@ -54,13 +54,15 @@ def _note_html(note: str) -> str:
 
 def _cell_html(turn: Turn, index: int) -> str:
     failed = bool(turn.error)
-    idx = f"In&nbsp;[{turn.cell_no}]" if turn.cell_no else f"In&nbsp;[&times;]"
+    skipped = not failed and not turn.cell_no          # a cell the session did not run: a figure cell during the analysis (2026-10-11)
+    idx = f"In&nbsp;[{turn.cell_no}]" if turn.cell_no else ("In&nbsp;[&ndash;]" if skipped else "In&nbsp;[&times;]")
     title = _first_line(turn.code)
     lines = len((turn.code or "").splitlines())
-    parts = [f'<div class="nb-cell{" nb-cell--failed" if failed else ""}">']
+    parts = [f'<div class="nb-cell{" nb-cell--failed" if failed else ""}{" nb-cell--skipped" if skipped else ""}">']
     parts.append(f'<div class="nb-cell-head"><span class="nb-cell-idx">{idx}</span>'
                  f'<span class="nb-cell-title">{title}</span>'
-                 f'<span class="nb-cell-meta">{lines} lines{" · failed, rolled back" if failed else ""}'
+                 f'<span class="nb-cell-meta">{lines} lines{" · failed, rolled back" if failed else ""}{" · not run" if skipped else ""}'
+                 f'{" · figures step" if getattr(turn, "step", "") == "figures" else ""}'
                  f'{" · " + str(len(turn.figures)) + " fig" if turn.figures else ""}</span></div>')
     if turn.thinking:
         parts.append(f'<div class="nb-think">{html.escape(turn.thinking.strip()[:1200])}</div>')

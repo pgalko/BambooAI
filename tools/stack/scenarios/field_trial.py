@@ -210,6 +210,8 @@ class Scenario:
                         f"- Verdict: REPORT the comparison the question requires is made and its uncertainty stated [cell {last}].")
         if system.startswith("You are the analyst"):
             return self.analyst(user)
+        if system.startswith("You are drawing the figures"):
+            return "", self.figures(user)
         if system.startswith("You are the Reader"):
             return "", self.reader(user)
         if system.startswith("You are preparing an analysis so that it can be run again"):
@@ -235,6 +237,19 @@ class Scenario:
                  "replace": "RESULT(f\"yield, regime {INPUTS['regime']} vs A within soil type, plot means\", est, lo, hi, 't/ha', f\"{INPUTS['regime']} higher\")"}],
             "kept": ["the 500 bootstrap draws and the seed are the method's", "soil is the stratification, not an input"]})
 
+    # ------------------------------------------------------------ the figures step (2026-10-11)
+    def figures(self, user):
+        """After the report: the first question's figure, drawn once from the kernel's variables (the plot means and the
+        estimate the cells left) - a matplotlib figure and a Plotly one, as the executor captures both; a caption for
+        each. The follow-ups need none: a number answers, or the earlier chain's figure is cited."""
+        m = re.search(r"QUESTION:\n(.*?)\n\nTHE REPORT", user, re.S)
+        q = (m.group(1) if m else "").strip()
+        if q != QUESTIONS[0]:
+            return "NONE"
+        return ("```python\n" + CELL_FIGURE + "\n```\n"
+                "CAPTION: plot-level yield by regime within each soil type, the estimate's spread\n"
+                "CAPTION: mean plot yield by regime")
+
     # ------------------------------------------------------------ the Reader seat
     def reader(self, user):
         """The Reader quotes, exactly, every candidate passage that mentions the wet season (the story's document
@@ -252,8 +267,8 @@ class Scenario:
         forced = "STOP:" in user or "Write REPORT now" in user
         if q == QUESTIONS[0]:
             # turn 1 inspects; turn 2 the search (a turn, as every exchange is without documents -, 2026-10-03);
-            # turn 3, with the digest in the prompt, the cell that fails; turn 4 the corrected cell; turn 5 the figure;
-            # turn 6 the report
+            # turn 3, with the digest in the prompt, the cell that fails; turn 4 the corrected cell; turn 5 a figure cell,
+            # which is not run (2026-10-11: figures are drawn after the report, in the figures step); turn 6 the report
             if forced or turn >= 6:
                 return self.report_b(user, q)
             return {1: self.t_inspect, 2: self.t_search, 3: self.t_fail, 4: self.t_adjusted, 5: self.t_figure}[turn](q)
@@ -302,6 +317,8 @@ class Scenario:
                            names="df, plot_means"), CELL_ADJUSTED)
 
     def t_figure(self, q):
+        # a figure cell during the analysis, as a model that skipped the contract's Figures section would write: it is not
+        # run, and the refusal rides into the next prompt (the stack shows the skipped row and the step that draws later)
         return _cell("The adjusted gap and its interval are printed. One figure of the estimate and where it varies: "
                      "plot-level yield by regime within each soil type.",
                      _note(q, est="see cell 2: adjusted B-A with 95% bootstrap interval", held="soil type (stratified)",
@@ -363,10 +380,8 @@ The means behind the estimate [cell 2]:
 
 {table}
 
-[fig 3] shows the plot-level yields by regime within each soil type.
-
 ## How it was established
-Cell 1 showed the soil mix differs by regime. Cell 2 computed plot means, the within-soil B minus A difference weighted by plots compared, and a 500-draw bootstrap resampling plots within each soil and regime. Cell 3 drew the figure.
+Cell 1 showed the soil mix differs by regime. Cell 2 computed plot means, the within-soil B minus A difference weighted by plots compared, and a 500-draw bootstrap resampling plots within each soil and regime.
 
 ## Limitations
 - What the data cannot support: regime was not randomised, so any plot-level factor that differs by regime and is not soil remains in the estimate.
@@ -377,7 +392,7 @@ Cell 1 showed the soil mix differs by regime. Cell 2 computed plot means, the wi
 1. Add rainfall as a covariate and re-estimate the within-soil difference.
 2. Check the difference season by season.
 3. Compare regime C on the same footing."""
-        return _report("Every number I need is printed in cell 2 and the figure is cell 3. Report: answer first, "
+        return _report("Every number I need is printed in cell 2; the figure comes after the report. Report: answer first, "
                        "then the estimate, the conditions, how it was established, the three limitations, next steps.",
                        _note(q, est=f"B-A {v['ADJ_DIFF']:.3f} t/ha per plot, 95% CI [{v['CI_LO']:.3f}, {v['CI_HI']:.3f}], within soil",
                              held="soil type (stratified)", doubts="rainfall; regime not randomised", plan="report",

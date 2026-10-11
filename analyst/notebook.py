@@ -88,6 +88,7 @@ class Turn:
     checked: List[dict] = field(default_factory=list)    # REVIEW: the verification ledger entries it wrote ({cell, text})
     recheck: List[int] = field(default_factory=list)     # REVIEW: cells it asked to see again at the next review
     elapsed: float = 0.0            # CELL: seconds the kernel took to run it
+    step: str = ""                  # "figures" for the cells of the figures step after the report (2026-10-11); "" for a turn of the analysis
     created: float = field(default_factory=_now)
 
 
