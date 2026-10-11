@@ -367,6 +367,19 @@ check("a run on the later window: the method read this window's summary under th
       r5["status"] == "ran" and [rt.number(x["estimate"]) for x in r5["results"]] == [6.0, 7.0] and r5["bindings"] and r5["bindings"][0][0] == aux_old and r5["bindings"][0][1].startswith(run_dir5)
       and r5["shape"]["files"][aux_old]["missing"] == ["note"] and r5["shape"]["files"][aux_old]["rows"] == 6 and aux_old in store.load(rid5)["versions"][0]["script"]
       and os.path.exists(os.path.join(run_dir5, "activity_summary_20260910_to_20261010.csv")), (r5["status"], r5["results"], r5.get("bindings"), r5.get("shape")))
+# what differs, said in sentences (step 4, 2026-10-11): the rows of the frame and of each bound file against the original's,
+# the columns added empty; in the dialog's line (the frame's rows), on the CHECK row and on the record
+check("precheck's line says the frame's rows against the original's (no probe needed)", "the same 5 rows as the original" in pc5["line"] and pc5["differences"] == ["the same 5 rows as the original"], pc5["line"])
+_chk5 = next((e.get("peek") or "" for e in ev5 if e.get("type") == "lookup" and e.get("kind") == "check"), "")
+check("the CHECK row and the record say what differs: the frame's rows, the summary file's rows against the original's and the column added empty",
+      r5["differences"] == ["the same 5 rows as the original", "the summary file: 6 rows where the original had 4, 1 column added empty (note)"]
+      and "; the same 5 rows as the original; the summary file: 6 rows where the original had 4, 1 column added empty (note)" in _chk5 and r5["check"] == _chk5, (r5.get("differences"), _chk5))
+check("shape_sentences: a file empty in this data, one that could not be read, an empty column the file has, and nothing where nothing is known",
+      rt.shape_sentences({"rows": 10, "aux_shape": {"/a/wellness_data_x.csv": {"rows": 30, "columns": []}}}, {"rows": 12},
+                         {"files": {"/a/wellness_data_x.csv": {"path": "/b/w.csv", "rows": 0}, "/a/activity_intervals_x.csv": {"path": "/b/i.csv", "error": "bad file"}, "/a/own.csv": {"path": "/b/o.csv", "rows": 30, "missing": [], "empty": ["hrv"]}}},
+                         {"map": {"/a/wellness_data_x.csv": "/b/w.csv", "/a/activity_intervals_x.csv": "/b/i.csv", "/a/own.csv": "/b/o.csv"}, "absent": []})
+      == ["12 rows where the original had 10", "the wellness file is empty in this data (0 rows)", "the intervals file could not be read (bad file)", "the own.csv: 30 rows, 1 column empty (hrv)"]
+      and rt.shape_sentences({}, {}, None, {"map": {}}) == [] and rt.shape_sentences({}, {"rows": 3}, None, {"map": {}}) == ["3 rows"])
 # a window whose load produced no summary at all: the method sees an empty table, the CHECK row and the record say so
 now5c = dict(now5, aux=[])
 pc5c = host.precheck(store.load(rid5), now5c, runner_on(df))

@@ -413,7 +413,8 @@ class BambooAI:
             if (ev.get("kind") or 'routine') in ('routine', 'run'):
                 self._pane('pane_cell_start', turn='routine')           # the executor chip on Executing while the method runs
         elif kind == "lookup":
-            self._pane('pane_lookup', kind=ev.get("kind") or 'routine', query=ev.get("query") or '', peek=(ev.get("peek") or '')[:200], sources=[], passages=[])
+            # a CHECK row's sentences run long (step 4, 2026-10-11): the row shows what fits and carries the whole line on hover
+            self._pane('pane_lookup', kind=ev.get("kind") or 'routine', query=ev.get("query") or '', peek=(ev.get("peek") or '')[:600], sources=[], passages=[])
 
     def propose_routine(self, thread_id, chain_id, routine_id=None, billing_chain_id=None):
         """Save as routine, step one: the promoter reads the chain and proposes its inputs. The call is accounted to

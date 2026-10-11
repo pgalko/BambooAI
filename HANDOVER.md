@@ -59,10 +59,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (195/94/30/19/16/49/44/51/10/104/1/1 Python; 44/7/29/56/24/59 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (86 hosted, 85 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (195/94/30/19/16/49/44/51/10/107/1/1 Python; 44/7/29/56/24/60 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (88 hosted, 87 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (42; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (43; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -441,6 +441,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines, step 4 begun: what differs, said in sentences (2026-10-11, patch 0131).** The CHECK row had said the
+  fit (columns empty, files absent, values) and nothing of the rows. Now `analyst.routines.shape_sentences(record,
+  data, shape, binding)` says, from the promotion's record (`rows`, `aux_shape`) and the run's shape probe: the
+  frame's rows against the original's (*the same 5,860 rows as the original* / *2,184 rows where the original had
+  5,860*), each bound file's rows against the original's with the columns added empty and the columns left empty
+  (*the summary file: 91 rows where the original had 180, 1 column added empty (power)*), a file empty in this data
+  (0 rows), a file that could not be read; nothing where nothing is known. The dialog's line carries the frame's
+  sentence (no probe); the CHECK row the lot, between the fit line and the absent files; the record keeps
+  `differences` and the whole `check` line; a stored run's CHECK row repeats the recorded line (it had said the
+  size) and its Data tab lists the sentences under *Differs*; the pane's rows carry their whole text on hover and
+  the routine rows are cut at 600 characters, not 200. ROUTINES_DESIGN.md F2.2, §11.4. test_routines.py 107,
+  test_routines.js 60, the stack walk 88 (run 3 and 4's rows, the stored run 3 opened with the arrow), the
+  integrations walk 43 (the summary's rows and the two columns added empty).
 - **The figures request made reliable, and the run read in full (2026-10-11, patch 0130).** Palo's third run under
   0126-0129 - "Plot Fibonacci sequence", no data, deepseek-v4.1-flash at xhigh - took 290 s, $0.086 and 68,000
   completion tokens for no figure, where the same question had taken three or four turns. Read call by call (the run

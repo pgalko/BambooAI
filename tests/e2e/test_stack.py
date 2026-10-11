@@ -503,6 +503,19 @@ def main():
             check("run 4 on the file without soil: the CHECK row says the column is empty, the method fails at its cell dividing by a count that is zero (kept as a run, the card in the warning tone, the error on the Comparison tab)",
                   any("CHECK" in r and "empty in this data: soil" in r for r in r4["rows"]) and "Run 4 failed" in r4["done"] and "failed at cell" in r4["done"] and "ZeroDivisionError" in r4["done"] and r4["warn"]
                   and "ZeroDivisionError" in r4["cmp"] and "run 4 of 4" in r4["pos"], (r4["rows"][-3:], r4["done"][:200]))
+            # what differs, said in sentences (step 4, 2026-10-11): the CHECK row says the rows against the original's; the Data tab lists it
+            check("the CHECK rows say the rows against the original's: run 3's file the same rows as the original, run 4's too, the column empty said beside it",
+                  any("CHECK" in r and "rows as the original" in r for r in r3["rows"]) and any("CHECK" in r and "rows as the original" in r and "empty in this data: soil" in r for r in r4["rows"]), (r3["rows"], r4["rows"]))
+            # the stored run, opened with the arrow: its CHECK row says what the live one said, and its Data tab lists what differed
+            page.click("#prevResponse")
+            wait_text(page, "#chainPosition", "run 3 of 4", 30000)
+            page.wait_for_timeout(400)
+            r3s = page.evaluate("() => { activateTab('dataframe'); return { rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), data: (document.getElementById('content-dataframe') || {}).textContent || '' }; }")
+            check("run 3 opened from its record: the CHECK row carries the recorded line (the rows as the original), and the Data tab lists it under Differs",
+                  "rows as the original" in [r for r in r3s["rows"] if "CHECK" in r][-1] and "Differs" in r3s["data"] and "rows as the original" in r3s["data"], (r3s["rows"][-4:], r3s["data"][:200]))
+            page.click("#nextResponse")
+            wait_text(page, "#chainPosition", "run 4 of 4", 30000)
+            page.wait_for_timeout(300)
             page.evaluate("RoutinesUI.closeManager()")
             run_files = sorted(os.path.basename(p) for p in glob.glob(os.path.join(os.path.dirname(rdirs[0]), "runs", "*"))) if rdirs else []
             rj2 = json.load(open(rdirs[0])) if rdirs else {}

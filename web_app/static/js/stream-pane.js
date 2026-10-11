@@ -160,8 +160,9 @@
             const glyph = ({ search: '⌕', recall: '✦', read: '¶', replay: '↻', routine: '↻', run: '↻', check: '✓', compare: '⇄', load: '⇩' })[l.kind] || '↺';
             const right = l.kind === 'search' && l.sources && l.sources.length ? l.sources.length + ' source' + (l.sources.length === 1 ? '' : 's')
                         : (l.kind === 'read' ? (l.passages && l.passages.length ? l.passages.length + ' passage' + (l.passages.length === 1 ? '' : 's') : 'no passage') : '');
+            // the row's text whole on hover: a CHECK row's sentences run past the row (step 4, 2026-10-11)
             let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
-                '<span class="out">' + esc(l.peek || '') + '</span><span class="t">' + esc(right) + '</span></div>';
+                '<span class="out" title="' + esc(l.peek || '') + '">' + esc(l.peek || '') + '</span><span class="t">' + esc(right) + '</span></div>';
             if (l.sources && l.sources.length) {
                 h += '<div class="sp-pills">' + l.sources.map(s =>
                     '<a class="sp-pill src" href="' + esc(s.url || '#') + '" target="_blank" rel="noopener noreferrer" title="' + esc(s.url || '') + '">' + ICON_SEARCH +

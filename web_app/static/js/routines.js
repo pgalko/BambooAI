@@ -292,8 +292,11 @@
             const subs = (run && run.bindings) || [];
             const absent = (run && run.aux_absent) || [];
             const bound = subs.length ? '<b>Files</b><span>' + subs.map(x => esc(String(x[0]).split('/').pop()) + ' → ' + esc(String(x[1]).split('/').pop())).join('<br>') + (absent.length ? '<br>' + esc(absent.join(', ')) + ': absent in this data (an empty table stood in)' : '') + '</span>' : (absent.length ? '<b>Files</b><span>' + esc(absent.join(', ')) + ': absent in this data (an empty table stood in)</span>' : '');
+            // what differed from the original's data, as the CHECK row said it (step 4, 2026-10-11): one sentence a line
+            const diffs = (run && run.differences) || [];
+            const differs = diffs.length ? '<b>Differs</b><span class="rt-differs">' + diffs.map(x => esc(x)).join('<br>') + '</span>' : '';
             return '<div class="rt-cmp"><div class="rt-sec"><div class="h">What this run ran on</div><div class="ui-kv">' +
-                '<b>Source</b><span>' + esc(sourceLabel(d.source)) + '</span>' + (ld ? '<b>Loaded as</b><span>' + esc(ld) + '</span>' : '') + (d.name ? '<b>Name</b><span>' + esc(d.name) + '</span>' : '') + bound +
+                '<b>Source</b><span>' + esc(sourceLabel(d.source)) + '</span>' + (ld ? '<b>Loaded as</b><span>' + esc(ld) + '</span>' : '') + (d.name ? '<b>Name</b><span>' + esc(d.name) + '</span>' : '') + bound + differs +
                 (d.rows != null ? '<b>Rows</b><span>' + esc(Number(d.rows).toLocaleString()) + '</span>' : '') + (d.date_range ? '<b>Range</b><span>' + esc(d.date_range) + '</span>' : '') +
                 (d.aux && d.aux.length ? '<b>Auxiliary</b><span>' + d.aux.map(a => esc(String(a).split('/').pop())).join(', ') + '</span>' : '') +
                 '<b>Columns</b><span>' + (Array.isArray(cols) && cols.length && typeof cols[0] === 'object' ? cols.map(c => esc(c.name) + (c.dtype ? ' <span class="ui-muted">' + esc(c.dtype) + '</span>' : '')).join(', ') : esc(String(cols))) + '</span></div></div></div>';
@@ -1050,7 +1053,8 @@
             if (typeof paneLookup === 'function') {
                 const ld = loadLabel(d.load);
                 if (ld && run.number !== 0 && sourceKind((d.load || {}).source) !== 'file') paneLookup({ kind: 'load', query: ld, peek: '', sources: [], passages: [] });
-                paneLookup({ kind: 'check', query: d.name || sourceLabel(d.source), peek: (d.rows != null ? Number(d.rows).toLocaleString() + ' rows · ' : '') + ((d.columns || []).length || d.columns || 0) + ' columns' + (run.number === 0 ? ' · the analysis\u2019s own data' : ''), sources: [], passages: [] });
+                // a stored run's CHECK row says what the live one said (the record's line, step 4, 2026-10-11); run 0 and older records the size
+                paneLookup({ kind: 'check', query: d.name || sourceLabel(d.source), peek: run.check || ((d.rows != null ? Number(d.rows).toLocaleString() + ' rows · ' : '') + ((d.columns || []).length || d.columns || 0) + ' columns' + (run.number === 0 ? ' · the analysis\u2019s own data' : '')), sources: [], passages: [] });
                 paneLookup({ kind: run.number === 0 ? 'routine' : 'run', query: 'run ' + run.number + ' · v' + run.version + (cells ? ' · ' + cells : ''), peek: (run.line || run.status) + ' · ' + (run.figures || 0) + ' figure' + (run.figures === 1 ? '' : 's') + (run.elapsed != null ? ' · ' + run.elapsed + ' s' : ''), sources: [], passages: [] });
                 if (run.against != null) paneLookup({ kind: 'compare', query: 'with run ' + run.against, peek: (run.comparison || {}).line || '', sources: [], passages: [] });
             }

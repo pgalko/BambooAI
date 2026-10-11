@@ -173,6 +173,11 @@ def main():
                   and any("RUN" in r and "run 1" in r for r in rv["rows"]) and any("COMPARE" in r and "run 0" in r for r in rv["rows"])
                   and "Run 1 complete" in rv["done"] and ("ran: 3 result lines" in rv["done"] or "reproduced" in rv["done"]) and "against run 0" in rv["done"] and not rv["warn"] and rv["locked"] and rv["chip"] == "Ready", (rv["rows"], rv["done"][:240], rv["chip"]))
             check("the Comparison tab opened with the three lines against run 0, each marked", "tab-comparison" in rv["tabs"] and rv["cmp"].count("sessions") >= 1 and "against run 0" in rv["cmp"] and ("within" in rv["cmp"] or "same" in rv["cmp"] or "moved" in rv["cmp"]), rv["cmp"][:300])
+            # what differs, said in sentences (step 4, 2026-10-11): the frame's rows and the summary file's rows against the original's
+            _chk1 = next((r for r in rv["rows"] if "CHECK" in r), "")
+            check("the CHECK row says what differs from the original in sentences: the frame's rows against the original's, the summary file's rows against the original's and its columns added empty",
+                  ("rows as the original" in _chk1 or "rows where the original had" in _chk1) and "the summary file:" in _chk1
+                  and ("rows as the original" in _chk1.split("the summary file:")[1] or "rows where the original had" in _chk1.split("the summary file:")[1]) and "columns added empty (avg_power, elevation_gain_m)" in _chk1, _chk1)
             check("the Data tab's pills now show the run's window (59 days [W+S]) with the summary's pill - the dialog's load refreshed them as the Data tab does - and only them: the original window's pills were cleared before the load (its wellness pill is gone; one Intervals pill)",
                   any("Intervals ICU (59 days [W+S]) loaded" in p for p in rv["pills"]) and any("Activity Summary (59 days)" in p for p in rv["pills"]) and sum(1 for p in rv["pills"] if "Intervals ICU" in p) == 1 and not any("Wellness" in p for p in rv["pills"]) and len(rv["pills"]) == 2, rv["pills"])
             page.evaluate("activateTab('dataframe')")

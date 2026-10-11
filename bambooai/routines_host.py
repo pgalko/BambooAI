@@ -514,6 +514,7 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
     out["fit"] = fit
     binding = rt.bind_aux((manifest.get("data") or {}).get("aux") or [], d.get("aux") or [])
     out["aux"] = {"absent": [rt.aux_kind(p) for p in binding["absent"]], "bound": {rt.aux_kind(k): str(v).split("/")[-1] for k, v in binding["map"].items()}, "line": aux_line(binding)}
+    out["differences"] = rt.shape_sentences(manifest.get("data") or {}, d, None, binding)      # the frame's rows against the original's; the files' at the run
     vals, problems = rt.coerce_values(params, values)
     out["problems"] = problems
     if fit["fits"] and runner is not None:
@@ -529,7 +530,7 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
             else:
                 out["values_missing"] = [f"the values could not be checked ({str(err).strip().splitlines()[-1][:120]})"] if err else []
     out["ok"] = bool(fit["fits"]) and not out["values_missing"] and not problems
-    out["line"] = fit["line"] + (("; " + out["aux"]["line"]) if out["aux"]["line"] else "") + (("; " + "; ".join(out["values_missing"])) if out["values_missing"] else "") \
+    out["line"] = fit["line"] + (("; " + "; ".join(out["differences"])) if out["differences"] and fit["fits"] else "") + (("; " + out["aux"]["line"]) if out["aux"]["line"] else "") + (("; " + "; ".join(out["values_missing"])) if out["values_missing"] else "") \
         + (("; " + "; ".join(out["values_notes"])) if out["values_notes"] else "") + (("; " + "; ".join(problems)) if problems else "")
     return out
 
@@ -577,7 +578,11 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     # empty tables for the absent ones) in the run's own folder, the executed text with this load's names, `df` conformed
     run_dir = run_dir or f"routines/{routine.get('id', 'routine')}/{run_tag(vnum, number)}"
     prep = prepare(ver, d, runner, run_dir)
-    check_line = fit["line"] + (("; " + aux_line(prep["binding"])) if prep["binding"]["absent"] else "") + (("; " + "; ".join(value_notes)) if value_notes else ("; the chosen values are in the data" if checks else ""))
+    # what differs from the original, in sentences (step 4, 2026-10-11): the rows of the frame and of each bound file against
+    # the original's, columns added or empty, a file empty or unreadable; the CHECK row says it, the record keeps it
+    differences = rt.shape_sentences(manifest.get("data") or {}, d, prep["shape"], prep["binding"])
+    check_line = fit["line"] + (("; " + "; ".join(differences)) if differences else "") + (("; " + aux_line(prep["binding"])) if prep["binding"]["absent"] else "") \
+        + (("; " + "; ".join(value_notes)) if value_notes else ("; the chosen values are in the data" if checks else ""))
     if prep.get("cut"):
         check_line += f"; cut to {prep['cut']['start']} → {prep['cut']['end']} from the cached load" + (f" {(d.get('load') or {}).get('cached_from')[0]} → {(d.get('load') or {}).get('cached_from')[1]}" if len((d.get("load") or {}).get("cached_from") or []) == 2 else "")
     if prep["note"]:
@@ -622,6 +627,7 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
               "data": d, "inputs": vals, "results": got, "figures": len(figs or []), "stdout_chars": len(stdout or ""), "cells": n_cells,
               "against": ref_number, "comparison": cmp, "narrative": "", "error": (str(err).strip()[-2000:] if err else ""),
               "fit": {k: fit[k] for k in ("missing", "extra", "retyped", "line")}, "bindings": prep["subs"], "aux_absent": [rt.aux_kind(p) for p in prep["binding"]["absent"]],
+              "differences": differences, "check": check_line,
               "shape": prep["shape"], "run_dir": run_dir, "generated": list(generated or []) if isinstance(generated, (list, tuple)) else []}
     summary = {k: record[k] for k in ("number", "version", "created", "finished", "elapsed", "status", "line", "inputs", "results", "figures", "against", "cells")}
     summary["data"] = light_data(d)

@@ -138,6 +138,11 @@ const dtl = el(b.dataTab({ source: 'intervals', rows: 9, columns: [{ name: 'v', 
   { bindings: [['datasets/u/activity_summary_20260812_to_20261010.csv', 'datasets/u/routines/r/v1_2/activity_summary_20260910_to_20261010.csv']], aux_absent: ['wellness'] }));
 check('data tab of a run: how the data was loaded, and the method\'s file names bound to this load\'s (an absent one said)', dtl.textContent.includes('Loaded as') && dtl.textContent.includes('Intervals.icu 2026-09-10 → 2026-10-10 · summary')
   && dtl.textContent.includes('activity_summary_20260812_to_20261010.csv → activity_summary_20260910_to_20261010.csv') && dtl.textContent.includes('wellness: absent in this data'), dtl.textContent);
+// what differed from the original's data (step 4, 2026-10-11): the record's sentences, one a line, under Differs
+const dtd = el(b.dataTab({ source: 'intervals', rows: 9, columns: [] }, { differences: ['9 rows where the original had 12', 'the summary file: 6 rows where the original had 4, 1 column added empty (note)'] }));
+check('data tab of a run: the sentences of what differs from the original, one a line; none when the record has none',
+  dtd.textContent.includes('Differs') && dtd.textContent.includes('9 rows where the original had 12') && dtd.querySelectorAll('.rt-differs br').length === 1 && dtd.textContent.includes('1 column added empty (note)')
+  && !el(b.dataTab({ source: 'csv', rows: 9, columns: [] }, {})).textContent.includes('Differs'), dtd.textContent);
 
 // ---- step 2: the comparison tab, the data tab, the runs table ----
 const run3 = { number: 3, version: 2, status: 'ran', line: 'ran: 2 result lines', against: 2, data: { name: 'later.csv', source: 'csv', rows: 9, columns: [{ name: 'v', dtype: 'int64' }, { name: 'g', dtype: 'object' }] },

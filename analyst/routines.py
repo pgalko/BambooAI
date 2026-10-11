@@ -853,6 +853,52 @@ def read_shape(stdout: str) -> Optional[dict]:
     return None
 
 
+def _kind_word(path: str) -> str:
+    k = aux_kind(path)
+    return k[5:] if k.startswith("file:") else k + " file"
+
+
+def shape_sentences(record: dict, data: dict, shape: Optional[dict], binding: dict) -> List[str]:
+    """What differs between this run's data and the original's, in sentences the coach can read (2026-10-11, step 4):
+    the frame's rows against the original's; each bound auxiliary file's rows against the original's, the columns
+    added empty and the columns the file has but left empty; a file written with no rows; a file that could not be
+    read. From the promotion's record (`rows`, `aux_shape`) and the run's shape probe (`shape.files`); nothing said
+    where nothing is known. A file this load lacks is said by `aux_line` beside these."""
+    out: List[str] = []
+    rec, d = record or {}, data or {}
+    r_now, r_rec = d.get("rows"), rec.get("rows")
+    if isinstance(r_now, (int, float)) and isinstance(r_rec, (int, float)):
+        out.append(f"the same {int(r_now):,} rows as the original" if int(r_now) == int(r_rec) else f"{int(r_now):,} rows where the original had {int(r_rec):,}")
+    elif isinstance(r_now, (int, float)):
+        out.append(f"{int(r_now):,} rows")
+    files = (shape or {}).get("files") or {}
+    aux_rec = rec.get("aux_shape") or {}
+    for old in (binding or {}).get("map") or {}:
+        info = files.get(old)
+        if not isinstance(info, dict):
+            continue
+        word = _kind_word(old)
+        if info.get("error"):
+            out.append(f"the {word} could not be read ({str(info['error'])[:120]})")
+            continue
+        rows = info.get("rows")
+        if rows == 0:
+            out.append(f"the {word} is empty in this data (0 rows)")
+            continue
+        orig = (aux_rec.get(old) or {}).get("rows") if isinstance(aux_rec.get(old), dict) else None
+        s_ = f"the {word}: {int(rows):,} rows" if isinstance(rows, (int, float)) else f"the {word}"
+        if isinstance(rows, (int, float)) and isinstance(orig, (int, float)):
+            s_ += " as the original" if int(rows) == int(orig) else f" where the original had {int(orig):,}"
+        missing = [str(c) for c in (info.get("missing") or [])]
+        empty = [str(c) for c in (info.get("empty") or []) if str(c) not in missing]
+        if missing:
+            s_ += f", {len(missing)} column{'s' if len(missing) != 1 else ''} added empty ({', '.join(missing[:6])}{', ...' if len(missing) > 6 else ''})"
+        if empty:
+            s_ += f", {len(empty)} column{'s' if len(empty) != 1 else ''} empty ({', '.join(empty[:6])}{', ...' if len(empty) > 6 else ''})"
+        out.append(s_)
+    return out
+
+
 PRECHECK_MARK = "PRECHECK:"
 
 

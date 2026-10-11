@@ -306,7 +306,13 @@ version's data record, `load`), and offers the data loaded now beside it.
    method will see an empty table there*); the chosen values of the choice inputs against their columns. The inputs
    as widgets by type, at their defaults. *Compare with*: the run before or run 0. Pressing *Run* loads first when a
    load is chosen, then checks once more with the values as typed; what fails is said in the dialog and nothing
-   runs.
+   runs. **What differs is said in sentences** (step 4, 2026-10-11): the dialog's line says the frame's rows against
+   the original's (*the same 5,860 rows as the original* / *2,184 rows where the original had 5,860*); the CHECK row
+   at the run adds, from the shape probe, each bound file's rows against the original's, the columns added empty and
+   the columns the file has but left empty, a file empty in this data, a file that could not be read
+   (`shape_sentences`) - beside the fit line, the absent files, the values and the cut. The record keeps the
+   sentences (`differences`) and the whole line (`check`); a stored run's CHECK row repeats it, and its Data tab
+   lists the sentences under *Differs*.
 3. **The data made to fit** (`prepare`), in the run's own folder on the executor's side
    (`datasets/<user>/routines/<id>/<tag>/`): each recorded auxiliary file bound, by kind, to this load's file - a
    copy with the recorded columns it lacks added empty when it lacks any; an empty table with the recorded columns
@@ -592,7 +598,10 @@ with them — coaches do not edit scripts; the analyst in another domain downloa
    file has, a column empty, a file written empty), the lines printed before a failure compared, the failed cell's
    code beside the traceback; the Dataset cache's pick in the file dialog; retirements (§10). Accepted when: the
    e2e walks show the sentences and the partial comparison; the Intervals dialog is exercised on dev with a real
-   key.
+   key. **The sentences — built (2026-10-11, patch 0131)**: the dialog's line, the CHECK row, the record and the
+   stored run's Data tab (F2.2); the pure cases in test_routines.py, the host path on a later window (the summary's
+   rows against the original's, the column added), the two walks (the file routine's rows as the original; the
+   Intervals routine's summary rows and columns added).
 5. **Versions** — the next-version choice is built; the inputs carried through the manifest, the boundary in the
    table, the warning on deleting an origin. Accepted when: v2's inputs keep their keys; the runs table shows the
    divider and the gaps; a deleted origin leaves the routine runnable and marked.
