@@ -163,6 +163,38 @@ def routine_script(rid):
     return Response(body, mimetype='text/x-python', headers={'Content-Disposition': f'attachment; filename="{name}_v{number}.py"'})
 
 
+@routines_bp.route('/routines/<rid>/cached', methods=['POST'])
+@requires_auth
+def routine_cached(rid):
+    """Whether the load the run dialog asks for (the window, or the event) is already in the executor's cache with every
+    auxiliary file the routine wants: the dialog says so under the window and uses it instead of downloading
+    (2026-10-11). No executor (the local edition), or nothing matching: no hit, with the reason."""
+    import requests as _requests
+    from bambooai import routines_host
+    from analyst.routines import cache_match
+    a = _app()
+    body = request.json or {}
+    r = _store().load(rid)
+    if r is None:
+        return jsonify({'error': 'no such routine'}), 404
+    plan = routines_host.load_plan(r)
+    urls = None
+    try:
+        urls = a.get_dynamic_executor_urls(a.get_user_id())
+    except Exception:                                              # noqa: BLE001
+        urls = None
+    if not urls:
+        return jsonify({'hit': False, 'line': ''}), 200
+    try:
+        resp = _requests.get(f"{urls['EXECUTOR_API_BASE_URL']}/cache/inspect", params={'user_id': a.get_user_id()}, timeout=5)
+        resp.raise_for_status()
+        inspect = resp.json()
+    except Exception as exc:                                       # noqa: BLE001
+        logger.warning("routines: the cache could not be inspected (%s)", exc)
+        return jsonify({'hit': False, 'line': ''}), 200
+    return jsonify(cache_match(plan, inspect, start=body.get('start'), end=body.get('end'), race_id=body.get('race_id'))), 200
+
+
 @routines_bp.route('/routines/<rid>/precheck', methods=['POST'])
 @requires_auth
 def precheck_routine(rid):
@@ -170,7 +202,7 @@ def precheck_routine(rid):
     a = _app()
     instance = a.get_bamboo_ai(session['session_id'])
     try:
-        return jsonify(instance.precheck_routine(rid, (request.json or {}).get('values') or {}, aux=(request.json or {}).get('aux'))), 200
+        return jsonify(instance.precheck_routine(rid, (request.json or {}).get('values') or {}, aux=(request.json or {}).get('aux'), load=(request.json or {}).get('load'))), 200
     except Exception as exc:                                    # noqa: BLE001
         from bambooai.routines_host import RoutineRefused
         if isinstance(exc, RoutineRefused):
@@ -190,7 +222,7 @@ def run_routine(rid):
     a.update_user_activity(a.get_user_id())
 
     def work():
-        return {"routine_run": instance.run_routine(rid, data.get('values') or {}, data.get('compare_with') or 'previous', aux=data.get('aux'))}
+        return {"routine_run": instance.run_routine(rid, data.get('values') or {}, data.get('compare_with') or 'previous', aux=data.get('aux'), load=data.get('load'))}
     return _stream(instance, work)
 
 

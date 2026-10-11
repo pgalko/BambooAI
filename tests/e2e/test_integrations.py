@@ -145,6 +145,9 @@ def main():
                   rd["choice"] == "load" and rd["start"] == b_start.isoformat() and rd["end"] == b_end.isoformat() and "the original\u2019s 59 days, ending today" in rd["help"] and "summary" in rd["help"] and "wellness" in rd["help"] and "metrics as the original" in rd["help"] and rd["now"] and rd["runOn"] and rd["band"] == "9, 11", rd)
             check("the dates input is not asked: no pickers, a line saying it follows the data, the original's dates for the record",
                   rd["spanPickers"] == 0 and "follows the data: its first and last dates" in rd["span"] and f"the original: {a_start.isoformat()} → {a_end.isoformat()}" in rd["span"], rd["span"])
+            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && c.textContent.length > 0; }", timeout=15000)
+            cl = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-cache').textContent, cls: document.querySelector('#routineRunModal .rt-cache').className })")
+            check("the dialog asked the executor's cache about the window: the next window is not there, so it says it will be downloaded", "miss" in cl["cls"] and "not in the cache" in cl["text"] and "will be downloaded" in cl["text"], cl)
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && p.style.display !== 'none' && p.textContent.length > 0; }", timeout=30000)
             first = page.inner_text("#routineRunModal .rt-progress")
@@ -205,6 +208,29 @@ def main():
             r2 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '' })")
             check("run 2 on the data loaded now with the band 7 to 9: no LOAD row, the CHECK row, compared with run 1 - the band's share moved",
                   not any("LOAD" in r for r in r2["rows"]) and any("CHECK" in r for r in r2["rows"]) and "Run 2 complete" in r2["done"] and "against run 1" in r2["done"], (r2["rows"], r2["done"][:200]))
+
+            # run 3 on the original window again: it is in the executor's cache with its summary and wellness files, so the dialog
+            # says so as the dates are set and the run takes it from there - no download (the fake API sees no new FIT requests)
+            fits_before = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
+            page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
+            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && /hit/.test(c.className); }", timeout=15000)
+            cl3 = page.inner_text("#routineRunModal .rt-cache")
+            check("the window set back to the original's: the line says it is in the cache with summary and wellness - no download", "in the cache" in cl3 and "no download" in cl3 and "summary" in cl3 and "wellness" in cl3, cl3)
+            page.click("#routineRunModal [data-act='run']")
+            wait_text(page, "#chainPosition", "run 3 of 3", 300000)
+            page.wait_for_timeout(800)
+            r3 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()) })")
+            fits_after = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
+            run3 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_3", "run.json")))
+            check("run 3 took the original window from the cache: the LOAD row says so, nothing was downloaded (no new FIT requests at the fake API), the record's load says cached with the window, the frame is the original load's, the summary and wellness files bound, the pills show the window with both auxiliaries",
+                  any("LOAD" in r and f"Intervals.icu {a_start.isoformat()} → {a_end.isoformat()}" in r and "from the cache" in r for r in r3["rows"]) and "Run 3 complete" in r3["done"] and fits_after == fits_before
+                  and run3["data"]["load"].get("cached") is True and run3["data"]["load"]["start_date"] == a_start.isoformat() and run3["data"]["df_id"] == rec.get("df_id") and run3["aux_absent"] == [] and run3["status"] in ("ran", "reproduced")
+                  and sum(1 for p in r3["pills"] if "Intervals ICU" in p) == 1 and any("Wellness" in p for p in r3["pills"]) and any("Activity Summary" in p for p in r3["pills"]), (r3["rows"], r3["done"][:160], (fits_before, fits_after), run3["data"].get("load"), run3.get("aux_absent"), r3["pills"]))
 
             # Endura: a routine made on one race, run on another picked in the dialog (the flat crit has no power channel, no climbs)
             page.click("#routinesPill")

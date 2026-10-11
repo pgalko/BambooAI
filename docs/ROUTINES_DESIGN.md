@@ -248,9 +248,20 @@ version's data record, `load`), and offers the data loaded now beside it.
    the Dataset cache's pick. A load clears what it replaces first (2026-10-11: the run's pills used to stack beside
    the old ones) — a load from Intervals.icu, Endura or SweatStack clears the primary and the auxiliaries, an upload
    the primary only, each pill removed the way its × removes it (the session's reference dropped, the file left in
-   the cache). The Data tab's pills and the frame view then refresh as the Data tab refreshes them, so the
-   session's data is the run's data afterwards, as it was after a v1 replay. *The data loaded now* is the other
-   choice when something is loaded (the default for a file routine).
+   the cache). **The cache first** (2026-10-11: a run re-downloaded a window the Data tab had loaded minutes
+   before): as the dialog opens and as the window or the race changes, the page asks `/routines/<id>/cached`, which
+   reads the executor's cache listing (`/cache/inspect`: the frames with their source, window and metrics; the
+   auxiliary files on disk) against the routine's plan — the same source, the same window and metrics (Intervals)
+   or the same event (Endura), and every auxiliary file of the kinds the routine wants there under the loader's
+   name for that load (`cache_match`). A line under the window says *✓ this window (… → …) is in the cache (10,200
+   rows, with summary, wellness) - no download*, or why not (*not in the cache*, *in the cache without wellness*);
+   on Run a hit is taken through the Dataset cache's own routes (`/cache/load_primary`, `/cache/load_auxiliary`),
+   the pills as a load's, and the LOAD row and the run's record say *from the cache*. SweatStack's entries do not
+   say which subjects they hold, so they never match; the local edition has no executor cache. The page sends the
+   load as it did it (`load`: the source, window or event, kinds, `cached`) with the precheck and the run, so the
+   record says what was loaded rather than the cache route's *cache*. The Data tab's pills and the frame view then
+   refresh as the Data tab refreshes them, so the session's data is the run's data afterwards, as it was after a
+   v1 replay. *The data loaded now* is the other choice when something is loaded (the default for a file routine).
 2. **The check** (`precheck`): the data against the recorded shape - the columns the method ran on, by family
    (number, date, text): *fits the routine (49 of 49 columns)*, or *2 of 49 columns empty in this data: power,
    temperature* (a note - the run adds them empty), or *none of the routine's 49 columns is in this data - nothing to

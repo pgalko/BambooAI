@@ -211,6 +211,31 @@ check("route /routines/<id>/script: a .py download with the INPUTS block and the
 _pc = _wc.post(f"/routines/{_rid}/precheck", json={"values": {}}).get_json()
 check("route precheck: the loaded frame fits the routine (its two columns), nothing missing; the plan says how the original load asked for its data (a frame: no loader)", _pc["loaded"] and _pc["ok"] and _pc["fit"]["expected"] == 2 and _pc["line"].startswith("fits the routine (2 of 2 columns)")
       and _pc["plan"]["source"] == "file" and _pc["aux"] == {"absent": [], "bound": {}, "line": ""}, _pc)
+# the cache asked before a load (2026-10-11): no executor in this edition - no hit, no error; with an executor, the routine's
+# plan against what the executor's cache lists - the frame of the same source and window and every file the routine wants
+_cc = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10"})
+check("route cached without an executor (the local edition): no hit and nothing to say", _cc.status_code == 200 and _cc.get_json() == {"hit": False, "line": ""}, _cc.get_json())
+import requests as _rq
+_fapp.get_dynamic_executor_urls = lambda uid: {"EXECUTOR_API_BASE_URL": "http://executor"}
+_inspect = {"cached_dataframes": [{"df_id": "dfc", "shape": [1200, 17], "source": "intervals", "date_range": "2026-08-12 to 2026-10-10", "metrics": []}],
+            "auxiliary_datasets": [{"filename": "activity_summary_20260812_to_20261010.csv", "path": "datasets/u1/activity_summary_20260812_to_20261010.csv"}]}
+class _Resp:
+    def raise_for_status(self): pass
+    def json(self): return _inspect
+_seen = []
+_real_get = _rq.get
+_rq.get = lambda url, **kw: (_seen.append((url, kw.get("params"))), _Resp())[1]
+_st = RR._store(); _rt_ = _st.load(_rid); _rt_["versions"][0]["manifest"]["data"]["load"] = {"source": "intervals", "start_date": "2026-06-01", "end_date": "2026-07-30", "metrics": [], "aux_kinds": ["summary"]}; _st.save(_rt_)
+try:
+    _cc2 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10"}).get_json()
+    _cc3 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-13", "end": "2026-10-10"}).get_json()
+finally:
+    _rq.get = _real_get
+    del _fapp.get_dynamic_executor_urls
+    _rt_["versions"][0]["manifest"]["data"].pop("load", None); _st.save(_rt_)
+check("route cached with an executor: the executor's cache inspected for the user; the window that is there with its summary is a hit (the frame's id, the file, the line); another window is not, with the reason",
+      _seen and _seen[0][0] == "http://executor/cache/inspect" and _seen[0][1] == {"user_id": "u1"} and _cc2["hit"] and _cc2["df_id"] == "dfc" and _cc2["files"] == ["datasets/u1/activity_summary_20260812_to_20261010.csv"] and "no download" in _cc2["line"]
+      and not _cc3["hit"] and "not in the cache" in _cc3["line"], (_seen, _cc2, _cc3))
 # how the data was loaded rides on the instance (the loader routes set it) and into the run's record, so a routine's run can load the same way
 BAMBOO.load_params = {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "df_id": "d1"}
 _rec = BAMBOO._data_record()
@@ -229,9 +254,11 @@ check("the run's record names its own folder on the executor's side (datasets/<u
       _msgs[-1]["routine_run"]["run"]["run_dir"] == f"datasets/u1/routines/{_rid}/v1_1" and _msgs[-1]["routine_run"]["run"]["fit"]["missing"] == [] and _msgs[-1]["routine_run"]["run"]["bindings"] == [], _msgs[-1]["routine_run"]["run"].get("run_dir"))
 _end = next(m for m in _msgs if m.get("type") == "pane_routine_end")
 check("the closing card's fields: number, name, version, status, results, compared, figures, elapsed, against", _end["number"] == 1 and _end["name"] == "Route made" and _end["version"] == 1 and _end["status"] == "ran" and _end["against"] == 0 and "elapsed" in _end, _end)
-_r2 = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "A"}})
+_r2 = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "A"}, "load": {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "cached": True, "df_id": "never-recorded", "junk": {"a": 1}}})
 _run2 = _lines(_r2)[-1]["routine_run"]["run"]
 check("route run with the arm set to A: ran (the difference is now A against A), compared with run 1", _run2["status"] in ("ran", "reproduced") and _run2["against"] == 1 and _run2["inputs"] == {"arm_b": "A"}, _run2.get("line"))
+check("the load as the page did it rides into the run's data record (a cached load says so; plain values only, no frame id)",
+      _run2["data"].get("load") == {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "cached": True}, _run2["data"].get("load"))
 _v = _wc.get(f"/routines/{_rid}/runs/2").get_json()
 check("route runs/<n>: the stored run with its output, the numbers to step through and the manifest's lines", _v["run"]["number"] == 2 and "reusing" not in _v["stdout"] and _v["numbers"] == [0, 1, 2] and isinstance(_v["figures"], list) and _v["name"] == "Route made", list(_v.keys()))
 _v0 = _wc.get(f"/routines/{_rid}/runs/0").get_json()

@@ -200,6 +200,8 @@
 .rt-field .ui-input { height: 28px; }
 .rt-field .help { grid-column: 2; font-size: var(--fs-small); color: var(--text-quaternary); margin-top: -2px; }
 .rt-derived { color: var(--c-model); font-size: var(--fs-small); }
+.rt-cache { font-size: var(--fs-small); color: var(--text-quaternary); margin: 2px 0 0 22px; }
+.rt-cache.hit { color: var(--c-model); }
 .rt-inputs .rt-derived { display: block; margin-top: 2px; }
 .rt-derived-row { display: flex; flex-direction: column; gap: 2px; min-height: 28px; justify-content: center; }
 .rt-derived-row .n { font-size: var(--fs-small); color: var(--text-quaternary); }

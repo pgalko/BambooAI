@@ -58,10 +58,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/90/1/1 Python; 39/7/29/56/24/55 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (177/87/30/19/16/49/44/51/10/92/1/1 Python; 39/7/29/56/24/58 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (30; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (33; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -440,6 +440,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines: a load already in the executor's cache is taken from there (2026-10-11, patch 0122).** Palo: "it would
+  be good if cache and the files could be checked whether they exist for the desired window. Otherwise it
+  re-downloads every time which is wasteful". `rt.cache_match(plan, inspect, start, end, race_id)` (pure) reads the
+  executor's `/cache/inspect` listing against the routine's plan: a frame of the same source with the same window
+  and metrics (Intervals) or the same event (Endura), and every auxiliary file of the wanted kinds present under the
+  loader's name for that load (`kind_prefix`); SweatStack never matches (its entries do not name the subjects). The
+  route `POST /routines/<id>/cached` {start, end | race_id} fetches the listing (no executor - the local edition - or
+  an error: no hit, nothing said) and answers {hit, df_id, files, rows, line}. The page asks on open and as the window
+  or the race changes (`checkCache`, debounced), shows the line under the window (`.rt-cache.hit|miss`), and on Run
+  takes a hit through `/cache/load_primary` + `/cache/load_auxiliary` (`cacheFor`), the pills as a load's; every load
+  now returns `load` - the load as the page did it (`loadAsked` + `cached`) - which rides with the precheck and the
+  run (`routines_routes`, `precheck_routine`/`run_routine(load=)`, `_load_as_said`: plain values, no frame id) into
+  the run's data record, so a cached run's record says the window and `cached: true` rather than the cache route's
+  'cache'; `loadLabel` adds 'from the cache'. The LOAD row's query puts 'from the cache' before the kinds (the pane
+  cuts a query at 60 characters). test_routines.py 92, test_app_path.py 87 (the route without and with an executor,
+  the record), test_routines.js 58, the screens (s4c with the hit line); the integrations walk's run 3 sets the
+  window back to the original's and takes it from the cache - no new FIT requests at the fake API (33).
+  ROUTINES_DESIGN.md F2.1.
 - **Routines: a run's load clears what it replaces (2026-10-11, patch 0121).** The run's pills stacked beside the
   old ones (Palo: "if there are any datasets in the UI, they should be cleared before the Run is executed"). Before
   the dialog's load, `clearLoaded(scope)` removes each pill the way its x does: file-management.js's handler is split

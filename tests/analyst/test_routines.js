@@ -120,6 +120,17 @@ check('the manager\'s inputs table says which inputs follow the data', mgd.query
 rd = el(b.runDialog(rr, { loaded: false, ok: false, line: 'no data is loaded', plan: { source: 'endura', race_id: 7, race_title: 'Spring classic', aux_kinds: ['profile', 'turns'] } }));
 check('run dialog (an Endura routine): Load from Endura with the race list to fill, the original race named with its auxiliaries; nothing about the Data tab',
   rd.querySelector('input[name="rt-data"][value="load"]').hasAttribute('checked') && rd.querySelector('select[data-load="race"]') && rd.querySelector('.rt-race .help').textContent.includes('the original: Spring classic') && rd.querySelector('.rt-race .help').textContent.includes('with profile, turns') && !rd.textContent.includes('Data tab'));
+// the cache's answer (2026-10-11): a line under the window or the race, hidden until the cache is asked; the stored run's Data tab says a cached load was one
+const rdi = el(b.runDialog(rr, { loaded: false, ok: false, line: '', plan: { source: 'intervals', window_days: 30, aux_kinds: ['summary'], metrics: [] } }));
+check('the run dialog carries the cache line under the window (Intervals) and under the race (Endura), hidden until the cache answers; a file routine has none',
+  rdi.querySelector('.rt-load .rt-cache') && rdi.querySelector('.rt-load .rt-cache').getAttribute('style').includes('display:none') && rd.querySelector('.rt-race .rt-cache')
+  && !el(b.runDialog(rr, { loaded: true, ok: true, line: 'fits', data: { name: 'a.csv', source: 'csv' }, plan: { source: 'file' } })).querySelector('.rt-cache'));
+check('a run loaded from the cache says so where its load is named', el(b.dataTab({ source: 'intervals', load: { source: 'intervals', start_date: '2026-07-03', end_date: '2026-08-31', aux_kinds: ['summary'], cached: true } }, {})).textContent.includes('Intervals.icu 2026-07-03 → 2026-08-31 · summary · from the cache')
+  && el(b.dataTab({ source: 'endura', load: { source: 'endura', race_title: 'Flat crit', cached: true } }, {})).textContent.includes('Endura · Flat crit · from the cache'));
+const rtSrc0 = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
+check('the page asks the cache as the window or the race changes, takes a hit through the Dataset cache routes, and sends the load as done with the precheck and the run',
+  rtSrc0.includes("fetchJson('/routines/' + encodeURIComponent(st.id) + '/cached'") && rtSrc0.includes("e.target.matches('input[data-load=\"start\"], input[data-load=\"end\"], select[data-load=\"race\"]')") && rtSrc0.includes("fetchJson('/cache/load_primary'") && rtSrc0.includes("fetchJson('/cache/load_auxiliary'")
+  && rtSrc0.includes("body: JSON.stringify({ values, aux: auxLoaded, load: loadDone })") && rtSrc0.includes("{ values, compare_with, aux: auxLoaded, load: loadDone }"));
 const dtl = el(b.dataTab({ source: 'intervals', rows: 9, columns: [{ name: 'v', dtype: 'int64' }], load: { source: 'intervals', start_date: '2026-09-10', end_date: '2026-10-10', aux_kinds: ['summary'] } },
   { bindings: [['datasets/u/activity_summary_20260812_to_20261010.csv', 'datasets/u/routines/r/v1_2/activity_summary_20260910_to_20261010.csv']], aux_absent: ['wellness'] }));
 check('data tab of a run: how the data was loaded, and the method\'s file names bound to this load\'s (an absent one said)', dtl.textContent.includes('Loaded as') && dtl.textContent.includes('Intervals.icu 2026-09-10 → 2026-10-10 · summary')

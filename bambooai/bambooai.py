@@ -442,7 +442,7 @@ class BambooAI:
                     len(proposal["results"]), proposal["data_state"], proposal["cost"])
         return proposal
 
-    def precheck_routine(self, routine_id, values=None, aux=None):
+    def precheck_routine(self, routine_id, values=None, aux=None, load=None):
         """Before a run: is data loaded, does it fit the routine's columns, are the chosen values in it (F2)."""
         from bambooai import routines_host
         routine = self.routine_store().load(routine_id)
@@ -451,11 +451,27 @@ class BambooAI:
         data = self._data_record()
         if aux is not None:
             data["aux"] = [str(p) for p in aux if p]
+        if load:
+            data["load"] = self._load_as_said(load)
         out = routines_host.precheck(routine, data, lambda script, timeout: self.run_script(script, timeout, what="Precheck"), values)
         out["plan"] = routines_host.load_plan(routine)                 # how the original load asked for its data: the dialog loads the same way
         return out
 
-    def run_routine(self, routine_id, values=None, compare_with="previous", aux=None):
+    @staticmethod
+    def _load_as_said(load):
+        """The load as the page says it did it (2026-10-11: a cached load goes through the cache routes, whose record would
+        say 'cache'; the page passes the window, the kinds and that it came from the cache): plain values only."""
+        out = {}
+        for k, v in (load or {}).items():
+            if k == "df_id" or not isinstance(k, str):
+                continue
+            if isinstance(v, (str, int, float, bool)) or v is None:
+                out[k] = v
+            elif isinstance(v, (list, tuple)):
+                out[k] = [str(x) for x in v]
+        return out
+
+    def run_routine(self, routine_id, values=None, compare_with="previous", aux=None, load=None):
         """One run of the routine on the data loaded now (F2): the checks, the script with its INPUTS block through the
         executor, the lines read by position, the comparison with the run before, the record stored; then the tabs as an
         analysis has them (Data, Results, Plots) and the closing card for the pane."""
@@ -468,6 +484,8 @@ class BambooAI:
         data = self._data_record()
         if aux is not None:                                       # the files the dialog's load just produced, as the page saw them - none when it produced none
             data["aux"] = [str(p) for p in aux if p]
+        if load:                                                  # the load as the page did it (a cached one would otherwise read 'cache')
+            data["load"] = self._load_as_said(load)
         logger.info("Routine %s run %d: data %s (%s rows, %d columns, %d auxiliary file(s): %s)", routine_id, number, data.get("source"), data.get("rows"),
                     len(data.get("columns") or []), len(data.get("aux") or []), ", ".join(os.path.basename(str(p)) for p in (data.get("aux") or [])) or "-")
         out = routines_host.run(routine, values, data, lambda script, timeout, d=None: self.run_script(script, timeout, what=f"Routine {routine_id}", generated_dir=d),

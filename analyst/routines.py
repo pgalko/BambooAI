@@ -427,6 +427,53 @@ def aux_kind(path: str) -> str:
     return "file:" + base
 
 
+def kind_prefix(kind: str) -> str:
+    """The loader's file-name prefix for an auxiliary kind (summary -> activity_summary_)."""
+    return next((p for p, k in AUX_KINDS if k == kind), "")
+
+
+def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None, end: Optional[str] = None, race_id=None) -> dict:
+    """Whether the load a run dialog asks for is already in the executor's cache (2026-10-11: a run re-downloaded a
+    window the Data tab had loaded minutes before): a cached frame of the same source with the same window (Intervals:
+    date_range, and the same metrics) or the same race (Endura), and every auxiliary file of the kinds the routine
+    wants there beside it under the loader's name for that load. SweatStack's entries do not say which subjects they
+    hold, so they never match. Returns {hit, df_id, files, rows, line}; `line` says why when there is no hit."""
+    src = str((plan or {}).get("source") or "")
+    frames = [f for f in ((inspect or {}).get("cached_dataframes") or []) if isinstance(f, dict)]
+    have = {}
+    for f in (inspect or {}).get("auxiliary_datasets") or []:
+        p = str((f or {}).get("path") or (f or {}).get("filename") or "")
+        if p:
+            have[os.path.basename(p)] = p
+    kinds = [str(k) for k in (plan or {}).get("aux_kinds") or []]
+    if src == "intervals":
+        if not (start and end):
+            return {"hit": False, "line": ""}
+        want = f"{start} to {end}"
+        metrics = sorted(str(m) for m in (plan or {}).get("metrics") or [])
+        tag = f"{str(start).replace('-', '')}_to_{str(end).replace('-', '')}"
+        names = {k: f"{kind_prefix(k)}{tag}.csv" for k in kinds if kind_prefix(k)}
+        hits = [f for f in frames if str(f.get("source")) == "intervals" and str(f.get("date_range")) == want and sorted(str(m) for m in (f.get("metrics") or [])) == metrics]
+        what = f"this window ({start} → {end})"
+    elif src == "endura":
+        if race_id in (None, ""):
+            return {"hit": False, "line": ""}
+        names = {k: f"{kind_prefix(k)}{race_id}.csv" for k in kinds if kind_prefix(k)}
+        hits = [f for f in frames if str(f.get("source")) == "endura" and str(f.get("race_id")) == str(race_id)]
+        what = "this event"
+    else:
+        return {"hit": False, "line": ""}
+    if not hits:
+        return {"hit": False, "line": f"{what} is not in the cache - it will be downloaded"}
+    missing = [k for k, n in names.items() if n not in have]
+    if missing:
+        return {"hit": False, "line": f"{what} is in the cache without {', '.join(missing)} - it will be downloaded"}
+    hit = hits[-1]
+    rows = (hit.get("shape") or [None])[0]
+    return {"hit": True, "df_id": str(hit.get("df_id") or ""), "files": [have[n] for n in names.values()], "rows": rows, "date_range": hit.get("date_range"),
+            "line": f"{what} is in the cache" + (f" ({int(rows):,} rows" + (", with " + ", ".join(names) if names else "") + ")" if rows is not None else "") + " - no download"}
+
+
 def loader_file_literals(text: str) -> List[str]:
     """The string literals in a fragment that name a loader's file (datasets/<user>/<kind>_..., whole or in part): the
     names are the loader's, bound at each run, so an edit must leave them exactly as they are."""

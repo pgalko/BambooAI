@@ -466,6 +466,25 @@ check("run on a later window: the span was written from the frame (first and las
       and rt.INPUTS_MARK_OUT not in out8["stdout"] and rt.INPUTS_MARK_OUT not in open(os.path.join(store.run_dir(rid8, "v1_1"), "stdout.txt"), encoding="utf-8").read(),
       (r8["inputs"], [x.get("what") for x in r8["results"]], out8["stdout"][:200]))
 check("derive_inputs on a record without a span (a routine made before): nothing follows the frame; the load window still can", [q.get("derived") for q in host.derive_inputs(p8["inputs"], dict(run8.data, span=None))] == [None, "window", None])
+# ---- the cache asked before a load (2026-10-11): the executor's cache listing against the routine's plan ----
+insp = {"cached_dataframes": [{"df_id": "a", "shape": [1000, 17], "source": "intervals", "date_range": "2026-07-12 to 2026-10-10", "metrics": []},
+                              {"df_id": "b", "shape": [900, 18], "source": "intervals", "date_range": "2026-07-12 to 2026-10-10", "metrics": ["power"]},
+                              {"df_id": "e", "shape": [50, 9], "source": "endura", "race_id": 2}, {"df_id": "s", "source": "sweatstack", "date_range": "2026-07-12 to 2026-10-10"}],
+        "auxiliary_datasets": [{"filename": "activity_summary_20260712_to_20261010.csv", "path": "datasets/u/activity_summary_20260712_to_20261010.csv"},
+                               {"filename": "race_turns_race_2.csv", "path": "datasets/u/race_turns_race_2.csv"}]}
+cm1 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary"], "metrics": []}, insp, "2026-07-12", "2026-10-10")
+cm2 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "wellness"], "metrics": []}, insp, "2026-07-12", "2026-10-10")
+cm3 = rt.cache_match({"source": "intervals", "aux_kinds": [], "metrics": ["power"]}, insp, "2026-07-12", "2026-10-10")
+cm4 = rt.cache_match({"source": "intervals", "aux_kinds": [], "metrics": []}, insp, "2026-07-13", "2026-10-10")
+cm5 = rt.cache_match({"source": "endura", "aux_kinds": ["turns"]}, insp, race_id="2")
+cm6 = rt.cache_match({"source": "endura", "aux_kinds": ["turns", "climbs"]}, insp, race_id=2)
+cm7 = rt.cache_match({"source": "sweatstack", "aux_kinds": []}, insp, "2026-07-12", "2026-10-10")
+check("cache_match: the same source, window and metrics with every wanted file is a hit (the frame's id, the files' paths, the rows, a line saying no download); a wanted file missing, other metrics' frame used instead, another window, no hit - each with its reason",
+      cm1["hit"] and cm1["df_id"] == "a" and cm1["files"] == ["datasets/u/activity_summary_20260712_to_20261010.csv"] and cm1["rows"] == 1000 and "no download" in cm1["line"] and "with summary" in cm1["line"]
+      and not cm2["hit"] and "without wellness" in cm2["line"] and cm3["hit"] and cm3["df_id"] == "b" and not cm4["hit"] and "not in the cache" in cm4["line"], (cm1, cm2, cm3, cm4))
+check("cache_match: an Endura event by its id with its files; a file missing is no hit; SweatStack never matches (its entries do not say which subjects they hold); no window or event asked - nothing to say",
+      cm5["hit"] and cm5["df_id"] == "e" and cm5["files"] == ["datasets/u/race_turns_race_2.csv"] and not cm6["hit"] and "without climbs" in cm6["line"] and cm7 == {"hit": False, "line": ""}
+      and rt.cache_match({"source": "intervals", "aux_kinds": []}, insp) == {"hit": False, "line": ""} and rt.cache_match({"source": "intervals"}, None, "2026-07-12", "2026-10-10")["hit"] is False, (cm5, cm6, cm7))
 # a choice input whose value is not in the data: refused by the value check through the kernel
 R7 = store.load(rid4); v7 = host.version_of(R7)
 v7["manifest"]["parameters"].append({"key": "grp", "label": "Group", "type": "choice", "default": "a", "column": "g", "multiple": False, "origin": "x"})

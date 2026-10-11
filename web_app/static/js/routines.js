@@ -34,8 +34,9 @@
     function loadLabel(ld) {
         if (!ld || !ld.source) return '';
         const src = sourceKind(ld.source);
-        if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '');
-        if (src === 'endura') return 'Endura · ' + (ld.race_title || ('race ' + (ld.race_id || '')));
+        const from = ld.cached ? ' · from the cache' : '';
+        if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '') + from;
+        if (src === 'endura') return 'Endura · ' + (ld.race_title || ('race ' + (ld.race_id || ''))) + from;
         return ld.name ? 'File · ' + ld.name : '';
     }
     function sourceKind(s) {
@@ -214,11 +215,13 @@
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from ' + label + '</label>' +
                     '<div class="rt-window rt-loadwin"><input type="date" class="ui-input" data-load="start" value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end" value="' + build.isoDay(today) + '"></div>' +
                     '<div class="help">the original’s ' + esc(days) + ' days, ending today' + (maxDays && days > maxDays ? ' (your plan allows ' + esc(maxDays) + ')' : '') +
-                    (withWhat ? ' · with ' + esc(withWhat) : '') + (src === 'intervals' ? ' · metrics as the original' : (plan.users && plan.users.length ? ' · ' + esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')) + '</div>';
+                    (withWhat ? ' · with ' + esc(withWhat) : '') + (src === 'intervals' ? ' · metrics as the original' : (plan.users && plan.users.length ? ' · ' + esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')) + '</div>' +
+                    (src === 'intervals' ? '<div class="rt-cache" style="display:none"></div>' : '');
             } else if (src === 'endura') {
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from Endura</label>' +
                     '<div class="rt-field rt-race"><select class="ui-input" data-load="race"><option value="">loading the races…</option></select>' +
-                    '<div class="help">the original: ' + esc(plan.race_title || plan.race_id || 'a race') + (plan.aux_kinds && plan.aux_kinds.length ? ' · with ' + esc(plan.aux_kinds.join(', ')) : '') + '</div></div>';
+                    '<div class="help">the original: ' + esc(plan.race_title || plan.race_id || 'a race') + (plan.aux_kinds && plan.aux_kinds.length ? ' · with ' + esc(plan.aux_kinds.join(', ')) : '') + '</div>' +
+                    '<div class="rt-cache" style="display:none"></div></div>';
             } else {
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="upload"' + (loaded ? '' : ' checked') + '> Upload a file' + (plan.name ? ' <span class="n">(the original: ' + esc(plan.name) + ')</span>' : '') + '</label>' +
                     '<div class="rt-field rt-upload"><input type="file" class="ui-input" data-load="file" accept=".csv,.parquet,.json,.xlsx,.xls,.txt,.tsv"></div>';
@@ -701,6 +704,7 @@
                 if (e.target.matches('input[data-load="file"]')) { const up = runDlg.querySelector('input[name="rt-data"][value="upload"]'); if (up) up.checked = true; }
                 updateRunButton();
             }
+            if (e.target.matches('input[data-load="start"], input[data-load="end"], select[data-load="race"]')) { clearTimeout(cacheTimer); cacheTimer = setTimeout(checkCache, 250); }
         });
         return runDlg;
     }
@@ -728,11 +732,50 @@
                 p.body.innerHTML = build.runDialog(r, runState.pre, limits);
                 if (src === 'endura') fillRaces(p, runState.plan);
                 updateRunButton();
+                checkCache();
             };
             // the window a plan allows (Intervals): the dialog's default window is clamped to it, as the Data tab's is
             if (src === 'intervals') fetchJson('/intervals/get_data_limits').then(res => after(res.ok ? res.json : null)).catch(() => after(null));
             else after(null);
         }).catch(err => { if (runState && runState.id === routineId) p.body.innerHTML = build.error(err.message || String(err), false); });
+    }
+    // the load the dialog asks for, as the page will do it (the run's record says so; a cached load would otherwise read 'cache')
+    function loadAsked(plan, p) {
+        const q = sel => p.d.querySelector(sel);
+        const src = (plan || {}).source;
+        if (src === 'intervals') return { source: 'intervals', start_date: q('input[data-load="start"]').value, end_date: q('input[data-load="end"]').value, metrics: plan.metrics || [], aux_kinds: plan.aux_kinds || [] };
+        if (src === 'endura') { const race = q('select[data-load="race"]'); return { source: 'endura', race_id: race ? race.value : '', race_title: race && race.selectedIndex >= 0 ? race.options[race.selectedIndex].textContent : '', aux_kinds: plan.aux_kinds || [] }; }
+        if (src === 'sweatstack') return { source: 'sweatstack', start_date: q('input[data-load="start"]').value, end_date: q('input[data-load="end"]').value, sports: plan.sports || [], metrics: plan.metrics || [], users: plan.users || [] };
+        const f = q('input[data-load="file"]');
+        return { source: 'file', name: f && f.files && f.files.length ? f.files[0].name : '' };
+    }
+    // whether the load asked for is already in the executor's cache with every file the routine wants (2026-10-11: a run
+    // re-downloaded a window loaded minutes before): asked once the dialog is up and again as the window or the race
+    // changes; the answer under the window, and the load takes the cached frame and files instead of downloading
+    let cacheTimer = null;
+    function checkCache() {
+        const st = runState; if (!st || !st.plan) return;
+        const src = st.plan.source;
+        if (src !== 'intervals' && src !== 'endura') return;
+        const p = runParts();
+        const el = p.d.querySelector('.rt-cache'); if (!el) return;
+        const asked = loadAsked(st.plan, p);
+        const key = src === 'intervals' ? asked.start_date + '|' + asked.end_date : String(asked.race_id || '');
+        if (src === 'intervals' && !(asked.start_date && asked.end_date)) { el.style.display = 'none'; st.cache = null; return; }
+        if (src === 'endura' && !asked.race_id) { el.style.display = 'none'; st.cache = null; return; }
+        fetchJson('/routines/' + encodeURIComponent(st.id) + '/cached', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(src === 'intervals' ? { start: asked.start_date, end: asked.end_date } : { race_id: asked.race_id }) }).then(res => {
+            if (runState !== st) return;
+            const c = (res.ok && res.json) || { hit: false, line: '' };
+            st.cache = Object.assign({ key }, c);
+            if (!c.line) { el.style.display = 'none'; el.textContent = ''; return; }
+            el.style.display = ''; el.className = 'rt-cache ' + (c.hit ? 'hit' : 'miss'); el.textContent = (c.hit ? '✓ ' : '') + c.line;
+        }).catch(() => { if (runState === st) { st.cache = null; el.style.display = 'none'; } });
+    }
+    function cacheFor(st, asked) {
+        const c = st && st.cache;
+        if (!c || !c.hit) return null;
+        const key = asked.source === 'intervals' ? asked.start_date + '|' + asked.end_date : String(asked.race_id || '');
+        return c.key === key ? c : null;
     }
     function dataChoice() {
         const p = runParts();
@@ -757,6 +800,7 @@
             if (!races.length) { sel.innerHTML = '<option value="">no races (is the Endura key set?)</option>'; updateRunButton(); return; }
             sel.innerHTML = races.map(x => { const id = x.race_id != null ? x.race_id : (x.id != null ? x.id : x.raceid); const title = x.race_title || x.title || x.name || ('race ' + id);
                 return '<option value="' + esc(id) + '"' + (String(id) === String(plan.race_id) ? ' selected' : '') + '>' + esc(title) + (x.race_date ? ' · ' + esc(x.race_date) : '') + '</option>'; }).join('');
+            checkCache();
         }).catch(() => { sel.innerHTML = '<option value="">the races could not be listed</option>'; });
     }
     function progress(text, kind) {
@@ -785,6 +829,33 @@
         const src = plan.source;
         const q = sel => p.d.querySelector(sel);
         const dfTab = job => { if (job && job.dataframe && typeof createOrUpdateTab === 'function') { try { const o = JSON.parse(job.dataframe); createOrUpdateTab('dataframe', o.data); } catch (e) { /* no tab */ } } };
+        const asked = loadAsked(plan, p);
+        const cached = cacheFor(runState, asked);
+        if (cached && (src === 'intervals' || src === 'endura')) {
+            // the load is in the cache with every file the routine wants: the cached frame and files are taken through the
+            // Dataset cache's own routes, the pills as a load's, no download
+            progress('Taking it from the cache…', 'loading');
+            const res = await fetchJson('/cache/load_primary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ df_id: cached.df_id }) });
+            if (!res.ok) throw new Error((res.json && res.json.error) || 'the cached data could not be loaded');
+            for (const fp of cached.files || []) {
+                const ar = await fetchJson('/cache/load_auxiliary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file_path: fp }) });
+                if (!ar.ok) throw new Error((ar.json && ar.json.error) || ('the cached file ' + String(fp).split('/').pop() + ' could not be loaded'));
+            }
+            const load = Object.assign({}, asked, { cached: true });
+            if (src === 'intervals') {
+                const info = { start_date: asked.start_date, end_date: asked.end_date, aux_datasets: plan.aux_kinds || [], shape: [cached.rows, null], columns: [] };
+                if (typeof createIntervalsPill === 'function') createIntervalsPill(info);
+                if (typeof createIntervalsAuxiliaryPills === 'function' && (cached.files || []).length) createIntervalsAuxiliaryPills(cached.files, info);
+                dfTab(res.json);
+                return { source: 'intervals', start: asked.start_date, end: asked.end_date, aux: cached.files || [], load, loaded: 'Intervals.icu ' + asked.start_date + ' → ' + asked.end_date + ' · from the cache' + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
+            }
+            if (typeof createOrUpdateDatasetPill === 'function') {
+                createOrUpdateDatasetPill('endura-pill-' + Date.now(), 'Endura (' + (asked.race_title || asked.race_id) + ') loaded', 'endura', 'success', false, null);
+                (cached.files || []).forEach((fp, i) => createOrUpdateDatasetPill('endura-aux-pill-' + Date.now() + '-' + i, 'Auxiliary (' + String(fp).split('/').pop().replace('.csv', '') + ')', 'auxiliary', 'success', false, fp));
+            }
+            dfTab(res.json);
+            return { source: 'endura', aux: cached.files || [], load, loaded: 'Endura · ' + (asked.race_title || asked.race_id) + ' · from the cache' };
+        }
         if (src === 'intervals') {
             const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
             if (!start || !end || start >= end) throw new Error('the window needs a start before its end');
@@ -802,7 +873,7 @@
                     if (typeof createIntervalsPill === 'function') createIntervalsPill(info);
                     if (typeof createIntervalsAuxiliaryPills === 'function' && job.result && job.result.aux_datasets && job.result.aux_datasets.length) createIntervalsAuxiliaryPills(job.result.aux_datasets, info);
                     dfTab(job);
-                    return { source: 'intervals', start, end, aux: (job.result || {}).aux_datasets || [], loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
+                    return { source: 'intervals', start, end, aux: (job.result || {}).aux_datasets || [], load: asked, loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
                 }
                 if (job.status === 'error' || job.status === 'not_found') throw new Error(job.error || 'the load failed');
                 progress((job.message || 'Loading…') + (job.percent != null ? ' (' + job.percent + '%)' : ''), 'loading');
@@ -821,7 +892,7 @@
                 (res.json.aux_datasets || []).forEach((fp, i) => createOrUpdateDatasetPill('endura-aux-pill-' + Date.now() + '-' + i, 'Auxiliary (' + String(fp).split('/').pop().replace('.csv', '') + ')', 'auxiliary', 'success', false, fp));
             }
             dfTab(res.json);
-            return { source: 'endura', aux: (res.json && res.json.aux_datasets) || [], loaded: 'Endura · ' + ((res.json && res.json.race_title) || title) };
+            return { source: 'endura', aux: (res.json && res.json.aux_datasets) || [], load: Object.assign({}, asked, { race_title: (res.json && res.json.race_title) || title }), loaded: 'Endura · ' + ((res.json && res.json.race_title) || title) };
         }
         if (src === 'sweatstack') {
             const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
@@ -830,7 +901,7 @@
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load failed');
             if (typeof createSweatStackPill === 'function') createSweatStackPill({ start_date: start, end_date: end, sports: plan.sports || [], users: plan.users || [] });
             dfTab(res.json);
-            return { source: 'sweatstack', start, end, loaded: 'SweatStack ' + start + ' → ' + end };
+            return { source: 'sweatstack', start, end, load: asked, loaded: 'SweatStack ' + start + ' → ' + end };
         }
         // a file: the Data tab's upload route
         const f = q('input[data-load="file"]');
@@ -845,7 +916,7 @@
         if (typeof createOrUpdateDatasetPill === 'function') createOrUpdateDatasetPill('primary-dataset-pill-' + Date.now(), 'Primary (' + file.name + ') loaded', 'primary', 'success', false, null);
         if (typeof currentDatasetName !== 'undefined') { try { currentDatasetName = file.name; } catch (e) { /* read-only */ } }
         dfTab(data);
-        return { source: 'file', loaded: file.name };
+        return { source: 'file', load: { source: 'file', name: file.name }, loaded: file.name };
     }
     function closeRun() { if (runState && runState.busy) return; const p = runParts(); p.d.style.display = 'none'; runState = null; }
     function readRunValues() {
@@ -884,7 +955,8 @@
         }
         // the checks with the values as typed: what differs from the data the method was made on is said here, before the view changes
         const auxLoaded = loaded && loaded.aux ? loaded.aux : undefined;   // the files this load produced, as the page saw them (an empty list when it produced none)
-        fetchJson('/routines/' + encodeURIComponent(st.id) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values, aux: auxLoaded }) }).then(pr => {
+        const loadDone = loaded && loaded.load ? loaded.load : undefined;   // the load as the page did it (from the cache, or downloaded)
+        fetchJson('/routines/' + encodeURIComponent(st.id) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values, aux: auxLoaded, load: loadDone }) }).then(pr => {
             if (runState !== st) return;
             if (!pr.ok || !pr.json.ok) {
                 st.busy = false; p.cancelBtn.disabled = false;
@@ -901,7 +973,7 @@
             const numbers = runNumbers(routine);
             enterRunView(summaryOf(routine), numbers.concat([numbers.length ? Math.max.apply(null, numbers) + 1 : 1]), numbers.length, { pending: true, version: routine.current_version });
             if (loaded && typeof paneLookup === 'function') paneLookup({ kind: 'load', query: loaded.loaded || '', peek: (pr.json && pr.json.line) || '', sources: [], passages: [] });
-            stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with, aux: auxLoaded }, true, data => {
+            stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with, aux: auxLoaded, load: loadDone }, true, data => {
                 if (data.type === 'pane_routine_end' && typeof paneRoutineEnd === 'function') { paneRoutineEnd(data); chipIdle(); return true; }
                 return false;
             }).then(msg => {
