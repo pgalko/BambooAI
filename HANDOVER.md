@@ -58,7 +58,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/90/1/1 Python; 39/7/29/56/24/53 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (177/84/30/19/16/49/44/51/10/90/1/1 Python; 39/7/29/56/24/55 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (30; hosted only - the loaders need the executor; the
@@ -440,6 +440,16 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines: a run's load clears what it replaces (2026-10-11, patch 0121).** The run's pills stacked beside the
+  old ones (Palo: "if there are any datasets in the UI, they should be cleared before the Run is executed"). Before
+  the dialog's load, `clearLoaded(scope)` removes each pill the way its x does: file-management.js's handler is split
+  into `handleRemoveDatasetPill(event)` and `removeDatasetPill(pillElement, removeButton, quiet)` (the route per
+  dataset type, the pill gone, the Data tab told; `quiet` removes the pill without an alert when the session's
+  reference is gone already). A load from Intervals, Endura or SweatStack clears everything; an upload clears the
+  primary and keeps the auxiliaries (it cannot re-supply them). The files stay in the executor's cache - the
+  removal routes drop the session's references only - which the next patch builds on. test_routines.js 55; the
+  integrations walk checks the original window's wellness pill is gone after the run and one Intervals pill remains;
+  the stack walk that the upload leaves one primary pill. ROUTINES_DESIGN.md F2.1.
 - **Routines: an input that only restates the period the data covers follows the data (2026-10-11, patch 0120).**
   Palo's first routine made under 0118 had a date-window input "quoted in the result labels and figure titles" (the
   frame's first and last session dates, typed by the analyst, which the promoter made an input): the run on Jan-June

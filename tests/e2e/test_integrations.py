@@ -147,8 +147,10 @@ def main():
                   rd["spanPickers"] == 0 and "follows the data: its first and last dates" in rd["span"] and f"the original: {a_start.isoformat()} → {a_end.isoformat()}" in rd["span"], rd["span"])
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && p.style.display !== 'none' && p.textContent.length > 0; }", timeout=30000)
+            first = page.inner_text("#routineRunModal .rt-progress")
+            page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && /Intervals|Download|Pars|Load/.test(p.textContent); }", timeout=30000)
             prog = page.inner_text("#routineRunModal .rt-progress")
-            check("while the load runs the dialog shows the loader's progress", "Intervals" in prog or "Download" in prog or "Pars" in prog or "Load" in prog, prog)
+            check("the dialog first clears the data loaded now, then shows the loader's progress", (first.startswith("Clearing") or "Intervals" in first) and ("Intervals" in prog or "Download" in prog or "Pars" in prog or "Load" in prog), (first, prog))
             wait_text(page, "#chainPosition", "run 1 of 1", 300000)
             page.wait_for_timeout(800)
             rv = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
@@ -161,7 +163,8 @@ def main():
                   and any("RUN" in r and "run 1" in r for r in rv["rows"]) and any("COMPARE" in r and "run 0" in r for r in rv["rows"])
                   and "Run 1 complete" in rv["done"] and ("ran: 3 result lines" in rv["done"] or "reproduced" in rv["done"]) and "against run 0" in rv["done"] and not rv["warn"] and rv["locked"] and rv["chip"] == "Ready", (rv["rows"], rv["done"][:240], rv["chip"]))
             check("the Comparison tab opened with the three lines against run 0, each marked", "tab-comparison" in rv["tabs"] and rv["cmp"].count("sessions") >= 1 and "against run 0" in rv["cmp"] and ("within" in rv["cmp"] or "same" in rv["cmp"] or "moved" in rv["cmp"]), rv["cmp"][:300])
-            check("the Data tab's pills now show the run's window (59 days [W+S]) with the summary's pill - the dialog's load refreshed them as the Data tab does", any("Intervals ICU (59 days [W+S]) loaded" in p for p in rv["pills"]) and any("Activity Summary (59 days)" in p for p in rv["pills"]), rv["pills"])
+            check("the Data tab's pills now show the run's window (59 days [W+S]) with the summary's pill - the dialog's load refreshed them as the Data tab does - and only them: the original window's pills were cleared before the load (its wellness pill is gone; one Intervals pill)",
+                  any("Intervals ICU (59 days [W+S]) loaded" in p for p in rv["pills"]) and any("Activity Summary (59 days)" in p for p in rv["pills"]) and sum(1 for p in rv["pills"] if "Intervals ICU" in p) == 1 and not any("Wellness" in p for p in rv["pills"]) and len(rv["pills"]) == 2, rv["pills"])
             page.evaluate("activateTab('dataframe')")
             page.wait_for_timeout(300)
             # the Data tab after a live run is the executor's frame view; the stored run's Data tab (through the arrows) carries the load and the bindings

@@ -216,6 +216,23 @@ const wm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static',
 check('the favourites\' cards carry the Routine button in place of the v1 Replay button, bound through RoutinesUI', wm.includes('window.RoutinesUI.cardButton(') && wm.includes('window.RoutinesUI.bindCardButton(routineBtn') && !wm.includes('class="workflow-card-replay"'));
 const core = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'core.js'), 'utf8');
 check('routines.js is initialised after auth with the other modules', core.includes('window.RoutinesUI.initialize()'));
+// a load clears what it replaces (2026-10-11): the pills go the way their x takes them (file-management's removeDatasetPill, quiet);
+// here, without file-management, the fallback removes the elements - an upload clears the primary and keeps the auxiliaries
+const pc = doc.createElement('div'); pc.setAttribute('id', 'datasetStatusPillsContainer'); doc.body.appendChild(pc);
+pc.innerHTML = '<div class="dataset-status-pill intervals-dataset-pill success" data-dataset-type="intervals"></div><div class="dataset-status-pill auxiliary-dataset-pill success" data-dataset-type="auxiliary" data-identifier="datasets/u/wellness_data_x.csv"></div><div class="dataset-status-pill primary-dataset-pill success" data-dataset-type="primary"></div>';
+const fm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'file-management.js'), 'utf8');
+(async () => {
+  const n1 = await window.RoutinesUI.clearLoaded('primary');
+  const left = [...doc.querySelectorAll('.dataset-status-pill')].map(e => e.dataset.datasetType);
+  const n2 = await window.RoutinesUI.clearLoaded('all');
+  check('clearLoaded: an upload clears the primary pills and keeps the auxiliaries; a load from an integration clears everything; file-management exposes the removal the x uses, with a quiet mode for this',
+    n1 === 2 && left.join(',') === 'auxiliary' && n2 === 1 && doc.querySelectorAll('.dataset-status-pill').length === 0
+    && fm.includes('async function removeDatasetPill(pillElement, removeButton, quiet = false)') && fm.includes('return removeDatasetPill(document.getElementById(removeButton.dataset.pillId), removeButton);'), [n1, left, n2]);
+  check('startRun clears what the load replaces before loading - the primary for an upload, everything for an integration', rtSrc.includes("await clearLoaded(choice === 'upload' ? 'primary' : 'all');"));
+  finish();
+})();
 
-let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
-console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);
+function finish() {
+  let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
+  console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);
+}

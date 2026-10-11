@@ -440,7 +440,7 @@ def main():
             r3 = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '',
                 pills: [...document.querySelectorAll('.primary-dataset-pill')].map(p => p.textContent), data: (document.getElementById('content-dataframe') || {}).textContent || '' })""")
             check("run 3 through the dialog's upload: a LOAD row names the file, the CHECK and RUN rows follow, and the same file with the default input reproduces run 0",
-                  any("LOAD" in r and "field_trial.csv" in r for r in r3["rows"]) and "Run 3 complete" in r3["done"] and "reproduced" in r3["done"] and "against run 0" in r3["done"] and any("field_trial.csv) loaded" in p_ for p_ in r3["pills"]), (r3["rows"], r3["done"][:160]))
+                  any("LOAD" in r and "field_trial.csv" in r for r in r3["rows"]) and "Run 3 complete" in r3["done"] and "reproduced" in r3["done"] and "against run 0" in r3["done"] and any("field_trial.csv) loaded" in p_ for p_ in r3["pills"]) and len(r3["pills"]) == 1, (r3["rows"], r3["done"][:160], r3["pills"]))
             # a file without the soil column: the dialog says the column will be empty (the coach decides), the run goes ahead, and the
             # method fails where it divides by a count that is zero without soil - kept as a run, named at its cell (2026-10-10: the first
             # live run on a new window stopped exactly so, and the terminal was the only place it showed)

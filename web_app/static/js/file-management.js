@@ -316,15 +316,18 @@ async function handleDatasetPillClick(event) {
 
 async function handleRemoveDatasetPill(event) {
     event.stopPropagation();
-
     const removeButton = event.currentTarget;
-    const pillId = removeButton.dataset.pillId;
-    const pillElement = document.getElementById(pillId);
+    return removeDatasetPill(document.getElementById(removeButton.dataset.pillId), removeButton);
+}
 
+// a pill removed the way its x removes it: the session's reference dropped through the dataset's own route, the pill
+// gone, the Data tab told. Also called without a button (2026-10-11, routines: a run's load clears what it replaces).
+async function removeDatasetPill(pillElement, removeButton, quiet = false) {
     if (!pillElement) return;
 
     const datasetType = pillElement.dataset.datasetType;
     const identifier = pillElement.dataset.identifier;
+    removeButton = removeButton || pillElement.querySelector('.dataset-pill-remove-icon') || document.createElement('span');
 
     removeButton.style.opacity = '0.3';
     removeButton.style.pointerEvents = 'none';
@@ -447,6 +450,10 @@ async function handleRemoveDatasetPill(event) {
 
     } catch (error) {
         console.error(`Error removing ${datasetType}:`, error);
+        if (quiet) {                                   // a programmatic clear: the pill goes whatever the session says (its reference may be gone already)
+            pillElement.remove();
+            return;
+        }
         alert(`Failed to remove ${datasetType}: ${error.message}`);
         if (pillContentSpan) pillContentSpan.textContent = originalText;
         removeButton.style.opacity = '0.6';

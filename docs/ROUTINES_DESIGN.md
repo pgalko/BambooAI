@@ -245,7 +245,10 @@ version's data record, `load`), and offers the data loaded now beside it.
    what the plan allows, and the dialog says so), the metrics and the auxiliary kinds as the original - through the
    same loader job the Data tab uses, with its progress shown in the dialog. Endura: the race list, the original
    race selected. SweatStack: the window shifted, the sports and subjects as the original. A file: an upload, or
-   the Dataset cache's pick. The Data tab's pills and the frame view refresh as the Data tab refreshes them, so the
+   the Dataset cache's pick. A load clears what it replaces first (2026-10-11: the run's pills used to stack beside
+   the old ones) — a load from Intervals.icu, Endura or SweatStack clears the primary and the auxiliaries, an upload
+   the primary only, each pill removed the way its × removes it (the session's reference dropped, the file left in
+   the cache). The Data tab's pills and the frame view then refresh as the Data tab refreshes them, so the
    session's data is the run's data afterwards, as it was after a v1 replay. *The data loaded now* is the other
    choice when something is loaded (the default for a file routine).
 2. **The check** (`precheck`): the data against the recorded shape - the columns the method ran on, by family

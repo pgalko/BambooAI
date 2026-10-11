@@ -765,6 +765,20 @@
         el.style.display = ''; el.className = 'rt-progress' + (kind ? ' ' + kind : ''); el.textContent = text;
     }
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    // a load clears what it replaces (2026-10-11: a run's pills used to stack beside the old ones): a load from Intervals,
+    // Endura or SweatStack replaces the primary and the auxiliaries, an upload the primary only - each pill removed the way
+    // its x removes it (the session's reference dropped, the pill gone)
+    async function clearLoaded(scope) {
+        const pills = [...document.querySelectorAll('.dataset-status-pill')];
+        let n = 0;
+        for (const pill of pills) {
+            if (scope === 'primary' && pill.dataset.datasetType === 'auxiliary') continue;
+            if (typeof removeDatasetPill === 'function') { try { await removeDatasetPill(pill, null, true); } catch (e) { pill.remove(); } }
+            else pill.remove();
+            n++;
+        }
+        return n;
+    }
     // the load, as the original load asked for its data (the integration routes the Data tab uses; its pills and the
     // dataframe tab refreshed the way the Data tab refreshes them)
     async function loadData(plan, p) {
@@ -827,7 +841,7 @@
         const r = await window.authService.fetch('/upload', { method: 'POST', body: fd });
         let data = {}; try { data = await r.json(); } catch (e) { data = {}; }
         if (!r.ok) throw new Error(data.message || data.error || 'the upload failed');
-        // an upload replaces the primary only; the auxiliary files loaded before stay as they are (no `aux` sent)
+        // an upload replaces the primary only (clearLoaded took the primary); the auxiliary files loaded before stay as they are (no `aux` sent)
         if (typeof createOrUpdateDatasetPill === 'function') createOrUpdateDatasetPill('primary-dataset-pill-' + Date.now(), 'Primary (' + file.name + ') loaded', 'primary', 'success', false, null);
         if (typeof currentDatasetName !== 'undefined') { try { currentDatasetName = file.name; } catch (e) { /* read-only */ } }
         dfTab(data);
@@ -853,8 +867,11 @@
         const choice = dataChoice();
         let loaded = null;
         if (choice !== 'now') {
-            // the load, as the original load asked for its data; its progress here, in the dialog
+            // the load, as the original load asked for its data; its progress here, in the dialog - what it replaces cleared first
             try {
+                progress('Clearing the data loaded now…', 'loading');
+                await clearLoaded(choice === 'upload' ? 'primary' : 'all');
+                if (runState !== st) return;
                 loaded = await loadData(st.plan || {}, p);
             } catch (err) {
                 if (runState !== st) return;
@@ -1031,7 +1048,7 @@
 
     window.RoutinesUI = { initialize, openMake, openManager, closeManager, toggleSaveMenu: toggleMenu, hideSaveMenu: hideMenu, refreshBadge, forgetOrigins,
                           cardButton: build.cardButton, cardCount, bindCardButton, composerLock, composerUnlock, build,
-                          openRun, viewRun, exitRunView, inRunView, navigateRuns, updateRunNav, enterRunView, runNumbers };
+                          openRun, viewRun, exitRunView, inRunView, navigateRuns, updateRunNav, enterRunView, runNumbers, clearLoaded };
     window.composerLock = composerLock; window.composerUnlock = composerUnlock;
     window.__routinesBuild = build;
 })();
