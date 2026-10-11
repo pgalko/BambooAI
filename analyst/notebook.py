@@ -200,12 +200,7 @@ class Notebook:
             return self._render_everything(run_id)
         cells = self.path_cells(run_id)
         run = self.runs.get(run_id)
-        failed = [t for t in (run.turns if run else []) if t.kind == "cell" and t.error]
-        failed_lines = ""
-        if failed:
-            from .tools import exception_line
-            failed_lines = "\nFAILED ATTEMPTS THIS RUN (rolled back, nothing persisted):\n" + "\n".join(
-                f"- {purpose_of(t)}  ->  {exception_line(t.error)[:110]}" for t in failed[-5:])
+        failed_lines = self.failed_attempts(run) if run else ""
         if not cells:
             return "(no cells yet)" + failed_lines
         older, latest = cells[:-recent] if recent else cells, cells[-recent:] if recent else []
@@ -229,6 +224,27 @@ class Notebook:
                 body += f"(saved {len(t.figures)} figure(s): [fig {t.cell_no}])\n"
             parts.append(body)
         return "\n".join(parts) + failed_lines
+
+    @staticmethod
+    def failed_attempts(run: "Run", keep: int = 5) -> str:
+        """This run's failed cells, one line each, placed in time - the turn, and the last cell committed before it
+        (2026-10-11: listed after the cells with no position, a failure at turn 1 read as a failure after cell 2;
+        the analyst rebuilt what it had and then spent two turns arguing which attempt had failed). The step's
+        sentence says what the attempt was for; the error line what stopped it."""
+        from .tools import exception_line
+        lines, turn_no, last_cell = [], 0, 0
+        for t in run.turns:
+            if t.kind in ("review", "rewrite") or getattr(t, "step", ""):
+                continue                                    # not a turn of the analysis
+            turn_no += 1
+            if t.kind == "cell" and t.cell_no:
+                last_cell = t.cell_no
+            elif t.kind == "cell" and t.error:
+                where = f"after cell {last_cell}" if last_cell else "before any cell"
+                lines.append(f"- turn {turn_no}, {where}: {purpose_of(t)}  ->  {exception_line(t.error)[:110]}")
+        if not lines:
+            return ""
+        return "\nFAILED ATTEMPTS THIS RUN (rolled back, nothing persisted):\n" + "\n".join(lines[-keep:])
 
     def _render_everything(self, run_id: str) -> str:
         cells = self.path_cells(run_id)

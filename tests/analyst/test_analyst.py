@@ -129,6 +129,11 @@ check("two failures in a row are said - the fact, no advice; one failure is not"
       "attempts in a row have failed" in seen["prompts"][4] and "attempts in a row have failed" not in seen["prompts"][1])
 check("failed attempts are listed in CELLS SO FAR for the rest of the run",
       "FAILED ATTEMPTS THIS RUN" in [p_ for p_ in seen["prompts"] if "TASK:" in p_][-1] and "undefined_name" in [p_ for p_ in seen["prompts"] if "TASK:" in p_][-1])
+_fa = [p_ for p_ in seen["prompts"] if "TASK:" in p_][-1]
+_fa = _fa[_fa.find("FAILED ATTEMPTS THIS RUN"):]
+check("failed attempts are placed in time - the turn, and the last cell committed before it (2026-10-11: a failure at turn 1 listed after cell 2 read as a failure after cell 2)",
+      "- turn 1, before any cell:" in _fa and "has no attribute 'round'" in _fa.split("- turn 3")[0] and "- turn 3, after cell 1:" in _fa and "- turn 4, after cell 1:" in _fa
+      and _fa.index("turn 1,") < _fa.index("turn 3,") < _fa.index("turn 4,"), _fa)
 
 # ---- error condensing: the exception line first, verbose tails cut ----
 from analyst.tools import condense_error, exception_line
@@ -532,9 +537,11 @@ check("contract: names DS and the comparison part of the report, and shows the R
 from analyst.session import FIGURES_LATER as FIGURES_LATER_
 check("contract: cells compute and draw nothing - a figure cell is not run; the figures come after the report from one more request, one to three, or NONE - the mechanism, no advice on when; "
       "the REPORT row says the report is in the same reply; no 'step' beside the reply's STEP (2026-10-11: 'in a step of their own' had two runs end at the word REPORT)",
-      "a cell that calls `fig.show()`, `plt.show()` or `savefig` is not\nrun" in c_all and "once it is written, one more request shows it to you" in c_all
+      "draw nothing and prepare nothing for a figure - a cell that calls `fig.show()`,\n`plt.show()` or `savefig` is not run" in c_all and "once it is written, one more\nrequest shows it to you" in c_all
       and "or NONE when a number or a table answers" in c_all and "[fig 7]" not in c_all and "where it breaks down" not in c_all
-      and "| `REPORT` | The report, on the lines after it in this reply" in c_all and "step of their own" not in c_all and "step of their own" not in FIGURES_LATER_)
+      and "| `REPORT` | The report, on the lines after it in this reply" in c_all and "step of their own" not in c_all and "step of their own" not in FIGURES_LATER_
+      and "from what the\nkernel holds - the figure the question asks for, or the estimate and its uncertainty, first" in c_all and "variables your cells defined" not in c_all
+      and "a request for a figure is a short report - what is drawn, from what, what it shows -\nand the figure follows" in c_all and "settles a number" in c_all and "settles a figure" not in c_all)
 check("contract: an estimate is recorded with the kernel's RESULT(...), the words the analyst's and the numbers the cell's; a typed number is marked; a revised estimate gets a new line",
       "record it in that cell with the\nkernel's `RESULT(what, estimate, low, high, unit, direction)`" in c_all and "A number written into the call instead of computed is marked as typed" in c_all
       and "A revised estimate gets a new\nline" in c_all and "print it on one line" not in c_all)
@@ -602,6 +609,50 @@ check("figures: the replay ran the figures cell and reproduced the report; the s
       and Notebook.from_dict(json.loads(json.dumps(nbf.to_dict()))).runs[rf.id].turns[-2].step == "figures", (rf.replay_status, rf.replay_script[-300:]))
 check("figures: a run whose step answers NONE has no Figures section and no figures turn; a cell count excludes the step's cells only by their step mark",
       "## Figures" not in rr.report and not [x for x in rr.turns if x.step] and len([x for x in rf.turns if x.kind == "cell" and not x.step]) == 3, rr.report[-200:])
+# every other outcome of the figures request (2026-10-11, from a run whose request spent 16,000 reasoning tokens and sent nothing,
+# taken for NONE): a cut reply, an empty one, prose without a block, a cell that fails every time - each an attempt that is
+# asked again, on the record, and the report says the figures were not drawn and why; NONE in markdown still declines
+from analyst.session import FIGURES_CUT, FIGURES_NO_BLOCK, answers_none, figures_outcome
+def _fig_run(replies, name):
+    """A two-cell analysis whose figures request answers from `replies` in order (text, usage)."""
+    seqs = {"n": 0, "f": 0}; prompts = []
+    def llm(system, user, **h):
+        if user.startswith("Rewrite"): return "plain", {"cost": 0}
+        if system.startswith("You are drawing the figures"):
+            prompts.append(user); k = seqs["f"]; seqs["f"] += 1
+            return replies[min(k, len(replies) - 1)]
+        k = seqs["n"]; seqs["n"] += 1
+        return [act6("CELL\n```python\nm = df['x'].mean()\nprint('mean', round(m, 3))\n```"), act6("REPORT\n## r\n\nThe mean [cell 1].")][min(k, 1)], {"cost": 0.001}
+    kk = PersistentKernel(df=df); nn = Notebook(name); evs = []
+    try:
+        rr_ = Session(kk, nn, llm, data_description="d", emit=evs.append).run("q", budget=Budget(turns=6, dollars=1.0))
+    finally:
+        kk.cleanup()
+    return rr_, prompts, evs
+_r_cut, _p_cut, _e_cut = _fig_run([("", {"cost": 0.02, "truncated": True})], "tfc")
+check("figures: a reply cut at the length limit with no cell is an attempt - asked again for a shorter cell, four times in all, each on the record as a lost turn of the step; the report says the figures were not drawn and why; the pane never says a number answered",
+      len(_p_cut) == 4 and all("YOUR LAST REPLY WAS CUT OFF" in p_ for p_ in _p_cut[1:]) and "attempt 1 of 4" in _p_cut[1] and "attempt 3 of 4" in _p_cut[3]
+      and [t.kind for t in _r_cut.turns if t.step == "figures"] == ["error"] * 4 and "cut off at the length limit" in [t.stdout for t in _r_cut.turns if t.step == "figures"][0]
+      and "> The figures were not drawn: the reply was cut off at the length limit before a cell arrived 4 times." in _r_cut.report and "## Figures" not in _r_cut.report
+      and [e.get("peek") for e in _e_cut if e.get("turn") == "figures" and e["type"] == "turn_end"] == ["the reply was cut off at the length limit before a cell arrived"] * 4
+      and _r_cut.status == "answered", (_r_cut.report[-300:], [e.get("peek") for e in _e_cut if e.get("turn") == "figures" and e["type"] == "turn_end"]))
+_r_prose, _p_prose, _e_prose = _fig_run([("Here is a figure: fig = go.Figure(); fig.show()", {"cost": 0.01}),
+                                         ("```python\nimport matplotlib.pyplot as plt\nplt.bar(['a'], [m]); plt.title(f'the mean, {m:.2f}'); plt.show()\n```\nCAPTION: the mean", {"cost": 0.01})], "tfp")
+check("figures: prose without a block is an attempt - told to reply with a block or NONE - and the next reply's cell is drawn",
+      len(_p_prose) == 2 and "carried no python block and was not NONE" in _p_prose[1] and FIGURES_NO_BLOCK.split(" (")[0] in _p_prose[1]
+      and [t.kind for t in _r_prose.turns if t.step == "figures"] == ["error", "cell"] and "## Figures\n\n- [fig 2] the mean" in _r_prose.report and "not drawn" not in _r_prose.report, (_r_prose.report[-200:], [(t.kind, t.cell_no) for t in _r_prose.turns if t.step == "figures"]))
+_r_none, _p_none, _e_none = _fig_run([("**NONE.**\n\nA single number answers.", {"cost": 0.01})], "tfn")
+check("figures: NONE in markdown declines - one call, no turn of the step, no Figures section and no 'not drawn' line",
+      len(_p_none) == 1 and not [t for t in _r_none.turns if t.step == "figures"] and "## Figures" not in _r_none.report and "not drawn" not in _r_none.report
+      and [e.get("peek") for e in _e_none if e.get("turn") == "figures" and e["type"] == "turn_end"] == ["no figure: a number or a table answers"], _r_none.report[-200:])
+_r_bad, _p_bad, _e_bad = _fig_run([("```python\nraise KeyError('col')\n```\nCAPTION: x", {"cost": 0.01})], "tfb")
+check("figures: a cell that fails every time - four attempts, each with the error, the report says the figures were not drawn and names the last error",
+      len(_p_bad) == 4 and "attempt 3 of 4" in _p_bad[3] and "KeyError" in _p_bad[1] and [t.kind for t in _r_bad.turns if t.step == "figures"] == ["cell"] * 4
+      and all(t.error and t.cell_no is None for t in _r_bad.turns if t.step == "figures")
+      and "> The figures were not drawn: the figure cell failed 4 times (last: KeyError: 'col')." in _r_bad.report, _r_bad.report[-300:])
+check("figures_outcome / answers_none: one reason as it is; the same reason counted with the last detail; mixed reasons by their count; NONE bare or dressed, not a sentence starting with none",
+      figures_outcome(["a"]) == "a" and figures_outcome(["the figure cell failed (E1)", "the figure cell failed (E2)"]) == "the figure cell failed 2 times (last: E2)"
+      and figures_outcome(["x", "y (z)"]) == "after 2 attempts (last: y (z))" and answers_none("none") and answers_none("- NONE -") and not answers_none("None of these") and not answers_none(""))
 check("figures: the system prompt names the two replies, the f-string rule and the three corrections; nothing task-specific",
       "the single word NONE" in FIGURES_SYSTEM and "one Python cell" in FIGURES_SYSTEM and "CAPTION:" in FIGURES_SYSTEM and "f-string" in FIGURES_SYSTEM
       and "three times at most" in FIGURES_SYSTEM and not re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", FIGURES_SYSTEM, re.I))
@@ -1198,7 +1249,7 @@ check("the total cap: a pathological output is shortened from the middle with a 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
 check("contract: one page - under 9,000 without documents (2026-10-06: Results with RESULT(...), DS with save, the comparison, the budget as a limit), neutral", len(c) < 9000 and not bad, (len(c), bad))
 check("contract: DS.save(frame, name) saves a dataset for the person - CSV by default, json/parquet/xlsx/txt by the name, a string as text - listed in the Dataset cache under Generated",
-      "`DS.save(frame, \"name\")` saves a dataset for\nthe person as CSV - `\"name.json\"`, `\"name.parquet\"`, `\"name.xlsx\"` or `\"name.txt\"` in that format, and\na string as a text file: it appears in their Dataset cache under Generated" in c)
+      "`DS.save(frame,\n\"name\")` saves a dataset for the person as CSV - `\"name.json\"`, `\"name.parquet\"`, `\"name.xlsx\"` or\n`\"name.txt\"` in that format, and a string as a text file: it appears in their Dataset cache under\nGenerated." in c)
 check("contract: a reply with more than one action runs the first and the rest does not - said in Format", "A reply with more than one action runs\nthe first; the rest does not run." in c)
 check("contract (Adaptive): a TEST's outcome is recorded with test='after turn 16', and the test is open until it is recorded",
       "`RESULT(..., test=\"after turn 16\")`" in contract(False, 8) and "until such a line is recorded the test is open" in contract(False, 8))

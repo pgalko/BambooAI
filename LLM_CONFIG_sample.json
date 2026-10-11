@@ -11,6 +11,16 @@
       }
     },
     {
+      "agent": "Figures",
+      "details": {
+        "reasoning_effort": "low",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "provider": "openrouter",
+        "temperature": 0,
+        "max_tokens": 16000
+      }
+    },
+    {
       "agent": "Rewriter",
       "details": {
         "reasoning_effort": "low",

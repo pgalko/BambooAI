@@ -139,6 +139,13 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Rewriter' if 'Rewriter' in agents else self._seat()
 
+    def _figures_seat(self):
+        """The seat the figures request runs on (2026-10-11): 'Figures' when the config carries one - a one-shot code
+        reply where long reasoning only costs (an effort-word model at xhigh spent its whole allowance thinking and
+        sent nothing; the adapter has no budget to hold it) - else the analyst seat."""
+        agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
+        return 'Figures' if 'Figures' in agents else self._seat()
+
     def _promoter_seat(self):
         """The seat Save as routine's one model call runs on (2026-10-10): 'Promoter' when the config carries one -
         its own model, effort and token allowance, since the reply is a JSON object of edits that a seat tuned for
@@ -146,18 +153,19 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Promoter' if 'Promoter' in agents else self._seat()
 
-    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, seat: str = None, **hints):
+    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, **hints):
         """The model call the session uses: the app's model layer (streaming,
         telemetry, retries), returning (text, {'cost': delta}). A self-review
         turn (review=True) runs on the Reviewer seat; its cost is accounted to
-        that seat and counts against the run's budget like any other call.
-        `seat` names the seat outright (the routines' promoter)."""
+        that seat and counts against the run's budget like any other call. The
+        rewrite and the figures request have seats of their own when the config
+        carries them. `seat` names the seat outright (the routines' promoter)."""
         if self.kill_signal or self._stop_event.is_set():
             raise ExecutionInterrupted("stopped by the user")
         before = self._chain_cost()
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         text = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, messages,
-                               agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite else self._seat())), chain_id=self.chain_id,
+                               agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite else (self._figures_seat() if figures else self._seat()))), chain_id=self.chain_id,
                                reasoning_models=self.reasoning_models)
         if isinstance(text, tuple):
             text = text[0]
@@ -692,7 +700,7 @@ class BambooAI:
             return
         kind = ev.get("type")
         if kind == "turn_start":
-            seat = self._review_seat() if ev.get("review") else (self._rewrite_seat() if ev.get("rewrite") else self._seat())
+            seat = self._review_seat() if ev.get("review") else (self._rewrite_seat() if ev.get("rewrite") else (self._figures_seat() if ev.get("figures") else self._seat()))
             try:
                 model = self.models.get_model_name(seat)
                 model = model[0] if isinstance(model, (tuple, list)) else model

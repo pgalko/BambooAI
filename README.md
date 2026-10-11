@@ -97,16 +97,20 @@ dataset's description, the cells and their (truncated) outputs, the budget — a
 
 The contract that governs this is one page, `analyst/contract.md`, and is the same for every model.
 It asks for a report with a **best estimate** and its uncertainty, the **conditions** it holds under,
-**how it was established**, and the cells and figures it rests on; usually one to three figures, drawn
-with Plotly.
+**how it was established**, and the cells it rests on. Cells compute and draw nothing; the figures
+come after the report.
 
 After `REPORT`:
 
-1. The cited cells are assembled in execution order into a script and run in a fresh kernel against
-   the original data. The numbers the report quotes are compared with the fresh output; the closing
-   card says whether they reproduced (e.g. "replay reproduced 41 numbers in a fresh run").
-2. The figures the run produced are captured from the reproduction and shown in the Plots tab.
-3. The `Rewriter` seat writes the plain-language version.
+1. The `Figures` seat is shown the report and the cells and writes one cell that draws the one to
+   three figures the reader needs from what the kernel holds, with Plotly - or answers NONE when a
+   number or a table answers. A cell that fails comes back with its error, three corrections at most;
+   the report gains a *Figures* section citing the cell, and says so when the figures were not drawn.
+2. The `Rewriter` seat writes the plain-language version.
+3. The cited cells, the figures cell among them, are assembled in execution order into a script and
+   run in a fresh kernel against the original data. The numbers the report quotes are compared with
+   the fresh output; the closing card says whether they reproduced (e.g. "replay reproduced 41 numbers
+   in a fresh run"), and the figures that run draws are the Plots tab.
 
 **Modes and budgets.** Each mode sets a turn budget and a dollar budget the analyst can see. The
 budgets are per preset (`tier_properties` in the configuration). At the `performance` preset: Quick 4
@@ -209,6 +213,7 @@ turn budgets per preset (`tier_properties`), and the properties of every model n
 ```json
 "performance_agent_configs": [
   {"agent": "Analyst",                  "details": {"model": "x-ai/grok-4.7",               "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 32000, "temperature": 0}},
+  {"agent": "Figures",                  "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "low",  "max_tokens": 16000, "temperature": 0}},
   {"agent": "Reviewer",                 "details": {"model": "openai/gpt-6.1-sol",          "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 48000, "temperature": 0}},
   {"agent": "Rewriter",                 "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "low",  "max_tokens": 16000, "temperature": 0}},
   {"agent": "Reader",                   "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "low",  "max_tokens": 16000, "temperature": 0}},
@@ -234,6 +239,7 @@ The seats:
 |---|---|
 | `Analyst` | runs the analysis: every turn, every cell, the report |
 | `Reviewer` | the reviews - after every 8th turn in Adaptive mode, and after its report; its own brief, a stronger model |
+| `Figures` | the figures, drawn once after the report: one cell from the report and the kernel's objects (a short code reply, so a low effort - a seat that thinks long can spend its allowance and send nothing; the analyst's seat when absent) |
 | `Rewriter` | the plain-language version of the report |
 | `Reader` | reads the thread's documents for the analyst (the `READ` action): a cheaper model, called once per read over the passages that match the question |
 | `Promoter` | *Save as routine*: reads a finished chain once and names its inputs as find/replace edits (a JSON reply, so a moderate effort and a roomy `max_tokens`; the analyst's seat when absent) |

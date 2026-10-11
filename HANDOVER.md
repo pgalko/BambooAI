@@ -59,8 +59,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (189/93/30/19/16/49/44/51/10/104/1/1 Python; 44/7/29/56/24/59 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (85 hosted, 84 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (195/94/30/19/16/49/44/51/10/104/1/1 Python; 44/7/29/56/24/59 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (86 hosted, 85 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (42; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -441,6 +441,35 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The figures request made reliable, and the run read in full (2026-10-11, patch 0130).** Palo's third run under
+  0126-0129 - "Plot Fibonacci sequence", no data, deepseek-v4.1-flash at xhigh - took 290 s, $0.086 and 68,000
+  completion tokens for no figure, where the same question had taken three or four turns. Read call by call (the run
+  log, every prompt and reply whole), three causes, none of them the empty-REPORT slip (turn 6 wrote its report under
+  the word): (1) *the failed-attempts list had no position in time* - listed after the cells, its line beginning
+  "This turn generates...", a failure at turn 1 read as a failure after cell 2; the analyst rebuilt everything it had
+  ("a later attempt this run rolled back") and then spent two whole allowances arguing which attempt had failed;
+  (2) *the figures wording made the analysis prepare the figure* - "from the variables your cells defined" and
+  "recompute nothing" produced a cell of "arrays the figure cell will use" and spiral-arc geometry planned in cells,
+  and for a request that is a figure the report became a promise of three panels the figures request then had to
+  honour; (3) *an effort-word model at xhigh has no reasoning budget* (`reasoning_style: effort` - the adapter's own
+  warning), so the figures request spent its 16,000 tokens thinking and sent nothing - and the step took that for NONE,
+  told the reader "a number answers", and went on to the rewrite. One revision: `Notebook.failed_attempts` places each
+  failure ("turn 1, before any cell" / "turn 7, after cell 4"); the contract says cells "draw nothing and prepare
+  nothing for a figure", the figures are drawn "from what the kernel holds", "the figure the question asks for, or
+  the estimate and its uncertainty, first", and "a request for a figure is a short report - what is drawn, from what,
+  what it shows - and the figure follows" (the SEARCH row's "settles a figure" became "settles a number"; the kernel
+  paragraph and the standard's first item lost their restatements to stay on one page, 8,983 characters);
+  FIGURES_SYSTEM likewise, with "the drawing's own arithmetic ... is the cell's to compute; the numbers the report
+  states are not recomputed"; `_figures` treats a reply cut at the length limit, an empty one or prose without a block
+  as an attempt - said as such (`FIGURES_CUT`, `FIGURES_NO_BLOCK`), asked again for a shorter cell within the four,
+  each on the record as a lost turn of the step - and when the attempts run out the report ends with "> The figures
+  were not drawn: <why>" (`figures_outcome`); NONE is recognised as the reply's first line (`answers_none`), bare or
+  in markdown; and a **Figures seat** in the model config (`_figures_seat`, the Promoter precedent: a one-shot code
+  reply where long reasoning only costs) - low effort in every tier of the template (Palo's current template, with
+  the seat added after the Analyst), the sample config and the README, the analyst seat when absent. The README's
+  "After REPORT" section now describes the flow as it is (figures, rewrite, replay). test_analyst.py 195 (the dated
+  list; the cut, empty, prose, NONE-in-markdown and always-failing outcomes; the outcome line), test_app_path.py 94
+  (the seat), the stack walk 86 (the Figures card on the Figures seat).
 - **What steered the model to an empty REPORT, and the sentence rewritten (2026-10-11, patch 0129).** Palo, after the
   second run in a row ended at the word REPORT (caught by 0127 this time, the report written on the next turn): "why
   does it keep happening? The condition we introduced is only a patch that should almost never trigger". Read as the

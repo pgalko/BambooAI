@@ -113,6 +113,8 @@ def main():
                   and "In\xa0[3]" in fig["last"].replace("In [", "In\xa0[") and "2 fig" in fig["last"], (fig["figCard"], fig["last"]))
             check("the rows in order: cell 1, the search, the failed cell, cell 2, the skipped figure cell, then the figures cell after the report",
                   fig["order"][:5] == ["cell", "tool", "fail", "cell", "skipped"] and fig["order"].count("cell") == 3 and len(fig["cellRows"]) == 3, fig["order"])
+            fig_seat = page.evaluate("() => { const c = [...document.querySelectorAll('.sp-turn')].find(t => ((t.querySelector('.n') || {}).textContent || '') === 'Figures'); const b = c && c.querySelector('.sp-prompt'); return b ? b.dataset.agent : null; }")
+            check("the Figures card ran on the Figures seat the template carries (2026-10-11)", fig_seat == "Figures", fig_seat)
             # a dataset the analyst saved (DS.save in the estimate cell): one download pill under the REPLAY row, none in the closing card (2026-10-06)
             ds_pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill.ds')].map(e => e.textContent)")
             check("the dataset the analyst saved shows as one download pill under the REPLAY row, and the closing card does not repeat it",

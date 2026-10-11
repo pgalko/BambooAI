@@ -1,6 +1,7 @@
 {
   "free_agent_configs": [
     {"agent": "Analyst", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
+    {"agent": "Figures", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Rewriter", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reader", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reviewer", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
@@ -12,6 +13,7 @@
   ],
   "cost_agent_configs": [
     {"agent": "Analyst", "details": {"reasoning_effort": "xhigh", "model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
+    {"agent": "Figures", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Rewriter", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reader", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reviewer", "details": {"reasoning_effort": "high", "model": "x-ai/grok-4.7", "provider": "openrouter", "temperature": 0, "max_tokens": 24000}},
@@ -23,6 +25,7 @@
   ],
   "performance_agent_configs": [
     {"agent": "Analyst", "details": {"reasoning_effort": "xhigh", "model": "claude-sonnet-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 32000}},
+    {"agent": "Figures", "details": {"reasoning_effort": "low", "model": "claude-sonnet-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Rewriter", "details": {"reasoning_effort": "low", "model": "claude-sonnet-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reader", "details": {"reasoning_effort": "low", "model": "claude-sonnet-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reviewer", "details": {"reasoning_effort": "high", "model": "openai/gpt-6.1-sol", "provider": "openrouter", "temperature": 0, "max_tokens": 48000}},
@@ -34,6 +37,7 @@
   ],
   "max_agent_configs": [
     {"agent": "Analyst", "details": {"reasoning_effort": "xhigh", "model": "claude-opus-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 48000}},
+    {"agent": "Figures", "details": {"reasoning_effort": "low", "model": "claude-opus-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Rewriter", "details": {"reasoning_effort": "low", "model": "claude-opus-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reader", "details": {"reasoning_effort": "low", "model": "claude-opus-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reviewer", "details": {"reasoning_effort": "xhigh", "model": "openai/gpt-6.1-sol", "provider": "openrouter", "temperature": 0, "max_tokens": 48000}},

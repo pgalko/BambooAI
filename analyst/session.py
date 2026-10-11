@@ -87,13 +87,18 @@ def unwrap_error(err: str) -> str:
     return re.sub(r'(File "<string>", line )(\d+)', lambda m: m.group(1) + str(max(1, int(m.group(2)) - FIGURES_WRAP_LINES)), err or "")
 
 
-FIGURES_SYSTEM = """You are drawing the figures for a finished analysis. The report is written, the kernel still holds every variable the cells defined, and nothing is drawn yet.
+FIGURES_SYSTEM = """You are drawing the figures for a finished analysis. The report is written, the kernel still holds every object the cells defined, and nothing is drawn yet.
 
 Reply with one of two things and nothing else:
 - the single word NONE, when a number, a table or a definition answers the question and a figure would add nothing;
-- one Python cell, as a ```python block, that draws the one to three figures the report's reader needs - the estimate and its uncertainty first; each further figure shows something the others do not; nothing the report does not say - from the variables the cells defined (recompute nothing), with Plotly and one fig.show() per figure; then, after the block, one line per figure in the order drawn: CAPTION: what the figure shows, in the reader's words.
+- one Python cell, as a ```python block, that draws the one to three figures the report's reader needs - the figure the question asks for, or the estimate and its uncertainty, first; each further figure shows something the others do not; nothing the report does not say - from what the kernel holds, with Plotly and one fig.show() per figure; then, after the block, one line per figure in the order drawn: CAPTION: what the figure shows, in the reader's words.
 
-Write any number in a title or a label from a variable (an f-string), never typed. The kernel has no display: you see nothing; the cell's figures are captured and shown to the reader with the report. A cell that fails comes back to you with its error for a corrected cell, three times at most; then the report stands without figures."""
+The drawing's own arithmetic - bins, positions, a smoothed line - is the cell's to compute; the numbers the report states are not recomputed. Write any number in a title or a label from a variable (an f-string), never typed. The kernel has no display: you see nothing; the cell's figures are captured and shown to the reader with the report. A cell that fails comes back to you with its error for a corrected cell, three times at most; then the report stands without figures."""
+FIGURES_CUT = ("YOUR LAST REPLY WAS CUT OFF at the length limit before a cell arrived (attempt {k} of {n}). Write the cell now, "
+               "shorter: one figure, the one the reader needs most, and its CAPTION line.")
+FIGURES_NO_BLOCK = ("YOUR LAST REPLY carried no python block and was not NONE (attempt {k} of {n}). Reply with one ```python block "
+                    "and its CAPTION lines, or the word NONE.")
+FIGURES_FAILED = ("YOUR LAST CELL FAILED - it was rolled back (attempt {k} of {n}); write a corrected cell:\n```python\n{code}\n```\nERROR:\n{error}")
 DIGEST_VIEW_CHARS = 12_000   # a search or read digest rides into the next prompt whole, like the newest cell's output; a longer one
                              # is cut from the middle at line ends so its top and its SUMMARY both survive. The record keeps all.
 
@@ -383,6 +388,22 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
 
 _FIG_BLOCK_RE = re.compile(r"```(?:python|py)?[ \t]*\n(.*?)```", re.S)
 _CAPTION_RE = re.compile(r"^\s*(?:[-*]\s*)?\**CAPTION(?:\s*\d+)?\**\s*:\**\s*(.+?)\s*$", re.M | re.I)
+
+
+def figures_outcome(reasons: list) -> str:
+    """Why the figures were not drawn, in one clause: the one reason, or the count with the last reason."""
+    if len(reasons) == 1:
+        return reasons[0]
+    kinds = {r.split(" (")[0] for r in reasons}
+    if len(kinds) == 1:
+        return f"{reasons[0].split(' (')[0]} {len(reasons)} times" + (f" (last: {reasons[-1].split(' (', 1)[1].rstrip(')')})" if " (" in reasons[-1] else "")
+    return f"after {len(reasons)} attempts (last: {reasons[-1]})"
+
+
+def answers_none(text: str) -> bool:
+    """The figures reply that declines: its first line is the word NONE (bare, or dressed in markdown or a full stop)."""
+    first = next((ln for ln in (text or "").splitlines() if ln.strip()), "")
+    return re.sub(r"[^a-z]", "", first.lower()) == "none"
 
 
 def parse_figures_reply(text: str) -> tuple:
@@ -868,7 +889,8 @@ class Session:
         # the figures, drawn once, after the report, from the variables the cells left in the kernel (2026-10-11): the
         # report gains a Figures section that cites them, and from here on the section is part of the report - the
         # guards, the rewrite, the replay and a routine read it as such
-        report_text += self._figures(run, report_text)
+        figures_section, figures_note = self._figures(run, report_text)
+        report_text += figures_section
         cells = self.nb.path_cells(run.id)
         # a number is verified if a cell printed it - or if it is a constant of the analysis
         # itself (a filter bound, a bin edge) that appears in a cell's code
@@ -884,7 +906,7 @@ class Session:
         quoted = [c for c in cited_cells(report_text) if c in disputed]
         check_d = ("CHECK: this report cites " + ", ".join(f"cell {c}, whose RESULT line the review {disputed[c]} found does not describe its code" for c in quoted)
                    + ". Treat what it quotes from there as unverified.") if quoted else ""
-        run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d) if x)
+        run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, figures_note) if x)
         # the plain-language rewrite by the same analyst
         self.emit({"type": "turn_start", "run": run.id, "turn": "rewrite", "of": budget.turns, "rewrite": True})
         t_rw = time.time()
@@ -930,29 +952,48 @@ class Session:
         self._save()
 
     # ----- the figures step ------------------------------------------------------
-    def _figures(self, run: Run, report_text: str) -> str:
+    def _figures(self, run: Run, report_text: str) -> tuple:
         """The figures, drawn once after the report (2026-10-11): the analyst sees the report and the cells' code and
-        writes one cell that draws from the variables in the kernel, or answers NONE. A cell that fails comes back
-        with its error, three corrections at most. Each attempt is a card in the pane and a cell turn of the record
-        (step "figures"; the committed one gets a cell number like any cell). Returns the report's Figures section -
-        "## Figures" with one "[fig n] caption" line per figure - or "" when none were drawn. Outside the turn
-        budget, like the rewrite."""
+        writes one cell that draws from what the kernel holds, or answers NONE. Every other outcome is an attempt that
+        is asked again, up to FIGURES_ATTEMPTS in all: a cell that fails comes back with its error; a reply cut at
+        the length limit before a cell arrived, or one with no python block, is said as such and asked for a shorter
+        cell (2026-10-11: a reply of 16,000 reasoning tokens and no text had been taken for NONE and the reader told a
+        number answered). Each attempt is a card in the pane and a turn of the record (step "figures"; the committed
+        cell gets a number like any cell). Returns (the report's Figures section - "## Figures" with one "[fig n]
+        caption" line per figure, or "" - and a line for the report when the figures were not drawn, or ""). Outside
+        the turn budget, like the rewrite."""
         if not run.cells() or not (report_text or "").strip():      # nothing computed, or no report to draw for
-            return ""
+            return "", ""
         user = self._figures_prompt(run, report_text)
-        error_note, section = "", ""
+        error_note, section, reasons = "", "", []
         for attempt in range(1, FIGURES_ATTEMPTS + 1):
             self.emit({"type": "turn_start", "run": run.id, "turn": "figures", "figures": True, "quiet": True, "attempt": attempt})
             t0 = time.time()
             text, usage = self.llm(FIGURES_SYSTEM, user + error_note, figures=True)
+            usage = usage or {}
             code, captions = parse_figures_reply(text)
-            peek = ("no figure: a number or a table answers" if code is None else
-                    ("figure cell: " + "; ".join(captions)) if captions else "a figure cell")
+            declined = code is None and answers_none(text)
+            if code is None and not declined:
+                # nothing usable: cut at the length limit (a reasoning model can spend the whole allowance thinking), empty,
+                # or prose without a block - an attempt, said as such, and asked again
+                why = ("the reply was cut off at the length limit before a cell arrived" if usage.get("truncated") else
+                       "the reply arrived empty" if not (text or "").strip() else "the reply carried no python block and was not NONE")
+                peek = why
+            else:
+                peek = ("no figure: a number or a table answers" if declined else
+                        ("figure cell: " + "; ".join(captions)) if captions else "a figure cell")
             self.emit({"type": "turn_end", "run": run.id, "turn": "figures", "kind": "figures", "thinking": "", "note": "", "code": code or "",
-                       "elapsed": round(time.time() - t0, 1), "cost": float((usage or {}).get("cost", 0.0) or 0.0), "peek": peek[:200]})
+                       "elapsed": round(time.time() - t0, 1), "cost": float(usage.get("cost", 0.0) or 0.0), "peek": peek[:200]})
+            if declined:
+                break                                           # the report stands as written
             if code is None:
-                break                                           # NONE, or nothing usable: the report stands as written
-            turn = Turn(kind="cell", note=run.note, code=code, usage=dict(usage or {}), step="figures")
+                turn = Turn(kind="error", note=run.note, stdout=why, usage=dict(usage), step="figures")
+                run.turns.append(turn)
+                self._emit_turn(run, turn)
+                reasons.append(why)
+                error_note = "\n\n" + (FIGURES_CUT if usage.get("truncated") else FIGURES_NO_BLOCK).format(k=attempt, n=FIGURES_ATTEMPTS)
+                continue
+            turn = Turn(kind="cell", note=run.note, code=code, usage=dict(usage), step="figures")
             t_cell = time.time()
             self.emit({"type": "cell_start", "run": run.id, "turn": "figures"})
             try:
@@ -978,12 +1019,12 @@ class Session:
             if err:
                 run.turns.append(turn)
                 self._emit_turn(run, turn)
+                reasons.append("the kernel could not run the cell" if lost else f"the figure cell failed ({tools.exception_line(err)[:120]})")
                 if lost:
                     break
                 tools.rebind_aliases(self.kernel)               # a rollback on an older kernel loses pd/np/plt
                 tools.run_prelude(self.kernel, self.kernel_prelude)      # ... and the document objects
-                error_note = (f"\n\nYOUR LAST CELL FAILED - it was rolled back (attempt {attempt} of {FIGURES_ATTEMPTS}); write a corrected cell:\n"
-                              f"```python\n{code.rstrip()}\n```\nERROR:\n{tools.condense_error(err, code=code)}")
+                error_note = "\n\n" + FIGURES_FAILED.format(k=attempt, n=FIGURES_ATTEMPTS, code=code.rstrip(), error=tools.condense_error(err, code=code))
                 continue
             turn.cell_no = self.nb.next_cell_no(run.id)
             run.turns.append(turn)
@@ -995,9 +1036,12 @@ class Session:
                     k = len(caps)
                     caps.append((titles[k - len(figs or [])] if 0 <= k - len(figs or []) < len(titles) else "") or f"figure {k + 1}")
                 section = "\n\n## Figures\n\n" + "\n".join(f"- [fig {turn.cell_no}] {c}" for c in caps)
+            else:
+                reasons.append("the figure cell ran but drew nothing")
             break
         self._save()
-        return section
+        note = "" if section or not reasons else "The figures were not drawn: " + figures_outcome(reasons) + "."
+        return section, note
 
     def _figures_prompt(self, run: Run, report_text: str) -> str:
         cells = self.nb.path_cells(run.id)

@@ -495,7 +495,18 @@ try:
     while not q.empty(): ev.append(json.loads(q.get()))
     rw = [(e.get("seat"), e.get("model")) for e in ev if e.get("type") == "pane_turn_start" and e.get("turn") == "rewrite"]
     check("rewrite seat: the pane's rewrite card carries 'Rewriter' and its model", rw and rw[-1] == ("Rewriter", "fake/flash"), rw)
-    FakeModels.config["agent_configs"].pop(); FakeModels.config["agent_configs"].pop(); FakeModels.get_model_name = _get_model_name; BAMBOO.review_every = 8
+    # the Figures seat (2026-10-11): the figures request runs on it when the config carries one, on the analyst seat otherwise (above)
+    FakeModels.config["agent_configs"].append({"agent": "Figures", "details": {"model": "fake/quick", "provider": "fake", "reasoning_effort": "low"}})
+    FakeModels.get_model_name = lambda self, agent: ("fake/strong", "fake") if agent == "Reviewer" else (("fake/flash", "fake") if agent == "Rewriter" else (("fake/quick", "fake") if agent == "Figures" else ("fake/model", "fake")))
+    state.update(i=0, calls=[], script=[cell(1), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
+    BAMBOO.output_manager.add_user_input("figures seat"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="deep")
+    agents = [a for a, u in state["calls"]]
+    q = BAMBOO.output_manager.output_queue; ev = []
+    while not q.empty(): ev.append(json.loads(q.get()))
+    fg = [(e.get("seat"), e.get("model")) for e in ev if e.get("type") == "pane_turn_start" and e.get("turn") == "figures"]
+    check("figures seat: with a Figures seat in the config the figures request runs on it - the call and the pane's Figures card carry 'Figures' and its model; the turns stay on the analyst seat",
+          agents == ["Investigator", "Investigator", "Figures", "Rewriter"] and fg == [("Figures", "fake/quick")], (agents, fg))
+    FakeModels.config["agent_configs"].pop(); FakeModels.config["agent_configs"].pop(); FakeModels.config["agent_configs"].pop(); FakeModels.get_model_name = _get_model_name; BAMBOO.review_every = 8
 except Exception as exc:                                     # noqa: BLE001
     check("review seat: the checks ran", False, repr(exc))
 
