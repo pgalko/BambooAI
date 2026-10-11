@@ -406,6 +406,19 @@ def load_plan(routine: dict, version_number: Optional[int] = None) -> dict:
     return plan
 
 
+def cut_window(ver: dict, current_data: Optional[dict]) -> Optional[dict]:
+    """The window a run on a cached load is cut to (2026-10-11): when the page says the load came from a cached load
+    around it (`load.cached_from`), {start, end, column} - the window asked and the frame's date column (the one
+    recorded at promotion, else the first date column on record); None when nothing is to be cut."""
+    d = current_data or {}
+    load = d.get("load") or {}
+    if not load.get("cached_from") or not (load.get("start_date") and load.get("end_date")):
+        return None
+    rec = (ver.get("manifest") or {}).get("data") or {}
+    col = str(((rec.get("span") or {}).get("column")) or "") or rt.date_column(rec.get("columns") or []) or rt.date_column(d.get("columns") or [])
+    return {"start": str(load["start_date"]), "end": str(load["end_date"]), "column": col}
+
+
 def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable], run_dir: str) -> dict:
     """A run's data made to fit the recorded shape: the recorded auxiliary files bound by kind to this load's (a copy
     with the missing columns added, in the run's folder, when one lacks columns; an empty table for one this load
@@ -435,12 +448,25 @@ def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable],
     # (the prelude writes what is not there), so a recorded name is never rewritten as a cache path
     for old in binding["absent"]:
         placeholders.setdefault(old, run_dir.rstrip("/") + "/" + os.path.basename(old))
+    # a run on a cached load around the window asked: each bound file is cut to the window by the prelude and written in the
+    # run's folder under the loader's name for that window - the executed text names the cut copy, never the cached file
+    cut = cut_window(ver, d)
+    cut_files: Dict[str, dict] = {}
+    if cut:
+        for old, src_path in binding["map"].items():
+            new = run_dir.rstrip("/") + "/" + rt.cut_name(src_path, cut["start"], cut["end"])
+            by, col = rt.cut_rule(src_path)
+            cut_files[new] = {"source": src_path, "columns": columns.get(old) or [], "by": by, "column": col}
+            bound[old] = new
+        cut["files"] = cut_files
     script, subs = rt.bind_script(ver.get("script") or "", bound, run_dir, rt.datasets_dir_of(rec.get("aux") or []) or rt.datasets_dir_of(d.get("aux") or []), placeholders)
+    subs = [(old, new, ("cut" if new in cut_files else kind)) for old, new, kind in subs]
     files = [(new, old, columns.get(old) or [], kind) for old, new, kind in subs]
-    logger.info("routine run: %d file(s) bound, %d absent (%s), %d substitution(s) in the executed text%s", len(binding["map"]), len(binding["absent"]),
-                ", ".join(rt.aux_kind(p) for p in binding["absent"]) or "-", len(subs), ("; " + note) if note else "")
-    return {"binding": binding, "bound": bound, "placeholders": placeholders, "shape": shape, "script": script, "subs": subs, "note": note,
-            "prelude": rt.conform_prelude(rec.get("columns") or [], files, span_inputs((ver.get("manifest") or {}).get("parameters") or [], rec))}
+    logger.info("routine run: %d file(s) bound, %d absent (%s), %d substitution(s) in the executed text%s%s", len(binding["map"]), len(binding["absent"]),
+                ", ".join(rt.aux_kind(p) for p in binding["absent"]) or "-", len(subs), ("; " + note) if note else "",
+                (f"; cut to {cut['start']} → {cut['end']} by {cut['column'] or '?'}, {len(cut_files)} file(s)") if cut else "")
+    return {"binding": binding, "bound": bound, "placeholders": placeholders, "shape": shape, "script": script, "subs": subs, "note": note, "cut": cut,
+            "prelude": rt.conform_prelude(rec.get("columns") or [], files, span_inputs((ver.get("manifest") or {}).get("parameters") or [], rec), cut)}
 
 
 def aux_line(binding: dict) -> str:
@@ -494,7 +520,7 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
         checks = rt.value_checks(params, vals)
         if checks:
             try:
-                stdout, err, _f, _g = runner(rt.precheck_script(checks, d.get("aux") or []), 120)
+                stdout, err, _f, _g = runner(rt.precheck_script(checks, d.get("aux") or [], cut_window(ver, d)), 120)
             except Exception as exc:                                   # noqa: BLE001
                 stdout, err = "", str(exc)
             found = rt.read_precheck(stdout or "")
@@ -533,10 +559,13 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         if emit:
             emit({"type": "lookup", "kind": "check", "query": name, "peek": fit["line"]})
         raise RoutineRefused("the data does not fit the routine: " + fit["line"])
+    cut = cut_window(ver, d)
+    if cut:                                                    # the record says the window the method saw, not the cached load's
+        d = dict(d, date_range=f"{cut['start']} to {cut['end']}")
     checks = rt.value_checks(params, vals)
     value_notes: List[str] = []
     if checks:
-        stdout, err, _f, _g = runner(rt.precheck_script(checks, d.get("aux") or []), 120)
+        stdout, err, _f, _g = runner(rt.precheck_script(checks, d.get("aux") or [], cut), 120)
         found = rt.read_precheck(stdout or "")
         miss, value_notes = rt.value_verdict(params, vals, found) if found is not None else ([], [])
         if miss:
@@ -549,6 +578,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     run_dir = run_dir or f"routines/{routine.get('id', 'routine')}/{run_tag(vnum, number)}"
     prep = prepare(ver, d, runner, run_dir)
     check_line = fit["line"] + (("; " + aux_line(prep["binding"])) if prep["binding"]["absent"] else "") + (("; " + "; ".join(value_notes)) if value_notes else ("; the chosen values are in the data" if checks else ""))
+    if prep.get("cut"):
+        check_line += f"; cut to {prep['cut']['start']} → {prep['cut']['end']} from the cached load" + (f" {(d.get('load') or {}).get('cached_from')[0]} → {(d.get('load') or {}).get('cached_from')[1]}" if len((d.get("load") or {}).get("cached_from") or []) == 2 else "")
     if prep["note"]:
         check_line += "; " + prep["note"]
     if emit:
@@ -571,7 +602,11 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     written = read_marked(stdout or "", rt.INPUTS_MARK_OUT)
     if written:
         vals.update({k: v for k, v in written.items() if k in vals})
-        stdout = "\n".join(ln for ln in (stdout or "").splitlines() if not ln.strip().startswith(rt.INPUTS_MARK_OUT))
+    seen = read_marked(stdout or "", rt.DATA_MARK_OUT)         # a cut run: the rows the method saw
+    if seen and seen.get("rows") is not None:
+        d = dict(d, rows=int(seen["rows"]))
+    if written or seen:
+        stdout = "\n".join(ln for ln in (stdout or "").splitlines() if not ln.strip().startswith((rt.INPUTS_MARK_OUT, rt.DATA_MARK_OUT)))
     got = rt.result_lines_in(stdout or "")
     status, line = rt.run_status(expected, got, err or "", ref_results, script)
     if emit:

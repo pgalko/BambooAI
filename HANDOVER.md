@@ -58,10 +58,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (177/87/30/19/16/49/44/51/10/95/1/1 Python; 39/7/29/56/24/59 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (177/87/30/19/16/49/44/51/10/101/1/1 Python; 39/7/29/56/24/59 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (79 hosted, 78 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (34; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (37; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -440,6 +440,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines: a cached load that contains the window is used, cut to the window before the method runs (2026-10-11,
+  patch 0124).** Palo: Feb-May inside a cached Jan-June was downloaded again - and, as he saw, used whole it would show
+  the cached window's numbers. `cache_match` now takes the exact window first, else the smallest cached load (same
+  source and metrics) whose window contains the one asked, with every wanted file beside it under *that* load's name;
+  the answer carries `cut: [cached start, cached end]`. The page passes `cached_from` in the load; `cut_window(ver, d)`
+  (host) gives {start, end, column} - the frame's date column recorded at promotion; `prepare` rebinds every bound
+  file to a run-folder copy named for the window (`cut_name`) and hands the prelude `_ROUTINE_CUT` {start, end,
+  column, files: {new: {source, columns, by, column}}}; `CUT_SNIPPET` (shared with the precheck script) cuts the frame
+  by its dates and each file by `CUT_RULES` (summary: start_date_local; wellness: date; intervals: the activity ids
+  kept; others: a column of dates found by name, else the ids, else whole and said), adds the recorded columns a cut
+  file lacks, prints `ROUTINE_DATA:` with the rows the method saw (read back into the record, the line taken off the
+  output); the span inputs are computed after the cut. The value check cuts the same way, so a value absent from the
+  window is a note. The CHECK row says the cut; the LOAD row 'cut from the cache'; `loadLabel` names the cached load.
+  The Data tab afterwards holds the cached load (its pills say its window); the record says the run's. test_routines.py
+  101 (a run on a cached Jan-June asked Feb-May over a real kernel: 2 of 4 sessions, the summary 2 of 4 rows, wellness 1
+  of 3, intervals 2 of 4 by the ids kept, the span input from the cut frame, the precheck's note in the window);
+  test_app_path.py 87; the integrations walk's run 4 (37): a window inside the original's, cut from the cached load,
+  no FIT requests, the session count equal to the window's days. ROUTINES_DESIGN.md F2.1.
 - **Routines: a choice column is looked for in the auxiliary files too; a partly absent choice is a note; the cache
   asked at Run time (2026-10-11, patch 0123).** Palo's third routine ("Rides by local start hour and midday share")
   refused every run with "column type is not in this data (for 'Ride')": the choice input's column `type` is the

@@ -432,12 +432,18 @@ def kind_prefix(kind: str) -> str:
     return next((p for p, k in AUX_KINDS if k == kind), "")
 
 
+_RANGE_RE = re.compile(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-|→)\s*(\d{4}-\d{2}-\d{2})\s*$")
+
+
 def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None, end: Optional[str] = None, race_id=None) -> dict:
     """Whether the load a run dialog asks for is already in the executor's cache (2026-10-11: a run re-downloaded a
     window the Data tab had loaded minutes before): a cached frame of the same source with the same window (Intervals:
     date_range, and the same metrics) or the same race (Endura), and every auxiliary file of the kinds the routine
-    wants there beside it under the loader's name for that load. SweatStack's entries do not say which subjects they
-    hold, so they never match. Returns {hit, df_id, files, rows, line}; `line` says why when there is no hit."""
+    wants there beside it under the loader's name for that load. A cached window that *contains* the one asked is a
+    hit too (the same day: a window inside a cached load was downloaded again) - the run then cuts the frame and the
+    files to the window before the method runs (`cut`: the cached load's window). SweatStack's entries do not say
+    which subjects they hold, so they never match. Returns {hit, df_id, files, rows, cut?, line}; `line` says why
+    when there is no hit."""
     src = str((plan or {}).get("source") or "")
     frames = [f for f in ((inspect or {}).get("cached_dataframes") or []) if isinstance(f, dict)]
     have = {}
@@ -449,12 +455,44 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
     if src == "intervals":
         if not (start and end):
             return {"hit": False, "line": ""}
-        want = f"{start} to {end}"
         metrics = sorted(str(m) for m in (plan or {}).get("metrics") or [])
-        tag = f"{str(start).replace('-', '')}_to_{str(end).replace('-', '')}"
-        names = {k: f"{kind_prefix(k)}{tag}.csv" for k in kinds if kind_prefix(k)}
-        hits = [f for f in frames if str(f.get("source")) == "intervals" and str(f.get("date_range")) == want and sorted(str(m) for m in (f.get("metrics") or [])) == metrics]
+        same = [f for f in frames if str(f.get("source")) == "intervals" and sorted(str(m) for m in (f.get("metrics") or [])) == metrics]
         what = f"this window ({start} → {end})"
+        exact, around = [], []
+        for f in same:
+            m = _RANGE_RE.match(str(f.get("date_range") or ""))
+            if not m:
+                continue
+            cs, ce = m.group(1), m.group(2)
+            if (cs, ce) == (str(start), str(end)):
+                exact.append((f, cs, ce))
+            elif cs <= str(start) and ce >= str(end):
+                around.append((f, cs, ce))
+        if not exact and not around:
+            return {"hit": False, "line": f"{what} is not in the cache - it will be downloaded"}
+        # the exact window first; else the smallest cached load around it (the least to cut)
+        around.sort(key=lambda t: ((t[0].get("shape") or [0])[0] or 0))
+        candidates = exact or around
+        for f, cs, ce in candidates:
+            tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
+            names = {k: f"{kind_prefix(k)}{tag}.csv" for k in kinds if kind_prefix(k)}
+            missing = [k for k, n in names.items() if n not in have]
+            if missing:
+                continue
+            rows = (f.get("shape") or [None])[0]
+            size = (f" ({int(rows):,} rows" + (", with " + ", ".join(names) if names else "") + ")") if rows is not None else ""
+            out = {"hit": True, "df_id": str(f.get("df_id") or ""), "files": [have[n] for n in names.values()], "rows": rows, "date_range": f"{cs} to {ce}"}
+            if (cs, ce) == (str(start), str(end)):
+                out["line"] = f"{what} is in the cache{size} - no download"
+            else:
+                out["cut"] = [cs, ce]
+                out["line"] = f"{what} is inside the cached load {cs} → {ce}{size} - it will be cut to the window, no download"
+            return out
+        f, cs, ce = candidates[0]
+        tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
+        missing = [k for k in kinds if kind_prefix(k) and f"{kind_prefix(k)}{tag}.csv" not in have]
+        held = what if exact else f"the cached load around {what}"
+        return {"hit": False, "line": f"{held} is in the cache without {', '.join(missing)} - it will be downloaded"}
     elif src == "endura":
         if race_id in (None, ""):
             return {"hit": False, "line": ""}
@@ -577,6 +615,53 @@ def dtype_family(dtype: str) -> str:
     return "text"
 
 
+# how a cached load is cut to the window a run asks for (2026-10-11): the frame by its date column; each auxiliary file
+# by the column the loader keyed it on, or by the rides kept when it has none; a file with neither is taken whole and said
+CUT_RULES = {"summary": ("date", "start_date_local"), "wellness": ("date", "date"), "intervals": ("ids", "activity_id")}
+DATA_MARK_OUT = "ROUTINE_DATA:"             # printed by a run's prelude after a cut: the rows the method saw
+
+
+def cut_rule(path: str) -> Tuple[str, str]:
+    """(by, column) for cutting an auxiliary file to a window: a loader's file by its known column; any other by what
+    the script finds in it ('auto': a column of dates by name, else the frame's ids, else whole)."""
+    return CUT_RULES.get(aux_kind(path), ("auto", ""))
+
+
+def cut_name(path: str, start: str, end: str) -> str:
+    """The loader's name for this file had it been loaded for the window: the kind's prefix with the window's dates;
+    a file of another kind keeps its name."""
+    k = aux_kind(path)
+    if k in CUT_RULES or kind_prefix(k):
+        return f"{kind_prefix(k)}{str(start).replace('-', '')}_to_{str(end).replace('-', '')}.csv"
+    return os.path.basename(path)
+
+
+CUT_SNIPPET = """def _routine_cut_frame(frame, col, start, end):
+    import pandas as _pd
+    if frame is None or not col or col not in frame.columns:
+        return frame
+    _t = _pd.to_datetime(frame[col], errors='coerce')
+    return frame[(_t >= _pd.Timestamp(start)) & (_t < _pd.Timestamp(end) + _pd.Timedelta(days=1))].copy()
+def _routine_cut_table(table, by, col, start, end, ids):
+    import pandas as _pd
+    if by == 'auto':
+        _named = [c for c in table.columns if any(k in str(c).lower() for k in ('date', 'start', 'time'))]
+        for c in _named + [c for c in table.columns if c not in _named]:
+            if table[c].dtype != object and not str(table[c].dtype).startswith('datetime'):
+                continue
+            _t = _pd.to_datetime(table[c], errors='coerce')
+            if len(table) and _t.notna().mean() >= 0.9:
+                by, col = 'date', c
+                break
+        else:
+            by, col = ('ids', 'activity_id') if 'activity_id' in table.columns else ('whole', '')
+    if by == 'date' and col in table.columns:
+        return _routine_cut_frame(table, col, start, end), 'date'
+    if by == 'ids' and col in table.columns and ids is not None:
+        return table[table[col].astype(str).isin(ids)].copy(), 'ids'
+    return table, 'whole'
+"""
+
 CONFORM_PRELUDE = """# --- the data as the method saw it: a column this load lacks is added empty, a column whose type changed is read back
 def _routine_family(d):
     d = str(d or '').lower()
@@ -599,6 +684,36 @@ def _routine_conform(frame, columns):
             except Exception:
                 pass
     return frame
+# a cached load cut to the window this run asked for: the frame first, then the files it names - each written under the
+# loader's name for the window, with the recorded columns it lacks added - so the method sees what a fresh load would give it
+""" + CUT_SNIPPET + """if _ROUTINE_CUT and 'df' in globals() and df is not None:
+    import os as _os, json as _j, numpy as _np, pandas as _pd
+    df = _routine_cut_frame(df, _ROUTINE_CUT['column'], _ROUTINE_CUT['start'], _ROUTINE_CUT['end'])
+    _ids = set(df['activity_id'].astype(str)) if 'activity_id' in df.columns else set()
+    _later = []
+    for _new, _spec in _ROUTINE_CUT['files'].items():
+        if _spec.get('by') == 'ids':
+            _later.append((_new, _spec)); continue
+        _later.insert(0, (_new, _spec))
+    for _new, _spec in _later:
+        _d = _os.path.dirname(_new)
+        if _d:
+            _os.makedirs(_d, exist_ok=True)
+        try:
+            _t = _pd.read_csv(_spec['source'])
+        except Exception:
+            _t = _pd.DataFrame(columns=list(_spec.get('columns') or []))
+            print('ROUTINE: ' + _os.path.basename(_spec['source']) + ' could not be read from the cached load; an empty table stood in for it')
+        _t, _how = _routine_cut_table(_t, _spec.get('by') or 'auto', _spec.get('column') or '', _ROUTINE_CUT['start'], _ROUTINE_CUT['end'], _ids or None)
+        if _how == 'date' and 'activity_id' in _t.columns:
+            _ids |= set(_t['activity_id'].astype(str))
+        for _c in _spec.get('columns') or []:
+            if _c not in _t.columns:
+                _t[_c] = _np.nan
+        _t.to_csv(_new, index=False)
+        if _how == 'whole':
+            print('ROUTINE: ' + _os.path.basename(_new) + ' was taken whole from the cached load - nothing in it to cut by the window')
+    print('ROUTINE_DATA: ' + _j.dumps({'rows': int(len(df)), 'window': [_ROUTINE_CUT['start'], _ROUTINE_CUT['end']]}))
 if 'df' in globals() and df is not None:
     df = _routine_conform(df, _ROUTINE_COLUMNS)
     if '_BambooSource' in globals():
@@ -619,7 +734,7 @@ def _routine_materialise(files):
                 _t.write(_s.read())
             continue
         _pd.DataFrame(columns=list(_cols or [])).to_csv(_new, index=False)
-        if _kind == 'bound':
+        if _kind in ('bound', 'cut'):
             print('ROUTINE: ' + _os.path.basename(_old or _new) + ' was not where this load left it; an empty table stood in for it')
 _routine_materialise(_ROUTINE_FILES)
 # an input that is the data's own period is written from the frame, first and last dates of its date column
@@ -645,15 +760,23 @@ if _ROUTINE_SPAN and 'df' in globals() and df is not None:
 
 
 def conform_prelude(columns: Iterable[dict], files: Optional[Iterable[Tuple[str, str, List[str], str]]] = None,
-                    span: Optional[Iterable[Tuple[str, str]]] = None) -> str:
+                    span: Optional[Iterable[Tuple[str, str]]] = None, cut: Optional[dict] = None) -> str:
     """The block a run executes after its inputs: the recorded columns of `df`, the files the executed text names
-    (each as [this run's path, the recorded path, the recorded columns, bound | placeholder | cache]) and the inputs
-    that follow the frame's own dates (each as [key, date column]); then the conform of the frame, the files made sure
-    of, and those inputs written from the frame and printed after ROUTINE_INPUTS: for the record."""
+    (each as [this run's path, the recorded path, the recorded columns, bound | placeholder | cache | cut]), the inputs
+    that follow the frame's own dates (each as [key, date column]) and, for a run on a cached load, the cut to its
+    window ({start, end, column, files: {this run's path: {source, columns, by, column}}}); then the cut, the conform
+    of the frame, the files made sure of, and those inputs written from the frame and printed after ROUTINE_INPUTS:
+    for the record."""
     cols = [[str(c.get("name")), str(c.get("dtype") or "")] for c in (columns or []) if c.get("name") is not None]
     fl = [[str(n), str(o or ""), [str(c) for c in (cs or [])], str(k or "")] for n, o, cs, k in (files or [])]
     sp = [[str(k), str(c)] for k, c in (span or []) if k and c]
-    return "_ROUTINE_COLUMNS = " + json.dumps(cols) + "\n_ROUTINE_FILES = " + json.dumps(fl) + "\n_ROUTINE_SPAN = " + json.dumps(sp) + "\n" + CONFORM_PRELUDE
+    ct = None
+    if cut and cut.get("start") and cut.get("end"):
+        ct = {"start": str(cut["start"]), "end": str(cut["end"]), "column": str(cut.get("column") or ""),
+              "files": {str(n): {"source": str(v.get("source") or ""), "columns": [str(c) for c in (v.get("columns") or [])], "by": str(v.get("by") or "auto"), "column": str(v.get("column") or "")}
+                        for n, v in (cut.get("files") or {}).items()}}
+    return ("_ROUTINE_COLUMNS = " + json.dumps(cols) + "\n_ROUTINE_FILES = " + json.dumps(fl) + "\n_ROUTINE_SPAN = " + json.dumps(sp)
+            + "\n_ROUTINE_CUT = " + ("None" if ct is None else json.dumps(ct)) + "\n" + CONFORM_PRELUDE)
 
 
 SHAPE_MARK = "SHAPE:"
@@ -706,29 +829,45 @@ def read_shape(stdout: str) -> Optional[dict]:
 PRECHECK_MARK = "PRECHECK:"
 
 
-def precheck_script(checks: Dict[str, List[str]], files: Optional[Iterable[str]] = None) -> str:
+def precheck_script(checks: Dict[str, List[str]], files: Optional[Iterable[str]] = None, cut: Optional[dict] = None) -> str:
     """A script that reports, for each column named by a choice input, which of its chosen values the data holds: the
     frame first, then the auxiliary files loaded now (2026-10-11: a choice column that lives in the summary file,
-    not in the frame, was reported as not in the data). `where` says which table answered."""
+    not in the frame, was reported as not in the data). `where` says which table answered. For a run on a cached
+    load, the frame and the files are cut to the window first (`cut`: {start, end, column}), as the run will cut them."""
     spec = json.dumps({str(k): [str(x) for x in v] for k, v in (checks or {}).items()})
     paths = json.dumps([str(p) for p in (files or []) if p])
+    ct = {"start": str(cut["start"]), "end": str(cut["end"]), "column": str(cut.get("column") or "")} if cut and cut.get("start") and cut.get("end") else None
+    rules = json.dumps({str(p): list(cut_rule(str(p))) for p in (files or []) if p})
     return ("import json as _j, os as _os\n"
             "import pandas as _pd\n"
             "_spec = _j.loads(" + repr(spec) + ")\n"
             "_files = " + paths + "\n"
-            "_out = {'rows': int(len(df)), 'columns': [str(c) for c in df.columns], 'values': {}, 'where': {}}\n"
+            "_cut = " + ("None" if ct is None else json.dumps(ct)) + "\n"
+            "_rules = " + rules + "\n"
+            + CUT_SNIPPET +
+            "_frame = df\n"
+            "_ids = None\n"
+            "if _cut:\n"
+            "    _frame = _routine_cut_frame(df, _cut['column'], _cut['start'], _cut['end'])\n"
+            "    _ids = set(_frame['activity_id'].astype(str)) if 'activity_id' in _frame.columns else set()\n"
+            "_out = {'rows': int(len(_frame)), 'columns': [str(c) for c in _frame.columns], 'values': {}, 'where': {}}\n"
             "def _column_of(_p, _col):\n"
             "    try:\n"
             "        _head = _pd.read_csv(_p, nrows=0) if _p.lower().endswith('.csv') else _pd.read_parquet(_p)\n"
             "        if _col not in _head.columns:\n"
             "            return None\n"
+            "        if _cut:\n"
+            "            _t = _pd.read_csv(_p) if _p.lower().endswith('.csv') else _head\n"
+            "            _by, _c = _rules.get(_p, ['auto', ''])\n"
+            "            _t, _how = _routine_cut_table(_t, _by, _c, _cut['start'], _cut['end'], _ids or None)\n"
+            "            return _t[_col]\n"
             "        return (_pd.read_csv(_p, usecols=[_col]) if _p.lower().endswith('.csv') else _head)[_col]\n"
             "    except Exception:\n"
             "        return None\n"
             "for _col, _vals in _spec.items():\n"
             "    _series, _where = None, None\n"
-            "    if _col in df.columns:\n"
-            "        _series, _where = df[_col], 'the frame'\n"
+            "    if _col in _frame.columns:\n"
+            "        _series, _where = _frame[_col], 'the frame'\n"
             "    else:\n"
             "        for _p in _files:\n"
             "            _series = _column_of(_p, _col)\n"

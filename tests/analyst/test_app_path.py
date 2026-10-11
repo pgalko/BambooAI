@@ -228,14 +228,15 @@ _rq.get = lambda url, **kw: (_seen.append((url, kw.get("params"))), _Resp())[1]
 _st = RR._store(); _rt_ = _st.load(_rid); _rt_["versions"][0]["manifest"]["data"]["load"] = {"source": "intervals", "start_date": "2026-06-01", "end_date": "2026-07-30", "metrics": [], "aux_kinds": ["summary"]}; _st.save(_rt_)
 try:
     _cc2 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10"}).get_json()
-    _cc3 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-13", "end": "2026-10-10"}).get_json()
+    _cc3 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-01", "end": "2026-10-10"}).get_json()
+    _cc4 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-13", "end": "2026-10-10"}).get_json()
 finally:
     _rq.get = _real_get
     del _fapp.get_dynamic_executor_urls
     _rt_["versions"][0]["manifest"]["data"].pop("load", None); _st.save(_rt_)
-check("route cached with an executor: the executor's cache inspected for the user; the window that is there with its summary is a hit (the frame's id, the file, the line); another window is not, with the reason",
+check("route cached with an executor: the executor's cache inspected for the user; the window that is there with its summary is a hit (the frame's id, the file, the line); a wider window is not, with the reason; a window inside it is a hit to be cut",
       _seen and _seen[0][0] == "http://executor/cache/inspect" and _seen[0][1] == {"user_id": "u1"} and _cc2["hit"] and _cc2["df_id"] == "dfc" and _cc2["files"] == ["datasets/u1/activity_summary_20260812_to_20261010.csv"] and "no download" in _cc2["line"]
-      and not _cc3["hit"] and "not in the cache" in _cc3["line"], (_seen, _cc2, _cc3))
+      and not _cc3["hit"] and "not in the cache" in _cc3["line"] and _cc4["hit"] and _cc4.get("cut") == ["2026-08-12", "2026-10-10"] and "cut to the window" in _cc4["line"], (_seen, _cc2, _cc3, _cc4))
 # how the data was loaded rides on the instance (the loader routes set it) and into the run's record, so a routine's run can load the same way
 BAMBOO.load_params = {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "df_id": "d1"}
 _rec = BAMBOO._data_record()

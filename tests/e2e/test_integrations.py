@@ -235,6 +235,36 @@ def main():
                   and run3["data"]["load"].get("cached") is True and run3["data"]["load"]["start_date"] == a_start.isoformat() and run3["data"]["df_id"] == rec.get("df_id") and run3["aux_absent"] == [] and run3["status"] in ("ran", "reproduced")
                   and sum(1 for p in r3["pills"] if "Intervals ICU" in p) == 1 and any("Wellness" in p for p in r3["pills"]) and any("Activity Summary" in p for p in r3["pills"]), (r3["rows"], r3["done"][:160], (fits_before, fits_after), run3["data"].get("load"), run3.get("aux_absent"), r3["pills"]))
 
+            # run 4 on a window inside the original's: the cached load around it is used and cut to the window before the method
+            # runs - the frame by its dates, the summary and wellness files by theirs - so the counts are the window's, not the cached load's
+            c_start, c_end = a_start + timedelta(days=10), a_end - timedelta(days=12)
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
+            page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [c_start.isoformat(), c_end.isoformat()])
+            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && /hit/.test(c.className) && /cut/.test(c.textContent); }", timeout=15000)
+            cl4 = page.inner_text("#routineRunModal .rt-cache")
+            check("a window inside the original's: the line says it is inside the cached load and will be cut to the window - no download", f"inside the cached load {a_start.isoformat()} → {a_end.isoformat()}" in cl4 and "cut to the window, no download" in cl4, cl4)
+            page.click("#routineRunModal [data-act='run']")
+            wait_text(page, "#chainPosition", "run 4 of 4", 300000)
+            page.wait_for_timeout(800)
+            r4 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()) })")
+            fits_after4 = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
+            run4 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_4", "run.json")))
+            n_days = (c_end - c_start).days + 1
+            got4 = {x.get("what", ""): x.get("estimate") for x in (run4.get("results") or [])}
+            sessions4 = next((v for k, v in got4.items() if k.startswith("sessions in the window")), None)
+            check("run 4 was cut from the cached load: the LOAD and CHECK rows say so, nothing downloaded, the record's load names the window and the cached load it was cut from, the data record says the window and fewer rows than the cached load, the file the method names is bound to its cut copy under the window's name, the session count is the window's days (one a day in the fake data) and the dates input is the cut frame's first and last",
+                  any("LOAD" in r and f"Intervals.icu {c_start.isoformat()} → {c_end.isoformat()}" in r and "cut from the cache" in r for r in r4["rows"]) and any("CHECK" in r and f"cut to {c_start.isoformat()} → {c_end.isoformat()} from the cached load {a_start.isoformat()} → {a_end.isoformat()}" in r for r in r4["rows"])
+                  and "Run 4 complete" in r4["done"] and fits_after4 == fits_after and run4["data"]["load"].get("cached_from") == [a_start.isoformat(), a_end.isoformat()] and run4["data"]["load"]["start_date"] == c_start.isoformat()
+                  and run4["data"]["date_range"] == f"{c_start.isoformat()} to {c_end.isoformat()}" and run4["data"]["rows"] < run3["data"]["rows"] and all(b[2] == "cut" for b in run4["bindings"])
+                  and [os.path.basename(b[1]) for b in run4["bindings"]] == [f"activity_summary_{c_start.strftime('%Y%m%d')}_to_{c_end.strftime('%Y%m%d')}.csv"]   # the method names the summary only; the wellness file is cut beside it, unnamed
+                  and sessions4 is not None and float(sessions4) == n_days and run4["inputs"].get("span") == [c_start.isoformat(), c_end.isoformat()] and run4["status"] in ("ran", "reproduced"),
+                  (r4["rows"], (fits_after, fits_after4), run4["data"].get("load"), run4["data"].get("date_range"), run4["data"].get("rows"), run4.get("bindings"), got4, run4.get("inputs"), run4.get("status"), (run4.get("error") or "")[-200:]))
+            check("the Data tab's pills after the cut run show what the session holds - the cached load's window - not the run's", any(f"Intervals ICU (59 days [W+S]) loaded" in p for p in r4["pills"]), r4["pills"])
+
             # Endura: a routine made on one race, run on another picked in the dialog (the flat crit has no power channel, no climbs)
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)

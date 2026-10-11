@@ -34,7 +34,7 @@
     function loadLabel(ld) {
         if (!ld || !ld.source) return '';
         const src = sourceKind(ld.source);
-        const from = ld.cached ? ' · from the cache' : '';
+        const from = ld.cached ? (ld.cached_from && ld.cached_from.length === 2 ? ' · cut from the cached load ' + ld.cached_from[0] + ' → ' + ld.cached_from[1] : ' · from the cache') : '';
         if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '') + from;
         if (src === 'endura') return 'Endura · ' + (ld.race_title || ('race ' + (ld.race_id || ''))) + from;
         return ld.name ? 'File · ' + ld.name : '';
@@ -854,13 +854,16 @@
                 const ar = await fetchJson('/cache/load_auxiliary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file_path: fp }) });
                 if (!ar.ok) throw new Error((ar.json && ar.json.error) || ('the cached file ' + String(fp).split('/').pop() + ' could not be loaded'));
             }
-            const load = Object.assign({}, asked, { cached: true });
+            // a cached load around the window: the run cuts it to the window (the record says so); the session holds the cached load itself
+            const load = Object.assign({}, asked, { cached: true }, cached.cut && cached.cut.length === 2 ? { cached_from: cached.cut } : {});
             if (src === 'intervals') {
-                const info = { start_date: asked.start_date, end_date: asked.end_date, aux_datasets: plan.aux_kinds || [], shape: [cached.rows, null], columns: [] };
+                const held = cached.cut && cached.cut.length === 2 ? { start_date: cached.cut[0], end_date: cached.cut[1] } : { start_date: asked.start_date, end_date: asked.end_date };
+                const info = Object.assign({ aux_datasets: plan.aux_kinds || [], shape: [cached.rows, null], columns: [] }, held);
                 if (typeof createIntervalsPill === 'function') createIntervalsPill(info);
                 if (typeof createIntervalsAuxiliaryPills === 'function' && (cached.files || []).length) createIntervalsAuxiliaryPills(cached.files, info);
                 dfTab(res.json);
-                return { source: 'intervals', start: asked.start_date, end: asked.end_date, aux: cached.files || [], load, loaded: 'Intervals.icu ' + asked.start_date + ' → ' + asked.end_date + ' · from the cache' + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
+                return { source: 'intervals', start: asked.start_date, end: asked.end_date, aux: cached.files || [], load,
+                         loaded: 'Intervals.icu ' + asked.start_date + ' → ' + asked.end_date + (cached.cut ? ' · cut from the cache' : ' · from the cache') + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
             }
             if (typeof createOrUpdateDatasetPill === 'function') {
                 createOrUpdateDatasetPill('endura-pill-' + Date.now(), 'Endura (' + (asked.race_title || asked.race_id) + ') loaded', 'endura', 'success', false, null);

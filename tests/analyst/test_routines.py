@@ -475,16 +475,83 @@ insp = {"cached_dataframes": [{"df_id": "a", "shape": [1000, 17], "source": "int
 cm1 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary"], "metrics": []}, insp, "2026-07-12", "2026-10-10")
 cm2 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "wellness"], "metrics": []}, insp, "2026-07-12", "2026-10-10")
 cm3 = rt.cache_match({"source": "intervals", "aux_kinds": [], "metrics": ["power"]}, insp, "2026-07-12", "2026-10-10")
-cm4 = rt.cache_match({"source": "intervals", "aux_kinds": [], "metrics": []}, insp, "2026-07-13", "2026-10-10")
+cm4 = rt.cache_match({"source": "intervals", "aux_kinds": [], "metrics": []}, insp, "2026-07-01", "2026-10-10")
+cm4b = rt.cache_match({"source": "intervals", "aux_kinds": ["summary"], "metrics": []}, insp, "2026-07-20", "2026-09-30")
+cm4c = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "wellness"], "metrics": []}, insp, "2026-07-20", "2026-09-30")
 cm5 = rt.cache_match({"source": "endura", "aux_kinds": ["turns"]}, insp, race_id="2")
 cm6 = rt.cache_match({"source": "endura", "aux_kinds": ["turns", "climbs"]}, insp, race_id=2)
 cm7 = rt.cache_match({"source": "sweatstack", "aux_kinds": []}, insp, "2026-07-12", "2026-10-10")
 check("cache_match: the same source, window and metrics with every wanted file is a hit (the frame's id, the files' paths, the rows, a line saying no download); a wanted file missing, other metrics' frame used instead, another window, no hit - each with its reason",
       cm1["hit"] and cm1["df_id"] == "a" and cm1["files"] == ["datasets/u/activity_summary_20260712_to_20261010.csv"] and cm1["rows"] == 1000 and "no download" in cm1["line"] and "with summary" in cm1["line"]
       and not cm2["hit"] and "without wellness" in cm2["line"] and cm3["hit"] and cm3["df_id"] == "b" and not cm4["hit"] and "not in the cache" in cm4["line"], (cm1, cm2, cm3, cm4))
+check("cache_match: a window inside a cached load is a hit to be cut (the cached load's window on it, the line says so); without one of the wanted files beside the cached load, no hit, saying so",
+      cm4b["hit"] and cm4b["df_id"] == "a" and cm4b["cut"] == ["2026-07-12", "2026-10-10"] and "inside the cached load 2026-07-12 → 2026-10-10" in cm4b["line"] and "cut to the window, no download" in cm4b["line"]
+      and not cm4c["hit"] and "around this window" in cm4c["line"] and "without wellness" in cm4c["line"], (cm4b, cm4c))
 check("cache_match: an Endura event by its id with its files; a file missing is no hit; SweatStack never matches (its entries do not say which subjects they hold); no window or event asked - nothing to say",
       cm5["hit"] and cm5["df_id"] == "e" and cm5["files"] == ["datasets/u/race_turns_race_2.csv"] and not cm6["hit"] and "without climbs" in cm6["line"] and cm7 == {"hit": False, "line": ""}
       and rt.cache_match({"source": "intervals", "aux_kinds": []}, insp) == {"hit": False, "line": ""} and rt.cache_match({"source": "intervals"}, None, "2026-07-12", "2026-10-10")["hit"] is False, (cm5, cm6, cm7))
+# ---- a run on a cached load around the window asked (2026-10-11, Palo: Feb-May inside a cached Jan-June was downloaded again,
+# and used whole it would have shown the cached window's numbers): the frame and the files are cut to the window first ----
+cut_dir = os.path.join(aux_dir, "cut")
+os.makedirs(cut_dir, exist_ok=True)
+cut_summary = os.path.join(cut_dir, "activity_summary_20260101_to_20260630.csv")
+pd.DataFrame({"activity_id": ["a1", "a2", "a3", "a4"], "start_date_local": ["2026-01-20 07:00", "2026-02-10 08:00", "2026-04-01 09:00", "2026-06-20 07:00"], "hour": [7, 8, 9, 7]}).to_csv(cut_summary, index=False)
+cut_wellness = os.path.join(cut_dir, "wellness_data_20260101_to_20260630.csv")
+pd.DataFrame({"date": ["2026-01-20", "2026-03-01", "2026-06-20"], "ctl": [1.0, 2.0, 3.0]}).to_csv(cut_wellness, index=False)
+cut_intervals = os.path.join(cut_dir, "activity_intervals_20260101_to_20260630.csv")
+pd.DataFrame({"activity_id": ["a1", "a2", "a2", "a4"], "lap_number": [1, 1, 2, 1]}).to_csv(cut_intervals, index=False)
+cut_own = os.path.join(cut_dir, "own_notes.csv")
+pd.DataFrame({"k": [1, 2]}).to_csv(cut_own, index=False)
+nb9 = Notebook("t9")
+run9 = nb9.new_run("How many sessions, and what is in the files?")
+orig_s, orig_w, orig_i = [os.path.join(aux_dir, n) for n in ("activity_summary_20260713_to_20261011.csv", "wellness_data_20260713_to_20261011.csv", "activity_intervals_20260713_to_20261011.csv")]
+pd.DataFrame({"activity_id": ["z1"], "start_date_local": ["2026-08-01 07:00"], "hour": [7]}).to_csv(orig_s, index=False)
+pd.DataFrame({"date": ["2026-08-01"], "ctl": [1.0]}).to_csv(orig_w, index=False)
+pd.DataFrame({"activity_id": ["z1"], "lap_number": [1]}).to_csv(orig_i, index=False)
+run9.turns = [Turn(kind="cell", cell_no=1, code=f"s = pd.read_csv({orig_s!r}); w = pd.read_csv({orig_w!r}); iv = pd.read_csv({orig_i!r})\nn = int(df['activity_id'].nunique())\nprint(n, len(s), len(w), len(iv))", results=[], stdout="1 1 1 1"),
+              Turn(kind="cell", cell_no=2, code="RESULT('sessions in the frame', float(n), None, None, 'sessions', 'n/a')\nRESULT('rows in the summary', float(len(s)), None, None, 'rows', 'n/a')\nRESULT('rows in the wellness file', float(len(w)), None, None, 'rows', 'n/a')\nRESULT('rows in the intervals file', float(len(iv)), None, None, 'rows', 'n/a')",
+                   results=[{"text": "sessions in the frame: +1", "typed": False}, {"text": "rows in the summary: +1", "typed": False}, {"text": "rows in the wellness file: +1", "typed": False}, {"text": "rows in the intervals file: +1", "typed": False}],
+                   stdout="RESULT: sessions in the frame: +1\nRESULT: rows in the summary: +1\nRESULT: rows in the wellness file: +1\nRESULT: rows in the intervals file: +1")]
+run9.report = "## One\n\nOne session [cell 2]."
+run9.status = "answered"
+df9 = pd.DataFrame({"activity_id": ["z1"] * 3, "datetime": pd.to_datetime(["2026-08-01 07:00", "2026-08-01 07:01", "2026-08-01 07:02"]), "v": [1, 2, 3]})
+run9.data = {"df_id": "df9", "name": "", "source": "intervals", "columns": [{"name": "activity_id", "dtype": "object"}, {"name": "datetime", "dtype": "datetime64[ns]"}, {"name": "v", "dtype": "int64"}], "rows": 3,
+             "date_range": "2026-07-13 to 2026-10-11", "aux": [orig_s, orig_w, orig_i], "load": {"source": "intervals", "start_date": "2026-07-13", "end_date": "2026-10-11", "metrics": [], "aux_kinds": ["summary", "wellness", "intervals"]}}
+run9.replay_script, _ = assemble(run9.cells(), run9.report)
+nb9.runs[run9.id] = run9
+p9 = host.propose(nb9, run9.id, empty_promoter, current_data={"df_id": "df9", "aux": [orig_s, orig_w, orig_i]}, runner=runner_on(df9))
+p9["inputs"] = [{"key": "span", "label": "Span", "type": "date_window", "default": ["2026-08-01", "2026-08-01"], "derived": "span"}]   # follows the frame: the cut frame's dates
+p9["cells_text"] = p9["cells_text"].replace("RESULT('sessions in the frame', float(n)", "RESULT(f\"sessions in the frame {INPUTS['span'][0]} to {INPUTS['span'][1]}\", float(n)")
+p9["script"] = rt.join_script(p9["header"], p9["cells_text"], p9["tail"])
+made9 = host.create(nb9, p9, {"name": "Cut", "purpose": "", "drop_inputs": [], "drop_results": []}, runner_on(df9), store)
+rid9 = made9["routine"]["id"]
+check("the routine on three loader files and a frame made (run zero reproduced)", made9["run_zero"]["status"] == "reproduced", made9["run_zero"])
+# the cached load: Jan-June, five sessions in the frame (one per month), the run asks Feb-May
+df9c = pd.DataFrame({"activity_id": ["a1", "a2", "a3", "a4", "a1"], "datetime": pd.to_datetime(["2026-01-20 07:00", "2026-02-10 08:00", "2026-04-01 09:00", "2026-06-20 07:00", "2026-01-20 07:01"]), "v": [1, 2, 3, 4, 5]})
+now9 = {"df_id": "df9c", "name": "", "source": "intervals", "columns": run9.data["columns"], "rows": 5, "date_range": "2026-01-01 to 2026-06-30", "aux": [cut_summary, cut_wellness, cut_intervals, cut_own],
+        "load": {"source": "intervals", "start_date": "2026-02-01", "end_date": "2026-05-31", "metrics": [], "aux_kinds": ["summary", "wellness", "intervals"], "cached": True, "cached_from": ["2026-01-01", "2026-06-30"]}}
+cw = host.cut_window(host.version_of(store.load(rid9)), now9)
+check("cut_window: the window asked and the frame's date column, from the load the page says came from a cached load around it; nothing without one", cw == {"start": "2026-02-01", "end": "2026-05-31", "column": "datetime"} and host.cut_window(host.version_of(store.load(rid9)), dict(now9, load=dict(now9["load"], cached_from=None))) is None, cw)
+ev9 = []
+run9_dir = os.path.join(aux_dir, "routines", rid9, "v1_1")
+out9 = host.run(store.load(rid9), {}, now9, runner_on(df9c), store, emit=ev9.append, run_dir=run9_dir)
+r9 = out9["run"]
+got9 = {x["what"]: x["estimate"] for x in r9["results"]}
+check("the run on a cached load around the window: the frame cut to Feb-May (2 of 4 sessions), the summary by its start dates (2 of 4 rows), the wellness file by its date (1 of 3), the intervals file by the sessions kept (3 of 4 rows: a2's two laps and a3's... no, a2's two); the window input written from the cut frame; the CHECK row says the cut",
+      r9["status"] in ("ran", "differed") and got9.get("rows in the summary") == "+2.00" and got9.get("rows in the wellness file") == "+1.00" and got9.get("rows in the intervals file") == "+2.00"
+      and any(k.startswith("sessions in the frame 2026-02-10 to 2026-04-01") for k in got9) and got9[next(k for k in got9 if k.startswith("sessions in the frame"))] == "+2.00"
+      and r9["inputs"] == {"span": ["2026-02-10", "2026-04-01"]} and any(e.get("kind") == "check" and "cut to 2026-02-01 → 2026-05-31 from the cached load 2026-01-01 → 2026-06-30" in (e.get("peek") or "") for e in ev9), (r9["status"], got9, r9["inputs"], [e.get("peek") for e in ev9 if e.get("kind") == "check"], (r9.get("error") or "")[-300:]))
+check("the executed text names the cut copies under the loader's names for the window, in the run's folder; the record's bindings say cut; the data record says the window and the rows the method saw; the files are there",
+      all(k == "cut" for _, _, k in r9["bindings"]) and sorted(os.path.basename(n) for _, n, _ in r9["bindings"]) == ["activity_intervals_20260201_to_20260531.csv", "activity_summary_20260201_to_20260531.csv", "wellness_data_20260201_to_20260531.csv"]
+      and all(os.path.dirname(n) == run9_dir for _, n, _ in r9["bindings"]) and all(os.path.exists(n) for _, n, _ in r9["bindings"]) and r9["data"]["date_range"] == "2026-02-01 to 2026-05-31" and r9["data"]["rows"] == 2
+      and rt.DATA_MARK_OUT not in out9["stdout"] and pd.read_csv(os.path.join(run9_dir, "activity_summary_20260201_to_20260531.csv"))["activity_id"].tolist() == ["a2", "a3"], (r9["bindings"], r9["data"].get("date_range"), r9["data"].get("rows")))
+pc9 = host.precheck(store.load(rid9), now9, runner_on(df9c))
+R9 = store.load(rid9); v9 = host.version_of(R9)
+v9["manifest"]["parameters"].append({"key": "which", "label": "Which", "type": "choice", "default": ["a1", "a2"], "column": "activity_id", "multiple": True, "origin": "x"})
+store.save(R9)
+pc9b = host.precheck(store.load(rid9), now9, runner_on(df9c))
+check("the precheck of a cut run checks the values in the window: a1 (January) is not in the cut frame - a note, a2 is", pc9["ok"] and pc9b["ok"] and pc9b["values_notes"] == ["'a1' is not in column activity_id - the method keeps the other value"], (pc9["line"], pc9b.get("values_notes"), pc9b["line"]))
+v9["manifest"]["parameters"].pop(); store.save(R9)
 # a choice input whose value is not in the data: refused by the value check through the kernel
 R7 = store.load(rid4); v7 = host.version_of(R7)
 v7["manifest"]["parameters"].append({"key": "grp", "label": "Group", "type": "choice", "default": "a", "column": "g", "multiple": False, "origin": "x"})

@@ -259,7 +259,21 @@ version's data record, `load`), and offers the data loaded now beside it.
    auxiliary files on disk) against the routine's plan — the same source, the same window and metrics (Intervals)
    or the same event (Endura), and every auxiliary file of the kinds the routine wants there under the loader's
    name for that load (`cache_match`). A line under the window says *✓ this window (… → …) is in the cache (10,200
-   rows, with summary, wellness) - no download*, or why not (*not in the cache*, *in the cache without wellness*);
+   rows, with summary, wellness) - no download*, or why not (*not in the cache*, *in the cache without wellness*).
+   **A cached load that contains the window is a hit too** (2026-10-11: Feb–May inside a cached Jan–June was
+   downloaded again, and used whole it would have shown the cached window's numbers — min/max, counts, all of it):
+   the smallest such load is taken, and the run *cuts it to the window before the method runs* — the frame by its
+   date column (the one recorded at promotion), the summary by each ride's `start_date_local`, the wellness file by
+   its `date`, the intervals file by the rides kept, any other file by a column of dates it finds or by the rides, or
+   whole and said — each cut file written in the run's folder under the loader's own name for that window
+   (`activity_summary_<start>_to_<end>.csv`), with the recorded columns it lacks added, so the method sees what a
+   fresh download of the window would have given it (`CUT_RULES`, `cut_name`, `_ROUTINE_CUT` in the prelude; the
+   value check cuts the same way). The line reads *inside the cached load … → … - it will be cut to the window, no
+   download*; the LOAD row *cut from the cache*; the CHECK row *cut to … → … from the cached load … → …*; the
+   record's `load` carries `cached_from`, its `date_range` and `rows` are the window's as the method saw them, its
+   `bindings` read *cut*. The Data tab afterwards holds the cached load itself (that is what the executor has), and
+   its pills say so; the record says what the run used. The one approximation: a session that starts on the
+   window's last day and runs past midnight keeps its records (the loader would too);
    on Run the page asks again for the window as it stands (the line's earlier answer can lag behind a date typed
    and committed by the click on Run itself — Safari commits a date on blur) and a hit is taken through the Dataset
    cache's own routes (`/cache/load_primary`, `/cache/load_auxiliary`), the pills as a load's, and the LOAD row and
