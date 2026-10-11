@@ -222,6 +222,33 @@ _chat = parse_turn("I think the next step should be a within-athlete fit, let me
 check("a chatty reply with no headings, citations or fence is not report-shaped: it still reads 'no valid action'",
       _chat[2].verb == "invalid" and not __import__("analyst.session", fromlist=["_reads_like_report"])._reads_like_report("I think the next step should be a within-athlete fit."))
 
+# REPORT with nothing under it (2026-10-11, from a deepseek-v4.1-flash run log: "this turn = REPORT", the word written and the
+# reply ended; the empty text went through as the answer and the reader saw the figures section alone): not a report - the
+# turn is told what a report is, and the next reply's report is taken whole
+from analyst.session import REPORT_EMPTY
+_er = parse_turn("###STEP###\nThe analysis is complete; I will now write the report.\n###NOTE###\n- Plan: this turn = REPORT\n###ACTION###\nREPORT")
+check("parse_turn: REPORT with nothing under it is not a report - an invalid action naming the reason; the text on the REPORT line counts as the report's first line",
+      _er[2].verb == "invalid" and _er[2].arg == REPORT_EMPTY and parse_turn("###NOTE###\nn\n###ACTION###\nREPORT The answer [cell 1].\n\nMore.")[2].arg == "The answer [cell 1].\n\nMore."
+      and parse_turn("###NOTE###\nn\n###ACTION###\nREPORT\n\n## Answer\n\nx")[2].arg == "## Answer\n\nx", (_er[2], _er[1]))
+em_prompts = []
+def empty_report_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+    em_prompts.append(user)
+    if len(em_prompts) == 1:
+        return "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nprint('RESULT: x, 5 units: +1 (95% CI 0 to 2), up')\n```", {"cost": 0.001}
+    if len(em_prompts) == 2:
+        return "###STEP###\nThe analysis is complete; I will now write the report.\n###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT", {"cost": 0.001}
+    return "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\n\nThe answer is +1 [cell 1].", {"cost": 0.001}
+kem = PersistentKernel(df=df); nbem = Notebook("tem")
+try:
+    rem = Session(kem, nbem, empty_report_llm, data_description="d").run("q", budget=Budget(turns=6, dollars=1.0))
+finally:
+    kem.cleanup()
+check("the loop: an empty REPORT loses its turn and is told the report is the text under REPORT, in the same reply; the next reply's report is the answer, whole",
+      rem.turns[1].kind == "error" and "Your last reply ended at REPORT with no report under it" in em_prompts[2] and "no valid action" not in em_prompts[2]
+      and rem.report.startswith("## Answer\n\nThe answer is +1 [cell 1].") and rem.status == "answered" and len(em_prompts) == 3, (em_prompts[2][-300:], rem.report[:100]))
+
 # ---- the Data tab's page function ----
 import _stubs  # noqa: F401  (the package import pulls the console output manager; the sandbox lacks termcolor)
 from bambooai.utils import page_frame

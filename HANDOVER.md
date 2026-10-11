@@ -59,7 +59,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (186/93/30/19/16/49/44/51/10/104/1/1 Python; 44/7/29/56/24/59 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (188/93/30/19/16/49/44/51/10/104/1/1 Python; 44/7/29/56/24/59 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (83 hosted, 82 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (42; hosted only - the loaders need the executor; the
@@ -441,6 +441,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **REPORT with nothing under it is not a report (2026-10-11, patch 0127).** Palo's first run under 0126 (Titanic, the
+  age distribution of survivors, deepseek-v4.1-flash at xhigh) showed the Answer tab holding the Figures section and the
+  replay line alone. The run log: the report turn's reply ended at `###ACTION###\nREPORT` - its STEP said "I will now
+  write the report; the figure itself is drawn in the step that follows", its note "this turn = REPORT", and nothing
+  followed the word (776 completion tokens, not cut). The parser took REPORT with an empty body as the report, so
+  `_finish` ran on "", the figures step saw an empty report (and still drew three figures from the cells), the
+  rewrite rewrote the captions, and the replay line read "the report cites no numbered cells". Fix at the cause:
+  `_actions_in` returns no action for REPORT with nothing under it (`REPORT_EMPTY`), the turn is told "Your last reply
+  ended at REPORT with no report under it, so nothing ran: the report is the text under REPORT, in the same reply.
+  Write it now - ###ACTION### on its own line, REPORT on the next, then the report", and text on the REPORT line itself
+  counts as the report's first line (it was dropped). The figures step also skips a run with no report text. The forced
+  report at the budget's end keeps its fallback (the whole reply). test_analyst.py 188.
 - **Figures drawn once, after the report, in a step of their own (2026-10-11, patch 0126).** Palo, from reading
   his runs: the analyst redrew near-identical charts across cells as it refined the numbers, the reader saw every
   version, each cell cost a turn and tokens, and a routine carried them all; he wanted fewer figures, only the final

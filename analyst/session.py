@@ -403,6 +403,7 @@ def _reads_like_report(text: str) -> bool:
     return "```" not in t and bool(re.search(r"^#{1,3} \S", t, re.M) or re.search(r"\[cell \d+\]", t))
 
 
+REPORT_EMPTY = "REPORT with nothing under it"
 _ACTION_WORD_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPORT)\b[ \t]*(.*)$")          # as the contract writes them
 _ACTION_WORD_ANY_CASE_RE = re.compile(r"^\s*(cell|show|names|recall|search|read|ask|report)\b[ \t]*(.*)$", re.I)
 
@@ -437,8 +438,14 @@ def _actions_in(body: str):
             if verb == "cell":
                 cell_word = True                                     # its fence follows
             elif verb == "report":
-                acts.append(Action("report", "\n".join(lines[i + 1:]).strip()))
-                return acts, ""
+                # the report is what follows REPORT - the rest of its line, if any, and the lines under it. REPORT with
+                # nothing under it is not a report (2026-10-11: a reply announced "this turn = REPORT", wrote the word and
+                # stopped; the empty text went through as the answer, and the reader saw the figures section alone)
+                text_r = "\n".join(([arg] if arg else []) + lines[i + 1:]).strip()
+                if text_r:
+                    acts.append(Action("report", text_r))
+                    return acts, ""
+                return acts, REPORT_EMPTY
             elif verb == "ask":
                 tail = []
                 for ln2 in lines[i + 1:]:
@@ -808,6 +815,12 @@ class Session:
                 elif (usage or {}).get("truncated"):
                     logger.warning("Analyst turn %d: the reply was cut at the length limit before a valid action (%s)", turn_no, action.arg)
                     turn.stdout = "Your last reply was cut off at the length limit before it reached an action; nothing ran."
+                elif action.arg == REPORT_EMPTY:
+                    # the word without the report (2026-10-11): say what a report is, so the next reply carries it
+                    logger.warning("Analyst turn %d: REPORT with nothing under it", turn_no)
+                    turn.stdout = ("Your last reply ended at REPORT with no report under it, so nothing ran: the report is the "
+                                   "text under REPORT, in the same reply. Write it now - ###ACTION### on its own line, REPORT "
+                                   "on the next, then the report.")
                 elif action.arg == "no ###ACTION### block" and _reads_like_report(text):
                     # the answer written without the scaffold (2026-10-08: a Sonnet 5.5 run wrote its report three times with
                     # no marker lines, once with a bare REPORT line, and was told "no valid action" each time)
@@ -923,7 +936,7 @@ class Session:
         (step "figures"; the committed one gets a cell number like any cell). Returns the report's Figures section -
         "## Figures" with one "[fig n] caption" line per figure - or "" when none were drawn. Outside the turn
         budget, like the rewrite."""
-        if not run.cells():
+        if not run.cells() or not (report_text or "").strip():      # nothing computed, or no report to draw for
             return ""
         user = self._figures_prompt(run, report_text)
         error_note, section = "", ""
