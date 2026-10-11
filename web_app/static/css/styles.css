@@ -1179,26 +1179,6 @@
     color: var(--accent-color);
 }
 
-.icon-button.rank-icon.replay {
-    color: var(--accent-replay);
-    cursor: pointer;
-}
-
-.icon-button.rank-icon.replay:hover {
-    transform: scale(1.05);
-    color: var(--accent-replay);
-}
-
-.icon-button.rank-icon.replay-success {
-    color: var(--accent-replay);
-    cursor: default;
-}
-
-.icon-button.rank-icon.replay-success:hover {
-    transform: none;
-    color: var(--accent-replay);
-}
-
 /* Branching CV Icons Popup */
 .branching-slider-popup {
     position: absolute;
@@ -1670,39 +1650,6 @@ pre code {
     color: var(--code-text);
 }
 
-.header-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.discard-button {
-    color: var(--error-color);
-}
-
-.discard-button:hover {
-    background-color: var(--error-bg) !important;
-    color: var(--error-color) !important;
-}
-
-.edit-button[data-editing="true"] .edit-icon {
-    stroke: var(--accent-color);
-}
-
-.save-icon {
-    display: none;
-}
-
-.code-action-button[data-editing="true"] .edit-icon {
-    display: none;
-}
-
-.code-action-button[data-editing="true"] .save-icon {
-    display: block;
-    stroke: var(--accent-color);
-}
-
-
-
 .code-action-button {
     background: none;
     border: none;
@@ -1772,81 +1719,11 @@ pre code {
     color: var(--accent-color);
 }
 
-.code-editor-wrapper {
-    border: 1px solid var(--border-color);
-    border-radius: 0 0 4px 4px;
-}
-
-.code-editor-wrapper .CodeMirror {
-    height: auto;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    border-radius: 0 0 4px 4px;
-    background-color: var(--code-bg) !important;
-    color: var(--code-text) !important;
-}
-
-.code-editor-wrapper .CodeMirror-focused {
-    border-color: var(--accent-color);
-}
-
-.code-editor-wrapper .CodeMirror-lines {
-    padding: 1rem;
-}
-
-.code-editor-wrapper .CodeMirror-linenumber {
-    padding-right: 1rem;
-    color: var(--text-tertiary) !important;
-}
-
-.code-editor-wrapper .CodeMirror-gutters {
-    border-right: 1px solid var(--border-color) !important;
-    background-color: var(--bg-tertiary) !important;
-}
-
-.code-editor-wrapper .CodeMirror-selected {
-    background-color: var(--bg-tertiary) !important;
-}
-
-.code-editor-wrapper .CodeMirror-activeline-background {
-    background-color: var(--bg-tertiary) !important;
-}
-
-.code-editor-wrapper .CodeMirror-cursor {
-    border-left: 1px solid var(--text-primary) !important;
-}
-
-.code-editor-wrapper .CodeMirror-matchingbracket {
-    color: var(--accent-color) !important;
-    border-bottom: 1px solid var(--accent-color);
-}
-
 /* Ensure inline code within markdown uses the same colors */
 .markdown-content code:not(.hljs) {
     background-color: var(--code-bg) !important;
     color: var(--code-text) !important;
 }
-
-/* For CodeMirror (if used) to match Highlight.js */
-.CodeMirror .cm-string,
-.CodeMirror .cm-string-2 {
-    color: var(--code-string) !important;
-}
-
-.CodeMirror .cm-number,
-.CodeMirror .cm-variable-2 { /* For f-string variables like overall_change */
-    color: var(--code-text) !important; /* Use light grey for visibility */
-}
-
-.code-editor-wrapper .cm-keyword { color: var(--code-keyword) !important; }
-.code-editor-wrapper .cm-def { color: var(--accent-color) !important; }
-.code-editor-wrapper .cm-variable { color: var(--code-text) !important; }
-.code-editor-wrapper .cm-operator { color: var(--code-keyword) !important; }
-.code-editor-wrapper .cm-number { color: var(--warning-color) !important; }
-.code-editor-wrapper .cm-string { color: var(--code-string) !important; }
-.code-editor-wrapper .cm-comment { color: var(--code-comment) !important; }
-.code-editor-wrapper .cm-builtin { color: var(--accent-color) !important; }
 
 code.language-yaml,
 code.language-json {

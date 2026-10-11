@@ -35,7 +35,7 @@ function initializeMainQuerySubmission() {
 }
 
 function handleQuerySubmit(options = {}) {
-    const { branching_cv, synthesis, image, user_code } = options;
+    const { branching_cv, synthesis, image } = options;
     const queryInput = document.getElementById('queryInput');
     const submitButton = document.getElementById('submitQuery');
     const query = queryInput.value.trim();
@@ -52,7 +52,7 @@ function handleQuerySubmit(options = {}) {
         return;
     }
     
-    if (!query && !branching_cv && !synthesis && !user_code) {
+    if (!query && !branching_cv && !synthesis) {
         return;
     }
 
@@ -71,15 +71,12 @@ function handleQuerySubmit(options = {}) {
     const rankButton = document.getElementById('rankButton');
     if (rankButton) {
         rankButton.style.display = 'none';
-        rankButton.classList.remove('replay', 'replay-success');
     }
     currentRankData = null;
 
     // Store the query text
     if (synthesis) {
         currentData.queryText = 'Synthesis of exploration results';
-    } else if (user_code) {
-        currentData.queryText = 'Manually executed code';
     } else {
         currentData.queryText = query;
     }
@@ -115,7 +112,6 @@ function handleQuerySubmit(options = {}) {
     if (branching_cv) requestBody.branching_cv = branching_cv;
     if (synthesis) requestBody.synthesis = true;
     if (image) requestBody.image = image;
-    if (user_code) requestBody.user_code = user_code;
 
     window.authService.fetch('/query', {
         method: 'POST',
@@ -362,9 +358,7 @@ function initializeRankingSystem() {
         // the pill's menu (2026-10-10, routines): Save as favourite opens the rank dialog as before, Save as routine the
         // routine dialog; the pill shows the menu on hover and on click
         rankButton.addEventListener('click', () => {
-            if (currentRankData && currentRankData.replay) {
-                handleReplayStorage();
-            } else if (window.RoutinesUI && typeof window.RoutinesUI.toggleSaveMenu === 'function') {
+            if (window.RoutinesUI && typeof window.RoutinesUI.toggleSaveMenu === 'function') {
                 window.RoutinesUI.toggleSaveMenu();
             } else {
                 showRankModal();
@@ -895,156 +889,6 @@ function updateRankButtonVisibility() {
     const saved = currentResponse.bookmark_type === 'individual';
     rankButton.classList.toggle('saved', saved);
     rankButton.setAttribute('data-tip', saved ? 'Saved · Save as routine' : 'Save this chain');
-    if (currentRankData && currentRankData.replay) {
-        rankButton.classList.add('replay');
-    } else {
-        rankButton.classList.remove('replay');
-    }
-}
-
-//--------------------
-//  REPLAY STORAGE HANDLER
-//--------------------
-
-async function handleReplayStorage() {
-    const rankButton = document.getElementById('rankButton');
-    
-    // Disable button to prevent double-clicks
-    rankButton.style.pointerEvents = 'none';
-    
-    try {
-        // Load responses from storage
-        let responses;
-        try {
-            responses = await localforage.getItem('responses');
-            if (!responses || !Array.isArray(responses)) {
-                throw new Error('No valid responses found in storage');
-            }
-        } catch (error) {
-            console.error('Error loading responses:', error);
-            rankButton.style.pointerEvents = 'auto';
-            return;
-        }
-
-        const threadId = currentData.thread_id;
-        const chainId = currentData.chain_id;
-        const parentChainId = currentRankData.replay; // This is the original chain being replayed
-
-        if (!threadId || !chainId || !parentChainId) {
-            console.error('Missing required IDs:', { threadId, chainId, parentChainId });
-            rankButton.style.pointerEvents = 'auto';
-            return;
-        }
-        
-        // Find the matching response
-        const index = responses.findIndex(response => 
-            response && response.thread_id === threadId && response.chain_id === chainId
-        );
-
-        if (index === -1) {
-            console.error('No matching response found. Available responses:', 
-                responses.map(r => ({ thread: r.thread_id, chain: r.chain_id })));
-            rankButton.style.pointerEvents = 'auto';
-            return;
-        }
-
-        const chainData = responses[index];
-        
-        if (!chainData) {
-            console.error('Chain data is null or undefined');
-            rankButton.style.pointerEvents = 'auto';
-            return;
-        }
-
-        // Generate plot preview
-        const plotPreview = await generatePlotPreview(chainData.contentOutput || '');
-        
-        // Compress content
-        const compressedContentOutput = await compressContent(chainData.contentOutput || '');
-        const compressedStreamOutput = await compressContent(chainData.streamOutput || '');
-        
-        const contentCompressed = compressedContentOutput !== (chainData.contentOutput || '');
-        const streamCompressed = compressedStreamOutput !== (chainData.streamOutput || '');
-        
-        const content = {
-            tabContent: chainData.tabContent || '',
-            contentOutput: compressedContentOutput,
-            streamOutput: compressedStreamOutput,
-            taskContents: chainData.taskContents || {},
-            queryText: chainData.queryText || '',
-            plotPreview: plotPreview,
-            compressed: contentCompressed || streamCompressed,
-            technicalAnswer: chainData.technicalAnswer || null,
-            simplifiedAnswer: chainData.simplifiedAnswer || null,
-            summaryViewMode: chainData.summaryViewMode || 'technical',
-            synthesisImage: chainData.synthesisImage || null
-            };
-
-        // Prepare the payload for backend
-        const replayPayload = {
-            thread_id: threadId,
-            chain_id: chainId,
-            parent_chain_id: parentChainId,
-            dataset_name: currentDatasetName,
-            index: index,
-            content: content
-        };
-        
-        // Send to backend
-        const response = await window.authService.fetch('/storage/replay_favourites', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(replayPayload)
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Server responded with status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log('Replay saved successfully:', result);
-
-        // Provide visual feedback
-        showReplaySuccess(rankButton);
-
-    } catch (error) {
-        console.error('Error during replay storage:', error);
-        rankButton.style.pointerEvents = 'auto';
-    }
-}
-
-//--------------------
-//  REPLAY SUCCESS INDICATOR
-//--------------------
-
-function showReplaySuccess(rankButton) {
-    // Store original content
-    const originalHTML = rankButton.innerHTML;
-    
-    // Replace with checkmark SVG
-    rankButton.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"></polyline>
-        </svg>
-    `;
-    
-    // Remove replay class and add success class
-    rankButton.classList.remove('replay');
-    rankButton.classList.add('replay-success');
-    
-    // After 3 seconds, hide the button and reset
-    setTimeout(() => {
-        rankButton.style.display = 'none';
-        rankButton.classList.remove('replay-success');
-        rankButton.innerHTML = originalHTML;
-        rankButton.style.pointerEvents = 'auto';
-        
-        // Re-add replay class if needed for next time
-        if (currentRankData && currentRankData.replay) {
-            rankButton.classList.add('replay');
-        }
-    }, 3000);
 }
 
 function resetProgressBar() {

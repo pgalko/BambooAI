@@ -36,7 +36,7 @@ check('usage dialog: the period and view selects keep their option values', ['1_
 check('usage dialog: usage-tracking.css is retired (not linked)', !html.includes("filename='css/usage-tracking.css'"));
 const uj = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'usage-tracking.js'), 'utf8');
 check('usage charts: colours come from the theme tokens, not a hard-coded palette', uj.includes("v('--accent-color'") && uj.includes("--c-kernel") && !uj.includes("'#1E2730'"));
-// ---- the saved-workflows dialog (workflow-modal.js, workflow-replay.js, labels.js all reach into it) ----
+// ---- the saved-workflows dialog (workflow-modal.js and labels.js reach into it; workflow-replay.js is retired, 2026-10-11) ----
 const wroot = doc.createElement('div'); wroot.innerHTML = fragment('workflowManagerModal');
 const wids = ['workflowManagerModal', 'workflowNewLabelInput', 'workflowAddLabelBtn', 'workflowLabelsList', 'workflowSearchInput', 'workflowSearchClear', 'workflowSearchSubmit', 'workflowChainsGrid'];
 const wmissing = wids.filter(id => !wroot.querySelector('#' + id));
@@ -47,7 +47,10 @@ check('workflows dialog: every structural class the scripts swap, replace or tog
 check('workflows dialog: the search container precedes the grid inside the right panel (the thread nav is inserted before the grid)', (() => { const r = wroot.querySelector('.workflow-modal-right'); const kids = r.elements.map(e => e.className); return kids.findIndex(c => c.includes('workflow-modal-header-row')) < kids.findIndex(c => c.includes('workflow-chains-grid')); })());
 check('workflows dialog: workflow-modal.css and workflow-replay.css are retired (not linked)', !html.includes("filename='css/workflow-modal.css'") && !html.includes("filename='css/workflow-replay.css'"));
 const dcss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8');
-check('workflows dialog: dialogs.css styles the generated cards, labels, thread nav and replay parts', ['.workflow-card', '.workflow-label-item', '.workflow-thread-nav', '.replay-dataset-card', '.replay-execute-btn', '.workflow-card-memory-badge'].every(c => dcss.includes(c)));
+check('workflows dialog: dialogs.css styles the generated cards, labels and thread nav', ['.workflow-card', '.workflow-label-item', '.workflow-thread-nav', '.workflow-card-memory-badge'].every(c => dcss.includes(c)));
+// the v1 replay view is retired with step 4 of the routines (docs/ROUTINES_DESIGN.md S10): its script is not linked, its
+// dataset picker is not styled, the modal keeps no replay state, and the card's Replay button is gone with it
+check('workflows dialog: workflow-replay.js is retired (not linked; no replay view or state snapshot in workflow-modal.js; no replay rules in dialogs.css)', !html.includes("filename='js/workflow-replay.js'") && !fs.existsSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflow-replay.js')) && !fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflow-modal.js'), 'utf8').match(/enterReplayView|isReplayView|modalStateSnapshot/) && !dcss.match(/replay-dataset|workflow-replay-theme|workflow-card-replay/));
 // ---- the JS-built dialogs: the scripts build the ids they later query, inside the shell ----
 const dm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'dataset-manager.js'), 'utf8');
 const dmroot = doc.createElement('div'); dmroot.innerHTML = dm.slice(dm.indexOf('<div class="modal-content'), dm.indexOf('`;', dm.indexOf('<div class="modal-content')));

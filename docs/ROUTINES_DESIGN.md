@@ -560,8 +560,18 @@ recreated — quiet in both editions, no coordination. The self-hosted edition r
 The v1 *Execute* on a saved workflow (a new analyst chain seeded with the script, costing a run, nesting the script)
 has left the favourites' cards (the Routine button stands where its button stood); `chain_replay_utils`, the
 replay view in workflow-replay.js, the dataset-name mappings and the two canned sentences in `app.py` ("User updated
-the data in the datasets…", "User manually edited your code…") go with step 4. *Edit and run* on the Code tab goes
+the data in the datasets…", "User manually edited your code…") went with step 4. *Edit and run* on the Code tab went
 with them — coaches do not edit scripts; the analyst in another domain downloads the `.py`.
+
+**Retired (2026-10-11, patch 0134).** Gone: `web_app/replay_routes.py` (the `/storage/replay_favourites` and
+`/load_replay` routes), `web_app/chain_replay_utils.py`, `web_app/static/js/workflow-replay.js` and its script tag,
+the replay view in workflow-modal.js with the modal's state snapshot (which served nothing else), the replay rules
+in dialogs.css and the pill's `.replay`/`.replay-success` states, the replay storage handler in query-processing.js;
+`/query` reads no `user_code` or `dataset_mappings` and carries neither canned sentence; `pd_agent_converse` has no
+`user_code` or `replay` parameter (the question was seeded with the code as a first cell). The Code tab's Edit,
+Discard and Execute are replaced by **Copy** and **Download (.py)** — the file named after the question's first
+words — and CodeMirror's four CDN tags leave the page (the stack's vendor map and stub go with them). The kernel's
+own `_user_code` variable (delve/kernel.py) is unrelated and stays.
 
 ## 11. Build order and acceptance
 
@@ -616,6 +626,8 @@ with them — coaches do not edit scripts; the analyst in another domain downloa
    (the run without `soil`: cell 2's code on the Comparison tab, its line not reached).
    **The Dataset cache's pick — built (2026-10-11, patch 0133)**: the choice in the file routine's dialog, the route,
    the pure filter; the hosted walk runs on a cached upload (run 5), the local walk finds the choice hidden.
+   **Retirements — done (2026-10-11, patch 0134)**: §10's list, the Code tab's Copy and Download in place of Edit
+   and run; the static checks (test_shell.js, test_dialogs.js, test_app_path.py) hold the retirement.
 5. **Versions** — the next-version choice is built; the inputs carried through the manifest, the boundary in the
    table, the warning on deleting an origin. Accepted when: v2's inputs keep their keys; the runs table shows the
    divider and the gaps; a deleted origin leaves the routine runnable and marked.

@@ -83,12 +83,6 @@ function initializeTextSelection() {
 //--------------------
 
 function handleTextSelection(e) {
-    // Check if code is being edited
-    const editButton = document.querySelector('#content-code .edit-button');
-    if (editButton && editButton.hasAttribute('data-editing')) {
-        return; // Don't handle text selection when editing code
-    }
-    
     const selection = window.getSelection();
     selectedText = selection.toString().trim();
     
@@ -106,12 +100,6 @@ function handleTextSelection(e) {
 }
 
 function handleClickOutside(e) {
-    // Check if code is being edited
-    const editButton = document.querySelector('#content-code .edit-button');
-    if (editButton && editButton.hasAttribute('data-editing')) {
-        return; // Don't interfere when editing code
-    }
-    
     if (e.target.closest('#content-plot')) return;
     
     if (e.target.closest('#selectionForm') || 
@@ -576,29 +564,27 @@ function navigateToChainId(chainId) {
 //--------------------
 
 function renderCodeTab(data) {
+    // the chain's script, read or taken away: Copy and the .py download (2026-10-11, docs/ROUTINES_DESIGN.md S10 - Edit
+    // and run on this tab is retired: a routine's run is how a chain runs again, and nobody edits scripts here)
     let content = `<h3>Code:</h3>`;
     content += `<div class="markdown-content">
         <div class="code-header">
             <span class="language-label">PYTHON</span>
             <div class="header-actions">
-                <button class="code-action-button edit-button" title="Edit">
-                    <svg class="edit-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                <button class="code-action-button copy-button" type="button" title="Copy the code">
+                    <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                     </svg>
-                    <svg class="save-icon" style="display: none" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                        <polyline points="17 21 17 13 7 13 7 21" />
-                    </svg>
-                </button>
-                <button class="code-action-button discard-button" style="display: none" title="Discard changes">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    <svg class="check-icon" style="display: none" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                 </button>
-                <button class="code-action-button execute-button" title="Execute">
+                <button class="code-action-button download-button" type="button" title="Download as a .py file">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="5 3 19 12 5 21 5 3" />
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
                 </button>
             </div>
@@ -608,7 +594,7 @@ function renderCodeTab(data) {
 
     // Add event listeners after content is added to DOM
     setTimeout(() => {
-        initializeCodeEditor();
+        initializeCodeTab();
     }, 0);
 
     return content;
@@ -1044,113 +1030,47 @@ function attachPillEventListeners(contentElement) {
 }
 
 //--------------------
-//  CODE EDITOR
+//  CODE TAB
 //--------------------
 
-function initializeCodeEditor() {
+function initializeCodeTab() {
     const tabContent = ((typeof liveTargets === 'function') ? liveTargets().content : document.getElementById('contentOutput')).querySelector('#content-code');
     if (!tabContent) return;
 
     const header = tabContent.querySelector('.code-header');
-    const editButton = header.querySelector('.edit-button');
-    const discardButton = header.querySelector('.discard-button');
-    const executeButton = header.querySelector('.execute-button');
-    const editIcon = editButton.querySelector('.edit-icon');
-    const saveIcon = editButton.querySelector('.save-icon');
-    const preElement = header.nextElementSibling;
-    const codeElement = preElement.querySelector('code');
-    let originalCode = codeElement.textContent;
+    const copyButton = header.querySelector('.copy-button');
+    const downloadButton = header.querySelector('.download-button');
+    const codeElement = header.nextElementSibling.querySelector('code');
 
-    // Apply initial syntax highlighting
     hljs.highlightElement(codeElement);
 
-    // Function to restore code view with highlighting
-    function restoreCodeView(code) {
-        const newPre = document.createElement('pre');
-        const newCode = document.createElement('code');
-        newCode.className = 'language-python';
-        newCode.textContent = code;
-        newPre.appendChild(newCode);
-        
-        const editorWrapper = header.nextElementSibling;
-        editorWrapper.replaceWith(newPre);
-        
-        // Apply syntax highlighting
-        hljs.highlightElement(newCode);
-        
-        // Reset button states
-        editButton.removeAttribute('data-editing');
-        editIcon.style.display = 'block';
-        saveIcon.style.display = 'none';
-        discardButton.style.display = 'none';
-    }
-
-    editButton.addEventListener('click', () => {
-        const isEditing = editButton.hasAttribute('data-editing');
-        if (!isEditing) {
-            // Enter edit mode
-            const codeBlock = header.nextElementSibling;
-            const currentCode = codeBlock.querySelector('code').textContent;
-            
-            // Create wrapper for CodeMirror
-            const editorWrapper = document.createElement('div');
-            editorWrapper.className = 'code-editor-wrapper';
-            
-            // Get the height of the original code block
-            const codeHeight = codeBlock.offsetHeight;
-            
-            // Replace code block with wrapper
-            codeBlock.replaceWith(editorWrapper);
-            
-            // Initialize CodeMirror
-            const editor = CodeMirror(editorWrapper, {
-                value: currentCode,
-                mode: 'python',
-                theme: 'default',
-                lineNumbers: true,
-                lineWrapping: true,
-                viewportMargin: Infinity,
-                indentUnit: 4,
-                styleActiveLine: true,
-                matchBrackets: true,
-                extraKeys: {
-                    Tab: (cm) => cm.replaceSelection('    ', 'end')
-                }
-            });
-            
-            // Set editor height to match original code block
-            editor.setSize(null, codeHeight);
-            
-            // Store editor instance for later access
-            editorWrapper.editor = editor;
-            
-            // Update button states
-            editButton.setAttribute('data-editing', 'true');
-            editIcon.style.display = 'none';
-            saveIcon.style.display = 'block';
-            discardButton.style.display = 'block';
-            
-            // Focus editor
-            editor.focus();
-        } else {
-            // Save changes
-            const editorWrapper = header.nextElementSibling;
-            originalCode = editorWrapper.editor.getValue();
-            restoreCodeView(originalCode);
-        }
+    copyButton.addEventListener('click', () => {
+        navigator.clipboard.writeText(codeElement.textContent)
+            .then(() => {
+                const copyIcon = copyButton.querySelector('.copy-icon');
+                const checkIcon = copyButton.querySelector('.check-icon');
+                copyIcon.style.display = 'none';
+                checkIcon.style.display = 'block';
+                setTimeout(() => {
+                    copyIcon.style.display = 'block';
+                    checkIcon.style.display = 'none';
+                }, 2000);
+            })
+            .catch(err => console.error('Failed to copy:', err));
     });
 
-    discardButton.addEventListener('click', () => {
-        restoreCodeView(originalCode);
-    });
-
-    executeButton.addEventListener('click', async () => {
-        const editorWrapper = header.nextElementSibling;
-        const currentCode = editorWrapper.editor ? 
-            editorWrapper.editor.getValue() : 
-            editorWrapper.querySelector('code').textContent;
-    
-        handleQuerySubmit({ user_code: currentCode });
+    downloadButton.addEventListener('click', () => {
+        // the script as a file, named after the chain (the question's first words) when there is one
+        const words = ((typeof currentData !== 'undefined' && currentData && currentData.queryText) || '').toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').split('_').filter(Boolean).slice(0, 5).join('_');
+        const url = URL.createObjectURL(new Blob([codeElement.textContent], { type: 'text/x-python' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (words || 'analysis') + '.py';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
 }
 

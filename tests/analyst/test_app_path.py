@@ -299,6 +299,20 @@ _r = _wc.post("/routines/propose", json={"thread_id": "1001", "chain_id": "nope"
 check("route /routines/propose on an unknown chain: routine_error with the reason", "routine_error" in _lines(_r)[-1] and "not in this thread" in _lines(_r)[-1]["routine_error"], _lines(_r)[-1])
 for _m in ("auth", "auth.supabase_client", "app"): sys.modules.pop(_m, None)
 
+# the v1 replay and edit-and-run are retired with step 4 (docs/ROUTINES_DESIGN.md S10, 2026-10-11): the replay routes and
+# chain_replay_utils are gone, /query takes no user_code or dataset mappings and seeds no chain with a script, and
+# pd_agent_converse has no user_code or replay parameter - a routine's run is how a chain runs again
+import inspect as _insp
+_app_src = open(os.path.join(ROOT, "web_app", "app.py"), encoding="utf-8").read()
+check("retired (S10): replay_routes.py and chain_replay_utils.py are gone and app.py neither imports nor registers them",
+      not os.path.exists(os.path.join(ROOT, "web_app", "replay_routes.py")) and not os.path.exists(os.path.join(ROOT, "web_app", "chain_replay_utils.py"))
+      and "replay_bp" not in _app_src and "chain_replay_utils" not in _app_src)
+check("retired (S10): /query reads no user_code or dataset_mappings and carries neither canned sentence",
+      "user_code" not in _app_src and "dataset_mappings" not in _app_src and "User manually edited your code" not in _app_src and "User updated the data in the datasets" not in _app_src)
+_sig = _insp.signature(B.BambooAI.pd_agent_converse).parameters
+check("retired (S10): pd_agent_converse has no user_code or replay parameter and the question is never seeded with code",
+      "user_code" not in _sig and "replay" not in _sig and "supplied this code to run first" not in _insp.getsource(B.BambooAI.pd_agent_converse), list(_sig))
+
 # follow-up on the same thread, standing on run1: the kernel is reused (d is still defined)
 state.update(i=0, script=FOLLOW); BAMBOO.output_manager.add_user_input("And again?")
 BAMBOO.pd_agent_converse(thread_id="1001", chain_id=run1.id)

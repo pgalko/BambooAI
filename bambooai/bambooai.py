@@ -764,8 +764,7 @@ class BambooAI:
 
     # ---------------------------------------------------------- the entry
     def pd_agent_converse(self, question=None, action=None, thread_id=None, chain_id=None,
-                          image=None, user_code=None, replay=None,
-                          auto_explore=False, max_investigations=None, synthesis=False, mode=None, ideas=None):
+                          image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, ideas=None):
         self.kill_signal = False
         self._stop_event.clear()
 
@@ -793,9 +792,6 @@ class BambooAI:
 
         if question is None and self.webui:
             question = self.output_manager.get_user_input()
-        if user_code:
-            question = (question or "Run this code and report what it shows.") + \
-                       "\n\nThe person supplied this code to run first, as your first cell:\n```python\n" + user_code + "\n```"
         if synthesis:
             question = ("Write the report for the analysis so far on this thread: the answer first, then how it was established, its limitations and next steps. "
                         "The earlier chains' reports are the record, each verified by its own replay: synthesise them, citing [run k]; "

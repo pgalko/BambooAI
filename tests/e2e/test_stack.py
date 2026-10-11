@@ -162,6 +162,24 @@ def main():
             plots_link = page.evaluate("() => { const l = [...document.querySelectorAll('.sp-done a, .sp-done .link')].map(e => e.textContent).find(t => /Plots \\(\\d+\\)/.test(t)); return l || (document.querySelector('.sp-done') || {}).textContent || ''; }")
             check("the replay captured both figures: the matplotlib PNG and the plotly JSON (the closing card says Plots (2))", "Plots (2)" in plots_link, plots_link[:120])
 
+            # the Code tab (2026-10-11, routines S10): the script is read or taken away - Copy and Download; Edit and run is retired
+            page.evaluate("activateTab('code')")
+            page.wait_for_timeout(300)
+            code_tab = page.evaluate("""() => ({ buttons: [...document.querySelectorAll('#content-code .code-header button')].map(b => b.className + '|' + b.title),
+                editor: document.querySelectorAll('#content-code .edit-button, #content-code .execute-button, #content-code .CodeMirror').length,
+                code: (document.querySelector('#content-code pre code') || {}).textContent || '', highlighted: !!document.querySelector('#content-code pre code.hljs, #content-code pre code .hljs-keyword') })""")
+            check("the Code tab shows the chain's script highlighted, with Copy and Download in its header and no editor",
+                  len(code_tab["buttons"]) == 2 and code_tab["buttons"][0].startswith("code-action-button copy-button|Copy") and code_tab["buttons"][1].startswith("code-action-button download-button|Download")
+                  and code_tab["editor"] == 0 and "import" in code_tab["code"], code_tab)
+            copied = page.evaluate("""async () => { const got = []; navigator.clipboard.writeText = t => { got.push(t); return Promise.resolve(); };
+                document.querySelector('#content-code .copy-button').click(); await new Promise(r => setTimeout(r, 100));
+                return { text: got[0] || '', check: getComputedStyle(document.querySelector('#content-code .copy-button .check-icon')).display }; }""")
+            check("Copy puts the script on the clipboard and shows the check for a moment", copied["text"] == code_tab["code"] and copied["check"] == "block", {k: str(v)[:80] for k, v in copied.items()})
+            with page.expect_download(timeout=10000) as dl:
+                page.click("#content-code .download-button")
+            dl_name = dl.value.suggested_filename
+            check("Download saves the script as a .py named after the question's first words", dl_name.endswith(".py") and dl_name == "does_regime_b_raise_yield.py", dl_name)
+
             # the prompt button (v65): the card of turn 4 shows the prompt turn 4 received, not the seat's first
             def prompt_of(turn):
                 page.click(f'.sp-turn[data-turn="{turn}"] .sp-prompt')

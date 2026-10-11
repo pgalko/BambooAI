@@ -441,13 +441,11 @@
 .auth-error-message { margin: 0; padding: 8px 12px; border: 1px solid var(--chip-fail-border); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--c-fail); }
 
 /* ---- Save this chain (2026-09-08): #rankButton in the top bar, beside the chain navigation. query-processing.js shows it
-   (display: block) when a chain has finished, marks it .replay while a replay is possible and .replay-success after one. */
+   (display: block) when a chain has finished. */
 .topbar #rankButton { width: auto !important; min-width: 0; height: 24px !important; overflow: visible; margin: 0; padding: 0 9px 0 7px; border: 1px solid var(--border-color); border-radius: 12px; background: none; color: var(--text-secondary); font-family: var(--font-ui); font-size: var(--fs-small); font-weight: 500; line-height: 22px; white-space: nowrap; cursor: pointer; box-shadow: none; transition: none; }   /* grey like the chain arrows: the chip is the bar's only green */
 .topbar #rankButton:hover { border-color: var(--text-tertiary); color: var(--text-primary); background: var(--bg-tertiary); }
 .topbar #rankButton svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; stroke: currentColor; fill: none; }
 .topbar #rankButton .rank-label { vertical-align: 0; }
-.topbar #rankButton.replay-success { background: var(--c-model); color: var(--bg-primary); border-color: var(--c-model); }
-.topbar #rankButton.replay-success svg { fill: currentColor; }
 /* the pill's menu (2026-10-10, routines.js): Save as favourite / Save as routine, under the pill on hover or click; a chain
    that is a favourite marks the pill .saved (the bookmark filled) and keeps it, since the menu still offers Save as routine */
 .topbar #rankButton.saved svg { fill: currentColor; }

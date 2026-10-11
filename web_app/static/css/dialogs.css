@@ -259,8 +259,9 @@ body.composer-locked .left-panel .textarea-container { opacity: .55; }
 body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 
 /* ---- saved workflows dialog (#workflowManagerModal): workflow-modal.css and workflow-replay.css are retired ----
-   The JS swaps the left panel's HTML, replaces the header's title, inserts a thread navigation bar before the
-   grid, and builds the cards; every class it touches is styled here. */
+   The JS replaces the header's title, inserts a thread navigation bar before the grid, and builds the cards; every
+   class it touches is styled here. The v1 replay view (the left panel swapped for a dataset picker) went with
+   workflow-replay.js (2026-10-11, docs/ROUTINES_DESIGN.md S10): a routine's run is how a chain runs again. */
 #workflowManagerModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
 #workflowManagerModal .ui-dlg { width: min(1440px, 100%); max-height: min(90vh, 960px); flex-direction: row; overflow: hidden; }
 #workflowManagerModal .workflow-modal-left { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border-color); padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
@@ -325,32 +326,6 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #workflowManagerModal .workflow-card-footer button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: var(--fs-small); cursor: pointer; }
 #workflowManagerModal .workflow-card-footer button:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
 #workflowManagerModal .workflow-card-footer button svg { width: 13px; height: 13px; }
-#workflowManagerModal .workflow-card-replay { color: var(--c-lookup); }
-#workflowManagerModal .workflow-card-replay:empty::after, #workflowManagerModal .workflow-card-replay svg + *:empty::after { content: ''; }
-#workflowManagerModal .workflow-card-replay::after { content: 'Replay'; }
-/* replay mode: the left panel becomes the dataset picker, the cards show what will be replayed */
-#workflowManagerModal .workflow-replay-theme .workflow-section-header, #workflowManagerModal .workflow-replay-title { color: var(--c-lookup); }
-#workflowManagerModal .replay-message-area:empty { display: none; }
-#workflowManagerModal .replay-message-area { font-size: var(--fs-meta); color: var(--text-secondary); padding: 6px 8px; border: 1px solid var(--border-color); border-left: 2px solid var(--c-lookup); border-radius: var(--r-1); }
-#workflowManagerModal .replay-dataset-section { display: flex; flex-direction: column; gap: 6px; }
-#workflowManagerModal .replay-dataset-header { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
-#workflowManagerModal .replay-dataset-header svg { width: 14px; height: 14px; }
-#workflowManagerModal .replay-dataset-empty { font-size: var(--fs-meta); color: var(--text-quaternary); padding: 4px 0; }
-#workflowManagerModal .replay-dataset-card { border: 1px solid var(--border-color); border-radius: var(--r-2); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; background: var(--bg-primary); }
-#workflowManagerModal .replay-dataset-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#workflowManagerModal .replay-dataset-info, #workflowManagerModal .replay-dataset-source, #workflowManagerModal .replay-dataset-shape, #workflowManagerModal .replay-date-info, #workflowManagerModal .replay-race-info { font-size: var(--fs-small); color: var(--text-quaternary); }
-#workflowManagerModal .replay-dataset-notice { font-size: var(--fs-small); color: var(--c-kernel); }
-#workflowManagerModal .replay-dataset-upload, #workflowManagerModal .replay-upload-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
-#workflowManagerModal .replay-dataset-upload:not(:disabled):hover, #workflowManagerModal .replay-upload-btn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
-#workflowManagerModal .replay-dataset-upload.loaded { border-color: var(--chip-model-border); color: var(--c-model); }
-#workflowManagerModal .replay-dataset-upload:disabled { opacity: .4; cursor: default; }
-#workflowManagerModal .replay-date-row, #workflowManagerModal .replay-race-row { display: flex; align-items: center; gap: 6px; }
-#workflowManagerModal .replay-date-input, #workflowManagerModal .replay-race-select { height: 28px; flex: 1; min-width: 0; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 0 8px; font: inherit; font-size: var(--fs-meta); }
-#workflowManagerModal .replay-execute-footer { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border-color); }
-#workflowManagerModal .replay-execute-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; border: 1px solid var(--c-lookup); border-radius: var(--r-2); background: none; color: var(--c-lookup); font: inherit; font-size: 12.5px; cursor: pointer; }
-#workflowManagerModal .replay-execute-btn:disabled { opacity: .4; cursor: default; }
-#workflowManagerModal .replay-execute-btn svg { width: 14px; height: 14px; }
-#workflowManagerModal .replay-loading-spinner { width: 14px; height: 14px; border: 2px solid var(--border-color); border-top-color: var(--c-lookup); border-radius: 50%; animation: ui-spin .8s linear infinite; display: inline-block; }
 #workflowManagerModal .workflow-card-footer { align-items: center; }
 /* the label picker the card's tag button opens (built by the script, positioned fixed) */
 .workflow-label-selector { min-width: 180px; padding: 4px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); font-family: var(--font-ui); font-size: 12.5px; }

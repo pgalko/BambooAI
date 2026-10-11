@@ -28,7 +28,6 @@ from werkzeug.exceptions import abort
 from auth import requires_auth, get_current_user_id, init_auth
 from auth.supabase_client import get_user_llm_config, get_user_subscription, increment_queries_counter, can_execute_chain, get_user_compute_tier, remove_label_from_chain
 from llm_config_builder import build_user_config, needs_rebuild
-from chain_replay_utils import get_python_code_from_chain, replace_dataset_paths
 from cleanup import ensure_user_directories, cleanup_user_on_auth, cleanup_threads_for_user, clear_datasets_folder_for_user, cleanup_old_user_sessions, cleanup_and_remove_bamboo_instance
 from container_status_routes import init_container_status_integration
 from integrations.sweatstack import init_sweatstack_integration
@@ -49,7 +48,6 @@ from usage_tracking_routes import usage_tracking_bp
 from subscription_routes import subscription_bp
 from labels_routes import labels_bp
 from agent_instructions_routes import agent_instructions_bp
-from replay_routes import replay_bp
 from dataframe_routes import dataframe_bp
 from documents_routes import documents_bp
 from routines_routes import routines_bp
@@ -220,7 +218,6 @@ app.register_blueprint(labels_bp)
 app.register_blueprint(agent_instructions_bp)
 app.register_blueprint(dataframe_bp)
 app.register_blueprint(documents_bp)
-app.register_blueprint(replay_bp)
 app.register_blueprint(routines_bp)
 
 # Initialize authentication
@@ -1313,10 +1310,8 @@ def query():
     thread_id = request.json['thread_id']
     chain_id = request.json['chain_id']
     image = request.json.get('image')
-    user_code = request.json.get('user_code')
     branching_cv = request.json.get('branching_cv')
     synthesis = request.json.get('synthesis', False)
-    dataset_mappings = request.json.get('dataset_mappings')
 
     # NEW: Auto-explore parameters
     auto_explore = request.json.get('auto_explore', False)
@@ -1330,26 +1325,11 @@ def query():
     if max_investigations is None:
         max_investigations = request.json.get('max_iterations')
 
-    replay = None
-
     update_user_activity(get_user_id())
 
-    if user_code:
-        if user_code == "replay_code_execution":
-            user_input = "User updated the data in the datasets, adjusted your code accordingly, and requested to run it, and return the result."
-            # Get original code
-            user_code = get_python_code_from_chain(thread_id, chain_id, user_path)
-            replay = chain_id
-            
-            # Apply dataset mappings if provided
-            if user_code and dataset_mappings:
-                user_code = replace_dataset_paths(user_code, dataset_mappings)
-                # Optional: log the mappings for debugging
-                logger.info(f"Applied dataset mappings: {dataset_mappings}")
-                
-        else:
-            user_input = "User manually edited your code, and requested to run it, and return the result."
-    elif branching_cv:
+    # the v1 edit-and-run and the dataset-mapped replay (a chain seeded with its own script, the two canned sentences)
+    # are retired (2026-10-11, docs/ROUTINES_DESIGN.md S10): a routine's run is how a chain runs again
+    if branching_cv:
         user_input = "User requested variations of the enquiry"      # the seedling: the analyst's ideas path (2026-09-08)
     elif synthesis:
         # The SAME canned request the automatic end-of-run synthesis sends,
@@ -1365,8 +1345,6 @@ def query():
             thread_id=thread_id,
             chain_id=chain_id,
             image=image if image else None,
-            user_code=user_code if user_code else None,
-            replay=replay,
             auto_explore=auto_explore,
             max_investigations=max_investigations,
             synthesis=synthesis,

@@ -126,7 +126,7 @@
 .briefing-content div.nb-step--ask .nb-out-label { color: var(--accent-replay); }
 
 /* ---- Code, Results and Plots tabs (2026-09-08): one code block, one plot card ----
-   content-rendering.js builds: Code = h3 + .markdown-content > .code-header (label, edit/discard/execute) + pre code;
+   content-rendering.js builds: Code = h3 + .markdown-content > .code-header (label, copy, download) + pre code;
    Results = h3 + .markdown-content > pre code.language-plaintext; Plots = .plot-container cards with a header,
    a hidden query form, and the Plotly div. The h3 labels duplicate the tab's own name and are hidden. */
 #content-code > h3, #content-code_exec_results > h3 { display: none; }
@@ -136,14 +136,10 @@
 #content-code .header-actions { display: flex; align-items: center; gap: 2px; }
 #content-code .code-action-button { width: 26px; height: 26px; border: none; border-radius: 5px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; padding: 0; transition: none; }
 #content-code .code-action-button:hover:not(:disabled) { background: var(--bg-tertiary); color: var(--text-primary); transform: none; }
-#content-code .code-action-button.execute-button { color: var(--c-model); }
-#content-code .code-action-button.discard-button { color: var(--c-fail); }
 #content-code .code-action-button svg { width: 14px; height: 14px; stroke-width: 1.8; }
 #content-code .code-header + pre, #content-code_exec_results .markdown-content pre { margin: 0; padding: 0; border: none; background: none; }
 #content-code pre code, #content-code_exec_results pre code { display: block; margin: 0; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 0 0 var(--r-2) var(--r-2); background: var(--code-bg); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; color: var(--code-text); white-space: pre; overflow-x: auto; tab-size: 4; }
 #content-code_exec_results pre code { border-radius: var(--r-2); white-space: pre-wrap; word-break: break-word; }
-#content-code .CodeMirror { border: 1px solid var(--border-color); border-radius: 0 0 var(--r-2) var(--r-2); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; height: auto; min-height: 240px; }
-#content-code .CodeMirror-scroll { min-height: 240px; }
 /* a plot is a card: title and actions on one line, the query row beneath when opened, the figure below */
 #content-plot .plot-container { margin: 0 0 14px; padding: 0; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); overflow: hidden; }
 #content-plot .plot-header { height: 34px; margin: 0; padding: 0 6px 0 12px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 8px; }

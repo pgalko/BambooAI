@@ -59,8 +59,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (195/96/30/19/16/49/44/51/10/111/1/1 Python; 44/7/29/56/24/63 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (92 hosted, 89 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (195/99/30/19/16/49/44/51/10/111/1/1 Python; 44/7/30/61/24/63 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (95 hosted, 92 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (43; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -441,6 +441,16 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines, step 4: the retirements (2026-10-11, patch 0134).** The v1 way of running a chain again is gone, as
+  ROUTINES_DESIGN.md §10 said it would: `web_app/replay_routes.py` (`/storage/replay_favourites`, `/load_replay`),
+  `chain_replay_utils.py`, `workflow-replay.js` and its tag, the replay view in workflow-modal.js with the modal's
+  state snapshot (it served nothing else), the replay rules in dialogs.css and the pill's `.replay` states, the
+  replay storage handler in query-processing.js; `/query` reads no `user_code` or `dataset_mappings` and carries
+  neither canned sentence; `pd_agent_converse` has no `user_code` or `replay`. *Edit and run* on the Code tab went
+  with it: Copy and Download (.py, named after the question's first words) in place of Edit, Discard and Execute,
+  and CodeMirror's four CDN tags leave the page (the stack's vendor entries and stub too). The kernel's own
+  `_user_code` (delve/kernel.py) is unrelated and stays. test_shell.js 61, test_dialogs.js 30, test_app_path.py 99;
+  the stack walk 95 hosted / 92 local (the Code tab: Copy puts the script on the clipboard, Download names the file).
 - **Routines, step 4: the Dataset cache's pick in the file dialog (2026-10-11, patch 0133).** A file routine's run
   dialog offered an upload or the data loaded now; a file the person had uploaded before sat in the executor's cache
   with no way to run on it. Now a third choice, *A file from the Dataset cache*, with a select of the cache's file

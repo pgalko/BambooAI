@@ -81,7 +81,7 @@ playwright is missing:
 - Nomad, tiers, capacity and the orchestrator's health/tier rules are not exercised: the fake
   answers "ready" whenever the executor is healthy. The next step for the reliability work is
   the real `ContainerManager` behind the same surface, over a fake Nomad, with the destroy log.
-- Without network, dagre, localforage, mermaid, Plotly and CodeMirror are stand-ins (the map's
+- Without network, dagre, localforage, mermaid and Plotly are stand-ins (the map's
   layout is a placeholder; Plotly JSON figures render empty — the stack's figures are PNG).
   After one run on a machine with internet, `browser/vendor/` holds the real ones.
 - One worker process, so the multi-worker question (`GUNICORN_WORKERS`) is not reproduced here.

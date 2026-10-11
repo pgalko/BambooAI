@@ -1,14 +1,14 @@
 """The page's CDN libraries, served locally.
 
-The page loads marked, highlight.js, mermaid, dagre, localforage, KaTeX, CodeMirror, Plotly and
-the Auth0 SPA SDK from CDNs. The browser in the stack is routed here instead:
+The page loads marked, highlight.js, mermaid, dagre, localforage, KaTeX, Plotly and the Auth0
+SPA SDK from CDNs. The browser in the stack is routed here instead:
 
   1. tools/stack/browser/vendor/<file>  - a real copy. `prepare()` fills this folder from copies
      already on the machine (marked, KaTeX, a highlight.js bundle built from its library files)
      and, when the network allows, downloads the rest from the CDN URLs the page names. On a box
      with internet every library is real after the first run.
   2. tools/stack/browser/<stub>.js       - a stand-in when no real copy exists (localforage in
-     memory, a no-op Plotly/mermaid/CodeMirror). The Auth0 SDK is ALWAYS the stand-in.
+     memory, a no-op Plotly/mermaid). The Auth0 SDK is ALWAYS the stand-in.
   3. anything else off-app is refused.
 
 `resolve(url) -> (bytes, content_type) | None`.
@@ -43,10 +43,6 @@ FILES = {
     "https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js": "mermaid.min.js",
     "https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js": "dagre.min.js",
     "https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js": "localforage.min.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css": "codemirror/codemirror.min.css",
-    "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js": "codemirror/codemirror.min.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css": "codemirror/monokai.min.css",
-    "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js": "codemirror/python.min.js",
     "https://cdn.plot.ly/plotly-3.0.1.min.js": "plotly.min.js",
 }
 # URL prefixes -> vendor folders (KaTeX's css pulls its fonts by relative url)
@@ -58,7 +54,6 @@ STUBS = {
     "https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js": "libs_stub_mermaid.js",
     "https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js": "dagre_stub.js",
     "https://cdn.plot.ly/plotly-3.0.1.min.js": "libs_stub_plotly.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js": "libs_stub_codemirror.js",
     "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.1/highlight.min.js": "libs_stub_hljs.js",
     "https://cdn.jsdelivr.net/npm/marked@4.0.18/marked.min.js": None,   # the fixtures' render-only marked
 }
