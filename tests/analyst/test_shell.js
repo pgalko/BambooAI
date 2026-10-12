@@ -55,7 +55,7 @@ check('fold: the retired archive is not linked; the legacy sheet carries the old
 // ---- v45: the Code, Results and Plots tabs; the answer's type size; the send button ----
 const tabsCss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'tabs.css'), 'utf8');
 check('tabs.css: Code and Results are one code block with the toolbar; Plots are cards with a header, query row and figure', tabsCss.includes('#content-code .code-header {') && tabsCss.includes('#content-code pre code, #content-code_exec_results pre code {') && tabsCss.includes('#content-plot .plot-container {') && tabsCss.includes('#content-plot .plot-query-form {'));
-check('tabs.css: the answer page reads at 14.5px', tabsCss.includes('#content-answer .markdown-content { font-size: 14.5px;'));
+check('tabs.css: the answer page reads at 14.5px, at a measure of 92ch (76 was half the pane on a wide screen, 2026-10-13)', tabsCss.includes('#content-answer .markdown-content { font-size: 14.5px; line-height: 1.65; max-width: 92ch; }') && !tabsCss.includes('76ch'));
 // ---- the Plots tab (2026-10-13): a plot drawn while its tab was hidden is resized when the tab is shown; a plot is appended, not written back ----
 check('activateTab resizes the Plotly plots of the tab it shows (a figure drawn in a hidden tab had taken the default width)', /activeContent\.classList\.add\('active'\);[\s\S]{0,400}Plotly\.Plots\.resize\(el\)/.test(cr));
 check('a plot is inserted after the others (insertAdjacentHTML), never innerHTML += which re-parsed the earlier plots into static copies', cr.includes("tabContent.insertAdjacentHTML('beforeend', content)") && !cr.includes('tabContent.innerHTML += content'));

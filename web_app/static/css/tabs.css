@@ -159,8 +159,8 @@
 #content-plot .plotly-plot { min-height: 360px; border-radius: 0; }
 #content-plot .plot-image { border-radius: var(--r-1); }
 
-/* ---- the answer page reads at 14.5px (2026-09-08) ---- */
-#content-answer .markdown-content { font-size: 14.5px; line-height: 1.65; max-width: 76ch; }
+/* ---- the answer page reads at 14.5px (2026-09-08); the measure 92ch (2026-10-13: 76 read as half the pane on a wide screen) ---- */
+#content-answer .markdown-content { font-size: 14.5px; line-height: 1.65; max-width: 92ch; }
 #content-answer .markdown-content h1 { font-size: 20px; }
 #content-answer .markdown-content h2 { font-size: 16px; margin: 22px 0 8px; }
 #content-answer .markdown-content h3 { font-size: 11.5px; }
@@ -173,7 +173,7 @@
 /* ---- the Explore page (2026-09-08): the seedling's five questions as cards you can edit and run ----
    content-rendering.js turns the numbered list into .interactive-pill cards (number, content, a hidden textarea,
    an edit button, a send icon) and toggles .editing on a card while its text is being changed. */
-#content-answer .interactive-pills-container { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 0; max-width: 76ch; }
+#content-answer .interactive-pills-container { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 0; max-width: 92ch; }
 #content-answer .interactive-pill { display: grid; grid-template-columns: 26px 1fr auto auto; align-items: start; gap: 10px; padding: 12px 12px 12px 14px; margin: 0; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); cursor: pointer; transition: none; transform: none; box-shadow: none; }
 #content-answer .interactive-pill:hover { border-color: var(--chip-model-border); background: var(--bg-secondary); transform: none; box-shadow: none; }
 #content-answer .interactive-pill:active { transform: none; }

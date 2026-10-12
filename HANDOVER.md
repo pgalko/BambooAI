@@ -441,6 +441,9 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Answer tab's measure 92ch (2026-10-13, patch 0139).** The report's reading measure was 76ch (2026-09-08),
+  which on a wide screen is half the pane; it is 92ch now, the pills container with it. The measure stays a
+  measure: a cap on prose width, not a stretch to the pane.
 - **Ask about a plot: the picture reaches the analyst (2026-10-13, patch 0138).** The plot's chat button had sent the
   picture with the question since v1, and `pd_agent_converse(image=)` never used it; the config's `multimodal` flag
   was read nowhere. Now the figure rides with every analysis turn as an OpenAI image part in the user message
