@@ -274,6 +274,54 @@ def main():
                   (r4["rows"], (fits_after, fits_after4), run4["data"].get("load"), run4["data"].get("date_range"), run4["data"].get("rows"), run4.get("bindings"), got4, run4.get("inputs"), run4.get("status"), (run4.get("error") or "")[-200:]))
             check("the Data tab's pills after the cut run show what the session holds - the cached load's window - not the run's", any(f"Intervals ICU (59 days [W+S]) loaded" in p for p in r4["pills"]), r4["pills"])
 
+            # a chain on the window a run took from the cache, then a routine from it (2026-10-12): the session's frame came
+            # "from the cache", and the chain's record must still say the Intervals load - its window, kinds and key - so the
+            # routine's run dialog offers the window, not a file upload (the live case: the dialog offered Upload a file)
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_selector("#routinesModal .rt-origin", timeout=15000)
+            page.click("#routinesModal .rt-origin")
+            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none' && !RoutinesUI.inRunView() && !document.getElementById('queryInput').disabled && typeof responses !== 'undefined' && responses.length >= 1", timeout=30000)
+            page.fill("#queryInput", "How many sessions are in this window, again?")
+            page.click("#submitQuery")
+            wait_text(page, "#chainPosition", "chain 2 of 2", 120000)
+            wait_run_end(page, 2)
+            page.hover("#rankButton")
+            page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+            page.click("#saveMenu .it[data-act='routine']")
+            page.wait_for_selector("#routineMakeModal [data-act='create']", timeout=120000)
+            page.wait_for_function("() => !document.querySelector('#routineMakeModal .rt-wait')", timeout=120000)
+            mk = page.evaluate("""() => { const v = document.querySelector('#routineMakeModal .rt-version'); const on = v && v.querySelector('.ui-choice.on');
+                return { heading: v ? v.parentNode.querySelector('.h').textContent : '', on: on ? on.getAttribute('data-version') : '', label: document.querySelector('#routineMakeModal [data-act="create"] span').textContent,
+                         name: document.querySelector('#routineMakeModal [data-field="name"]').value }; }""")
+            check("Save as routine on a later chain of the thread: 'a routine was made from an earlier chain', A new routine on by default, the button reads Create routine, the name the proposal's",
+                  "earlier chain of this thread" in mk["heading"] and mk["on"] == "new" and mk["label"] == "Create routine" and "Session start" not in mk["name"], mk)
+            page.fill("#routineMakeModal [data-field='name']", "Again on the cached window")
+            page.click("#routineMakeModal [data-act='create']")
+            page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
+            err_c = page.evaluate("() => { const e = document.querySelector('#routineMakeModal .rt-error'); return e ? e.textContent : null; }")
+            check("...created: run zero ran on the cached frame", err_c is None, err_c)
+            rj_c = next((json.load(open(f)) for f in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")) if "Again on the cached window" in open(f).read()), {})
+            load_c = ((rj_c.get("versions") or [{}])[0].get("manifest") or {}).get("data", {}).get("load") or {}
+            check("the routine's data record: the load is the cached frame's own Intervals load - the window, the kinds, the key's mark - marked cached, not 'cache'",
+                  load_c.get("source") == "intervals" and load_c.get("cached") is True and load_c.get("start_date") == a_start.isoformat() and load_c.get("end_date") == a_end.isoformat()
+                  and sorted(load_c.get("aux_kinds") or []) == ["summary", "wellness"] and load_c.get("key") == _kf("stack-key"), load_c)
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => [...document.querySelectorAll('#routinesModal .rt-side .it')].some(e => /Again on the cached window/.test(e.textContent))", timeout=15000)
+            page.evaluate("() => { const it = [...document.querySelectorAll('#routinesModal .rt-side .it')].find(e => /Again on the cached window/.test(e.textContent)); it && it.click(); }")
+            page.wait_for_function("() => /Again on the cached window/.test((document.querySelector('#routinesModal .rt-right .title') || {}).textContent)", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]') || !!document.querySelector('#routineRunModal input[data-load=\"file\"]')", timeout=30000)
+            rd_c = page.evaluate("() => ({ window: !!document.querySelector('#routineRunModal input[data-load=\"start\"]'), file: !!document.querySelector('#routineRunModal input[data-load=\"file\"]'), help: (document.querySelector('#routineRunModal .help') || {}).textContent || '' })")
+            check("its run dialog: Load from Intervals.icu with the original's window (59 days ending today, summary and wellness) - no file upload",
+                  rd_c["window"] and not rd_c["file"] and "59 days, ending today" in rd_c["help"] and "summary" in rd_c["help"], rd_c)
+            page.click("#routineRunModal [data-act='cancel']")
+            page.evaluate("RoutinesUI.closeManager()")
+            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
+            r = fetch_json(page, "/routines/" + rj_c.get("id", "none"), {}, "DELETE")       # the rest of the walk runs the first routine by its place in the list
+            check("the routine from the second chain deleted again (the rest of the walk runs the first)", r["status"] == 200, r)
+
             # the coach changes the key (another subject): the cached windows are the first subject's and must not be served
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key-two"})
             check("another Intervals.icu key stored", r["status"] == 200, r)
@@ -317,7 +365,7 @@ def main():
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_selector("#routinesModal .rt-origin", timeout=15000)
             page.click("#routinesModal .rt-origin")
-            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none' && !RoutinesUI.inRunView() && !document.getElementById('queryInput').disabled && typeof responses !== 'undefined' && responses.length === 1", timeout=30000)
+            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none' && !RoutinesUI.inRunView() && !document.getElementById('queryInput').disabled && typeof responses !== 'undefined' && responses.length >= 1", timeout=30000)
             check("the routine's origin loads from the favourites and unlocks the composer", True)
             # a new thread for the new data (the chain's cells build on the thread's earlier cells, so a routine made in the
             # Intervals thread would carry those cells): the page reloads into a fresh workspace

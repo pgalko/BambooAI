@@ -316,6 +316,11 @@ version's data record, `load`), and offers the data loaded now beside it.
    looking for its files in that folder; a frame marked with another key is said (*loaded under another key - it
    will be downloaded*), one from before the loader marked them is downloaded this once. The Intervals route puts
    the mark on the load record (`load.key`), so a routine and each run say which key they were made and run under.
+   A frame taken from the Dataset cache — the Data tab's cache, or a routine's run reusing a cached window — is
+   recorded with the cached frame's own load (its source, window, metrics, auxiliary kinds and key mark, from the
+   executor's metadata; `_load_of_cached`), marked `cached`, never as source "cache" (2026-10-12: a chain analysed
+   on a window a routine's run had taken from the cache made a routine whose plan read *file*, and its run dialog
+   offered an upload in place of the window; `load_plan` reads such an older record by the data's own source).
    The cut, the derived inputs and the binding go by file name, so the folder changes nothing for them; the DATA
    block shows the longer path. Endura's files are the event's, at the user's folder: no such check. Chosen over an
    app-side ledger of loads with file stamps (built as 0125/0126, set aside): identity recorded by the loader is

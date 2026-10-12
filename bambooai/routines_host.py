@@ -394,7 +394,9 @@ def load_plan(routine: dict, version_number: Optional[int] = None) -> dict:
     d = (version_of(routine, version_number).get("manifest") or {}).get("data") or {}
     load = d.get("load") or {}
     extra = d.get("extra") or {}
-    src = rt.source_kind(dict(d, source=load.get("source") or d.get("source")))
+    # a record whose load says "cache" (from before 2026-10-12, when a frame taken from the Dataset cache was recorded so) is
+    # the cached frame's own source: the loader's details then come from the data record and its extra
+    src = rt.source_kind(dict(d, source=(load.get("source") if load.get("source") != "cache" else None) or d.get("source")))
     aux = [str(p) for p in d.get("aux") or []]
     plan = {"source": src, "name": d.get("name") or "", "aux": aux, "aux_kinds": [rt.aux_kind(p) for p in aux], "rows": d.get("rows"),
             "columns": len(d.get("columns") or []), "date_range": d.get("date_range")}

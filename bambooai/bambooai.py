@@ -408,12 +408,41 @@ class BambooAI:
                            rows=(pv.get("shape") or [None])[0], date_range=meta.get("date_range"),
                            name=meta.get("original_filename") or rec["name"],
                            extra={k: meta.get(k) for k in ("metrics", "activities_count", "race_id", "race_title", "race_date", "athletes_count") if meta.get(k) is not None})
+                if (rec.get("load") or {}).get("source") == "cache":
+                    rec["load"] = self._load_of_cached(meta, rec)
             elif self.df is not None:
                 rec.update(source="file" if rec["name"] else "frame", rows=int(len(self.df)),
                            columns=[{"name": str(c), "dtype": str(t)} for c, t in self.df.dtypes.items()][:400])
         except Exception as exc:                                   # noqa: BLE001
             logger.warning("The run's data record is partial: %s", exc)
         return rec
+
+    @staticmethod
+    def _load_of_cached(meta, rec):
+        """The load on record for a frame taken from the Dataset cache - the Data tab's cache, or a routine's run reusing
+        a cached window: the cached frame's own load, from the executor's metadata - its source, window, metrics and
+        the auxiliary kinds loaded with it - marked cached, never "cache" (2026-10-12: a chain on such a frame made a
+        routine whose plan read "file", and its run dialog offered an upload in place of the window)."""
+        from analyst.routines import aux_kind
+        src = str(meta.get("source") or "").lower()
+        out = {"source": src if src in ("intervals", "endura", "sweatstack") else "file", "cached": True}
+        m = re.match(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-)\s*(\d{4}-\d{2}-\d{2})\s*$", str(meta.get("date_range") or ""))
+        kinds = [aux_kind(p) for p in rec.get("aux") or []]
+        if src == "intervals":
+            out.update(metrics=list(meta.get("metrics") or []), aux_kinds=[k for k in kinds if k in ("summary", "wellness", "intervals")])
+            if m:
+                out.update(start_date=m.group(1), end_date=m.group(2))
+            if meta.get("key_mark"):
+                out["key"] = meta["key_mark"]
+        elif src == "endura":
+            out.update(race_id=meta.get("race_id"), race_title=meta.get("race_title") or "", aux_kinds=[k for k in kinds if k in ("profile", "turns", "climbs", "waymarkers")])
+        elif src == "sweatstack":
+            out.update(sports=list(meta.get("sports") or []), metrics=list(meta.get("metrics") or []))
+            if m:
+                out.update(start_date=m.group(1), end_date=m.group(2))
+        else:
+            out["name"] = rec.get("name") or ""
+        return out
 
     # ------------------------------------------------------------ routines (docs/ROUTINES_DESIGN.md)
     def routine_store(self):

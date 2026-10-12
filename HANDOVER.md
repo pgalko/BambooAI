@@ -59,10 +59,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (205/108/30/19/16/49/44/51/10/116/1/1 Python; 44/7/30/61/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (205/110/30/19/16/49/44/51/10/117/1/1 Python; 44/7/30/61/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (102 hosted, 99 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (43; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (48; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -441,6 +441,14 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **A frame from the Dataset cache keeps its own load (2026-10-12, patch 0136).** A routine's run that reused a cached
+  Intervals window left the instance's load record as `{source: cache}`; the next chain analysed on that frame
+  recorded it so, the routine made from the chain got a plan that read *file*, and its run dialog offered an upload
+  in place of the window. `_data_record` now records a cached frame with the cached frame's own load from the
+  executor's metadata (`_load_of_cached`: source, window, metrics, auxiliary kinds, key mark; `cached: true`), and
+  `load_plan` reads an older record whose load says "cache" by the data's own source. test_app_path.py 110,
+  test_routines.py 117; the integrations walk 48 (a chain on the window a run took from the cache, a routine from it,
+  its dialog offering the window - the walk fails on the old code as the live dialog did).
 - **The computation path; the next-version dialog (2026-10-12, patch 0135).** The first live test of the next-version
   choice: an hour-of-day chain on one window, saved as a routine and run on another window (the run's load replaces
   the app's data), then a temperature follow-up on the first chain, saved as a new routine - and refused. Two causes.

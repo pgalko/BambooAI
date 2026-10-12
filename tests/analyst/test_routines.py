@@ -403,6 +403,11 @@ rid5 = made5["routine"]["id"]
 check("run zero binds the recorded file to itself and reproduces", made5["run_zero"]["status"] == "reproduced", made5["run_zero"])
 plan5 = host.load_plan(store.load(rid5))
 check("load_plan: the source, the window's length, the auxiliary kinds and the metrics as the original load asked", plan5["source"] == "intervals" and plan5["window_days"] == 59 and plan5["aux_kinds"] == ["summary"] and plan5["start"] == "2026-08-12", plan5)
+# a record whose load says "cache" (from before 2026-10-12): the plan is the data's own source, the window from its date range
+_rc = store.load(rid5); _rc["versions"][0]["manifest"]["data"]["load"] = {"source": "cache"}; _rc["versions"][0]["manifest"]["data"]["source"] = "intervals"
+_rc["versions"][0]["manifest"]["data"]["date_range"] = "2026-08-12 to 2026-10-10"
+plan5c = host.load_plan(_rc)
+check("load_plan on a record whose load says cache: the source is the data's own (intervals), the window its date range, the kinds from the files", plan5c["source"] == "intervals" and plan5c["window_days"] == 59 and plan5c["aux_kinds"] == ["summary"], plan5c)
 # a later window: the loader wrote a differently named summary, with one column fewer and more rows
 aux_new = os.path.join(aux_dir, "activity_summary_20260910_to_20261010.csv")
 pd.DataFrame({"hour": [7, 7, 7, 18, 19, 7], "load": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}).to_csv(aux_new, index=False)

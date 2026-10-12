@@ -267,6 +267,22 @@ _rec = BAMBOO._data_record()
 check("the data record carries how the data was loaded (without the frame's id), when the loaded frame is the one it describes", _rec.get("load") == {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"]}, _rec.get("load"))
 BAMBOO.load_params = {"source": "intervals", "df_id": "someone-else"}
 check("a load record for another frame is not carried", "load" not in BAMBOO._data_record())
+# a frame taken from the Dataset cache (2026-10-12): the load on record is the cached frame's own, from the executor's metadata,
+# marked cached - not "cache" (a chain on such a frame had made a routine whose run dialog offered an upload in place of the window)
+class _CacheApi:
+    def cache_preview(self, df_id):
+        return {"metadata": {"source": "intervals", "date_range": "2026-07-14 to 2026-10-12", "metrics": ["power"], "activities_count": 94, "key_mark": "k1"},
+                "columns": ["activity_id", "datetime", "power"], "dtypes": {"activity_id": "object", "datetime": "datetime64[ns]", "power": "float64"}, "shape": [766655, 3]}
+_keep_api, _keep_aux = BAMBOO.api_client, BAMBOO.auxiliary_datasets
+BAMBOO.api_client, BAMBOO.auxiliary_datasets = _CacheApi(), ["datasets/u1/k1/wellness_data_20260714_to_20261012.csv", "datasets/u1/k1/activity_summary_20260714_to_20261012.csv"]
+BAMBOO.load_params = {"source": "cache", "df_id": "d1"}
+_recc = BAMBOO._data_record()
+check("a frame loaded from the Dataset cache: the record's source is the cached frame's (intervals), and its load is that load - the window, the metrics, the auxiliary kinds, the key's mark - marked cached",
+      _recc["source"] == "intervals" and _recc["rows"] == 766655 and _recc["load"] == {"source": "intervals", "cached": True, "metrics": ["power"], "aux_kinds": ["wellness", "summary"], "start_date": "2026-07-14", "end_date": "2026-10-12", "key": "k1"}, _recc.get("load"))
+check("...the same for a race and a file: endura's race and its kinds; a file's name",
+      B.BambooAI._load_of_cached({"source": "endura", "race_id": "r9", "race_title": "The race"}, {"aux": ["datasets/u1/athlete_profiles_race_r9.csv", "datasets/u1/race_climbs_race_r9.csv"], "name": ""}) == {"source": "endura", "cached": True, "race_id": "r9", "race_title": "The race", "aux_kinds": ["profile", "climbs"]}
+      and B.BambooAI._load_of_cached({"source": "csv", "original_filename": "field_trial.csv"}, {"aux": [], "name": "field_trial.csv"}) == {"source": "file", "cached": True, "name": "field_trial.csv"})
+BAMBOO.api_client, BAMBOO.auxiliary_datasets = _keep_api, _keep_aux
 BAMBOO.load_params = None
 while not q.empty(): q.get()
 _r = _wc.post(f"/routines/{_rid}/run", json={"values": {}, "compare_with": "previous"})
