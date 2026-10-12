@@ -113,16 +113,36 @@
                   '<span class="ui-seg"><span class="on" data-keep="1">keep as a constant</span><span data-keep="0">drop</span></span></div>'
                 : '<div class="r"><span class="g">✓</span><span class="l" title="' + esc(r.label) + '">' + esc(r.label) + '</span><span class="c">cell ' + esc(r.cell) + '</span></div>').join('') + '</div>';
         },
+        // the routine a chain's proposal stands under (2026-10-12): the one made from this very chain, else the thread's
+        // first; and which it is, since the offer and its default differ - this chain's own routine defaults to its next
+        // version, a routine made from an earlier chain of the thread to a new routine (a follow-up is usually another
+        // question - the first live case, a temperature chain after an hour-of-day one, was saved as a new routine with the
+        // button still reading "Make it v2")
+        underOf(p, threadRoutines) {
+            const list = threadRoutines || [];
+            const own = list.find(r => p && p.chain_id != null && String(r.chain_id) === String(p.chain_id));
+            if (own) return { routine: own, own: true };
+            return list.length ? { routine: list[0], own: false } : null;
+        },
+        // what the dialog's foot and fields say for a version choice: the button's label, the note under it, whether the
+        // What-changed line shows, and the name the field holds (the routine's for a next version, the proposal's for a new one)
+        versionState(choice, under, p) {
+            if (!under) return { label: 'Create routine', note: 'The routine is checked once on this chain’s own data before it is created; the chain is saved as a favourite, and the routine links to it.', change: false, name: p ? p.name : '' };
+            if (choice === 'next') return { label: 'Make it v' + (Number(under.routine.version) + 1), note: 'The new version is checked once on this chain’s data before it replaces the current one; earlier versions stay runnable.', change: true, name: under.routine.name };
+            return { label: 'Create routine', note: 'The routine is checked once on this chain’s own data before it is created, apart from “' + under.routine.name + '”; the chain is saved as a favourite, and the routine links to it.', change: false, name: p ? p.name : '' };
+        },
         proposal(p, threadRoutines) {
-            const under = (threadRoutines && threadRoutines.length) ? threadRoutines[0] : null;
+            const under = build.underOf(p, threadRoutines);
+            const choice = under ? (under.own ? 'next' : 'new') : null;
+            const vs = build.versionState(choice, under, p);
             let h = '';
             if (under) {
-                h += '<div class="rt-sec"><div class="h">This analysis is the origin of a routine</div><div class="ui-choices rt-version">' +
-                    '<div class="ui-choice on" data-version="next"><b>Next version of “' + esc(under.name) + '”</b><span>v' + (Number(under.version) + 1) + ' · the method of this chain, the inputs carried over, checked on this chain’s data</span></div>' +
-                    '<div class="ui-choice" data-version="new"><b>A new routine</b><span>kept apart from the existing one</span></div></div>' +
-                    '<div class="ui-field rt-change"><label>What changed</label><input class="ui-input" data-field="change_note" placeholder="one line, for the versions list"></div></div>';
+                h += '<div class="rt-sec"><div class="h">' + (under.own ? 'This analysis is the origin of a routine' : 'A routine was made from an earlier chain of this thread') + '</div><div class="ui-choices rt-version">' +
+                    '<div class="ui-choice' + (choice === 'next' ? ' on' : '') + '" data-version="next"><b>Next version of “' + esc(under.routine.name) + '”</b><span>v' + (Number(under.routine.version) + 1) + ' · the method of this chain, the inputs carried over, checked on this chain’s data</span></div>' +
+                    '<div class="ui-choice' + (choice === 'new' ? ' on' : '') + '" data-version="new"><b>A new routine</b><span>kept apart from “' + esc(under.routine.name) + '”</span></div></div>' +
+                    '<div class="ui-field rt-change"' + (vs.change ? '' : ' style="display:none"') + '><label>What changed</label><input class="ui-input" data-field="change_note" placeholder="one line, for the versions list"></div></div>';
             }
-            h += '<div class="ui-field"><label>Name</label><input class="ui-input" data-field="name" value="' + esc(p.name) + '" maxlength="80"></div>';
+            h += '<div class="ui-field"><label>Name</label><input class="ui-input" data-field="name" value="' + esc(vs.name) + '" maxlength="80"></div>';
             h += '<div class="ui-field"><label>Purpose <span class="ui-muted">— one line for the card and for the note written after each run</span></label><input class="ui-input" data-field="purpose" value="' + esc(p.purpose || p.question || '') + '" maxlength="300"></div>';
             h += '<div class="rt-sec"><div class="h">Data</div>' + build.dataLine(p) + '</div>';
             h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— what you can change each run; everything else stays as the analysis had it</span></div>' + build.inputsTable(p.inputs, p.kept) + '</div>';
@@ -530,7 +550,7 @@
         });
         dialog.addEventListener('click', e => {
             const ch = e.target.closest('.rt-version .ui-choice');
-            if (ch) { dialog.querySelectorAll('.rt-version .ui-choice').forEach(x => x.classList.toggle('on', x === ch)); const f = dialog.querySelector('.rt-change'); if (f) f.style.display = ch.getAttribute('data-version') === 'next' ? '' : 'none'; return; }
+            if (ch) { dialog.querySelectorAll('.rt-version .ui-choice').forEach(x => x.classList.toggle('on', x === ch)); syncVersionChoice(); return; }
             const seg = e.target.closest('.rt-results .ui-seg > span');
             if (seg) { seg.parentNode.querySelectorAll('span').forEach(x => x.classList.toggle('on', x === seg)); }
         });
@@ -539,6 +559,26 @@
     function dialogParts() {
         const d = ensureDialog();
         return { d, sub: d.querySelector('.ui-dlg-h .sub'), body: d.querySelector('.ui-dlg-b'), note: d.querySelector('.ui-dlg-f .note'), createBtn: d.querySelector('[data-act="create"]'), cancelBtn: d.querySelector('[data-act="cancel"]') };
+    }
+    function versionChoice() {
+        const onEl = dialog && dialog.querySelector('.rt-version .ui-choice.on');
+        return onEl ? onEl.getAttribute('data-version') : null;
+    }
+    // the button, the note, the What-changed line and the name follow the version choice (2026-10-12); a name the person
+    // typed stays, the two defaults swap
+    function syncVersionChoice() {
+        const st = dialogState; if (!st || !st.proposal) return;
+        const p = dialogParts();
+        const under = build.underOf(st.proposal, st.threadRoutines);
+        const vs = build.versionState(versionChoice(), under, st.proposal);
+        p.createBtn.querySelector('span').textContent = vs.label;
+        p.note.textContent = vs.note;
+        const f = p.d.querySelector('.rt-change'); if (f) f.style.display = vs.change ? '' : 'none';
+        const nameEl = p.d.querySelector('[data-field="name"]');
+        if (nameEl) {
+            const defaults = [st.proposal.name, under ? under.routine.name : ''].filter(Boolean);
+            if (!nameEl.value.trim() || defaults.includes(nameEl.value.trim())) nameEl.value = vs.name;
+        }
     }
     function openMake(threadId, chainId, opts) {
         dialogState = { thread_id: threadId, chain_id: chainId, threadRoutines: uniqueRoutines((opts && opts.threadRoutines) || []), fromCard: !!(opts && opts.fromCard), proposal: null, busy: false };
@@ -571,12 +611,9 @@
             const under = st.threadRoutines;
             p.sub.textContent = 'from this chain · ' + pr.cells + ' cell' + (pr.cells === 1 ? '' : 's') + ' · ' + (pr.results || []).length + ' result' + ((pr.results || []).length === 1 ? '' : 's') + (pr.figures && pr.figures.count ? ' · ' + pr.figures.count + ' figure' + (pr.figures.count === 1 ? '' : 's') : '') + (pr.cost ? ' · $' + Number(pr.cost).toFixed(2) : '');
             p.body.innerHTML = build.proposal(pr, under);
-            p.note.textContent = under.length
-                ? 'The new version is checked once on this chain’s data before it replaces the current one; earlier versions stay runnable.'
-                : 'The routine is checked once on this chain’s own data before it is created; the chain is saved as a favourite, and the routine links to it.';
             p.createBtn.style.display = '';
             p.createBtn.disabled = false;
-            p.createBtn.querySelector('span').textContent = under.length ? 'Make it v' + (Number(under[0].version) + 1) : 'Create routine';
+            syncVersionChoice();
         }).catch(err => {
             if (dialogState !== st) return;
             st.busy = false; p.cancelBtn.disabled = false;
@@ -585,15 +622,14 @@
     }
     function readChoices() {
         const st = dialogState, p = dialogParts();
-        const under = st.threadRoutines;
-        const onEl = p.d.querySelector('.rt-version .ui-choice.on');
-        const nextOn = !!(under.length && onEl && onEl.getAttribute('data-version') === 'next');
+        const under = build.underOf(st.proposal, st.threadRoutines);
+        const nextOn = !!(under && versionChoice() === 'next');
         const field = n => { const el = p.d.querySelector('[data-field="' + n + '"]'); return el ? el.value.trim() : ''; };
         return {
-            proposal_id: st.proposal.proposal_id, name: field('name') || st.proposal.name, purpose: field('purpose'),
+            proposal_id: st.proposal.proposal_id, name: field('name') || (nextOn ? under.routine.name : st.proposal.name), purpose: field('purpose'),
             drop_inputs: Array.from(p.d.querySelectorAll('input[data-drop]:checked')).map(x => x.getAttribute('data-drop')),
             drop_results: Array.from(p.d.querySelectorAll('.rt-results .r.flag')).filter(r => { const on = r.querySelector('.ui-seg .on'); return on && on.getAttribute('data-keep') === '0'; }).map(r => [Number(r.getAttribute('data-cell')), Number(r.getAttribute('data-index'))]),
-            change_note: field('change_note'), routine_id: nextOn ? under[0].id : null
+            change_note: nextOn ? field('change_note') : '', routine_id: nextOn ? under.routine.id : null
         };
     }
     function create() {

@@ -59,7 +59,11 @@ SweatStack load directly — and applies to any tabular dataset.
 - **Three modes.** *Quick* (a lookup, a definition), *Deep* (a full analysis within a turn budget),
   *Adaptive* (a long run, reviewed after every 8th turn by a separate reviewer on a stronger model that can redirect it or end it).
 - **Follow-ups on a warm kernel.** A follow-up question continues with the variables the previous run
-  left; a new question starts fresh. Runs form chains you can step through.
+  left; a new question starts fresh. Runs form chains you can step through. If the data loaded has
+  changed since the earlier chain (another window, a replaced file), the follow-up starts in a fresh
+  kernel on the data loaded now: the earlier chains stay in its ledger as context, marked as on other
+  data, and its replay and any routine made from it use its own cells. The same file uploaded again
+  (a new session, a favourite reopened) is the same data, and the follow-up continues as before.
 - **Web search with sources.** With a Gemini key, the analyst searches for published figures to
   compare against (Google AI grounding) and cites them in the report.
 - **Memory.** Saving a run distils what was learned about the dataset — column quirks, approaches

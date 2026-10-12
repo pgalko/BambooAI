@@ -153,19 +153,26 @@ prop3 = BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9003")
 pev3 = [json.loads(q.get()) for _ in range(q.qsize())]
 check("with a Promoter entry the call runs on it: the pane's card names the seat, the log's call is on it",
       BAMBOO._promoter_seat() == "Promoter" and pev3[0].get("seat") == "Promoter" and state["calls"][-1][0] == "Promoter" and prop3["inputs"][0]["key"] == "arm_b", (pev3[0].get("seat"), state["calls"][-1][0]))
-# a reply cut at the token limit: a cut with nothing but reasoning is refused at once (a second try would go the same way); a cut
-# mid-object is asked for once more, shorter; cut twice, the refusal names the cause and the seat
+# a reply cut at the token limit: a cut with nothing but reasoning is asked once more, with the note that reasoning took it all
+# (2026-10-12: the same prompt sent again by the person came back whole - the reasoning's length varies); cut that way twice, refused;
+# a cut mid-object is asked for once more, shorter; cut twice, the refusal names the cause and the seat
 ncalls = len(state["calls"])
 state["cut"] = [""]
 while not q.empty(): q.get()
+prop4 = BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9004")
+pev4 = [json.loads(q.get()) for _ in range(q.qsize())]
+check("a reply with nothing but reasoning inside the token limit: asked once more (the note says reasoning took the allowance, asks for it brief), the second reply taken; the first card says it was cut off",
+      len(state["calls"]) == ncalls + 2 and "before anything but reasoning arrived" in state["calls"][-1][1] and prop4["inputs"][0]["key"] == "arm_b"
+      and any("cut off" in (e.get("peek") or "") for e in pev4 if e.get("type") == "pane_turn_end"), (state["calls"][-1][1][-200:], [e.get("peek") for e in pev4 if e.get("type") == "pane_turn_end"]))
+ncalls = len(state["calls"])
+state["cut"] = ["", ""]
+while not q.empty(): q.get()
 try:
-    BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9004"); cut_msg = ""
+    BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9007"); cut_msg = ""
 except RoutineRefused as exc:
     cut_msg = str(exc)
-pev4 = [json.loads(q.get()) for _ in range(q.qsize())]
-check("a reply with nothing but reasoning inside the token limit: one call, refused, the reason names the limit and the Promoter seat",
-      len(state["calls"]) == ncalls + 1 and "cut off at its token limit" in cut_msg and "nothing arrived but reasoning" in cut_msg and "Promoter" in cut_msg and "max_tokens" in cut_msg
-      and "cut off" in (pev4[-1].get("peek") or ""), (cut_msg, pev4[-1].get("peek")))
+check("nothing but reasoning twice: two calls, refused, the reason names the limit and the Promoter seat",
+      len(state["calls"]) == ncalls + 2 and "cut off at its token limit" in cut_msg and "nothing arrived but reasoning" in cut_msg and "Promoter" in cut_msg and "max_tokens" in cut_msg, cut_msg)
 ncalls = len(state["calls"])
 state["cut"] = ['{"name": "B against A", "inputs": [{"key": "arm_b", "label": "The arm", "type": "choice", "default": "B", "origin": "x", "column": "arm"}], "edits": [{"cell": 2, "fi']
 while not q.empty(): q.get()
@@ -362,6 +369,78 @@ for m_, want in (("quick", BAMBOO.turns_quick), ("deep", BAMBOO.turns_deep), ("a
     check(f"mode={m_} sent by the brain's menu sets the budget regardless of the legacy flags", BAMBOO._last_budget.turns == want, BAMBOO._last_budget)
 check("the cards carry the seat name the log entries use",
       all(e["seat"] == "Investigator" for e in events if e.get("type") == "pane_turn_start"))
+
+# the data changed between a chain and its follow-up (2026-10-12): the warm kernel is not continued - the earlier chain's
+# cells ran on data that is no longer loaded - and the follow-up starts in a fresh kernel on the data loaded now; the ledger
+# keeps the earlier chain as context, marked as on other data; the replay and a routine are made from the follow-up's own cells
+state.update(i=0, script=SCRIPT); BAMBOO.output_manager.add_user_input("Is B higher than A?")
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None)
+while not q.empty(): q.get()
+run_a = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+df2 = pd.DataFrame({"arm": np.tile(["A", "B"], 60), "x": np.random.default_rng(3).normal(size=120), "site": np.repeat(["n", "s"], 60)})
+BAMBOO.df, BAMBOO.df_id = df2, "d2"                      # as a loader route does: the frame replaced, the kernel left as it was
+OTHER = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nz = 1\nprint('d defined:', 'd' in globals(), '| columns:', list(df.columns), '| rows:', len(df))\n```",
+         "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nThe frame has 120 rows [cell 3].\n"]
+ncalls = len(state["calls"])
+state.update(i=0, script=OTHER); BAMBOO.output_manager.add_user_input("And on this data?")
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=run_a.id)
+while not q.empty(): q.get()
+run_b = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+_prompt_b = state["calls"][ncalls][1]
+check("a follow-up after the data changed: parent kept, a fresh kernel (the earlier chain's names are not there, df is the frame loaded now), the run's data is the new frame, the cell numbered along the path",
+      run_b.parent == run_a.id and "d defined: False" in run_b.cells()[0].stdout and "'site'" in run_b.cells()[0].stdout and "rows: 120" in run_b.cells()[0].stdout
+      and run_b.data.get("df_id") == "d2" and run_b.cells()[0].cell_no == 3, (run_b.cells()[0].stdout[:120], run_b.data.get("df_id"), [c.cell_no for c in run_b.cells()]))
+check("...its first prompt: the ledger keeps the earlier chain, marked as on other data with its cells named as not in the kernel, no names line; CELLS SO FAR starts empty",
+      "[run 1] Q: Is B higher than A?" in _prompt_b and "On other data (" in _prompt_b and "its cells 1-2 are not in the kernel (SHOW n re-opens one from the record)" in _prompt_b
+      and "Names left in the kernel" not in _prompt_b and "CELLS SO FAR:\n(no cells yet)" in _prompt_b, _prompt_b[:600])
+check("...its replay re-runs its own cell only, and reproduces", run_b.replay_status == "reproduced" and "groupby('arm')" not in run_b.replay_script and "z = 1" in run_b.replay_script, (run_b.replay_status, run_b.report[-200:]))
+# a routine from the follow-up: the method is its own cell; the proposal says what it continues
+FakeModels.config["agent_configs"].append({"agent": "Promoter", "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "medium", "max_tokens": 32000}})
+while not q.empty(): q.get()
+prop_b = BAMBOO.propose_routine("1001", run_b.id, billing_chain_id="9008")
+check("Save as routine on the follow-up: the script is its own cell (the earlier chain's cells, on other data, are not in it); a note says what the chain continues",
+      prop_b["cells"] == 1 and "groupby('arm')" not in prop_b["script"] and "z = 1" in prop_b["script"] and prop_b["data_state"] == "same"
+      and any("continues 1 earlier chain of the thread that ran on other data (cells 1-2): the method is this chain's own cell 3" in n for n in prop_b["notes"]), (prop_b["cells"], prop_b["notes"]))
+made_b = BAMBOO.create_routine(prop_b["proposal_id"], {"name": "On the new frame", "purpose": ""}, routine_id=None)
+check("...created: run zero on the data loaded now runs the one cell and the routine's data is the new frame",
+      made_b["run_zero"]["verified"] and made_b["routine"]["current_version"] == 1 and made_b["run_zero"]["data"]["df_id"] == "d2", made_b["run_zero"])
+st.delete(made_b["routine"]["id"])
+FakeModels.config["agent_configs"] = [a_ for a_ in FakeModels.config["agent_configs"] if a_["agent"] != "Promoter"]
+# a second follow-up on the same (new) data continues the warm kernel as always: the follow-up's own names are there
+SAME = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nprint('z from before:', z)\n```",
+        "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nStill here [cell 4].\n"]
+ncalls = len(state["calls"])
+state.update(i=0, script=SAME); BAMBOO.output_manager.add_user_input("And again?")
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=run_b.id)
+while not q.empty(): q.get()
+run_c = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+_prompt_c = state["calls"][ncalls][1]
+check("a follow-up on the same data: the warm kernel continues (z is there); the ledger marks the chain before the change as on other data and gives the one after it its names line",
+      "z from before: 1" in run_c.cells()[0].stdout and run_c.cells()[0].cell_no == 4 and "On other data (" in _prompt_c.split("[run 2]")[0]
+      and "Names left in the kernel" in _prompt_c.split("[run 2]")[1] and "[cell 3]" in _prompt_c, (run_c.cells()[0].stdout, _prompt_c[:500]))
+# the same data under a new frame id (2026-10-12): a favourite continued in a new session, the file uploaded again - the same name,
+# rows and columns - is the same data: the earlier chain's cells are rehydrated in a fresh kernel (the warm one holds another
+# frame), the ledger is as for any follow-up, the replay and a routine take the whole path, and run zero is verified
+BAMBOO.df, BAMBOO.df_id = df, "d1-again"
+ncalls = len(state["calls"])
+state.update(i=0, script=FOLLOW); BAMBOO.output_manager.add_user_input("And again, in a new session?")
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=run_a.id)
+while not q.empty(): q.get()
+run_d = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+_prompt_d = state["calls"][ncalls][1]
+check("a follow-up on the same file uploaded again (a new frame id): rehydrated from the earlier chain's cells (d is there), its record the new id, numbered 3; the ledger plain, with the names line; the replay re-runs the whole path",
+      run_d.parent == run_a.id and "reusing d from before: " in run_d.cells()[0].stdout and run_d.data.get("df_id") == "d1-again" and run_d.cells()[0].cell_no == 3
+      and "On other data" not in _prompt_d and "Names left in the kernel" in _prompt_d and run_d.replay_status == "reproduced" and "groupby('arm')" in run_d.replay_script and "(3 cells," in run_d.report,
+      (run_d.cells()[0].stdout[:80], run_d.data.get("df_id"), _prompt_d[:300], run_d.report[-160:]))
+FakeModels.config["agent_configs"].append({"agent": "Promoter", "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "medium", "max_tokens": 32000}})
+while not q.empty(): q.get()
+prop_d = BAMBOO.propose_routine("1001", run_d.id, billing_chain_id="9009")
+made_d = BAMBOO.create_routine(prop_d["proposal_id"], {"name": "On the same frame again", "purpose": ""}, routine_id=None)
+check("Save as routine on it: the chain's data counts as loaded (the same data under a new id) - the script is the whole path, run zero verified",
+      prop_d["data_state"] == "same" and prop_d["cells"] == 3 and made_d["run_zero"]["verified"] and made_d["run_zero"]["status"] == "reproduced", (prop_d["data_state"], prop_d["cells"], made_d["run_zero"]))
+st.delete(made_d["routine"]["id"])
+FakeModels.config["agent_configs"] = [a_ for a_ in FakeModels.config["agent_configs"] if a_["agent"] != "Promoter"]
+BAMBOO.df, BAMBOO.df_id = df, "d1"
 
 # the search tool: the seam's structured links become the pills, intact (the grounding redirects break if a quote rides along)
 BAMBOO._search_orchestrator = lambda prompts, lacm, om, chain_id, messages: ("Altitude reduces VO2max by ~1% per 100 m above 1,500 m.",

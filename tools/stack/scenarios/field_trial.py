@@ -429,8 +429,11 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
                              held="soil type (stratified)", plan="report", names="df, plot_means, adj_diff, est_c"), body)
 
     def report_generic(self, user, q):
+        # the cell this chain ran (the newest in the prompt: a follow-up's cells are numbered along the path), cited
+        nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]
+        cell = max(nos) if nos else 1
         body = ("This question is outside the scripted story of the local stack, so the answer is a placeholder: the "
-                "data was described in [cell 1] and nothing further was computed. Ask one of the scenario's questions "
+                f"data was described in [cell {cell}] and nothing further was computed. Ask one of the scenario's questions "
                 "to see a full analysis.")
         return _report("Nothing scripted for this question; report the placeholder.", _note(q, plan="report"), body)
 

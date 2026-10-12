@@ -99,6 +99,8 @@ check("defaults coerce to their types: number, numbers from text, a date window 
       and coerce("date_window", "2026-01-01 to 2026-03-31", False) == ["2026-01-01", "2026-03-31"] and coerce("toggle", "yes", False) is True
       and coerce("choice", ["a", "b"], False) == "a" and coerce("choice", "a, b", True) == ["a", "b"] and coerce("number", "abc", False) is None and coerce("date_window", "soon", False) is None)
 check("defaults_of: key -> default", rt.defaults_of(inputs) == {"threshold": 155})
+check("numbers written as a list in text - \"[18, 26]\", \"(9, 11)\" - read as the numbers (2026-10-12: a promoter wrote the default that way and the input was dropped)",
+      coerce("numbers", "[18, 26]", False) == [18, 26] and coerce("numbers", "(9, 11)", False) == [9, 11] and coerce("numbers", "[18.5]", False) == [18.5] and coerce("numbers", "[]", False) is None)
 
 # ---- the promoter's prompt under the standing rule (no task vocabulary), and its shape ----
 sys.path.insert(0, os.path.join(ROOT, "tests", "analyst"))
@@ -205,6 +207,33 @@ p4 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, rou
 made4 = host.create(nb4, p4, {"name": "", "purpose": "", "drop_inputs": [], "drop_results": [], "change_note": "the same, again"}, runner, store, routine_id=made["routine"]["id"])
 r4 = store.load(made["routine"]["id"])
 check("next version: the promoter saw the current inputs; v2 is current, v1 stays; the change note is kept", "THE CURRENT VERSION'S INPUTS" in prompts[-1][1] and r4["current_version"] == 2 and len(r4["versions"]) == 2 and r4["versions"][1]["change_note"] == "the same, again" and made4["version"] == 2)
+# the name on a next version (2026-10-12): the routine keeps its name unless the person typed another - the dialog used to send
+# the promoter's title for the new chain, and a next version silently renamed the routine
+made_n = host.create(nb4, host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}), {"name": "Rows above a line", "purpose": ""}, runner, store)
+rid_n = made_n["routine"]["id"]
+host.create(nb4, host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, routine=store.load(rid_n)), {"name": "Rows above a line", "purpose": "", "change_note": "same name sent"}, runner, store, routine_id=rid_n)
+same_name = store.load(rid_n)["name"]
+host.create(nb4, host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, routine=store.load(rid_n)), {"name": "Rows over a line", "purpose": "", "change_note": "renamed"}, runner, store, routine_id=rid_n)
+check("next version: the routine's name stays when the name sent is its own; it is renamed when the person typed another",
+      same_name == "Rows above a line" and store.load(rid_n)["name"] == "Rows over a line" and store.load(rid_n)["current_version"] == 3)
+store.delete(rid_n)
+# a follow-up asked after the data changed (2026-10-12): its parent's cells ran on other data - in its ledger, not in its
+# computation - so the routine is made from its own cells, run zero reproduces them, and the proposal says what it continues
+run4b = nb4.new_run("And on this data?", parent=run4.id)
+run4b.turns = [Turn(kind="cell", cell_no=3, code="n_all = len(df)\nRESULT('rows in the frame', float(n_all), None, None, 'rows', 'n/a')", results=[{"text": "rows in the frame: +5", "typed": False}], stdout="RESULT: rows in the frame: +5")]
+run4b.report = "## Five rows\n\nThe frame has five rows [cell 3]."
+run4b.status = "answered"
+run4b.data = {"df_id": "df4b", "name": "small_again.csv", "source": "csv", "columns": [{"name": "v", "dtype": "int64"}, {"name": "g", "dtype": "object"}], "rows": 5, "aux": []}
+nb4.runs[run4b.id] = run4b
+def as_is_promoter(system, user):
+    return '{"name": "As is", "inputs": [], "edits": []}', {"cost": 0.0}
+p4b = host.propose(nb4, run4b.id, as_is_promoter, current_data={"df_id": "df4b"}, runner=runner)
+check("propose on a follow-up after a change of data: the script is the follow-up's own cell (the parent's cells, on other data, left out), one result line, and a note saying what the chain continues",
+      p4b["cells"] == 1 and "# --- cell 3 ---" in p4b["script"] and "# --- cell 1 ---" not in p4b["script"] and "threshold = 155" not in p4b["script"]
+      and [r["cell"] for r in p4b["results"]] == [3] and any("continues 1 earlier chain of the thread that ran on other data (cells 1-2): the method is this chain's own cell 3" in n for n in p4b["notes"]), (p4b["cells"], p4b["notes"], p4b["script"][-400:]))
+made4b = host.create(nb4, p4b, {"name": "Rows in the frame", "purpose": ""}, runner, store)
+check("...and run zero on the follow-up's data reproduces its line", made4b["run_zero"]["status"] == "reproduced" and made4b["routine"]["origin"]["chain_id"] == run4b.id, made4b["run_zero"])
+store.delete(made4b["routine"]["id"])
 # refusals before any model call
 run5 = nb4.new_run("prose only"); run5.status = "answered"; nb4.runs[run5.id] = run5
 for rid_, why in ((run5.id, "no cells"), ("nope", "not in this thread")):
@@ -238,11 +267,14 @@ def cut_promoter(replies):
         return text, {"cost": 0.0, "truncated": True}
     return f
 try:
-    host.propose(nb4, run4.id, cut_promoter([""]), current_data={"df_id": "df4"}); got = ""
+    host.propose(nb4, run4.id, cut_promoter(["", ""]), current_data={"df_id": "df4"}); got = ""
 except host.RoutineRefused as exc:
     got = str(exc)
-check("propose: a reply with nothing but reasoning inside the limit is refused after one call, naming the limit and the seat to adjust",
-      len(cut_calls) == 1 and "cut off at its token limit" in got and "nothing arrived but reasoning" in got and "Promoter" in got, (len(cut_calls), got))
+check("propose: a reply with nothing but reasoning inside the limit is asked once more, with the note that reasoning took it all (2026-10-12); the same twice is refused, naming the limit and the seat to adjust",
+      len(cut_calls) == 2 and "before anything but reasoning arrived" in cut_calls[1] and "cut off at its token limit" in got and "nothing arrived but reasoning" in got and "Promoter" in got, (len(cut_calls), got))
+cut_calls.clear()
+p8e = host.propose(nb4, run4.id, cut_promoter(["", '{"name": "As is", "inputs": [], "edits": []}']), current_data={"df_id": "df4"})
+check("propose: nothing but reasoning, then a whole reply: the second is taken", len(cut_calls) == 2 and p8e["inputs"] == [] and p8e["name"] == "As is")
 cut_calls.clear()
 ok_json = '{"name": "As is", "inputs": [], "edits": []}'
 def cut_then_fine(system, user):

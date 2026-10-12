@@ -661,8 +661,11 @@ class Session:
         return run
 
     def run(self, question: str, parent: Optional[str] = None, budget: Budget = Budget(),
-            run_id: Optional[str] = None) -> Run:
+            run_id: Optional[str] = None, data: Optional[dict] = None) -> Run:
         run = self.nb.new_run(question, parent, run_id=run_id)
+        if data:
+            run.data = dict(data)                     # what this run runs on, on the record from the start: the computation
+                                                      # path (notebook.computed_cells) is drawn from it during the run (2026-10-12)
         self._save()
         spent, extra, failures = 0.0, "", 0
         self.system = contract(self.documents, budget.review_every)    # the Reviews section only when a reviewer runs
@@ -891,7 +894,9 @@ class Session:
         # guards, the rewrite, the replay and a routine read it as such
         figures_section, figures_note = self._figures(run, report_text)
         report_text += figures_section
-        cells = self.nb.path_cells(run.id)
+        cells = self.nb.path_cells(run.id)            # the record: what any cell of the path printed verifies a number
+        computed = self.nb.computed_cells(run.id)     # the computation: what the replay re-runs (2026-10-12: the earlier
+                                                      # chains' cells on other data are context, not part of this chain's script)
         # a number is verified if a cell printed it - or if it is a constant of the analysis
         # itself (a filter bound, a bin edge) that appears in a cell's code
         # a number is also verified if a cited document passage carries it
@@ -934,11 +939,11 @@ class Session:
             try:
                 if self.replay_runner is not None:
                     from .replay import assemble, compare
-                    script, order = assemble(cells, report_text, own=run.cells())
+                    script, order = assemble(computed, report_text, own=run.cells())
                     stdout, err = self.replay_runner(run, script)
-                    status, line = compare(cells, report_text, stdout or "", err or "", len(order))
+                    status, line = compare(computed, report_text, stdout or "", err or "", len(order))
                 else:
-                    status, line, script = verify(self.kernel_factory, cells, report_text)
+                    status, line, script = verify(self.kernel_factory, computed, report_text)
             except Exception as exc:                          # noqa: BLE001
                 status, line, script = "failed", f"Replay could not run: {exc}", ""
             run.replay_status, run.replay_script = status, script
@@ -1044,7 +1049,7 @@ class Session:
         return section, note
 
     def _figures_prompt(self, run: Run, report_text: str) -> str:
-        cells = self.nb.path_cells(run.id)
+        cells = self.nb.computed_cells(run.id)        # the cells whose variables are in the kernel (2026-10-12)
         code = "\n\n".join(f"--- cell {t.cell_no} ---\n```python\n{t.code.rstrip()}\n```" for t in cells)
         results = result_lines(run)
         parts = [f"QUESTION:\n{run.question.strip()}", "THE REPORT, AS WRITTEN:\n" + (report_text or "").strip(),

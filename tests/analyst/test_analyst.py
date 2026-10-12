@@ -5,6 +5,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path[:0] = [os.path.dirname(os.path.abspath(__file__)), ROOT, os.path.join(ROOT, "delve")]
 import pandas as pd, numpy as np
 from analyst import Session, Budget, Notebook, NotebookStore, parse_turn, replay, report
+from analyst.notebook import Turn
 from analyst.session import contract, READ_ROW, CONTRACT, CONTRACT_DOCUMENTS
 from kernel import PersistentKernel
 
@@ -32,6 +33,48 @@ check("tree: paths follow parents, a branch does not see its sibling",
       [r.id for r in nb.path(r2.id)] == [r1.id, r2.id] and [r.id for r in nb.path(r3.id)] == [r1.id, r3.id])
 d = Notebook.from_dict(json.loads(json.dumps(nb.to_dict())))
 check("tree: round-trips through JSON", set(d.runs) == set(nb.runs) and d.runs[r3.id].parent == r1.id)
+
+# ---- the computation path (2026-10-12): the part of the path that ran on the run's data ----
+nbd = Notebook("td")
+ra = nbd.new_run("first"); ra.data = {"df_id": "A", "name": "summer.csv", "date_range": "2026-07-13 to 2026-10-11", "rows": 92, "columns": [{"name": "t", "dtype": "int64"}, {"name": "v", "dtype": "float64"}]}
+ra.turns = [Turn(kind="cell", cell_no=1, code="a = 1"), Turn(kind="cell", cell_no=2, code="b = a + 1")]
+rb = nbd.new_run("second", parent=ra.id); rb.data = {"df_id": "A"}
+rb.turns = [Turn(kind="cell", cell_no=3, code="c = b + 1")]
+rc = nbd.new_run("third, after the data changed", parent=rb.id); rc.data = {"df_id": "B", "name": "winter.csv", "rows": 94}
+rc.turns = [Turn(kind="cell", cell_no=4, code="d = 1")]
+rd = nbd.new_run("fourth, same data as the third", parent=rc.id); rd.data = {"df_id": "B"}
+rd.turns = [Turn(kind="cell", cell_no=5, code="e = d + 1")]
+for r in (ra, rb, rc, rd): r.status = "answered"; r.report = "## r\n\nDone."
+check("computed_cells: on the same data the whole path (cells 1-3 for the second run); after a change of data only the cells since it (4 for the third, 4-5 for the fourth); path_cells stays the whole record",
+      [c.cell_no for c in nbd.computed_cells(rb.id)] == [1, 2, 3] and [c.cell_no for c in nbd.computed_cells(rc.id)] == [4] and [c.cell_no for c in nbd.computed_cells(rd.id)] == [4, 5]
+      and [c.cell_no for c in nbd.path_cells(rd.id)] == [1, 2, 3, 4, 5] and nbd.next_cell_no(rd.id) == 6)
+check("computed_cells for a follow-up about to start (the data loaded now given): on the frame of the tip, the tip's cells; on another frame, nothing to rehydrate",
+      [c.cell_no for c in nbd.computed_cells(rd.id, data={"df_id": "B"})] == [4, 5] and nbd.computed_cells(rd.id, data={"df_id": "C"}) == [] and [c.cell_no for c in nbd.computed_cells(rb.id, data={"df_id": "A"})] == [1, 2, 3])
+# the same data under a new frame id (2026-10-12): a favourite continued in a new session, the file uploaded again - the same
+# name, rows and columns - is the same data; a window of other rows, or another file of the same shape, is not
+again = {"df_id": "A-again", "name": "summer.csv", "date_range": "2026-07-13 to 2026-10-11", "rows": 92, "columns": [{"name": "t", "dtype": "int64"}, {"name": "v", "dtype": "float64"}]}
+from analyst.notebook import same_data, data_signature
+check("same_data: the same frame id; or the same name, rows, columns and period under another id; not another file of the same shape, not other rows, not a record without rows or columns",
+      same_data({"df_id": "A"}, {"df_id": "A"}) and same_data(ra.data, again) and not same_data(ra.data, dict(again, name="winter.csv")) and not same_data(ra.data, dict(again, rows=93))
+      and not same_data(ra.data, {"df_id": "A-light", "name": "summer.csv"}) and not same_data({}, ra.data) and data_signature({"df_id": "x"}) == "")
+check("computed_cells for a follow-up on the same file uploaded again: the earlier chain's cells are rehydrated (1-2, before the change to B stands)",
+      [c.cell_no for c in nbd.computed_cells(ra.id, data=again)] == [1, 2] and [c.cell_no for c in nbd.computed_cells(rd.id, data=again)] == [])
+check("earlier_on_other_data: the runs before the last change (the first two for the fourth); none on an unchanged path",
+      [r.id for r in nbd.earlier_on_other_data(rd.id)] == [ra.id, rb.id] and nbd.earlier_on_other_data(rb.id) == [])
+nbo = Notebook("to")                                     # an earlier run without a data record (before 2026-10-10) counts as on the same data
+ro0 = nbo.new_run("old root, no record"); ro0.turns = [Turn(kind="cell", cell_no=1, code="x = 1")]
+ro1 = nbo.new_run("newer, on A", parent=ro0.id); ro1.data = {"df_id": "A"}; ro1.turns = [Turn(kind="cell", cell_no=2, code="y = x + 1")]
+re_ = nbd.new_run("asked with no data loaded", parent=ra.id)     # the run itself without a record: nothing loaded now, so a chain that had data is on other data
+re_.turns = [Turn(kind="cell", cell_no=3, code="x = 1")]
+check("an earlier run without a data record counts as on the same data; a run asked with no data loaded stands on nothing of the earlier chain's",
+      [c.cell_no for c in nbo.computed_cells(ro1.id)] == [1, 2] and [c.cell_no for c in nbd.computed_cells(re_.id)] == [3] and [r.id for r in nbd.earlier_on_other_data(re_.id)] == [ra.id])
+ancd = nbd.render_ancestry(rd.id)
+check("the ledger marks the chains before the change as on other data - the file, the period, the rows; the frame's id when the record has nothing else; their cells named as not in the kernel - and keeps the later one plain",
+      "[run 1] Q: first\n" in ancd and "On other data (summer.csv, 2026-07-13 to 2026-10-11, 92 rows): its numbers are that data's; its cells 1-2 are not in the kernel (SHOW n re-opens one from the record)" in ancd
+      and "On other data (frame A): its numbers are that data's; its cell 3 is not in the kernel" in ancd and ancd.count("On other data") == 2 and "[run 3] Q: third" in ancd and "On other data" not in ancd.split("[run 3]")[1], ancd)
+check("the cells view after the change shows the computed cells only (4 as older, 5 whole), never the earlier chains' cells",
+      "cell 4" in nbd.render_cells(rd.id) and "cell 5" in nbd.render_cells(rd.id) and "cell 1" not in nbd.render_cells(rd.id) and "--- cell 1" not in nbd.render_cells(rd.id, everything=True), nbd.render_cells(rd.id))
+check("other_data_line: one cell says 'its cell n is'; no data on record says so", "its cell 4 is not in the kernel" in nbd.other_data_line(rc) and nbd.other_data_line(ro0).startswith("On other data (not on record): its numbers are that data's"))
 
 # ---- the loop over a real kernel, with a scripted analyst ----
 df = pd.DataFrame({"unit": np.repeat(["a", "b", "c", "d"], 50), "arm": np.tile(["A", "B"], 100),
@@ -641,6 +684,31 @@ _r_prose, _p_prose, _e_prose = _fig_run([("Here is a figure: fig = go.Figure(); 
 check("figures: prose without a block is an attempt - told to reply with a block or NONE - and the next reply's cell is drawn",
       len(_p_prose) == 2 and "carried no python block and was not NONE" in _p_prose[1] and FIGURES_NO_BLOCK.split(" (")[0] in _p_prose[1]
       and [t.kind for t in _r_prose.turns if t.step == "figures"] == ["error", "cell"] and "## Figures\n\n- [fig 2] the mean" in _r_prose.report and "not drawn" not in _r_prose.report, (_r_prose.report[-200:], [(t.kind, t.cell_no) for t in _r_prose.turns if t.step == "figures"]))
+# the data changed between a chain and its follow-up (2026-10-12): the follow-up's figures request sees its own cells only (the
+# earlier chain's variables are not in its kernel), its replay re-runs its own cells only, and the ledger says the earlier chain is on other data
+_bp = []
+def _bllm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"):
+        _bp.append(user); return "NONE", {"cost": 0}
+    _bp.append(user)
+    return [act6("CELL\n```python\nw = len(df)\nprint('rows', w)\n```"), act6("REPORT\n## r\n\nThe rows [cell 2].")][min(sum(1 for x in _bp if "TASK: turn" in x) - 1, 1)], {"cost": 0.001}
+_nbb = Notebook("tb"); _kb1 = PersistentKernel(df=df)
+try:
+    _rb1 = Session(_kb1, _nbb, thread_llm_factory(["###NOTE###\n" + NOTE5 + "\n###ACTION###\nCELL\n```python\nm = df['x'].mean()\nprint('mean', round(m, 3))\n```", "###NOTE###\n" + NOTE5 + "\n###ACTION###\nREPORT\n## r\n\nThe mean [cell 1]."]),
+                   data_description="d", kernel_factory=lambda: PersistentKernel(df=df)).run("first", budget=Budget(turns=4, dollars=1.0), data={"df_id": "A", "name": "a.csv", "rows": 200})
+finally:
+    _kb1.cleanup()
+_df_b = df.head(50).copy(); _kb2 = PersistentKernel(df=_df_b)        # the data replaced: a fresh kernel, as the app gives a follow-up after a change
+try:
+    _rb2 = Session(_kb2, _nbb, _bllm, data_description="d2", kernel_factory=lambda: PersistentKernel(df=_df_b)).run("second, on other data", parent=_rb1.id, budget=Budget(turns=4, dollars=1.0), data={"df_id": "B", "name": "b.csv", "rows": 50})
+finally:
+    _kb2.cleanup()
+_fig_prompt = next(x for x in _bp if x.startswith("QUESTION:") and "THE CELLS" in x)
+check("a follow-up on other data: its cell is numbered along the path (2), the ledger marks the first chain as on other data, the figures request lists its own cell only, the replay re-runs its own cell only and reproduces",
+      _rb2.cells()[0].cell_no == 2 and "rows 50" in _rb2.cells()[0].stdout and "On other data (a.csv, 200 rows)" in _bp[0] and "its cell 1 is not in the kernel" in _bp[0]
+      and "--- cell 2 ---" in _fig_prompt and "--- cell 1 ---" not in _fig_prompt and "df['x'].mean()" not in _rb2.replay_script and "w = len(df)" in _rb2.replay_script
+      and _rb2.replay_status == "reproduced" and "(1 cells, " in _rb2.report, (_rb2.replay_status, _rb2.report[-200:], _fig_prompt[:300]))
 _r_none, _p_none, _e_none = _fig_run([("**NONE.**\n\nA single number answers.", {"cost": 0.01})], "tfn")
 check("figures: NONE in markdown declines - one call, no turn of the step, no Figures section and no 'not drawn' line",
       len(_p_none) == 1 and not [t for t in _r_none.turns if t.step == "figures"] and "## Figures" not in _r_none.report and "not drawn" not in _r_none.report

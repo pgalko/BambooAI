@@ -589,6 +589,49 @@ def main():
             page.click("#workflowManagerModal .workflow-card")
             page.wait_for_function("() => /chain \\d of 4/.test(document.getElementById('chainPosition').textContent) && !document.getElementById('queryInput').disabled", timeout=15000)
             page.wait_for_timeout(300)
+            # a follow-up after the data changed (2026-10-12): another file loaded through the Data tab, then a question on chain 1 -
+            # the earlier chains' cells ran on data that is no longer loaded, so the follow-up starts in a fresh kernel, its ledger
+            # marks them as on other data, and its replay re-runs its own cell only
+            page.set_input_files("#primaryFile", no_soil)
+            page.wait_for_function("() => [...document.querySelectorAll('.primary-dataset-pill')].some(p => /no_soil\\.csv\\) loaded/.test(p.textContent))", timeout=60000)
+            for _ in range(4):
+                if page.evaluate("() => document.getElementById('prevResponse').disabled"):
+                    break
+                page.click("#prevResponse")
+                page.wait_for_timeout(400)
+            check("chain navigation: on chain 1 of 4 with the other file loaded", "chain 1 of 4" in page.inner_text("#chainPosition"), page.inner_text("#chainPosition"))
+            page.fill("#queryInput", "How many rows does this file have?")
+            page.click("#submitQuery")
+            wait_text(page, "#chainPosition", "chain 5 of 5", 60000)
+            wait_run_end(page, 5)
+            p5 = prompt_of(1)
+            done5 = page.evaluate("() => { const d = document.querySelectorAll('.sp-done'); return d.length ? d[d.length - 1].textContent : ''; }")
+            check("a follow-up on chain 1 after no_soil.csv was loaded: its first prompt's ledger keeps chain 1 marked as on other data (field_trial.csv, its cells not in the kernel), lists no names, and CELLS SO FAR starts empty",
+                  "[run 1] Q: " + q1 in p5["user"] and "On other data (field_trial.csv" in p5["user"] and "not in the kernel (SHOW n re-opens one from the record)" in p5["user"]
+                  and "Names left in the kernel" not in p5["user"] and "CELLS SO FAR:\n(no cells yet)" in p5["user"], p5["user"][:700])
+            cell5 = page.evaluate("() => [...document.querySelectorAll('#streamOutput .sp-row[data-cell]')].map(e => Number(e.getAttribute('data-cell')))")
+            check("...the chain's one cell is numbered along the path (after chain 1's cells) and its replay re-runs that cell only, reproduced",
+                  "Replay reproduced" in done5 and "(1 cells," in done5 and len(cell5) == 1 and cell5[0] > 3, (done5[:160], cell5))
+            # the same file uploaded again (a new frame id, the same name, rows and columns): the same data - a follow-up on chain 1 is
+            # rehydrated from its cells as any follow-up, its ledger plain, its replay the whole path (2026-10-12: a favourite continued
+            # in a new session, the file uploaded again)
+            page.set_input_files("#primaryFile", st.dataset)
+            page.wait_for_function("() => [...document.querySelectorAll('.primary-dataset-pill')].some(p => /field_trial\\.csv\\) loaded/.test(p.textContent))", timeout=60000)
+            for _ in range(6):
+                if page.evaluate("() => document.getElementById('prevResponse').disabled"):
+                    break
+                page.click("#prevResponse")
+                page.wait_for_timeout(400)
+            check("chain navigation: on chain 1 of 5 with the same file uploaded again", "chain 1 of 5" in page.inner_text("#chainPosition"), page.inner_text("#chainPosition"))
+            page.fill("#queryInput", "How many rows does this file have?")
+            page.click("#submitQuery")
+            wait_text(page, "#chainPosition", "chain 6 of 6", 60000)
+            wait_run_end(page, 6)
+            p6 = prompt_of(1)
+            done6 = page.evaluate("() => { const d = document.querySelectorAll('.sp-done'); return d.length ? d[d.length - 1].textContent : ''; }")
+            check("a follow-up on chain 1 with the same file uploaded again: its prompt's ledger is plain (no 'other data' mark, the names line present) and CELLS SO FAR lists chain 1's cells; the replay re-runs the whole path",
+                  "On other data" not in p6["user"] and "Names left in the kernel" in p6["user"] and "--- cell 1 ---" in p6["user"] and "CELLS SO FAR:\n(no cells yet)" not in p6["user"]
+                  and "Replay reproduced" in done6 and "(1 cells," not in done6, (p6["user"][:500], done6[:160]))
             errs = page.evaluate("window.__stackErrors || []")
             # what landed on disk, in the app's own layout under the stack's web app working directory
             wa = os.path.join(workdir, "webapp")
@@ -597,11 +640,17 @@ def main():
             nb = json.load(open(threads[0])) if threads else {"runs": {}}
             runs = list(nb["runs"].values())
             # the document chain's one cell (the grep) replays like any other
-            check("the thread holds four runs, all answered; every chain with cells reproduced",
-                  len(runs) == 4 and all(r["status"] == "answered" for r in runs)
+            check("the thread holds six runs, all answered; every chain with cells reproduced",
+                  len(runs) == 6 and all(r["status"] == "answered" for r in runs)
                   and all((r["replay_status"] == "reproduced") == any(t_["kind"] == "cell" for t_ in r["turns"]) for r in runs),
                   [(r["status"], r["replay_status"], sum(1 for t_ in r["turns"] if t_["kind"] == "cell")) for r in runs])
             check("the second run's parent is the first", len(runs) >= 2 and runs[1]["parent"] == runs[0]["id"])
+            check("the fifth run - the follow-up after the data changed - stands on the first, ran on the other file (its own data record), and its replay script holds its cell alone",
+                  runs[4]["parent"] == runs[0]["id"] and runs[4]["data"].get("name") == "no_soil.csv" and runs[4]["data"].get("df_id") not in (None, runs[0]["data"].get("df_id"))
+                  and runs[4]["replay_script"].count("# --- cell") == 1 and "adj_diff" not in runs[4]["replay_script"], (runs[4]["data"].get("name"), runs[4]["replay_script"].count("# --- cell")))
+            check("the sixth run - the follow-up with the same file uploaded again - stands on the first under a new frame id, and its replay script holds chain 1's cells with its own",
+                  runs[5]["parent"] == runs[0]["id"] and runs[5]["data"].get("name") == "field_trial.csv" and runs[5]["data"].get("df_id") != runs[0]["data"].get("df_id")
+                  and runs[5]["replay_script"].count("# --- cell") >= 4 and "adj_diff" in runs[5]["replay_script"], (runs[5]["data"].get("name"), runs[5]["replay_script"].count("# --- cell")))
             favs = glob.glob(os.path.join(wa, "storage", USER, "favourites", "*", "*.json"))
             check("Save wrote the favourites (one file per chain of the thread)", len(favs) == 4, favs)
             pack = os.path.join(wa, "memory", USER, "memory_pack.yaml")

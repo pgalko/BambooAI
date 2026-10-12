@@ -51,6 +51,7 @@ def _stream(instance, work):
             except Exception as exc:                            # noqa: BLE001
                 from bambooai.routines_host import RoutineRefused
                 if isinstance(exc, RoutineRefused):
+                    logger.info("routine refused: %s", str(exc)[:400])      # in the terminal too (2026-10-12: a refusal left no trace there)
                     closing["routine_error"] = str(exc)
                 else:
                     logger.exception("routine route failed")

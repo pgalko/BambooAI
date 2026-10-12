@@ -59,8 +59,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (195/99/30/19/16/49/44/51/10/111/1/1 Python; 44/7/30/61/24/63 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (95 hosted, 92 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (205/108/30/19/16/49/44/51/10/116/1/1 Python; 44/7/30/61/24/66 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (102 hosted, 99 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (43; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -441,6 +441,34 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The computation path; the next-version dialog (2026-10-12, patch 0135).** The first live test of the next-version
+  choice: an hour-of-day chain on one window, saved as a routine and run on another window (the run's load replaces
+  the app's data), then a temperature follow-up on the first chain, saved as a new routine - and refused. Two causes.
+  The follow-up had gone on in the warm kernel, with `df` and the names of the earlier window while the DATA block
+  described the new one (it reloaded by luck); and a routine's script is the whole path, so run zero re-ran the
+  hour-of-day cells on the new window and their line that joins the summary file with the frame could not reproduce.
+  Now the path's **computation** is the part that ran on the run's data (`Notebook.computed_cells`, by the frame's id
+  on each run's record): a follow-up asked after the data changed starts in a fresh kernel on the data loaded now
+  (`_kernel_for` checks the tip's data; nothing of the earlier chains is rehydrated), its ledger keeps them as
+  context marked *On other data (…): its numbers are that data's; its cells 1-6 are not in the kernel (SHOW n
+  re-opens one from the record)* without the names line, cell numbering continues, and its replay, its figures
+  step and a routine made from it use its own cells (the proposal's notes say what it continues); the run's data
+  record is set at creation (`Session.run(..., data=)`). *The same data* is the same frame or the same data loaded
+  again under a new id - the same name, rows, column names, period and loader details (`notebook.same_data`,
+  `data_signature`): an upload gets a fresh id each time, so a favourite continued in a new session with its file
+  uploaded again is rehydrated and continued as before, and run zero counts its data as loaded; the frame's id alone
+  decides whether the warm kernel is kept (`_same_frame`). An earlier chain without a record counts as on the same
+  data; a cache load keeps the frame's id. The dialog: the chain's
+  own routine defaults to its next version (the Name field the routine's), a later chain of the thread to a new
+  routine ("A routine was made from an earlier chain of this thread"); the button, the note, the What-changed line
+  and the Name follow the choice (`build.versionState`, `syncVersionChoice`); the request's choice is final
+  (`create_routine` no longer falls back to the proposal's routine); a next version keeps its name unless another
+  was typed. Housekeeping: a refusal is logged in the terminal; a promoter reply cut with nothing but reasoning is
+  asked once more (the person's own retry had succeeded on the same prompt); a numbers default written as text in
+  brackets is read; the cost tier's Promoter at medium effort. README (follow-ups), DESIGN_CHECKLIST A4,
+  ROUTINES_DESIGN F1.1-F1.3 and §11.4. test_analyst.py 205, test_app_path.py 108, test_routines.py 116,
+  test_routines.js 66; the stack walk 102 hosted / 99 local (another file loaded, a follow-up on chain 1; the same
+  file uploaded again, a follow-up continued).
 - **Routines, step 4: the retirements (2026-10-11, patch 0134).** The v1 way of running a chain again is gone, as
   ROUTINES_DESIGN.md §10 said it would: `web_app/replay_routes.py` (`/storage/replay_favourites`, `/load_replay`),
   `chain_replay_utils.py`, `workflow-replay.js` and its tag, the replay view in workflow-modal.js with the modal's

@@ -47,10 +47,28 @@ check('dialog body: the results - a tick per computed line with its cell; the ty
   && p.querySelector('.rt-results .r.flag .ui-seg .on').getAttribute('data-keep') === '1' && p.querySelector('.rt-results .r.flag .ui-seg span[data-keep="0"]').textContent === 'drop'
   && [...p.querySelectorAll('.rt-sec .h')].some(h => h.textContent.includes('2 kept · 1 figure')));
 check('dialog body: without a routine on the thread there is no version choice', !p.querySelector('.rt-version'));
-p = el(b.proposal(proposal, [{ id: 'r1', name: 'Altitude pace correction', version: 1, chain_id: 'c9' }]));
-check('dialog body on a chain of an origin thread: the next-version choice first (on), a new routine beside it, the What-changed line',
-  p.querySelector('.rt-version .ui-choice.on[data-version="next"] b').textContent === 'Next version of “Altitude pace correction”' && p.querySelector('.rt-version .ui-choice.on span').textContent.startsWith('v2 ')
-  && p.querySelector('.rt-version .ui-choice[data-version="new"]') && p.querySelector('.rt-change [data-field="change_note"]'));
+// the version choice (2026-10-12): the chain's own routine defaults to its next version, the name field holding the routine's name;
+// a routine made from an earlier chain of the thread defaults to a new routine, the name the proposal's; the foot follows the choice
+const ownP = Object.assign({}, proposal, { chain_id: 'c9' });
+p = el(b.proposal(ownP, [{ id: 'r1', name: 'Altitude pace correction', version: 1, chain_id: 'c9' }]));
+check('dialog body on the origin chain of a routine: says so; the next-version choice on, a new routine beside it (kept apart from the routine by name), the What-changed line shown, the name field holding the routine\'s name',
+  p.querySelector('.rt-version').parentNode.querySelector('.h').textContent === 'This analysis is the origin of a routine'
+  && p.querySelector('.rt-version .ui-choice.on[data-version="next"] b').textContent === 'Next version of “Altitude pace correction”' && p.querySelector('.rt-version .ui-choice.on span').textContent.startsWith('v2 ')
+  && p.querySelector('.rt-version .ui-choice[data-version="new"] span').textContent === 'kept apart from “Altitude pace correction”' && !(p.querySelector('.rt-change').getAttribute('style') || '').includes('display:none')
+  && p.querySelector('[data-field="name"]').getAttribute('value') === 'Altitude pace correction');
+p = el(b.proposal(Object.assign({}, proposal, { chain_id: 'c10' }), [{ id: 'r1', name: 'Altitude pace correction', version: 1, chain_id: 'c9' }]));
+check('dialog body on a later chain of the thread: "a routine was made from an earlier chain"; a new routine is the default, the What-changed line hidden, the name the proposal\'s',
+  p.querySelector('.rt-version').parentNode.querySelector('.h').textContent === 'A routine was made from an earlier chain of this thread'
+  && p.querySelector('.rt-version .ui-choice.on[data-version="new"]') && !p.querySelector('.rt-version .ui-choice.on[data-version="next"]') && (p.querySelector('.rt-change').getAttribute('style') || '').includes('display:none')
+  && p.querySelector('[data-field="name"]').getAttribute('value') === 'Rows above a line');
+const underOwn = b.underOf(ownP, [{ id: 'r2', name: 'Other', version: 3, chain_id: 'c1' }, { id: 'r1', name: 'Altitude pace correction', version: 1, chain_id: 'c9' }]);
+check('underOf: the routine made from this very chain comes first, marked own; a thread routine otherwise; none without any',
+  underOwn.routine.id === 'r1' && underOwn.own === true && b.underOf(Object.assign({}, proposal, { chain_id: 'c7' }), [{ id: 'r2', name: 'Other', version: 3, chain_id: 'c1' }]).own === false && b.underOf(ownP, []) === null);
+const vsNext = b.versionState('next', underOwn, ownP), vsNew = b.versionState('new', underOwn, ownP), vsNone = b.versionState(null, null, ownP);
+check('versionState: next -> "Make it v2", the replaces-the-current note, What-changed shown, the routine\'s name; new -> "Create routine", the apart-from note, no What-changed, the proposal\'s name; no routine -> "Create routine"',
+  vsNext.label === 'Make it v2' && vsNext.note.includes('before it replaces the current one') && vsNext.change === true && vsNext.name === 'Altitude pace correction'
+  && vsNew.label === 'Create routine' && vsNew.note.includes('apart from “Altitude pace correction”') && vsNew.change === false && vsNew.name === 'Rows above a line'
+  && vsNone.label === 'Create routine' && vsNone.change === false && vsNone.name === 'Rows above a line', [vsNext, vsNew, vsNone]);
 p = el(b.proposal(Object.assign({}, proposal, { data_state: 'gone', inputs: [], results: [], figures: { count: 0 } }), []));
 check('dialog body with the data gone, no inputs and no result lines: says the routine will be unverified, that the method runs as it is, and that runs will not be compared number by number',
   p.querySelector('.rt-line.warn').textContent.includes('created unverified') && [...p.querySelectorAll('.rt-line')].some(x => x.textContent.startsWith('No inputs:'))

@@ -207,22 +207,32 @@ class BambooAI:
         analysis and in the replay. The same expression the replay has always passed to the executor."""
         return os.path.join('datasets', self.user_id or '', 'generated')
 
-    def _kernel_for(self, parent_run_id):
+    def _kernel_for(self, parent_run_id, data_record=None):
         """The kernel the run works in. Continuing from the tip the kernel already
-        holds: reuse it. Anything else (a branch, a new thread, a dead kernel):
-        a fresh kernel rehydrated from the parent's path."""
+        holds, with the frame it holds still the one loaded: reuse it. Anything
+        else (a branch, a new thread, a dead kernel, the frame replaced since): a
+        fresh kernel rehydrated from the cells of the parent's path that ran on
+        the same data as `data_record`, the record of the data loaded now - the
+        same frame, or the same data loaded again under a new id (2026-10-12: a
+        routine's run had loaded another window, and the follow-up went on in the
+        warm kernel with `df` and the names of the earlier window, while the DATA
+        block described the new one; a favourite continued in a new session with
+        its file uploaded again is the same data and is rehydrated as before)."""
         if self._kernel is not None and parent_run_id is not None and parent_run_id == self._kernel_tip:
-            try:
-                _, err, _ = self._kernel.execute("pass")          # is the warm kernel still alive (the executor reaps idle sessions)?
-                if not err:
-                    return self._kernel
-                logger.info("Warm kernel unusable (%s); rehydrating from the parent's path", err.strip()[:80])
-            except Exception as exc:                           # noqa: BLE001
-                logger.info("Warm kernel gone (%s); rehydrating from the parent's path", exc)
+            if not self._same_frame(parent_run_id):
+                logger.info("The frame loaded is not the one the chain in the kernel ran on; a fresh kernel for the follow-up")
+            else:
+                try:
+                    _, err, _ = self._kernel.execute("pass")          # is the warm kernel still alive (the executor reaps idle sessions)?
+                    if not err:
+                        return self._kernel
+                    logger.info("Warm kernel unusable (%s); rehydrating from the parent's path", err.strip()[:80])
+                except Exception as exc:                           # noqa: BLE001
+                    logger.info("Warm kernel gone (%s); rehydrating from the parent's path", exc)
         self._drop_kernel()
         self._kernel = self._new_kernel()
         if parent_run_id is not None:
-            cells = self.notebook.path_cells(parent_run_id)
+            cells = self.notebook.computed_cells(parent_run_id, data=data_record if data_record is not None else {"df_id": self.df_id})
             if cells:
                 n, err = rehydrate(self._kernel, cells)
                 if err:
@@ -230,6 +240,13 @@ class BambooAI:
                         f"Restoring the earlier analysis stopped after {n} of {len(cells)} cells: {err}", chain_id=self.chain_id)
         self._kernel_tip = parent_run_id
         return self._kernel
+
+    def _same_frame(self, run_id):
+        """Whether the frame loaded now is the frame a run ran on (by its id - the kernel's key: a kernel holds one
+        frame object); a run without a record counts as on the same frame."""
+        run = self.notebook.runs.get(str(run_id)) if self.notebook else None
+        key = self.notebook.data_key(run) if run is not None else ""
+        return (not key) or key == str(self.df_id or "")
 
     def _drop_kernel(self):
         if self._kernel is not None:
@@ -358,7 +375,7 @@ class BambooAI:
         """Run the assembled script through the executor. Returns (stdout, error) to the
         session and keeps the figures, results and datasets for the tabs."""
         # the replay re-runs every committed cell: give it twice the time they took, within limits
-        path_cells = self.notebook.path_cells(run.id)
+        path_cells = self.notebook.computed_cells(run.id)       # the cells the script re-runs (2026-10-12)
         took = sum(float(c.elapsed or 0.0) for c in path_cells)
         timeout = int(min(1800, max(300, 2 * took + 120)))
         results, error, plot_jsons, generated = self.run_script(script, timeout, what=f"Replay of run {run.id} (cells took {took:.0f}s)")
@@ -439,7 +456,7 @@ class BambooAI:
         keep = self.chain_id
         self.chain_id = billing_chain_id or self.chain_id
         try:
-            proposal = routines_host.propose(nb, str(chain_id), lambda s, u: self._llm(s, u, seat=seat), current_data=self._data_record(light=True),
+            proposal = routines_host.propose(nb, str(chain_id), lambda s, u: self._llm(s, u, seat=seat), current_data=self._data_record(),
                                              emit=self._emit_routine, routine=routine, seat=seat, model=model,
                                              runner=lambda s, t: self.run_script(s, t, what="Shape"))
         finally:
@@ -523,16 +540,21 @@ class BambooAI:
         if proposal is None:
             raise routines_host.RoutineRefused("this proposal has expired - open Save as routine again")
         nb = self.notebook if (self.notebook is not None and self.notebook.thread_id == str(proposal["thread_id"])) else self.store.load(proposal["thread_id"])
-        # the data may have changed since the proposal: the chain's frame still loaded, or not
-        now_loaded = self._data_record(light=True).get("df_id")
-        if proposal.get("data_state") == "same" and str(now_loaded) != str((proposal.get("data") or {}).get("df_id")):
+        # the data may have changed since the proposal: the chain's data still loaded (the same frame, or the same data
+        # under a new id - notebook.same_data), or not
+        from analyst.notebook import same_data
+        now = self._data_record()
+        now_loaded = now.get("df_id")
+        if proposal.get("data_state") == "same" and not same_data(now, proposal.get("data") or {}):
             proposal["data_state"] = "gone"
         elif proposal.get("data_state") == "assumed":
             proposal["data"] = self._data_record()                  # the chain predates the record: the frame loaded now stands for its data
             if not now_loaded:
                 proposal["data_state"] = "gone"
+        # the version choice is the request's (2026-10-12): None makes a new routine even when the proposal was drawn for a
+        # next version of one - the dialog's "A new routine" means that
         made = routines_host.create(nb, proposal, choices or {}, lambda script, timeout: self.run_script(script, timeout, what="Run zero"),
-                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id or proposal.get("routine_id"))
+                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id)
         pending.pop(proposal_id, None)
         logger.info("Routine %s v%d made from chain %s: %s", made["routine"]["id"], made["version"], proposal["chain_id"], made["run_zero"]["line"])
         return made
@@ -834,8 +856,8 @@ class BambooAI:
                 except Exception:                              # noqa: BLE001
                     logger.warning("Data preview skipped", exc_info=True)
 
-        kernel = self._kernel_for(parent)
         data_record = self._data_record()                   # what this run runs on, kept on the run (2026-10-10, routines)
+        kernel = self._kernel_for(parent, data_record)       # ... and what decides which earlier cells it continues (2026-10-12)
         session = Session(kernel, self.notebook, self._llm, store=self.store, emit=self._emit,
                           recall=self._recall if self.memory_path else None, search=self._search,
                           read=self._read, unit_text=self._unit_text, kernel_prelude=self._kernel_prelude(),
@@ -843,7 +865,7 @@ class BambooAI:
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
                           replay_runner=self._run_replay)
         try:
-            run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id))
+            run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record)
         except ExecutionInterrupted:
             self.output_manager.display_system_messages("Stopped.", chain_id=self.chain_id)
             run = self.notebook.runs.get(str(self.chain_id))

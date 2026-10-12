@@ -9,6 +9,14 @@ with the note as the analyst rewrote it that turn.
 Cells are numbered along the path (1, 2, 3 ...) so the analyst and the report
 can refer to them; the numbering restarts only at the root.
 
+The path is the conversation; the COMPUTATION is the part of it that ran on the
+run's data (2026-10-12). The data loaded can change between a chain and its
+follow-up - a routine's run loads another window, a file is replaced - and the
+earlier chains' cells and names then belong to data that is no longer there:
+they stay in the ledger as context, marked as on other data, and the kernel,
+the replay, the figures step and a routine are made from the cells computed on
+the data the run itself ran on (`computed_cells`).
+
 Persistence is one JSON file per thread, rewritten after every turn.
 """
 from __future__ import annotations
@@ -55,6 +63,32 @@ def split_sentences(text: str) -> List[str]:
         else:
             out.append(p)
     return out
+
+
+def data_signature(d: Optional[dict]) -> str:
+    """A data record's identity by content, for the same frame loaded again under another id (2026-10-12: an upload
+    gets a fresh id every time, so the same file in a new session is a new frame to the cache): the name, the rows,
+    the columns' names, the period, the loader's details (metrics, activities, the race, the athletes). "" when
+    the record has no rows or columns to go by."""
+    d = d or {}
+    cols = [str(c.get("name")) for c in (d.get("columns") or []) if isinstance(c, dict)]
+    if d.get("rows") is None or not cols:
+        return ""
+    extra = d.get("extra") or {}
+    return "|".join([str(d.get("name") or ""), str(d.get("rows")), ",".join(cols), str(d.get("date_range") or ""),
+                     json.dumps({k: extra[k] for k in sorted(extra)}, sort_keys=True, default=str) if extra else ""])
+
+
+def same_data(a: Optional[dict], b: Optional[dict]) -> bool:
+    """Whether two data records are the same data: the same frame (its id), or the same content (data_signature).
+    A record without a frame id is never the same as another - the callers decide what no record means."""
+    ka, kb = str((a or {}).get("df_id") or ""), str((b or {}).get("df_id") or "")
+    if not ka or not kb:
+        return False
+    if ka == kb:
+        return True
+    sa = data_signature(a)
+    return bool(sa) and sa == data_signature(b)
 
 
 def purpose_of(turn: "Turn", width: int = 110) -> str:
@@ -148,6 +182,61 @@ class Notebook:
             cells.extend(run.cells())
         return cells
 
+    # ----- the computation: the part of the path that ran on the run's data (2026-10-12) -----
+    @staticmethod
+    def data_key(run: "Run") -> str:
+        """The identity of the data a run ran on - its frame's id; "" when the run predates the record (2026-10-10)."""
+        return str((run.data or {}).get("df_id") or "")
+
+    def computed_runs(self, run_id: str, data: Optional[dict] = None) -> List["Run"]:
+        """The runs of the path whose cells were computed on the run's data: from the last change of data onward -
+        the same data being the same frame or the same content (same_data: the same file uploaded again in a new
+        session is the same data). An earlier run without a data record counts as on the same data (there was no
+        record before 2026-10-10); the run itself without one ran with no data loaded, so the earlier chains that
+        had data are on other data. `data` is the record of a run that is not on the record yet - a follow-up about
+        to start on the data loaded now."""
+        path = self.path(run_id)
+        ref = dict(data or {}) if data is not None else dict((path[-1].data or {}) if path else {})
+        out: List[Run] = []
+        for run in reversed(path):
+            if self.data_key(run) and not same_data(run.data, ref):
+                break
+            out.append(run)
+        return list(reversed(out))
+
+    def computed_cells(self, run_id: str, data: Optional[dict] = None) -> List[Turn]:
+        """The committed cells computed on the run's data, in execution order: what the kernel holds, what the replay
+        re-runs, what a routine is made from. `path_cells` is the whole path - the record, for numbering and SHOW n."""
+        cells: List[Turn] = []
+        for run in self.computed_runs(run_id, data):
+            cells.extend(run.cells())
+        return cells
+
+    def earlier_on_other_data(self, run_id: str) -> List["Run"]:
+        """The runs of the path before the last change of data: in the ledger, but not in the kernel."""
+        computed = {r.id for r in self.computed_runs(run_id)}
+        return [r for r in self.path(run_id) if r.id not in computed]
+
+    @staticmethod
+    def data_words(run: "Run") -> str:
+        """A run's data in a few words, for the ledger: the file or the source, the period, the rows; the frame's id
+        when the record has nothing else; "" without a record."""
+        d = run.data or {}
+        rows = d.get("rows")
+        parts = [str(d.get("name") or d.get("source") or "").strip(), str(d.get("date_range") or "").strip(),
+                 (f"{int(rows):,} rows" if isinstance(rows, (int, float)) and rows else "")]
+        words = ", ".join(p for p in parts if p and p != "none")
+        return words or (f"frame {str(d.get('df_id'))[:12]}" if d.get("df_id") else "")
+
+    def other_data_line(self, run: "Run") -> str:
+        """The ledger's line under a chain that ran on data no longer loaded: its numbers are that data's; its cells are
+        not in the kernel; the record still opens them."""
+        what = self.data_words(run)
+        nos = [c.cell_no for c in run.cells() if c.cell_no is not None]
+        cells = (f"its cells {nos[0]}-{nos[-1]} are" if len(nos) > 1 else f"its cell {nos[0]} is") if nos else ""
+        head = f"On other data ({what}): " if what else "On other data (not on record): "
+        return head + "its numbers are that data's" + (f"; {cells} not in the kernel (SHOW n re-opens one from the record)" if cells else "")
+
     def next_cell_no(self, run_id: str) -> int:
         cells = self.path_cells(run_id)
         return (cells[-1].cell_no + 1) if cells else 1
@@ -198,7 +287,7 @@ class Notebook:
         exceeds it the largest outputs lose their middles, marked, never a cell."""
         if everything:
             return self._render_everything(run_id)
-        cells = self.path_cells(run_id)
+        cells = self.computed_cells(run_id)          # the cells in the kernel: the earlier chains' on other data are not (2026-10-12)
         run = self.runs.get(run_id)
         failed_lines = self.failed_attempts(run) if run else ""
         if not cells:
@@ -247,7 +336,7 @@ class Notebook:
         return "\nFAILED ATTEMPTS THIS RUN (rolled back, nothing persisted):\n" + "\n".join(lines[-keep:])
 
     def _render_everything(self, run_id: str) -> str:
-        cells = self.path_cells(run_id)
+        cells = self.computed_cells(run_id)
         if not cells:
             return "(no cells yet)"
         outs = {t.cell_no: (t.stdout or "") for t in cells}
@@ -312,9 +401,13 @@ class Notebook:
         if not path:
             return ""
         parts = ["EARLIER IN THIS THREAD - the ledger (every chain; SHOW RUN k opens one whole):"]
+        other = {r.id for r in self.earlier_on_other_data(run_id)}
         for k, run in enumerate(path, 1):
             q = re.sub(r"\s+", " ", run.question.strip())
             parts.append(f"[run {k}] Q: {q}\n        Conclusion: {self.conclusion(run)}")
+            if run.id in other:
+                parts.append("        " + self.other_data_line(run))     # the data changed since: context, not computation (2026-10-12)
+                continue
             nm = self.names_line(run)
             if nm:
                 parts.append(f"        Names left in the kernel: {nm}")

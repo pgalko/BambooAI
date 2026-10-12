@@ -182,6 +182,8 @@ Keep the object short: each "find" the shortest fragment that still occurs once 
 PROMOTER_RETRY = "Your reply could not be read ({problem}). Reply again with the JSON object only, as specified."
 PROMOTER_CUT = ("Your reply was cut off at the token limit before the object was complete ({got} characters arrived). Reply again, shorter: "
                 "the JSON object only, each \"find\" the shortest fragment that still occurs once in its cell, nothing outside the object.")
+PROMOTER_CUT_EMPTY = ("Your reply was cut off at the token limit before anything but reasoning arrived. Decide briefly - the constants that "
+                      "would change for other data of the same shape, and the shortest fragment for each - and reply with the JSON object only.")
 
 
 def promoter_user(question: str, summary: str, data_text: str, cells: str, ledger: Iterable[str], manifest: Optional[dict] = None) -> str:
@@ -234,6 +236,8 @@ def _coerce_default(typ: str, v, multiple: bool):
     if typ == "number":
         return num(v)
     if typ == "numbers":
+        if isinstance(v, str) and len(v.strip()) > 1 and v.strip()[0] in "[(" and v.strip()[-1] in "])":
+            v = v.strip()[1:-1]                        # a list written as text, "[18, 26]" (2026-10-12: a promoter's reply)
         items = v if isinstance(v, (list, tuple)) else re.split(r"[,\s]+", str(v).strip())
         out = [num(x) for x in items if str(x).strip() != ""]
         return out if out and all(x is not None for x in out) and len(out) <= 40 else None

@@ -84,12 +84,14 @@ def _ledger(expected: List[dict]) -> List[str]:
 
 
 def data_state(run_data: Optional[dict], current: Optional[dict]) -> str:
-    """same: the chain's frame is the one loaded now; gone: another frame, or none, is loaded; assumed: the chain
-    predates the record, so the frame loaded now is taken for its data."""
+    """same: the chain's data is the data loaded now - the same frame, or the same content loaded again (the same file
+    uploaded in a new session; notebook.same_data, 2026-10-12); gone: other data, or none, is loaded; assumed: the
+    chain predates the record, so the frame loaded now is taken for its data."""
+    from analyst.notebook import same_data
     cur = (current or {}).get("df_id")
     if not run_data or not run_data.get("df_id"):
         return "assumed" if cur else "gone"
-    return "same" if cur and str(cur) == str(run_data.get("df_id")) else "gone"
+    return "same" if cur and same_data(run_data, current) else "gone"
 
 
 AUXSHAPE_MARK = "AUXSHAPE:"
@@ -216,7 +218,12 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
                               "stopped": "this chain was stopped", "running": "this chain is still running"}.get(run.status, f"this chain's status is {run.status!r}"))
     if not run.cells():
         raise RoutineRefused("this chain has no cells to run again (nothing was computed)")
-    path = nb.path_cells(run.id)
+    # the method is the cells computed on this chain's data (2026-10-12): a follow-up asked after the data changed stands
+    # on earlier chains whose cells ran on other data - context in its ledger, not part of its computation, and not
+    # reproducible on this data (the first live case: an hour-of-day chain on one window, the window replaced by a
+    # routine's run, a temperature follow-up; run zero re-ran the hour-of-day cells on the new window and refused)
+    path = nb.computed_cells(run.id)
+    earlier = nb.earlier_on_other_data(run.id)
     script, _order = assemble(path, run.report or "", own=run.cells())     # today's assembly, not the stored one: a chain from before the RESULT stub (2026-10-06) would stop on NameError
     header, body, tail, order = rt.split_script(script)
     if not order:
@@ -255,9 +262,10 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
                   "peek": (f"{len(obj.get('inputs') or [])} input(s) proposed, {len(obj.get('edits') or [])} edit(s)" if obj else f"the reply could not be read ({problem})")})
         if obj is not None:
             break
-        if cut and not (text or "").strip():
-            break                                       # the whole allowance went on reasoning: a second try would go the same way
-        note = rt.PROMOTER_CUT.format(got=len((text or "").strip())) if cut else rt.PROMOTER_RETRY.format(problem=problem)
+        # a reply cut with nothing but reasoning is asked again too (2026-10-12: the same prompt, sent again by the person's
+        # Try again, came back whole - the reasoning's length varies from call to call; the note asks for it brief)
+        note = (rt.PROMOTER_CUT_EMPTY if cut and not (text or "").strip() else
+                rt.PROMOTER_CUT.format(got=len((text or "").strip())) if cut else rt.PROMOTER_RETRY.format(problem=problem))
     if obj is None:
         if cut:
             raise RoutineRefused("could not make a routine from this chain - the model's reply was cut off at its token limit"
@@ -266,6 +274,12 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         raise RoutineRefused(f"could not make a routine from this chain - the script was not understood ({problem})")
     edited, applied, failed = rt.apply_edits(body, obj.get("edits") or [])
     inputs, notes = rt.finish_inputs(obj.get("inputs") or [], edited, failed)
+    if earlier:
+        nos = [c.cell_no for r in earlier for c in r.cells() if c.cell_no is not None]
+        theirs = f" (cells {nos[0]}-{nos[-1]})" if len(nos) > 1 else (f" (cell {nos[0]})" if nos else "")
+        own_cells = f"cells {order[0]}-{order[-1]}" if len(order) > 1 else f"cell {order[0]}"
+        notes.append(f"this chain continues {len(earlier)} earlier chain{'s' if len(earlier) > 1 else ''} of the thread that ran on other data{theirs}: "
+                     f"the method is this chain's own {own_cells}, computed on the data it ran on")
     inputs = derive_inputs(inputs, data)                  # a window that is the data's own period follows the data from now on
     kept_keys = {p["key"] for p in inputs}
     stray = {k for e in applied for k in rt._KEY_REF_RE.findall(str(e.get("replace") or ""))} - kept_keys
@@ -331,7 +345,7 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
         change_note = "first version"
     else:
         change_note = (choices.get("change_note") or "").strip()[:200] or "a new version"
-        if choices.get("name"):
+        if choices.get("name") and name != routine["name"]:           # renamed only when the person typed another name (2026-10-12)
             routine["name"] = name
         if purpose:
             routine["purpose"] = purpose

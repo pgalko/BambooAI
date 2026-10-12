@@ -214,6 +214,23 @@ as routine; the first item then reads "Saved as favourite".
    cells' text. Refused before any call: a chain not in the thread's record, one that ended `asked`, `failed` or
    `stopped`, one with no cells. A chain that recorded no RESULT lines is not refused: runs will not be compared
    number by number, and the dialog says so.
+   **The path's cells are those computed on the chain's data** (2026-10-12, `Notebook.computed_cells`). The data
+   loaded can change between a chain and its follow-up — a routine's run loads another window, a file is replaced —
+   and the earlier chains' cells then ran on data that is no longer there: a follow-up asked after the change starts
+   in a fresh kernel on the data loaded now; its ledger keeps the earlier chains as context, marked *on other data*
+   with their cells named as not in the kernel (SHOW n still opens one from the record), without their names line;
+   cell numbering continues along the path; its replay, its figures step and a routine made from it use its own
+   cells, and the proposal's notes say what it continues. *The same data* is the same frame (its id) or the same
+   data loaded again — the same file name, rows, column names, period and loader details under a new id
+   (`notebook.same_data`): an upload gets a fresh id every time, so a favourite continued in a new session with
+   its file uploaded again is the same data, rehydrated and continued as before; the frame's id alone decides
+   whether the warm kernel can be kept (a kernel holds one frame object). An earlier chain without a data record
+   (from before 2026-10-10) counts as on the same data. The first live case: an hour-of-day chain on one window,
+   the window replaced by the routine's run, a temperature follow-up in the warm kernel (with `df` and the names of
+   the earlier window, while the DATA block described the new one); the routine then re-ran all seventeen cells on
+   the new window, the hour-of-day line that joins the summary file with the frame could not reproduce, and the
+   routine was refused. Run zero's "the chain's data is still loaded" is the same judgement, so a chain whose file
+   was uploaded again is verified on it rather than created unverified.
 2. **The promoter**, one call on the Promoter seat (its own entry in the model config since 2026-10-10 — a moderate
    effort and a roomy `max_tokens`, because the reply is a JSON object of edits that a seat tuned for long reasoning
    can spend its whole allowance thinking about; the Analyst seat when the config has no Promoter) with a generic
@@ -223,15 +240,24 @@ as routine; the first item then reads "Saved as favourite".
    as it is and never make the loaded period an input (§4.7); rewrite as find/replace edits; leave the method, the
    markers and every RESULT call otherwise untouched; return JSON, kept short. A reply that cannot be
    read is asked for once more, then refused ("the script was not understood"); a reply cut at the seat's token limit
-   is asked for once more, shorter — unless nothing but reasoning arrived, when a second try would go the same way —
-   and the refusal then names the cause and the seat to adjust. The call runs on a chain id of its own, so the hosted
+   is asked for once more, shorter — one with nothing but reasoning too, with the note that reasoning took the
+   allowance (2026-10-12: the same prompt, sent again by the person, came back whole; the reasoning's length varies
+   from call to call) — and the refusal then names the cause and the seat to adjust. A default written as a list in
+   text (`"[18, 26]"`) is read as the numbers. The cost tier's Promoter runs at *medium* effort (a seventeen-cell
+   script at *high* spent the whole allowance thinking). The call runs on a chain id of its own, so the hosted
    edition charges it as a query; the pane shows it as a quiet *Routine* card with the seat and its model.
 3. **The dialog** (S1) shows the proposal: name (the promoter's title), purpose (prefilled from the question; one
    line for the card and the narrator), the data (source chip, name, rows, columns; whether the chain's data is
    still loaded), the inputs as rows (label, value now, where it comes from, "keep fixed"), the expected results with
    any *typed* line flagged ("the numbers were typed into the call, not computed — keep as a constant / drop"), the
    figure count, the promoter's notes. On a chain of a thread that already has a routine, the dialog opens on the
-   choice *Next version of "…"* / *A new routine*, with a *What changed* line. Create / Cancel.
+   choice *Next version of "…"* / *A new routine*, with a *What changed* line: the routine's own origin chain
+   defaults to its next version, the Name field holding the routine's name; a later chain of the thread ("A routine
+   was made from an earlier chain of this thread") defaults to a new routine, the Name the promoter's title. The
+   button (*Make it v2* / *Create routine*), the note under it, the *What changed* line and the Name follow the
+   choice (2026-10-12: they were written once, so a new routine was created under a button reading *Make it v2*,
+   and a next version took the promoter's title as the routine's new name; a next version now keeps the name unless
+   the person typed another). Create / Cancel.
 4. **Run zero.** On Create, the runner executes the script with the defaults on the chain's data through the
    executor (the replay's path and timeout). The RESULT lines that come back are checked by position against the
    chain's records: identical numbers reproduce; a different count or a different number is *differed*, an error
@@ -628,6 +654,15 @@ own `_user_code` variable (delve/kernel.py) is unrelated and stays.
    the pure filter; the hosted walk runs on a cached upload (run 5), the local walk finds the choice hidden.
    **Retirements — done (2026-10-11, patch 0134)**: §10's list, the Code tab's Copy and Download in place of Edit
    and run; the static checks (test_shell.js, test_dialogs.js, test_app_path.py) hold the retirement.
+   **The first live test of the next-version choice (2026-10-12, patch 0135)** found the dialog's foot not following
+   the choice and the path mixing two datasets (F1.1 above): the computation path, the dialog's defaults and foot,
+   the promoter's retry and the bracketed defaults, the refusal logged; the pure cases (test_analyst.py: the
+   notebook's computed cells, the ledger's marks, a follow-up's figures prompt and replay; test_routines.py: a
+   follow-up promoted from its own cells, the name kept on a next version), the instance (test_app_path.py: a
+   follow-up after the frame was replaced - fresh kernel, the ledger, the replay, the routine; the warm kernel on
+   the same data as before; the same file uploaded again under a new id - rehydrated, verified), the markup
+   (test_routines.js), and the stack walk in both editions (another file loaded, a follow-up on chain 1: its prompt,
+   its cell's number, its replay of one cell, the thread file; the same file uploaded again, a follow-up continued).
 5. **Versions** — the next-version choice is built; the inputs carried through the manifest, the boundary in the
    table, the warning on deleting an origin. Accepted when: v2's inputs keep their keys; the runs table shows the
    divider and the gaps; a deleted origin leaves the routine runnable and marked.
