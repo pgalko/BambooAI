@@ -45,7 +45,9 @@ def show(fig, *args, **kwargs):
     for ann in fig.layout.annotations or []:
         ann.bgcolor = 'rgba(0,0,0,0.3)'
         
-    filename = f'{_plots_dir}/figure_{id(fig)}.html'
+    # numbered in the order shown: the executors read the files sorted by name, and a name made of id(fig) alone put the
+    # figures in the order of their addresses (2026-10-13: a run's two figures swapped places from one run to the next)
+    filename = f'{_plots_dir}/figure_{len(_generated_files):03d}_{id(fig)}.html'
     fig.write_html(filename)
     _generated_files.append(filename)
 pio.show = show
@@ -66,7 +68,9 @@ def show(fig, *args, **kwargs):
     for ann in fig.layout.annotations or []:
         ann.bgcolor = 'rgba(0,0,0,0.3)'
     
-    filename = f'{_plots_dir}/figure_{id(fig)}.json'
+    # numbered in the order shown: the executors read the files sorted by name, and a name made of id(fig) alone put the
+    # figures in the order of their addresses (2026-10-13: a run's two figures swapped places from one run to the next)
+    filename = f'{_plots_dir}/figure_{len(_generated_files):03d}_{id(fig)}.json'
     fig.write_json(filename)
     _generated_files.append(filename)
 pio.show = show

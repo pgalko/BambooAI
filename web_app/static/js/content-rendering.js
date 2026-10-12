@@ -261,6 +261,9 @@ function activateTab(type) {
     if (activeTab && activeContent) {
         activeTab.classList.add('active');
         activeContent.classList.add('active');
+        // a Plotly figure drawn while its tab was hidden took Plotly's default width (2026-10-13: every run opened on a
+        // plot filling half the tab); shown now, it is sized to the tab, as liveComeBack does when the view returns
+        if (window.Plotly) activeContent.querySelectorAll('.js-plotly-plot').forEach(el => { try { Plotly.Plots.resize(el); } catch (e) { /* a static copy of a plot, not a live one */ } });
     } else {
         console.warn(`Tab or content for type "${type}" not found`);
     }
@@ -431,13 +434,11 @@ async function updateTabContent(type, data, id = null, format = null) {
     }
 
     if (type === 'plot' && id) {
-        // For plots, we append new plots instead of replacing
-        tabContent.innerHTML += content;
-        // Get ALL plot containers and attach listeners to each one
-        const plotContainers = tabContent.querySelectorAll('.plot-container');
-        plotContainers.forEach(container => {
-            attachPlotQueryListeners(container);
-        });
+        // a plot is appended to the tab's others - inserted, not written back through innerHTML, which re-parsed the earlier
+        // plots into static copies Plotly no longer knew (2026-10-13: they could not be resized or asked about)
+        tabContent.insertAdjacentHTML('beforeend', content);
+        const added = tabContent.querySelector(`.plot-container[data-plot-id="${id}"]:last-of-type`) || tabContent.lastElementChild;
+        if (added) attachPlotQueryListeners(added);
     } else if (type === 'dataframe' && data && typeof data === 'object' && typeof renderDataGrid === 'function') {
         renderDataGrid(tabContent, data);
     } else {

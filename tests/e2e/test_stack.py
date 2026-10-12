@@ -632,6 +632,17 @@ def main():
             check("a follow-up on chain 1 with the same file uploaded again: its prompt's ledger is plain (no 'other data' mark, the names line present) and CELLS SO FAR lists chain 1's cells; the replay re-runs the whole path",
                   "On other data" not in p6["user"] and "Names left in the kernel" in p6["user"] and "--- cell 1 ---" in p6["user"] and "CELLS SO FAR:\n(no cells yet)" not in p6["user"]
                   and "Replay reproduced" in done6 and "(1 cells," not in done6, (p6["user"][:500], done6[:160]))
+            # the Plots tab of chain 1 (2026-10-13): the figures in the order the script showed them, plot 1 the matplotlib PNG
+            for _ in range(6):
+                if page.evaluate("() => document.getElementById('prevResponse').disabled"):
+                    break
+                page.click("#prevResponse")
+                page.wait_for_timeout(400)
+            page.evaluate("activateTab('plot')")
+            page.wait_for_timeout(300)
+            plots_now = page.evaluate("() => [...document.querySelectorAll('#content-plot .plot-container')].map(c => ({ id: c.getAttribute('data-plot-id'), png: !!c.querySelector('.plot-image'), plotly: !!c.querySelector('.plotly-plot') }))")
+            check("chain 1's Plots tab: plot 1 is the matplotlib PNG, plot 2 the Plotly figure (the executor returns the figures in order; the Plotly files numbered as shown)",
+                  [p_["id"] for p_ in plots_now] == ["plot_1", "plot_2"] and plots_now[0]["png"] and plots_now[1]["plotly"], plots_now)
             errs = page.evaluate("window.__stackErrors || []")
             # what landed on disk, in the app's own layout under the stack's web app working directory
             wa = os.path.join(workdir, "webapp")

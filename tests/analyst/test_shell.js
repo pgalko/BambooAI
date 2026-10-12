@@ -56,6 +56,11 @@ check('fold: the retired archive is not linked; the legacy sheet carries the old
 const tabsCss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'tabs.css'), 'utf8');
 check('tabs.css: Code and Results are one code block with the toolbar; Plots are cards with a header, query row and figure', tabsCss.includes('#content-code .code-header {') && tabsCss.includes('#content-code pre code, #content-code_exec_results pre code {') && tabsCss.includes('#content-plot .plot-container {') && tabsCss.includes('#content-plot .plot-query-form {'));
 check('tabs.css: the answer page reads at 14.5px', tabsCss.includes('#content-answer .markdown-content { font-size: 14.5px;'));
+// ---- the Plots tab (2026-10-13): a plot drawn while its tab was hidden is resized when the tab is shown; a plot is appended, not written back ----
+check('activateTab resizes the Plotly plots of the tab it shows (a figure drawn in a hidden tab had taken the default width)', /activeContent\.classList\.add\('active'\);[\s\S]{0,400}Plotly\.Plots\.resize\(el\)/.test(cr));
+check('a plot is inserted after the others (insertAdjacentHTML), never innerHTML += which re-parsed the earlier plots into static copies', cr.includes("tabContent.insertAdjacentHTML('beforeend', content)") && !cr.includes('tabContent.innerHTML += content'));
+const ce = fs.readFileSync(path.join(__dirname, '..', '..', 'bambooai', 'code_executor.py'), 'utf8');
+check('the capture patch numbers each figure file in the order shown (the executors read them sorted by name)', (ce.match(/figure_\{len\(_generated_files\):03d\}_\{id\(fig\)\}/g) || []).length === 2 && !ce.includes("figure_{id(fig)}."));
 // ---- the Code tab after step 4 of the routines (2026-10-11, docs/ROUTINES_DESIGN.md S10): the script is read or taken away ----
 const qpj = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'query-processing.js'), 'utf8');
 check('Code tab: Copy and Download (.py) in the header; Edit, Discard and Execute are retired with CodeMirror', cr.includes('code-action-button copy-button') && cr.includes('code-action-button download-button') && cr.includes("+ '.py'") && !cr.match(/edit-button|discard-button|execute-button|CodeMirror|data-editing/));

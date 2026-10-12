@@ -10,10 +10,11 @@ service, as a run in the app reaches it.
 import os
 import sys
 import tempfile
+import json
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
-sys.path[:0] = [HERE, ROOT, os.path.join(ROOT, "delve"), os.path.join(ROOT, "containers", "executor")]
+sys.path[:0] = [HERE, ROOT, os.path.join(ROOT, "delve"), os.path.join(ROOT, "containers", "executor"), os.path.join(ROOT, "tools", "stack", "fakepkgs")]   # the stand-in plotly: the capture patch writes its figures
 import _stubs  # noqa: E402,F401
 import pandas as pd  # noqa: E402
 
@@ -81,6 +82,22 @@ try:
           not out9.get("error") and pv_txt.get("filename") == "notes.txt" and "columns" not in pv_txt and pv_json.get("shape") == [3, 3] and pv_json.get("columns") == ["a", "b", "c"], (out9.get("error"), pv_txt, pv_json))
 finally:
     c.post("/kernel/stop", json={"session_id": sid2})
+
+# the figures of one script come back in the order they were shown (2026-10-13): the app's capture patch names each file
+# with its number, and the executor reads the files sorted by name - with id(fig) alone in the name the order was the
+# order of the figures' addresses, and a run's two figures swapped places from one run to the next
+from bambooai.code_executor import CodeExecutor as _CE   # noqa: E402
+_ce = _CE.__new__(_CE); _CE.__init__(_ce, webui=True) if "webui" in _CE.__init__.__code__.co_varnames else _CE.__init__(_ce)
+_plots = tempfile.mkdtemp(prefix="bamboo_exec_plots_")
+_code = ("import plotly.graph_objects as go\n"
+         "for _name in ('first', 'second', 'third', 'fourth'):\n"
+         "    go.Figure(go.Scatter(x=[1, 2], y=[2, 1], name=_name)).show()\n")
+_r = c.post("/execute", json={"code": _code, "df_id": "t1", "persist_df": False, "patch_code": f"_plots_dir = {_plots!r}\n_generated_files = []\n" + _ce.patch_code,
+                              "plots_dir": _plots, "plot_format": "json", "timeout": 60, "generated_datasets_path": os.path.join(_plots, "gen")}).get_json() or {}
+_names = [[t.get("name") for t in json.loads(p["data"])["data"]][0] for p in _r.get("plot_images") or [] if p.get("format") == "json"]
+_files = sorted(f for f in os.listdir(_plots) if f.startswith("figure_"))
+check("executor: four figures shown in one script come back in the order shown, their files numbered 000-003 in that order",
+      _names == ["first", "second", "third", "fourth"] and [f[:10] for f in _files] == ["figure_000", "figure_001", "figure_002", "figure_003"], (_names, _files, (_r.get("error") or "")[-200:]))
 
 
 n_fail = sum(1 for _, ok in results if not ok)

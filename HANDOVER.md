@@ -59,7 +59,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (205/110/30/19/16/49/44/51/10/117/1/1 Python; 44/7/30/61/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (205/110/30/19/16/49/44/51/11/117/1/1 Python; 44/7/30/64/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (102 hosted, 99 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (48; hosted only - the loaders need the executor; the
@@ -441,6 +441,15 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Plots tab: the figures in order, sized to the tab (2026-10-13, patch 0137).** Two things seen on the first
+  routines with figures. A run's figures came back shuffled - the capture patch named each Plotly file `figure_<id(fig)>`
+  and both executors read the files sorted by name, so the order was the order of the figures' addresses; with an
+  address reused, one file overwrote another and a figure was lost (the executor test shows four figures come back as
+  three on the old patch). The file is now numbered in the order shown (`figure_000_<id>`), the executors unchanged.
+  And a Plotly figure drawn while its tab was hidden took Plotly's default width - every run opened on a plot filling
+  half the tab: `activateTab` resizes the tab's plots when it shows them (as `liveComeBack` already did), and a plot
+  is appended with `insertAdjacentHTML` rather than `innerHTML +=`, which had re-parsed the earlier plots into static
+  copies. test_executor_kernel.py 11, test_shell.js 64; the stack walk checks chain 1's plot order.
 - **A frame from the Dataset cache keeps its own load (2026-10-12, patch 0136).** A routine's run that reused a cached
   Intervals window left the instance's load record as `{source: cache}`; the next chain analysed on that frame
   recorded it so, the routine made from the chain got a plan that read *file*, and its run dialog offered an upload
