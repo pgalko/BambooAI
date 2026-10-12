@@ -120,6 +120,29 @@ def request_params(model, temperature, max_tokens, effort=None, stream=False):
     return params
 
 
+_DATA_URL_RE = None
+
+
+def _anthropic_blocks(content):
+    """A user message's content in Anthropic's form: a string stays; a list of OpenAI parts has each image_url data URL
+    turned into an image block (2026-10-13: the plot the person asks about rides as an image part)."""
+    global _DATA_URL_RE
+    if not isinstance(content, list):
+        return content
+    import re
+    if _DATA_URL_RE is None:
+        _DATA_URL_RE = re.compile(r"^data:(image/[\w.+-]+);base64,(.+)$", re.S)
+    out = []
+    for part in content:
+        if isinstance(part, dict) and part.get("type") == "image_url":
+            m = _DATA_URL_RE.match(str((part.get("image_url") or {}).get("url") or ""))
+            if m:
+                out.append({"type": "image", "source": {"type": "base64", "media_type": m.group(1), "data": m.group(2)}})
+                continue
+        out.append(part)
+    return out
+
+
 def convert_openai_to_anthropic(messages):
     updated_data = []
     system_content = ""
@@ -127,6 +150,8 @@ def convert_openai_to_anthropic(messages):
         if item['role'] == 'system':
             system_content = item['content']
             continue
+        if isinstance(item.get('content'), list):
+            item = dict(item, content=_anthropic_blocks(item['content']))
         updated_data.append(item)
 
     return updated_data, system_content

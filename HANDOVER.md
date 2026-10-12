@@ -59,8 +59,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (205/110/30/19/16/49/44/51/11/117/1/1 Python; 44/7/30/64/24/66 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (102 hosted, 99 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (205/113/31/19/17/49/44/51/11/117/1/1 Python; 44/7/30/64/24/66 JS); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (48; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -441,6 +441,16 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Ask about a plot: the picture reaches the analyst (2026-10-13, patch 0138).** The plot's chat button had sent the
+  picture with the question since v1, and `pd_agent_converse(image=)` never used it; the config's `multimodal` flag
+  was read nowhere. Now the figure rides with every analysis turn as an OpenAI image part in the user message
+  (`_llm(image=)`, `Session.run(image=)`, `FIGURE_ASKED_LINE` in the prompt) when the analyst seat's model is
+  flagged `multimodal: "true"`; otherwise the question goes alone and the pane says the model does not take images.
+  The OpenAI-compatible adapters pass the part through; Anthropic converts it to an image block, Gemini to inline
+  data, Ollama to its `images` field, the local text formats drop it; the run log keeps a placeholder; the prompt
+  viewer shows the text with a line for the picture. test_app_path.py 113, test_anthropic_adapter.py 17,
+  test_ollama_adapter.py 31; the stack walk asks about plot 1 (its harness model flagged multimodal) in both
+  editions.
 - **The Plots tab: the figures in order, sized to the tab (2026-10-13, patch 0137).** Two things seen on the first
   routines with figures. A run's figures came back shuffled - the capture patch named each Plotly file `figure_<id(fig)>`
   and both executors read the files sorted by name, so the order was the order of the figures' addresses; with an

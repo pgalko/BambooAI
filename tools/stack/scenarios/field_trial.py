@@ -435,6 +435,8 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
         body = ("This question is outside the scripted story of the local stack, so the answer is a placeholder: the "
                 f"data was described in [cell {cell}] and nothing further was computed. Ask one of the scenario's questions "
                 "to see a full analysis.")
+        if "[IMAGE ATTACHED]" in user:               # the plot the person asked about rode along as a picture (2026-10-13)
+            body += " The figure attached to the question was in view."
         return _report("Nothing scripted for this question; report the placeholder.", _note(q, plan="report"), body)
 
     def t_cell_c(self, q):

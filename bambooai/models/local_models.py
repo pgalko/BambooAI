@@ -14,13 +14,21 @@ from transformers import (
 
 logging.set_verbosity(logging.CRITICAL)
 
+def _text_of(content):
+    """A message's text: a list of parts (an image beside the text, 2026-10-13) gives its text parts - these local
+    formats carry no pictures."""
+    if isinstance(content, list):
+        return "\n".join(str(p.get("text") or "") for p in content if isinstance(p, dict) and p.get("type") == "text")
+    return content
+
+
 def convert_openai_to_alpaca(messages: str):
     formatted_content = ""
     last_role = None
 
     for i, item in enumerate(messages):
         role = item['role']
-        content = item['content']
+        content = _text_of(item['content'])
 
         if role == 'system':
             formatted_content += content + "\n"
@@ -46,7 +54,7 @@ def convert_openai_to_llama2_chat(messages: list):
     
     for i, item in enumerate(messages):
         role = item['role']
-        content = item['content']
+        content = _text_of(item['content'])
         
         if role == 'system':
             formatted_content += "<s>[INST]" + "<<SYS>>" + content + "<</SYS>>\n\n"
@@ -70,7 +78,7 @@ def convert_openai_to_llama2_completion(messages: list):
     formatted_content = None
     for message in reversed(messages):
         if message['role'] == 'user':
-            formatted_content = message['content']
+            formatted_content = _text_of(message['content'])
             break
     # Remove content starting with "Example Output:" "
     #formatted_content = re.sub(r'Example Output:.*', '', formatted_content, flags=re.S)

@@ -632,7 +632,8 @@ def main():
             check("a follow-up on chain 1 with the same file uploaded again: its prompt's ledger is plain (no 'other data' mark, the names line present) and CELLS SO FAR lists chain 1's cells; the replay re-runs the whole path",
                   "On other data" not in p6["user"] and "Names left in the kernel" in p6["user"] and "--- cell 1 ---" in p6["user"] and "CELLS SO FAR:\n(no cells yet)" not in p6["user"]
                   and "Replay reproduced" in done6 and "(1 cells," not in done6, (p6["user"][:500], done6[:160]))
-            # the Plots tab of chain 1 (2026-10-13): the figures in the order the script showed them, plot 1 the matplotlib PNG
+            # Ask AI about a plot (2026-10-13): the Plots tab's chat button sends the picture with the question; the analyst's model
+            # takes images (the stack's harness model is flagged so), the prompt names the figure, and the scripted analyst saw it
             for _ in range(6):
                 if page.evaluate("() => document.getElementById('prevResponse').disabled"):
                     break
@@ -643,6 +644,16 @@ def main():
             plots_now = page.evaluate("() => [...document.querySelectorAll('#content-plot .plot-container')].map(c => ({ id: c.getAttribute('data-plot-id'), png: !!c.querySelector('.plot-image'), plotly: !!c.querySelector('.plotly-plot') }))")
             check("chain 1's Plots tab: plot 1 is the matplotlib PNG, plot 2 the Plotly figure (the executor returns the figures in order; the Plotly files numbered as shown)",
                   [p_["id"] for p_ in plots_now] == ["plot_1", "plot_2"] and plots_now[0]["png"] and plots_now[1]["plotly"], plots_now)
+            page.click("#content-plot .plot-container[data-plot-id='plot_1'] .plot-query-btn")
+            page.fill("#content-plot .plot-container[data-plot-id='plot_1'] .plot-query-input", "What does the taller bar mean?")
+            page.click("#content-plot .plot-container[data-plot-id='plot_1'] .plot-query-submit")
+            wait_text(page, "#chainPosition", "chain 7 of 7", 60000)
+            wait_run_end(page, 7)
+            p7 = prompt_of(1)
+            ans7 = page.evaluate("() => { activateTab('answer'); return (document.getElementById('content-answer') || {}).textContent || ''; }")
+            check("Ask AI about plot 1: a new chain with the question, its prompt naming the figure attached, and the analyst's model given the picture (the scripted analyst's report says it was in view)",
+                  "QUESTION:\nWhat does the taller bar mean?" in p7["user"] and "THE FIGURE THE PERSON ASKS ABOUT is attached" in p7["user"] and "[a picture was attached to this message" in p7["user"]
+                  and "The figure attached to the question was in view." in ans7, (p7["user"][:300], ans7[:300]))
             errs = page.evaluate("window.__stackErrors || []")
             # what landed on disk, in the app's own layout under the stack's web app working directory
             wa = os.path.join(workdir, "webapp")
@@ -651,8 +662,8 @@ def main():
             nb = json.load(open(threads[0])) if threads else {"runs": {}}
             runs = list(nb["runs"].values())
             # the document chain's one cell (the grep) replays like any other
-            check("the thread holds six runs, all answered; every chain with cells reproduced",
-                  len(runs) == 6 and all(r["status"] == "answered" for r in runs)
+            check("the thread holds seven runs, all answered; every chain with cells reproduced",
+                  len(runs) == 7 and all(r["status"] == "answered" for r in runs)
                   and all((r["replay_status"] == "reproduced") == any(t_["kind"] == "cell" for t_ in r["turns"]) for r in runs),
                   [(r["status"], r["replay_status"], sum(1 for t_ in r["turns"] if t_["kind"] == "cell")) for r in runs])
             check("the second run's parent is the first", len(runs) >= 2 and runs[1]["parent"] == runs[0]["id"])

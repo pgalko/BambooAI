@@ -51,12 +51,27 @@ def get_agent_instructions(chain_id, agent_name):
                         # No system role, first message might be user
                         system_prompt = ''
                 
-                # Find last user message with string content (searching backwards)
+                # Find last user message (searching backwards); a content list - the text with a picture beside it (the plot
+                # the person asked about, 2026-10-13) - shows its text parts and a line for the picture
                 user_prompt = ''
                 for i in range(len(messages) - 1, -1, -1):
                     msg = messages[i]
-                    if msg.get('role') == 'user' and isinstance(msg.get('content'), str):
-                        user_prompt = msg.get('content')
+                    if msg.get('role') != 'user':
+                        continue
+                    content = msg.get('content')
+                    if isinstance(content, str):
+                        user_prompt = content
+                        break
+                    if isinstance(content, list):
+                        parts = []
+                        for part in content:
+                            if not isinstance(part, dict):
+                                continue
+                            if part.get('type') == 'text':
+                                parts.append(str(part.get('text') or ''))
+                            elif part.get('type') in ('image_url', 'image'):
+                                parts.append('[a picture was attached to this message: the figure the person asked about]')
+                        user_prompt = "\n\n".join(parts)
                         break
                 
                 return jsonify({

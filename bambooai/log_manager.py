@@ -252,6 +252,29 @@ class LogAndCallManager:
             ]
         messages_clean = _strip_billing_meta(messages)
 
+        # an image part (the plot the person asks about, 2026-10-13) is a few hundred kilobytes of base64: the log keeps a
+        # placeholder with its size, never the picture
+        def _elide_images(msgs):
+            if not isinstance(msgs, list):
+                return msgs
+            out = []
+            for m in msgs:
+                c = m.get('content') if isinstance(m, dict) else None
+                if isinstance(c, list):
+                    parts = []
+                    for p in c:
+                        if isinstance(p, dict) and p.get('type') == 'image_url':
+                            url = str((p.get('image_url') or {}).get('url') or '')
+                            parts.append({'type': 'image_url', 'image_url': {'url': f'<image, {len(url):,} characters>'}})
+                        elif isinstance(p, dict) and p.get('type') == 'image':
+                            parts.append({'type': 'image', 'source': '<image>'})
+                        else:
+                            parts.append(p)
+                    m = dict(m, content=parts)
+                out.append(m)
+            return out
+        messages_clean = _elide_images(messages_clean)
+
         # Token costs.
         #
         # prompt_tokens is the TOTAL input, cached portions included - the

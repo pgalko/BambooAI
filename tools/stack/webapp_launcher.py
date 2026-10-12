@@ -41,7 +41,7 @@ def local_template(workdir):
         for a in src.get(key, []):
             a["details"] = dict(seat)
     src.setdefault("model_properties", {})[HARNESS_MODEL] = {
-        "capability": "reasoning", "multimodal": "false", "templ_formating": "text",
+        "capability": "reasoning", "multimodal": "true", "templ_formating": "text",      # takes images: the plot the person asks about rides along (2026-10-13)
         "reasoning_style": "effort", "reasoning_efforts": ["low", "medium", "high"],
         "prompt_tokens": 0.001, "completion_tokens": 0.004}          # USD per 1K tokens: a run costs cents, like the real seats
     path = os.path.join(workdir, "LLM_CONFIG_template.json")

@@ -48,14 +48,28 @@ def init(api_keys=None):
     return None
 
 
+def _text(content):
+    """A message's text: a string, or the text parts of a list of parts; an image part (the plot the person asks about,
+    2026-10-13) becomes a marker line the scenario can see."""
+    if isinstance(content, list):
+        out = []
+        for p in content:
+            if isinstance(p, dict) and p.get("type") == "text":
+                out.append(str(p.get("text") or ""))
+            elif isinstance(p, dict) and p.get("type") in ("image_url", "image"):
+                out.append("[IMAGE ATTACHED]")
+        return "\n".join(out)
+    return content or ""
+
+
 def _split(messages):
-    system = "\n".join(m.get("content", "") for m in messages if m.get("role") == "system")
-    user = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
+    system = "\n".join(_text(m.get("content", "")) for m in messages if m.get("role") == "system")
+    user = next((_text(m.get("content", "")) for m in reversed(messages) if m.get("role") == "user"), "")
     return system, user
 
 
 def _tokens(s):
-    return max(1, len(s or "") // 4)
+    return max(1, len(_text(s) if not isinstance(s, str) else s) // 4)
 
 
 def _reply(messages):

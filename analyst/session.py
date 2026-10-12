@@ -59,6 +59,9 @@ def contract(documents: bool = False, review_every: int = 0) -> str:
 
 CONTRACT = contract(False)
 
+FIGURE_ASKED_LINE = ("THE FIGURE THE PERSON ASKS ABOUT is attached to this message as a picture: a plot of the chain in view, drawn by "
+                     "its cells (SHOW n re-opens the cell that drew it; what it plotted is in the kernel when this chain's cells are). "
+                     "Read the picture for what it shows; compute from the data for any number you state.")
 LAST_TURNS_LINE = "The budget is nearly gone: write REPORT with what you have, and say what was not established."
 SHOW_VIEW_CHARS = 40_000     # a SHOW of several cells at once rides whole up to this; beyond it the middle goes, as for a digest
                              # (2026-10-03: an 87,000-character view of several cells was sent whole to a 64k-token server)
@@ -514,6 +517,7 @@ class Session:
         self.data_description = data_description or "(no dataset attached)"
         self.kernel_factory = kernel_factory
         self.replay_runner = replay_runner      # (run, script) -> (stdout, error); the host may also collect figures
+        self._image = None                      # a figure the person asks about, set by run() (2026-10-13)
         self.read = read                        # read(arg) -> digest text over the thread's documents, or None when the host has none
         self.unit_text = unit_text              # unit_text("D1.17") -> the unit's text, for the report guard; None when unknown
         self.kernel_prelude = kernel_prelude    # source the host wants in the kernel (the document objects): run committed at the
@@ -575,6 +579,8 @@ class Session:
                 parts.append(shown)
         parts.append(f"DATA:\n{self.data_description}")
         parts.append(f"QUESTION:\n{run.question.strip()}")
+        if getattr(self, "_image", None):
+            parts.append(FIGURE_ASKED_LINE)
         parts.append(f"YOUR NOTE (as you last wrote it):\n{run.note or '(none yet - write it this turn)'}")
         parts.append("CELLS SO FAR:\n" + self.nb.render_cells(run.id, everything=everything))
         shown_whole = {run.cells()[-1].cell_no} if run.cells() and not everything else set()   # the newest cell rides whole
@@ -661,11 +667,13 @@ class Session:
         return run
 
     def run(self, question: str, parent: Optional[str] = None, budget: Budget = Budget(),
-            run_id: Optional[str] = None, data: Optional[dict] = None) -> Run:
+            run_id: Optional[str] = None, data: Optional[dict] = None, image: Optional[str] = None) -> Run:
         run = self.nb.new_run(question, parent, run_id=run_id)
         if data:
             run.data = dict(data)                     # what this run runs on, on the record from the start: the computation
                                                       # path (notebook.computed_cells) is drawn from it during the run (2026-10-12)
+        self._image = image or None                   # a figure the person asks about (the Plots tab's Ask AI): with every turn
+                                                      # of the analysis, as a picture beside the prompt (2026-10-13)
         self._save()
         spent, extra, failures = 0.0, "", 0
         self.system = contract(self.documents, budget.review_every)    # the Reviews section only when a reviewer runs
@@ -683,7 +691,7 @@ class Session:
                     break
             self.emit({"type": "turn_start", "run": run.id, "turn": turn_no, "of": budget.turns})
             t0 = time.time()
-            text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, extra))
+            text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, extra), **({"image": self._image} if self._image else {}))
             usage = dict(usage or {})
             usage["elapsed"] = round(time.time() - t0, 1)
             spent += float(usage.get("cost", 0.0) or 0.0)

@@ -127,6 +127,32 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Analyst' if 'Analyst' in agents else 'Investigator'
 
+    def _multimodal(self, seat):
+        """Whether the seat's model takes images, by the config's model_properties (`multimodal`: "true"/"false", read
+        nowhere until 2026-10-13); unknown counts as not."""
+        try:
+            model = self.models.get_model_name(seat)
+            model = model[0] if isinstance(model, (tuple, list)) else model
+            flag = (self.models.get_model_properties() or {}).get(model, {}).get("multimodal")
+        except Exception:                                      # noqa: BLE001
+            return False
+        return str(flag).strip().lower() == "true"
+
+    def _figure_for_analyst(self, image):
+        """The plot the person asks about (the Plots tab's Ask AI, a PNG in base64): for the analyst when its model takes
+        images; otherwise the question goes without it and the pane says so."""
+        seat = self._seat()
+        if self._multimodal(seat):
+            return image
+        try:
+            model = self.models.get_model_name(seat)
+            model = model[0] if isinstance(model, (tuple, list)) else model
+        except Exception:                                      # noqa: BLE001
+            model = "?"
+        self.output_manager.display_system_messages(
+            f"The analyst's model ({model}) does not take images, so the figure is not sent with the question; the analyst answers from the chain's record and data.", chain_id=self.chain_id)
+        return None
+
     def _review_seat(self):
         """The seat a self-review turn runs on (2026-09-10): 'Reviewer' when the config carries one -
         a stronger model at the run's decision points - else the analyst seat itself."""
@@ -153,17 +179,22 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Promoter' if 'Promoter' in agents else self._seat()
 
-    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, **hints):
+    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, image: str = None, **hints):
         """The model call the session uses: the app's model layer (streaming,
         telemetry, retries), returning (text, {'cost': delta}). A self-review
         turn (review=True) runs on the Reviewer seat; its cost is accounted to
         that seat and counts against the run's budget like any other call. The
         rewrite and the figures request have seats of their own when the config
-        carries them. `seat` names the seat outright (the routines' promoter)."""
+        carries them. `seat` names the seat outright (the routines' promoter).
+        `image` (a PNG, base64) rides with the user message as an image part in
+        the OpenAI form - the OpenAI-compatible adapters pass it through, the
+        Anthropic and Gemini adapters convert it (2026-10-13: the plot's Ask AI
+        had sent the picture since v1 and the analyst never received it)."""
         if self.kill_signal or self._stop_event.is_set():
             raise ExecutionInterrupted("stopped by the user")
         before = self._chain_cost()
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        content = user if not image else [{"type": "text", "text": user}, {"type": "image_url", "image_url": {"url": "data:image/png;base64," + image}}]
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
         text = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, messages,
                                agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite else (self._figures_seat() if figures else self._seat()))), chain_id=self.chain_id,
                                reasoning_models=self.reasoning_models)
@@ -887,6 +918,7 @@ class BambooAI:
 
         data_record = self._data_record()                   # what this run runs on, kept on the run (2026-10-10, routines)
         kernel = self._kernel_for(parent, data_record)       # ... and what decides which earlier cells it continues (2026-10-12)
+        figure = self._figure_for_analyst(image) if image else None
         session = Session(kernel, self.notebook, self._llm, store=self.store, emit=self._emit,
                           recall=self._recall if self.memory_path else None, search=self._search,
                           read=self._read, unit_text=self._unit_text, kernel_prelude=self._kernel_prelude(),
@@ -894,7 +926,7 @@ class BambooAI:
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
                           replay_runner=self._run_replay)
         try:
-            run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record)
+            run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record, image=figure)
         except ExecutionInterrupted:
             self.output_manager.display_system_messages("Stopped.", chain_id=self.chain_id)
             run = self.notebook.runs.get(str(self.chain_id))

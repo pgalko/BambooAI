@@ -216,6 +216,11 @@ req = FakeClient.calls[-1]
 check("llm_call: think=false, keep_alive, format json", req.get("think") is False and req.get("keep_alive") == "30m" and req.get("format") == "json", req)
 check("llm_call returns the seven values the dispatcher unpacks", len(r) == 7 and r[0] == "{\"a\": 1}" and r[2] == 10 and r[3] == 4, r[:4])
 
+# the plot the person asks about (2026-10-13): the app sends it as an OpenAI image_url part; Ollama takes the text with the picture under images
+_om = om.ollama_messages([{"role": "system", "content": "s"}, {"role": "user", "content": [{"type": "text", "text": "what is the line?"}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]}])
+check("ollama: a user message with an image part becomes its text with the base64 under images; plain messages pass unchanged",
+      _om[0] == {"role": "system", "content": "s"} and _om[1] == {"role": "user", "content": "what is the line?", "images": ["AAAA"]}, _om)
+
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")
 sys.exit(1 if n_fail else 0)

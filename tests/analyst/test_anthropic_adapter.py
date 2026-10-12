@@ -108,6 +108,12 @@ OR.set_model_properties({"no_sampling": True})
 check("OpenRouter: a model with no_sampling gets no temperature (the client's NOT_GIVEN)", OR._sampling(0) is OR.openai.NOT_GIVEN)
 OR.set_model_properties(None)
 check("OpenRouter: otherwise the temperature is sent as given", OR._sampling(0) == 0)
+# the plot the person asks about (2026-10-13): the app sends it as an OpenAI image_url part; Anthropic takes an image block
+_msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": [{"type": "text", "text": "what is the line?"}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]}]
+_conv, _sys = A.convert_openai_to_anthropic(_msgs)
+check("Anthropic: an image_url data URL in a user message becomes an image block (base64, its media type), the text part stays, the system text is lifted out",
+      _sys == "s" and _conv[0]["content"][0] == {"type": "text", "text": "what is the line?"} and _conv[0]["content"][1] == {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "AAAA"}}
+      and A.convert_openai_to_anthropic([{"role": "user", "content": "plain"}])[0][0]["content"] == "plain", _conv)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

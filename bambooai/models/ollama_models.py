@@ -237,11 +237,37 @@ def _report_truncation(output_manager, chain_id, model, estimated, reported):
         pass
 
 
+def ollama_messages(messages):
+    """The messages in Ollama's form: a user message whose content is a list of OpenAI parts (the plot the person asks
+    about, 2026-10-13) becomes its text with the pictures under `images` (base64, no data-URL prefix)."""
+    out = []
+    for m in messages or []:
+        c = m.get("content") if isinstance(m, dict) else None
+        if not isinstance(c, list):
+            out.append(m)
+            continue
+        text, images = [], []
+        for part in c:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "text":
+                text.append(str(part.get("text") or ""))
+            elif part.get("type") == "image_url":
+                url = str((part.get("image_url") or {}).get("url") or "")
+                images.append(url.split(";base64,", 1)[1] if ";base64," in url else url)
+        nm = dict(m, content="\n".join(text))
+        if images:
+            nm["images"] = images
+        out.append(nm)
+    return out
+
+
 def llm_call(messages: str, model: str, temperature: str, max_tokens: str, response_format: str = None, api_keys=None):  
     """
     Make a call to Ollama's API with api_keys dictionary support
     """
     client = init(api_keys)
+    messages = ollama_messages(messages)
 
     start_time = time.time()
 
@@ -319,7 +345,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         """One streaming request to the daemon, wrapped in the idle deadline."""
         params = {
             "model": model,
-            "messages": messages,
+            "messages": ollama_messages(messages),
             "stream": True,
             "options": _request_options(temperature, max_tokens),
             "keep_alive": OLLAMA_KEEP_ALIVE,

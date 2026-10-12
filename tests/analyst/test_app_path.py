@@ -26,10 +26,14 @@ state = {"i": 0, "script": SCRIPT, "calls": []}
 class FakeModels:
     config = {"agent_configs": [{"agent": "Investigator", "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "low"}}], "model_properties": {}}
     def __init__(self, *a, **k): pass
-    def get_model_properties(self): return {"fake/model": {"capability": "reasoning", "multimodal": "false", "prompt_tokens": 0.001, "completion_tokens": 0.002}}
+    multimodal = "false"
+    def get_model_properties(self): return {"fake/model": {"capability": "reasoning", "multimodal": FakeModels.multimodal, "prompt_tokens": 0.001, "completion_tokens": 0.002}}
     def get_model_name(self, agent): return ("fake/model", "fake")
     def llm_stream(self, prompts, lacm, om, messages, agent=None, chain_id=None, reasoning_models=None, **kw):
-        user = messages[-1]["content"]; state["calls"].append((agent, user))
+        raw = messages[-1]["content"]
+        user = raw if isinstance(raw, str) else "\n".join(str(p.get("text") or "") for p in raw if isinstance(p, dict) and p.get("type") == "text")
+        state["calls"].append((agent, user))
+        state.setdefault("images", []).append(bool(isinstance(raw, list) and any(isinstance(p, dict) and p.get("type") == "image_url" and str(p["image_url"].get("url", "")).startswith("data:image/png;base64,") for p in raw)))
         lacm.write_to_log(agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
         if user.startswith("Rewrite the technical report"):
             return "Plain: B is higher by DIFF."
@@ -457,6 +461,31 @@ check("Save as routine on it: the chain's data counts as loaded (the same data u
 st.delete(made_d["routine"]["id"])
 FakeModels.config["agent_configs"] = [a_ for a_ in FakeModels.config["agent_configs"] if a_["agent"] != "Promoter"]
 BAMBOO.df, BAMBOO.df_id = df, "d1"
+
+# the plot the person asks about (the Plots tab's Ask AI, 2026-10-13): the page had sent the picture since v1 and the analyst never
+# received it. Now it rides with every analysis turn as an image part when the analyst's model takes images (model_properties
+# multimodal), with a line saying what it is; a model that does not take images gets the question alone and the pane says so;
+# the run log keeps a placeholder, never the picture
+_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+PLOTQ = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nprint('looked')\n```", "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nThe line is the mean [cell 1].\n"]
+state.update(i=0, script=PLOTQ, images=[]); BAMBOO.output_manager.add_user_input("What is the blue line?")
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, image=_png)
+_evs = []
+while not q.empty(): _evs.append(json.loads(q.get()))
+_sys = [e.get("system_message") for e in _evs if e.get("system_message")]
+check("Ask AI about a plot with a model that does not take images: no image part in any call, the question goes alone, and the pane says the model does not take images",
+      state["images"] and not any(state["images"]) and any("does not take images" in m for m in _sys) and "THE FIGURE THE PERSON ASKS ABOUT" not in state["calls"][-len(PLOTQ) - 1][1], (state["images"], _sys))
+FakeModels.multimodal = "true"
+state.update(i=0, script=PLOTQ, images=[]); BAMBOO.output_manager.add_user_input("What is the blue line?")
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, image=_png)
+while not q.empty(): q.get()
+_turns = [(a, "THE FIGURE THE PERSON ASKS ABOUT is attached" in u, i) for (a, u), i in zip(state["calls"][-len(state["images"]):], state["images"])]
+check("...with a model that takes images: the picture rides as an image part on each analysis turn, named in the prompt; the rewrite and the figures request go without it",
+      [t[1:] for t in _turns if "TASK: turn" in state["calls"][-len(state["images"]):][_turns.index(t)][1]] == [(True, True)] * 2
+      and all(not img for (a, u), img in zip(state["calls"][-len(state["images"]):], state["images"]) if "TASK: turn" not in u), (_turns, [u[:60] for a, u in state["calls"][-len(state["images"]):]]))
+_last = json.load(open(_runlog))[-1]
+check("...the run log keeps a placeholder for the picture, never the base64", not any(_png in json.dumps(e.get("messages")) for e in json.load(open(_runlog))[-4:]) and "<image, " in json.dumps(json.load(open(_runlog))[-3:]), json.dumps(_last.get("messages"))[-300:])
+FakeModels.multimodal = "false"
 
 # the search tool: the seam's structured links become the pills, intact (the grounding redirects break if a quote rides along)
 BAMBOO._search_orchestrator = lambda prompts, lacm, om, chain_id, messages: ("Altitude reduces VO2max by ~1% per 100 m above 1,500 m.",

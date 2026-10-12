@@ -64,6 +64,9 @@ SweatStack load directly — and applies to any tabular dataset.
   kernel on the data loaded now: the earlier chains stay in its ledger as context, marked as on other
   data, and its replay and any routine made from it use its own cells. The same file uploaded again
   (a new session, a favourite reopened) is the same data, and the follow-up continues as before.
+- **Ask about a plot.** The chat button on a plot sends the picture with your question: the analyst's
+  model sees it when the config's `model_properties` says it takes images (`"multimodal": "true"`);
+  otherwise the question goes alone and the pane says so.
 - **Web search with sources.** With a Gemini key, the analyst searches for published figures to
   compare against (Google AI grounding) and cites them in the report.
 - **Memory.** Saving a run distils what was learned about the dataset — column quirks, approaches
@@ -236,6 +239,9 @@ turn budgets per preset (`tier_properties`), and the properties of every model n
                     "reasoning_style": "effort", "reasoning_efforts": ["low", "medium", "high", "xhigh"]}
 }
 ```
+
+`multimodal` says whether the model takes a picture with a question (*Ask about a plot*); the analyst's
+seat needs it `"true"` for the figure to be sent.
 
 The seats:
 

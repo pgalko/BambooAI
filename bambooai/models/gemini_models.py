@@ -70,6 +70,12 @@ def convert_openai_to_gemini(messages):
                         parts.append(types.Part(
                             inline_data=types.Blob(data=img_bytes, mime_type=part['mime_type'])
                         ))
+                    elif part.get('type') == 'image_url':
+                        # the OpenAI form the app sends (2026-10-13: the plot the person asks about): a data URL
+                        url = str((part.get('image_url') or {}).get('url') or '')
+                        if url.startswith('data:') and ';base64,' in url:
+                            mime, data = url[5:].split(';base64,', 1)
+                            parts.append(types.Part(inline_data=types.Blob(data=base64.b64decode(data), mime_type=mime)))
 
             if parts:
                 msg = types.Content(role=role, parts=parts)
