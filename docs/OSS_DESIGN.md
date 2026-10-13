@@ -299,6 +299,12 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   reasoning-extraction classifier), the forced report's card, the replay printing as the kernel prints, auxiliary
   files described in DATA, the template's Claude seats - patches 0101-0110. No kernel change: executor build v51
   stands.
+- **Status 2026-10-13: 2.3.0.** Routines (docs/ROUTINES_DESIGN.md): an analysis saved as a method and run again on
+  new data - the promoter's edits and inputs, run zero verified against the kernel's records, the manager and the runs
+  table, versions, the loaders and the Dataset cache in the run dialog, the retirements, the computation path for a
+  follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
+  PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
+  0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
 
 ### Phase 6 — team mode (O5)
 - A users table, a login page, per-user kernels (subprocess or Docker), one process.

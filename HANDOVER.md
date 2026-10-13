@@ -30,8 +30,13 @@
   tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands),
   2.2.2 (2026-10-08: the Claude 5.5 family on the Anthropic adapter, the contract's STEP section, the forced report's
   card, the replay's display options, auxiliary files in DATA, the template's Claude seats - patches 0101-0110;
-  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands). **Next ship carries executor image v52**
-  (patch 0125: each Intervals load marked with its key, its files in the key's folder) - rebuild and roll out.
+  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.3.0 (2026-10-13: routines - an analysis
+  saved as a method and run again on new data: the promoter and its inputs, run zero verified against the kernel's
+  records, the manager and the runs table, versions, the loaders in the run dialog, the Dataset cache, the retirements,
+  the computation path for a follow-up on other data; the figures step and the plain-language version citing the
+  figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
+  tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
