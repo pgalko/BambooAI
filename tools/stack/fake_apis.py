@@ -1,5 +1,5 @@
 """The stack's stand-in for the two integrations' APIs: Intervals.icu (the activity list, a session's FIT file, its
-laps, the wellness log) and Endura (the race list, a race's data), served from apis_data.py's calendar. The
+laps, the wellness log, the subject's record, the calendar, a chat's members and a session's messages) and Endura (the race list, a race's data), served from apis_data.py's calendar. The
 executor's requests to intervals.icu and team-hub.co.uk are routed here by executor_launcher.py when
 STACK_FAKE_APIS names this server; nothing in the executor changes.
 
@@ -84,6 +84,49 @@ def wellness():
     if not _auth_ok():
         return jsonify({"error": "unauthorized"}), 401
     return jsonify(D.wellness(request.args.get("oldest", ""), request.args.get("newest", "")))
+
+
+@app.route("/api/v1/athlete/0")
+@app.route("/api/v1/athlete/<athlete_id>")
+def athlete(athlete_id="0"):
+    if not _auth_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify(D.SUBJECT)
+
+
+@app.route("/api/v1/athlete/0/events")
+def events():
+    if not _auth_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    oldest, newest = request.args.get("oldest", ""), request.args.get("newest", "")
+    if not oldest or not newest:
+        return jsonify({"error": "oldest and newest are needed"}), 400
+    out = D.events(oldest, newest)
+    cats = request.args.get("category")
+    if cats:
+        wanted = {c.strip() for c in cats.split(",") if c.strip()}
+        bad = wanted - {"WORKOUT", "RACE_A", "RACE_B", "RACE_C", "NOTE", "PLAN", "HOLIDAY", "SICK", "INJURED", "SET_EFTP", "FITNESS_DAYS", "SEASON_START", "TARGET", "SET_FITNESS"}
+        if bad:
+            return jsonify({"status": 422, "error": "Invalid category, expected comma separated list of: WORKOUT, RACE_A, RACE_B, RACE_C, NOTE, PLAN, HOLIDAY, SICK, INJURED, SET_EFTP, FITNESS_DAYS, SEASON_START, TARGET, SET_FITNESS"}), 422
+        out = [e for e in out if e["category"] in wanted]
+    return jsonify(out)
+
+
+@app.route("/api/v1/chats/<int:cid>")
+def chat(cid):
+    if not _auth_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify(D.chat(cid))
+
+
+@app.route("/api/v1/activity/<int:aid>/messages")
+def messages(aid):
+    if not _auth_ok():
+        return jsonify({"error": "unauthorized"}), 401
+    day = _day_of(aid)
+    if day is None:
+        return jsonify({"error": "no such activity"}), 404
+    return jsonify(D.messages(day))
 
 
 def _day_of(aid):

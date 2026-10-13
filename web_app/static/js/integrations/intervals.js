@@ -100,6 +100,20 @@ async function applyIntervalsDateLimits() {
     }
 }
 
+// The context's report as one line (docs/CONTEXT_DESIGN.md §4 F1): "Context: 212 passages — activity_message 198,
+// day_note 13 …; 1 call failed: …". '' when the load carried no context.
+function contextReportLine(report) {
+    if (!report || typeof report !== 'object') return '';
+    const n = Number(report.passages || 0);
+    const kinds = report.kinds || {};
+    const parts = Object.keys(kinds).sort((a, b) => kinds[b] - kinds[a]).map(k => k + ' ' + kinds[k]);
+    const failed = Array.isArray(report.failed) ? report.failed : [];
+    let line = n ? ('Context: ' + n + ' passage' + (n === 1 ? '' : 's') + (parts.length ? ' — ' + parts.join(', ') : '')) : 'Context: no passages in this window';
+    if (failed.length) line += '; ' + failed.length + ' call' + (failed.length === 1 ? '' : 's') + ' failed: ' + failed.join('; ');
+    return line + '.';
+}
+if (typeof module !== 'undefined' && module.exports) module.exports.contextReportLine = contextReportLine;
+
 function createIntervalsPill(dataInfo) {
     const pillId = 'intervals-pill-' + Date.now();
     const dayCount = Math.ceil((new Date(dataInfo.end_date) - new Date(dataInfo.start_date)) / (1000 * 60 * 60 * 24));
@@ -108,6 +122,7 @@ function createIntervalsPill(dataInfo) {
     if (auxDatasets.includes('wellness')) auxText += 'W';
     if (auxDatasets.includes('summary')) auxText += auxText ? '+S' : 'S';
     if (auxDatasets.includes('intervals')) auxText += auxText ? '+I' : 'I';
+    if (auxDatasets.includes('context')) auxText += auxText ? '+C' : 'C';
     if (auxText) auxText = ` [${auxText}]`;
     
     const displayText = `Intervals ICU (${dayCount} days${auxText}) loaded`;
@@ -334,11 +349,13 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                 
                 console.log('Intervals ICU data loaded successfully');
                 setIntervalsButtonLoading(false);
-                showIntervalsMessage('Data loaded successfully!', 'success');
+                // the context's line (docs/CONTEXT_DESIGN.md §4 F1): what was written beside the data, and any call that failed
+                const ctxLine = contextReportLine(job.result && job.result.context);
+                showIntervalsMessage('Data loaded successfully!' + (ctxLine ? ' ' + ctxLine : ''), 'success');
 
                 setTimeout(() => {
                     hideIntervalsModal();
-                }, 2000);
+                }, ctxLine ? 6000 : 2000);
 
                 // Create pill ONLY ONCE
                 const dataInfo = {
@@ -719,6 +736,8 @@ function getSelectedAuxDatasets() {
     if (wellnessCheckbox?.checked) auxDatasets.push('wellness');
     if (summaryCheckbox?.checked) auxDatasets.push('summary');
     if (intervalsCheckbox?.checked) auxDatasets.push('intervals');
+    const contextCheckbox = document.getElementById('context-checkbox');
+    if (contextCheckbox?.checked) auxDatasets.push('context');
     
     return auxDatasets;
 }

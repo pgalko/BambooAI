@@ -12,6 +12,13 @@ Relative to today (the stack's clock):
   - laps (the intervals file): three per session, with watts on rides.
 Endura: three races; the second has no power channel and no climbs (a flat course), the third has a different
 profile field set.
+The words beside the data (docs/CONTEXT_DESIGN.md, 2026-10-13), deterministic in the date too: two sessions in three
+carry a chat (the subject writes, in Danish or English by turns; the coach answers on half of them; every eleventh
+day a private NOTE by the coach), every ninth session a description in prose and every thirteenth one that is only
+a workout structure, tags on every fifth, a coach's tick on every sixth; the wellness log has a comment every
+eighth day and the custom select `Sickness` on sick days; the calendar has a planned workout paired with every ride,
+a note every seventeenth day, a sick span of three days once every fifty, a race (its description HTML) once every
+fifty, and a note the coach hid from the subject every twenty-third day.
 """
 import hashlib
 from datetime import date, datetime, timedelta, timezone
@@ -73,7 +80,91 @@ def activity(day: date, today: date = None) -> dict:
     if ride:
         act["icu_average_watts"] = 180 + _h(day, "w") % 60
         act["total_elevation_gain"] = 300 + _h(day, "elev") % 500
+        act["paired_event_id"] = workout_event_id(day)
+        act["compliance"] = round(0.7 + (_h(day, "cmp") % 30) / 100.0, 2)
+    # the words beside the numbers (2026-10-13)
+    o = day.toordinal()
+    if has_chat(day, today):
+        act["icu_chat_id"] = chat_id(day)
+    if o % 9 == 0:
+        act["description"] = SUBJECT_LINES[_h(day, "desc") % len(SUBJECT_LINES)]
+    elif o % 13 == 0:
+        act["description"] = "-10m 220w\n-5m 240w\n-5m 260w"
+    if o % 5 == 0:
+        act["tags"] = ["tempo"] if o % 10 == 0 else ["easy"]
+    if o % 6 == 0:
+        act["coach_tick"] = 4
     return act
+
+
+# ---- the words beside the data (docs/CONTEXT_DESIGN.md) ----
+SUBJECT = {"id": "i0", "name": "The subject", "timezone": HOME_TZ, "status": "ACTIVE", "icu_coach": False,
+           "coach_ticks": [{"id": 4, "text": "Good"}], "icu_wellness_keys": ["weight", "restingHR", "comments", "Sickness"],
+           "custom_items": [{"type": "INPUT_FIELD", "name": "Sickness", "visibility": "PRIVATE",
+                             "content": {"code": "Sickness", "type": "select", "options": ["None", "Mild", "Severe"]}},
+                            {"type": "INTERVAL_FIELD", "name": "Label", "content": {"code": "Lbl", "type": "select"}}]}
+COACH_ID = "c1"
+SUBJECT_LINES = ["Benene var tunge i dag, kørte kortere end planlagt.", "Good legs today, held the power easily.",
+                 "Sov dårligt, var træt fra start.", "Felt strong on the climbs, no complaints.",
+                 "Lidt ondt i knæet efter turen.", "Cut the session short, work ran late."]
+COACH_LINES = ["Fint, tag det roligt i morgen.", "Good. Same again Thursday.", "Keep the cadence up next time.", "Bra jobba."]
+
+
+def has_chat(day: date, today: date = None) -> bool:
+    return days_ago(day, today) > 60 and _h(day, "chat") % 3 != 0
+
+
+def chat_id(day: date) -> int:
+    return 500000 + day.toordinal() % 100000
+
+
+def workout_event_id(day: date) -> int:
+    return 700000 + day.toordinal() % 100000
+
+
+def messages(day: date, today: date = None):
+    """The messages under a session's chat, newest first as the API returns them: the subject's line, the coach's
+    reply on half the days, a private NOTE by the coach every eleventh day. `created` is UTC."""
+    if not has_chat(day, today):
+        return []
+    offset = TRAVEL_OFFSET_H if is_travel(day) else HOME_OFFSET_H
+    local = datetime(day.year, day.month, day.day, local_hour(day) + 2, 10, 0)
+    base = 900000 + (day.toordinal() % 100000) * 3
+    out = [{"id": base, "athlete_id": SUBJECT["id"], "name": SUBJECT["name"], "created": (local - timedelta(hours=offset)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "type": "TEXT", "content": SUBJECT_LINES[_h(day, "line") % len(SUBJECT_LINES)], "activity_id": str(activity_id(day))}]
+    if _h(day, "reply") % 2 == 0:
+        out.insert(0, {"id": base + 1, "athlete_id": COACH_ID, "name": "The coach", "created": (local + timedelta(hours=1) - timedelta(hours=offset)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                       "type": "TEXT", "content": COACH_LINES[_h(day, "coach") % len(COACH_LINES)], "activity_id": str(activity_id(day))})
+    if day.toordinal() % 11 == 0:
+        out.insert(0, {"id": base + 2, "athlete_id": COACH_ID, "name": "The coach", "created": (local + timedelta(hours=2) - timedelta(hours=offset)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                       "type": "NOTE", "content": "Private: check the sleep log this week.", "activity_id": str(activity_id(day))})
+    return out
+
+
+def chat(cid: int) -> dict:
+    return {"id": cid, "type": "ACTIVITY", "members": [{"athlete_id": COACH_ID, "name": "The coach", "role": "COACH", "coach": True},
+                                                        {"athlete_id": SUBJECT["id"], "name": SUBJECT["name"], "role": "MEMBER"}]}
+
+
+def events(oldest: str, newest: str, today: date = None):
+    """The calendar of a window as the API returns it (end_date_local exclusive)."""
+    out = []
+    for d in days_in(oldest, newest):
+        o = d.toordinal()
+        start = d.strftime("%Y-%m-%dT00:00:00")
+        nxt = (d + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+        if is_ride(d, today):
+            out.append({"id": workout_event_id(d), "category": "WORKOUT", "start_date_local": start, "end_date_local": nxt, "name": "Endurance",
+                        "description": "Keep it conversational, fuel every hour.\n-2h 60%", "created_by_id": COACH_ID, "type": "Ride", "tags": ["primary"] if o % 10 == 0 else []})
+        if o % 17 == 0:
+            out.append({"id": 800000 + o % 100000, "category": "NOTE", "start_date_local": start, "end_date_local": nxt, "name": "Exam week", "description": "Exams all week, short sessions only.", "created_by_id": SUBJECT["id"]})
+        if o % 50 == 10:
+            out.append({"id": 810000 + o % 100000, "category": "SICK", "start_date_local": start, "end_date_local": (d + timedelta(days=3)).strftime("%Y-%m-%dT00:00:00"), "name": "Cold", "created_by_id": SUBJECT["id"]})
+        if o % 50 == 25:
+            out.append({"id": 820000 + o % 100000, "category": "RACE_B", "start_date_local": start, "end_date_local": nxt, "name": "Club race", "description": "<p><strong>Distance: </strong>60km</p><p>Rolling course</p>", "created_by_id": SUBJECT["id"]})
+        if o % 23 == 0:
+            out.append({"id": 830000 + o % 100000, "category": "NOTE", "start_date_local": start, "end_date_local": nxt, "name": "Watch motivation", "description": "", "created_by_id": COACH_ID, "hide_from_athlete": True})
+    return out
 
 
 def fit_fields(day: date, today: date = None):
@@ -123,6 +214,11 @@ def wellness(oldest: str, newest: str, today: date = None):
         row = {"id": d.isoformat(), "weight": round(71.0 + (_h(d, "wt") % 20) / 10.0, 1), "restingHR": 46 + _h(d, "rhr") % 8, "sleepSecs": 6 * 3600 + (_h(d, "sl") % 7200)}
         if days_ago(d, today) > 90:
             row["hrv"] = 60 + _h(d, "hrv") % 30
+        o = d.toordinal()
+        if o % 8 == 0:
+            row["comments"] = "Dårlig nat, vågnede flere gange." if o % 16 == 0 else "Slept well, fresh this morning."
+        if o % 50 in (10, 11, 12):
+            row["Sickness"] = "Mild"
         out.append(row)
     return out
 

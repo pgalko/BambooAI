@@ -556,6 +556,38 @@ try:
           _desc2.startswith("`df`: 2 rows x 1 columns") and "AUXILIARY FILES" in _desc2 and f"Path: {_ath}" in _desc2 and "KEN" in _desc2, _desc2[-400:])
     check("DATA with nothing attached says so and that df is not defined", B.BambooAI(df=None, df_id=None, user_id="u1", webui=True)._dataset_description()
           == "(no dataset attached: `df` is not defined and DS has nothing to load; the question stands on its own, or on the documents below if any are attached)")
+    # the context (2026-10-13, docs/CONTEXT_DESIGN.md §3.4): the context file's rows never enter DATA - the columns and the count do, and the map
+    _ctx = os.path.join(_auxdir, "context_notes_20260615_to_20261013.csv")
+    pd.DataFrame([{"id": "C.1", "kind": "activity_message", "date": "2026-09-01", "time": "08:10", "end_date": "", "activity_id": "a1", "event_id": "", "source_id": "1", "author_id": "i1", "author_name": "Me", "author_role": "subject", "private": False, "lang": "", "text": "legs heavy today, cut it short", "text_en": "", "chars": 30},
+                  {"id": "C.2", "kind": "activity_message", "date": "2026-09-01", "time": "09:00", "end_date": "", "activity_id": "a1", "event_id": "", "source_id": "2", "author_id": "c9", "author_name": "Coach", "author_role": "coach", "private": False, "lang": "", "text": "take tomorrow easy", "text_en": "", "chars": 18},
+                  {"id": "C.3", "kind": "status", "date": "2026-10-05", "time": "", "end_date": "2026-10-07", "activity_id": "", "event_id": "13", "source_id": "13", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "", "text": "SICK: cold", "text_en": "", "chars": 10},
+                  {"id": "C.4", "kind": "day_note", "date": "2026-10-09", "time": "", "end_date": "", "activity_id": "", "event_id": "15", "source_id": "15", "author_id": "c9", "author_name": "", "author_role": "coach", "private": True, "lang": "", "text": "watch motivation", "text_en": "", "chars": 16}]).to_csv(_ctx, index=False)
+    _bc = B.BambooAI(df=pd.DataFrame({"x": [1, 2]}), df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ath, _ctx])
+    _desc3 = _bc._dataset_description()
+    check("DATA with a context file: its entry is the path, the columns and the row count - no passage text in the head - and the map follows: the span, the passages by kind with authors, the roles, private entries, the months, the closing sentence",
+          f"Path: {_ctx}" in _desc3 and "Columns: id, kind, date, time, end_date, activity_id" in _desc3 and "Rows: 4 (the rows are passages: read them with CTX" in _desc3
+          and "legs heavy today" not in _desc3 and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in _desc3
+          and "2026-09-01 to 2026-10-09: 4 passages — activity_message 2 (subject 1, coach 1); status 1; day_note 1." in _desc3
+          and "authors: subject 2, coach 2; private entries 1; by month Sep 2, Oct 2." in _desc3 and "A passage is cited as [C.n]" in _desc3 and "KEN" in _desc3, _desc3[-1200:])
+    _codes = os.path.join(_auxdir, "context_codes_20260615_to_20261013.csv")
+    pd.DataFrame([{"id": "C.1", "code": "fatigue", "tone": "negative", "quote": "legs heavy", "status": "codebook", "coder": "m", "codebook_version": 1},
+                  {"id": "C.1", "code": "deviation", "tone": "negative", "quote": "cut it short", "status": "codebook", "coder": "m", "codebook_version": 1},
+                  {"id": "C.2", "code": "instruction", "tone": "neutral", "quote": "take tomorrow easy", "status": "codebook", "coder": "m", "codebook_version": 1},
+                  {"id": "C.3", "code": "unwell_span", "tone": "negative", "quote": "SICK", "status": "proposed", "coder": "m", "codebook_version": 1}]).to_csv(_codes, index=False)
+    _bd = B.BambooAI(df=pd.DataFrame({"x": [1, 2]}), df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ctx, _codes])
+    _desc4 = _bd._dataset_description()
+    check("DATA with the codes file too: the codes line - counts per code, codes used, passages without a code, the proposed ones named; the codes file's head is columns and count as well",
+          "codes (the model's reading, one row per code, with the words it rests on): fatigue 1, deviation 1, instruction 1, unwell_span 1 (4 codes used); 1 passage carries none; proposed: unwell_span." in _desc4
+          and f"Path: {_codes}\nColumns: id, code, tone, quote, status, coder, codebook_version\nRows: 4" in _desc4 and "legs heavy" not in _desc4, _desc4[-900:])
+    _empty = os.path.join(_auxdir, "context_notes_20260101_to_20260131.csv")
+    pd.DataFrame(columns=["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id", "author_name", "author_role", "private", "lang", "text", "text_en", "chars"]).to_csv(_empty, index=False)
+    _desc5 = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_empty])._dataset_description()
+    check("a context file with no rows: the map says no passages in this window", "no passages in this window: nothing was written beside the data loaded." in _desc5 and "Rows: 0" in _desc5, _desc5)
+    from analyst.routines import aux_kind as _ak
+    check("the two file kinds are known to the routines' kind table (a routine's plan binds them like the summary and wellness files)",
+          _ak("datasets/u/k/context_notes_20260615_to_20261013.csv") == "context" and _ak("datasets/u/k/context_codes_20260615_to_20261013.csv") == "codes")
+    _rec = _bc._load_of_cached({"source": "intervals", "date_range": "2026-06-15 to 2026-10-13", "metrics": ["watts"], "key_mark": "k"}, {"aux": [_ath, _ctx, _codes]})
+    check("a cached frame's load record lists context and codes among its auxiliary kinds", _rec.get("aux_kinds") == ["context", "codes"] and _rec.get("start_date") == "2026-06-15", _rec)
     from bambooai.models import ModelManager as _MM
     _mm = _MM.__new__(_MM)
     _mm.config = {"agent_configs": [{"agent": "Analyst", "details": {"model": "x-ai/grok-4.7", "provider": "openrouter"}},

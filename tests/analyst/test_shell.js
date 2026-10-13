@@ -106,5 +106,16 @@ check('panes: the left strip is the tab strip\'s height, so the two dividers mee
 const wm2 = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflow-management.js'), 'utf8');
 check('live chain: a running chain is a navigable entry; its DOM parks in holders while another chain is viewed; the renderer and the pane write to the live targets', wm2.includes('function beginLiveChain()') && wm2.includes('function liveGoAway()') && wm2.includes('function liveComeBack()') && wm2.includes('function liveTargets()') && qp.includes('beginLiveChain();') && qp.includes('currentData = liveState.data;') && cr.includes("_lt ? _lt.tabs : document.getElementById('tabContainer')") && sp.includes("liveTargets().stream"));
 check('live chain: rebuilding a viewed chain targets the view, not the parked run', wm2.includes('liveState.forceView = true;'));
+// ---- the context (2026-10-13, docs/CONTEXT_DESIGN.md §7 S1): the Intervals dialog's fourth option, on by default; the pill letter; the report line ----
+const intMod = html.slice(html.indexOf('id="intervalsModal"'), html.indexOf('id="intervals-modal-message"'));
+check('intervals dialog: a Context option (notes, messages, calendar) beside wellness, summary and intervals, checked by default; the other three stay unchecked',
+  /id="context-checkbox" value="context" checked/.test(intMod) && intMod.includes('<span>Context (notes, messages, calendar)</span>') && !/id="wellness-checkbox"[^>]*checked/.test(intMod) && !/id="summary-checkbox"[^>]*checked/.test(intMod), intMod.length);
+const ij = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'), 'utf8');
+check('intervals.js: the option is read into the load\'s auxiliary kinds and the pill carries a C for it', ij.includes("if (contextCheckbox?.checked) auxDatasets.push('context');") && ij.includes("if (auxDatasets.includes('context')) auxText += auxText ? '+C' : 'C';"));
+const { contextReportLine } = require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'));
+check('intervals.js: the report line - the passages by kind, most first, and the failed calls; no passages said; nothing without a report',
+  contextReportLine({ passages: 15, kinds: { tag: 2, activity_message: 9, status: 4 }, failed: ['the calendar entries could not be fetched (HTTPError)'] }) === 'Context: 15 passages — activity_message 9, status 4, tag 2; 1 call failed: the calendar entries could not be fetched (HTTPError).'
+  && contextReportLine({ passages: 0, kinds: {}, failed: [] }) === 'Context: no passages in this window.' && contextReportLine(null) === '' && contextReportLine({ passages: 1, kinds: { day_note: 1 } }) === 'Context: 1 passage — day_note 1.',
+  contextReportLine({ passages: 15, kinds: { tag: 2, activity_message: 9, status: 4 }, failed: ['the calendar entries could not be fetched (HTTPError)'] }));
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

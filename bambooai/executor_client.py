@@ -157,7 +157,7 @@ class ExecutorAPIClient:
                     source = 'CSV'  # Default
                     date_range = None
                     
-                    if 'activity_summary_' in filename or 'wellness_data_' in filename or 'activity_intervals_' in filename:
+                    if 'activity_summary_' in filename or 'wellness_data_' in filename or 'activity_intervals_' in filename or 'context_notes_' in filename or 'context_codes_' in filename:
                         source = 'Intervals'
                         # Extract date range from filename
                         import re
@@ -238,6 +238,18 @@ class ExecutorAPIClient:
             self.log_to_file(f"aux_page failed: {r.status_code} {r.text[:200]}")
         except Exception as exc:                                # noqa: BLE001
             self.log_to_file(f"aux_page error: {exc}")
+        return None
+
+    def read_aux_dataset(self, path: str) -> Optional[str]:
+        """An auxiliary file on the executor, whole, as text (the context and codes files, docs/CONTEXT_DESIGN.md);
+        None when the image lacks the route or the file is not there."""
+        try:
+            r = requests.post(f"{self.base_url}/file_utils/read_aux_dataset", json={'file_path': path}, timeout=60)
+            if r.status_code == 200:
+                return (r.json() or {}).get('text')
+            self.log_to_file(f"read_aux_dataset failed: {r.status_code} {r.text[:200]}")
+        except Exception as exc:                                # noqa: BLE001
+            self.log_to_file(f"read_aux_dataset error: {exc}")
         return None
 
     # ---- the thread's documents on the executor (docs/DOCUMENTS_DESIGN.md) ----

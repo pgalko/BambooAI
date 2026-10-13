@@ -9,6 +9,7 @@ the frame has no power column and the wellness file was not written (docs/ROUTIN
 Skips (exit 0) when playwright is not installed.
 """
 import glob
+import pandas as pd
 import json
 import os
 import re
@@ -77,7 +78,7 @@ def main():
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
             page.evaluate("([s, e]) => { const a = document.getElementById('intervalsStartDate'), b = document.getElementById('intervalsEndDate'); a.min = ''; b.min = ''; a.value = s; b.value = e; }", [a_start.isoformat(), a_end.isoformat()])
-            page.evaluate("() => ['summary-checkbox', 'wellness-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
+            page.evaluate("() => { ['summary-checkbox', 'wellness-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; }); const cx = document.getElementById('context-checkbox'); if (cx) cx.checked = false; }")   # the context (on by default) is walked at the end
             page.click("#connectIntervals")
             page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /Intervals ICU \\(\\d+ days/.test(p.textContent) && /loaded/.test(p.textContent))", timeout=240000)
             pills = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
@@ -177,7 +178,7 @@ def main():
             _chk1 = next((r for r in rv["rows"] if "CHECK" in r), "")
             check("the CHECK row says what differs from the original in sentences: the frame's rows against the original's, the summary file's rows against the original's and its columns added empty",
                   ("rows as the original" in _chk1 or "rows where the original had" in _chk1) and "the summary file:" in _chk1
-                  and ("rows as the original" in _chk1.split("the summary file:")[1] or "rows where the original had" in _chk1.split("the summary file:")[1]) and "columns added empty (avg_power, elevation_gain_m)" in _chk1, _chk1)
+                  and ("rows as the original" in _chk1.split("the summary file:")[1] or "rows where the original had" in _chk1.split("the summary file:")[1]) and "columns added empty (paired_event_id, chat_id, avg_power, elevation_gain_m, workout_compliance)" in _chk1, _chk1)     # the ride-only columns (the pairing, the compliance) and the chat flag (the last sixty days carry no chat in the fake) join avg_power and elevation (2026-10-13)
             check("the Data tab's pills now show the run's window (59 days [W+S]) with the summary's pill - the dialog's load refreshed them as the Data tab does - and only them: the original window's pills were cleared before the load (its wellness pill is gone; one Intervals pill)",
                   any("Intervals ICU (59 days [W+S]) loaded" in p for p in rv["pills"]) and any("Activity Summary (59 days)" in p for p in rv["pills"]) and sum(1 for p in rv["pills"] if "Intervals ICU" in p) == 1 and not any("Wellness" in p for p in rv["pills"]) and len(rv["pills"]) == 2, rv["pills"])
             page.evaluate("activateTab('dataframe')")
@@ -408,6 +409,66 @@ def main():
             check("the run on the flat crit: a LOAD row naming the race, the CHECK row saying power is empty in this data (the loader dropped the all-zero channel), the run complete; the Data tab's pills show the race and its files (the climbs file is written empty by the loader, so it is bound, not absent)",
                   any("LOAD" in r and "Endura · Flat crit" in r for r in re_["rows"]) and any("CHECK" in r and "columns empty in this data: power" in r for r in re_["rows"])
                   and "Run 1 complete" in re_["done"] and any("Endura (Flat crit) loaded" in p for p in re_["pills"]) and any("race_climbs_race_2" in p for p in re_["pills"]), (re_["rows"], re_["done"][:200], re_["pills"]))
+            # ---- the context (docs/CONTEXT_DESIGN.md, step 1): the words written beside the data as a file of the load ----
+            page.evaluate("handleNewConversation()")
+            page.wait_for_url("**/?new=true", timeout=60000)
+            page.wait_for_selector("#queryInput", state="visible", timeout=60000)
+            page.app_ready()
+            page.wait_for_function("() => /Ready/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+            r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
+            page.evaluate("showIntervalsModal()")
+            page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            page.evaluate("([s, e]) => { const a = document.getElementById('intervalsStartDate'), b = document.getElementById('intervalsEndDate'); a.min = ''; b.min = ''; a.value = s; b.value = e; }", [a_start.isoformat(), a_end.isoformat()])
+            cx_default = page.evaluate("() => document.getElementById('context-checkbox').checked")
+            page.evaluate("() => ['summary-checkbox', 'wellness-checkbox', 'context-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
+            page.click("#connectIntervals")
+            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
+            msg = page.inner_text("#intervals-modal-message")
+            page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /W\\+S\\+C/.test(p.textContent))", timeout=60000)
+            pills_c = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
+            check("the context option is on by default in the dialog; the load with it carries [W+S+C] and an auxiliary pill for the context file; the dialog's line reports the passages by kind and names no failed call",
+                  cx_default is True and any("Intervals ICU (59 days [W+S+C]) loaded" in p for p in pills_c) and any("Context Notes" in p or "context_notes" in p.lower() for p in pills_c)
+                  and "Context: " in msg and "passages" in msg and "activity_message" in msg and "failed" not in msg, (cx_default, pills_c, msg))
+            ctx_path = os.path.join(exec_ds, f"context_notes_{tag_a}.csv")
+            ctx = pd.read_csv(ctx_path, dtype=str, keep_default_na=False) if os.path.exists(ctx_path) else None
+            kinds_c = dict(ctx["kind"].value_counts()) if ctx is not None else {}
+            check("the executor wrote the context file beside the summary and wellness files, in the key's folder, with the columns of the design and the kinds the fake calendar holds: messages (subject and coach), the coach's private notes, descriptions, tags, ticks, wellness comments, the custom select, the plan's prose, notes, the sick span, the race",
+                  ctx is not None and list(ctx.columns)[:5] == ["id", "kind", "date", "time", "end_date"]
+                  and all(k in kinds_c for k in ("activity_message", "activity_private_note", "activity_note", "tag", "coach_tick", "wellness_note", "custom_field", "plan_note", "day_note", "status")), (ctx_path, kinds_c))
+            if ctx is not None:
+                msgs = ctx[ctx["kind"] == "activity_message"]
+                sick = ctx[(ctx["kind"] == "status") & ctx["text"].str.startswith("SICK")]
+                race = ctx[(ctx["kind"] == "status") & ctx["text"].str.startswith("RACE_B")]
+                priv = ctx[ctx["kind"] == "activity_private_note"]
+                plan = ctx[ctx["kind"] == "plan_note"]
+                check("the rows: messages by the subject and by the coach (told apart through the chat's members), dated and timed in the subject's zone; the private notes marked private; the sick span's inclusive end; the race's HTML stripped; the plan's step line gone and the plan joined to its activity",
+                      set(msgs["author_role"]) == {"subject", "coach"} and all(len(t) == 5 for t in msgs["time"]) and (priv["private"].astype(str).str.lower() == "true").all()
+                      and len(sick) >= 1 and all(e and (pd.Timestamp(e) - pd.Timestamp(d)).days == 2 for d, e in zip(sick["date"], sick["end_date"]))
+                      and len(race) >= 1 and all("<" not in t and "Distance: 60km" in t for t in race["text"])
+                      and len(plan) >= 1 and "60%" not in plan.iloc[0]["text"] and plan.iloc[0]["text"].startswith("Endurance: Keep it conversational") and plan.iloc[0]["activity_id"] != "",
+                      (set(msgs["author_role"]), sick.to_dict("records"), race.to_dict("records"), plan.head(1).to_dict("records")))
+                check("ids C.1..C.n in day order; text_en and lang empty before the coding pass; a Danish and an English line both present",
+                      list(ctx["id"]) == [f"C.{i}" for i in range(1, len(ctx) + 1)] and list(ctx["date"]) == sorted(ctx["date"]) and (ctx["text_en"] == "").all() and (ctx["lang"] == "").all()
+                      and ctx["text"].str.contains("Sov dårligt|Benene var tunge|ondt i knæet").any() and ctx["text"].str.contains("Good legs today|Felt strong|Cut the session").any(), ctx[["id", "date", "kind"]].head(3).to_dict("records"))
+            page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
+            # the analyst's DATA block: the context file's entry is columns and a count, the map follows, no passage in the prompt
+            page.fill("#queryInput", mod.QUESTIONS[0])
+            page.evaluate("setMode('deep')")
+            page.click("#submitQuery")
+            wait_run_end(page, 1)
+            page.click('.sp-turn[data-turn="1"] .sp-prompt')
+            page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /TASK: turn/.test(u.textContent); }", timeout=15000)
+            prompt1 = page.inner_text("#userInstructions")
+            page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; }")
+            check("DATA: the context file is listed with its columns and its row count and none of its rows; the map follows - the span, the passages by kind with the authors of the messages, the roles, the private entries, the months, the closing sentence",
+                  f"Path: datasets/{USER}/{_kf('stack-key')}/context_notes_{tag_a}.csv" in prompt1 and "Rows: " in prompt1 and "(the rows are passages: read them with CTX, not from this head)" in prompt1
+                  and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in prompt1 and "activity_message" in prompt1 and "(subject " in prompt1 and "authors: subject " in prompt1
+                  and "private entries " in prompt1 and "by month " in prompt1 and "A passage is cited as [C.n]" in prompt1
+                  and "Sov dårligt" not in prompt1 and "Good legs today" not in prompt1, prompt1[prompt1.find("CONTEXT ("):prompt1.find("CONTEXT (") + 700] if "CONTEXT (" in prompt1 else prompt1[-800:])
+            page.evaluate("activateTab('answer')")
+            page.wait_for_timeout(300)
+            answer_c = page.inner_text("#content-answer")
+            check("the scripted analyst still finds the summary file by its dated name and answers (the context's entries did not confuse the DATA block)", "Training starts at" in answer_c, answer_c[:200])
             errs = page.evaluate("window.__stackErrors || []")
             b.close()
         apis = __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"]

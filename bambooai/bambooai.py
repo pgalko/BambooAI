@@ -22,6 +22,7 @@ from bambooai.messages.prompts import PromptManager
 from bambooai.models import ModelManager
 from bambooai import synthesis_infographic
 from analyst import Session, Budget, Notebook, NotebookStore
+from analyst import context as context_mod
 from analyst.replay import rehydrate
 from logger_config import get_logger
 
@@ -460,7 +461,7 @@ class BambooAI:
         m = re.match(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-)\s*(\d{4}-\d{2}-\d{2})\s*$", str(meta.get("date_range") or ""))
         kinds = [aux_kind(p) for p in rec.get("aux") or []]
         if src == "intervals":
-            out.update(metrics=list(meta.get("metrics") or []), aux_kinds=[k for k in kinds if k in ("summary", "wellness", "intervals")])
+            out.update(metrics=list(meta.get("metrics") or []), aux_kinds=[k for k in kinds if k in ("summary", "wellness", "intervals", "context", "codes")])
             if m:
                 out.update(start_date=m.group(1), end_date=m.group(2))
             if meta.get("key_mark"):
@@ -737,12 +738,64 @@ class BambooAI:
         if len(parts) != len(paths):                          # the describer could not pair them: paths alone
             parts = [f"{i}.\nPath: {p}" for i, p in enumerate(paths, 1)]
         shown = []
-        for part in parts:
+        from analyst.routines import aux_kind
+        frames = {}
+        for i, (path, part) in enumerate(zip(paths, parts), 1):
+            kind = aux_kind(path)
+            if kind in ("context", "codes"):               # the rows are passages: the columns and the count, the map below says the rest
+                frames[path] = self._context_file(path)
+                if frames[path] is not None:
+                    part = f"{i}.\n" + context_mod.aux_head_for_text_file(path, list(frames[path].columns), len(frames[path]))
             if len(part) > self.AUX_HEAD_CHARS:
                 part = part[:self.AUX_HEAD_CHARS].rstrip() + "\n... [the head is cut here; read the file for the rest]"
             shown.append(part)
-        return ("AUXILIARY FILES (read them with pandas from these paths, which are relative to the kernel's working directory):\n"
-                + "\n\n".join(shown))
+        block = ("AUXILIARY FILES (read them with pandas from these paths, which are relative to the kernel's working directory):\n"
+                 + "\n\n".join(shown))
+        cmap = self._context_map(frames)
+        return block + ("\n\n" + cmap if cmap else "")
+
+    def _context_paths(self):
+        """The loaded context file and codes file, by their names (docs/CONTEXT_DESIGN.md §3): (notes path, codes path)."""
+        from analyst.routines import aux_kind
+        notes = codes = ""
+        for p in self.auxiliary_datasets or []:
+            k = aux_kind(p)
+            if k == "context":
+                notes = p
+            elif k == "codes":
+                codes = p
+        return notes, codes
+
+    def _context_file(self, path):
+        """A context or codes file as a frame: from the executor in api mode (the file lives there), read here otherwise;
+        None when it cannot be read."""
+        from analyst.routines import aux_kind
+        try:
+            if self.execution_mode == 'api' and self.api_client is not None:
+                text = self.api_client.read_aux_dataset(path)
+                if text is None:
+                    return None
+            else:
+                if not os.path.exists(path):
+                    return None
+                with open(path, encoding='utf-8', errors='replace') as f:
+                    text = f.read()
+            return context_mod.read_codes(text) if aux_kind(path) == "codes" else context_mod.read_context(text)
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("context: %s could not be read (%s)", path, exc)
+            return None
+
+    def _context_map(self, frames=None):
+        """The map of the context for DATA (§3.4), '' without a context file. `frames` - files already read this call."""
+        frames = frames or {}
+        notes_path, codes_path = self._context_paths()
+        if not notes_path:
+            return ""
+        notes = frames.get(notes_path) if notes_path in frames else self._context_file(notes_path)
+        if notes is None:
+            return ""
+        codes = (frames.get(codes_path) if codes_path in frames else self._context_file(codes_path)) if codes_path else None
+        return context_mod.context_map(notes, codes, notes_path=notes_path, codes_path=codes_path)
 
     # ------------------------------------------------------------- the UI
     def _tab(self, kind, data):

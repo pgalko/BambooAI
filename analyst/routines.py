@@ -416,6 +416,7 @@ def fit_check(expected: Iterable[dict], now: Iterable[dict]) -> dict:
 # athlete_profiles_race_<id>.csv); a method reads them by those names. A run binds each recorded file, by kind, to the
 # file this load produced, and the executed text carries this load's names; the stored method is not changed.
 AUX_KINDS = (("activity_summary_", "summary"), ("wellness_data_", "wellness"), ("activity_intervals_", "intervals"),
+             ("context_notes_", "context"), ("context_codes_", "codes"),        # the words beside the data and the model's reading of them (2026-10-13)
              ("athlete_profiles_race_", "profile"), ("race_turns_race_", "turns"), ("race_climbs_race_", "climbs"),
              ("race_waymarkers_race_", "waymarkers"))
 _STRING_RE = re.compile(r"""(?P<q>'|")(?P<body>(?:(?!(?P=q)).)*)(?P=q)""")

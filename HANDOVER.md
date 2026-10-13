@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (205/120/31/19/17/49/44/51/11/117/31/1/1 Python; 44/7/30/64/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (205/125/31/19/17/49/44/51/11/117/31/1/1 Python; 44/7/30/67/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (48; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (54; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,31 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context, step 1b: the app side - the kinds, the map in DATA, the dialog's option, the fake Intervals.icu and
+  the walk (2026-10-13, patch 0144).** `analyst/routines.py` `AUX_KINDS` gains `context_notes_` → `context` and
+  `context_codes_` → `codes` (a routine's plan binds them like the summary file; a cached frame's load record lists
+  them). `analyst/context.py` (new, pure; in the C5 scanner): the two files as frames (`read_context`, `read_codes`)
+  and the map of docs/CONTEXT_DESIGN.md §3.4 (`context_map`: the span, the passages by kind with the authors of the
+  messages and notes, the roles, private entries, the months, languages once coded, the codes line with the
+  counts, the uncoded and the proposed, the closing sentence; "no passages in this window" for a file without
+  rows). `BambooAI._auxiliary_block` lists a context or codes file as its path, columns and row count - never its
+  rows, which are text - and appends the map (`_context_map`, `_context_file`: from the executor through the new
+  client method `read_aux_dataset` in api mode, read here otherwise). The Intervals dialog has a fourth option,
+  *Context (notes, messages, calendar)*, on by default; the pill reads `[W+S+C]`; the dialog's success line carries
+  the context's report (`contextReportLine`: the passages by kind, the failed calls) and stays six seconds. The
+  stack's fake Intervals.icu serves `/athlete/0`, `/athlete/0/events` (the category filter validated as the live
+  API does), `/chats/{id}`, `/activity/{id}/messages`, from a calendar of words deterministic in the date
+  (tools/stack/apis_data.py: Danish and English lines by turns, the coach's replies and private notes, tags,
+  ticks, a sick span, a race with HTML, a hidden note, the plan's prose, wellness comments, the `Sickness` select).
+  The integrations walk (54): its routines part loads without context (the option set off, so its [W+S] checks
+  stand - the summary's new ride-only columns changed one CHECK sentence) and ends with a context load - the pill,
+  the dialog's line, the file's kinds, roles, times, the private flag, the sick span's inclusive end, the race's
+  HTML stripped, the plan's prose joined to its activity, the ids, the empty `text_en`/`lang` - and a run whose turn-1
+  prompt shows the file as columns and a count, the map, and no passage. test_app_path.py 125 (the DATA block with a
+  context file, with the codes file, with an empty file; the kinds; the cached record), test_shell.js 67 (the
+  dialog's option, the pill letter, the report line). Not yet: `CTX` in the kernel, READ CTX, the coder (steps 2-3);
+  a cached window loaded before this patch has no context file beside it, so a routine's run that wants context
+  re-downloads the window (the design's "context fetched alone for a cached window" is a later step).
 - **Context, step 1a: the executor fetches the words and writes the context table; image v53 (2026-10-13, patch
   0143).** `containers/executor/code_executor_api.py`: with `context` among the load's auxiliary kinds the Intervals
   job fetches the subject's record once (`GET /athlete/0`: id, time zone, the tick wording, the custom items), the
