@@ -711,4 +711,61 @@ try:
 except Exception as exc:                                     # noqa: BLE001
     check("effort law: the checks ran", False, repr(exc))
 
+# ---- the account-credit checkout and its webhook (web_app/subscription_routes.py) on a test app, Stripe faked
+# (2026-10-13, patch 0140; PR #63 took payment_method_types out of the create call - Stripe API 2026-09-30)
+try:
+    import types as _ty, json as _json
+    _fs2 = sys.modules.get("auth.supabase_client") or _ty.ModuleType("auth.supabase_client")
+    _credits = []
+    for _n in ("set_user_subscription", "get_user_subscription", "get_balance", "get_user_llm_config", "get_monthly_usage", "get_tier_limits"):
+        setattr(_fs2, _n, lambda *a, **k: {"ok": True})
+    _fs2.add_funds = lambda **kw: (_credits.append(kw), {"ok": True})[1]
+    sys.modules["auth.supabase_client"] = _fs2
+    _fa2 = sys.modules.get("auth") or _ty.ModuleType("auth"); _fa2.requires_auth = lambda f: f; _fa2.get_current_user_id = lambda: "auth0|u1"; sys.modules["auth"] = _fa2
+    _lcb = _ty.ModuleType("llm_config_builder"); _lcb.build_user_config = lambda *a, **k: {}; sys.modules["llm_config_builder"] = _lcb
+    _st = _ty.ModuleType("stripe")
+    class _SigErr(Exception): pass
+    _st.SignatureVerificationError = _SigErr; _st.api_key = None
+    class _Webhook:
+        @staticmethod
+        def construct_event(payload, sig, secret):
+            if sig == "bad": raise _SigErr("bad signature")
+            return _json.loads(payload)
+    _created = []
+    class _CheckoutSession:
+        @staticmethod
+        def create(**kw): _created.append(kw); return _ty.SimpleNamespace(url="https://checkout.test/cs_1")
+    _st.Webhook = _Webhook; _st.checkout = _ty.SimpleNamespace(Session=_CheckoutSession)
+    sys.modules["stripe"] = _st
+    sys.modules.pop("subscription_routes", None)
+    if not hasattr(sys.modules.get("flask"), "Flask"):      # the dataframe_routes section above left a stand-in in its place
+        sys.modules.pop("flask", None)
+    import flask as _flask_real
+    import subscription_routes as SR
+    _Flask = _flask_real.Flask
+    _sa = _Flask("s"); _sa.register_blueprint(SR.subscription_bp); _sc = _sa.test_client()
+    _r = _sc.post("/api/create-checkout-session", json={"amount": 25})
+    check("checkout: the create call sends no payment_method_types (removed in Stripe API 2026-09-30, the SDK's 16.x pin; PR #63) - the Dashboard's methods apply; $25 as 2500 cents, mode payment, the user in the metadata",
+          _r.status_code == 200 and _r.get_json() == {"checkout_url": "https://checkout.test/cs_1"} and "payment_method_types" not in _created[-1]
+          and _created[-1]["mode"] == "payment" and _created[-1]["line_items"][0]["price_data"]["unit_amount"] == 2500 and _created[-1]["metadata"] == {"auth0_id": "auth0|u1", "amount": "25"},
+          (_r.status_code, _r.get_json(), sorted(_created[-1]) if _created else None))
+    check("checkout: under the $10 minimum is refused before Stripe is called", _sc.post("/api/create-checkout-session", json={"amount": 5}).status_code == 400 and len(_created) == 1)
+    def _event(kind, status, sid="cs_1", pi="pi_1", cents=2500):
+        return _json.dumps({"type": kind, "data": {"object": {"id": sid, "payment_intent": pi, "payment_status": status, "amount_total": cents, "metadata": {"auth0_id": "auth0|u1", "amount": "25"}}}})
+    _w = _sc.post("/api/stripe-webhook", data=_event("checkout.session.completed", "unpaid"), headers={"Stripe-Signature": "ok"})
+    check("webhook: a session completed with payment_status unpaid (a delayed method) is acknowledged and not credited",
+          _w.status_code == 200 and _w.get_json() == {"received": True} and _credits == [], (_w.status_code, _credits))
+    _w = _sc.post("/api/stripe-webhook", data=_event("checkout.session.completed", "paid"), headers={"Stripe-Signature": "ok"})
+    check("webhook: completed and paid (a card) credits the amount once, under the session's id and the payment intent as the idempotency key",
+          _w.status_code == 200 and len(_credits) == 1 and _credits[0]["auth0_id"] == "auth0|u1" and _credits[0]["amount"] == 25.0 and _credits[0]["source"] == "stripe"
+          and _credits[0]["reference"] == "cs_1" and _credits[0]["idempotency_key"] == "pi_1", _credits)
+    _w = _sc.post("/api/stripe-webhook", data=_event("checkout.session.async_payment_succeeded", "paid", sid="cs_2", pi="pi_2"), headers={"Stripe-Signature": "ok"})
+    check("webhook: the delayed method's later async_payment_succeeded (paid) credits then", _w.status_code == 200 and len(_credits) == 2 and _credits[1]["reference"] == "cs_2", _credits)
+    _w = _sc.post("/api/stripe-webhook", data=_event("checkout.session.completed", "paid"), headers={"Stripe-Signature": "bad"})
+    check("webhook: a bad signature is a 400 and credits nothing (stripe.SignatureVerificationError, the spelling every 7.x+ SDK has)", _w.status_code == 400 and len(_credits) == 2, (_w.status_code, _w.get_json()))
+    _w = _sc.post("/api/stripe-webhook", data=_json.dumps({"type": "payment_intent.created", "data": {"object": {}}}), headers={"Stripe-Signature": "ok"})
+    check("webhook: another event type is acknowledged and ignored", _w.status_code == 200 and len(_credits) == 2)
+except Exception as exc:                                     # noqa: BLE001
+    check("subscription routes: the checks ran", False, repr(exc))
+
 print(f"\n{len(passed)} passed, {len(failed)} failed"); sys.exit(1 if failed else 0)

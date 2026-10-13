@@ -59,7 +59,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (205/113/31/19/17/49/44/51/11/117/1/1 Python; 44/7/30/64/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (205/120/31/19/17/49/44/51/11/117/1/1 Python; 44/7/30/64/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (48; hosted only - the loaders need the executor; the
@@ -441,6 +441,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Stripe after PR #63: the SDK pinned, the webhook credits a paid session only (2026-10-13, patch 0140).** PR #63
+  (brandonphelps1212, a change written by the ApiPolice tool; one deleted line, merged from the command line before
+  this patch) took `payment_method_types=['card']` out of the account-credit Checkout create call: Stripe API
+  2026-09-30.endive removed the parameter (a 400 if sent) and stripe-python 16.x pins that version, which an
+  unpinned `stripe` in requirements.txt gets on any fresh install. Two consequences handled here: `stripe>=16,<17`
+  in requirements.txt, so the SDK moves by decision; and, since the methods Checkout offers now come from the
+  Dashboard rather than the call, the webhook credits a `checkout.session.completed` only with `payment_status`
+  `paid` (a card), acknowledges an `unpaid` one (a bank debit, a voucher - delayed methods) and credits it on the
+  later `checkout.session.async_payment_succeeded` - the endpoint in the Dashboard has to send that event too, or
+  the Dashboard keeps to cards and wallets. The deprecated `stripe.error.` spelling of the signature error is the
+  plain `stripe.SignatureVerificationError` (every 7.x+ SDK). Hosted edition only: the self-hosted one imports no
+  stripe. test_app_path.py 120: the routes on a test app with Stripe faked - the create call's keywords, the
+  minimum, the four webhook cases.
 - **The Answer tab's measure 92ch (2026-10-13, patch 0139).** The report's reading measure was 76ch (2026-09-08),
   which on a wide screen is half the pane; it is 92ch now, the pills container with it. The measure stays a
   measure: a cap on prose width, not a stretch to the pane.

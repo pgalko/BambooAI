@@ -286,14 +286,21 @@ def stripe_webhook():
     except ValueError:
         logging.error("Invalid payload")
         return jsonify({'error': 'Invalid payload'}), 400
-    except stripe.error.SignatureVerificationError:
+    except stripe.SignatureVerificationError:
         logging.error("Invalid signature")
         return jsonify({'error': 'Invalid signature'}), 400
-    
-    # Handle the checkout.session.completed event
-    if event['type'] == 'checkout.session.completed':
+
+    # A completed session is credited once its payment is in. A card pays at once (payment_status 'paid');
+    # a delayed method - a bank debit, a voucher - completes 'unpaid' and reports later as
+    # checkout.session.async_payment_succeeded, or never. The methods offered come from the Dashboard
+    # since payment_method_types left the create call (Stripe API 2026-09-30; PR #63), so the check is here.
+    if event['type'] in ('checkout.session.completed', 'checkout.session.async_payment_succeeded'):
         session = event['data']['object']
-        
+        if session.get('payment_status') != 'paid':
+            logging.info(f"Checkout session {session.get('id')} {event['type']} with payment_status "
+                         f"{session.get('payment_status')}: not credited until it is paid")
+            return jsonify({'received': True}), 200
+
         # Get metadata
         auth0_id = session['metadata']['auth0_id']
         amount = float(session['amount_total'] / 100)  # Convert from cents
