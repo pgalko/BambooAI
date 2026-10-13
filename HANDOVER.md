@@ -36,7 +36,7 @@
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship).
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v53** (patch 0143: the context fetch) - rebuild and roll out.
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (205/120/31/19/17/49/44/51/11/117/1/1 Python; 44/7/30/64/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (205/120/31/19/17/49/44/51/11/117/31/1/1 Python; 44/7/30/64/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (48; hosted only - the loaders need the executor; the
@@ -446,6 +446,28 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context, step 1a: the executor fetches the words and writes the context table; image v53 (2026-10-13, patch
+  0143).** `containers/executor/code_executor_api.py`: with `context` among the load's auxiliary kinds the Intervals
+  job fetches the subject's record once (`GET /athlete/0`: id, time zone, the tick wording, the custom items), the
+  calendar once (`/athlete/0/events`), one activity chat's members (the coaches), and the messages of every activity
+  whose `icu_chat_id` is set (one call each; the probes showed the flag null exactly when nothing was written), and
+  builds one row per passage - `fetch_context_rows`: kinds `activity_message` / `activity_private_note` (type TEXT /
+  NOTE, deleted and system messages dropped, dated in the subject's time zone), `activity_note` (a description that
+  is not only a workout structure), `wellness_note` (the day's comment, off the wellness JSON kept with the frame:
+  `fetch_wellness_data(with_records=True)`), `day_note`, `plan_note` (a planned workout's prose with its name as
+  prefix, the step lines removed - `plan_prose`; joined to its activity through `paired_event_id`), `status` (sick,
+  injured, holiday, races, season start, target; `end_date` inclusive - the API's is exclusive), `tag` (activities
+  and events), `coach_tick` (the value with its wording, the defaults when the record has none), `custom_field`
+  (text and select items of the wellness form and of activities, under `content.code`). HTML stripped
+  (`plain_text`), ids `C.1..C.n` by day, time, kind; columns of docs/CONTEXT_DESIGN.md §3.1 (`text_en`, `lang` empty
+  until the coding pass). Written as `context_notes_<start>_to_<end>.csv` beside the other files in the key's folder;
+  the job's result carries a `context` report (passages by kind, calls, the failed calls as sentences - never fatal
+  to the load; a window without words is a file with no rows). The activity summary gains `description` (plain
+  text), `tags` (joined by |), `coach_tick`, `paired_event_id`, `chat_id`. New route `/file_utils/read_aux_dataset`
+  (a file under datasets/ whole, 8 MB cap) for the map and the coding pass. `EXECUTOR_BUILD` v53 - rebuild and roll
+  out. tests/analyst/test_context.py (31): the pure pieces and the builder over canned API shapes, the failure
+  states, the summary's columns, the file's name, the route. The app side (the kinds, the map in DATA, the dialog's
+  checkbox, the pills) follows as 0144.
 - **Context, the design (2026-10-13, patch 0142; docs/CONTEXT_DESIGN.md v0.1, docs/INTERVALS_CONTEXT_INVENTORY.md).**
   The next phase: the words written beside the data - what the subject wrote under a session, what the coach
   answered, the day's note, the plan's wording, an illness logged - as data with provenance, so an analysis can set

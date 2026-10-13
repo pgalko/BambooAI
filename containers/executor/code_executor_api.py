@@ -39,7 +39,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-11 v52 (each Intervals load marked with its key; its files in the key\'s folder)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-13 v53 (the context: the words written beside the data, a file of the load)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -768,6 +768,26 @@ def aux_page_route():
         page = page_frame(cached[1], int(data.get('offset', 0)), int(data.get('limit', 50)), data.get('order_by') or None, bool(data.get('ascending', True)))
         page['df_id'] = 'aux:' + path
         return jsonify(page)
+    except Exception as exc:                                # noqa: BLE001
+        return jsonify({'error': str(exc)}), 500
+
+@app.route('/file_utils/read_aux_dataset', methods=['POST'])
+def read_aux_dataset_route():
+    """An auxiliary file whole, as text (2026-10-13): the app reads the context file this way - for the map in DATA
+    and for the coding pass - instead of paging it. Only files under datasets/; capped at 8 MB."""
+    data = request.get_json(silent=True) or {}
+    path = str(data.get('file_path') or data.get('path') or '')
+    base = os.path.abspath(os.getcwd())
+    full = os.path.abspath(os.path.join(base, path)) if not os.path.isabs(path) else os.path.abspath(path)
+    if not path or not full.startswith(os.path.join(base, 'datasets')) or not os.path.isfile(full):
+        return jsonify({'error': 'file not found'}), 404
+    try:
+        size = os.path.getsize(full)
+        if size > 8 * 1024 * 1024:
+            return jsonify({'error': f'file too large ({size} bytes)'}), 413
+        with open(full, 'r', encoding='utf-8', errors='replace') as f:
+            text = f.read()
+        return jsonify({'filename': os.path.basename(full), 'path': path, 'size': size, 'text': text})
     except Exception as exc:                                # noqa: BLE001
         return jsonify({'error': str(exc)}), 500
 
@@ -1672,12 +1692,34 @@ def fetch_intervals_background(data, job_id):
                 summary_path = save_aux_dataset(summary_df, 'summary', user_id, start_date, end_date, subdir=mark)
                 aux_filepaths.append(summary_path)
         
-        if 'wellness' in aux_datasets:
+        wellness_records = None
+        if 'wellness' in aux_datasets or 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching wellness data...'
-            wellness_df = fetch_wellness_data(session, base_url, start_date, end_date)
-            if not wellness_df.empty:
+            wellness_df, wellness_records = fetch_wellness_data(session, base_url, start_date, end_date, with_records=True)
+            if 'wellness' in aux_datasets and not wellness_df.empty:
                 wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date, subdir=mark)
                 aux_filepaths.append(wellness_path)
+        
+        # The context (2026-10-13): the words written beside the data, one file of passages. Never fatal to the
+        # load - a call that fails is a sentence in the report, and a window without words is a file with no rows.
+        context_report = None
+        if 'context' in aux_datasets:
+            intervals_jobs[job_id]['message'] = 'Fetching the words written beside the data...'
+            athlete = None
+            try:
+                ar = session.get(f"{base_url}/athlete/0", timeout=30)
+                ar.raise_for_status()
+                athlete = ar.json() if isinstance(ar.json(), dict) else None
+            except Exception as e:                      # noqa: BLE001
+                log_info(f"context: the subject's record could not be fetched ({e})")
+            rows, context_report = fetch_context_rows(session, base_url, activities, wellness_records or [], start_date, end_date,
+                                                      job_id=job_id, athlete=athlete)
+            if athlete is None:
+                context_report['failed'].insert(0, "the subject's record could not be fetched, so authors are not told apart and custom fields are not read")
+            context_path = save_aux_dataset(context_frame(rows), 'context', user_id, start_date, end_date, subdir=mark)
+            aux_filepaths.append(context_path)
+            context_report['path'] = context_path
+            log_info(f"context: {context_report['passages']} passages, {context_report['calls']} calls, {len(context_report['failed'])} failed")
         
         # Mark as completed
         intervals_jobs[job_id]['status'] = 'completed'
@@ -1686,7 +1728,8 @@ def fetch_intervals_background(data, job_id):
             'df_id': df_id,
             'shape': list(detail_df.shape),
             'columns': detail_df.columns.tolist(),
-            'aux_datasets': aux_filepaths
+            'aux_datasets': aux_filepaths,
+            'context': context_report
         }
         
         log_info(f"Intervals.icu data cached successfully: {detail_df.shape}")
@@ -2058,6 +2101,11 @@ def create_activity_summary(activities):
         # Basic info
         'id': 'activity_id',
         'name': 'name',
+        'description': 'description',           # the words beside the numbers (2026-10-13): the join needs nothing but the frames
+        'tags': 'tags',
+        'coach_tick': 'coach_tick',
+        'paired_event_id': 'paired_event_id',
+        'icu_chat_id': 'chat_id',
         'type': 'type',
         'start_date_local': 'start_date_local',
         'start_date': 'start_date_utc',
@@ -2167,6 +2215,10 @@ def create_activity_summary(activities):
                 # Handle special cases
                 if api_field == 'gear' and isinstance(value, dict):
                     value = value.get('name', '')
+                elif api_field == 'tags' and isinstance(value, list):
+                    value = '|'.join(str(t) for t in value) if value else None
+                elif api_field == 'description':
+                    value = plain_text(value) or None
                 elif 'date' in api_field:
                     try:
                         value = pd.to_datetime(value)
@@ -2211,8 +2263,10 @@ def create_activity_summary(activities):
     return df
 
 
-def fetch_wellness_data(session, base_url, start_date, end_date):
-    """Fetch wellness data from Intervals.icu"""
+def fetch_wellness_data(session, base_url, start_date, end_date, with_records=False):
+    """Fetch wellness data from Intervals.icu. With `with_records`, returns (frame, the JSON list as returned) - the
+    context (2026-10-13) reads the day's comment and the custom fields off the records."""
+    records = []
     
     url = f"{base_url}/athlete/0/wellness"
     params = {'oldest': start_date, 'newest': end_date}
@@ -2221,9 +2275,10 @@ def fetch_wellness_data(session, base_url, start_date, end_date):
         response = session.get(url, params=params)
         response.raise_for_status()
         wellness_data = response.json()
+        records = wellness_data if isinstance(wellness_data, list) else []
         
         if not wellness_data:
-            return pd.DataFrame()
+            return (pd.DataFrame(), records) if with_records else pd.DataFrame()
         
         df = pd.DataFrame(wellness_data)
         
@@ -2239,11 +2294,259 @@ def fetch_wellness_data(session, base_url, start_date, end_date):
         if 'date' in df.columns:
             df = df.sort_values('date', ascending=False)
         
-        return df
+        return (df, records) if with_records else df
         
     except Exception as e:
         log_info(f"Error fetching wellness data: {e}")
-        return pd.DataFrame()
+        return (pd.DataFrame(), records) if with_records else pd.DataFrame()
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# The context (2026-10-13, docs/CONTEXT_DESIGN.md §3.1, §4 F1): the words written beside the data, one row per
+# passage - a message under an activity, the activity's own note, the day's wellness comment, a calendar note,
+# a planned workout's prose, an illness or race entry, a tag, a coach's tick, a custom text or select field -
+# dated, with its author and kind, as a file of the load beside the summary and wellness files.
+# ----------------------------------------------------------------------------------------------------------------
+CONTEXT_STATUS_CATEGORIES = ('SICK', 'INJURED', 'HOLIDAY', 'RACE_A', 'RACE_B', 'RACE_C', 'SEASON_START', 'TARGET')
+CONTEXT_KIND_ORDER = ('status', 'day_note', 'plan_note', 'activity_note', 'activity_message', 'activity_private_note',
+                      'wellness_note', 'custom_field', 'coach_tick', 'tag')
+CONTEXT_COLUMNS = ['id', 'kind', 'date', 'time', 'end_date', 'activity_id', 'event_id', 'source_id', 'author_id',
+                   'author_name', 'author_role', 'private', 'lang', 'text', 'text_en', 'chars']
+_HTML_TAG_RE = re.compile(r'<[^>]+>')
+# a planned workout's structured step lines ("-10m 220w", "2x -10s CZSS sprint", "-3h40m CZEE", "10m 60%"): a
+# line that begins with an optional repeat and a duration or distance; the structure is in workout_doc
+_STEP_LINE_RE = re.compile(r'^\s*(?:\d+\s*[x\u00d7]\s*)?-?\s*\d+(?:[.,]\d+)?\s*(?:s|sec|secs|m|min|mins|h|hr|hrs|km|mi|w)(?:\d+\s*(?:m|min|mins|s|sec|secs))?\b', re.I)
+_COACH_TICK_DEFAULT = {1: 'WTF?', 2: 'Not great', 3: 'Seen', 4: 'Good', 5: 'Amazing'}
+
+
+def plain_text(value):
+    """A passage as plain text: HTML stripped (imported race events carry <p><strong>...</strong></p>), entities
+    unescaped, whitespace normalised; '' for None."""
+    import html as _html
+    s = str(value or '')
+    if '<' in s and '>' in s:
+        s = _HTML_TAG_RE.sub(' ', s.replace('</p>', '\n').replace('<br>', '\n').replace('<br/>', '\n').replace('<li>', '\n- '))
+    s = _html.unescape(s)
+    lines = [' '.join(ln.split()) for ln in s.replace('\r', '\n').split('\n')]
+    return '\n'.join(ln for ln in lines if ln).strip()
+
+
+def _is_step_line(line):
+    return bool(_STEP_LINE_RE.match(line))
+
+
+def plan_prose(description):
+    """A planned workout's description without its structured step lines: the prose that remains ('' when the
+    description is steps alone). An activity's own note that is only steps is treated the same."""
+    text = plain_text(description)
+    kept = [ln for ln in text.split('\n') if ln.strip() and not _is_step_line(ln)]
+    return '\n'.join(kept).strip()
+
+
+def _local_day_time(value, tz_name=None):
+    """A date-time string from the API as (local day, HH:MM): a UTC or offset-bearing stamp is moved into the
+    subject's time zone when one is known; a naive stamp is taken as local."""
+    s = str(value or '').strip()
+    if not s:
+        return '', ''
+    try:
+        ts = pd.to_datetime(s)
+        if ts.tzinfo is not None and tz_name:
+            ts = ts.tz_convert(tz_name)
+        return ts.strftime('%Y-%m-%d'), ts.strftime('%H:%M')
+    except Exception:                                   # noqa: BLE001
+        return s[:10], (s[11:16] if len(s) >= 16 and s[10] == 'T' else '')
+
+
+def _inclusive_end(start_local, end_local):
+    """The API's end_date_local is exclusive (a one-day event ends at 00:00 the next day): the last day of the
+    span, or '' for a one-day entry."""
+    try:
+        a = pd.to_datetime(str(start_local)[:10]).normalize()
+        b = pd.to_datetime(str(end_local)).normalize()
+        if b <= a + timedelta(days=1):
+            return ''
+        return (b - timedelta(days=1)).strftime('%Y-%m-%d')
+    except Exception:                                   # noqa: BLE001
+        return ''
+
+
+def _custom_text_fields(custom_items):
+    """The custom fields whose values are words: {code: (name, type)} for INPUT_FIELD (the wellness form) and
+    ACTIVITY_FIELD items of type text or select. Values ride on the records under the item's content.code."""
+    out = {'wellness': {}, 'activity': {}}
+    for it in custom_items or []:
+        c = it.get('content') if isinstance(it.get('content'), dict) else {}
+        code, ftype = c.get('code'), str(c.get('type') or '').lower()
+        if not code or ftype not in ('text', 'select'):
+            continue
+        if it.get('type') == 'INPUT_FIELD':
+            out['wellness'][code] = (it.get('name') or code, ftype)
+        elif it.get('type') == 'ACTIVITY_FIELD':
+            out['activity'][code] = (it.get('name') or code, ftype)
+    return out
+
+
+def fetch_context_rows(session, base_url, activities, wellness_records, start_date, end_date, job_id=None, athlete=None):
+    """The passages of a window (docs/CONTEXT_DESIGN.md §3.1). `activities` is the window's activity list as the API
+    returned it; `wellness_records` the wellness JSON (a list of dicts, one per day); `athlete` the subject's record
+    (GET /athlete/0: id, timezone, coach_ticks, custom_items) or None. Calls made here: the calendar events once, the
+    messages of every activity with a chat (one call each), one chat's members for the roles. Returns (rows, report)
+    where report = {'passages': n, 'kinds': {...}, 'calls': n, 'failed': [...]} and a failed call is a sentence."""
+    rows, failed, calls = [], [], 0
+    athlete = athlete or {}
+    subject_id = str(athlete.get('id') or '')
+    tz_name = athlete.get('timezone') or None
+    ticks = {t.get('id'): t.get('text') for t in (athlete.get('coach_ticks') or []) if isinstance(t, dict) and t.get('id') is not None}
+    custom = _custom_text_fields(athlete.get('custom_items') or [])
+
+    def progress(msg):
+        if job_id and job_id in intervals_jobs:
+            intervals_jobs[job_id]['message'] = msg
+
+    def add(kind, date, text, **extra):
+        text = (plain_text(text) if kind != 'plan_note' else (text or '')).strip()
+        if not text or not date:
+            return
+        row = {k: '' for k in CONTEXT_COLUMNS}
+        row.update({'kind': kind, 'date': date[:10], 'text': text, 'chars': len(text), 'private': False})
+        row.update(extra)
+        rows.append(row)
+
+    def role_of(author_id, coach_ids):
+        a = str(author_id or '')
+        if a and a == subject_id:
+            return 'subject'
+        return 'coach' if a in coach_ids else 'other'
+
+    # --- one chat's members name the coaches (the same coaching group for every activity): fetched first, so the
+    # calendar's authors are told apart too
+    with_chat = [a for a in activities or [] if isinstance(a, dict) and a.get('icu_chat_id') is not None]
+    coach_ids = set()
+    if with_chat:
+        try:
+            calls += 1
+            r = session.get(f"{base_url}/chats/{with_chat[0]['icu_chat_id']}", timeout=30)
+            r.raise_for_status()
+            for m in (r.json() or {}).get('members') or []:
+                if isinstance(m, dict) and (m.get('role') == 'COACH' or m.get('coach')) and m.get('athlete_id'):
+                    coach_ids.add(str(m['athlete_id']))
+        except Exception as e:                              # noqa: BLE001
+            failed.append(f"the chat's members could not be fetched, so no author is marked as a coach ({type(e).__name__})")
+
+    # --- the calendar: notes, the plans' prose, the status entries, the events' tags -----------------------------
+    paired = {}                                             # event id -> activity id (the activity's paired_event_id)
+    for act in activities or []:
+        if isinstance(act, dict) and act.get('paired_event_id') is not None:
+            paired[str(act['paired_event_id'])] = str(act.get('id') or '')
+    progress('Fetching calendar entries...')
+    try:
+        calls += 1
+        r = session.get(f"{base_url}/athlete/0/events", params={'oldest': start_date, 'newest': end_date}, timeout=60)
+        r.raise_for_status()
+        events = r.json() or []
+    except Exception as e:                                  # noqa: BLE001
+        events = []
+        failed.append(f"the calendar entries could not be fetched ({type(e).__name__}: {str(e)[:120]})")
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        cat = str(ev.get('category') or '')
+        day = str(ev.get('start_date_local') or '')[:10]
+        end = _inclusive_end(ev.get('start_date_local'), ev.get('end_date_local')) if ev.get('end_date_local') else ''
+        eid = str(ev.get('id') or '')
+        common = dict(event_id=eid, source_id=eid, author_id=str(ev.get('created_by_id') or ''), author_name='',
+                      author_role=role_of(ev.get('created_by_id'), coach_ids), private=bool(ev.get('hide_from_athlete')), end_date=end)
+        name, desc = plain_text(ev.get('name')), ev.get('description')
+        if cat == 'NOTE':
+            body = plain_text(desc)
+            add('day_note', day, (name + ('\n' + body if body and body != name else '')) if name else body, **common)
+        elif cat == 'WORKOUT':
+            prose = plan_prose(desc)
+            if prose:
+                add('plan_note', day, (name + ': ' + prose) if name else prose, activity_id=paired.get(eid, ''), **common)
+        elif cat in CONTEXT_STATUS_CATEGORIES:
+            body = plain_text(desc)
+            add('status', day, cat + (': ' + name if name else '') + (('\n' + body) if body and body != name else ''), **common)
+        for tag in ev.get('tags') or []:
+            add('tag', day, str(tag), **dict(common, source_id=f"{eid}#{tag}"))
+
+    # --- the activities: their own notes, tags, ticks, custom fields -------------------------------------------
+    for act in activities or []:
+        if not isinstance(act, dict):
+            continue
+        aid = str(act.get('id') or '')
+        day, _t = _local_day_time(act.get('start_date_local'))
+        own = dict(activity_id=aid, author_id=subject_id, author_name='', author_role='subject')
+        note = plan_prose(act.get('description'))           # a note that is only a workout structure is not a note
+        if note:
+            add('activity_note', day, note, source_id=aid, **own)
+        for tag in act.get('tags') or []:
+            add('tag', day, str(tag), source_id=f"{aid}#{tag}", **own)
+        tick = act.get('coach_tick')
+        if tick is not None:
+            try:
+                tv = int(tick)
+                wording = ticks.get(tv) or _COACH_TICK_DEFAULT.get(tv) or ''
+                add('coach_tick', day, f"coach tick {tv} of 5" + (f": {wording}" if wording else ''), source_id=f"{aid}#tick",
+                    activity_id=aid, author_id='', author_name='', author_role='coach')
+            except (TypeError, ValueError):
+                pass
+        for code, (fname, ftype) in custom['activity'].items():
+            val = act.get(code)
+            if val not in (None, '', []):
+                add('custom_field', day, f"{fname}: {val}", source_id=f"{aid}#{code}", **own)
+
+    # --- the wellness entries: the day's comment, custom text and select fields --------------------------------
+    for w in wellness_records or []:
+        if not isinstance(w, dict):
+            continue
+        day = str(w.get('id') or w.get('date') or '')[:10]
+        own = dict(author_id=subject_id, author_name='', author_role='subject')
+        if w.get('comments'):
+            add('wellness_note', day, w.get('comments'), source_id=day, **own)
+        for code, (fname, ftype) in custom['wellness'].items():
+            val = w.get(code)
+            if val not in (None, '', []):
+                add('custom_field', day, f"{fname}: {val}", source_id=f"{day}#{code}", **own)
+
+    # --- the messages under activities with a chat ---------------------------------------------------------------
+    for i, act in enumerate(with_chat, 1):
+        aid = str(act.get('id') or '')
+        progress(f'Fetching messages {i}/{len(with_chat)}...')
+        try:
+            calls += 1
+            r = session.get(f"{base_url}/activity/{aid}/messages", params={'limit': 100}, timeout=30)
+            r.raise_for_status()
+            msgs = r.json() or []
+        except Exception as e:                              # noqa: BLE001
+            failed.append(f"the messages of activity {aid} could not be fetched ({type(e).__name__})")
+            continue
+        for m in msgs:
+            if not isinstance(m, dict) or m.get('deleted') or m.get('type') not in ('TEXT', 'NOTE'):
+                continue
+            day, hhmm = _local_day_time(m.get('created'), tz_name)
+            add('activity_message' if m.get('type') == 'TEXT' else 'activity_private_note', day, m.get('content'),
+                time=hhmm, activity_id=aid, source_id=str(m.get('id') or ''), author_id=str(m.get('athlete_id') or ''),
+                author_name=str(m.get('name') or ''), author_role=role_of(m.get('athlete_id'), coach_ids),
+                private=(m.get('type') == 'NOTE'))
+
+    # --- order and ids: by day, then time, then kind, then source id; C.1 ... C.n stable for the load -----------
+    order = {k: i for i, k in enumerate(CONTEXT_KIND_ORDER)}
+    rows.sort(key=lambda r: (r['date'], r.get('time') or '', order.get(r['kind'], 99), str(r.get('source_id'))))
+    for n, r in enumerate(rows, 1):
+        r['id'] = f"C.{n}"
+    kinds = {}
+    for r in rows:
+        kinds[r['kind']] = kinds.get(r['kind'], 0) + 1
+    return rows, {'passages': len(rows), 'kinds': kinds, 'calls': calls, 'failed': failed,
+                  'activities_with_chat': len(with_chat), 'subject_id': subject_id}
+
+
+def context_frame(rows):
+    """The context table as a DataFrame with the columns of §3.1 in order (empty when there are no rows)."""
+    return pd.DataFrame(rows, columns=CONTEXT_COLUMNS)
+
 
 def save_aux_dataset(df, dataset_type, user_id, start_date, end_date, subdir=''):
     """Save auxiliary dataset to filesystem. With `subdir` - the mark of the key that loaded it (2026-10-11) - the file
@@ -2260,7 +2563,9 @@ def save_aux_dataset(df, dataset_type, user_id, start_date, end_date, subdir='')
     type_mapping = {
         'summary': 'activity_summary',
         'wellness': 'wellness_data',
-        'intervals': 'activity_intervals'
+        'intervals': 'activity_intervals',
+        'context': 'context_notes',             # the passages (2026-10-13, docs/CONTEXT_DESIGN.md)
+        'codes': 'context_codes'                # the model's reading of them, written by the app
     }
     clean_type = type_mapping.get(dataset_type, dataset_type)
     
