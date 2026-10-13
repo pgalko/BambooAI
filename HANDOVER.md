@@ -40,7 +40,7 @@
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
-  docs/DOCUMENTS_DESIGN.md):
+  docs/DOCUMENTS_DESIGN.md, the routines design in docs/ROUTINES_DESIGN.md, the context design in docs/CONTEXT_DESIGN.md):
   `AUTH_MODE=single` with the identity `BAMBOO_USER`; `bambooai/db/local_store.py` (SQLite behind
   Supabase's query shape); the executor container built from the Dockerfile the package ships and
   managed by `bambooai serve` (`--compute local` the fallback);
@@ -446,6 +446,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context, the design (2026-10-13, patch 0142; docs/CONTEXT_DESIGN.md v0.1, docs/INTERVALS_CONTEXT_INVENTORY.md).**
+  The next phase: the words written beside the data - what the subject wrote under a session, what the coach
+  answered, the day's note, the plan's wording, an illness logged - as data with provenance, so an analysis can set
+  numbers against words and say what rests on which. The seed was a mixed-methods conversation Palo brought (three
+  shapes of inquiry, two parameters, the joint display, four traps); the facts are the live Intervals.icu OpenAPI
+  specification (117 endpoints, diffed against a 2025 copy: chats, `GET /athletes` with the coach's `icu_notes`,
+  training availability, the `PLAN` category are new) and two probes of real accounts with a read-only script
+  (`intervals_probe.py`, in the delivery folder): the words are under the activities (two short messages a session
+  between the subject and the coach, Danish, Norwegian, English), descriptions and wellness comments are nearly
+  empty, the scales and plan-versus-done are complete, custom fields and tags are a coach's own vocabulary already
+  in use. Decided with Palo: one long context table of passages and a second table of codes (the model's reading,
+  each with the words it rests on), an enforced English codebook seeded with 36 codes that grows by stored
+  proposals; the model never reads the whole corpus in the analysis - filters and grep are free, codes make reading
+  unnecessary, READ CTX quotes, the one coding pass runs once per load on a cheap seat; everything the model writes
+  is English, a passage in another language rendered once at load and quoted as a rendering; labels not persisted
+  (re-coded per load, cents); the shape of an inquiry chosen by the question, never by the app (checklist C2); the
+  seed's coaching rules kept out of the contract (open decisions D8, D9). Build order of seven steps in §11; step 1
+  (the executor's fetch and the context table) follows as 0143.
 - **Stripe after PR #63: the SDK pinned, the webhook credits a paid session only (2026-10-13, patch 0140).** PR #63
   (brandonphelps1212, a change written by the ApiPolice tool; one deleted line, merged from the command line before
   this patch) took `payment_method_types=['card']` out of the account-credit Checkout create call: Stripe API
