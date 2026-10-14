@@ -36,7 +36,7 @@
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v53** (patch 0143: the context fetch) - rebuild and roll out.
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v54** (patches 0143, 0145: the context fetch, the coaches by the plan) - rebuild and roll out.
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (205/125/31/19/17/49/44/51/11/117/31/1/1 Python; 44/7/30/67/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (205/125/31/19/17/49/44/51/11/117/33/1/1 Python; 44/7/30/67/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (54; hosted only - the loaders need the executor; the
@@ -446,6 +446,17 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context: the coaches told by the plan; minute marks in step lines; image v54 (2026-10-14, patch 0145).** Palo's
+  first live load (a Danish rider's 90 days: 223 passages - 133 messages, 61 plan notes, 9 notes, 8 status entries,
+  7 tags, 4 custom fields, 1 description; the map and the file's DATA entry as designed; the analyst read the file
+  with pandas and grepped it for fatigue words, which is the use the design intends before `CTX` exists) showed
+  every coach as `other`: the activity chat's members carry neither a COACH role nor a coach flag on that account.
+  Now a coach is also whoever created the planned workouts (`WORKOUT` / `PLAN` events) and is not the subject -
+  the plan's author is the coach on every coached account - and the job's report carries `coach_ids` and
+  `chat_roles` (what the chat showed) for the next diagnosis. Step lines with minute and second marks
+  (`5x20' @ 300w`, `30" all out`) are structure too. test_context.py 33. One more thing the run showed, for step 3:
+  the analyst's grep for "fatigue" found one passage in 223 because the subject writes Danish - the English
+  rendering (`text_en`) is what makes the words searchable.
 - **Context, step 1b: the app side - the kinds, the map in DATA, the dialog's option, the fake Intervals.icu and
   the walk (2026-10-13, patch 0144).** `analyst/routines.py` `AUX_KINDS` gains `context_notes_` → `context` and
   `context_codes_` → `codes` (a routine's plan binds them like the summary file; a cached frame's load record lists

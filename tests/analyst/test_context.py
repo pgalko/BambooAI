@@ -34,6 +34,9 @@ check("plan_prose: a planned workout's step lines go, the prose stays (durations
       E.plan_prose("Adjust power to altitude.\n-20m coasting for FC\n-3h40m CZEE\n2x -10s CZSS sprint\n10m 60%\n5 x 3m at 300w") == "Adjust power to altitude.",
       repr(E.plan_prose("Adjust power to altitude.\n-20m coasting for FC\n-3h40m CZEE\n2x -10s CZSS sprint\n10m 60%\n5 x 3m at 300w")))
 check("plan_prose: steps alone are no prose; a sentence with a number in it is prose", E.plan_prose("-5m CZEE -5m CZVT1\n-10m 220w") == "" and E.plan_prose("3 minutes easy then go") == "3 minutes easy then go")
+check("plan_prose: minute and second marks are step lines too (5x20' @ 300w, 30\" all out); a title with a mark after letters is prose",
+      E.plan_prose("Very important session, you will feel fatigued.\n5x20' @ 300w\n- 30\" all out\n3 x 8' @ 95% of FTP") == "Very important session, you will feel fatigued." and E.plan_prose("VT1 5x20': just get through it") == "VT1 5x20': just get through it",
+      repr(E.plan_prose("Very important session, you will feel fatigued.\n5x20' @ 300w\n- 30\" all out\n3 x 8' @ 95% of FTP")))
 check("inclusive end: the API's exclusive end_date_local becomes the last day of a span; a one-day entry has none",
       E._inclusive_end("2026-09-05T00:00:00", "2026-09-08T00:00:00") == "2026-09-07" and E._inclusive_end("2026-06-15T00:00:00", "2026-06-16T00:00:00") == "" and E._inclusive_end("2026-07-04T00:00:00", "2026-07-04T00:00:00") == "")
 check("local day and time: a UTC stamp moves into the subject's time zone (and may change day); a naive stamp is local",
@@ -110,8 +113,9 @@ by = {r["source_id"] + "/" + r["kind"]: r for r in rows}
 kinds = rep["kinds"]
 check("the calls: the chat's members once (first), the calendar once, the messages of each activity with a chat and no other",
       s.calls == ["/chats/7", "/athlete/0/events", "/activity/a1/messages", "/activity/a9/messages"] and rep["calls"] == 4 and rep["activities_with_chat"] == 2, s.calls)
-check("the report: passages counted by kind; the one failed call named in a sentence; the subject's id",
-      rep["passages"] == len(rows) == 16 and rep["failed"] == ["the messages of activity a9 could not be fetched (RuntimeError)"] and rep["subject_id"] == "i1", rep)
+check("the report: passages counted by kind; the one failed call named in a sentence; the subject's id; the coaches (from the chat's members here) and the roles the chat showed",
+      rep["passages"] == len(rows) == 16 and rep["failed"] == ["the messages of activity a9 could not be fetched (RuntimeError)"] and rep["subject_id"] == "i1"
+      and rep["coach_ids"] == ["c9"] and rep["chat_roles"] == {"c9": "COACH", "i1": "MEMBER", "s2": "MEMBER"}, rep)
 check("kinds: status 2 (a race and a sick span; SET_EFTP is not a passage), day_note 2, plan_note 1 (the steps-only workout is none), activity_note 1 (the steps-only description is none), "
       "activity_message 2 (the deleted, the shared and the blank dropped), activity_private_note 1, wellness_note 1, custom_field 2, coach_tick 2, tag 2",
       kinds == {"status": 2, "day_note": 2, "plan_note": 1, "activity_note": 1, "activity_message": 2, "activity_private_note": 1, "wellness_note": 1, "custom_field": 2, "coach_tick": 2, "tag": 2}, kinds)
@@ -143,10 +147,23 @@ check("text_en and lang are empty before the coding pass; chars is the length of
 # the failure states of F1
 s2 = FakeSession(fail={"/athlete/0/events", "/chats/7"})
 rows2, rep2 = E.fetch_context_rows(s2, "http://icu/api/v1", ACTS, WELL, "2026-06-15", "2026-10-13", athlete=ATH)
-check("the calendar refused: the other passages are still built, the failure is a sentence; the chat's members refused: nobody is marked coach, said so",
+check("the calendar refused: the other passages are still built, the failure is a sentence; the chat's members refused too: nobody can be marked coach, said so",
       rep2["passages"] == len(rows2) and not any(r["kind"] in ("day_note", "plan_note", "status") for r in rows2) and len(rep2["failed"]) == 3
       and rep2["failed"][0].startswith("the chat's members could not be fetched") and rep2["failed"][1].startswith("the calendar entries could not be fetched")
-      and all(r["author_role"] != "coach" for r in rows2 if r["kind"] == "activity_message"), rep2)
+      and all(r["author_role"] != "coach" for r in rows2 if r["kind"] == "activity_message") and rep2["coach_ids"] == [], rep2)
+# the live load of 2026-10-14: the chat's members carried no COACH role and no coach flag, and every coach was 'other' -
+# whoever writes the planned workouts is a coach
+class _NoRoleSession(FakeSession):
+    def get(self, url, params=None, timeout=None):
+        r = super().get(url, params=params, timeout=timeout)
+        if self.calls[-1] == "/chats/7":
+            return _R({"id": 7, "type": "ACTIVITY", "members": [{"athlete_id": "c9", "name": "Coach", "role": "MEMBER"}, {"athlete_id": "i1", "role": "MEMBER"}, {"athlete_id": "s2", "role": "MEMBER"}]})
+        return r
+rows5, rep5 = E.fetch_context_rows(_NoRoleSession(), "http://icu/api/v1", ACTS, WELL, "2026-06-15", "2026-10-13", athlete=ATH)
+by5 = {r["source_id"] + "/" + r["kind"]: r for r in rows5}
+check("the chat's members all MEMBER: the author of the planned workouts (not the subject) is the coach - on the messages, the plan and the hidden note alike; the report says which roles the chat showed",
+      rep5["coach_ids"] == ["c9"] and by5["2/activity_private_note"]["author_role"] == "coach" and by5["11/plan_note"]["author_role"] == "coach" and by5["15/day_note"]["author_role"] == "coach"
+      and by5["4/activity_message"]["author_role"] == "other" and rep5["chat_roles"] == {"c9": "MEMBER", "i1": "MEMBER", "s2": "MEMBER"}, (rep5, by5.get("2/activity_private_note")))
 rows3, rep3 = E.fetch_context_rows(FakeSession(), "http://icu/api/v1", [], [], "2026-06-15", "2026-10-13", athlete=None)
 check("no activities, no wellness, no record: no messages asked, the calendar still read; authors not told apart (no subject id)",
       rep3["calls"] == 1 and all(r["author_role"] in ("other", "coach") for r in rows3) and rep3["subject_id"] == "", rep3)
@@ -165,7 +182,7 @@ check("the file: context_notes_<start>_to_<end>.csv in the key's folder, readabl
       p == os.path.join("datasets", "u1", "abc123", "context_notes_20260615_to_20261013.csv") and os.path.exists(p) and list(pd.read_csv(p).columns) == E.CONTEXT_COLUMNS and len(pd.read_csv(p)) == 16, p)
 p2 = E.save_aux_dataset(pd.DataFrame(columns=["id", "code"]), "codes", "u1", "2026-06-15", "2026-10-13", subdir="abc123")
 check("the codes file's name beside it", p2.endswith(os.path.join("abc123", "context_codes_20260615_to_20261013.csv")), p2)
-check("the executor's build stamp is v53", "v53" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
+check("the executor's build stamp is v54", "v54" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
 c = E.app.test_client()
 rr = c.post("/file_utils/read_aux_dataset", json={"file_path": p})
 check("the executor reads an auxiliary file whole (for the map and the coding pass): the text, its name and size; a path outside datasets/ is refused",

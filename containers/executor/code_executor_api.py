@@ -39,7 +39,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-13 v53 (the context: the words written beside the data, a file of the load)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-14 v54 (the context: the coaches told by the plan; minute marks in step lines)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -2315,7 +2315,7 @@ CONTEXT_COLUMNS = ['id', 'kind', 'date', 'time', 'end_date', 'activity_id', 'eve
 _HTML_TAG_RE = re.compile(r'<[^>]+>')
 # a planned workout's structured step lines ("-10m 220w", "2x -10s CZSS sprint", "-3h40m CZEE", "10m 60%"): a
 # line that begins with an optional repeat and a duration or distance; the structure is in workout_doc
-_STEP_LINE_RE = re.compile(r'^\s*(?:\d+\s*[x\u00d7]\s*)?-?\s*\d+(?:[.,]\d+)?\s*(?:s|sec|secs|m|min|mins|h|hr|hrs|km|mi|w)(?:\d+\s*(?:m|min|mins|s|sec|secs))?\b', re.I)
+_STEP_LINE_RE = re.compile(r'^\s*(?:\d+\s*[x\u00d7]\s*)?-?\s*\d+(?:[.,]\d+)?\s*(?:(?:s|sec|secs|m|min|mins|h|hr|hrs|km|mi|w)(?:\d+\s*(?:m|min|mins|s|sec|secs|\'|"))?\b|[\'"])', re.I)
 _COACH_TICK_DEFAULT = {1: 'WTF?', 2: 'Not great', 3: 'Seen', 4: 'Good', 5: 'Amazing'}
 
 
@@ -2419,20 +2419,24 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
             return 'subject'
         return 'coach' if a in coach_ids else 'other'
 
-    # --- one chat's members name the coaches (the same coaching group for every activity): fetched first, so the
-    # calendar's authors are told apart too
+    # --- who is a coach: one chat's members by role or flag (the same coaching group for every activity), fetched
+    # first so the calendar's authors are told apart too - and, since a live load (2026-10-14) marked every coach
+    # 'other', whoever created the planned workouts on the calendar and is not the subject
     with_chat = [a for a in activities or [] if isinstance(a, dict) and a.get('icu_chat_id') is not None]
-    coach_ids = set()
+    coach_ids, roles_seen = set(), {}
     if with_chat:
         try:
             calls += 1
             r = session.get(f"{base_url}/chats/{with_chat[0]['icu_chat_id']}", timeout=30)
             r.raise_for_status()
             for m in (r.json() or {}).get('members') or []:
-                if isinstance(m, dict) and (m.get('role') == 'COACH' or m.get('coach')) and m.get('athlete_id'):
+                if not isinstance(m, dict):
+                    continue
+                roles_seen[str(m.get('athlete_id') or '')] = f"{m.get('role')}{'/coach' if m.get('coach') else ''}"
+                if (m.get('role') == 'COACH' or m.get('coach')) and m.get('athlete_id'):
                     coach_ids.add(str(m['athlete_id']))
         except Exception as e:                              # noqa: BLE001
-            failed.append(f"the chat's members could not be fetched, so no author is marked as a coach ({type(e).__name__})")
+            failed.append(f"the chat's members could not be fetched ({type(e).__name__}); the coaches are told by the plan's authors alone")
 
     # --- the calendar: notes, the plans' prose, the status entries, the events' tags -----------------------------
     paired = {}                                             # event id -> activity id (the activity's paired_event_id)
@@ -2448,6 +2452,9 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
     except Exception as e:                                  # noqa: BLE001
         events = []
         failed.append(f"the calendar entries could not be fetched ({type(e).__name__}: {str(e)[:120]})")
+    for ev in events:                                       # the plan's authors are coaches (the subject's own workouts aside)
+        if isinstance(ev, dict) and str(ev.get('category') or '') in ('WORKOUT', 'PLAN') and ev.get('created_by_id') and str(ev['created_by_id']) != subject_id:
+            coach_ids.add(str(ev['created_by_id']))
     for ev in events:
         if not isinstance(ev, dict):
             continue
@@ -2540,7 +2547,7 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
     for r in rows:
         kinds[r['kind']] = kinds.get(r['kind'], 0) + 1
     return rows, {'passages': len(rows), 'kinds': kinds, 'calls': calls, 'failed': failed,
-                  'activities_with_chat': len(with_chat), 'subject_id': subject_id}
+                  'activities_with_chat': len(with_chat), 'subject_id': subject_id, 'coach_ids': sorted(coach_ids), 'chat_roles': roles_seen}
 
 
 def context_frame(rows):
