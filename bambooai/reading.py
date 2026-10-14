@@ -26,15 +26,16 @@ READ_TOKENS = 6000             # the text one Reader call reads; a stretch longe
 CHARS_PER_TOKEN = 4
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
-_PASSAGE_RE = re.compile(r"^\s*[-*]?\s*\[(D\d+\.\d+)\]\s*(?:\([^)]*\)\s*)?[\"“]?(.*?)[\"”]?\s*$")
+_PASSAGE_RE = re.compile(r"^\s*[-*]?\s*\[(D\d+\.\d+|C\.\d+)\]\s*(?:\((?:[^()]|\([^()]*\))*\)\s*)?[\"“]?(.*?)[\"”]?\s*$")     # a document unit or a passage of the context; a place echoed back may nest one pair of brackets - "(… (rendered from da))"
 _UNIT_ID_RE = re.compile(r"\[(D\d+\.\d+)\]")
 
 READER_SYSTEM = (
-    "You are the Reader. You are given a question and numbered passages from documents a person "
-    "attached to an analysis. Your job is to return the parts that answer the question, quoted exactly as "
+    "You are the Reader. You are given a question and numbered passages - from documents a person "
+    "attached to an analysis, or the dated notes and messages written beside the data (ids like [C.417]). Your job is to return the parts that answer the question, quoted exactly as "
     "written - not paraphrased, not shortened inside, not corrected, spelling and spacing as they are - "
     "each on its own line in this form, with the passage's own id:\n"
     "- [D1.17] \"an exact contiguous excerpt of the passage\"\n"
+    "(a note's id in the same way: - [C.417] \"...\")\n"
     "Quote the sentence or two that answers, about sixty words at most; the whole passage only when it is "
     "that short. An excerpt must be a contiguous run of the passage's words. Give at most ten lines, the "
     "most relevant first, one or two per passage. After them write SUMMARY: and one or two plain sentences "
@@ -88,11 +89,12 @@ def unit_text(u: dict) -> str:
 
 def substantive(u: dict) -> bool:
     """A unit worth reading: not a heading (its paragraph carries the claims), and at least a few words that
-    are not numbers - page numbers, running heads and arXiv stamps are units too, but never answers."""
+    are not numbers - page numbers, running heads and arXiv stamps are units too, but never answers. A passage
+    of the context (doc CTX) counts with a single word: a one-word answer under a session is an answer."""
     if u.get("kind") == "heading":
         return False
     words = [w for w in tokens(unit_text(u)) if not w.isdigit()]
-    return len(words) >= MIN_CANDIDATE_WORDS
+    return len(words) >= (1 if u.get("doc") == "CTX" else MIN_CANDIDATE_WORDS)
 
 
 def select(units: List[dict], query: str, top_k: int = TOP_K) -> List[dict]:
@@ -120,7 +122,10 @@ def select(units: List[dict], query: str, top_k: int = TOP_K) -> List[dict]:
 # ----------------------------------------------------------------------------- the Reader's turn
 
 def where(u: dict) -> str:
-    """Where a unit is, for people: 'paper.pdf p.4' or 'meeting.md §Agenda > Q3 pipeline'."""
+    """Where a unit is, for people: 'paper.pdf p.4' or 'meeting.md §Agenda > Q3 pipeline'; for a passage of the
+    context, its day, kind and author ('2026-08-14 · activity_message · subject')."""
+    if u.get("doc") == "CTX":
+        return str(u.get("section") or "")
     place = f"p.{u['page']}" if u.get("page") else (f"§{u['section']}" if u.get("section") else "")
     return (f"{u.get('file', '')} {place}").strip()
 
@@ -229,8 +234,13 @@ def digest_footer(kept: List[Tuple[str, str]], scope: str) -> str:
         uid = kept[0][0]
         doc, n = uid.split(".")
         n = int(n)
+        if doc == "C":
+            return (f"(For the passages around one: READ C.{max(1, n - 5)}-{n + 5} <what you want>; in a cell: "
+                    f"print(CTX.around('<date>', days=3)), print(CTX.grep('...')), print(CTX.text('{uid}')).)")
         return (f"(For a stretch whole: READ {doc}.{max(1, n - 2)}-{n + 2} <what you want>; to find where something is: "
                 f"print({doc}.grep('...', context=1)) in a cell.)")
+    if scope == "CTX":
+        return "(In a cell: print(CTX.grep('...')), print(CTX.around('<date>', days=3)); for a stretch whole: READ C.120-160 <what you want>.)"
     if scope != "ALL" and parse_stretch(scope) is None:
         return f"(To find where something is: print({scope}.grep('...', context=1)) in a cell; for a stretch whole: READ {scope}.35-41 <what you want>.)"
     return ""
@@ -253,7 +263,7 @@ def parse_digest(digest: str) -> List[dict]:
     """The passages back out of a digest, for the pane's row and the chips: [{id, where, quote}]."""
     out = []
     for line in (digest or "").splitlines():
-        m = re.match(r"^- \[(D\d+\.\d+)\] \((.*?)\) \"(.*)\"\s*$", line)
+        m = re.match(r"^- \[(D\d+\.\d+|C\.\d+)\] \((.*?)\) \"(.*)\"\s*$", line)
         if m:
             out.append({"id": m.group(1), "where": m.group(2), "quote": m.group(3)})
     return out
@@ -365,3 +375,65 @@ def read(tdir: str, arg: str, call_reader: Callable[[str, str], str], top_k: int
     digest = compose_digest(kept, dropped, summary, nothing, units_by_id, cut_off, scope_note=scope_note,
                             footer=digest_footer(kept, scope))
     return digest, parse_digest(digest)
+
+
+def read_context(notes, arg: str, call_reader: Callable[[str, str], str], top_k: int = TOP_K,
+                 read_tokens: int = READ_TOKENS) -> Tuple[str, List[dict]]:
+    """One READ over the words written beside the data (docs/CONTEXT_DESIGN.md §5): `notes` is the context table
+    as a frame; `arg` the analyst's 'CTX <what>', 'CTX <from>..<to> <what>' or 'C.120-160 <what>'. The same Reader
+    call, selection, verification and digest as a document read; the passages' English renderings are what is
+    quoted. Returns (digest, passages)."""
+    from analyst import context as ctx
+    scope = ctx.parse_context_scope(arg)
+    if scope is None:
+        return "(READ CTX needs what you are looking for: READ CTX <question>, READ CTX 2026-08-01..2026-08-31 <question>, or READ C.120-160 <question>)", []
+    units = ctx.passage_units(notes) if notes is not None else []
+    if not units:
+        return "(no passages: nothing was written beside the data loaded, or no context was loaded with it)", []
+    units_by_id = {u["id"]: u for u in units}
+    query = scope.get("query") or ""
+    scope_note, stretch_units_ = "", None
+    if "ids" in scope:
+        a, b = scope["ids"]
+        stretch_units_ = [u for u in units if a <= int(u["id"].split(".")[1]) <= b]
+        label = f"C.{a}-{b}" if a != b else f"C.{a}"
+    elif "range" in scope:
+        a, b = scope["range"]
+        stretch_units_ = [u for u in units if a <= u.get("date", "") <= b]
+        label = f"CTX {a}..{b}"
+    else:
+        label = "CTX"
+    if stretch_units_ is not None and not stretch_units_:
+        return f"(nothing in {label}: the context holds {len(units)} passages, {units[0]['id']} to {units[-1]['id']}, {units[0].get('date', '')} to {units[-1].get('date', '')})", []
+    if not query and stretch_units_ is None:
+        return "(READ CTX needs what you are looking for: READ CTX <question>, READ CTX 2026-08-01..2026-08-31 <question>, or READ C.120-160 <question>)", []
+    if stretch_units_ is not None and not query:
+        # read whole, up to one call's worth, oldest first
+        budget, kept_units = read_tokens * CHARS_PER_TOKEN, []
+        for u in stretch_units_:
+            budget -= len(unit_text(u))
+            if budget < 0 and kept_units:
+                break
+            kept_units.append(u)
+        if len(kept_units) < len(stretch_units_):
+            nxt = stretch_units_[len(kept_units)]["id"]
+            scope_note = f"the stretch is longer than one READ reads: from {nxt} on not reached; READ it next"
+        question = "What do these passages say? Quote the parts that carry what was felt, done, asked or decided."
+        candidates, label = kept_units, f"{label} ({len(kept_units)} passages, read whole)"
+    else:
+        pool = stretch_units_ if stretch_units_ is not None else units
+        question = query
+        candidates = select(pool, query, top_k=top_k)
+        label = f"{label} ({len(pool)} passages)"
+    system, user = reader_messages(question, candidates, label)
+    reply = call_reader(system, user) or ""
+    passages, summary, nothing, cut_off = parse_reader(reply)
+    kept, dropped = verify(passages, units_by_id)
+    digest = compose_digest(kept, dropped, summary, nothing, units_by_id, cut_off, scope_note=scope_note,
+                            footer=digest_footer(kept, "CTX"))
+    out = parse_digest(digest)
+    for p in out:                                     # the original beside a rendered quote, for the chip's hover (S2)
+        u = units_by_id.get(p["id"]) or {}
+        if u.get("original") and u.get("original") != u.get("text"):
+            p["original"] = u["original"]
+    return digest, out

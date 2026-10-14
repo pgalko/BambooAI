@@ -16,7 +16,7 @@ from typing import Iterable, List, Set
 # a citation of one or several cells: [cell 7], [cells 6, 7, 9], [cell 5, cell 6], [cells 6-9] (2026-10-05: reports cite
 # several at once, and the replay read only the single form)
 CELL_REF_RE = re.compile(r"\[cells?\s+(\d+(?:\s*(?:,|;|and|&|-|\u2013)\s*(?:cells?\s*)?\d+)*)\]", re.I)
-UNIT_REF_RE = re.compile(r"\[(D\d+\.\d+)\]")                 # a document passage, [D1.17] (docs/DOCUMENTS_DESIGN.md D45)
+UNIT_REF_RE = re.compile(r"\[(D\d+\.\d+|C\.\d+)\]")         # a document passage, [D1.17] (docs/DOCUMENTS_DESIGN.md D45), or a passage of the context, [C.417] (CONTEXT_DESIGN S2)
 FIG_REF_RE = re.compile(r"\[figs?\s+(\d+(?:\s*(?:,|;|and|&|-|\u2013)\s*(?:figs?\s*)?\d+)*)\]", re.I)
 
 
@@ -39,7 +39,7 @@ def cited_cells(text: str) -> List[int]:
 
 
 def cited_units(text: str) -> List[str]:
-    """Document passages the report cites, as [D1.17], in order of first appearance."""
+    """Document passages the report cites, as [D1.17], and passages of the context, as [C.417], in order of first appearance."""
     seen, out = set(), []
     for m in UNIT_REF_RE.finditer(text or ""):
         if m.group(1) not in seen:
@@ -48,12 +48,15 @@ def cited_units(text: str) -> List[str]:
 
 
 def guard_units(missing: Iterable[str]) -> str:
-    """Cited passages that are not in the thread's documents, disclosed as the number check discloses."""
+    """Cited passages that are not in the thread's documents or in the context loaded, disclosed as the number check
+    discloses; the sentence names the store the missing ids belong to by their prefix."""
     missing = list(missing)
     if not missing:
         return ""
     shown = ", ".join(f"[{u}]" for u in missing[:8]) + (" ..." if len(missing) > 8 else "")
-    return (f"CHECK: {len(missing)} cited passage(s) {'are' if len(missing) != 1 else 'is'} not in this thread's documents: {shown}. "
+    stores = {"the context loaded" if u.startswith("C.") else "this thread's documents" for u in missing}
+    where = " or ".join(sorted(stores, reverse=True))      # "this thread's documents or the context loaded"
+    return (f"CHECK: {len(missing)} cited passage(s) {'are' if len(missing) != 1 else 'is'} not in {where}: {shown}. "
             f"A passage is evidence only when a READ returned it or a cell read it; treat these citations as unverified.")
 
 

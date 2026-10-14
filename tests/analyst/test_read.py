@@ -216,6 +216,89 @@ chatter = parse_turn("###NOTE###\nn\n###ACTION###\nREAD D1 altitude correction h
 check("parse_turn: a READ query is its one line - forty lines of chatter after it are not the question (2026-10-03)", chatter.arg == "D1 altitude correction headline", chatter)
 check("contract: the three marker lines are literal and the template shows each once", "The three marker lines are\nliteral" in open(os.path.join(ROOT, "analyst", "contract.md")).read() and open(os.path.join(ROOT, "analyst", "contract.md")).read().count("###STEP###") == 1)
 
+# ---- READ over the context (docs/CONTEXT_DESIGN.md step 2): the scope forms, the same pipeline over passages, the session ----
+import pandas as pd
+from analyst import context as C
+pcs = C.parse_context_scope
+check("parse_context_scope: 'CTX what' reads the whole context; a day range with .., to, -> or -; an id or a stretch of ids; a documents' scope is None",
+      pcs("CTX the heavy legs") == {"all": True, "query": "the heavy legs"} and pcs("ctx: tired") == {"all": True, "query": "tired"}
+      and pcs("CTX 2026-08-01..2026-08-31 what was said") == {"range": ("2026-08-01", "2026-08-31"), "query": "what was said"}
+      and pcs("CTX 2026-08-01 to 2026-08-31") == {"range": ("2026-08-01", "2026-08-31"), "query": ""} and pcs("CTX 2026-08-01 -> 2026-08-31 x")["range"] == ("2026-08-01", "2026-08-31")
+      and pcs("C.120-160 the climbs") == {"ids": (120, 160), "query": "the climbs"} and pcs("C.7") == {"ids": (7, 7), "query": ""} and pcs("C.9-3 x")["ids"] == (3, 9)
+      and pcs("D2 soils") is None and pcs("ALL regimes") is None and pcs("") is None, (pcs("CTX the heavy legs"), pcs("C.9-3 x")))
+rows = [dict(zip(C.CONTEXT_COLUMNS, r)) for r in [
+    ("C.1", "day_note", "2026-08-02", "07:10", "", "", "", "n1", "i0", "", "subject", "", "", "slept badly, legs flat all day", "", "30"),
+    ("C.2", "activity_message", "2026-08-03", "18:05", "", "a1", "", "m1", "i0", "", "subject", "", "da", "Benene var tunge fra den f\u00f8rste stigning", "Legs were heavy from the first climb", "40"),
+    ("C.3", "activity_message", "2026-08-03", "19:20", "", "a1", "", "m2", "c1", "Kim", "coach", "", "", "Keep the next two days easy and we look again on Thursday", "", "50"),
+    ("C.4", "tag", "2026-08-05", "", "", "a2", "", "t1", "i0", "", "subject", "", "", "sick", "", "4"),
+    ("C.5", "plan_note", "2026-08-20", "", "2026-08-21", "", "e1", "e1", "c1", "Kim", "coach", "", "", "Long climbs at a steady effort; stop if the legs go flat", "", "55"),
+    ("C.6", "status", "2026-09-01", "", "", "", "e2", "e2", "i0", "", "subject", "", "", "Race day: 120 km with 2,400 m of climbing", "", "40")]]
+notes = pd.DataFrame(rows, columns=C.CONTEXT_COLUMNS)
+cu = C.passage_units(notes)
+check("passage_units: one unit per passage, doc CTX, the rendering as its text where there is one, the original kept, where = day \u00b7 kind \u00b7 author (the name for a coach; 'rendered from' when the text is a rendering)",
+      len(cu) == 6 and cu[1]["text"] == "Legs were heavy from the first climb" and cu[1]["original"].startswith("Benene") and cu[1]["section"] == "2026-08-03 \u00b7 activity_message \u00b7 subject (rendered from da)"
+      and cu[2]["section"] == "2026-08-03 \u00b7 activity_message \u00b7 coach Kim" and cu[0]["doc"] == "CTX" and cu[0]["date"] == "2026-08-02" and R.where(cu[2]) == cu[2]["section"], cu[1])
+check("the candidates' bar: a one-word passage of the context (a tag) is a candidate, a one-word document unit is not", R.substantive(cu[3]) and not R.substantive({"id": "D1.9", "doc": "D1", "kind": "paragraph", "text": "sick"}))
+ctx_calls = []
+def reader_ctx(system, user):
+    ctx_calls.append((system, user))
+    return ('- [C.2] "Legs were heavy from the first climb"\n- [C.3] "Keep the next two days easy"\n- [C.1] "legs flat all day"\n- [C.9] "nothing"\n- [C.2] "legs were light"\n'
+            "SUMMARY: Heavy legs on the climb, the coach asked for two easy days [C.2][C.3].")
+dg, ps = R.read_context(notes, "CTX the legs on the climbs", reader_ctx)
+check("read_context: the Reader is told the ids look like [C.417] and reads the candidates with their day, kind and author; the scope line names the context",
+      "[C.417]" in ctx_calls[0][0] and "SCOPE: CTX (6 passages)" in ctx_calls[0][1] and "[C.2] (2026-08-03 \u00b7 activity_message \u00b7 subject (rendered from da)) Legs were heavy" in ctx_calls[0][1], ctx_calls[0][1][:400])
+check("read_context: the verbatim guard keeps the exact quotes, drops the one not in the passage and the id that does not exist; the digest carries the originals' marker in the places",
+      [p["id"] for p in ps] == ["C.2", "C.3", "C.1"] and ps[0]["quote"] == "Legs were heavy from the first climb" and "(rendered from da)" in ps[0]["where"]
+      and 'C.9' not in [p["id"] for p in ps] and "legs were light" not in dg and "(2 passages the reader quoted were not verbatim and were dropped)" in dg, dg)
+check("read_context: a rendered quote carries its original for the chip's hover; an English passage carries none",
+      ps[0].get("original", "").startswith("Benene") and "original" not in ps[1], ps)
+check("read_context: the footer points at READ of the stretch around the hit and at CTX in a cell", "READ C." in dg and "CTX.around(" in dg and "CTX.grep(" in dg, dg[-400:])
+dg2, ps2 = R.read_context(notes, "C.4-6", reader_ctx)
+check("read_context: a stretch of ids with no question is read whole, oldest first, under a standing question", "SCOPE: C.4-6 (3 passages, read whole)" in ctx_calls[-1][1] and "What do these passages say?" in ctx_calls[-1][1], ctx_calls[-1][1][:300])
+dg3, _ = R.read_context(notes, "CTX 2026-08-01..2026-08-05 the legs", reader_ctx)
+check("read_context: a day range narrows the candidates to those days", "SCOPE: CTX 2026-08-01..2026-08-05 (4 passages)" in ctx_calls[-1][1] and "[C.5]" not in ctx_calls[-1][1] and "[C.6]" not in ctx_calls[-1][1], ctx_calls[-1][1][:300])
+check("read_context: an empty day range, an empty stretch, a missing question and no context are each said without a reader call",
+      R.read_context(notes, "CTX 2027-01-01..2027-01-31 x", reader_ctx)[0].startswith("(nothing in CTX 2027-01-01..2027-01-31: the context holds 6 passages, C.1 to C.6, 2026-08-02 to 2026-09-01)")
+      and R.read_context(notes, "C.40-50", reader_ctx)[0].startswith("(nothing in C.40-50:") and R.read_context(notes, "CTX", reader_ctx)[0].startswith("(READ CTX needs what you are looking for")
+      and R.read_context(None, "CTX x", reader_ctx)[0].startswith("(no passages:") and R.read_context(notes.iloc[0:0], "CTX x", reader_ctx)[0].startswith("(no passages:"), R.read_context(notes, "CTX 2027-01-01..2027-01-31 x", reader_ctx)[0])
+check("parse_digest reads a context digest as it reads a documents' one", [p["id"] for p in R.parse_digest(dg)] == ["C.2", "C.3", "C.1"])
+check("parse_reader: a place echoed back with the rendering's nested brackets does not swallow the quote",
+      R.parse_reader('- [C.2] (2026-08-03 · activity_message · subject (rendered from da)) "Legs were heavy"\n- [C.4] "sick"\nSUMMARY: x')[0] == [("C.2", "Legs were heavy"), ("C.4", "sick")])
+# the session with context: READ CTX goes to the host's read like any READ; the report guard resolves [C.n] through unit_text
+script_c = [act("READ CTX the legs on the climbs"), act("REPORT\n## Answer\nThe legs were heavy on the climb [C.2]; the coach asked for easy days [C.3]; [C.9] says nothing. The race had 120 km [C.6].")]
+ic = {"n": 0}; prompts_c = []
+def llm_c(system, user, **hints):
+    prompts_c.append((system, user))
+    if user.startswith("Rewrite the technical report"): return "Plain.", {"cost": 0.0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0.0}
+    k = min(ic["n"], len(script_c) - 1); ic["n"] += 1
+    return script_c[k], {"cost": 0.001}
+def host_read_c(arg):
+    return R.read_context(notes, arg, reader_ctx)[0] if C.parse_context_scope(arg) is not None else R.read(tdir, arg, reader)[0]
+def host_unit_text_c(uid):
+    if re.match(r"^C\.\d+$", uid):
+        hit = notes[notes["id"] == uid]
+        return C.passage_text(hit.iloc[0].to_dict()) if len(hit) else None
+    return host_unit_text(uid)
+events_c = []
+sc_ = Session(PersistentKernel(), Notebook("t-ctx"), llm_c, store=store, emit=events_c.append, data_description="(data with context)", read=host_read_c, unit_text=host_unit_text_c, context=True)
+run_c = sc_.run("How were the legs?", budget=Budget(turns=6, dollars=1.0))
+check("session with context: the contract carries the Context section and the READ CTX row, not the documents' section; the read turn holds the context digest",
+      "## Context" in sc_.system and "`READ CTX <what>`" in sc_.system and "## Documents" not in sc_.system and run_c.turns[0].kind == "read" and run_c.turns[0].stdout.startswith("PASSAGES") and "[C.2]" in run_c.turns[0].stdout, sc_.system[-900:])
+check("the context's passages ride in the prompts after the read, cited as [C.417] or [D1.17]", any("[C.2]" in u and "cite one as [D1.17] or [C.417]" in u for _, u in prompts_c), [u[-300:] for _, u in prompts_c][-1])
+check("report guard: [C.2], [C.3] and [C.6] resolve to passages (120 verified by the passage it cites), [C.9] is disclosed as not in the context loaded",
+      "not in the context loaded: [C.9]" in run_c.report and "120" not in (run_c.report.split("CHECK:")[1] if "CHECK:" in run_c.report else "") and run_c.report.count("CHECK:") == 1, run_c.report[-500:])
+from analyst.render import notebook_html as _nbh
+_hc, _hd = _nbh(run_c), _nbh(run)
+check("the Investigation tab renders a READ as a step - 'Read the context' or 'Read a document' with the query as its peek, the digest in the fold, and the ids it quoted as data-units so a chip in the answer can land on it "
+      "(2026-10-14: READ turns had not been rendered in this view)",
+      '<details class="nb-step nb-read" data-units="C.2 C.3 C.1">' in _hc and "Read the context" in _hc and "CTX the legs on the climbs" in _hc and "Keep the next two days easy" in _hc
+      and 'class="nb-step nb-read" data-units="D2.3' in _hd and "Read a document" in _hd and _hd.count('class="nb-step nb-read"') == 4, (_hc[:600], _hd.count('nb-read')))
+from analyst.session import contract as _contract2
+both = _contract2(True, context=True)
+check("contract with both: Documents then Context, the READ row for each; the base contract has neither",
+      both.index("## Documents") < both.index("## Context") and "`READ CTX <what>`" in both and "`READ D1 <what>`" in both and "## Context" not in _contract2(False) and "READ CTX" not in _contract2(False) and "READ CTX" not in _contract2(True))
+
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

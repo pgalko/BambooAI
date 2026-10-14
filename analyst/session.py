@@ -33,6 +33,8 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _CONTRACT_TEMPLATE = open(os.path.join(_HERE, "contract.md"), encoding="utf-8").read()
 # the documents' section and the READ row of the actions table ride only when the thread has documents
 CONTRACT_DOCUMENTS = open(os.path.join(_HERE, "contract_documents.md"), encoding="utf-8").read()
+# the Context section rides only when the load carries the words written beside the data (docs/CONTEXT_DESIGN.md §5)
+CONTRACT_CONTEXT = open(os.path.join(_HERE, "contract_context.md"), encoding="utf-8").read()
 # the Reviews section rides only when a reviewer runs during the run (Adaptive), naming the cadence; the reviewer has its
 # own prompt and never sees the analyst's (2026-10-05)
 CONTRACT_REVIEWS = open(os.path.join(_HERE, "contract_reviews.md"), encoding="utf-8").read()
@@ -43,17 +45,22 @@ REVIEW_EVIDENCE_CHARS = 20_000   # the cells handed to one review, code and outp
 REVIEW_OPEN_CHARS = 6_000        # a cell's output as the reviewer sees it, whole up to this
 READ_ROW = ("| `READ D1 <what>` | Quote the passages of document 1 that answer. `READ ALL <what>`: every document. "
             "`READ D1.35-41 <what>` or `READ D1 p.7-9 <what>`: that stretch. |\n")
+READ_ROW_CONTEXT = ("| `READ CTX <what>` | Quote the passages written beside the data that answer. "
+                    "`READ CTX 2026-08-01..2026-08-31 <what>`: those days. `READ C.120-160 <what>`: that stretch. |\n")
 
 
 def _ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
-def contract(documents: bool = False, review_every: int = 0) -> str:
+def contract(documents: bool = False, review_every: int = 0, context: bool = False) -> str:
     """The contract as the model reads it: one page, each rule once; with documents, the Documents section before
-    Format and the READ row in the actions table; with reviews during the run, the Reviews section after Results."""
-    return (_CONTRACT_TEMPLATE.replace("{DOCUMENTS}", "\n" + CONTRACT_DOCUMENTS if documents else "")
-                              .replace("{READ_ROW}", READ_ROW if documents else "")
+    Format and the READ row in the actions table; with context (the words written beside the data), the Context
+    section after it and the READ CTX row; with reviews during the run, the Reviews section after Results."""
+    sections = ("\n" + CONTRACT_DOCUMENTS if documents else "") + ("\n" + CONTRACT_CONTEXT if context else "")
+    rows = (READ_ROW if documents else "") + (READ_ROW_CONTEXT if context else "")
+    return (_CONTRACT_TEMPLATE.replace("{DOCUMENTS}", sections)
+                              .replace("{READ_ROW}", rows)
                               .replace("{REVIEWS}", "\n" + CONTRACT_REVIEWS.replace("{ordinal}", _ordinal(review_every))
                                        if review_every else ""))
 
@@ -506,7 +513,8 @@ class Session:
                  search: Optional[Callable] = None, data_description: str = "",
                  kernel_factory: Optional[Callable[[], object]] = None,
                  replay_runner: Optional[Callable] = None, read: Optional[Callable] = None,
-                 unit_text: Optional[Callable[[str], Optional[str]]] = None, kernel_prelude: str = "", documents: bool = False):
+                 unit_text: Optional[Callable[[str], Optional[str]]] = None, kernel_prelude: str = "", documents: bool = False,
+                 context: bool = False):
         self.kernel = kernel
         self.nb = notebook
         self.llm = llm            # llm(system, user, **hints) -> (text, usage); hints: review=True on a self-review turn, rewrite=True on the plain-language rewrite
@@ -523,7 +531,8 @@ class Session:
         self.kernel_prelude = kernel_prelude    # source the host wants in the kernel (the document objects): run committed at the
                                                 # start of a run and again after a rollback, never a cell of the record
         self.documents = documents
-        self.system = contract(documents)      # the documents' section and the READ row only when there are documents
+        self.context = context                  # the load carries the words written beside the data (CTX, READ CTX)
+        self.system = contract(documents, context=context)      # the documents' and the context's sections and READ rows only when present
 
     # ----- the prompt --------------------------------------------------------
     @staticmethod
@@ -591,7 +600,7 @@ class Session:
         # cell's output stays as a line: the evidence the report may quote, whenever it is written
         passages = [ln for x in run.turns if x.kind == "read" for ln in (x.stdout or "").splitlines() if ln.startswith("- [")]
         if passages:
-            parts.append("PASSAGES THIS RUN'S READS RETURNED (verbatim, each with its id - cite one as [D1.17]):\n" + "\n".join(passages))
+            parts.append("PASSAGES THIS RUN'S READS RETURNED (verbatim, each with its id - cite one as [D1.17] or [C.417]):\n" + "\n".join(passages))
         if extra:
             parts.append(extra)
         block = self._review_block(run)
@@ -676,7 +685,7 @@ class Session:
                                                       # of the analysis, as a picture beside the prompt (2026-10-13)
         self._save()
         spent, extra, failures = 0.0, "", 0
-        self.system = contract(self.documents, budget.review_every)    # the Reviews section only when a reviewer runs
+        self.system = contract(self.documents, budget.review_every, context=self.context)    # the Reviews section only when a reviewer runs
         final_turn, final_extra, forced_by_review = budget.turns, LAST_TURNS_LINE + "\nWrite REPORT now.", False
         tools.run_prelude(self.kernel, self.kernel_prelude)        # the document objects, when the thread has documents
         for turn_no in range(1, budget.turns + 1):
@@ -810,7 +819,7 @@ class Session:
                 if budget.reads and done >= budget.reads:
                     turn.stdout = (f"(read budget for this run used: {done} of {budget.reads}. Work with what the earlier reads "
                                    f"returned - SHOW READ k re-opens any of them whole - read the document in a cell "
-                                   f"(D1.grep, D1.page, D1.units), or state plainly what was not found.)")
+                                   f"(D1.grep, D1.page, D1.units) or the context (CTX.grep, CTX.around), or state plainly what was not found.)")
                     extra = f"READ ({action.arg}):\n" + turn.stdout
                 else:
                     self.emit({"type": "lookup_start", "run": run.id, "kind": "read", "query": action.arg})

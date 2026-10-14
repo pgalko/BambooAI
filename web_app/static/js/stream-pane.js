@@ -209,11 +209,16 @@
         },
         cite(kind, ref) {
             // [cell 7] opens the cell, [fig 7] the plots, [D1.17] the Documents view at that unit with the passage a READ
-            // returned as its hover text (2026-10-03)
-            if (kind === 'doc') {
+            // returned as its hover text (2026-10-03); [C.417] a passage of the context (docs/CONTEXT_DESIGN.md S2): the
+            // hover shows its day, kind and author with the quote - and the original when the quote is a rendering -
+            // and the click lands on the READ that quoted it in the Investigation tab (2026-10-14)
+            if (kind === 'doc' || kind === 'ctx') {
                 const p = unitPassages[ref];
-                const title = p ? (p.where ? p.where + ' — ' : '') + '"' + p.quote + '"' : 'open in the Documents view';
-                return '<span class="cite doc" data-unit="' + esc(ref) + '" title="' + esc(title) + '" onclick="if(typeof documentsOpenUnit===\'function\')documentsOpenUnit(\'' + esc(ref) + '\')">' + esc(ref) + '</span>';
+                const fallback = kind === 'doc' ? 'open in the Documents view' : 'a passage of the context: print(CTX.text(\'' + ref + '\')) in a cell';
+                const title = p ? (p.where ? p.where + ' — ' : '') + '"' + p.quote + '"' + (p.original ? '\noriginal: "' + p.original + '"' : '') : fallback;
+                const open = kind === 'doc' ? "if(typeof documentsOpenUnit==='function')documentsOpenUnit('" + esc(ref) + "')"
+                                            : "if(typeof paneOpenPassage==='function')paneOpenPassage('" + esc(ref) + "')";
+                return '<span class="cite ' + kind + '" data-unit="' + esc(ref) + '" title="' + esc(title) + '" onclick="' + open + '">' + esc(ref) + '</span>';
             }
             return '<span class="cite ' + kind + '" onclick="' + (kind === 'fig' ? "if(typeof paneOpenTab==='function')paneOpenTab('Plots')" : "if(typeof paneOpenCell==='function')paneOpenCell(" + esc(ref) + ")") + '">' + kind + ' ' + esc(ref) + '</span>';
         }
@@ -351,15 +356,16 @@
     const unitPassages = {};
     window.documentsReadMarks = unitPassages;
     window.paneCite = function (kind, ref) { return build.cite(kind, ref); };
-    // [cell n], [fig n] and [D1.17] in rendered answer HTML become chips - in the text between tags only, so the stored
-    // HTML carries the chips and no later re-render loses them (2026-10-03: a walk at run end had raced the rendering)
+    // [cell n], [fig n], [D1.17] and [C.417] in rendered answer HTML become chips - in the text between tags only, so the
+    // stored HTML carries the chips and no later re-render loses them (2026-10-03: a walk at run end had raced the rendering)
     window.paneCiteHtml = function (html) {
         return String(html || '').split(/(<[^>]+>)/).map(seg => seg.startsWith('<') ? seg :
-            seg.replace(/\[(cell|fig)\s*(\d+)\]|\[(D\d+\.\d+)\]/g, (m, kind, num, unit) => unit ? build.cite('doc', unit) : build.cite(kind, num))).join('');
+            seg.replace(/\[(cell|fig)\s*(\d+)\]|\[(D\d+\.\d+)\]|\[(C\.\d+)\]/g, (m, kind, num, unit, passage) =>
+                passage ? build.cite('ctx', passage) : (unit ? build.cite('doc', unit) : build.cite(kind, num)))).join('');
     };
     window.paneLookupStart = function (l) { append(build.lookupStart(l)); };
     window.paneLookup = function (l) {
-        (l.passages || []).forEach(p => { if (p && p.id) unitPassages[p.id] = { quote: p.quote || '', where: p.where || '' }; });
+        (l.passages || []).forEach(p => { if (p && p.id) unitPassages[p.id] = { quote: p.quote || '', where: p.where || '', original: p.original || '' }; });
         // the pending row this look-up announced itself with goes; the finished row takes its place
         const root = document.getElementById('streamOutput');
         const pend = root && root.querySelectorAll('.sp-row.tool.pending');
@@ -410,6 +416,17 @@
         setTimeout(() => {
             const head = Array.from(document.querySelectorAll('.nb-cell-idx')).find(el => (el.textContent || '').replace(/\s/g, '') === 'In[' + n + ']');
             if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
+    };
+    // a [C.417] chip: the Investigation tab at the READ whose digest quoted that passage (its step carries the ids it
+    // quoted as data-units), opened and scrolled into view
+    window.paneOpenPassage = function (ref) {
+        window.paneOpenTab('Investigation');
+        setTimeout(() => {
+            const step = Array.from(document.querySelectorAll('.nb-step.nb-read')).find(el => (' ' + (el.getAttribute('data-units') || '') + ' ').indexOf(' ' + ref + ' ') >= 0);
+            if (!step) return;
+            step.open = true;
+            step.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 150);
     };
 

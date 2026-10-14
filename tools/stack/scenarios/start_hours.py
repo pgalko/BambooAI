@@ -17,6 +17,9 @@ import json
 import re
 
 QUESTIONS = ["At what local hour does training usually start, and what share of sessions start between 9 and 12?"]
+# the context (docs/CONTEXT_DESIGN.md, step 2): a question answered from the words beside the data - a cell over CTX, a
+# READ CTX through the Reader, the report quoting a passage and citing it as [C.n]
+CONTEXT_QUESTION = "What did the rider write about the legs, and when?"
 DATASET_NAME = "start_hours_stub.csv"          # the stack wants a file; the walk loads from Intervals instead
 
 
@@ -46,6 +49,10 @@ def _cell(thinking, note, code):
 
 def _report(thinking, note, body):
     return thinking, f"###STEP###\n{thinking}\n###NOTE###\n{note}\n###ACTION###\nREPORT\n{body}"
+
+
+def _action(thinking, note, line):
+    return thinking, f"###STEP###\n{thinking}\n###NOTE###\n{note}\n###ACTION###\n{line}"
 
 
 def _first_last(user):
@@ -108,6 +115,9 @@ class Scenario:
 
     def reply(self, system, user):
         if user.startswith("Rewrite the technical report"):
+            m = re.search(r"\"([^\"]+)\" \[(C\.\d+)\]", user)
+            if m:                                       # the context question's report: the plain version keeps the quote and its citation
+                return "", f"The rider's own words under one session were \"{m.group(1)}\" [{m.group(2)}]; the day it was written is in the report."
             return "", "Most sessions start in the morning on the local clock; the share in the 9 to 12 band is given with its interval."
         if "Propose five follow-up questions" in user:
             return "", "1. **Weekday vs weekend**: Does the start hour differ?\n2. **Travel**: Does the away block shift it?\n3. **Type**: Rides vs runs?\n4. **Season**: Earlier in summer?\n5. **Load**: Do later starts follow heavier days?"
@@ -131,7 +141,7 @@ class Scenario:
                 return "", "NONE"
             return "", "```python\n" + CELL_FIGURE + "\n```\nCAPTION: sessions by local start hour over the window"
         if system.startswith("You are the Reader"):
-            return "", "NOTHING ANSWERS - no documents in this story."
+            return "", self.reader(user)
         if system.startswith("You are preparing an analysis so that it can be run again"):
             return "", self.promoter(user)
         return "", "OK"
@@ -167,6 +177,15 @@ class Scenario:
             "name": "Session start hours", "inputs": inputs, "edits": edits,
             "kept": ["the home offset is read off the data, not typed", "the Wilson interval's z is the method's"]})
 
+    # ------------------------------------------------------------ the Reader seat (the context, step 2)
+    def reader(self, user):
+        """The Reader over the passages of the context: every candidate that mentions the legs, quoted whole (the
+        passages are one line each); the platform verifies each quote against the passage. No documents in this story."""
+        hits = [(uid, text) for uid, text in re.findall(r"^\[(C\.\d+)\] \((?:[^()]|\([^()]*\))*\) (.+)$", user, re.M) if "legs" in text.lower()]
+        if not hits:
+            return "NOTHING ANSWERS - no passage mentions the legs."
+        return "\n".join(f'- [{uid}] "{text.strip()}"' for uid, text in hits[:3]) + f"\nSUMMARY: The rider wrote about the legs on the days of the sessions [{hits[0][0]}]."
+
     # ------------------------------------------------------------ the analyst
     def analyst(self, user):
         q = _question(user)
@@ -177,6 +196,16 @@ class Scenario:
             if forced or turn >= 3:
                 return self.report(user, q)
             return {1: self.t_inspect, 2: self.t_hours}[turn](user, q)
+        if q == CONTEXT_QUESTION:
+            # the context path: a cell over CTX finds the passages that mention the legs, a READ CTX quotes them through the
+            # Reader, the report quotes one as the Reader returned it and cites it as [C.n]
+            if forced or "READ (" in user:
+                return self.report_context(user, q)
+            if "CTX.grep(" in user:
+                return _action("The grep lists the passages with their ids and days. READ them through the Reader so the quotes are verified against the passages.",
+                               _note(q, plan="READ CTX; then report", names="-"), "READ CTX what was written about the legs")
+            return _cell("The words written beside the data are in the kernel as CTX; DATA's map lists messages by the subject. One cell: the span, then every passage that mentions the legs.",
+                         _note(q, plan="grep the context; READ the passages; report", names="-"), "print(CTX)\nprint(CTX.grep('legs', kind='activity_message', author='subject'))")
         if forced or turn >= 2:
             return _report("Nothing scripted for this question.", _note(q, plan="report"), "## Answer\n\nA first look was taken [cell 1]; nothing more is scripted for this question.")
         return _cell("A question outside the scripted story: one look at the data.", _note(q, plan="describe, then report"), CELL_GENERIC)
@@ -191,6 +220,18 @@ class Scenario:
         return _cell("The summary file carries each session's local and UTC start. The home offset is the most common offset in the data - read off it, so the method holds on another window - and the hours are counted on the local clock.",
                      _note(q, held="the clock (local)", plan="count the hours; report", names="df, summ, counts, n, peak_h, band"),
                      CELL_HOURS.format(path=path, first=first, last=last))
+
+    def report_context(self, user, q):
+        # the READ digest in the prompt: the first passage line - the quote the platform verified, with its day - cited by id
+        m = re.search(r"^- \[(C\.\d+)\] \((\d{4}-\d{2}-\d{2}) \u00b7 ([^\u00b7]+) \u00b7 ([^)]*)\) \"(.+)\"\s*$", user, re.M)
+        if not m:
+            return _report("No passage came back.", _note(q, plan="report"), "## Nothing written about the legs\n\nThe context was read [cell 1] and no passage mentions the legs.")
+        uid, day, kind, who, quote = m.groups()
+        n = len(re.findall(r"^- \[C\.\d+\] \(", user, re.M))
+        return _report("The Reader's quote is verified; the report quotes it, says the day and the kind, and cites the passage.", _note(q, plan="report"),
+                       f"## The rider wrote about the legs on {day}\n\nOn {day} the {who.strip()} wrote, under the session ({kind.strip()}): \"{quote}\" [{uid}]. "
+                       f"The READ returned {n} such passage(s) [cell 1]; the day a thing was written and the day the numbers show it can differ, so a comparison with the "
+                       f"power of those sessions would be a separate question over `df`.\n\n## How it was established\n\nCTX.grep over the subject's messages [cell 1], then READ CTX through the Reader.")
 
     def report(self, user, q):
         m = re.search(r"n=(\d+) peak_hour=(\d+) home_offset=(-?\d+) away_sessions=(\d+) share=([\d.]+) lo=([\d.]+) hi=([\d.]+)", user)

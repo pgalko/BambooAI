@@ -52,6 +52,13 @@ def wait_run_end(page, n, timeout=240000):
     page.wait_for_timeout(300)
 
 
+def set_window(page, start, end):
+    """The dialog's dates, set once the subscription limits have landed on the inputs (applyIntervalsDateLimits is
+    async and writes today-365 when it resolves: set before it, the window was overwritten - 2026-10-14)."""
+    page.wait_for_function("() => (document.getElementById('intervalsEndDate') || {}).max", timeout=15000)
+    page.evaluate("([s, e]) => { const a = document.getElementById('intervalsStartDate'), b = document.getElementById('intervalsEndDate'); a.min = ''; b.min = ''; a.value = s; b.value = e; }", [start.isoformat(), end.isoformat()])
+
+
 def fetch_json(page, url, body=None, method=None):
     return page.evaluate("([u, b, m]) => window.authService.fetch(u, b == null ? undefined : { method: m || 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json().then(j => ({ status: r.status, json: j })).catch(() => ({ status: r.status, json: null })))",
                          [url, body, method])
@@ -77,7 +84,7 @@ def main():
             check("the Intervals.icu key is stored through its route (the stack's store)", r["status"] == 200, r)
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
-            page.evaluate("([s, e]) => { const a = document.getElementById('intervalsStartDate'), b = document.getElementById('intervalsEndDate'); a.min = ''; b.min = ''; a.value = s; b.value = e; }", [a_start.isoformat(), a_end.isoformat()])
+            set_window(page, a_start, a_end)
             page.evaluate("() => { ['summary-checkbox', 'wellness-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; }); const cx = document.getElementById('context-checkbox'); if (cx) cx.checked = false; }")   # the context (on by default) is walked at the end
             page.click("#connectIntervals")
             page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /Intervals ICU \\(\\d+ days/.test(p.textContent) && /loaded/.test(p.textContent))", timeout=240000)
@@ -418,7 +425,7 @@ def main():
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
-            page.evaluate("([s, e]) => { const a = document.getElementById('intervalsStartDate'), b = document.getElementById('intervalsEndDate'); a.min = ''; b.min = ''; a.value = s; b.value = e; }", [a_start.isoformat(), a_end.isoformat()])
+            set_window(page, a_start, a_end)
             cx_default = page.evaluate("() => document.getElementById('context-checkbox').checked")
             page.evaluate("() => ['summary-checkbox', 'wellness-checkbox', 'context-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
             page.click("#connectIntervals")
@@ -469,6 +476,37 @@ def main():
             page.wait_for_timeout(300)
             answer_c = page.inner_text("#content-answer")
             check("the scripted analyst still finds the summary file by its dated name and answers (the context's entries did not confuse the DATA block)", "Training starts at" in answer_c, answer_c[:200])
+            # ---- step 2: CTX in the kernel, READ CTX through the Reader, the passage cited as [C.n] in the answer with its chip ----
+            page.fill("#queryInput", mod.CONTEXT_QUESTION)
+            page.evaluate("setMode('deep')")
+            page.click("#submitQuery")
+            wait_text(page, "#chainPosition", "chain 2 of 2", 60000)
+            wait_run_end(page, 2)
+            rows_ctx = page.evaluate("() => [...document.querySelectorAll('.sp-row')].map(e => [e.className, e.textContent])")
+            check("the pane: the cell row over CTX (the grep printed the span and the passages), then a READ CTX row with its passage count",
+                  any(re.search(r"In\s*\[\d+\]", txt) and "CTX:" in txt for c, txt in rows_ctx) and any("read" in c.split() and "READ CTX what was written about the legs" in txt and re.search(r"\d passages?", txt) for c, txt in rows_ctx), rows_ctx)
+            page.evaluate("activateTab('answer')")
+            page.wait_for_timeout(300)
+            answer_x = page.inner_text("#content-answer")
+            check("the answer quotes a passage the Reader returned, with its day, and cites it as C.n (a chip now); the guard found the passage in the context (no CHECK line about passages)",
+                  ("Good legs today" in answer_x or "legs" in answer_x.lower()) and re.search(r"\bC\.\d+\b", answer_x) is not None and "cited passage" not in answer_x and "not in the context loaded" not in answer_x, answer_x[:400])
+            chip_c = page.evaluate("() => { const c = document.querySelector('#content-answer .cite.ctx'); return c ? [c.textContent, c.getAttribute('data-unit'), c.getAttribute('title')] : null; }")
+            check("the answer's [C.n] is a chip of the context: the id, and as its hover the passage's day, kind and author with the verified quote",
+                  chip_c is not None and re.fullmatch(r"C\.\d+", chip_c[0] or "") and chip_c[1] == chip_c[0] and re.search(r"\d{4}-\d{2}-\d{2} · activity_message · subject — \"", chip_c[2] or "") and "legs" in (chip_c[2] or "").lower(), chip_c)
+            page.click("#content-answer .cite.ctx")
+            page.wait_for_function("() => { const s = document.querySelector('.tab-content.active .nb-step.nb-read'); return !!s && s.open; }", timeout=15000)
+            step_c = page.evaluate("([u]) => { const s = [...document.querySelectorAll('.tab-content.active .nb-step.nb-read')].find(x => (' ' + (x.getAttribute('data-units') || '') + ' ').includes(' ' + u + ' ')); return s ? [s.open, s.querySelector('.nb-out-label').textContent, s.querySelector('.nb-out-peek').textContent, s.querySelector('.nb-out-body').textContent.slice(0, 160)] : null; }", [chip_c[0] if chip_c else ""])
+            check("the click opens the Investigation tab at the READ that quoted the passage: the step 'Read the context' with the query as its peek, open, its digest in the fold",
+                  step_c is not None and step_c[0] is True and step_c[1] == "Read the context" and step_c[2] == "CTX what was written about the legs" and step_c[3].startswith("PASSAGES"), step_c)
+            page.evaluate("activateTab('answer')")
+            page.wait_for_selector("#content-answer .simplified-summary-btn:not(.loading)", timeout=15000)
+            page.click("#content-answer .simplified-summary-btn")
+            page.wait_for_timeout(300)
+            simp_c = page.evaluate("() => ({ text: document.querySelector('#content-answer .content-body').textContent, chips: [...document.querySelectorAll('#content-answer .content-body .cite.ctx')].map(e => [e.textContent, e.getAttribute('title')]) })")
+            check("Simplified: the plain-language version keeps the quote and its citation as a chip of the context with the same hover",
+                  "own words" in simp_c["text"] and len(simp_c["chips"]) == 1 and simp_c["chips"][0][0] == chip_c[0] and simp_c["chips"][0][1] == chip_c[2], simp_c)
+            page.click("#content-answer .simplified-summary-btn")
+            page.wait_for_timeout(300)
             errs = page.evaluate("window.__stackErrors || []")
             b.close()
         apis = __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"]

@@ -204,7 +204,7 @@
 #content-answer .cite { display: inline-block; font-family: var(--font-mono); font-size: 10.5px; line-height: 15px; padding: 0 5px; margin: 0 1px; border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-tertiary); vertical-align: 1px; white-space: nowrap; cursor: pointer; }
 #content-answer .cite:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
 #content-answer .cite.fig { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
-#content-answer .cite.doc { color: var(--info-color, #58a6ff); border-color: var(--info-color, #58a6ff); }   /* a document passage, [D1.17] (D45) */
+#content-answer .cite.doc, #content-answer .cite.ctx { color: var(--info-color, #58a6ff); border-color: var(--info-color, #58a6ff); }   /* a quoted passage: a document's [D1.17] (D45), the context's [C.417] (S2) - told apart by the prefix */
 
 /* ---- the thread map as a drawer (2026-09-08): #workflowMapModal keeps its ids; workflow-management.js shows it with
    display:flex and workflowGraph.js draws .wf-* nodes and edges into #workflowMapContainer. workflow-map.css is retired. */

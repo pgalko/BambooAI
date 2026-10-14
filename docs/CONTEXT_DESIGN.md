@@ -259,7 +259,7 @@ from the next load. Nothing is re-coded retroactively (a load's codes carry thei
 - **`READ CTX <what you look for>`**, `READ CTX 2026-08-01..2026-08-31 <what>`, `READ C.120-160`: the documents'
   mechanism over the passages — BM25 within the range, the top 24 with their neighbours in time, the Reader quoting
   the sentence that answers under each id from the English rendering, verified verbatim against it, the digest in
-  the record (a digest line of a rendered passage ends *(rendered; original in Danish)*); `SHOW READ k` re-opens one.
+  the record (the place of a rendered passage ends *(rendered from da)*, the language as the row carries it); `SHOW READ k` re-opens one.
   A READ is a turn, three a run, as for documents.
 - **The contract's Context section**, joined only when the load has a context file (`Session(context=True)`,
   beside `documents=True`), kept to the Documents section's size (~600 characters):
@@ -376,7 +376,8 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
    the inclusive span, a window with no words); a live load on the two probed accounts whose counts match the
    probes (212 and ~260 passages for 120 days).
 2. **`CTX` and READ CTX** — the prelude, the five calls, the Reader over passages, the citation chips with the
-   verbatim guard. *Accepted by:* test_analyst (the session with a scripted reader; a cited passage verified; a
+   verbatim guard; the contract's Context section as drafted in §5, joined with `Session(context=True)` (its trim
+   and the reviewer's lens stay step 4). *Accepted by:* test_analyst (the session with a scripted reader; a cited passage verified; a
    bad one disclosed), test_app_path (the route and the chips), the stack walk (a question answered with a
    passage cited in both views), live on a probed account.
 3. **The codebook and the coder** — the seed (§13), the seat in every tier, the pass at load in batches, the

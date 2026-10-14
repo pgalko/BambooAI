@@ -40,6 +40,20 @@ check('the read marks the view reads are the same map', w.documentsReadMarks['D1
 const cited = w.paneCiteHtml('<p>Rain was 40% above [D1.3] and plots [cell 2] <code>x[D1.3]</code> <a title="[cell 9]">t</a></p>');
 check('paneCiteHtml: chips in the text between tags - a document chip with its passage, a cell chip - and nothing inside a tag is touched',
       cited.includes('data-unit="D1.3"') && cited.includes('paneOpenCell(2)') && cited.includes('title="[cell 9]"') && cited.split('class="cite').length === 4, cited);
+// a READ over the context (docs/CONTEXT_DESIGN.md S2): the chip's hover carries the passage's day, kind and author with the
+// quote, and the original beneath it when the quote is a rendering; the click lands on the READ in the Investigation tab
+w.paneLookupStart({kind:'read', query:'CTX the legs on the climbs', model:'deepseek/deepseek-v4.1-flash'});
+w.paneLookup({kind:'read', query:'CTX the legs on the climbs', peek:'Heavy legs on the first climb [C.417].', sources:[], passages:[
+    {id:'C.417', where:'2026-08-14 · activity_message · subject (rendered from da)', quote:'Legs were heavy from the first climb', original:'Benene var tunge fra den første stigning'},
+    {id:'C.420', where:'2026-08-16 · day_note · subject', quote:'slept badly'}]});
+const ctxChip = w.paneCite('ctx', 'C.417');
+check('[C.417] chip: a context citation whose hover shows where, the quote and the original it was rendered from; the click opens the READ in the Investigation tab',
+      ctxChip === '<span class="cite ctx" data-unit="C.417" title="2026-08-14 · activity_message · subject (rendered from da) — &quot;Legs were heavy from the first climb&quot;\noriginal: &quot;Benene var tunge fra den første stigning&quot;" onclick="if(typeof paneOpenPassage===\'function\')paneOpenPassage(\'C.417\')">C.417</span>', ctxChip);
+check('an English passage shows no original line; an unknown passage says how to print it in a cell',
+      !w.paneCite('ctx', 'C.420').includes('original:') && w.paneCite('ctx', 'C.420').includes('day_note · subject — &quot;slept badly&quot;') && w.paneCite('ctx', 'C.9').includes("title=\"a passage of the context: print(CTX.text('C.9')) in a cell\""), w.paneCite('ctx', 'C.9'));
+const citedCtx = w.paneCiteHtml('<p>Heavy legs [C.417], a document [D1.3], a cell [cell 2] and <code>CTX.text(\'C.417\')</code></p>');
+check('paneCiteHtml: a context chip beside a document chip and a cell chip; C.417 inside the code tag is not a chip',
+      citedCtx.includes('class="cite ctx" data-unit="C.417"') && citedCtx.includes('data-unit="D1.3"') && citedCtx.includes('paneOpenCell(2)') && citedCtx.split('class="cite').length === 4 && citedCtx.includes("<code>CTX.text('C.417')</code>"), citedCtx);
 w.paneLookupStart({kind:'replay', query:'9 cells', model:''});
 check('the replay under way: a pulsing REPLAY row saying it reproduces the report\'s cells in a fresh kernel', !!pane.querySelector('.sp-row.tool.pending[data-pending="replay"]') && pane.querySelector('.sp-row.tool.pending[data-pending="replay"]').textContent.includes('fresh kernel'));
 w.paneLookup({kind:'replay', query:'', peek:'Replay reproduced the cited results in a fresh run (9 cells, 41 numbers).', sources:[], passages:[]});
@@ -63,7 +77,7 @@ const saved = pane.innerHTML;
 const pane2 = doc.createElement('div'); pane2.setAttribute('id', 'streamOutput'); pane.remove(); doc.body.appendChild(pane2);
 pane2.innerHTML = saved;
 check('restore round-trip: the saved HTML re-parses to the same HTML', pane2.innerHTML === saved);
-check('restored: cards collapsed with their folds, rows, pills, strip and ids present', pane2.querySelectorAll('.sp-turn').length === 3 && pane2.querySelectorAll('.sp-turn[open]').length === 0 && pane2.querySelector('.sp-note') && pane2.querySelectorAll('.sp-row').length === 5 && pane2.querySelectorAll('.sp-ids .v')[1].textContent === '1788644290');   // 5 rows: In [1], the failed cell, the search row, the REPLAY row, the READ row and three LOOK rows (2026-10-03)
+check('restored: cards collapsed with their folds, rows, pills, strip and ids present', pane2.querySelectorAll('.sp-turn').length === 3 && pane2.querySelectorAll('.sp-turn[open]').length === 0 && pane2.querySelector('.sp-note') && pane2.querySelectorAll('.sp-row').length === 6 && pane2.querySelectorAll('.sp-ids .v')[1].textContent === '1788644290');   // 6 rows: In [1], the failed cell, the search row, the REPLAY row, the two READ rows (2026-10-14: one over the context)
 const dsClick = pane2.querySelector('.sp-pill.ds').getAttribute('onclick');
 let called = null; global.downloadFile = p => { called = p; }; new Function(dsClick)();
 check("restored handlers: the dataset pill's inline handler runs and passes the exact path (apostrophe included)", called === "generated/it's.csv", dsClick);

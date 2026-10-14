@@ -335,14 +335,22 @@ class BambooAI:
             messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
             return self.models.llm_call(self.log_and_call_manager, messages, agent=self._reader_seat(), chain_id=self.chain_id)
 
-        digest, passages = reading.read(self._documents_dir(), arg, call_reader)
+        if context_mod.parse_context_scope(arg) is not None:      # READ CTX ... / READ C.120-160 ...: the words beside the data
+            notes, _codes = self._context_frames()
+            digest, passages = reading.read_context(notes, arg, call_reader)
+        else:
+            digest, passages = reading.read(self._documents_dir(), arg, call_reader)
         self._last_read_query = arg
         self._last_read_passages = passages
         return digest
 
     def _kernel_prelude(self):
-        """The source that defines D1, D2, ... in the kernel: run uncommitted by the session at the start of a
-        run and after a rollback, prefixed to the replay script here. Empty without documents or a kernel copy."""
+        """The source that defines D1, D2, ... and CTX in the kernel: run uncommitted by the session at the start of a
+        run and after a rollback, prefixed to the replay script here. Empty without documents (or a kernel copy of
+        them) and without a context file."""
+        return "\n\n".join(p for p in (self._documents_prelude(), self._context_prelude()) if p)
+
+    def _documents_prelude(self):
         if self.thread_id is None or not getattr(self, '_documents_in_kernel', True):
             return ""
         try:
@@ -351,8 +359,44 @@ class BambooAI:
             logger.warning("documents: the kernel objects could not be prepared: %s", exc)
             return ""
 
+    def _context_prelude(self):
+        """The source that defines CTX (docs/CONTEXT_DESIGN.md §5) over the loaded context file, '' without one."""
+        notes_path, codes_path = self._context_paths()
+        return context_mod.kernel_api_source(notes_path, codes_path) if notes_path else ""
+
+    @property
+    def auxiliary_datasets(self):
+        return self._auxiliary_datasets
+
+    @auxiliary_datasets.setter
+    def auxiliary_datasets(self, paths):
+        """A load assigns the list (the app, the integrations' routes): the context frames read for the previous list
+        are dropped, so a file written again under the same name (the coding pass re-uploads it) is read again."""
+        self._auxiliary_datasets = paths if paths is not None else []
+        self._context_cache = None
+
+    def _context_frames(self):
+        """The loaded context and codes files as frames, read once per load (the paths are the key): (notes, codes),
+        None for a file that is not there."""
+        notes_path, codes_path = self._context_paths()
+        key = (notes_path, codes_path)
+        cached = getattr(self, '_context_cache', None)
+        if cached and cached[0] == key:
+            return cached[1], cached[2]
+        notes = self._context_file(notes_path) if notes_path else None
+        codes = self._context_file(codes_path) if codes_path else None
+        self._context_cache = (key, notes, codes)
+        return notes, codes
+
     def _unit_text(self, unit_id):
-        """A document passage's text by id, for the report guard; None when the thread has no such unit."""
+        """A document passage's text by id, for the report guard; a context passage's (the English rendering when there
+        is one) for [C.n]; None when there is no such unit."""
+        if re.match(r"^C\.\d+$", unit_id or ""):
+            notes, _codes = self._context_frames()
+            if notes is None or not len(notes):
+                return None
+            hit = notes[notes["id"].astype(str) == unit_id]
+            return context_mod.passage_text(hit.iloc[0].to_dict()) if len(hit) else None
         m = re.match(r"^(D\d+)\.(\d+)$", unit_id or "")
         if not m or self.thread_id is None:
             return None
@@ -739,11 +783,13 @@ class BambooAI:
             parts = [f"{i}.\nPath: {p}" for i, p in enumerate(paths, 1)]
         shown = []
         from analyst.routines import aux_kind
+        notes_path, codes_path = self._context_paths()
+        notes_df, codes_df = self._context_frames() if notes_path else (None, None)
         frames = {}
         for i, (path, part) in enumerate(zip(paths, parts), 1):
             kind = aux_kind(path)
             if kind in ("context", "codes"):               # the rows are passages: the columns and the count, the map below says the rest
-                frames[path] = self._context_file(path)
+                frames[path] = notes_df if path == notes_path else codes_df
                 if frames[path] is not None:
                     part = f"{i}.\n" + context_mod.aux_head_for_text_file(path, list(frames[path].columns), len(frames[path]))
             if len(part) > self.AUX_HEAD_CHARS:
@@ -885,6 +931,9 @@ class BambooAI:
             query = ev.get('query') or (self._last_search_query if kind == "search" else (getattr(self, '_last_read_query', '') if kind == "read" else ''))
             sources = list(getattr(self, '_last_search_sources', []) or [])[:8] if kind == "search" else []
             passages = reading.parse_digest(text) if kind == "read" else []
+            kept = list(getattr(self, '_last_read_passages', None) or [])     # the same passages with the originals of rendered quotes (S2)
+            if kind == "read" and [p.get('id') for p in kept] == [p.get('id') for p in passages]:
+                passages = kept
             peek = (reading.digest_peek(text) if kind == "read" else next((ln.strip() for ln in text.splitlines() if ln.strip()), ''))[:160]
             self._pane('pane_lookup', kind=kind, query=query, peek=peek, sources=sources, passages=passages)
             self._tab('plan', self._notebook_view(run))
@@ -975,7 +1024,7 @@ class BambooAI:
         session = Session(kernel, self.notebook, self._llm, store=self.store, emit=self._emit,
                           recall=self._recall if self.memory_path else None, search=self._search,
                           read=self._read, unit_text=self._unit_text, kernel_prelude=self._kernel_prelude(),
-                          documents=bool(self._kernel_prelude()),
+                          documents=bool(self._documents_prelude()), context=bool(self._context_prelude()),
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
                           replay_runner=self._run_replay)
         try:

@@ -588,6 +588,53 @@ try:
           _ak("datasets/u/k/context_notes_20260615_to_20261013.csv") == "context" and _ak("datasets/u/k/context_codes_20260615_to_20261013.csv") == "codes")
     _rec = _bc._load_of_cached({"source": "intervals", "date_range": "2026-06-15 to 2026-10-13", "metrics": ["watts"], "key_mark": "k"}, {"aux": [_ath, _ctx, _codes]})
     check("a cached frame's load record lists context and codes among its auxiliary kinds", _rec.get("aux_kinds") == ["context", "codes"] and _rec.get("start_date") == "2026-06-15", _rec)
+    # step 2 (docs/CONTEXT_DESIGN.md §5): CTX in the kernel, READ CTX through the host, [C.n] for the report guard and the page
+    _pre = _bd._kernel_prelude()
+    check("the kernel prelude defines CTX over the loaded context and codes files (no documents on this thread: the prelude is the context's alone); none without a context file",
+          _pre == _bd._context_prelude() and "CTX = _BambooContext(" in _pre and repr(_ctx) in _pre and repr(_codes) in _pre and _bb._kernel_prelude() == "" and _bb._context_prelude() == "", _pre[-300:])
+    _ns = {}
+    exec(_pre, _ns)
+    _CTX = _ns["CTX"]
+    check("CTX in a kernel: frame() with a day column, codes(), grep by pattern/kind/author, around a day, between two days, on an activity, text(ref) - printed as text, not frames, unless asked",
+          len(_CTX.frame()) == 4 and "day" in _CTX.frame().columns and len(_CTX.codes()) == 4 and "C.1" in _CTX.grep("legs") and "C.2" not in _CTX.grep("legs") and "C.2" in _CTX.grep("easy", author="coach")
+          and "C.1" in _CTX.around("2026-09-02", days=1) and "C.3" not in _CTX.around("2026-09-02", days=1) and "C.3" in _CTX.between("2026-10-01", "2026-10-31") and "C.4" in _CTX.between("2026-10-01", "2026-10-31")
+          and "C.1" in _CTX.on("a1") and "C.2" in _CTX.on("a1") and "C.3" not in _CTX.on("a1") and "legs heavy today, cut it short" in _CTX.text("C.1") and "4 passages" in repr(_CTX)
+          and _CTX.grep("legs", as_frame=True).shape[0] == 1, (_CTX.grep("legs"), repr(_CTX)))
+    check("unit_text resolves a context passage for the report guard - the English rendering when there is one - and says None for an id the context does not hold",
+          _bc._unit_text("C.1") == "legs heavy today, cut it short" and _bc._unit_text("C.9") is None and _bb._unit_text("C.1") is None)
+    _bc.models.llm_call = lambda *a, **k: '- [C.1] "legs heavy today"\n- [C.2] "take tomorrow easy"\n- [C.1] "legs light"\nSUMMARY: Heavy legs, an easy day asked [C.1][C.2].'
+    _dg = _bc._read("CTX how were the legs")
+    check("READ CTX dispatches to the context: the Reader's quotes verified against the passages, the digest under [C.n] with day, kind and author, the unverifiable quote dropped",
+          _dg.startswith("PASSAGES") and '- [C.1] (2026-09-01 · activity_message · subject) "legs heavy today"' in _dg and '- [C.2] (2026-09-01 · activity_message · coach Coach) "take tomorrow easy"' in _dg
+          and "legs light" not in _dg and _bc._last_read_query == "CTX how were the legs" and [x["id"] for x in _bc._last_read_passages] == ["C.1", "C.2"], _dg)
+    _bc._read("CTX")
+    check("READ CTX without a question is answered without a reader call", _bc._read("CTX").startswith("(READ CTX needs what you are looking for") and _bc._last_read_passages == [])
+    _bc.models.llm_call = lambda *a, **k: "NO"
+    check("a documents' READ still goes to the documents (none on this thread: the message says so)", _bc._read("D1 the sample").startswith("(no documents are attached"), _bc._read("D1 the sample"))
+    # the pane event after a READ over a rendered passage carries the original beside the quote (S2: the chip's hover)
+    _ctx_da = os.path.join(_auxdir, "context_notes_20260101_to_20260430.csv")
+    pd.DataFrame([{"id": "C.1", "kind": "activity_message", "date": "2026-03-01", "time": "08:10", "end_date": "", "activity_id": "a1", "event_id": "", "source_id": "1", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "da", "text": "benene var tunge", "text_en": "the legs were heavy", "chars": 16}]).to_csv(_ctx_da, index=False)
+    _be = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ctx_da])
+    _be.models.llm_call = lambda *a, **k: '- [C.1] "the legs were heavy"\nSUMMARY: heavy [C.1].'
+    _dg2 = _be._read("CTX the legs")
+    import queue as _q2
+    _be.output_manager.output_queue = _q2.Queue()
+    from analyst import Notebook as _NB2, Run as _Run2
+    _nb2 = _NB2("t-ctx"); _run2 = _nb2.new_run("q"); _be.notebook = _nb2
+    _be._emit({"type": "read", "run": _run2.id, "text": _dg2, "query": "CTX the legs"})
+    _pev = [json.loads(_be.output_manager.output_queue.get()) for _ in range(_be.output_manager.output_queue.qsize())]
+    _plk = next(e for e in _pev if e.get("type") == "pane_lookup")
+    check("the pane's READ row carries the passage with its place marked 'rendered from da', the English quote and the original - the chip shows both",
+          _plk["passages"] == [{"id": "C.1", "where": "2026-03-01 · activity_message · subject (rendered from da)", "quote": "the legs were heavy", "original": "benene var tunge"}] and _plk["query"] == "CTX the legs", _plk)
+    check("the report guard reads the rendering: unit_text of a rendered passage is its English text", _be._unit_text("C.1") == "the legs were heavy")
+    # the frames are read once per load: a load assigns the auxiliary list, which drops them (step 3 re-uploads the context file under its name)
+    _n0 = len(_be._context_frames()[0])
+    pd.DataFrame([{"id": "C.1", "kind": "day_note", "date": "2026-03-02", "time": "", "end_date": "", "activity_id": "", "event_id": "", "source_id": "1", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "", "text": "fine", "text_en": "", "chars": 4},
+                  {"id": "C.2", "kind": "day_note", "date": "2026-03-03", "time": "", "end_date": "", "activity_id": "", "event_id": "", "source_id": "2", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "", "text": "tired", "text_en": "", "chars": 5}]).to_csv(_ctx_da, index=False)
+    _n1 = len(_be._context_frames()[0])
+    _be.auxiliary_datasets = [_ctx_da]
+    _n2 = len(_be._context_frames()[0])
+    check("the context frames are cached until the auxiliary list is assigned again (a load): the file rewritten under its name is read then, not before", (_n0, _n1, _n2) == (1, 1, 2) and _be._unit_text("C.2") == "tired", (_n0, _n1, _n2))
     from bambooai.models import ModelManager as _MM
     _mm = _MM.__new__(_MM)
     _mm.config = {"agent_configs": [{"agent": "Analyst", "details": {"model": "x-ai/grok-4.7", "provider": "openrouter"}},

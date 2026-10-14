@@ -97,6 +97,159 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
     return "\n".join(lines)
 
 
+def where_of(row) -> str:
+    """Where a passage is, for people and for the Reader: '2026-08-14 · activity_message · subject', the author's
+    name when the row carries one, '(rendered from da)' when the text shown is an English rendering."""
+    day = str(row.get("date") or "")[:10]
+    kind = str(row.get("kind") or "")
+    role = str(row.get("author_role") or "")
+    name = str(row.get("author_name") or "").strip()
+    who = role + (f" {name}" if name and role != "subject" else "")
+    place = " · ".join(x for x in (day, kind, who) if x)
+    lang = str(row.get("lang") or "").strip()
+    if str(row.get("text_en") or "").strip() and lang and lang != "en":
+        place += f" (rendered from {lang})"
+    return place
+
+
+def passage_text(row) -> str:
+    """The text the analyst reads and the Reader quotes: the English rendering when the coding pass wrote one,
+    else the passage as written."""
+    en = str(row.get("text_en") or "").strip()
+    return en if en else str(row.get("text") or "")
+
+
+def passage_units(notes: pd.DataFrame) -> list:
+    """The context table as units the READ machinery reads (bambooai/reading.py): id, text (the rendering or the
+    original), kind 'paragraph', section = where it is, doc 'CTX', plus the row's date, kind and role."""
+    units = []
+    for _, row in notes.iterrows():
+        r = row.to_dict()
+        units.append({"id": str(r.get("id") or ""), "kind": "paragraph", "text": passage_text(r), "section": where_of(r), "doc": "CTX",
+                      "file": "context", "date": str(r.get("date") or "")[:10], "pkind": str(r.get("kind") or ""), "role": str(r.get("author_role") or ""),
+                      "original": str(r.get("text") or ""), "lang": str(r.get("lang") or "")})
+    return units
+
+
+_CTX_RANGE = r"(\d{4}-\d{2}-\d{2})\s*(?:\.\.|to|->|→|-)\s*(\d{4}-\d{2}-\d{2})"
+
+
+def parse_context_scope(arg: str) -> Optional[dict]:
+    """A READ argument that names the context, or None for a documents' read:
+    'CTX what' -> {'all': True, 'query': 'what'}; 'CTX 2026-08-01..2026-08-31 what' -> {'range': (a, b), 'query'};
+    'C.120-160 what' / 'C.417 what' -> {'ids': (120, 160), 'query'}."""
+    import re
+    a = (arg or "").strip()
+    m = re.match(r"^C\.(\d+)(?:\s*-\s*(\d+))?\b[:\s-]*(.*)$", a, re.I | re.S)
+    if m:
+        lo, hi = int(m.group(1)), int(m.group(2) or m.group(1))
+        return {"ids": (min(lo, hi), max(lo, hi)), "query": m.group(3).strip()}
+    m = re.match(r"^CTX\b[:\s-]*(.*)$", a, re.I | re.S)
+    if not m:
+        return None
+    rest = m.group(1).strip()
+    r = re.match(r"^" + _CTX_RANGE + r"\b[:\s-]*(.*)$", rest, re.S)
+    if r:
+        return {"range": (r.group(1), r.group(2)), "query": r.group(3).strip()}
+    return {"all": True, "query": rest}
+
+
+KERNEL_API_SOURCE = r'''
+import re as _bamboo_ctx_re
+
+class _BambooContext:
+    """The words written beside the data, as an object in the kernel (docs/CONTEXT_DESIGN.md §5)."""
+    def __init__(self, notes_path, codes_path):
+        self.notes_path, self.codes_path = notes_path, codes_path
+        self._notes = self._codes = None
+    def __repr__(self):
+        n = self.frame()
+        return "CTX: %d passages%s%s" % (len(n), (" from %s to %s" % (n["date"].min(), n["date"].max())) if len(n) else "", (", codes in CTX.codes()" if self.codes_path else ""))
+    def frame(self):
+        """The context table: one row per passage (id, kind, date, time, end_date, activity_id, event_id, author_role, private, lang, text, text_en)."""
+        import pandas as _pd
+        if self._notes is None:
+            self._notes = _pd.read_csv(self.notes_path, dtype=str, keep_default_na=False)
+            if "date" in self._notes.columns:
+                self._notes["day"] = _pd.to_datetime(self._notes["date"], errors="coerce")
+        return self._notes
+    def codes(self):
+        """The codes table: one row per code on a passage (id, code, tone, quote, status), empty before the coding pass."""
+        import pandas as _pd
+        if self._codes is None:
+            self._codes = _pd.read_csv(self.codes_path, dtype=str, keep_default_na=False) if self.codes_path else _pd.DataFrame(columns=["id", "code", "tone", "quote", "status", "coder", "codebook_version"])
+        return self._codes
+    def _shown(self, r):
+        en = (r.get("text_en") or "").strip()
+        return en if en else (r.get("text") or "")
+    def _fmt(self, r):
+        who = r.get("author_role") or ""
+        if r.get("author_name") and who != "subject":
+            who += " " + r["author_name"]
+        head = " · ".join(x for x in ((r.get("date") or "")[:10], r.get("kind") or "", who) if x)
+        tail = (" (rendered from %s)" % r["lang"]) if (r.get("text_en") or "").strip() and r.get("lang") and r.get("lang") != "en" else ""
+        return "[%s] %s%s: %s" % (r.get("id"), head, tail, self._shown(r).replace("\n", " / "))
+    def _lines(self, sub, as_frame, limit):
+        if as_frame:
+            return sub
+        rows = [self._fmt(r) for r in sub.to_dict("records")[:limit]]
+        more = len(sub) - limit
+        return ("\n".join(rows) if rows else "(no passages)") + (("\n(%d more; raise limit or narrow)" % more) if more > 0 else "")
+    def _filter(self, sub, kind=None, author=None):
+        if kind:
+            sub = sub[sub["kind"] == kind]
+        if author:
+            sub = sub[sub["author_role"] == author]
+        return sub
+    def grep(self, pattern, kind=None, author=None, original=False, as_frame=False, limit=40, flags=_bamboo_ctx_re.I):
+        """The passages whose English rendering (or, with original=True, the text as written) matches the pattern."""
+        n = self.frame()
+        col = n["text"] if original else n.apply(self._shown, axis=1) if len(n) else n["text"]
+        hit = n[col.str.contains(pattern, flags=flags, regex=True, na=False)] if len(n) else n
+        return self._lines(self._filter(hit, kind, author), as_frame, limit)
+    def around(self, date, days=3, kind=None, author=None, as_frame=False, limit=60):
+        """The passages within `days` of a date (the words lead or lag the numbers: a window, not a day)."""
+        import pandas as _pd
+        n = self.frame()
+        d = _pd.to_datetime(date)
+        sub = n[(n["day"] >= d - _pd.Timedelta(days=days)) & (n["day"] <= d + _pd.Timedelta(days=days))] if len(n) else n
+        return self._lines(self._filter(sub, kind, author), as_frame, limit)
+    def between(self, a, b, kind=None, author=None, as_frame=False, limit=200):
+        """The passages from day a to day b inclusive."""
+        import pandas as _pd
+        n = self.frame()
+        sub = n[(n["day"] >= _pd.to_datetime(a)) & (n["day"] <= _pd.to_datetime(b))] if len(n) else n
+        return self._lines(self._filter(sub, kind, author), as_frame, limit)
+    def on(self, activity_id, as_frame=False, limit=60):
+        """The passages of one activity: its messages, note, tags, tick, the plan it fulfilled."""
+        n = self.frame()
+        sub = n[n["activity_id"].astype(str) == str(activity_id)] if len(n) else n
+        return self._lines(sub, as_frame, limit)
+    def text(self, ref):
+        """One passage whole, with its date, kind and author, the rendering and - when it differs - the original."""
+        n = self.frame()
+        key = str(ref) if str(ref).startswith("C.") else "C.%s" % ref
+        sub = n[n["id"] == key]
+        if not len(sub):
+            return "(no passage %s)" % key
+        r = sub.iloc[0].to_dict()
+        out = self._fmt(r)
+        if (r.get("text_en") or "").strip() and r.get("text_en") != r.get("text"):
+            out += "\n  original: " + (r.get("text") or "").replace("\n", " / ")
+        return out
+
+CTX = _BambooContext(__NOTES__, __CODES__)
+'''
+
+
+def kernel_api_source(notes_path: str, codes_path: str = "") -> str:
+    """The source that defines CTX in the kernel for the loaded context; '' without a context file. Run by the host
+    at kernel start and after a rollback, prefixed to the replay script; never a cell of the record."""
+    if not notes_path:
+        return ""
+    return KERNEL_API_SOURCE.replace("__NOTES__", repr(str(notes_path))).replace("__CODES__", repr(str(codes_path or "")))
+
+
 def aux_head_for_text_file(path: str, columns: list, rows: int) -> str:
     """The DATA block's entry for the context and codes files: the path, the columns and the row count, never the
     rows themselves (their cells are text; the map says what is there)."""

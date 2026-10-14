@@ -93,6 +93,14 @@ def _step_html(turn: Turn, index: int) -> str:
         body = turn.stdout or ""
         return (f'<details class="nb-step"><summary><span class="nb-chevron"></span><span class="nb-out-label">{label}</span>'
                 f'<span class="nb-out-peek">{_first_line(body, 110)}</span></summary><pre class="nb-out-body">{_pre(body, 6000)}</pre></details>')
+    if kind == "read":
+        # a READ's digest, with the ids it quoted on the step (data-units) so a [D1.17] or [C.417] chip in the answer can land
+        # here (2026-10-14; READ turns had not been rendered in this view since the documents phase)
+        body = turn.stdout or ""
+        ids = " ".join(re.findall(r"^- \[(D\d+\.\d+|C\.\d+)\]", body, re.M))
+        label = "Read the context" if re.match(r"^\s*(CTX\b|C\.\d)", turn.text or "", re.I) else "Read a document"
+        return (f'<details class="nb-step nb-read" data-units="{ids}"><summary><span class="nb-chevron"></span><span class="nb-out-label">{label}</span>'
+                f'<span class="nb-out-peek">{html.escape((turn.text or "")[:110], quote=False)}</span></summary><pre class="nb-out-body">{_pre(body, 8000)}</pre></details>')
     if kind == "ask":
         return f'<div class="nb-step nb-step--ask"><span class="nb-out-label">Question to you</span> {html.escape(turn.text or "")}</div>'
     if kind == "report":

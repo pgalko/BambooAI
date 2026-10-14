@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (205/125/31/19/17/49/44/51/11/117/33/1/1 Python; 44/7/30/67/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (206/134/31/19/17/49/44/68/11/117/33/1/1 Python; 47/7/30/67/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (54; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (59; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,39 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context, step 2: `CTX` in the kernel, READ CTX, the passage cited as [C.n] (2026-10-14, patch 0146).** The
+  words beside the data are now reached the way documents are (docs/CONTEXT_DESIGN.md §5, 5.1). `analyst/context.py`
+  gains the kernel object: `kernel_api_source(notes_path, codes_path)` defines `CTX` over the loaded files -
+  `frame()` (the table with a `day` column), `codes()`, `grep(pattern, kind=, author=, original=)`, `around(date,
+  days=3)`, `between(a, b)`, `on(activity_id)`, `text('C.417')` (the original beneath a rendering) - printed as
+  lines `[C.12] 2026-08-14 · activity_message · subject: …`, frames on `as_frame=True`; the host's kernel prelude is
+  now the documents' prelude and the context's joined (`_kernel_prelude`, `_documents_prelude`,
+  `_context_prelude`), run as before. READ over the context: `parse_context_scope` reads `READ CTX <what>`,
+  `READ CTX 2026-08-01..2026-08-31 <what>` (also `to`, `->`, `-`) and `READ C.120-160 <what>` (a stretch without a
+  question is read whole, oldest first, up to one call's worth); `reading.read_context` turns the table into
+  units (`passage_units`: the rendering as the text, the original kept, `where` = day · kind · author, *(rendered
+  from da)* when the text is a rendering) and runs the same BM25 selection, Reader call, verbatim check and digest
+  as a document read, under `[C.n]` ids, with a footer naming `READ C.a-b` and the `CTX` calls; a one-word
+  passage (a tag) is a candidate. `BambooAI._read` dispatches by the scope; `_unit_text('C.n')` gives the report
+  guard the passage's English text; the guard's `UNIT_REF_RE` accepts `[C.n]` and names the store a missing id
+  belongs to ("not in the context loaded"). The contract's Context section (`analyst/contract_context.md`, 945
+  characters - the trim to ~600 and the reviewer's lens stay step 4) is joined by `Session(context=True)` after
+  Documents, with the `READ CTX` row; the host sets the flag from the context prelude. The page: `[C.417]` in the
+  Answer and the Simplified view is a chip (`paneCiteHtml`, `.cite.ctx`, styled as the documents' chip - the prefix
+  tells them apart) whose hover shows the passage's day, kind and author with the verified quote and, beneath a
+  rendering, the original (the READ's pane event carries `original` for rendered quotes); the click opens the
+  Investigation tab at the READ that quoted it. That tab had never rendered READ turns (a documents-phase gap):
+  `analyst/render.py` now shows a READ as a step - *Read the context* / *Read a document*, the query as its
+  peek, the digest in the fold, the ids it quoted as `data-units`, which is what the chip's click lands on. The
+  stack's Intervals scenario gains a context question (a cell over `CTX`, `READ CTX` through the scripted Reader,
+  the report quoting the passage and citing it; the plain-language version keeps the chip); the integrations walk
+  asks it (59) and the dialog's dates are now set after the subscription limits land (`set_window`: the async
+  limits had overwritten the window once). Tests: test_read.py 68 (the scopes, the units, the digest, the
+  originals, the empty cases, the session with context, the guard, the notebook view), test_analyst.py 206 (the
+  section, the scanner over it), test_app_path.py 134 (the prelude run in a kernel, the five calls, `_read`,
+  `_unit_text`, the pane event, the frames read once per load - `auxiliary_datasets` is a property whose setter drops them,
+  since every load assigns the list), test_pane.js 47 (the chip, the hover, the Simplified view's chip). Still from
+  the live run: an English grep over Danish passages finds little until step 3 writes `text_en`.
 - **Context: the coaches told by the plan; minute marks in step lines; image v54 (2026-10-14, patch 0145).** Palo's
   first live load (a Danish rider's 90 days: 223 passages - 133 messages, 61 plan notes, 9 notes, 8 status entries,
   7 tags, 4 custom fields, 1 description; the map and the file's DATA entry as designed; the analyst read the file
