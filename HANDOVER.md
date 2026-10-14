@@ -446,6 +446,22 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The benchmark gains a `context_enabled` heading (2026-10-14, patch 0153).** Palo re-evaluates the system with
+  `benchmarking/20251125_task_eval_BambooAI.yaml` after major updates; its headings under each category encode the
+  question's type (`coach_athlete`, `technical`, `search_enabled`). A fourth, `context_enabled`, now sits under every
+  category - twelve questions that mix the words with the numbers, one per category and two each under Workout
+  Structure (plan versus done; a pacing instruction against the quarters ridden) and Recovery (an illness window
+  aligned on the day of the words; weekly fatigue words against load, lagged both ways). Each takes the design's
+  shapes in turn - numbers first (the week the 20-minute power jumped, what was written either side; a coach's
+  comment grouped by tone against the ride's metrics), words first (passages per month by kind and author beside the
+  volume; days coded fatigue against the HR at fixed power bins and the diary's ratings; named routes against GPS
+  clusters), both at once (planned repeats against the intervals detected in the 1Hz data; `conditions` passages
+  against the sensors; context features added to a power model) - at the benchmark's pitch (joins, 1Hz
+  computations, a judgement at the end), written window-relative rather than for 2025, since the words live on a
+  coached account. Datasets name the two files as `context_notes` and `context_codes`; the entries are unevaluated
+  (`able_to_solve: null`, score 0) like the categories after the `# FINISHED HERE` mark; a two-line comment at the
+  first heading says what the heading means. The file is read by people, not parsed (line 12's `Z1: <55%` already
+  breaks strict YAML); the additions parse once that line is quoted. No code, no tests changed.
 - **Context: the store keyed by the athlete, one Context pill, a plan note's date (2026-10-14, patch 0152).** Palo's
   test session on 0149-0151 (the nine questions of TESTING_context_0151): the coder at `none` read 63 new passages
   of an overlapping window in four parallel calls of 6-11 s for a cent - reuse works - and five analyses ran on the
