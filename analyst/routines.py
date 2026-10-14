@@ -422,6 +422,20 @@ AUX_KINDS = (("activity_summary_", "summary"), ("wellness_data_", "wellness"), (
 _STRING_RE = re.compile(r"""(?P<q>'|")(?P<body>(?:(?!(?P=q)).)*)(?P=q)""")
 
 
+CONTEXT_HEADER_BYTES = 300     # a context file of its header alone (sixteen column names) is well under this; any passage takes it past
+
+
+def context_empty(binding: dict, shape: Optional[dict]) -> bool:
+    """Whether the context file this load has holds no passages, from the run's shape probe (rows of each bound file):
+    a window without words (2026-10-14)."""
+    files = (shape or {}).get("files") or {}
+    for old in (binding or {}).get("map") or {}:
+        if aux_kind(old) == "context":
+            info = files.get(old)
+            return isinstance(info, dict) and info.get("rows") == 0
+    return False
+
+
 def aux_kind(path: str) -> str:
     """The kind of an auxiliary file from its name: a loader's kind (summary, wellness, intervals, profile, turns,
     climbs, waymarkers) or, for a file the person attached, its name."""
@@ -471,6 +485,11 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
             folder = str((f or {}).get("key_mark") or "")
             have[(folder, os.path.basename(p))] = p
     kinds = [str(k) for k in (plan or {}).get("aux_kinds") or []]
+    sizes: Dict[Tuple[str, str], float] = {}                     # (the key's folder, the file's name) -> its size in bytes, when listed
+    for f in (inspect or {}).get("auxiliary_datasets") or []:
+        p = str((f or {}).get("path") or (f or {}).get("filename") or "")
+        if p and isinstance((f or {}).get("size_mb"), (int, float)):
+            sizes[(str((f or {}).get("key_mark") or ""), os.path.basename(p))] = float(f["size_mb"]) * 1024 * 1024
     if src == "intervals":
         if not (start and end):
             return {"hit": False, "line": ""}
@@ -507,6 +526,10 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
             tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
             folder = str(f.get("key_mark") or "")
             names = {k: f"{kind_prefix(k)}{tag}.csv" for k in kinds if kind_prefix(k)}
+            # a load with context wants the codes the pass wrote beside it (2026-10-14) - unless the cached context file is
+            # its header alone, a window without words, for which no pass runs and no codes file exists
+            if "context" in names and sizes.get((folder, names["context"]), CONTEXT_HEADER_BYTES + 1) > CONTEXT_HEADER_BYTES:
+                names["codes"] = f"{kind_prefix('codes')}{tag}.csv"
             missing = [k for k, n in names.items() if (folder, n) not in have]
             if missing:
                 continue
@@ -522,7 +545,7 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
         f, cs, ce = candidates[0]
         tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
         folder = str(f.get("key_mark") or "")
-        missing = [k for k in kinds if kind_prefix(k) and (folder, f"{kind_prefix(k)}{tag}.csv") not in have]
+        missing = [k for k in kinds + (["codes"] if "context" in kinds else []) if kind_prefix(k) and (folder, f"{kind_prefix(k)}{tag}.csv") not in have]
         held = what if exact else f"the cached load around {what}"
         return {"hit": False, "line": f"{held} is in the cache without {', '.join(missing)} - it will be downloaded"}
     elif src == "endura":
@@ -888,7 +911,9 @@ def shape_sentences(record: dict, data: dict, shape: Optional[dict], binding: di
             continue
         rows = info.get("rows")
         if rows == 0:
-            out.append(f"the {word} is empty in this data (0 rows)")
+            # a window without words (docs/CONTEXT_DESIGN.md F3, 2026-10-14): the context file is its header, the pass wrote no
+            # codes, the method sees two empty tables and prints its zeros
+            out.append("no passages in this window (the context and codes tables are empty)" if aux_kind(old) == "context" else f"the {word} is empty in this data (0 rows)")
             continue
         orig = (aux_rec.get(old) or {}).get("rows") if isinstance(aux_rec.get(old), dict) else None
         s_ = f"the {word}: {int(rows):,} rows" if isinstance(rows, (int, float)) else f"the {word}"

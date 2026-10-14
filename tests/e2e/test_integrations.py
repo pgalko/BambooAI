@@ -19,7 +19,7 @@ import time
 from datetime import date, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path[:0] = [os.path.join(ROOT, "tools", "stack"), os.path.join(ROOT, "tools", "stack", "browser")]
+sys.path[:0] = [ROOT, os.path.join(ROOT, "tools", "stack"), os.path.join(ROOT, "tools", "stack", "browser")]
 
 try:
     from playwright.sync_api import sync_playwright
@@ -30,6 +30,7 @@ except Exception:                                          # noqa: BLE001
 import vendor                                              # noqa: E402
 import harness_models                                      # noqa: E402
 import apis_data                                           # noqa: E402
+from analyst.routines import aux_kind, number as rt_number     # noqa: E402
 from stack import Stack                                    # noqa: E402
 from browse import open_page                               # noqa: E402
 
@@ -553,6 +554,131 @@ def main():
                   "own words" in simp_c["text"] and len(simp_c["chips"]) == 1 and simp_c["chips"][0][0] == chip_c[0] and simp_c["chips"][0][1] == chip_c[2], simp_c)
             page.click("#content-answer .simplified-summary-btn")
             page.wait_for_timeout(300)
+
+            # ---- step 5: routines carry context (docs/CONTEXT_DESIGN.md F3, 2026-10-14) - a chain that counts a code on the rider's
+            # own passages, made a routine; run on the next window (the load with context, the pass behind it waited for, the count
+            # compared like any result line) and on a window without words (a context file of its header, no codes: zeros, said so) ----
+            def fatigue_expected(s_day, e_day):
+                """What the fake calendar holds that the scripted coder reads as fatigue (its lexicon: 'Benene var tunge', 'Sov dårligt'):
+                the subject's chat lines and the descriptions in prose, by day - the count the method should print on that window."""
+                n = 0
+                for d_ in apis_data.days_in(s_day.isoformat(), e_day.isoformat()):
+                    lines = [m_["content"] for m_ in apis_data.messages(d_) if m_["athlete_id"] == apis_data.SUBJECT["id"]]
+                    desc = apis_data.activity(d_).get("description") or ""
+                    n += sum(1 for t_ in lines + [desc] if "benene var tunge" in t_.lower() or "sov dårligt" in t_.lower())
+                return n
+            # a thread of its own, so the method is the count chain alone (a follow-up in the thread above would stand on the
+            # start-hours cells too - the thread's earlier chains on the same data are part of its computation); the same window,
+            # loaded again with context - the store makes the pass a matter of seconds
+            page.evaluate("handleNewConversation()")
+            page.wait_for_url("**/?new=true", timeout=60000)
+            page.wait_for_selector("#queryInput", state="visible", timeout=60000)
+            page.app_ready()
+            page.wait_for_function("() => /Ready/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+            fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
+            page.evaluate("showIntervalsModal()")
+            page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            set_window(page, a_start, a_end)
+            page.evaluate("() => ['summary-checkbox', 'wellness-checkbox', 'context-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
+            page.click("#connectIntervals")
+            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
+            page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
+            reuse_line = page.evaluate("() => (document.querySelector('#contextPill .dataset-pill-content') || {}).getAttribute('title')")
+            check("the same window loaded again in a new thread: the pass reused the store (the line says so) and settled in seconds", "already coded by an earlier load" in (reuse_line or ""), reuse_line)
+            page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
+            page.fill("#queryInput", mod.COUNT_QUESTION)
+            page.evaluate("setMode('deep')")
+            page.click("#submitQuery")
+            wait_run_end(page, 1)
+            page.evaluate("activateTab('answer')")
+            page.wait_for_timeout(300)
+            answer_n = page.inner_text("#content-answer")
+            exp_a = fatigue_expected(a_start, a_end)
+            m_n = re.search(r"(\d+) of the rider's (\d+) passages were read as fatigue", answer_n)
+            check("the count chain: one cell over CTX.frame() and CTX.codes(), the report with the count the fake calendar predicts and the sentence that a code is the pass's reading",
+                  m_n is not None and int(m_n.group(1)) == exp_a and int(m_n.group(2)) > exp_a and "coding pass's reading" in answer_n, (answer_n[:300], exp_a))
+            page.hover("#rankButton")
+            page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+            page.click("#saveMenu .it[data-act='routine']")
+            page.wait_for_selector("#routineMakeModal .rt-results, #routineMakeModal .rt-error", timeout=120000)     # no inputs table: nothing varies
+            mk = page.evaluate("() => ({ data: (document.querySelector('#routineMakeModal .rt-data') || {}).textContent || '', inputs: document.querySelectorAll('#routineMakeModal .rt-inputs tbody tr').length, results: document.querySelectorAll('#routineMakeModal .rt-results .r').length, err: (document.querySelector('#routineMakeModal .rt-error') || {}).textContent || null })")
+            check("Save as routine on the count chain: two result lines, nothing made an input (the code counted is the question's)", mk["err"] is None and mk["results"] == 2 and mk["inputs"] == 0, mk)
+            page.fill("#routineMakeModal [data-field='purpose']", "fatigue in his own words, window by window")
+            page.click("#routineMakeModal [data-act='create']")
+            page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
+            err_n = page.evaluate("() => { const e = document.querySelector('#routineMakeModal .rt-error'); return e ? e.textContent : null; }")
+            rdirs_n = [d_ for d_ in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")) if "fatigue" in json.load(open(d_)).get("name", "").lower()]
+            rj_n = json.load(open(rdirs_n[0])) if rdirs_n else {}
+            rec_n = ((rj_n.get("versions") or [{}])[0].get("manifest") or {}).get("data") or {}
+            check("Create: run zero reproduced the two lines on the original window; the record's auxiliary files are the four of the load - summary, wellness, context, codes - under the key's folder, the load's kinds with context",
+                  err_n is None and rdirs_n and (rj_n.get("versions") or [{}])[0].get("run_zero", {}).get("status") == "reproduced"
+                  and sorted(aux_kind(p_) for p_ in rec_n.get("aux") or []) == ["codes", "context", "summary", "wellness"] and "context" in (rec_n.get("load") or {}).get("aux_kinds", []), (err_n, rec_n.get("aux"), (rec_n.get("load") or {}).get("aux_kinds")))
+            rid_n = rj_n.get("id")
+            # run 1: the next window - the dialog's load asks for the context too; the pass behind the load is waited for; the count compared
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.evaluate("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); if (it) it.click(); }", [rid_n])
+            page.wait_for_function("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); return !!it && it.classList.contains('on'); }", arg=[rid_n], timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_selector("#routineRunModal .rt-load", timeout=30000)
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=15000)
+            help_n = page.evaluate("() => document.querySelector('#routineRunModal .rt-load .help').textContent")
+            check("the run dialog of the context routine: the load asks for the summary, the wellness log and the context - the codes are the pass's, not asked for",
+                  all(k_ in help_n for k_ in ("summary", "wellness", "context")) and "codes" not in help_n, help_n)
+            b_start_n, b_end_n = page.evaluate("() => [document.querySelector('#routineRunModal input[data-load=\"start\"]').value, document.querySelector('#routineRunModal input[data-load=\"end\"]').value]")
+            page.click("#routineRunModal [data-act='run']")
+            seen_coding = page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && /Coding the context|run 1 of/.test(p.textContent + ' ' + ((document.querySelector('#chainPosition') || {}).textContent || '')); }", timeout=300000)
+            wait_text(page, "#chainPosition", "run 1 of 1", 300000)
+            page.wait_for_timeout(800)
+            rv_n = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
+                cmp: (document.getElementById('content-comparison') || {}).textContent || '', pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()),
+                ctx: (() => { const p = document.getElementById('contextPill'); if (!p) return null; const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, spinner: !!p.querySelector('.file-upload-spinner'), rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent) }; })() })""")
+            exp_b = fatigue_expected(date.fromisoformat(b_start_n), date.fromisoformat(b_end_n))
+            _chk_n = next((r for r in rv_n["rows"] if "CHECK" in r), "")
+            run1_n = json.load(open(os.path.join(os.path.dirname(rdirs_n[0]), "runs", "v1_1", "run.json")))
+            res1_n = {r_.get("what"): rt_number(r_.get("estimate")) for r_ in run1_n.get("results") or []}
+            check("run 1 on the next window: the LOAD row names the window with context; the pass ran behind the load and the run waited for it (the codes file bound, no 'codes absent'); "
+                  "the CHECK row says the context file's rows against the original's; the count printed is the fake calendar's for that window; the Comparison tab sets it against run 0",
+                  any("LOAD" in r and f"Intervals.icu {b_start_n} → {b_end_n}" in r for r in rv_n["rows"]) and "the context file:" in _chk_n and "rows where the original had" in _chk_n.split("the context file:")[1] and "the codes file:" in _chk_n
+                  and "codes absent" not in _chk_n and "no passages in this window" not in _chk_n and run1_n["status"] in ("ran", "reproduced") and "codes" not in run1_n.get("aux_absent", [])
+                  and {aux_kind(f_) for f_ in ((run1_n.get("shape") or {}).get("files") or {})} >= {"context", "codes"} and not run1_n.get("bindings")      # the method reads CTX: no literal path to rebind
+                  and res1_n.get("of them read as fatigue by the coding pass") == exp_b and "against run 0" in rv_n["cmp"] and "fatigue" in rv_n["cmp"] and "Run 1 complete" in rv_n["done"] and not rv_n["warn"],
+                  (rv_n["rows"], _chk_n, res1_n, exp_b, run1_n.get("aux_absent"), rv_n["done"][:200]))
+            check("the Data tab after the run: the one Context pill for the run's window, settled (no spinner), its list with the passages and the codes", rv_n["ctx"] is not None and not rv_n["ctx"]["spinner"] and rv_n["ctx"]["label"].startswith("Context (") and any(r_.startswith("Codescontext_codes_") for r_ in rv_n["ctx"]["rows"]), rv_n["ctx"])
+            # run 2: a window without words (the fake's silent fortnight): the context file is its header, no codes file, the method
+            # prints zeros, the CHECK row says 'no passages in this window' and does not call the codes absent
+            c_start, c_end = today - timedelta(days=33), today - timedelta(days=22)
+            assert all(apis_data.is_silent(d_) for d_ in apis_data.days_in(c_start.isoformat(), c_end.isoformat())), "the silent window is not silent"
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.evaluate("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); if (it) it.click(); }", [rid_n])
+            page.wait_for_function("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); return !!it && it.classList.contains('on'); }", arg=[rid_n], timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_selector("#routineRunModal .rt-load", timeout=30000)
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=15000)
+            page.fill("#routineRunModal input[data-load='start']", c_start.isoformat())
+            page.fill("#routineRunModal input[data-load='end']", c_end.isoformat())
+            page.wait_for_timeout(700)
+            page.click("#routineRunModal [data-act='run']")
+            wait_text(page, "#chainPosition", "run 2 of 2", 300000)
+            page.wait_for_timeout(800)
+            rv_s = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
+                cmp: (document.getElementById('content-comparison') || {}).textContent || '', ctx: (() => { const p = document.getElementById('contextPill'); if (!p) return null; const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, title: c.getAttribute('title'), rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent) }; })() })""")
+            _chk_s = next((r for r in rv_s["rows"] if "CHECK" in r), "")
+            run2_n = json.load(open(os.path.join(os.path.dirname(rdirs_n[0]), "runs", "v1_2", "run.json")))
+            res2_n = {r_.get("what"): rt_number(r_.get("estimate")) for r_ in run2_n.get("results") or []}
+            tag_c = f"{c_start.strftime('%Y%m%d')}_to_{c_end.strftime('%Y%m%d')}"
+            ctx_c = os.path.join(exec_ds, f"context_notes_{tag_c}.csv")
+            check("run 2 on a window without words: the loader wrote the context file as its header alone and no codes file; the CHECK row says 'no passages in this window' and does not call the codes absent (the wellness file is); "
+                  "the method printed its zeros; the Comparison tab sets them against run 1; the Context pill shows the window with no coding line",
+                  os.path.exists(ctx_c) and len(open(ctx_c, encoding="utf-8").read().strip().splitlines()) == 1 and not os.path.exists(os.path.join(exec_ds, f"context_codes_{tag_c}.csv"))
+                  and "no passages in this window (the context and codes tables are empty)" in _chk_s and "codes absent" not in _chk_s and "wellness absent in this data" in _chk_s
+                  and res2_n.get("passages the subject wrote in the window") == 0 and res2_n.get("of them read as fatigue by the coding pass") == 0 and run2_n["status"] in ("ran", "reproduced")
+                  and "against run 1" in rv_s["cmp"] and "Run 2 complete" in rv_s["done"] and not rv_s["warn"] and rv_s["ctx"] is not None and rv_s["ctx"]["label"].startswith("Context (")
+                  and not any(r_.startswith("Codes") for r_ in rv_s["ctx"]["rows"]),
+                  (_chk_s, res2_n, rv_s["done"][:200], rv_s["ctx"], os.path.exists(ctx_c)))
             errs = page.evaluate("window.__stackErrors || []")
             b.close()
         apis = __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"]

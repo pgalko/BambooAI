@@ -427,9 +427,25 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
    week the 20-minute power jumped and what was written either side*, *days coded fatigue against the HR at fixed
    power*, *the plan against what was ridden*), run in Adaptive mode so that the reviewer's Words line is present
    — each report citing passages, counts and cells and saying what rests on what; the first run is pending.
-5. **Routines carry context** — the aux kinds bound, the run's load with the coder, the comparison. *Accepted
-   by:* the integrations walk (a routine over two windows with a count line compared; a window without words),
-   live.
+5. **Routines carry context** — the aux kinds bound, the run's load with the coder, the comparison. *Built
+   2026-10-14 (patch 0156):* most of it was already there by construction — the two kinds in `AUX_KINDS` (1b), the
+   run dialog waiting for the pass (0149), the kernel prelude binding `CTX` to the run's load, `bind_script`
+   rebinding a literal context or codes path by kind. What was missing: the run's plan dropped `context` from the
+   kinds a load is asked for (`load_plan` kept only summary, wellness, intervals), so a routine's run never loaded
+   the words; the cache was satisfied by a cached context file without the codes beside it; and a window without
+   words read as "the context file is empty (0 rows); codes absent". Now: the plan keeps `context` (never `codes`
+   - the pass writes them); `cache_match` wants the codes file beside a cached context file, unless that file is
+   its header alone (a window without words, no pass, no codes - told by its size); the CHECK row says *no
+   passages in this window (the context and codes tables are empty)* and does not call the codes absent there.
+   The run's record keeps the binding's facts (the codes file absent in that load) under the sentence. *Accepted
+   by:* unit tests (the plan, the cache, the sentences); the integrations walk - a chain counting a code on the
+   rider's own passages (one cell over `CTX.frame()` and `CTX.codes()`, two RESULT lines) made a routine with no
+   inputs; run on the next window, the load asking for the context, the pass behind it waited for, the context
+   and codes files bound with their rows against the original's, the count the fake calendar predicts, compared
+   with run 0; run on the fake's silent fortnight (`apis_data.is_silent`: nothing written for fourteen days),
+   the context file its header, no codes file, zeros printed, the sentence on the CHECK row, the Context pill
+   for the window with no coding line. Live: pending (D9 is moot until a run carries a narrative - the record's
+   `narrative` field is empty by construction today).
 6. **The codebook screen** — S3. *Accepted by:* the markup tests, the screens tool, a proposal confirmed live and
    used by the next load.
 7. **The joint display** — no code until the field trial shows the analyst cannot draw one with what it has (C6);
@@ -463,7 +479,9 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
 - **D8 — A coach's standing note.** The seed's rules as user content the analyst reads (a per-user note in DATA).
   Not in v0.1 (C6, C7); the question is whether the field trial shows the analyst needs it.
 - **D9 — What a routine's narrative may say.** The seed's constraints belong here if anywhere: the Rewriter's
-  note on a run reports a divergence and never recommends a change. A product rule for step 5.
+  note on a run reports a divergence and never recommends a change. A product rule for step 5 — moot as built
+  (2026-10-14): a run's comparison is sentences the host writes from the numbers, no model writes a narrative on a
+  run (the record's `narrative` field is empty); the rule applies the day one does.
 - **D10 — Languages. Decided (Palo, 2026-10-13): everything the model writes is English** — codes, definitions,
   proposals, the map, the digests, the report, whatever the question's language. A passage not in English is
   rendered into English once, at load, by the coder (`text_en`); the analyst reads and greps the rendering, the

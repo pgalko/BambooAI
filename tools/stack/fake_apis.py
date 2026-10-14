@@ -44,7 +44,7 @@ def health():
 
 @app.route("/calls")
 def calls():
-    return jsonify({"calls": CALLS[-200:]})
+    return jsonify({"calls": CALLS[-1000:]})     # the walk's loads add up (2026-10-14: five windows with context)
 
 
 # ------------------------------------------------------------ Intervals.icu

@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/117/33/29/1/1 Python; 49/7/30/67/24/66/8 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/120/33/29/1/1 Python; 49/7/30/67/24/66/8 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (66; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (74; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,30 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context, step 5: routines carry context (2026-10-14, patch 0156).** Most of F3 was there by construction - the
+  two kinds in `AUX_KINDS` (1b), the run dialog waiting for the pass (0149), the replay's prelude binding `CTX` to
+  whatever the run loaded, `bind_script` rebinding a literal context or codes path by kind. Three things were not:
+  (1) `load_plan` kept only summary, wellness and intervals among the kinds a run's load asks for, so a routine made
+  from a chain that read the words never loaded them - `context` stays, `codes` never (the pass writes them);
+  (2) `cache_match` took a cached context file without the codes beside it as a hit - it now wants the codes file
+  too, unless the cached context file is its header alone (`CONTEXT_HEADER_BYTES`, from the inspection's size: a
+  window without words, for which no pass runs); (3) a window without words read as "the context file is empty in
+  this data (0 rows); codes absent" - `shape_sentences` now says *no passages in this window (the context and codes
+  tables are empty)* for the context kind and `aux_line(binding, shape)` leaves the codes out of the absent files
+  there (`rt.context_empty`); the run's record keeps the binding's facts under the sentence. The stack: the fake
+  calendar has a silent fortnight 21-34 days ago (`apis_data.is_silent`: no description, tag, tick or calendar entry;
+  chats, rides and wellness stop at sixty days anyway); the scenario's count question (`COUNT_QUESTION`: one cell over
+  `CTX.frame()` and `CTX.codes()`, two RESULT lines, a report saying a code is the pass's reading; the promoter makes
+  no input). The walk (integrations 74): the same window loaded again in a new thread (the store reused, the line
+  says so), the count chain's report with the count the fake calendar predicts, Save as routine (two lines, no
+  input, the record's four files), run 1 on the next window (the dialog's load with the context, the pass waited
+  for, the context and codes files' rows against the original's on the CHECK row, the count the calendar predicts
+  for that window, compared with run 0, the one Context pill settled), run 2 on the silent window (the context file
+  its header, no codes file, zeros, the sentence, no 'codes absent', the pill with no coding line). The fake API's
+  call log keeps 1000 calls (the walk's loads had pushed the race calls out of 200). Tests: test_routines 120 (the
+  plan, the cache with and without the codes and with a header-only file, the sentences, `context_empty`). D9 is
+  moot until a run carries a narrative (the record's field is empty by construction). Live: pending; the testing
+  note has the questions. Next: step 6 (the codebook screen) - or the benchmark run first.
 - **The two frames described again in the Context section (2026-10-14, patch 0155).** The first thread under 0154
   (two Deep questions, one Adaptive, read against the five earlier context-phase logs) showed the trim had taken out
   a sentence that does change what the model does: with `CTX.codes()` a bare name, the analyst read the codes file

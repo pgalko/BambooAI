@@ -20,6 +20,10 @@ QUESTIONS = ["At what local hour does training usually start, and what share of 
 # the context (docs/CONTEXT_DESIGN.md, step 2): a question answered from the words beside the data - a cell over CTX, a
 # READ CTX through the Reader, the report quoting a passage and citing it as [C.n]
 CONTEXT_QUESTION = "What did the rider write about the legs, and when?"
+# the context in a routine (docs/CONTEXT_DESIGN.md F3, step 5): a chain that counts a code on the subject's own passages - one
+# cell over CTX.frame() and CTX.codes(), two RESULT lines, a report - made a routine and run on other windows, where the
+# count is compared like any result line and a window without words prints zeros
+COUNT_QUESTION = "How many of the rider's own passages in this window were read as fatigue?"
 DATASET_NAME = "start_hours_stub.csv"          # the stack wants a file; the walk loads from Intervals instead
 
 
@@ -108,6 +112,16 @@ fig.show()"""
 
 CELL_GENERIC = """print(df.describe(include='all').round(3).to_string())"""
 
+CELL_COUNT = """# The passages the subject wrote and the codes the coding pass put on them: a code is the model's reading, counted here
+notes = CTX.frame()
+codes = CTX.codes()
+mine = notes[notes['author_role'] == 'subject']
+hit = codes[(codes['code'] == 'fatigue') & codes['id'].isin(mine['id'])]
+n_mine, n_fatigue = int(len(mine)), int(hit['id'].nunique())
+print(f"COUNT subject_passages={n_mine} fatigue={n_fatigue}")
+RESULT('passages the subject wrote in the window', float(n_mine), None, None, 'passages', 'n/a')
+RESULT('of them read as fatigue by the coding pass', float(n_fatigue), None, None, 'passages', 'n/a')"""
+
 
 class Scenario:
     def __init__(self):
@@ -115,6 +129,9 @@ class Scenario:
 
     def reply(self, system, user):
         if user.startswith("Rewrite the technical report"):
+            k = re.search(r"## (\d+) of the rider's (\d+) passages were read as fatigue", user)
+            if k:                                       # the count question's report (step 5)
+                return "", f"Of the {k.group(2)} notes the rider wrote, a program read {k.group(1)} as being about fatigue; that is the program's reading, not the rider's words."
             m = re.search(r"\"([^\"]+)\" \[(C\.\d+)\]", user)
             if m:                                       # the context question's report: the plain version keeps the quote and its citation
                 return "", f"The rider's own words under one session were \"{m.group(1)}\" [{m.group(2)}]; the day it was written is in the report."
@@ -152,6 +169,9 @@ class Scenario:
     def promoter(self, user):
         m = re.search(r"# --- cell (\d+) ---\n(?:(?!# --- cell).)*?band = \[9, 11\]", user, re.S)
         if not m:
+            if "COUNT subject_passages=" in user or "codes['code'] == 'fatigue'" in user:
+                # the count chain (step 5): the code counted is the question's; the window is the load's; nothing to make an input
+                return json.dumps({"name": "Fatigue in the rider's own words", "inputs": [], "edits": [], "kept": ["the code counted is the question's; the passages and the codes are the load's files, bound at each run"]})
             return json.dumps({"name": "Start hours", "inputs": [], "edits": [], "kept": ["nothing varies with the data"]})
         cell = int(m.group(1))
         inputs = [{"key": "band", "label": "The hour band counted", "type": "numbers", "default": [9, 11], "origin": "the analysis counted 9 to 11", "multiple": False}]
@@ -245,6 +265,18 @@ class Scenario:
             if forced or turn >= 3:
                 return self.report(user, q)
             return {1: self.t_inspect, 2: self.t_hours}[turn](user, q)
+        if q == COUNT_QUESTION:
+            c = re.search(r"--- cell (\d+) ---\n(?:(?!--- cell).)*?COUNT subject_passages=(\d+) fatigue=(\d+)", user, re.S)
+            if forced or c:
+                if not c:
+                    return _report("The count did not print.", _note(q, plan="report"), "## Not established\n\nThe counting cell did not print; nothing can be reported.")
+                cell, n_mine, n_fat = c.group(1), c.group(2), c.group(3)
+                return _report("The two counts are printed; the report says what they rest on - the coding pass's reading, not the rider's words.", _note(q, est=f"{n_fat} of {n_mine}", plan="report"),
+                               f"## {n_fat} of the rider's {n_mine} passages were read as fatigue\n\nOf the {n_mine} passages the rider wrote in this window, {n_fat} carry the code fatigue [cell {cell}]. "
+                               f"A code is the coding pass's reading of a passage, not something the rider said; the count rests on the codes table, not on the words quoted.\n\n"
+                               f"## How it was established\n\nThe subject's rows of CTX.frame() joined to CTX.codes() on the passage id, the code counted once per passage [cell {cell}].")
+            return _cell("The passages are in CTX.frame(), the codes the pass put on them in CTX.codes(); one cell counts the code on the subject's own passages.",
+                         _note(q, plan="count; report", names="notes, codes, mine, hit"), CELL_COUNT)
         if q == CONTEXT_QUESTION:
             # the context path: a cell over CTX finds the passages that mention the legs, a READ CTX quotes them through the
             # Reader, the report quotes one as the Reader returned it and cites it as [C.n]

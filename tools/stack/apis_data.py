@@ -18,7 +18,9 @@ day a private NOTE by the coach), every ninth session a description in prose and
 a workout structure, tags on every fifth, a coach's tick on every sixth; the wellness log has a comment every
 eighth day and the custom select `Sickness` on sick days; the calendar has a planned workout paired with every ride,
 a note every seventeenth day, a sick span of three days once every fifty, a race (its description HTML) once every
-fifty, and a note the coach hid from the subject every twenty-third day.
+fifty, and a note the coach hid from the subject every twenty-third day. A fortnight 21 to 34 days ago is silent
+(2026-10-14, context step 5): nothing written at all - no description, tag or tick, nothing in the calendar - so a
+routine run on a window inside it meets a context file with no rows and no codes file.
 """
 import hashlib
 from datetime import date, datetime, timedelta, timezone
@@ -86,6 +88,8 @@ def activity(day: date, today: date = None) -> dict:
     o = day.toordinal()
     if has_chat(day, today):
         act["icu_chat_id"] = chat_id(day)
+    if is_silent(day, today):
+        return act
     if o % 9 == 0:
         act["description"] = SUBJECT_LINES[_h(day, "desc") % len(SUBJECT_LINES)]
     elif o % 13 == 0:
@@ -108,6 +112,12 @@ SUBJECT_LINES = ["Benene var tunge i dag, kørte kortere end planlagt.", "Good l
                  "Sov dårligt, var træt fra start.", "Felt strong on the climbs, no complaints.",
                  "Lidt ondt i knæet efter turen.", "Cut the session short, work ran late."]
 COACH_LINES = ["Fint, tag det roligt i morgen.", "Good. Same again Thursday.", "Keep the cadence up next time.", "Bra jobba."]
+
+
+def is_silent(day: date, today: date = None) -> bool:
+    """The fortnight 21 to 34 days ago, in which nothing is written (chats, rides and the wellness log stop at sixty
+    days anyway): a window inside it has a context file of its header alone."""
+    return 20 < days_ago(day, today) <= 34
 
 
 def has_chat(day: date, today: date = None) -> bool:
@@ -150,6 +160,8 @@ def events(oldest: str, newest: str, today: date = None):
     """The calendar of a window as the API returns it (end_date_local exclusive)."""
     out = []
     for d in days_in(oldest, newest):
+        if is_silent(d, today):
+            continue
         o = d.toordinal()
         start = d.strftime("%Y-%m-%dT00:00:00")
         nxt = (d + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")

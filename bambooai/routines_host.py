@@ -410,7 +410,9 @@ def load_plan(routine: dict, version_number: Optional[int] = None) -> dict:
         plan["start"], plan["end"] = start, end
     if src == "intervals":
         plan["metrics"] = list(load.get("metrics") or extra.get("metrics") or [])
-        plan["aux_kinds"] = [k for k in (load.get("aux_kinds") or plan["aux_kinds"]) if k in ("summary", "wellness", "intervals")]
+        # the kinds a load can be asked for: the codes are never asked, the pass behind a load with context makes them
+        # (docs/CONTEXT_DESIGN.md F3, 2026-10-14: a routine made from a chain that read the words loads them again)
+        plan["aux_kinds"] = [k for k in (load.get("aux_kinds") or plan["aux_kinds"]) if k in ("summary", "wellness", "intervals", "context")]
     elif src == "endura":
         plan["race_id"] = load.get("race_id") or extra.get("race_id")
         plan["race_title"] = load.get("race_title") or extra.get("race_title") or ""
@@ -485,9 +487,13 @@ def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable],
             "prelude": rt.conform_prelude(rec.get("columns") or [], files, span_inputs((ver.get("manifest") or {}).get("parameters") or [], rec), cut)}
 
 
-def aux_line(binding: dict) -> str:
-    """The auxiliary files in a sentence: which recorded ones this load lacks (the method will see empty tables)."""
+def aux_line(binding: dict, shape: Optional[dict] = None) -> str:
+    """The auxiliary files in a sentence: which recorded ones this load lacks (the method will see empty tables). The
+    codes file is not said absent when the context file this load has holds no passages (the pass writes no codes for a
+    window without words; shape_sentences says "no passages in this window" there), 2026-10-14."""
     absent = [rt.aux_kind(p) for p in (binding or {}).get("absent") or []]
+    if "codes" in absent and rt.context_empty(binding, shape):
+        absent = [k for k in absent if k != "codes"]
     if not absent:
         return ""
     names = ", ".join(k[5:] if k.startswith("file:") else k for k in absent)
@@ -597,7 +603,7 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     # what differs from the original, in sentences (step 4, 2026-10-11): the rows of the frame and of each bound file against
     # the original's, columns added or empty, a file empty or unreadable; the CHECK row says it, the record keeps it
     differences = rt.shape_sentences(manifest.get("data") or {}, d, prep["shape"], prep["binding"])
-    check_line = fit["line"] + (("; " + "; ".join(differences)) if differences else "") + (("; " + aux_line(prep["binding"])) if prep["binding"]["absent"] else "") \
+    check_line = fit["line"] + (("; " + "; ".join(differences)) if differences else "") + (("; " + aux_line(prep["binding"], prep["shape"])) if aux_line(prep["binding"], prep["shape"]) else "") \
         + (("; " + "; ".join(value_notes)) if value_notes else ("; the chosen values are in the data" if checks else ""))
     if prep.get("cut"):
         check_line += f"; cut to {prep['cut']['start']} → {prep['cut']['end']} from the cached load" + (f" {(d.get('load') or {}).get('cached_from')[0]} → {(d.get('load') or {}).get('cached_from')[1]}" if len((d.get("load") or {}).get("cached_from") or []) == 2 else "")

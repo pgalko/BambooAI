@@ -408,6 +408,15 @@ _rc = store.load(rid5); _rc["versions"][0]["manifest"]["data"]["load"] = {"sourc
 _rc["versions"][0]["manifest"]["data"]["date_range"] = "2026-08-12 to 2026-10-10"
 plan5c = host.load_plan(_rc)
 check("load_plan on a record whose load says cache: the source is the data's own (intervals), the window its date range, the kinds from the files", plan5c["source"] == "intervals" and plan5c["window_days"] == 59 and plan5c["aux_kinds"] == ["summary"], plan5c)
+# a routine made from a chain that read the words beside the data (docs/CONTEXT_DESIGN.md F3, step 5): the run's load asks for
+# the context again; the codes are not asked for - the pass behind the load makes them
+_rx = store.load(rid5); _rx["versions"][0]["manifest"]["data"]["load"]["aux_kinds"] = ["summary", "wellness", "context"]
+_rx["versions"][0]["manifest"]["data"]["aux"] = [aux_old, "datasets/u/k/wellness_data_20260812_to_20261010.csv", "datasets/u/k/context_notes_20260812_to_20261010.csv", "datasets/u/k/context_codes_20260812_to_20261010.csv"]
+plan5x = host.load_plan(_rx)
+_rx["versions"][0]["manifest"]["data"]["load"] = {"source": "cache"}; _rx["versions"][0]["manifest"]["data"]["source"] = "intervals"
+plan5y = host.load_plan(_rx)
+check("load_plan keeps the context kind among what a run loads, never the codes (the pass writes them) - from the load's kinds, and from the recorded files when the load says cache",
+      plan5x["aux_kinds"] == ["summary", "wellness", "context"] and plan5y["aux_kinds"] == ["summary", "wellness", "context"], (plan5x["aux_kinds"], plan5y["aux_kinds"]))
 # a later window: the loader wrote a differently named summary, with one column fewer and more rows
 aux_new = os.path.join(aux_dir, "activity_summary_20260910_to_20261010.csv")
 pd.DataFrame({"hour": [7, 7, 7, 18, 19, 7], "load": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}).to_csv(aux_new, index=False)
@@ -435,6 +444,17 @@ check("shape_sentences: a file empty in this data, one that could not be read, a
                          {"map": {"/a/wellness_data_x.csv": "/b/w.csv", "/a/activity_intervals_x.csv": "/b/i.csv", "/a/own.csv": "/b/o.csv"}, "absent": []})
       == ["12 rows where the original had 10", "the wellness file is empty in this data (0 rows)", "the intervals file could not be read (bad file)", "the own.csv: 30 rows, 1 column empty (hrv)"]
       and rt.shape_sentences({}, {}, None, {"map": {}}) == [] and rt.shape_sentences({}, {"rows": 3}, None, {"map": {}}) == ["3 rows"])
+# a window without words (docs/CONTEXT_DESIGN.md F3, 2026-10-14): the context file this load has is its header alone and the pass
+# wrote no codes - the sentence says so, and the codes file is not said absent beside it
+_bw = {"map": {"/a/context_notes_x.csv": "/b/c.csv", "/a/activity_summary_x.csv": "/b/s.csv"}, "absent": ["/a/context_codes_x.csv", "/a/wellness_data_x.csv"]}
+_sw = {"files": {"/a/context_notes_x.csv": {"path": "/b/c.csv", "rows": 0}, "/a/activity_summary_x.csv": {"path": "/b/s.csv", "rows": 12}}}
+_sv = {"files": {"/a/context_notes_x.csv": {"path": "/b/c.csv", "rows": 7}, "/a/activity_summary_x.csv": {"path": "/b/s.csv", "rows": 12}}}
+check("a window without words: 'no passages in this window' for the empty context file; aux_line leaves the codes out of the absent files then, and names them when the context has passages (a pass that failed)",
+      rt.shape_sentences({}, {}, _sw, _bw) == ["no passages in this window (the context and codes tables are empty)", "the summary file: 12 rows"]
+      and rt.context_empty(_bw, _sw) and not rt.context_empty(_bw, _sv) and not rt.context_empty({"map": {}}, _sw)
+      and host.aux_line(_bw, _sw) == "wellness absent in this data - the method will see an empty table there"
+      and host.aux_line(_bw, _sv) == "codes, wellness absent in this data - the method will see empty tables there" and host.aux_line(_bw) == "codes, wellness absent in this data - the method will see empty tables there",
+      (rt.shape_sentences({}, {}, _sw, _bw), host.aux_line(_bw, _sw), host.aux_line(_bw, _sv)))
 check("cached_files: the cache's frames that came from a file, newest first, by name with their rows; a loader's frame left out; a nameless frame by its id",
       rt.cached_files({"cached_dataframes": [{"df_id": "a1", "source": "csv", "original_filename": "old.csv", "shape": [720, 6], "cached_at": "2026-10-10T10:00:00"},
                                              {"df_id": "b2", "source": "intervals", "shape": [100, 3], "cached_at": "2026-10-11T10:00:00"},
@@ -562,6 +582,21 @@ check("cache_match: the same source, window and metrics with every wanted file i
 check("cache_match: a window inside a cached load is a hit to be cut (the cached load's window on it, the line says so); without one of the wanted files beside the cached load, no hit, saying so",
       cm4b["hit"] and cm4b["df_id"] == "a" and cm4b["cut"] == ["2026-07-12", "2026-10-10"] and "inside the cached load 2026-07-12 → 2026-10-10" in cm4b["line"] and "cut to the window, no download" in cm4b["line"]
       and not cm4c["hit"] and "around this window" in cm4c["line"] and "without wellness" in cm4c["line"], (cm4b, cm4c))
+# a load with context wants the codes the pass wrote beside it (2026-10-14) - unless the cached context file is a header alone
+insp_c = {"cached_dataframes": [{"df_id": "a", "shape": [1000, 17], "source": "intervals", "date_range": "2026-07-12 to 2026-10-10", "metrics": []},
+                                {"df_id": "q", "shape": [200, 17], "source": "intervals", "date_range": "2026-09-01 to 2026-09-10", "metrics": []}],
+          "auxiliary_datasets": [{"filename": "activity_summary_20260712_to_20261010.csv", "path": "datasets/u/activity_summary_20260712_to_20261010.csv", "size_mb": 0.01},
+                                 {"filename": "context_notes_20260712_to_20261010.csv", "path": "datasets/u/context_notes_20260712_to_20261010.csv", "size_mb": 0.05},
+                                 {"filename": "activity_summary_20260901_to_20260910.csv", "path": "datasets/u/activity_summary_20260901_to_20260910.csv", "size_mb": 0.002},
+                                 {"filename": "context_notes_20260901_to_20260910.csv", "path": "datasets/u/context_notes_20260901_to_20260910.csv", "size_mb": 0.00012}]}
+cmc1 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "context"], "metrics": []}, insp_c, "2026-07-12", "2026-10-10")
+insp_c["auxiliary_datasets"].append({"filename": "context_codes_20260712_to_20261010.csv", "path": "datasets/u/context_codes_20260712_to_20261010.csv", "size_mb": 0.02})
+cmc2 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "context"], "metrics": []}, insp_c, "2026-07-12", "2026-10-10")
+cmc3 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "context"], "metrics": []}, insp_c, "2026-09-01", "2026-09-10")
+check("cache_match with context: no hit without the codes file beside the cached context file (the line names the codes); a hit with both, the files in the plan's order plus the codes; "
+      "a cached context file of its header alone (a window without words) is a hit without codes",
+      not cmc1["hit"] and "without codes" in cmc1["line"] and cmc2["hit"] and cmc2["files"] == ["datasets/u/activity_summary_20260712_to_20261010.csv", "datasets/u/context_notes_20260712_to_20261010.csv", "datasets/u/context_codes_20260712_to_20261010.csv"]
+      and cmc3["hit"] and cmc3["df_id"] == "q" and cmc3["files"] == ["datasets/u/activity_summary_20260901_to_20260910.csv", "datasets/u/context_notes_20260901_to_20260910.csv"], (cmc1, cmc2, cmc3))
 check("cache_match: an Endura event by its id with its files; a file missing is no hit; SweatStack never matches (its entries do not say which subjects they hold); no window or event asked - nothing to say",
       cm5["hit"] and cm5["df_id"] == "e" and cm5["files"] == ["datasets/u/race_turns_race_2.csv"] and not cm6["hit"] and "without climbs" in cm6["line"] and cm7 == {"hit": False, "line": ""}
       and rt.cache_match({"source": "intervals", "aux_kinds": []}, insp) == {"hit": False, "line": ""} and rt.cache_match({"source": "intervals"}, None, "2026-07-12", "2026-10-10")["hit"] is False, (cm5, cm6, cm7))
