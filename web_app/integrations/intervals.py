@@ -2,6 +2,8 @@
 
 import os
 import requests
+import threading
+import time
 import uuid
 import json
 from datetime import datetime
@@ -14,7 +16,9 @@ from auth.supabase_client import (
     get_intervals_api_key,
     remove_intervals_api_key,
     get_intervals_integration_status,
-    get_user_subscription
+    get_user_subscription,
+    can_execute_chain,
+    increment_queries_counter,
 )
 
 # Create the blueprint
@@ -269,6 +273,13 @@ def get_job_status(job_id):
         if job_data['status'] == 'completed' and 'result' in job_data:
             session_id = session['session_id']
             result = job_data['result']
+
+            # the coding pass (docs/CONTEXT_DESIGN.md §4 F1): a load that wrote a context file is held as 'processing'
+            # while the app codes it - the codes file and the renderings land beside the context file - then completes
+            # with the codes file among its auxiliary files and the pass's report under result['context']['coding']
+            held = _coding_step(job_id, session_id, result)
+            if held is not None:
+                return jsonify(held), 200
             
             # Update user preferences
             prefs = intervals_bp.user_preferences.get(session_id, {
@@ -324,6 +335,78 @@ def get_job_status(job_id):
     except Exception as e:
         intervals_bp.logger.error(f'Error getting job status: {str(e)}')
         return jsonify({'status': 'error', 'error': str(e)}), 500
+
+def _coding_step(job_id, session_id, result):
+    """The coding pass for a completed load, run once per job in a thread of the app: the first poll that sees the
+    executor's job complete starts it and answers 'processing' with the coder's progress; later polls answer the
+    same until it ends; the poll after that enriches the result and lets the completion through (returns None).
+    A load without a context file, or one whose file holds no passages, passes straight through."""
+    from analyst.routines import aux_kind
+    from analyst.coder import report_line
+    from bambooai import utils
+    files = list(result.get('aux_datasets') or [])
+    notes_path = next((p for p in files if aux_kind(p) == 'context'), None)
+    if not notes_path:
+        return None
+    jobs = getattr(intervals_bp, 'context_coding', None)
+    if jobs is None:
+        jobs = intervals_bp.context_coding = {}
+    now = time.time()
+    for k in [k for k, v in jobs.items() if v.get('done_at') and now - v['done_at'] > 3600]:
+        jobs.pop(k, None)                                   # a finished pass is remembered for an hour: a poll already in flight when the
+    state = jobs.get(job_id)                                # completion went out must not start the pass again (1 s polling)
+    if state is None:
+        state = jobs[job_id] = {'status': 'running', 'message': 'Coding the context…', 'percent': None, 'report': None}
+        # a query for the account's purposes - the same authorisation as Save as routine, charged as one when it ends
+        auth0_user_id = get_current_user_id()
+        allowed, reason = True, ''
+        if auth0_user_id:
+            auth_result = can_execute_chain(auth0_user_id)
+            if auth_result.get('ok') and not (auth_result.get('data') or {}).get('allowed'):
+                allowed, reason = False, (auth_result.get('data') or {}).get('reason', 'not authorised')
+            else:
+                try:
+                    increment_queries_counter(auth0_user_id)
+                except Exception as exc:                        # noqa: BLE001
+                    intervals_bp.logger.error(f"Failed to increment counter: {exc}")
+        if not allowed:
+            state.update(status='done', done_at=time.time(), report={'passages': None, 'skipped': f'the context was not coded: {reason}'})
+        else:
+            instance = intervals_bp.get_bamboo_ai(session_id)
+            intervals_bp.bamboo_ai_instances[session_id] = instance
+            billing_chain = utils.next_chain_id()
+
+            def progress(k, n):
+                state['message'] = f'Coding the context: batch {k} of {n}…'
+                state['percent'] = int(100 * (k - 1) / max(1, n))
+
+            def work():
+                try:
+                    report = instance.code_context(notes_path, progress=progress, billing_chain_id=billing_chain)
+                except Exception as exc:                        # noqa: BLE001
+                    intervals_bp.logger.error(f"the coding pass failed: {exc}")
+                    report = {'passages': None, 'error': f'the coding pass failed ({type(exc).__name__})'}
+                finally:
+                    try:
+                        instance.log_and_call_manager.charge_for_completed_query(billing_chain)
+                    except Exception:                           # noqa: BLE001
+                        pass
+                state['report'] = report
+                state['status'] = 'done'
+                state['done_at'] = time.time()
+            threading.Thread(target=work, daemon=True, name=f'context-coding-{job_id}').start()
+    if state['status'] == 'running':
+        return {'status': 'processing', 'message': state['message'], 'percent': state['percent']}
+    report = state.get('report') or {}
+    if report.get('codes_path') and report['codes_path'] not in files:
+        files.append(report['codes_path'])
+        result['aux_datasets'] = files
+    ctx = result.get('context') if isinstance(result.get('context'), dict) else {}
+    ctx['coding'] = report
+    ctx['coding_line'] = report.get('skipped') or report.get('error') or report_line(report)
+    result['context'] = ctx
+    return None
+
 
 @intervals_bp.route('/remove_data', methods=['POST'])
 @requires_auth

@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (206/137/31/19/17/49/44/69/11/117/33/1/1 Python; 49/7/30/67/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (207/149/31/19/17/49/44/69/11/117/33/24/1/1 Python; 49/7/30/67/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (59; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (64; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,44 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context, step 3: the codebook and the coder (2026-10-14, patch 0148).** The words beside the data are now read once
+  by a model at load (docs/CONTEXT_DESIGN.md §3.2, §3.3, §4 F1, §6, §13). `analyst/codebook_seed.json` (data, outside the
+  C5 scanner): the design's 36 English codes in six groups with their definitions. `analyst/codebook.py`: the user's
+  book under `storage/<user>/context/codebook.json`, seeded on first use, the vocabulary as the coder receives it
+  (`code: definition` lines, proposals last and marked), proposals stored as `proposed` with proposer, date and an
+  example passage (no version bump), the coach's decisions for the codebook screen of step 6 - `confirm` (as it is,
+  renamed, or merged into an existing code; the version bumps), `decline` - and the last load's `uses` per code.
+  `analyst/coder.py` (scanned): batches of forty passages or 12,000 characters; the Coder's messages (the template
+  says the work and the JSON-lines format - codes, tone, the words each code rests on verbatim, lang, text_en for a
+  passage not in English, a proposal at most once; the vocabulary and the passages ride as data); the parse of a reply
+  (lines, an array, fences, a cut reply kept to what parsed); the mechanical validation - a code outside the book
+  without a proposal dropped, a quote not verbatim dropped (the Reader's whitespace rule), one tone of four or
+  neutral, an English passage's rendering discarded, a missing or implausibly short rendering counted, duplicate and
+  unknown ids counted. `bambooai/context_host.py`: the pass - the file read back, each batch called on the Coder seat
+  (`_coder_seat`: 'Coder' when the config has it, else the Reader's), one retry, the renderings written into the
+  context file, the codes file written beside it (`context_codes_<window>.csv`, the design's columns, the coder and
+  the codebook version on every row), both through the executor's existing upload route (the key's folder sent as the
+  user id - no image change), the proposals and uses into the codebook; the report. The load route holds a completed
+  job as 'processing' with *Coding the context: batch k of n…* while a thread of the app codes (`_coding_step`),
+  authorised and charged as Save as routine's call (`can_execute_chain`, a billing chain, `charge_for_completed_query`;
+  a refused account loads uncoded with the reason in the line), remembers a finished pass for an hour so a poll in
+  flight cannot restart it, and lets the completion through with the codes file among the auxiliary files and the
+  pass under `result['context']['coding']` / `coding_line`; the dialog's line appends it (*201 of 212 coded, 180
+  rendered into English, 2 codes proposed*). The map's codes line now says "k of 36 codes used" (the user's book).
+  The `Coder` seat in every tier of the template (flash / flash / sonnet / opus, effort low, 16k). The stack's
+  Intervals scenario scripts a Coder from a lexicon over the fake calendar (renderings for the Danish and Norwegian
+  lines, one proposal `coach_flag`), its Reader quotes a rendered passage first, and the walk checks the files, the
+  codebook, the dialog's line, the map, and a chip whose hover shows the rendering with the original beneath (64).
+  Found on the way: `contract_context.md` (0146) was missing from pyproject's package-data - an installed edition would
+  have failed at import; both new files are listed now and test_analyst checks the list against the folder.
+  Not done here: the pane card of §F1 (a load has no chain; the dialog's line carries the report - the design says
+  so now); re-coding a cached window (step 5 territory); the codebook screen (step 6). Tests: test_coder.py 24 (new),
+  test_app_path.py 149 (the pass end to end on a local instance with a scripted Coder - the files, the book, the map,
+  a failing batch; the route's step - the hold, the thread, the enrichment, the in-flight poll, the refused account),
+  test_analyst.py 207 (the scanner over coder and codebook; the packaging check). **For the live check (step 3's
+  acceptance): twenty labels of one window read against their passages, and twenty renderings against their
+  originals, by Palo - the first measure of the coder's precision, before anything is tuned.** The hosted billing
+  decision - a load with context counts as one query - is easy to change in `_coding_step` if Palo wants it free.
 - **Context: a passage named by its bare id is a citation too (2026-10-14, patch 0147).** Palo's first run on 0146 (a
   Danish rider's 90 days; *what did the rider write about tired legs in August, and on which days*; DeepSeek v4.1
   flash, 14 turns, $0.08) exercised step 2 where it reached: the Context section and the `READ CTX` row in the

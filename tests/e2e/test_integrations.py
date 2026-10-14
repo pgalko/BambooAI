@@ -454,9 +454,32 @@ def main():
                       and len(race) >= 1 and all("<" not in t and "Distance: 60km" in t for t in race["text"])
                       and len(plan) >= 1 and "60%" not in plan.iloc[0]["text"] and plan.iloc[0]["text"].startswith("Endurance: Keep it conversational") and plan.iloc[0]["activity_id"] != "",
                       (set(msgs["author_role"]), sick.to_dict("records"), race.to_dict("records"), plan.head(1).to_dict("records")))
-                check("ids C.1..C.n in day order; text_en and lang empty before the coding pass; a Danish and an English line both present",
-                      list(ctx["id"]) == [f"C.{i}" for i in range(1, len(ctx) + 1)] and list(ctx["date"]) == sorted(ctx["date"]) and (ctx["text_en"] == "").all() and (ctx["lang"] == "").all()
+                check("ids C.1..C.n in day order; a Danish and an English line both present",
+                      list(ctx["id"]) == [f"C.{i}" for i in range(1, len(ctx) + 1)] and list(ctx["date"]) == sorted(ctx["date"])
                       and ctx["text"].str.contains("Sov dårligt|Benene var tunge|ondt i knæet").any() and ctx["text"].str.contains("Good legs today|Felt strong|Cut the session").any(), ctx[["id", "date", "kind"]].head(3).to_dict("records"))
+                # ---- step 3: the coding pass at load - the renderings in the context file, the codes file beside it, the codebook ----
+                da = ctx[ctx["text"].str.startswith("Benene var tunge")]
+                en = ctx[ctx["text"].str.startswith("Good legs today")]
+                tagrows = ctx[ctx["kind"] == "tag"]
+                check("the coder wrote the language and an English rendering into every Danish passage and left the English ones their own (lang en, text_en empty); a tag the coder did not know is lang en with no code",
+                      len(da) and (da["lang"] == "da").all() and (da["text_en"] == "The legs were heavy today, rode shorter than planned.").all()
+                      and len(en) and (en["lang"] == "en").all() and (en["text_en"] == "").all() and len(tagrows) and (tagrows["lang"] == "en").all(), (da[["lang", "text_en"]].head(2).to_dict("records"), en[["lang", "text_en"]].head(1).to_dict("records")))
+                codes_path = os.path.join(exec_ds, f"context_codes_{tag_a}.csv")
+                codes = pd.read_csv(codes_path, dtype=str, keep_default_na=False) if os.path.exists(codes_path) else None
+                check("the codes file beside the context file: the design's columns, one row per code with the words it rests on verbatim in the original, the tone, codebook rows and the proposed code's rows marked, the coder and the codebook's version",
+                      codes is not None and list(codes.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version"] and len(codes) > 20
+                      and all(q in ctx.set_index("id").loc[i, "text"] for i, q in zip(codes["id"], codes["quote"]))
+                      and set(codes["status"]) == {"codebook", "proposed"} and (codes[codes["code"] == "coach_flag"]["status"] == "proposed").all() and len(codes[codes["code"] == "coach_flag"]) >= 1
+                      and set(codes["tone"]) <= {"positive", "negative", "neutral", "mixed"} and (codes["codebook_version"] == "1").all() and (codes["coder"] != "").all()
+                      and {"fatigue", "sleep", "instruction", "deviation"} <= set(codes["code"]), (codes_path, None if codes is None else (list(codes.columns), len(codes), codes.head(3).to_dict("records"))))
+                book_path = os.path.join(workdir, "webapp", "storage", USER, "context", "codebook.json")
+                book = json.load(open(book_path)) if os.path.exists(book_path) else None
+                check("the user's codebook was seeded on first use (36 codes, version 1) and holds the coder's proposal as proposed with its definition and an example passage; the last load's uses are recorded",
+                      book is not None and book.get("version") == 1 and sum(1 for c in book["codes"] if c.get("status") == "seeded") == 36
+                      and any(c["code"] == "coach_flag" and c.get("status") == "proposed" and c.get("definition") and c.get("examples") for c in book["codes"])
+                      and sum(c.get("uses", 0) for c in book["codes"]) == len(codes), (book_path, None if book is None else [(c["code"], c.get("status"), c.get("uses")) for c in book["codes"] if c.get("status") == "proposed"]))
+                check("the dialog's line reports the pass: coded of total, the renderings, the proposal; the codes file is an auxiliary pill",
+                      re.search(r"; \d+ of \d+ coded, \d+ rendered into English, 1 code proposed\.", msg) is not None and any("context_codes" in p.lower() for p in pills_c), (msg, pills_c))
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
             # the analyst's DATA block: the context file's entry is columns and a count, the map follows, no passage in the prompt
             page.fill("#queryInput", mod.QUESTIONS[0])
@@ -472,6 +495,10 @@ def main():
                   and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in prompt1 and "activity_message" in prompt1 and "(subject " in prompt1 and "authors: subject " in prompt1
                   and "private entries " in prompt1 and "by month " in prompt1 and "A passage is cited as [C.n]" in prompt1
                   and "Sov dårligt" not in prompt1 and "Good legs today" not in prompt1, prompt1[prompt1.find("CONTEXT ("):prompt1.find("CONTEXT (") + 700] if "CONTEXT (" in prompt1 else prompt1[-800:])
+            check("DATA after the pass: the codes file listed as columns and count, the map's languages and its codes line - the counts per code, 'of 36 codes used', the uncoded, the proposal",
+                  f"context_codes_{tag_a}.csv" in prompt1 and "languages en " in prompt1 and " da " in prompt1 and "codes (the model's reading, one row per code, with the words it rests on): " in prompt1
+                  and re.search(r"\(\d+ of 36 codes used\)", prompt1) is not None and re.search(r"\d+ passages? carr(y|ies) none", prompt1) is not None and "proposed: coach_flag." in prompt1,
+                  prompt1[prompt1.find("codes ("):prompt1.find("codes (") + 400] if "codes (" in prompt1 else prompt1[-600:])
             page.evaluate("activateTab('answer')")
             page.wait_for_timeout(300)
             answer_c = page.inner_text("#content-answer")
@@ -492,10 +519,10 @@ def main():
                   ("Good legs today" in answer_x or "legs" in answer_x.lower()) and re.search(r"\bC\.\d+\b", answer_x) is not None and "cited passage" not in answer_x and "not in the context loaded" not in answer_x, answer_x[:400])
             chips_c = page.evaluate("() => [...document.querySelectorAll('#content-answer .cite.ctx')].map(c => [c.textContent, c.getAttribute('data-unit'), c.getAttribute('title')])")
             chip_c = chips_c[0] if chips_c else None
-            check("the answer's passages are chips of the context: the one quoted twice - named bare in the heading and cited as [C.n] - with the verified quote as hover, "
-                  "and the passage beside it, named bare and never READ, with its day, kind, author and text from the file (resolved at report time)",
+            check("the answer's passages are chips of the context: the one quoted twice - named bare in the heading and cited as [C.n] - a Danish passage read in its rendering, "
+                  "its hover the rendering's place, the English quote and the original beneath; and the passage beside it, named bare and never READ, with its day, kind, author and text from the file (resolved at report time)",
                   len(chips_c) == 3 and chips_c[0][0] == chips_c[1][0] and chips_c[0][2] == chips_c[1][2] and all(c[1] == c[0] and re.fullmatch(r"C\.\d+", c[0]) for c in chips_c)
-                  and re.search(r"\d{4}-\d{2}-\d{2} · activity_message · subject — \"", chip_c[2] or "") and "legs" in (chip_c[2] or "").lower()
+                  and re.search(r"\d{4}-\d{2}-\d{2} · activity_message · subject \(rendered from da\) — \"The legs were heavy today", chip_c[2] or "") and "\noriginal: \"Benene var tunge" in (chip_c[2] or "")
                   and chips_c[2][0] != chips_c[0][0] and re.search(r"^\d{4}-\d{2}-\d{2} · \w+ · ", chips_c[2][2] or "") and "print(CTX.text" not in (chips_c[2][2] or ""), chips_c)
             page.click("#content-answer .cite.ctx")
             page.wait_for_function("() => { const s = document.querySelector('.tab-content.active .nb-step.nb-read'); return !!s && s.open; }", timeout=15000)

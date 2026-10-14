@@ -1231,11 +1231,11 @@ def _authored_strings(path):
     return [n.value for n in _ast.walk(tree) if isinstance(n, _ast.Constant) and isinstance(n.value, str) and id(n) not in docs]
 _texts = {"contract (plain)": contract(False, 0), "contract (documents, reviews)": contract(True, 8), "contract (context)": contract(False, 0, context=True),
           "reviewer": REVIEWER, "rewrite task": REWRITE_TASK, "reader": READER_SYSTEM, "last turns": LAST_TURNS_LINE, "report now": REPORT_NOW}
-for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py", "analyst/routines.py", "bambooai/routines_host.py", "analyst/context.py"):
+for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py", "analyst/routines.py", "bambooai/routines_host.py", "analyst/context.py", "analyst/coder.py", "analyst/codebook.py"):
     for _k, _t in enumerate(_authored_strings(_path)):
         _texts[f"{_path} string {_k}"] = _t
 _hits = {name: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for name, t in _texts.items() if _DOMAIN.search(t)}
-check("standing rule: no prompt text a model reads carries the tested tasks' vocabulary - contract (plain, documents, context), reviewer, rewrite, reader, the routines' promoter, the context map, and every string the session, tools, reader, routines and context send",
+check("standing rule: no prompt text a model reads carries the tested tasks' vocabulary - contract (plain, documents, context), reviewer, rewrite, reader, the routines' promoter, the context map, the coder, and every string the session, tools, reader, routines, context, coder and codebook send (the seed codebook is data, not scanned)",
       not _hits, _hits)
 # Quick and Deep make no reviewer call at all - not during the run, not after the report (2026-10-05)
 nr_systems = []
@@ -1360,6 +1360,14 @@ check("the context's section: CTX and its calls, READ CTX, the [C.417] citation,
       and sc_.system == contract(False, context=True) and "## Context" in sc_.system and "## Documents" not in sc_.system and "`READ CTX <what>`" in sc_.system and "`READ D1 <what>`" not in sc_.system
       and sb_.system == contract(True, context=True) and sb_.system.index("## Documents") < sb_.system.index("## Context") < sb_.system.index("## Format")
       and "## Context" not in sn.system and "READ CTX" not in sd.system, (len(cc_), sc_.system[-700:]))
+
+# every file of the analyst package that is not Python must be in the wheel (2026-10-14: contract_context.md had been
+# left out of pyproject's package-data by 0146; an installed edition would have failed at import)
+import re as _re_p
+_pp = open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8").read()
+_listed = set(_re_p.findall(r'"([^"]+)"', _re_p.search(r"^analyst = \[(.*?)\]", _pp, _re_p.M).group(1)))
+_present = {f for f in os.listdir(os.path.join(ROOT, "analyst")) if not f.endswith(".py") and f != "__pycache__" and not f.startswith(".")}
+check("packaging: every non-Python file of analyst/ is listed in pyproject's package-data, and nothing listed is missing", _listed == _present, (sorted(_listed ^ _present)))
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

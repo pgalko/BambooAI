@@ -142,6 +142,8 @@ class Scenario:
             return "", "```python\n" + CELL_FIGURE + "\n```\nCAPTION: sessions by local start hour over the window"
         if system.startswith("You are the Reader"):
             return "", self.reader(user)
+        if system.startswith("You are the Coder"):
+            return "", self.coder(user)
         if system.startswith("You are preparing an analysis so that it can be run again"):
             return "", self.promoter(user)
         return "", "OK"
@@ -180,11 +182,58 @@ class Scenario:
     # ------------------------------------------------------------ the Reader seat (the context, step 2)
     def reader(self, user):
         """The Reader over the passages of the context: every candidate that mentions the legs, quoted whole (the
-        passages are one line each); the platform verifies each quote against the passage. No documents in this story."""
-        hits = [(uid, text) for uid, text in re.findall(r"^\[(C\.\d+)\] \((?:[^()]|\([^()]*\))*\) (.+)$", user, re.M) if "legs" in text.lower()]
+        passages are one line each); the platform verifies each quote against the passage. A rendered passage
+        (step 3: the Danish lines carry an English rendering, and that is what the Reader sees) is quoted first, so
+        the walk meets the rendering path. No documents in this story."""
+        hits = [(uid, place, text) for uid, place, text in re.findall(r"^\[(C\.\d+)\] (\((?:[^()]|\([^()]*\))*\)) (.+)$", user, re.M) if "legs" in text.lower()]
+        hits.sort(key=lambda h: 0 if "rendered from" in h[1] else 1)
         if not hits:
             return "NOTHING ANSWERS - no passage mentions the legs."
-        return "\n".join(f'- [{uid}] "{text.strip()}"' for uid, text in hits[:3]) + f"\nSUMMARY: The rider wrote about the legs on the days of the sessions [{hits[0][0]}]."
+        return "\n".join(f'- [{uid}] "{text.strip()}"' for uid, _, text in hits[:3]) + f"\nSUMMARY: The rider wrote about the legs on the days of the sessions [{hits[0][0]}]."
+
+    # ------------------------------------------------------------ the Coder seat (the context, step 3)
+    LEXICON = [   # (a stretch of the fake calendar's words, lang, tone, [(code, quote)], text_en, proposals)
+        ("Benene var tunge", "da", "negative", [("fatigue", "Benene var tunge"), ("deviation", "kørte kortere end planlagt")], "The legs were heavy today, rode shorter than planned.", []),
+        ("Good legs today", "en", "positive", [("freshness", "Good legs today"), ("execution", "held the power easily")], "", []),
+        ("Sov dårligt", "da", "negative", [("sleep", "Sov dårligt"), ("fatigue", "var træt fra start")], "Slept badly, was tired from the start.", []),
+        ("Felt strong on the climbs", "en", "positive", [("good_day", "Felt strong on the climbs")], "", []),
+        ("ondt i knæet", "da", "negative", [("injury", "ondt i knæet")], "A bit of knee pain after the ride.", []),
+        ("Cut the session short", "en", "neutral", [("deviation", "Cut the session short"), ("work_study", "work ran late")], "", []),
+        ("tag det roligt", "da", "neutral", [("instruction", "tag det roligt i morgen")], "Fine, take it easy tomorrow.", []),
+        ("Same again Thursday", "en", "positive", [("feedback", "Good."), ("instruction", "Same again Thursday")], "", []),
+        ("Keep the cadence up", "en", "neutral", [("instruction", "Keep the cadence up next time")], "", []),
+        ("Bra jobba", "no", "positive", [("feedback", "Bra jobba")], "Good job.", []),
+        ("Exams all week", "en", "negative", [("work_study", "Exams all week")], "", []),
+        ("check the sleep log", "en", "neutral", [("sleep", "check the sleep log"), ("coach_flag", "Private: check the sleep log this week")], "",
+         [{"code": "coach flag", "definition": "a coach's private note to watch something in the coming days"}]),
+        ("Watch motivation", "en", "neutral", [("motivation", "Watch motivation"), ("coach_flag", "Watch motivation")], "",
+         [{"code": "coach flag", "definition": "a coach's private note to watch something in the coming days"}]),   # proposed again: a batch cannot use a later batch's proposal
+        ("Keep it conversational", "en", "neutral", [("instruction", "Keep it conversational"), ("nutrition", "fuel every hour")], "", []),
+        ("Dårlig nat", "da", "negative", [("sleep", "Dårlig nat, vågnede flere gange")], "Bad night, woke up several times.", []),
+        ("Slept well", "en", "positive", [("sleep", "Slept well"), ("freshness", "fresh this morning")], "", []),
+        ("Cold", "en", "negative", [("illness", "Cold")], "", []),
+    ]
+
+    def coder(self, user):
+        """The coder over a batch (docs/CONTEXT_DESIGN.md §6): one JSON line per passage, by a lexicon over the fake
+        calendar's words - the codes with their verbatim quotes, the tone, the language, an English rendering of
+        every Danish or Norwegian line, one proposal (coach_flag) the seed lacks; a passage the lexicon does not know
+        gets no code. The platform's checks do the rest."""
+        out = []
+        for m in re.finditer(r"^\[(C\.\d+)\] [^\n]*\n(.*?)(?=\n\n\[C\.\d+\]|\Z)", user.split("PASSAGES (", 1)[-1], re.M | re.S):
+            uid, text = m.group(1), m.group(2).strip()
+            hit = next((e for e in self.LEXICON if e[0].lower() in text.lower()), None)
+            if hit is None:
+                out.append(json.dumps({"id": uid, "codes": [], "tone": "neutral", "lang": "en"}))
+                continue
+            _, lang, tone, codes, text_en, proposals = hit
+            item = {"id": uid, "codes": [c for c, _ in codes], "tone": tone, "quotes": {c: q for c, q in codes}, "lang": lang}
+            if text_en:
+                item["text_en"] = text_en
+            if proposals:
+                item["propose"] = proposals
+            out.append(json.dumps(item, ensure_ascii=False))
+        return "\n".join(out)
 
     # ------------------------------------------------------------ the analyst
     def analyst(self, user):
@@ -223,10 +272,11 @@ class Scenario:
 
     def report_context(self, user, q):
         # the READ digest in the prompt: the first passage line - the quote the platform verified, with its day - cited by id
-        m = re.search(r"^- \[(C\.\d+)\] \((\d{4}-\d{2}-\d{2}) \u00b7 ([^\u00b7]+) \u00b7 ([^)]*)\) \"(.+)\"\s*$", user, re.M)
+        m = re.search(r"^- \[(C\.\d+)\] \((\d{4}-\d{2}-\d{2}) \u00b7 ([^\u00b7]+) \u00b7 ([^()]*(?:\([^()]*\))?)\) \"(.+)\"\s*$", user, re.M)   # the place may end "(rendered from da)"
         if not m:
             return _report("No passage came back.", _note(q, plan="report"), "## Nothing written about the legs\n\nThe context was read [cell 1] and no passage mentions the legs.")
         uid, day, kind, who, quote = m.groups()
+        who = re.sub(r"\s*\(rendered from \w+\)", "", who)
         n = len(re.findall(r"^- \[C\.\d+\] \(", user, re.M))
         # the passage after the quoted one, named by its bare id and never READ (as the first live run named every passage,
         # 2026-10-14): the host resolves it at report time for the chip's hover; cell 1's print(CTX) said how many there are

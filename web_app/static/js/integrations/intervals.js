@@ -110,6 +110,8 @@ function contextReportLine(report) {
     const failed = Array.isArray(report.failed) ? report.failed : [];
     let line = n ? ('Context: ' + n + ' passage' + (n === 1 ? '' : 's') + (parts.length ? ' — ' + parts.join(', ') : '')) : 'Context: no passages in this window';
     if (failed.length) line += '; ' + failed.length + ' call' + (failed.length === 1 ? '' : 's') + ' failed: ' + failed.join('; ');
+    // the coding pass (step 3): what the coder did with the passages, or why it did not run
+    if (n && report.coding_line) line += '; ' + report.coding_line;
     return line + '.';
 }
 if (typeof module !== 'undefined' && module.exports) module.exports.contextReportLine = contextReportLine;

@@ -252,6 +252,27 @@ class ExecutorAPIClient:
             self.log_to_file(f"read_aux_dataset error: {exc}")
         return None
 
+    def upload_aux_file(self, path: str, text: str) -> bool:
+        """Write an auxiliary file's text to the executor at the path the load gave it (datasets/<user>/<key mark>/<name>):
+        the codes file and the context file with its renderings (docs/CONTEXT_DESIGN.md §4 F1). The upload route
+        saves under datasets/<user_id>/<filename>, so the folder between is sent as the user id - the same route,
+        no image change."""
+        try:
+            rel = path.replace('\\', '/')
+            rel = rel[len('datasets/'):] if rel.startswith('datasets/') else rel
+            folder, _, name = rel.rpartition('/')
+            if not folder or not name:
+                self.log_to_file(f"upload_aux_file: not a datasets path: {path}")
+                return False
+            r = requests.post(f"{self.base_url}/file_utils/upload_aux_dataset", files={'file': (name, text.encode('utf-8'))},
+                              data={'user_id': folder}, timeout=120)
+            if r.status_code == 200:
+                return True
+            self.log_to_file(f"upload_aux_file failed for {path}: {r.status_code} {r.text[:200]}")
+        except Exception as exc:                                # noqa: BLE001
+            self.log_to_file(f"upload_aux_file error for {path}: {exc}")
+        return False
+
     # ---- the thread's documents on the executor (docs/DOCUMENTS_DESIGN.md) ----
     def documents_inventory(self, user_id: str) -> Optional[dict]:
         """{relative path: sha256} of the executor's documents folder; None when the image lacks the route."""

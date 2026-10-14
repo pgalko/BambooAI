@@ -103,8 +103,7 @@ class BambooAI:
         self.review_every = _cfg_int(cfg, "analyst_review_every", 8)      # Adaptive's self-review interval; 0 = none (2026-09-10)
 
         # Storage: the notebook tree, one file per thread, under the user's storage.
-        base = os.path.join(os.getcwd(), 'storage', self.user_id) if self.user_id else os.path.join(os.getcwd(), 'storage')
-        self.store = NotebookStore(base)
+        self.store = NotebookStore(self._user_storage())
         self.notebook = None
 
         # The kernel: one per thread, kept warm between runs; rehydrated on a branch.
@@ -324,6 +323,35 @@ class BambooAI:
         carries one - a cheaper model for selection and faithful quotation - else the analyst seat."""
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Reader' if 'Reader' in agents else self._seat()
+
+    def _coder_seat(self):
+        """The seat the coding pass runs on (docs/CONTEXT_DESIGN.md §6): 'Coder' when the config carries one, else
+        the Reader's seat."""
+        agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
+        return 'Coder' if 'Coder' in agents else self._reader_seat()
+
+    def code_context(self, notes_path, progress=None, billing_chain_id=None):
+        """The coding pass over a loaded context file (bambooai/context_host.py), its calls logged under the billing
+        chain as Save as routine's are; the thread for the usage rows is the current one or one minted for the load."""
+        from bambooai import context_host
+        if not self.log_and_call_manager.thread_id:
+            self.log_and_call_manager.thread_id = str(self.thread_id or utils.next_thread_id())
+        return context_host.code_context(self, notes_path, progress=progress, chain_id=billing_chain_id or self.chain_id)
+
+    def _put_aux_file(self, path, text):
+        """Write an auxiliary file's text where the load keeps it: to the executor in api mode, here otherwise."""
+        try:
+            if self.execution_mode == 'api' and self.api_client is not None:
+                return bool(self.api_client.upload_aux_file(path, text))
+            d = os.path.dirname(path)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            with open(path, 'w', encoding='utf-8', newline='') as f:
+                f.write(text)
+            return True
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("context: %s could not be written (%s)", path, exc)
+            return False
 
     def _read(self, arg):
         """One READ over the thread's documents: the Reader seat called once over the candidates, every passage
@@ -561,8 +589,11 @@ class BambooAI:
     # ------------------------------------------------------------ routines (docs/ROUTINES_DESIGN.md)
     def routine_store(self):
         from analyst.routines import RoutineStore
-        base = os.path.join(os.getcwd(), 'storage', self.user_id) if self.user_id else os.path.join(os.getcwd(), 'storage')
-        return RoutineStore(base)
+        return RoutineStore(self._user_storage())
+
+    def _user_storage(self):
+        """storage/<user> - the notebooks, favourites, routines and the context codebook live under it."""
+        return os.path.join(os.getcwd(), 'storage', self.user_id) if self.user_id else os.path.join(os.getcwd(), 'storage')
 
     def _emit_routine(self, ev):
         """The pane's rows for a routine being made: a quiet card for the promoter's call, a look-up row for run zero."""
@@ -879,7 +910,14 @@ class BambooAI:
         if notes is None:
             return ""
         codes = (frames.get(codes_path) if codes_path in frames else self._context_file(codes_path)) if codes_path else None
-        return context_mod.context_map(notes, codes, notes_path=notes_path, codes_path=codes_path)
+        size = 0
+        if codes is not None:                                  # "23 of 36 codes used": the user's codebook, seeded by the pass that wrote the codes file
+            try:
+                from analyst import codebook as cb
+                size = len(cb.active_codes(cb.load(self._user_storage())))
+            except Exception:                                  # noqa: BLE001
+                size = 0
+        return context_mod.context_map(notes, codes, notes_path=notes_path, codes_path=codes_path, codebook_size=size)
 
     # ------------------------------------------------------------- the UI
     def _tab(self, kind, data):

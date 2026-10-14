@@ -178,9 +178,13 @@ default in the auxiliary kinds. In the container, after the summary, wellness an
 In the app, when the job completes with a context file: the **coding pass** (§6) in batches of about forty
 passages — codes, tone, language, and the English rendering of every passage not in English, written back into
 the context file's `text_en` — the codes file uploaded beside it and the context file re-uploaded with its
-renderings, one quiet card in the pane: *Context: 212 passages, 201 coded, 11
-without a code, 2 codes proposed (open the codebook)*. Then the load completes as today — the pills, the Data tab,
-the DATA block with the map.
+renderings. Built (step 3, 2026-10-14) as a hold on the load: the executor's job is complete, the app answers the
+dialog's polling with *Coding the context: batch k of n…* while a thread codes, and lets the completion through
+with the codes file among the auxiliary files and the pass's report in the dialog's line — *Context: 212 passages
+— activity_message 198, …; 201 of 212 coded, 180 rendered into English, 2 codes proposed.* (No card in the pane:
+the pane belongs to a chain, and a load has none.) The pass is a query for the account's purposes, authorised and
+charged as Save as routine's call is. Then the load completes as today — the pills, the Data tab, the DATA block
+with the map.
 
 Failure states, each a sentence in the card, none fatal to the load:
 - Intervals refuses or times out on a context call (403, 429, a network error): the file is written with what was
@@ -333,9 +337,9 @@ routine's narrative may say, not analysis methods the contract may prescribe (C2
 ## 7. Screens
 
 - **S1 — The load.** The Data tab's dialog gains nothing visible: context is one of the auxiliary kinds, on by
-  default, with the others' checkbox pattern if one is wanted. The pane shows the one card (§F1). The context and
-  codes files appear as auxiliary pills with the existing preview (first rows) — the preview of the context file is
-  the passages, which is the quickest look a coach gets.
+  default, with the others' checkbox pattern if one is wanted. The dialog's line carries the pass's report (§F1). The
+  context and codes files appear as auxiliary pills with the existing preview (first rows) — the preview of the
+  context file is the passages, which is the quickest look a coach gets.
 - **S2 — Citations.** `[C.417]` in the Answer and the Simplified view is the documents' chip: hover shows *2026-08-14
   · activity_message · the subject · "Legs were heavy from the first climb…" (rendered from Danish:
   "Benene var tunge fra den første stigning…")*; click opens the Investigation tab at
@@ -386,7 +390,7 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
    bad one disclosed), test_app_path (the route and the chips), the stack walk (a question answered with a
    passage cited in both views), live on a probed account.
 3. **The codebook and the coder** — the seed (§13), the seat in every tier, the pass at load in batches, the
-   validation, the codes file, proposals stored, the card's counts, the map's code line. *Accepted by:* pure tests
+   validation, the codes file, proposals stored, the dialog line's counts, the map's code line. *Accepted by:* pure tests
    of the validation (a code outside the book, a proposal, a quote not verbatim, a cut reply, a second batch);
    the fake model layer end to end; live: twenty labels of one window read against their passages by Palo, and
    twenty renderings against their originals — the first measure of the coder's precision, written down before

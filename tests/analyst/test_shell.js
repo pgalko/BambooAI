@@ -115,7 +115,9 @@ check('intervals.js: the option is read into the load\'s auxiliary kinds and the
 const { contextReportLine } = require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'));
 check('intervals.js: the report line - the passages by kind, most first, and the failed calls; no passages said; nothing without a report',
   contextReportLine({ passages: 15, kinds: { tag: 2, activity_message: 9, status: 4 }, failed: ['the calendar entries could not be fetched (HTTPError)'] }) === 'Context: 15 passages — activity_message 9, status 4, tag 2; 1 call failed: the calendar entries could not be fetched (HTTPError).'
-  && contextReportLine({ passages: 0, kinds: {}, failed: [] }) === 'Context: no passages in this window.' && contextReportLine(null) === '' && contextReportLine({ passages: 1, kinds: { day_note: 1 } }) === 'Context: 1 passage — day_note 1.',
+  && contextReportLine({ passages: 0, kinds: {}, failed: [] }) === 'Context: no passages in this window.' && contextReportLine(null) === '' && contextReportLine({ passages: 1, kinds: { day_note: 1 } }) === 'Context: 1 passage — day_note 1.'
+  && contextReportLine({ passages: 212, kinds: { activity_message: 198, day_note: 14 }, coding_line: '201 of 212 coded, 180 rendered into English, 2 codes proposed' }) === 'Context: 212 passages — activity_message 198, day_note 14; 201 of 212 coded, 180 rendered into English, 2 codes proposed.'
+  && contextReportLine({ passages: 0, kinds: {}, coding_line: 'nothing to code' }) === 'Context: no passages in this window.',
   contextReportLine({ passages: 15, kinds: { tag: 2, activity_message: 9, status: 4 }, failed: ['the calendar entries could not be fetched (HTTPError)'] }));
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);
