@@ -446,6 +446,21 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Reader and the Coder on DeepSeek flash in every tier (2026-10-14, patch 0151).** Palo's second live pass on
+  0149+0150 (223 passages, twelve batches of twenty, six in flight, all twelve answered whole, no second round):
+  2.4 minutes behind the load, $0.15 - the calls 28-80 s each because his config still ran the Coder at `low`
+  (the log's `reasoning_effort`), where flash spends 2-10k tokens thinking per 1.5k of reply. At `none` the pass
+  should be ~30 s and a third of the cost; a config built before 0149 needs the seat set to `none` by hand or a
+  rebuild. The renderings are there (141 of 223: da 86, no 55 - the coach writes Norwegian) and faithful on a
+  sample of twenty read against their originals; C.64's "benene meget" came out as "very [heavy]", the coder's
+  inference bracketed, and coded fatigue; the Reader quoted the renderings in English in 3 s; the report cited
+  [C.52] and [C.142]. Labels on the same sample: sensible, with `body` (47) and `hydration` (24) carried mostly by a
+  heat block (core temperature, weight before and after, "drink 500 ml") - defensible; `race` and `treatment`
+  proposed, both real gaps in the seed; tone almost never `negative` (4 of 223) - the rider writes upbeat. The first
+  question of the session was asked while the pass ran and DATA said so. Palo's ask: the Reader and the Coder on
+  flash in the performance and max tiers too (Claude there would be slow and dear for quoting and transcribing) -
+  the template now says so. Seen for the next image bump: a plan note whose step lines are bare "2x" survive the
+  stripper (C.159 "Hard TT session: 2x / 2x / 2x / 2x").
 - **The dispatcher's reasoning-model list on the non-streaming path (2026-10-14, patch 0150).** The first live pass
   on 0149 failed on every call: `'ModelManager' object has no attribute 'reasoning_models'` - the list lives on the
   BambooAI instance (bambooai.py computes it for the stream and passes it in), and 0149's `llm_call` read it off
