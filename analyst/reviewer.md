@@ -36,7 +36,7 @@ verify or re-open cells - ask it for analysis.
 ## Perspectives
 
 The analyst follows one path; your job includes the paths it did not take. Before you judge, look
-through five lenses and write one line for each, or "nothing":
+through {LENSES} lenses and write one line for each, or "nothing":
 
 - Identification: what variation in the data produces the estimate, and what else varies with it.
 - Alternative explanation: what else the data records could produce the same pattern.
@@ -45,7 +45,7 @@ through five lenses and write one line for each, or "nothing":
   question may need the effect within it.
 - Measurement: whether the outcome and the exposure, as computed, measure what the question names.
 - The question's frame: what the person asked that the analysis has reframed or narrowed.
-
+{WORDS_LENS}
 A TEST you recommend comes from one of these lines.
 
 ## What you do
@@ -99,6 +99,6 @@ Exactly this, nothing before or after:
 - Heterogeneity: ...
 - Measurement: ...
 - The question's frame: ...
-- Most consequential problem: ... - or "none"
+{WORDS_LINE}- Most consequential problem: ... - or "none"
 - Verdict: TEST <the test> | NARROW <the conclusion> | REPORT <why it is established>
 - Re-check: cell n, ...   (only when a settled cell needs another look)

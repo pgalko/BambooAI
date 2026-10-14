@@ -150,13 +150,12 @@ CONTEXT (the words written beside the data; in the kernel as CTX; files context_
   day_note 13, plan_note 1, tag 9, custom_field 6; by month Jun 41, Jul 58, Aug 55, Sep 44, Oct 14; languages da, no.
   codes (the model's reading, one row per code, with the words it rests on): fatigue 31, execution 28,
   effort 22, sleep 14, illness 9, deviation 8, … (23 of 36 codes used); 11 passages carry none; 2 codes proposed.
-  A passage is cited as [C.417]; one not written in English is quoted in its English rendering, marked so,
-  the original kept beside it; a code is a reading of a passage, not a statement the writer made; the day of the
-  words and the day of the numbers can differ by days; a plan_note is dated the day it was planned for, not
-  the day it was written.
+  A plan_note is dated the day it was planned for, not the day it was written.
 ```
 
-Ten lines at most; the rest is reached by `CTX` and READ. The data record a routine keeps gains `aux_kinds`
+Ten lines at most; the rest is reached by `CTX` and READ. The closing line says what is true of this data and
+nowhere else; the rules — how a passage is cited and quoted, a code as a reading, the words and the numbers days
+apart — are the contract's Context section, once (step 4 removed them from here, where they had been repeated). The data record a routine keeps gains `aux_kinds`
 `context` and `codes`, nothing else.
 
 ## 4. Flows
@@ -274,20 +273,22 @@ from the next load. Nothing is re-coded retroactively (a load's codes carry thei
   the record (the place of a rendered passage ends *(rendered from da)*, the language as the row carries it); `SHOW READ k` re-opens one.
   A READ is a turn, three a run, as for documents.
 - **The contract's Context section**, joined only when the load has a context file (`Session(context=True)`,
-  beside `documents=True`), kept to the Documents section's size (~600 characters):
+  beside `documents=True`), kept to the Documents section's size (644 characters as built in step 4; the
+  Documents section is 578):
 
   > ## Context
-  > The words written beside the data are mapped in DATA and live in the kernel as `CTX` (a frame of dated
-  > passages with their author and kind; a frame of codes, each with the words it rests on; `CTX.grep`,
-  > `CTX.around(date, days)`, `CTX.on(activity_id)`). Read them in a cell as you read data. READ CTX finds and
-  > quotes passages under ids like [C.417]; the report cites a passage as [C.417] beside [cell 7], quoting it as
-  > written, or in its English rendering marked *rendered* where the original is not English. A code is a model's
-  > reading of a passage, not something the writer said; a count of codes is a number like any other. You write
-  > in English. The day a thing was written and the day the numbers show it can differ. When the report
-  > explains a number by what was written, it says what the explanation rests on — the words quoted, the counts,
-  > or your reading of them — and reports a reading as one.
+  > The words written beside the data live in the kernel as `CTX`: `CTX.frame()`, `CTX.codes()`,
+  > `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)`, `CTX.on(activity_id)`, `CTX.text('C.417')` -
+  > print what you need in a cell. READ CTX quotes passages under ids like [C.417]; the report cites one as
+  > [C.417] beside [cell 7], as written or in its English rendering, marked *rendered*. A code is a model's
+  > reading of a passage, not the writer's words; the words and the numbers can be days apart. Where the report
+  > explains a number by what was written, it says what that rests on - passages quoted, counts of codes, or
+  > your reading.
 
-  No method, no step order, no vocabulary to maintain (C1, C2); the C5 scanner runs over it. The sport's own
+  Step 4's trim took out what did not change what the model does: *a count of codes is a number like any other*
+  (a question that asks for counts gets them), *you write in English* (the question and the contract are), the
+  frames' descriptions (their columns print), and *mapped in DATA* (the map is there to be seen). No method, no
+  step order, no vocabulary to maintain (C1, C2); the C5 scanner runs over it. The sport's own
   rules — what counts as a divergence, when a plan may change — are not here (§12 D8, D9).
 
 ### 5.1 Documents and context in the same thread
@@ -302,8 +303,8 @@ same machinery:
   prefixes both to the script. Neither is a cell of the record.
 - **Two sections in the contract.** `Session(documents=True, context=True)` joins the Documents section and the
   Context section, in that order; each is joined only when its thing is present, so a plain run's contract stays
-  byte-identical. Their sizes add: the Context section is held to the Documents section's size (~600
-  characters; the draft in §5 is trimmed to that in step 4).
+  byte-identical. Their sizes add: the Context section is held to the Documents section's size (644
+  characters since step 4's trim; Documents is 578).
 - **Two scopes of READ, one budget.** `READ D1 …`, `READ ALL …` (all documents) and `READ D1.35-41` are the
   documents' scopes; `READ CTX …`, `READ CTX <from>..<to> …` and `READ C.120-160` are the context's. `ALL` does
   not reach into the context and `CTX` does not reach into the documents: the analyst names which it wants. The
@@ -333,10 +334,13 @@ same machinery:
   covers the template; the codebook is data.
 - **The Reader** — READ CTX, unchanged.
 - **The analyst** — unchanged; the Context section when present.
-- **The reviewer** — a sixth lens, present only with context:
-  > - Words: where the report explains a number by what was written — whether the explanation rests on passages
-  >   quoted, on counts of codes, or on the analyst's reading, and whether it is reported as what it is; and
-  >   whether the days of the words and of the numbers were compared with a window rather than matched by day.
+- **The reviewer** — a sixth lens, present only with context (`reviewer(context=True)` in `analyst/session.py`
+  fills the three places the brief leaves for it: the count of lenses, the bullet among the perspectives, the
+  line in the format; without context the brief is byte-identical to before). Its line is parsed like the other
+  five and rides to the analyst when it found something:
+  > - Words: where a number is explained by what was written - whether that rests on passages quoted, on counts
+  >   of codes, or on the analyst's reading, and is reported as what it is; and whether the days of the words
+  >   and of the numbers were compared with a window rather than matched by day.
 - **Absent**: the fetch, the table, filters, joins, counts, grep, the map, the comparison in a routine's run, the
   codebook's versioning, the guards.
 
@@ -408,10 +412,13 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
    twenty renderings against their originals — the first measure of the coder's precision, written down before
    anything is tuned (C6).
 4. **The contract section and the reviewer's lens** — the two texts, the scanner over them, `Session(context=)`.
-   *Accepted by:* the scanner; a field trial on a probed account with one question of each shape — *what did the
-   subject write in the fortnight the power dropped* (numbers first), *how often does fatigue appear in weeks of
-   high load* (words counted), *where did the plan and the session disagree and what was said* (plan versus done)
-   — each report citing passages, counts and cells and saying what rests on what; the reviewer's line present.
+   *Built 2026-10-14 (patch 0154):* the section trimmed to 644 characters, the Words lens in the reviewer's brief
+   with context only, the map's closing line reduced to the plan note's date (the rules it repeated live in the
+   section). *Accepted by:* the scanner over both texts (in the battery); the field trial — the benchmark's
+   `context_enabled` rows (patch 0153: twelve questions, one per category, the three shapes among them — *the
+   week the 20-minute power jumped and what was written either side*, *days coded fatigue against the HR at fixed
+   power*, *the plan against what was ridden*), run in Adaptive mode so that the reviewer's Words line is present
+   — each report citing passages, counts and cells and saying what rests on what; the first run is pending.
 5. **Routines carry context** — the aux kinds bound, the run's load with the coder, the comparison. *Accepted
    by:* the integrations walk (a routine over two windows with a count line compared; a window without words),
    live.

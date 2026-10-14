@@ -568,7 +568,7 @@ try:
           f"Path: {_ctx}" in _desc3 and "Columns: id, kind, date, time, end_date, activity_id" in _desc3 and "Rows: 4 (the rows are passages: read them with CTX" in _desc3
           and "legs heavy today" not in _desc3 and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in _desc3
           and "2026-09-01 to 2026-10-09: 4 passages — activity_message 2 (subject 1, coach 1); status 1; day_note 1." in _desc3
-          and "authors: subject 2, coach 2; private entries 1; by month Sep 2, Oct 2." in _desc3 and "A passage is cited as [C.n]" in _desc3 and "KEN" in _desc3, _desc3[-1200:])
+          and "authors: subject 2, coach 2; private entries 1; by month Sep 2, Oct 2." in _desc3 and "A plan_note is dated the day it was planned for, not the day it was written." in _desc3 and "A passage is cited as" not in _desc3 and "KEN" in _desc3, _desc3[-1200:])
     _codes = os.path.join(_auxdir, "context_codes_20260615_to_20261013.csv")
     pd.DataFrame([{"id": "C.1", "code": "fatigue", "tone": "negative", "quote": "legs heavy", "status": "codebook", "coder": "m", "codebook_version": 1},
                   {"id": "C.1", "code": "deviation", "tone": "negative", "quote": "cut it short", "status": "codebook", "coder": "m", "codebook_version": 1},

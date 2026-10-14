@@ -38,7 +38,23 @@ CONTRACT_CONTEXT = open(os.path.join(_HERE, "contract_context.md"), encoding="ut
 # the Reviews section rides only when a reviewer runs during the run (Adaptive), naming the cadence; the reviewer has its
 # own prompt and never sees the analyst's (2026-10-05)
 CONTRACT_REVIEWS = open(os.path.join(_HERE, "contract_reviews.md"), encoding="utf-8").read()
-REVIEWER = open(os.path.join(_HERE, "reviewer.md"), encoding="utf-8").read()
+_REVIEWER_TEMPLATE = open(os.path.join(_HERE, "reviewer.md"), encoding="utf-8").read()
+# the reviewer's sixth lens, present only when the load carries the words written beside the data (docs/CONTEXT_DESIGN.md
+# §6): the explanation of a number by the words, and what it rests on; the days compared with a window, not matched
+REVIEWER_WORDS_LENS = ("- Words: where a number is explained by what was written - whether that rests on passages quoted,\n"
+                       "  on counts of codes, or on the analyst's reading, and is reported as what it is; and whether the\n"
+                       "  days of the words and of the numbers were compared with a window rather than matched by day.\n")
+REVIEWER_WORDS_LINE = "- Words: ...\n"
+
+
+def reviewer(context: bool = False) -> str:
+    """The reviewer's prompt; with context, the Words lens among the perspectives and its line in the format."""
+    return (_REVIEWER_TEMPLATE.replace("{LENSES}", "six" if context else "five")
+                              .replace("{WORDS_LENS}", REVIEWER_WORDS_LENS if context else "")
+                              .replace("{WORDS_LINE}", REVIEWER_WORDS_LINE if context else ""))
+
+
+REVIEWER = reviewer(False)
 REPORT_NOW = "The review found the answer established: this turn is the report. Write REPORT now."
 REVIEW_EVIDENCE_CHARS = 20_000   # the cells handed to one review, code and output, up to this (2026-10-06: one call a
                                  # review; the session picks the cells, the reviewer asks for nothing)
@@ -148,7 +164,8 @@ _REVIEW_HEADS = (("requires", "The question requires"), ("established", "Establi
                  ("problem", "Most consequential problem"), ("verdict", "Verdict"))
 _REVIEW_LISTS = (("checked", "Checked"), ("recheck", "Re-check"))      # may appear several times; kept as lists
 _REVIEW_LENSES = (("identification", "Identification"), ("alternative", "Alternative explanation"), ("heterogeneity", "Heterogeneity"),
-                  ("measurement", "Measurement"), ("frame", "The question's frame"))   # the perspectives (2026-10-06), one line each
+                  ("measurement", "Measurement"), ("frame", "The question's frame"),
+                  ("words", "Words"))   # the perspectives (2026-10-06), one line each; Words only with context (2026-10-14)
 
 
 def parse_review(text: str) -> Optional[dict]:
@@ -1276,7 +1293,7 @@ class Session:
         self.emit({"type": "turn_start", "run": run.id, "turn": "review", "of": budget.turns, "review": True})
         t0 = time.time()
         user, sent = self._review_input(run, budget, after_turn, report)
-        text, usage_r = self.llm(REVIEWER, user, review=True)
+        text, usage_r = self.llm(reviewer(self.context), user, review=True)    # the Words lens only with context
         cost = float((usage_r or {}).get("cost", 0.0) or 0.0)
         usage = {"cost": cost, "elapsed": round(time.time() - t0, 1)}
         rv = parse_review(text)

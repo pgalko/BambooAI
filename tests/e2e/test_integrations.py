@@ -508,7 +508,7 @@ def main():
             check("DATA: the context file is listed with its columns and its row count and none of its rows; the map follows - the span, the passages by kind with the authors of the messages, the roles, the private entries, the months, the closing sentence",
                   f"Path: datasets/{USER}/{_kf('stack-key')}/context_notes_{tag_a}.csv" in prompt1 and "Rows: " in prompt1 and "(the rows are passages: read them with CTX, not from this head)" in prompt1
                   and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in prompt1 and "activity_message" in prompt1 and "(subject " in prompt1 and "authors: subject " in prompt1
-                  and "private entries " in prompt1 and "by month " in prompt1 and "A passage is cited as [C.n]" in prompt1
+                  and "private entries " in prompt1 and "by month " in prompt1 and "A plan_note is dated the day it was planned for, not the day it was written." in prompt1 and "A passage is cited as" not in prompt1
                   and "Sov dårligt" not in prompt1 and "Good legs today" not in prompt1, prompt1[prompt1.find("CONTEXT ("):prompt1.find("CONTEXT (") + 700] if "CONTEXT (" in prompt1 else prompt1[-800:])
             check("DATA after the pass: the codes file listed as columns and count, the map's languages and its codes line - the counts per code, 'of 36 codes used', the uncoded, the proposal",
                   f"context_codes_{tag_a}.csv" in prompt1 and "languages en " in prompt1 and " da " in prompt1 and "codes (the model's reading, one row per code, with the words it rests on): " in prompt1

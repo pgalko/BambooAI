@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (207/155/31/24/18/49/44/69/11/117/33/29/1/1 Python; 49/7/30/67/24/66/8 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/117/33/29/1/1 Python; 49/7/30/67/24/66/8 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (66; hosted only - the loaders need the executor; the
@@ -446,6 +446,27 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context, step 4: the contract section trimmed, the reviewer's Words lens (2026-10-14, patch 0154).** Palo: 0152
+  worked well; proceed. The two texts of docs/CONTEXT_DESIGN.md §5-6, finished by the standing rule - a sentence
+  stays only if it changes what the model does. (1) `analyst/contract_context.md` from 945 to 644 characters, within
+  a line of the Documents section (578): the calls listed with their arguments, READ CTX and the [C.417] citation,
+  *rendered*, a code as a model's reading, the words and the numbers days apart, what an explanation rests on. Out:
+  *a count of codes is a number like any other* (a question that asks for counts gets them), *you write in English*
+  (the question and the contract are), the frames described (their columns print), *mapped in DATA* (the map is
+  there). (2) The map's closing line had repeated three of the section's rules in other words, both texts in every
+  prompt with context; the line now says only what is true of this data and nowhere else - a plan_note is dated
+  the day it was planned for (the sentence 0152 added, live-proven on question 7). (3) The reviewer's sixth lens,
+  *Words*, present only with context: `reviewer(context)` in session.py fills the three places `reviewer.md` leaves
+  for it (the count of lenses, the bullet after the question's frame, the line in the format) from
+  `REVIEWER_WORDS_LENS`; without context the brief is byte-identical to before (`REVIEWER = reviewer(False)`); the
+  review call passes `reviewer(self.context)`; `_REVIEW_LENSES` gains `Words`, so the line is parsed, dropped when
+  it says nothing, and rides to the analyst after the other five when it found something. The lens asks whether an
+  explanation of a number by the words rests on passages quoted, on counts of codes or on the analyst's reading and
+  is reported as such, and whether the days were compared with a window rather than matched by day. The scanner
+  covers the six-lens brief. Tests: test_analyst 210 (the section's size and phrases, the brief with and without
+  context, the parser, a run with context calling the reviewer on the six-lens brief); test_app_path and the
+  integrations walk pin the map's new closing line. Step 4's field trial is the benchmark's `context_enabled` rows
+  (0153) in Adaptive mode, pending Palo's first run. Next: step 5 (routines carry context).
 - **The benchmark gains a `context_enabled` heading (2026-10-14, patch 0153).** Palo re-evaluates the system with
   `benchmarking/20251125_task_eval_BambooAI.yaml` after major updates; its headings under each category encode the
   question's type (`coach_athlete`, `technical`, `search_enabled`). A fourth, `context_enabled`, now sits under every

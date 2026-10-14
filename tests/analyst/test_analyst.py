@@ -1218,7 +1218,7 @@ check("parse_review: the five lens lines are read; those answered 'nothing' or '
 # ---- the standing rule (2026-10-05): no task-specific or model-specific content in any prompt. Every authored text a model
 # ---- reads is scanned for the vocabulary of the tasks this agent was tested on; docstrings and comments are not prompts.
 import ast as _ast
-from analyst.session import REWRITE_TASK, LAST_TURNS_LINE, REPORT_NOW
+from analyst.session import REWRITE_TASK, LAST_TURNS_LINE, REPORT_NOW, reviewer as reviewer_text, REVIEWER_WORDS_LENS
 from bambooai.reading import READER_SYSTEM
 _DOMAIN = re.compile(r"\b(athletes?|altitude|sea.level|heart.rate|HR|HRmax|hr_max|pace|runners?|race|marathon|venues?|surfaces?|terrain|km|laps?|weekly load|gap years|site name|F1|Formula|drivers?)\b", re.I)
 def _authored_strings(path):
@@ -1230,12 +1230,12 @@ def _authored_strings(path):
             docs.add(id(body[0].value))
     return [n.value for n in _ast.walk(tree) if isinstance(n, _ast.Constant) and isinstance(n.value, str) and id(n) not in docs]
 _texts = {"contract (plain)": contract(False, 0), "contract (documents, reviews)": contract(True, 8), "contract (context)": contract(False, 0, context=True),
-          "reviewer": REVIEWER, "rewrite task": REWRITE_TASK, "reader": READER_SYSTEM, "last turns": LAST_TURNS_LINE, "report now": REPORT_NOW}
+          "reviewer": REVIEWER, "reviewer (context)": reviewer_text(True), "rewrite task": REWRITE_TASK, "reader": READER_SYSTEM, "last turns": LAST_TURNS_LINE, "report now": REPORT_NOW}
 for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py", "analyst/routines.py", "bambooai/routines_host.py", "analyst/context.py", "analyst/coder.py", "analyst/codebook.py", "analyst/coded.py"):
     for _k, _t in enumerate(_authored_strings(_path)):
         _texts[f"{_path} string {_k}"] = _t
 _hits = {name: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for name, t in _texts.items() if _DOMAIN.search(t)}
-check("standing rule: no prompt text a model reads carries the tested tasks' vocabulary - contract (plain, documents, context), reviewer, rewrite, reader, the routines' promoter, the context map, the coder, and every string the session, tools, reader, routines, context, coder and codebook send (the seed codebook is data, not scanned)",
+check("standing rule: no prompt text a model reads carries the tested tasks' vocabulary - contract (plain, documents, context), reviewer (five lenses and six), rewrite, reader, the routines' promoter, the context map, the coder, and every string the session, tools, reader, routines, context, coder and codebook send (the seed codebook is data, not scanned)",
       not _hits, _hits)
 # Quick and Deep make no reviewer call at all - not during the run, not after the report (2026-10-05)
 nr_systems = []
@@ -1328,7 +1328,7 @@ check("contract: the format is a literal template of one turn - three marker lin
 # refused turns in one Sonnet 5.5 run, and the answer written without the scaffold)
 import re as _re_c
 _scan = {name: sorted({m.group(0).lower() for m in _re_c.finditer(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", t)})
-         for name, t in {"plain": c, "documents, reviews": contract(True, 8), "context": contract(False, 0, context=True), "reviewer": REVIEWER}.items()}
+         for name, t in {"plain": c, "documents, reviews": contract(True, 8), "context": contract(False, 0, context=True), "reviewer": REVIEWER, "reviewer (context)": reviewer_text(True)}.items()}
 check("contract: the step is a STEP section written for the person following the run, the note is the standing state - no section "
       "named for thinking or reasoning, no memory or private notes, in any prompt a model reads",
       "###THINKING###" not in c and "###STEP###\nTwo or three sentences for the person following the run: what the last output showed, what this\nturn does and why." in c
@@ -1354,12 +1354,46 @@ check("the system prompt carries the documents' section and the READ row only wh
 cc_ = open(os.path.join(ROOT, "analyst", "contract_context.md")).read()
 sc_ = Session(None, Notebook("sc"), lambda s, u, **h: ("", {}), data_description="d", context=True)
 sb_ = Session(None, Notebook("sb"), lambda s, u, **h: ("", {}), data_description="d", documents=True, context=True)
-check("the context's section: CTX and its calls, READ CTX, the [C.417] citation, the rendered marker, a code as a reading, the days may differ, say what rests on what, English - under 1000 characters; "
+cc1_ = " ".join(cc_.split())
+cd_ = open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()
+check("the context's section (step 4's trim, 2026-10-14): CTX and its calls, READ CTX, the [C.417] citation, the rendered marker, a code as a reading, the words and the numbers days apart, "
+      "say what rests on what - held to the Documents section's size (within a line of it, under 660 characters); what did not change what the model does is out (counts are numbers, English, the frames described); "
       "joined only with context, after Documents when both are, with the READ CTX row",
-      len(cc_) < 1000 and all(x in cc_ for x in ("`CTX.grep('pattern')`", "`CTX.around('2026-08-14', days=3)`", "`CTX.text('C.417')`", "[C.417]", "*rendered*", "A code is a model's reading", "can\ndiffer", "You write in English."))
+      len(cc_) <= len(cd_) + 80 and len(cc_) < 660 and all(x in cc1_ for x in ("`CTX.frame()`, `CTX.codes()`, `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)`, `CTX.on(activity_id)`, `CTX.text('C.417')` - print what you need in a cell.",
+                                                                              "READ CTX quotes passages under ids like [C.417]; the report cites one as [C.417] beside [cell 7], as written or in its English rendering, marked *rendered*.",
+                                                                              "A code is a model's reading of a passage, not the writer's words; the words and the numbers can be days apart.",
+                                                                              "Where the report explains a number by what was written, it says what that rests on - passages quoted, counts of codes, or your reading."))
+      and not any(x in cc1_ for x in ("a number like any other", "English.", "mapped in DATA"))
       and sc_.system == contract(False, context=True) and "## Context" in sc_.system and "## Documents" not in sc_.system and "`READ CTX <what>`" in sc_.system and "`READ D1 <what>`" not in sc_.system
       and sb_.system == contract(True, context=True) and sb_.system.index("## Documents") < sb_.system.index("## Context") < sb_.system.index("## Format")
-      and "## Context" not in sn.system and "READ CTX" not in sd.system, (len(cc_), sc_.system[-700:]))
+      and "## Context" not in sn.system and "READ CTX" not in sd.system, (len(cc_), len(cd_), sc_.system[-700:]))
+# the reviewer's sixth lens (docs/CONTEXT_DESIGN.md §6, step 4): Words, only with context - the brief without it byte-identical
+rvc_ = reviewer_text(True)
+check("the reviewer's brief with context: six lenses, the Words bullet after the question's frame among the perspectives and its line in the format; without context the five, byte-identical to REVIEWER, "
+      "no placeholder left in either",
+      reviewer_text(False) == REVIEWER and "five lenses" in REVIEWER and "Words" not in REVIEWER and "{" not in REVIEWER and "{" not in rvc_
+      and "six lenses" in rvc_ and rvc_.count("- Words:") == 2 and REVIEWER_WORDS_LENS in rvc_
+      and rvc_.index("- The question's frame: what the person asked") < rvc_.index(REVIEWER_WORDS_LENS) < rvc_.index("A TEST you recommend comes from one of these lines.")
+      and "- The question's frame: ...\n- Words: ...\n- Most consequential problem:" in rvc_
+      and "whether that rests on passages quoted,\n  on counts of codes, or on the analyst's reading, and is reported as what it is" in rvc_ and "compared with a window rather than matched by day" in rvc_
+      and rvc_.replace(REVIEWER_WORDS_LENS, "").replace("- Words: ...\n", "").replace("six lenses", "five lenses") == REVIEWER, (len(REVIEWER), len(rvc_)))
+prw = parse_review("###REVIEW###\n- The question requires: X\n- Established: +1 [cell 3]\n- Identification: nothing\n- Alternative explanation: nothing\n- Heterogeneity: nothing\n- Measurement: nothing\n- The question's frame: nothing\n- Words: the fatigue count is the model's reading, reported as the rider's words; the days matched, not windowed\n- Most consequential problem: the count read as what was said\n- Verdict: TEST compare with a 3-day window")
+check("parse_review: the Words line is a lens like the five - read, kept when it found something, riding to the analyst after the others",
+      prw and prw["lenses"] == [("Words", "the fatigue count is the model's reading, reported as the rider's words; the days matched, not windowed")]
+      and prw["lines"].splitlines()[2] == "- Words: the fatigue count is the model's reading, reported as the rider's words; the days matched, not windowed" and prw["verdict"] == "TEST", prw)
+# a session with context hands the reviewer the six-lens brief; without, the five (the same scripted reviewer)
+rvx_systems = []
+def review_ctx_llm(system, user, **h):
+    if system.startswith("You are the reviewer"):
+        rvx_systems.append(system)
+        return "###REVIEW###\n- The question requires: x\n- Established: y [cell 1]\n- Checked: cell 1 - prints; matches its line\n- Words: nothing\n- Most consequential problem: none\n- Verdict: REPORT done", {"cost": 0.01}
+    return review_llm(system, user, **h)
+kx_ = PersistentKernel(df=df); nbx_ = Notebook("tx")
+try:
+    rx_ = Session(kx_, nbx_, review_ctx_llm, data_description="d", context=True).run("q", budget=Budget(turns=8, dollars=1.0, review_every=2))
+finally:
+    kx_.cleanup()
+check("a run with context calls the reviewer on the six-lens brief (reviewer(True)); the run completes", rvx_systems and all(sy == rvc_ for sy in rvx_systems) and rx_.report, (len(rvx_systems), rx_.report[:80] if rx_.report else rx_))
 
 # every file of the analyst package that is not Python must be in the wheel (2026-10-14: contract_context.md had been
 # left out of pyproject's package-data by 0146; an installed edition would have failed at import)
