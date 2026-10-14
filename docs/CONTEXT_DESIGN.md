@@ -423,10 +423,18 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
    *Built 2026-10-14 (patches 0154, 0155):* the section trimmed to 737 characters, the Words lens in the reviewer's brief
    with context only, the map's closing line reduced to the plan note's date (the rules it repeated live in the
    section). *Accepted by:* the scanner over both texts (in the battery); the field trial — the benchmark's
-   `context_enabled` rows (patch 0153: twelve questions, one per category, the three shapes among them — *the
-   week the 20-minute power jumped and what was written either side*, *days coded fatigue against the HR at fixed
-   power*, *the plan against what was ridden*), run in Adaptive mode so that the reviewer's Words line is present
-   — each report citing passages, counts and cells and saying what rests on what; the first run is pending.
+   `context_enabled` rows (patch 0153, rewritten by 0157 in the voice of the coach or the rider with no word of the
+   system's — no codes, context, passages, renderings — so that the route is the system's to find, Palo's point of
+   2026-10-15: a question that names the codes hands over the route and measures instruction-following, not
+   whether the words are brought to bear; twelve questions, one per category, the three shapes among them — *in
+   the weeks my 20-minute power jumped the most, what was I saying in the days before and after*, *on the days I
+   said I was tired or sore, did my heart rate at a given power look any different*, *how often did he actually do
+   the session I set him, and when he did not, did he tell me why* — each with a scoring key under it for the
+   person, never shown to the model: use the words where needed, quote rather than paraphrase, a count of codes
+   named as the model's reading, a window rather than a same-day match, what rests on what), run in Adaptive mode
+   so that the reviewer's Words line is present; the first run is pending. The same standard holds for the
+   questions in the testing notes: the verification items stay technical (they are for the person checking the
+   build), the questions put to the model do not name the system's parts — the mirror of C5 on the asking side.
 5. **Routines carry context** — the aux kinds bound, the run's load with the coder, the comparison. *Built
    2026-10-14 (patch 0156):* most of it was already there by construction — the two kinds in `AUX_KINDS` (1b), the
    run dialog waiting for the pass (0149), the kernel prelude binding `CTX` to the run's load, `bind_script`

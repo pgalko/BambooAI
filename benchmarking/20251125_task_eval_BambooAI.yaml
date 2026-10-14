@@ -53,15 +53,20 @@ categories:
           corrections: 0
           score: 1
           
-      # context_enabled: the window loaded with Context on - the context_notes and context_codes files beside the
-      # summary and wellness files; each question mixes the words with the numbers (numbers first, words first, or both)
+      # context_enabled: the window loaded with Context on (the context_notes and context_codes files beside the summary and wellness
+      # files). The questions are asked as the coach or the rider would ask them, with no word of the system's - no codes, context,
+      # passages or renderings - so the route is the system's to find; the 12-month window is named by month or by the data
+      # (the week his power jumped, the last time he was ill), never 'this week'. The 'key' under each row is for the scorer, not
+      # the model: what a good answer must do - use the words where they are needed, quote rather than paraphrase, name a count of
+      # codes as the model's reading, use a window rather than a same-day match where the days can differ, say what rests on what.
       context_enabled:
-        - question: For each month of the loaded window put the numbers and the words side by side - the ride count, total distance and total power_load from activity_summary; the number of passages written that month by kind and by author (me versus my coach) from the context notes; and the three most used codes from the context codes. Then join passages to rides by activity_id and report the share of rides that carry at least one passage. Does that share rise or fall with monthly volume?
+        - question: Month by month over the year, how much did he ride and how much did he write about it? Does he write more in the big months or the quiet ones, and what does he tend to write about?
           datasets: [activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the coach; key - numbers first, words counted: rides, distance and load per month from the summary beside what was written per month, by him and by the coach; the share of rides with something written on them; what he writes about from the codes or the analyst's own reading, said to be a reading either way; no quote needed
 
   - category: Performance Trends and Progression
     questions:
@@ -111,12 +116,13 @@ categories:
           score: 1
           
       context_enabled:
-        - question: From the primary dataframe compute my best 20-minute power for each week. From the context codes count, per week, my own passages (not my coach's) coded good_day, bad_day, freshness and fatigue. Overlay the two series, then test with a 3-day window either side whether the weeks where my best 20-minute power beat the prior four-week mean by more than 5% carry more freshness and good_day words than other weeks, and whether those words come before or after the ride. Quote the passages around the three largest jumps.
+        - question: In the weeks my 20-minute power jumped the most, what was I saying in the days before and after those rides?
           datasets: [primary_df, activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the rider; key - numbers first: best 20-minute power per week from the 1Hz data, the jumps found by a stated rule; then the rider's own words in a window of days either side (not the same day only), quoted and cited; a rendered quote marked as rendered; any count of fresh or good-day words named as the model's reading
 
   - category: Interval and Segment Analysis
     questions:
@@ -166,12 +172,13 @@ categories:
           score: 1
           
       context_enabled:
-        - question: From the plan notes (joined to their rides through activity_id or paired_event_id) find every planned interval session whose prose states a number of repeats, a duration and a target power. From the primary dataframe detect the work intervals actually ridden (continuous segments at or above 90% of the target power for at least 60% of the stated duration) and count them per session. Compare planned with ridden repeats and target power, relate the gap to workout_compliance in activity_summary, and quote what I wrote on the sessions that fell short by more than one repeat.
+        - question: When I set him interval sessions with a target, how close did he get to what I asked, and what did he say afterwards on the ones he did not manage?
           datasets: [primary_df, activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the coach; key - both at once: the coach's prescriptions found in the words (the planned sessions, dated the day they were planned for) paired to the rides; the intervals actually ridden detected in the 1Hz data against the stated repeats and target; compliance from the summary beside it; his comments on the shortfalls quoted and cited
 
   - category: Environmental and Contextual Impact
     questions:
@@ -221,12 +228,13 @@ categories:
           score: 1
           
       context_enabled:
-        - question: From the context notes take every passage coded conditions, or whose English rendering mentions heat, cold, wind or rain, and join each to its ride through activity_id (for day notes, the ride on that date). Compare what was written with what was recorded - weather_temp_c and headwind_percent from activity_summary and activity_intervals, and the temperature trace in the primary dataframe. Flag the rides where the words and the sensors disagree, and check whether my power-to-HR ratio on those rides is unusual for their temperature band.
+        - question: He often blames the wind or the heat. Does what he says match what the bike recorded on those days?
           datasets: [primary_df, activity_summary, activity_intervals, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the coach; key - both at once: his remarks about conditions found in the words (by reading or by the codes, said which); temperature and headwind from the summary, the laps and the 1Hz trace on those rides; the disagreements flagged; his power-to-HR on those rides against rides of the same temperature band; quotes cited
 
   - category: Physiological Response and Efficiency
     questions:
@@ -276,12 +284,13 @@ categories:
           score: 1
           
       context_enabled:
-        - question: Take every day on which I (not my coach) wrote something coded fatigue, soreness or illness, and every day coded freshness. For the rides on those days compute from the primary dataframe the HR at fixed power bins (150-200W, 200-250W, 250-300W) and the power-to-HR ratio, each normalised by the ride's first 10 minutes. Compare the tired days with the fresh days and with the wellness diary's fatigue and soreness ratings on the same dates. Do my words, my ratings and my heart rate agree, and which pair agrees most?
+        - question: On the days I said I was tired or sore, did my heart rate at a given power look any different from a fresh day? And did my morning ratings agree with what I wrote?
           datasets: [primary_df, wellness_data, activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the rider; key - words first: tired/sore days and fresh days from the rider's own words (affirmations, not denials); HR at fixed power bins from the 1Hz data, normalised within the ride; the wellness ratings on the same dates; which pair agrees most; the day of the words against the day of the ride handled and said (the ride the message hangs off, or a window)
 
   - category: Workout Structure and Pacing
     questions:
@@ -331,19 +340,21 @@ categories:
           score: 1
           
       context_enabled:
-        - question: Join every plan note to its ride through paired_event_id and classify each planned session as done, cut, extended, skipped or replaced, using the planned duration and intensity where the prose states them and moving_time_sec, normalized_power and workout_compliance from activity_summary otherwise; count the unplanned rides as well. Show the classes by month, then read the passages coded deviation, plan_change or logistics within two days of each skipped or cut session and group the stated reasons. How much of the gap between plan and done is explained in words?
+        - question: Over the year, how often did he actually do the session I set him, and when he did not, did he tell me why?
           datasets: [activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the coach; key - plan versus done: the planned sessions paired to the rides; done, cut, extended, skipped or replaced, by month, with the unplanned rides counted; the reasons from his messages within a few days of the skipped and cut sessions, quoted and grouped; a planned session dated the day it was planned for
           
-        - question: Find the plan notes and coach messages coded instruction that say how a session should be paced (even, build, a cap in watts, not going out too hard). For each paired ride split the primary dataframe into equal-time quarters, compute normalized power per quarter and classify the pacing actually ridden as even, positive or negative split. Report how often the ridden pacing matched the instruction and, where it did not, quote my own comments coded pacing, execution or deviation on that ride. Did I notice, or only the numbers?
+        - question: When I told him to pace a session a certain way, hold back early, build into it, keep under a number, did he? And did he notice himself when he did not?
           datasets: [primary_df, activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the coach; key - both at once: the pacing instructions found in the coach's words; power by quarter of the paired ride from the 1Hz data and the pacing classified; matched or not per session; his own comments on the mismatches quoted, or the absence of any said
 
   - category: Comparative Analysis
     questions:
@@ -393,12 +404,13 @@ categories:
           score: 1
           
       context_enabled:
-        - question: Split my rides into those my coach wrote on (a coach-authored passage on the activity, or a coach_tick) and those without, and compare normalized_power, power_load, workout_compliance and the time above FTP from the primary dataframe between the two groups. Then group the commented rides by the tone of the coach's passage (positive, neutral, negative) and test whether the ride metrics differ by tone. Does my coach react to the numbers, or to something they do not show? Quote one passage per tone as evidence.
+        - question: Do the rides my coach comments on look any different from the ones he leaves alone? And when he is pleased, or not, does it show in the numbers?
           datasets: [primary_df, activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the rider; key - numbers first: rides with a coach's comment or tick against the rest on power, load, compliance and time above FTP from the 1Hz data; then by the tone of the comment (the codes' tone or the analyst's reading, named as such); one comment quoted per group
 
   - category: Predictive Modeling and Performance Optimization
     questions:
@@ -441,12 +453,13 @@ categories:
           score: 0
           
       context_enabled:
-        - question: Build a model predicting each ride's normalized power from the prior day's wellness (HRV, sleep, fatigue, CTL, ATL) and the first 10 minutes of the primary dataframe (avg power, avg HR, temperature). Then add features from the context - the number of my passages in the previous three days coded fatigue, soreness, illness or sleep; mood, motivation or stress; work_study, family_social or travel; their tone; and whether a plan note existed for the day. Compare out-of-sample error with and without the context features and report which of them, if any, carry signal.
+        - question: If you had to predict how hard a ride would turn out, would what he had written in the days before help, on top of his sleep and HRV numbers?
           datasets: [primary_df, wellness_data, activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the coach; key - both at once: a model of normalized power from the prior day's wellness and the first minutes of the ride, then with features from the words (themes in the previous three days, their tone, whether a session was set for the day); out-of-sample error with and without; the word features named as the model's reading of what he wrote
 # FINISHED HERE  
   - category: Geographic and Route Analysis
     questions:
@@ -496,12 +509,13 @@ categories:
           score: 0
           
       context_enabled:
-        - question: From the context notes find every passage that names a route, climb or place, or is coded company or travel, and join each to its ride. Cluster the GPS tracks of those rides from the primary dataframe (start points, or all points within 50m) and check whether the named routes map onto distinct clusters. For the clusters ridden three or more times, compare power, speed and HR on the rides where I wrote about riding in company against the rides where I wrote nothing of the kind.
+        - question: Which routes does he mention by name, and does he ride them any differently when he is with the group than on his own?
           datasets: [primary_df, activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the coach; key - words first: routes, climbs and company found in the words; the GPS tracks of those rides clustered from the 1Hz data and set against the names; power, speed and HR on the repeated routes, with company against alone; a passage cited per route named
 
   - category: Recovery and Readiness Analysis
     questions:
@@ -565,16 +579,18 @@ categories:
           score: 0
           
       context_enabled:
-        - question: Find every sick status span and every passage coded illness or recovery in the context notes and build a window of seven days either side of the first day of each. From wellness data (HRV, resting HR, the fatigue rating) and from the primary dataframe (HR at 200W in steady segments, best 5-minute power) plot each window day by day, aligned on the day of the words, against the 28-day baseline. Did the numbers move before or after the words, by how many days, and how long did both take to return to baseline?
+        - question: The last time he was ill, did the numbers show it before he said anything? And how long until everything was back to normal?
           datasets: [primary_df, wellness_data, activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the coach; key - lead and lag: the illness found in the words and the calendar (not assumed); a window of days either side of the first mention over HRV, resting HR, HR at a fixed power and best short-duration power against a baseline; which moved first and by how many days; the return to baseline; the days of the words and of the numbers compared with a window, not matched by day
           
-        - question: Count, per week, my passages coded fatigue, sleep and recovery against the week's total power_load, ramp rate and mean HRV. Fit lagged models in both directions - does a high-load week bring more of those words in the same week or the next, and does the wellness diary's fatigue rating lead or lag my own words? Quote the passages from the two weeks where the words and the diary disagreed most.
+        - question: Does a hard week show up in what he writes about being tired, that week or the one after? And does his morning fatigue score say the same as his words?
           datasets: [wellness_data, activity_summary, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
+          # asked as the coach; key - words counted: his tired, sleep and recovery remarks per week (codes or reading, said which) against weekly load, ramp rate and HRV, lagged both ways; the diary's fatigue rating against his words; the weeks where they disagree most quoted

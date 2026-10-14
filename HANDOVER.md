@@ -446,6 +446,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The benchmark's context rows asked as a coach or a rider would (2026-10-15, patch 0157).** Palo, before testing
+  0154-0156: the context questions of the benchmark and the testing notes "mention words like codes, context and
+  others that a normal user like coach or athlete would not use ... sterile questions that already offer hints for
+  the system". Right, and for this feature the vocabulary leaks the answer: a question that says *codes* hands the
+  analyst the route and measures instruction-following, not whether the words are brought to bear - yesterday's
+  finding (the analyst never glanced at the codes on a words question) is invisible to a question that names them.
+  The mirror of C5 on the asking side. The twelve `context_enabled` rows are rewritten in the voice of the coach
+  about the rider (nine) or the rider's own (three), with no word of the system's - no codes, context, passages,
+  renderings, plan notes, ids - the same analytical substance (the join, the window, the judgement), and the
+  12-month window named by month or by the data (*the weeks my 20-minute power jumped the most*, *the last time he
+  was ill*), never "this week" (Palo: the benchmark loads a year). Under each row a comment for the scorer, never
+  for the model - *key*: what a good answer must do (use the words where needed, quote rather than paraphrase, name
+  a count of codes as the model's reading, a window rather than a same-day match where the days can differ, say
+  what rests on what) - and the voice it is asked in; the heading's comment says the convention. The verification
+  items of the testing notes stay technical (they are for the person checking the build); the questions put to the
+  model follow the same standard from now on (TESTING_context_0154-0156_natural.md replaces the question lists of
+  the three notes). Scanned: no system word in any of the twelve; the additions parse once line 12's `Z1: <55%` is
+  quoted. No code.
 - **Context, step 5: routines carry context (2026-10-14, patch 0156).** Most of F3 was there by construction - the
   two kinds in `AUX_KINDS` (1b), the run dialog waiting for the pass (0149), the replay's prelude binding `CTX` to
   whatever the run loaded, `bind_script` rebinding a literal context or codes path by kind. Three things were not:
