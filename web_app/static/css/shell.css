@@ -462,7 +462,7 @@
    reads apart from the green dataset pills. The spinner and "parsing name…" while a file is parsed; the refusal sentence
    in the error state until it is clicked away; otherwise "Documents (n/4)", hover listing the documents with their
    remove icons, click opening the Documents view. ---- */
-.topbar .documents-pill { position: relative; font-style: normal; }
+.topbar .documents-pill, .topbar .context-pill { position: relative; font-style: normal; }
 .topbar .documents-pill .dataset-pill-content svg { width: 13px; height: 13px; stroke: currentColor; fill: none; flex: none; }
 .topbar .documents-pill.success { background: rgba(93, 173, 226, 0.10); color: var(--info-color); border-color: var(--info-color); }
 .topbar .documents-pill.success:hover { background: rgba(93, 173, 226, 0.18); }
@@ -471,13 +471,16 @@
 .topbar .documents-pill.loading .dataset-pill-content svg { stroke: var(--text-secondary); }
 .topbar .documents-pill.error .dataset-pill-content { cursor: pointer; }
 .topbar .documents-pill.error .dataset-pill-content svg { stroke: var(--error-color); }
-.topbar .documents-pill-menu { display: none; position: fixed; min-width: 280px; padding: 6px; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); z-index: 60; }
-.topbar .documents-pill-menu::before { content: ''; display: block; position: absolute; left: 0; right: 0; top: -6px; height: 6px; }   /* the gap stays hoverable */
-.topbar .documents-pill:hover .documents-pill-menu { display: block; }
-.topbar .documents-pill-menu .row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-2); color: var(--text-secondary); font-family: var(--font-ui); font-size: var(--fs-meta); cursor: pointer; white-space: nowrap; }
-.topbar .documents-pill-menu .row:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.topbar .documents-pill-menu, .topbar .context-pill-menu { display: none; position: fixed; min-width: 280px; padding: 6px; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); z-index: 60; }
+.topbar .documents-pill-menu::before, .topbar .context-pill-menu::before { content: ''; display: block; position: absolute; left: 0; right: 0; top: -6px; height: 6px; }   /* the gap stays hoverable */
+.topbar .documents-pill:hover .documents-pill-menu, .topbar .context-pill:hover .context-pill-menu { display: block; }
+.topbar .documents-pill-menu .row, .topbar .context-pill-menu .row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-2); color: var(--text-secondary); font-family: var(--font-ui); font-size: var(--fs-meta); cursor: pointer; white-space: nowrap; }
+.topbar .documents-pill-menu .row:hover, .topbar .context-pill-menu .row:not(.muted):hover { background: var(--bg-tertiary); color: var(--text-primary); }
 .topbar .documents-pill-menu .row .id { color: var(--info-color); font-weight: 600; }
-.topbar .documents-pill-menu .row .meta { color: var(--text-quaternary); }
+.topbar .context-pill-menu .row .id { color: var(--c-kernel); font-weight: 600; }   /* the Context pill's list: the two files and the pass's line (2026-10-14) */
+.topbar .context-pill-menu .row.muted { cursor: default; color: var(--text-quaternary); }
+.topbar .context-pill-menu .row.line { white-space: normal; max-width: 360px; }
+.topbar .documents-pill-menu .row .meta, .topbar .context-pill-menu .row .meta { color: var(--text-quaternary); }
 .topbar .documents-pill-menu .row .sp { flex: 1; }
 .topbar .documents-pill-menu .row .rm { margin-left: 8px; opacity: .6; }
 .topbar .documents-pill-menu .row .rm:hover { opacity: 1; }

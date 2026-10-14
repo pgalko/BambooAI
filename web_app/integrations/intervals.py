@@ -398,7 +398,10 @@ def _coding_start(job_id, session_id, result, prefs):
         ctx['coding'] = _coding_view(state)
         return
     billing_chain = utils.next_chain_id()
-    key_mark = (prefs.get('load') or {}).get('key') or ''
+    # the store of coded passages is the subject's (docs/CONTEXT_DESIGN.md D1): keyed by the athlete's own id as
+    # Intervals.icu reports it (the job's context report), so a regenerated key keeps the store and two athletes never
+    # share one; the key's mark only when the report carries no id (2026-10-14, Palo: a coach switches athletes)
+    key_mark = str(ctx.get('subject_id') or '').strip() or (prefs.get('load') or {}).get('key') or ''
 
     def progress(k, n):
         state['message'] = f'Coding the context: batch {k} of {n}\u2026'

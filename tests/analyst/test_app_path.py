@@ -756,10 +756,10 @@ try:
     _bh.log_and_call_manager.charge_for_completed_query = lambda cid: _charged.append(cid)
     IV.intervals_bp.get_bamboo_ai = lambda sid: _bh; IV.intervals_bp.bamboo_ai_instances = {}; IV.intervals_bp.logger = logging.getLogger("t")
     _prefs4 = {"auxiliary_datasets": [_ath, _ctx4], "load": {"key": "k-four"}}
+    _res4 = {"aux_datasets": [_ath, _ctx4], "context": {"passages": 4, "kinds": {"day_note": 1}, "subject_id": "i77001"}}
     _res_plain = {"aux_datasets": [_ath]}
     IV._coding_start("job-0", "s1", _res_plain, {"auxiliary_datasets": [_ath]})
     check("a completed load without a context file starts nothing", _res_plain == {"aux_datasets": [_ath]} and "job-0" not in IV._coding_states())
-    _res4 = {"aux_datasets": [_ath, _ctx4], "context": {"passages": 4, "kinds": {"day_note": 1}}}
     IV._coding_start("job-4", "s1", _res4, _prefs4)
     _t0 = _time.time()
     while not _calls4 and _time.time() - _t0 < 5: _time.sleep(0.02)
@@ -777,6 +777,8 @@ try:
     check("when the pass ends: the status view is done with the codes file and the line, the codes file has joined the session's auxiliary files and the instance's (assigned, so its frames are read again), the billing chain charged once",
           _view2["status"] == "done" and _view2["codes_path"] == _codes4 and _view2["line"] == "3 of 4 coded, 1 not read by the coder, 1 batch failed" and _view2["percent"] == 100
           and _prefs4["auxiliary_datasets"] == [_ath, _ctx4, _codes4] and _bh.auxiliary_datasets == [_ath, _ctx4, _codes4] and len(_charged) == 1 and os.path.exists(_codes4) and len(_calls4) == 2, (_view2, _prefs4, _charged, len(_calls4)))
+    check("the store of coded passages is the subject's: under storage/<user>/context/<athlete id>/ as the job's report names the athlete, not under the key's mark (2026-10-14: a coach switches athletes; a regenerated key keeps the store)",
+          os.path.exists(os.path.join(os.getcwd(), "storage", "u3", "context", "i77001", "coded.json")) and not os.path.exists(os.path.join(os.getcwd(), "storage", "u3", "context", "k-four", "coded.json")))
     _prefs4["auxiliary_datasets"] = [_ath, _ctx4]            # the completion block resets the session's files to the executor's list
     _res4c = {"aux_datasets": [_ath, _ctx4], "context": {"passages": 4}}
     IV._coding_start("job-4", "s1", _res4c, _prefs4)

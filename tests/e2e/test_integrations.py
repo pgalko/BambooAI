@@ -433,15 +433,22 @@ def main():
             msg = page.inner_text("#intervals-modal-message")
             page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /W\\+S\\+C/.test(p.textContent))", timeout=60000)
             pills_c = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
-            check("the context option is on by default in the dialog; the load with it carries [W+S+C] and an auxiliary pill for the context file, with a spinner while the pass runs behind the load; the dialog's line reports the passages by kind, names no failed call and says the coding runs in the background",
-                  cx_default is True and any("Intervals ICU (59 days [W+S+C]) loaded" in p for p in pills_c) and any("Context (59 days)" in p and "coding" in p for p in pills_c)
-                  and "Context: " in msg and "passages" in msg and "activity_message" in msg and "failed" not in msg and "coding in the background" in msg, (cx_default, pills_c, msg))
-            # the pass behind the load (2026-10-14): the page follows it; when it ends the codes file gets a pill and the context pill its line
-            page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /Context codes \\(59 days\\)/.test(p.textContent))", timeout=120000)
+            ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); if (!p) return null; const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, spinner: !!p.querySelector('.file-upload-spinner'), rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
+            check("the context option is on by default in the dialog; the load with it carries [W+S+C] and ONE Context pill - the days, a spinner and 'coding…' while the pass runs behind the load, its list naming the passages and the codes as coding - no separate pill per file; the dialog's line reports the passages by kind, names no failed call and says the coding runs in the background",
+                  cx_default is True and any("Intervals ICU (59 days [W+S+C]) loaded" in p for p in pills_c) and ctx_pill is not None and ctx_pill["label"] == "Context (59 days) \u00b7 coding\u2026" and ctx_pill["spinner"] is True
+                  and len(ctx_pill["rows"]) == 2 and ctx_pill["rows"][0].startswith("Passagescontext_notes_") and ctx_pill["rows"][1] == "Codescoding\u2026" and ctx_pill["pills"] == 4
+                  and not any(p.startswith("Auxiliary (Context") for p in pills_c)
+                  and "Context: " in msg and "passages" in msg and "activity_message" in msg and "failed" not in msg and "coding in the background" in msg, (cx_default, pills_c, ctx_pill, msg))
+            # the pass behind the load (2026-10-14): the page follows it on the one pill; when it ends the pill settles - the line, the codes row
+            page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             pills_c = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
-            ctx_title = page.evaluate("() => { const p = [...document.querySelectorAll('.dataset-status-pill')].find(p => /Context \\(59 days\\)/.test(p.textContent)); const s = p && p.querySelector('.dataset-pill-content'); return s ? s.title : ''; }")
-            check("when the pass ends the context pill reads plain again with the pass's line as its tooltip - coded of total, the renderings, the proposal - and the codes file is a pill of its own",
-                  any(p.strip() == "Auxiliary (Context (59 days))" for p in pills_c) and re.search(r"^Context: \d+ of \d+ coded, \d+ rendered into English, 1 code proposed$", ctx_title) is not None and any("Context codes (59 days)" in p for p in pills_c), (pills_c, ctx_title))
+            ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
+            check("when the pass ends the one pill reads plain with the pass's line as its tooltip - coded of total, the renderings, the proposal - and its list names the passages, the codes and the line; still four pills in the bar",
+                  ctx_pill["label"] == "Context (59 days)" and re.search(r"^Context: \d+ of \d+ coded, \d+ rendered into English, 1 code proposed$", ctx_pill["title"]) is not None
+                  and len(ctx_pill["rows"]) == 3 and ctx_pill["rows"][1].startswith("Codescontext_codes_") and re.search(r"^\d+ of \d+ coded", ctx_pill["rows"][2]) and ctx_pill["pills"] == 4, (pills_c, ctx_pill))
+            page.evaluate("() => { const r = [...document.querySelectorAll('#contextPill .context-pill-menu .row')][0]; r.click(); }")
+            page.wait_for_function("() => { const t = document.querySelector('#content-dataframe, .tab-content.active'); return !!t && /text_en/.test(t.textContent || ''); }", timeout=30000)
+            check("the list's Passages row previews the context file in the Data tab, with the lang and text_en columns", True)
             ctx_path = os.path.join(exec_ds, f"context_notes_{tag_a}.csv")
             ctx = pd.read_csv(ctx_path, dtype=str, keep_default_na=False) if os.path.exists(ctx_path) else None
             kinds_c = dict(ctx["kind"].value_counts()) if ctx is not None else {}
@@ -484,9 +491,9 @@ def main():
                       book is not None and book.get("version") == 1 and sum(1 for c in book["codes"] if c.get("status") == "seeded") == 36
                       and any(c["code"] == "coach_flag" and c.get("status") == "proposed" and c.get("definition") and c.get("examples") for c in book["codes"])
                       and sum(c.get("uses", 0) for c in book["codes"]) == len(codes), (book_path, None if book is None else [(c["code"], c.get("status"), c.get("uses")) for c in book["codes"] if c.get("status") == "proposed"]))
-                store_path = os.path.join(workdir, "webapp", "storage", USER, "context", _kf("stack-key"), "coded.json")
+                store_path = os.path.join(workdir, "webapp", "storage", USER, "context", apis_data.SUBJECT["id"], "coded.json")
                 store = json.load(open(store_path)) if os.path.exists(store_path) else None
-                check("the coded passages are remembered per subject under storage/<user>/context/<key mark>/coded.json - one entry per answered passage with its rendering and codes - so the next load of this subject codes only what is new",
+                check("the coded passages are remembered per subject under storage/<user>/context/<athlete id>/coded.json (the id Intervals reports, not the key's mark) - one entry per answered passage with its rendering and codes - so the next load of this subject codes only what is new",
                       store is not None and len(store.get("entries", {})) == len(ctx) and any(e.get("text_en", "").startswith("The legs were heavy today") for e in store["entries"].values()), (store_path, None if store is None else len(store.get("entries", {}))))
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
             # the analyst's DATA block: the context file's entry is columns and a count, the map follows, no passage in the prompt

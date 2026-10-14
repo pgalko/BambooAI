@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (207/154/31/24/18/49/44/69/11/117/33/29/1/1 Python; 49/7/30/67/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (207/155/31/24/18/49/44/69/11/117/33/29/1/1 Python; 49/7/30/67/24/66/8 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (65; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (66; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,33 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context: the store keyed by the athlete, one Context pill, a plan note's date (2026-10-14, patch 0152).** Palo's
+  test session on 0149-0151 (the nine questions of TESTING_context_0151): the coder at `none` read 63 new passages
+  of an overlapping window in four parallel calls of 6-11 s for a cent - reuse works - and five analyses ran on the
+  words. All five read as the design intends: *tired or heavy legs in August* found four days, 13 August included,
+  the Danish quoted with the rendering marked and the translator's bracket named, a stricter count beside the
+  inclusive one; *codes by week against load* used `CTX.codes()` joined to the summary, said a code is the model's
+  reading and dropped the proposed rows; *the week power dropped* found the week by a stated rule and quoted both
+  authors (and noticed the coach's "Heat session" note is eighteen identical copies); *instructions versus what was
+  done* joined the `instruction` code to `workout_compliance`; *was he ill* set the platform's flag, the words and the
+  numbers side by side with the crash as the competing cause. Costs $0.07-0.19 and 4-10 minutes a question on flash
+  in Deep mode - the analyst's turns, not the context's. One misreading to fix at the source: the analyst took plan
+  notes dated the day of the ride as written that day ("descriptions, not prescriptions"); a plan note's date is the
+  day it was planned for, and the map's closing sentence now says so. Palo's concern - the store of coded passages
+  is per user, so a coach switching athletes would meet the wrong store: as built the store was per key mark, which
+  is per athlete when each athlete has a key, and its entries are keyed by Intervals' global ids with the text hash,
+  so one athlete's words could never stand in for another's; still the structure should say what it is - the store
+  is now under `storage/<user>/context/<athlete id>/` with the id the job's context report carries (the key's mark
+  only without one), so a regenerated key keeps it and a future coach-key flow is safe (the stores made by 0149 under
+  the key mark are orphaned and re-coded once, cents). Palo's ask: two pills for one thing wasted the bar - the
+  context and codes files now stack under **one Context pill** (`contextPillAdd` / `contextPillSettle` in
+  intervals.js, the dialog, the run dialog and the Dataset cache all routing through it): the days and a spinner
+  with *coding…* while the pass runs, a hover list with Passages and Codes (each a click to the Data tab's preview,
+  `showDatasetPreview` factored out of the pill click) and the pass's line once ended, the x removing both files
+  (`removeDatasetPill` defers to it, so a run's load clears both). Tests: test_context_pill.js 8 (new),
+  test_app_path.py 155 (the athlete-keyed store), integrations 66 (one pill, its list, the preview, the store under
+  the fake subject's id). Observed, not changed: repeated identical plan prose inflates code counts (the heat
+  protocol carries `body`, `hydration` eighteen times) - a count of repeats in the map is a cheap step-4 candidate.
 - **The Reader and the Coder on DeepSeek flash in every tier (2026-10-14, patch 0151).** Palo's second live pass on
   0149+0150 (223 passages, twelve batches of twenty, six in flight, all twelve answered whole, no second round):
   2.4 minutes behind the load, $0.15 - the calls 28-80 s each because his config still ran the Coder at `low`

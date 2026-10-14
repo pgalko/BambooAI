@@ -93,7 +93,8 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
     elif codes is not None:
         lines.append("  codes: the coding pass produced none for this window.")
     lines.append("  A passage is cited as [C.n]; one not written in English is quoted in its English rendering, marked so, the original kept beside it;"
-                 " a code is a reading of a passage, not a statement the writer made; the day of the words and the day of the numbers can differ by days.")
+                 " a code is a reading of a passage, not a statement the writer made; the day of the words and the day of the numbers can differ by days;"
+                 " a plan_note is dated the day it was planned for, not the day it was written.")
     return "\n".join(lines)
 
 

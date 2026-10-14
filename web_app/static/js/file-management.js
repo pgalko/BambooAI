@@ -275,6 +275,17 @@ async function handleDatasetPillClick(event) {
     }
 
     try {
+        await showDatasetPreview(fetchUrl, fetchBody, datasetType);
+    } finally {
+        if (textSpan) {
+             textSpan.textContent = originalPillText;
+        }
+    }
+}
+
+// a dataset's preview into the Data tab - a pill's click, or a row of the Context pill's list (2026-10-14)
+async function showDatasetPreview(fetchUrl, fetchBody, datasetType) {
+    try {
         const response = await window.authService.fetch(fetchUrl, {
             method: 'POST',
             headers: {
@@ -307,10 +318,6 @@ async function handleDatasetPillClick(event) {
                 activateTab('dataframe');
             }
         }
-    } finally {
-        if (textSpan) {
-             textSpan.textContent = originalPillText;
-        }
     }
 }
 
@@ -324,6 +331,8 @@ async function handleRemoveDatasetPill(event) {
 // gone, the Data tab told. Also called without a button (2026-10-11, routines: a run's load clears what it replaces).
 async function removeDatasetPill(pillElement, removeButton, quiet = false) {
     if (!pillElement) return;
+    // the one Context pill stands for two files (2026-10-14): its own remover drops both and the pill
+    if (pillElement.id === 'contextPill' && typeof contextRemove === 'function') { await contextRemove(); return; }
 
     const datasetType = pillElement.dataset.datasetType;
     const identifier = pillElement.dataset.identifier;

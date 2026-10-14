@@ -987,17 +987,14 @@ window.DatasetManager = (function() {
                         const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
                         displayName = `Activity Intervals (${days} days)`;
                     }
-                } else if (filename.includes('context_notes') || filename.includes('context_codes')) {
-                    // the context and codes files of a load (docs/CONTEXT_DESIGN.md), named as the Intervals dialog names them
+                } else if ((filename.includes('context_notes') || filename.includes('context_codes')) && typeof contextPillAdd === 'function') {
+                    // the context and codes files of a load stack under the one Context pill (docs/CONTEXT_DESIGN.md, 2026-10-14)
                     const dateMatch = filename.match(/(\d{8})_to_(\d{8})/);
-                    if (dateMatch) {
-                        const start = dateMatch[1];
-                        const end = dateMatch[2];
-                        const startDate = new Date(start.slice(0,4), start.slice(4,6)-1, start.slice(6,8));
-                        const endDate = new Date(end.slice(0,4), end.slice(4,6)-1, end.slice(6,8));
-                        const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-                        displayName = filename.includes('context_codes') ? `Context codes (${days} days)` : `Context (${days} days)`;
-                    }
+                    const iso = s => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+                    contextPillAdd([filePath], dateMatch ? { start_date: iso(dateMatch[1]), end_date: iso(dateMatch[2]) } : null, { coding: false });
+                    auxiliaryDatasetCount = data.aux_count || (auxiliaryDatasetCount + 1);
+                    hideModal();
+                    return;
                 }
                 
                 const pillLabel = isGenerated ? `Generated (${displayName})` : `Auxiliary (${displayName})`;

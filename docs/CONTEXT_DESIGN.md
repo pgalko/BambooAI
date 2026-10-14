@@ -152,7 +152,8 @@ CONTEXT (the words written beside the data; in the kernel as CTX; files context_
   effort 22, sleep 14, illness 9, deviation 8, … (23 of 36 codes used); 11 passages carry none; 2 codes proposed.
   A passage is cited as [C.417]; one not written in English is quoted in its English rendering, marked so,
   the original kept beside it; a code is a reading of a passage, not a statement the writer made; the day of the
-  words and the day of the numbers can differ by days.
+  words and the day of the numbers can differ by days; a plan_note is dated the day it was planned for, not
+  the day it was written.
 ```
 
 Ten lines at most; the rest is reached by `CTX` and READ. The data record a routine keeps gains `aux_kinds`
@@ -347,8 +348,10 @@ routine's narrative may say, not analysis methods the contract may prescribe (C2
 
 - **S1 — The load.** The Data tab's dialog gains nothing visible: context is one of the auxiliary kinds, on by
   default, with the others' checkbox pattern if one is wanted. The dialog's line carries the pass's report (§F1). The
-  context and codes files appear as auxiliary pills with the existing preview (first rows) — the preview of the
-  context file is the passages, which is the quickest look a coach gets.
+  context and codes files stack under **one Context pill** (2026-10-14, as the documents do): the label with the
+  days and a spinner with *coding…* while the pass runs; the hover list naming the passages and the codes, each a
+  click away from the existing preview (first rows) — the preview of the context file is the passages, which is the
+  quickest look a coach gets — and the pass's line once it has ended; the pill's x removes both files.
 - **S2 — Citations.** `[C.417]` in the Answer and the Simplified view is the documents' chip: hover shows *2026-08-14
   · activity_message · the subject · "Legs were heavy from the first climb…" (rendered from Danish:
   "Benene var tunge fra den første stigning…")*; click opens the Investigation tab at
@@ -420,8 +423,10 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
 ## 12. Open decisions
 
 - **D1 — Persisting labels.** Decided the other way on 2026-10-14, after the first live pass took seven minutes:
-  the coded passages are kept per user and subject in `storage/<user>/context/<key mark>/coded.json`, keyed by
-  kind and source id with the text's hash as the guard, each entry carrying its rendering, codes, coder and
+  the coded passages are kept per user and subject in `storage/<user>/context/<athlete id>/coded.json` — the id
+  Intervals.icu reports for the key's athlete, so a regenerated key keeps the store and a coach switching athletes
+  never meets another athlete's (the entries are keyed by kind and source id with the text's hash as the guard,
+  which on its own already keeps one athlete's words from standing in for another's) — each entry carrying its rendering, codes, coder and
   codebook version; a load codes only the passages the store has not seen (a changed text is coded again), so the
   full pass happens once per subject. The codebook's version makes old labels comparable; the store is bounded
   (the newest 6,000 by day). Nothing else persists.
