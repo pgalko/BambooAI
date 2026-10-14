@@ -330,13 +330,15 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Coder' if 'Coder' in agents else self._reader_seat()
 
-    def code_context(self, notes_path, progress=None, billing_chain_id=None):
+    def code_context(self, notes_path, progress=None, billing_chain_id=None, key_mark=None):
         """The coding pass over a loaded context file (bambooai/context_host.py), its calls logged under the billing
-        chain as Save as routine's are; the thread for the usage rows is the current one or one minted for the load."""
+        chain as Save as routine's are; the thread for the usage rows is the current one or one minted for the load.
+        `key_mark` names the subject's store of coded passages (the load's key mark when not given)."""
         from bambooai import context_host
         if not self.log_and_call_manager.thread_id:
             self.log_and_call_manager.thread_id = str(self.thread_id or utils.next_thread_id())
-        return context_host.code_context(self, notes_path, progress=progress, chain_id=billing_chain_id or self.chain_id)
+        mark = key_mark or (getattr(self, 'load_params', None) or {}).get('key') or ''
+        return context_host.code_context(self, notes_path, progress=progress, chain_id=billing_chain_id or self.chain_id, key_mark=mark or None)
 
     def _put_aux_file(self, path, text):
         """Write an auxiliary file's text where the load keeps it: to the executor in api mode, here otherwise."""
@@ -917,7 +919,10 @@ class BambooAI:
                 size = len(cb.active_codes(cb.load(self._user_storage())))
             except Exception:                                  # noqa: BLE001
                 size = 0
-        return context_mod.context_map(notes, codes, notes_path=notes_path, codes_path=codes_path, codebook_size=size)
+        text = context_mod.context_map(notes, codes, notes_path=notes_path, codes_path=codes_path, codebook_size=size)
+        if (getattr(self, '_context_coding', None) or {}).get('status') == 'running':      # the pass behind the load has not ended
+            text += "\n  the coding pass is still running behind the load: the codes and the English renderings arrive when it ends; the words are reachable now as written."
+        return text
 
     # ------------------------------------------------------------- the UI
     def _tab(self, kind, data):

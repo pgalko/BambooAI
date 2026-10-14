@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (207/149/31/19/17/49/44/69/11/117/33/24/1/1 Python; 49/7/30/67/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (207/154/31/24/18/49/44/69/11/117/33/29/1/1 Python; 49/7/30/67/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (64; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (65; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,38 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context: the coder behind the load, in parallel, reasoning off, remembered per subject (2026-10-14, patch 0149).**
+  Palo's first pass on 0148 took seven minutes for 120 of 223 passages and the dialog gave up at five: six calls of
+  65-80 s, each at the 16k reply cap, **three of them empty**. Root cause, from the log: the non-streaming path
+  (`ModelManager.llm_call`) sent no reasoning effort, so DeepSeek flash reasoned at its default depth and spent the
+  whole budget thinking - the Reader and the Promoter had paid the same tax unseen - and forty passages with
+  renderings overran the cap; the retry doubled it. Four changes, each where its cause is. (1) `llm_call` resolves
+  the seat's effort as the stream does (`_effective_effort`; a caller may lower it) and hands it with the
+  reasoning-model list to the provider on the per-thread channel (`set_call_reasoning`); OpenRouter builds the same
+  `reasoning` body the stream sends, Anthropic shapes `request_params` with the effort; the Coder seat runs at
+  `none` on flash (declared) and `low` on sonnet/opus. (2) `bambooai/context_host.py`: batches of twenty (8,000
+  characters), six calls in flight (`ThreadPoolExecutor`), validation in batch order so a proposal is usable by the
+  next batch, and a second round only for the passages no reply answered - a failed batch or the tail of a cut
+  reply - instead of a blind retry of the batch. (3) The load no longer waits: `_coding_start` in the Intervals
+  route starts the pass in a thread after the instance is set up and completes the load at once with
+  `result['context']['coding'] = {status: running}`; `GET /intervals/context_coding/<job_id>` says where it is; when
+  it ends the codes file joins the session's files (the instance's list assigned, which drops its frames) and a
+  completion read again puts it back; the page (`pollContextCoding`) keeps a spinner and *coding…* on the context
+  pill, then names it plain with the line as its tooltip and gives the codes file a pill (`Context (59 days)` /
+  `Context codes (59 days)`, the Dataset cache naming them the same); DATA says *the coding pass is still running*
+  while it does; a routine's run waits for the pass in the run dialog (its counts depend on the codes). (4) D1
+  decided the other way: `analyst/coded.py` keeps the coded passages per user and key mark
+  (`storage/<user>/context/<key mark>/coded.json`, kind:source_id with the text hash as the guard, the rendering,
+  codes, coder and codebook version on each entry, the newest 6,000 kept); a load reuses what the store holds and
+  codes only the new passages, so the full pass happens once per subject - the line says *180 already coded by an
+  earlier load*. Expected on the Danish window: ~30-40 s in the background on flash the first time, seconds after.
+  Considered and parked: a typed-choice classifier (OpenRouter's Jev) for the codes half - fast and nearly free, but
+  it gives neither the rendering nor the quote; the twenty-label precision check decides whether it is ever
+  wanted. Tests: test_vllm_adapter.py 24 (the effort on OpenRouter's llm_call and through the dispatcher),
+  test_anthropic_adapter.py 18, test_coder.py 29 (the store), test_app_path.py 154 (the parallel pass with a second
+  round, reuse on a second load, a changed text re-coded, the route's start/running/done/read-again/skipped states),
+  integrations 65 (the pass followed on the page; the store written). The billing decision stands (one query per
+  load with context).
 - **Context, step 3: the codebook and the coder (2026-10-14, patch 0148).** The words beside the data are now read once
   by a model at load (docs/CONTEXT_DESIGN.md §3.2, §3.3, §4 F1, §6, §13). `analyst/codebook_seed.json` (data, outside the
   C5 scanner): the design's 36 English codes in six groups with their definitions. `analyst/codebook.py`: the user's

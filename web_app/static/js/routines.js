@@ -954,10 +954,20 @@
                 const job = jr.json || {};
                 if (job.status === 'completed') {
                     const info = { start_date: start, end_date: end, aux_datasets: plan.aux_kinds || [], shape: (job.result || {}).shape, columns: (job.result || {}).columns };
+                    let files = (job.result || {}).aux_datasets || [];
+                    // the coding pass behind the load (2026-10-14): a routine's counts depend on the codes, so the run waits for it here
+                    let coding = job.result && job.result.context && job.result.context.coding;
+                    while (coding && coding.status === 'running' && Date.now() - t0 < 600000) {
+                        progress(coding.message || 'Coding the context…' + (coding.percent != null ? ' (' + coding.percent + '%)' : ''), 'loading');
+                        await sleep(2000);
+                        const cr = await fetchJson('/intervals/context_coding/' + encodeURIComponent(jobId));
+                        coding = cr.json || null;
+                    }
+                    if (coding && coding.codes_path && !files.includes(coding.codes_path)) files = files.concat([coding.codes_path]);
                     if (typeof createIntervalsPill === 'function') createIntervalsPill(info);
-                    if (typeof createIntervalsAuxiliaryPills === 'function' && job.result && job.result.aux_datasets && job.result.aux_datasets.length) createIntervalsAuxiliaryPills(job.result.aux_datasets, info);
+                    if (typeof createIntervalsAuxiliaryPills === 'function' && files.length) createIntervalsAuxiliaryPills(files, info);
                     dfTab(job);
-                    return { source: 'intervals', start, end, aux: (job.result || {}).aux_datasets || [], load: asked, loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
+                    return { source: 'intervals', start, end, aux: files, load: asked, loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') + (coding && coding.line ? ' · ' + coding.line : '') };
                 }
                 if (job.status === 'error' || job.status === 'not_found') throw new Error(job.error || 'the load failed');
                 progress((job.message || 'Loading…') + (job.percent != null ? ' (' + job.percent + '%)' : ''), 'loading');

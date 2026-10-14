@@ -222,9 +222,13 @@ class ModelManager:
                            "entry would carry (effort levels, no_sampling) do not apply. Add the entry to LLM_CONFIG.json "
                            "under that exact model string.%s", agent, model, hint)
 
-    def llm_call(self, log_and_call_manager, messages: str, agent: str = None, chain_id: str = None):
+    def llm_call(self, log_and_call_manager, messages: str, agent: str = None, chain_id: str = None, reasoning_effort: str = None):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
         model, provider, max_tokens, temperature, response_format, api_type = self._init(agent)
+        # the seat's reasoning effort, resolved as the streaming path resolves it (2026-10-14: this path had sent none,
+        # so a reasoning model reasoned at its default depth - the coder spent its whole 16k budget thinking and
+        # returned nothing, three calls running; the Reader and the Promoter were paying the same tax unseen)
+        reasoning_effort = _effective_effort(self.get_agent_reasoning_effort(agent), reasoning_effort, agent)
 
         # Clear the cache side channel before dispatch. Doing this per provider
         # leaks the previous call's counts into the next one when the provider
@@ -286,6 +290,11 @@ class ModelManager:
             _set_props = getattr(provider_module, 'set_model_properties', None)
             if _set_props:
                 _set_props(self.get_model_properties().get(model) or {})
+            # the effort and the reasoning-model list for the non-streaming call, on the same per-thread channel, handed
+            # over unconditionally; a provider without the hook keeps its default
+            _set_call_reasoning = getattr(provider_module, 'set_call_reasoning', None)
+            if _set_call_reasoning:
+                _set_call_reasoning(reasoning_effort, self.reasoning_models)
 
             content_received, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = getattr(provider_module, function_name)(
                 messages, model, temperature, max_tokens, response_format, self.api_keys

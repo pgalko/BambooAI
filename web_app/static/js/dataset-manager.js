@@ -987,6 +987,17 @@ window.DatasetManager = (function() {
                         const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
                         displayName = `Activity Intervals (${days} days)`;
                     }
+                } else if (filename.includes('context_notes') || filename.includes('context_codes')) {
+                    // the context and codes files of a load (docs/CONTEXT_DESIGN.md), named as the Intervals dialog names them
+                    const dateMatch = filename.match(/(\d{8})_to_(\d{8})/);
+                    if (dateMatch) {
+                        const start = dateMatch[1];
+                        const end = dateMatch[2];
+                        const startDate = new Date(start.slice(0,4), start.slice(4,6)-1, start.slice(6,8));
+                        const endDate = new Date(end.slice(0,4), end.slice(4,6)-1, end.slice(6,8));
+                        const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+                        displayName = filename.includes('context_codes') ? `Context codes (${days} days)` : `Context (${days} days)`;
+                    }
                 }
                 
                 const pillLabel = isGenerated ? `Generated (${displayName})` : `Auxiliary (${displayName})`;

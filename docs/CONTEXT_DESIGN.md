@@ -178,13 +178,20 @@ default in the auxiliary kinds. In the container, after the summary, wellness an
 In the app, when the job completes with a context file: the **coding pass** (§6) in batches of about forty
 passages — codes, tone, language, and the English rendering of every passage not in English, written back into
 the context file's `text_en` — the codes file uploaded beside it and the context file re-uploaded with its
-renderings. Built (step 3, 2026-10-14) as a hold on the load: the executor's job is complete, the app answers the
-dialog's polling with *Coding the context: batch k of n…* while a thread codes, and lets the completion through
-with the codes file among the auxiliary files and the pass's report in the dialog's line — *Context: 212 passages
-— activity_message 198, …; 201 of 212 coded, 180 rendered into English, 2 codes proposed.* (No card in the pane:
-the pane belongs to a chain, and a load has none.) The pass is a query for the account's purposes, authorised and
-charged as Save as routine's call is. Then the load completes as today — the pills, the Data tab, the DATA block
-with the map.
+renderings. Built (step 3, 2026-10-14) **behind the load, never in front of it**: the load completes as today the
+moment the executor's job does — the pills, the Data tab, the DATA block with the map — and the app codes in a
+thread meanwhile: the passages an earlier load of this subject already coded are reused from the store (§12 D1),
+the rest go in batches of twenty, six calls in flight at once, with reasoning off on the Coder seat; a second
+round reads only what the first left unanswered. The context pill carries a spinner and *coding…* while it runs
+(`/intervals/context_coding/<job id>` says where it is); when it ends the codes file gets a pill of its own and
+the context pill's tooltip the pass's line — *201 of 212 coded, 180 already coded by an earlier load, 43 rendered
+into English, 2 codes proposed*. A question asked meanwhile works on the words as written, and DATA says the
+codes are still coming; a routine's run waits for the pass, since its counts depend on the codes. (The first
+build held the load for the pass: seven minutes on a 223-passage window, three of six calls empty — the model
+had reasoned at its default depth because the non-streaming path sent no effort, and forty passages with
+renderings overran the reply cap; nobody would sit through that.) No card in the pane: the pane belongs to a
+chain, and a load has none. The pass is a query for the account's purposes, authorised and charged as Save as
+routine's call is.
 
 Failure states, each a sentence in the card, none fatal to the load:
 - Intervals refuses or times out on a context call (403, 429, a network error): the file is written with what was
@@ -310,7 +317,9 @@ same machinery:
 
 ## 6. The model's calls, and where it is absent
 
-- **The coder** — one call per batch at load time, the `Coder` seat (the Reader's when absent). The prompt
+- **The coder** — one call per batch at load time, the `Coder` seat (the Reader's when absent), reasoning off
+  where the model allows it (the seat's effort now rides on the non-streaming path too — it had not, and a
+  reasoning model thought at its default depth on every READ, promotion and coding call). The prompt
   describes the work and the format only: *here is a vocabulary of codes with definitions; for each passage,
   return the codes that apply, the tone, and for each code the words it rests on, verbatim; a passage may take no
   code; if a passage needs a code the vocabulary lacks, propose one with a definition, once.* The codebook, the
@@ -410,9 +419,12 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
 
 ## 12. Open decisions
 
-- **D1 — Persisting labels.** Not in v0.1: a load re-codes (cents, ~a minute). If re-coding proves unstable across
-  loads or the cost grows with many subjects, keep `codes` in `storage/<user>/context/<subject>/` keyed by
-  `source_id`, and the coder codes only new passages. The codebook's version makes old labels comparable.
+- **D1 — Persisting labels.** Decided the other way on 2026-10-14, after the first live pass took seven minutes:
+  the coded passages are kept per user and subject in `storage/<user>/context/<key mark>/coded.json`, keyed by
+  kind and source id with the text's hash as the guard, each entry carrying its rendering, codes, coder and
+  codebook version; a load codes only the passages the store has not seen (a changed text is coded again), so the
+  full pass happens once per subject. The codebook's version makes old labels comparable; the store is bounded
+  (the newest 6,000 by day). Nothing else persists.
 - **D2 — Scope of the codebook.** Per user, seeded from one list. A shared seed across users keeps cross-coach
   comparison possible; per-coach growth keeps each coach's practice. Decided: per user, seeded; revisit if a team
   of coaches wants one book.

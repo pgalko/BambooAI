@@ -38,6 +38,9 @@ check("an earlier model keeps the old shape: temperature sent - in extra_body, s
       p == {"model": "claude-haiku-4-5-20251001", "max_tokens": 16000, "stream": True, "extra_body": {"temperature": 0}} and "temperature" not in p, p)
 p = shape(HAIKU, None, "claude-haiku-5-5", stream=False)
 check("the non-streaming path with no effort known: no thinking or effort field (the model's default), still no temperature", "thinking" not in p and "output_config" not in p and "temperature" not in p and "stream" not in p, p)
+# the dispatcher hands the seat's effort to the non-streaming call too (2026-10-14): llm_call shapes the request with it
+A.set_call_reasoning("none", ["claude-sonnet-5-5"])
+check("set_call_reasoning: the effort for the next llm_call is read back by the adapter; None clears it", A._call_effort() == "none" and (A.set_call_reasoning(None, None) or A._call_effort() is None))
 A.set_model_properties(None); A.set_reasoning_style(None); A.set_reasoning_efforts(None)
 p = A.request_params("claude-haiku-4-5-20251001", 0.5, 1000)
 check("after a reset hand-off nothing of the last model's rules remains", p == {"model": "claude-haiku-4-5-20251001", "max_tokens": 1000, "extra_body": {"temperature": 0.5}}, p)

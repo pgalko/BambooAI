@@ -460,6 +460,17 @@ def set_reasoning_efforts(efforts):
         _routing_local.reasoning_efforts = None
 
 
+def set_call_reasoning(effort, reasoning_models):
+    """The seat's effort and the reasoning-model list for the next non-streaming call (the dispatcher hands them
+    over before every llm_call, None included); llm_call builds the same `reasoning` body the stream sends."""
+    _routing_local.call_effort = effort
+    _routing_local.call_reasoning_models = list(reasoning_models or [])
+
+
+def _call_reasoning():
+    return getattr(_routing_local, "call_effort", None), getattr(_routing_local, "call_reasoning_models", None)
+
+
 def _reasoning_efforts():
     """What the dispatcher handed over for the model being served."""
     return getattr(_routing_local, "reasoning_efforts", None)
@@ -610,6 +621,16 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str, respo
     _pp = _model_routing()
     if _pp:
         _cache_body.setdefault("provider", {}).update(_pp)
+    # the seat's reasoning effort, as the stream sends it (2026-10-14: nothing had been sent here, so a reasoning
+    # model thought at its default depth and a 16k reply could be all thinking and no text)
+    _eff, _rmodels = _call_reasoning()
+    if _eff is not None:
+        _style = _reasoning_style()
+        _effort = _normalise_effort(_eff, _style)
+        _rbody = _reasoning_body(model, _rmodels, _effort, max_tokens, _style)
+        if _rbody:
+            _cache_body["reasoning"] = _rbody
+        prompt_cache.record_meta(reasoning_effort=_effort, max_tokens=max_tokens)
 
     try:
         start_time = time.time()

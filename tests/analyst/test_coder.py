@@ -121,5 +121,29 @@ check("report_line: the sentence of a pass", coder.report_line({"passages": 212,
       == "201 of 212 coded, 180 rendered into English, 2 codes proposed, 3 not read by the coder, 1 batch failed" and coder.report_line({"passages": 0}) == "nothing to code"
       and coder.report_line({"passages": 4, "coded": 4}) == "4 of 4 coded")
 
+# ---- the store of coded passages (D1's fallback, 2026-10-14) ----
+from analyst.coded import CodedStore, passage_key
+tmp2 = tempfile.mkdtemp()
+st = CodedStore(tmp2, "k-one").load()
+ps = [{"id": "C.1", "kind": "day_note", "date": "2026-08-02", "source_id": "11", "text": "slept badly"},
+      {"id": "C.2", "kind": "activity_message", "date": "2026-08-03", "source_id": "22", "text": "Benene var tunge"},
+      {"id": "C.3", "kind": "tag", "date": "2026-08-05", "source_id": "", "text": "sick"}]
+check("a fresh store knows nothing: every passage is to do; keys are kind:source_id, or kind:day:hash without a source id",
+      st.lookup(ps) == ({}, ps) and passage_key(ps[0]) == "day_note:11" and passage_key(ps[2]).startswith("tag:2026-08-05:") and len(passage_key(ps[2])) == len("tag:2026-08-05:") + 12)
+rows = [{"id": "C.1", "code": "sleep", "tone": "negative", "quote": "slept badly", "status": "codebook"}, {"id": "C.2", "code": "fatigue", "tone": "mixed", "quote": "tunge", "status": "codebook"}]
+rend = {"C.1": {"lang": "en", "text_en": ""}, "C.2": {"lang": "da", "text_en": "The legs were heavy"}}
+check("remember stores the answered passages with their rendering and codes and returns the count; the unanswered one is not stored", st.remember(ps, rows, rend, "m/x", 1) == 2 and sorted(st.entries) == ["activity_message:22", "day_note:11"]
+      and st.entries["activity_message:22"] == {"hash": st.entries["activity_message:22"]["hash"], "date": "2026-08-03", "lang": "da", "text_en": "The legs were heavy", "codes": [{"code": "fatigue", "tone": "mixed", "quote": "tunge", "status": "codebook"}], "coder": "m/x", "codebook_version": 1})
+st.save()
+st2 = CodedStore(tmp2, "k-one").load()
+known, todo = st2.lookup([dict(ps[0]), dict(ps[1], id="C.9"), dict(ps[2]), dict(ps[0], id="C.4", text="slept badly, then well")])
+check("a reload reads the file back; lookup knows a passage by key and text hash whatever its id this load, and sends a changed text and the unknown tag to the coder",
+      set(known) == {"C.1", "C.9"} and known["C.9"]["text_en"] == "The legs were heavy" and [p["id"] for p in todo] == ["C.3", "C.4"], (sorted(known), [p["id"] for p in todo]))
+check("another key mark is another store", CodedStore(tmp2, "k-two").load().entries == {} and os.path.dirname(CodedStore(tmp2, "k-two").path).endswith(os.path.join("context", "k-two")))
+big = CodedStore(tmp2, "k-big")
+big.entries = {f"day_note:{i}": {"hash": "h", "date": f"2026-{1 + i % 12:02d}-{1 + i % 28:02d}", "codes": []} for i in range(7000)}
+check("prune keeps the newest by day under the cap", big.prune() == 1000 and len(big.entries) == 6000 and min(e["date"] for e in big.entries.values()) >= "2026-02")
+shutil.rmtree(tmp2, ignore_errors=True)
+
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

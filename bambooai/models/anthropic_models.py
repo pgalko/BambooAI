@@ -71,6 +71,15 @@ def _style():
     return getattr(_props_local, "style", None)
 
 
+def set_call_reasoning(effort, reasoning_models):
+    """The seat's effort for the next non-streaming call (the dispatcher hands it over before every llm_call)."""
+    _props_local.call_effort = effort
+
+
+def _call_effort():
+    return getattr(_props_local, "call_effort", None)
+
+
 def _efforts():
     return getattr(_props_local, "efforts", None)
 
@@ -184,7 +193,7 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str, respo
     # only max_tokens is recorded here. That is what makes a `truncated` entry
     # interpretable on its own.
     prompt_cache.record_meta(max_tokens=max_tokens)
-    api_params = request_params(model, temperature, max_tokens)
+    api_params = request_params(model, temperature, max_tokens, effort=_call_effort())   # the seat's effort, as the stream sends it (2026-10-14)
     api_params["system"] = prompt_cache.anthropic_system(system_instruction)
     api_params["messages"] = prompt_cache.anthropic_messages(messages)
 

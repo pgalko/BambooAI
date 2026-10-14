@@ -110,8 +110,11 @@ function contextReportLine(report) {
     const failed = Array.isArray(report.failed) ? report.failed : [];
     let line = n ? ('Context: ' + n + ' passage' + (n === 1 ? '' : 's') + (parts.length ? ' — ' + parts.join(', ') : '')) : 'Context: no passages in this window';
     if (failed.length) line += '; ' + failed.length + ' call' + (failed.length === 1 ? '' : 's') + ' failed: ' + failed.join('; ');
-    // the coding pass (step 3): what the coder did with the passages, or why it did not run
-    if (n && report.coding_line) line += '; ' + report.coding_line;
+    // the coding pass (step 3): running behind the load, or what it did, or why it did not run
+    const coding = report.coding;
+    if (n && coding && coding.status === 'running') line += '; coding in the background';
+    else if (n && coding && coding.line) line += '; ' + coding.line;
+    else if (n && report.coding_line) line += '; ' + report.coding_line;
     return line + '.';
 }
 if (typeof module !== 'undefined' && module.exports) module.exports.contextReportLine = contextReportLine;
@@ -141,33 +144,33 @@ function createIntervalsPill(dataInfo) {
     console.log('Intervals ICU data pill created successfully');
 }
 
-function createIntervalsAuxiliaryPills(auxDatasets, dataInfo) {
-    if (!auxDatasets || auxDatasets.length === 0) return;
+function intervalsAuxDisplayName(filepath, dayCount) {
+    const filename = filepath.split('/').pop();
+    if (filename.includes('wellness_data')) return `Wellness Summary (${dayCount} days)`;
+    if (filename.includes('activity_summary')) return `Activity Summary (${dayCount} days)`;
+    if (filename.includes('activity_intervals')) return `Activity Intervals (${dayCount} days)`;
+    if (filename.includes('context_notes')) return `Context (${dayCount} days)`;
+    if (filename.includes('context_codes')) return `Context codes (${dayCount} days)`;
+    return filename.replace('.csv', '');
+}
+
+function createIntervalsAuxiliaryPills(auxDatasets, dataInfo, options) {
+    if (!auxDatasets || auxDatasets.length === 0) return {};
     const dayCount = Math.ceil((new Date(dataInfo.end_date) - new Date(dataInfo.start_date)) / (1000 * 60 * 60 * 24));
-    
+    const ids = {};
     auxDatasets.forEach((filepath, index) => {
-        const filename = filepath.split('/').pop();
-        
-        let displayName = '';
-        if (filename.includes('wellness_data')) {
-            displayName = `Wellness Summary (${dayCount} days)`;
-        } else if (filename.includes('activity_summary')) {
-            displayName = `Activity Summary (${dayCount} days)`;
-        } else if (filename.includes('activity_intervals')) {
-            displayName = `Activity Intervals (${dayCount} days)`;
-        } else {    
-            displayName = filename.replace('.csv', '');
-        }
-        
+        const displayName = intervalsAuxDisplayName(filepath, dayCount);
         const pillId = `intervals-aux-pill-${Date.now()}-${index}`;
-        
+        ids[filepath] = pillId;
+        // the context file while the coding pass runs behind the load (2026-10-14): a spinner and "coding…" on its pill
+        const coding = options && options.coding && filepath.split('/').pop().includes('context_notes');
         if (typeof createOrUpdateDatasetPill === 'function') {
             createOrUpdateDatasetPill(
                 pillId, 
-                `Auxiliary (${displayName})`, 
+                `Auxiliary (${displayName}${coding ? ' \u00b7 coding\u2026' : ''})`, 
                 'auxiliary', 
                 'success', 
-                false, 
+                !!coding, 
                 filepath
             );
         }
@@ -176,7 +179,43 @@ function createIntervalsAuxiliaryPills(auxDatasets, dataInfo) {
     if (typeof window.auxiliaryDatasetCount !== 'undefined') {
         window.auxiliaryDatasetCount = (window.auxiliaryDatasetCount || 0) + auxDatasets.length;
     }
+    return ids;
 }
+
+// The coding pass behind a load (docs/CONTEXT_DESIGN.md §4 F1): the load has completed; the app codes the passages in
+// the background. Every two seconds: the context pill's spinner stays while it runs; when it ends the pill reads plain
+// again with the pass's line as its tooltip, and the codes file gets a pill of its own. Nobody waits for it.
+function pollContextCoding(jobId, dataInfo, contextPillId, onDone) {
+    const t0 = Date.now();
+    const tick = async () => {
+        let view = null;
+        try {
+            const r = await window.authService.fetch(`/intervals/context_coding/${jobId}`);
+            view = r.ok ? await r.json() : null;
+        } catch (e) { view = null; }
+        const running = view && view.status === 'running';
+        if (running && Date.now() - t0 < 1800000) { setTimeout(tick, 2000); return; }
+        const dayCount = Math.ceil((new Date(dataInfo.end_date) - new Date(dataInfo.start_date)) / (1000 * 60 * 60 * 24));
+        const line = view ? (view.line || view.status) : 'the coding pass could not be followed';
+        const ctxPath = (dataInfo.files || []).find(f => f.split('/').pop().includes('context_notes')) || null;
+        if (contextPillId && typeof createOrUpdateDatasetPill === 'function' && ctxPath) {
+            createOrUpdateDatasetPill(contextPillId, `Auxiliary (Context (${dayCount} days))`, 'auxiliary', 'success', false, ctxPath);
+            const span = document.getElementById(contextPillId) && document.getElementById(contextPillId).querySelector('.dataset-pill-content');
+            if (span) span.title = 'Context: ' + line;
+        }
+        if (view && view.status === 'done' && view.codes_path) {
+            createIntervalsAuxiliaryPills([view.codes_path], dataInfo);
+            if (currentIntervalsState.dataInfo && Array.isArray(currentIntervalsState.dataInfo.files) && !currentIntervalsState.dataInfo.files.includes(view.codes_path)) currentIntervalsState.dataInfo.files.push(view.codes_path);
+        }
+        const msg = document.getElementById('intervals-modal-message');
+        const modal = document.getElementById('intervalsModal');
+        if (msg && modal && modal.style.display !== 'none' && /Data loaded successfully/.test(msg.textContent || '')) showIntervalsMessage(msg.textContent.replace(/\.$/, '') + '; ' + line + '.', 'success');
+        console.log('Context coding: ' + line);
+        if (typeof onDone === 'function') onDone(view);
+    };
+    setTimeout(tick, 2000);
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports.intervalsAuxDisplayName = intervalsAuxDisplayName; module.exports.pollContextCoding = pollContextCoding; }
 
 function removeIntervalsPill() {
     if (currentIntervalsState.pillId) {
@@ -365,12 +404,17 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                     end_date: dateRange.end,
                     aux_datasets: auxDatasets,
                     shape: job.result.shape,
-                    columns: job.result.columns
+                    columns: job.result.columns,
+                    files: (job.result && job.result.aux_datasets) || []
                 };
                 createIntervalsPill(dataInfo);
 
+                const coding = job.result && job.result.context && job.result.context.coding;
                 if (job.result && job.result.aux_datasets && job.result.aux_datasets.length > 0) {
-                    createIntervalsAuxiliaryPills(job.result.aux_datasets, dataInfo);
+                    const ids = createIntervalsAuxiliaryPills(job.result.aux_datasets, dataInfo, { coding: coding && coding.status === 'running' });
+                    const ctxPath = job.result.aux_datasets.find(f => f.split('/').pop().includes('context_notes'));
+                    if (coding && coding.status === 'running') pollContextCoding(jobId, dataInfo, ctxPath ? ids[ctxPath] : null);
+                    else if (coding && coding.codes_path && !job.result.aux_datasets.includes(coding.codes_path)) createIntervalsAuxiliaryPills([coding.codes_path], dataInfo);
                 }
 
                 // Update dataframe tab if available

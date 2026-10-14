@@ -217,6 +217,47 @@ req = FakeClient.calls[-1]
 check("llm_call: thinking off, response_format passed, the seven values the dispatcher unpacks",
       req.get("extra_body") == {"chat_template_kwargs": {"enable_thinking": False}} and req.get("response_format") == {"type": "json_object"} and len(r) == 7 and r[2] == 10 and r[3] == 4, (req, r[:4]))
 
+# ---- OpenRouter llm_call: the seat's reasoning effort now rides on the non-streaming path too (2026-10-14: the coder on
+# flash spent its whole 16k budget thinking and returned nothing; the Reader and the Promoter paid the same tax unseen)
+om.init = lambda api_keys=None: FakeClient()
+FLASH = {"capability": "reasoning", "reasoning_style": "effort", "reasoning_efforts": ["none", "low", "medium", "high", "xhigh"]}
+om.set_model_properties(FLASH); om.set_reasoning_style("effort"); om.set_reasoning_efforts(FLASH["reasoning_efforts"]); om.set_model_routing(None)
+om.set_call_reasoning("none", ["deepseek/deepseek-v4.1-flash"])
+FakeClient.calls.clear(); FakeClient.script[:] = [chunk(content='{"id": "C.1"}', finish="stop")]
+r = om.llm_call([{"role": "user", "content": "hi"}], "deepseek/deepseek-v4.1-flash", 0, 16000, None, None)
+req = FakeClient.calls[-1]
+check("OpenRouter llm_call: a declared 'none' on an effort-word model is sent as reasoning effort none, beside the usage flag; the seven values come back",
+      req.get("extra_body", {}).get("reasoning") == {"effort": "none"} and req["extra_body"].get("usage") == {"include": True} and len(r) == 7, req.get("extra_body"))
+om.set_call_reasoning("low", ["deepseek/deepseek-v4.1-flash"])
+om.llm_call([{"role": "user", "content": "hi"}], "deepseek/deepseek-v4.1-flash", 0, 16000, None, None)
+check("OpenRouter llm_call: the seat's low rides as effort low", FakeClient.calls[-1]["extra_body"].get("reasoning") == {"effort": "low"}, FakeClient.calls[-1].get("extra_body"))
+om.set_call_reasoning("low", ["some/other-model"])
+om.llm_call([{"role": "user", "content": "hi"}], "deepseek/deepseek-v4.1-flash", 0, 16000, None, None)
+check("OpenRouter llm_call: a model not listed as reasoning gets no reasoning body", "reasoning" not in FakeClient.calls[-1]["extra_body"], FakeClient.calls[-1].get("extra_body"))
+om.set_call_reasoning(None, None)
+om.llm_call([{"role": "user", "content": "hi"}], "deepseek/deepseek-v4.1-flash", 0, 16000, None, None)
+check("OpenRouter llm_call: with nothing handed over (a caller outside the dispatcher) the request is as before", "reasoning" not in FakeClient.calls[-1]["extra_body"], FakeClient.calls[-1].get("extra_body"))
+om.set_model_properties(None); om.set_reasoning_style(None); om.set_reasoning_efforts(None)
+# the dispatcher: the seat's configured effort resolved and handed over before the provider's llm_call (a caller may only lower it)
+from bambooai.models import ModelManager as _MM
+_mm = _MM.__new__(_MM)
+_mm.config = {"agent_configs": [{"agent": "Coder", "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "none", "max_tokens": 16000, "temperature": 0}},
+                                {"agent": "Reader", "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 16000, "temperature": 0}}],
+              "model_properties": {"deepseek/deepseek-v4.1-flash": dict(FLASH, prompt_tokens=0.0003, completion_tokens=0.0012)}}
+_mm.api_keys = {}; _mm.reasoning_models = ["deepseek/deepseek-v4.1-flash"]; _mm.model_dict = _mm.config["model_properties"]
+class _LACM:
+    def write_to_log(self, *a, **k): pass
+FakeClient.calls.clear(); FakeClient.script[:] = [chunk(content="x", finish="stop")]
+_mm.llm_call(_LACM(), [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], agent="Coder", chain_id="c")
+_coder_req = FakeClient.calls[-1]
+_mm.llm_call(_LACM(), [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], agent="Reader", chain_id="c")
+_reader_req = FakeClient.calls[-1]
+_mm.llm_call(_LACM(), [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], agent="Reader", chain_id="c", reasoning_effort="low")
+_lowered = FakeClient.calls[-1]
+check("ModelManager.llm_call: the Coder seat's 'none' and the Reader's 'high' reach the request as reasoning effort; a caller's lower word is honoured (the rescue rung)",
+      _coder_req["extra_body"].get("reasoning") == {"effort": "none"} and _reader_req["extra_body"].get("reasoning") == {"effort": "high"} and _lowered["extra_body"].get("reasoning") == {"effort": "low"},
+      (_coder_req.get("extra_body"), _reader_req.get("extra_body"), _lowered.get("extra_body")))
+
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")
 sys.exit(1 if n_fail else 0)

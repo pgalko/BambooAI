@@ -10,8 +10,8 @@ import re
 from collections import Counter
 from typing import Dict, List, Tuple
 
-BATCH_PASSAGES = 40            # one call reads about forty passages (§4 F1)
-BATCH_CHARS = 12000            # or fewer, when they are long: the reply carries a rendering of each
+BATCH_PASSAGES = 20            # one call reads twenty passages (2026-10-14: forty with renderings was a 16k reply, cut at the cap)
+BATCH_CHARS = 8000             # or fewer, when they are long: the reply carries a rendering of each
 TONES = ("positive", "negative", "neutral", "mixed")
 MIN_QUOTE_CHARS = 2
 
@@ -194,6 +194,8 @@ def report_line(report: dict) -> str:
     if not n:
         return "nothing to code"
     parts = [f"{report.get('coded', 0)} of {n} coded"]
+    if report.get("reused"):
+        parts.append(f"{report['reused']} already coded by an earlier load")
     if report.get("rendered"):
         parts.append(f"{report['rendered']} rendered into English")
     if report.get("proposed"):
