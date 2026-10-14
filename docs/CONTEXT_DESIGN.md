@@ -273,22 +273,30 @@ from the next load. Nothing is re-coded retroactively (a load's codes carry thei
   the record (the place of a rendered passage ends *(rendered from da)*, the language as the row carries it); `SHOW READ k` re-opens one.
   A READ is a turn, three a run, as for documents.
 - **The contract's Context section**, joined only when the load has a context file (`Session(context=True)`,
-  beside `documents=True`), kept to the Documents section's size (644 characters as built in step 4; the
-  Documents section is 578):
+  beside `documents=True`), kept near the Documents section's size (737 characters as built in step 4 and
+  amended by 0155; the Documents section is 578):
 
   > ## Context
-  > The words written beside the data live in the kernel as `CTX`: `CTX.frame()`, `CTX.codes()`,
-  > `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)`, `CTX.on(activity_id)`, `CTX.text('C.417')` -
-  > print what you need in a cell. READ CTX quotes passages under ids like [C.417]; the report cites one as
+  > The words written beside the data live in the kernel as `CTX`: `CTX.frame()` (the passages, dated, with
+  > author and kind), `CTX.codes()` (the codes on them, with the words they rest on), `CTX.grep('pattern')`,
+  > `CTX.around('2026-08-14', days=3)`, `CTX.on(activity_id)`, `CTX.text('C.417')` - print what you need in a
+  > cell. READ CTX quotes passages under ids like [C.417]; the report cites one as
   > [C.417] beside [cell 7], as written or in its English rendering, marked *rendered*. A code is a model's
   > reading of a passage, not the writer's words; the words and the numbers can be days apart. Where the report
   > explains a number by what was written, it says what that rests on - passages quoted, counts of codes, or
   > your reading.
 
   Step 4's trim took out what did not change what the model does: *a count of codes is a number like any other*
-  (a question that asks for counts gets them), *you write in English* (the question and the contract are), the
-  frames' descriptions (their columns print), and *mapped in DATA* (the map is there to be seen). No method, no
-  step order, no vocabulary to maintain (C1, C2); the C5 scanner runs over it. The sport's own
+  (a question that asks for counts gets them), *you write in English* (the question and the contract are), and
+  *mapped in DATA* (the map is there to be seen). It had also taken out the two frames' descriptions, and the
+  first run under it showed they do change what the model does: with `CTX.codes()` a bare name, the analyst
+  reached for the codes file by the path DATA lists (the thing still described) and, on a words question, never
+  glanced at the codes it had consulted in every chain of the session before (0155 put the descriptions back,
+  in a clause each). The four call examples have never been called in nine chains - the analyst does the same
+  work in pandas on the frame, with its own three-language patterns over `text` and `text_en`, which is more
+  than `grep` does - and are kept until the benchmark's `context_enabled` rows have run (`on` and `around` are
+  the natural moves of two of them); still unused then, they come out. No method, no step order, no vocabulary
+  to maintain (C1, C2); the C5 scanner runs over it. The sport's own
   rules — what counts as a divergence, when a plan may change — are not here (§12 D8, D9).
 
 ### 5.1 Documents and context in the same thread
@@ -303,8 +311,8 @@ same machinery:
   prefixes both to the script. Neither is a cell of the record.
 - **Two sections in the contract.** `Session(documents=True, context=True)` joins the Documents section and the
   Context section, in that order; each is joined only when its thing is present, so a plain run's contract stays
-  byte-identical. Their sizes add: the Context section is held to the Documents section's size (644
-  characters since step 4's trim; Documents is 578).
+  byte-identical. Their sizes add: the Context section is held near the Documents section's size (737
+  characters since step 4's trim and 0155; Documents is 578).
 - **Two scopes of READ, one budget.** `READ D1 …`, `READ ALL …` (all documents) and `READ D1.35-41` are the
   documents' scopes; `READ CTX …`, `READ CTX <from>..<to> …` and `READ C.120-160` are the context's. `ALL` does
   not reach into the context and `CTX` does not reach into the documents: the analyst names which it wants. The
@@ -412,7 +420,7 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
    twenty renderings against their originals — the first measure of the coder's precision, written down before
    anything is tuned (C6).
 4. **The contract section and the reviewer's lens** — the two texts, the scanner over them, `Session(context=)`.
-   *Built 2026-10-14 (patch 0154):* the section trimmed to 644 characters, the Words lens in the reviewer's brief
+   *Built 2026-10-14 (patches 0154, 0155):* the section trimmed to 737 characters, the Words lens in the reviewer's brief
    with context only, the map's closing line reduced to the plan note's date (the rules it repeated live in the
    section). *Accepted by:* the scanner over both texts (in the battery); the field trial — the benchmark's
    `context_enabled` rows (patch 0153: twelve questions, one per category, the three shapes among them — *the

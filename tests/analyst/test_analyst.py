@@ -1356,10 +1356,11 @@ sc_ = Session(None, Notebook("sc"), lambda s, u, **h: ("", {}), data_description
 sb_ = Session(None, Notebook("sb"), lambda s, u, **h: ("", {}), data_description="d", documents=True, context=True)
 cc1_ = " ".join(cc_.split())
 cd_ = open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()
-check("the context's section (step 4's trim, 2026-10-14): CTX and its calls, READ CTX, the [C.417] citation, the rendered marker, a code as a reading, the words and the numbers days apart, "
-      "say what rests on what - held to the Documents section's size (within a line of it, under 660 characters); what did not change what the model does is out (counts are numbers, English, the frames described); "
+check("the context's section (step 4's trim, 2026-10-14; 0155 put the two frames' descriptions back - without them the analyst read the codes file by path and never glanced at the codes on a words question): "
+      "CTX, the two frames said to be what they are, the four calls, READ CTX, the [C.417] citation, the rendered marker, a code as a reading, the words and the numbers days apart, "
+      "say what rests on what - under 760 characters (the Documents section is 578); what did not change what the model does is out (counts are numbers, English); "
       "joined only with context, after Documents when both are, with the READ CTX row",
-      len(cc_) <= len(cd_) + 80 and len(cc_) < 660 and all(x in cc1_ for x in ("`CTX.frame()`, `CTX.codes()`, `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)`, `CTX.on(activity_id)`, `CTX.text('C.417')` - print what you need in a cell.",
+      len(cc_) < 760 and all(x in cc1_ for x in ("`CTX.frame()` (the passages, dated, with author and kind), `CTX.codes()` (the codes on them, with the words they rest on), `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)`, `CTX.on(activity_id)`, `CTX.text('C.417')` - print what you need in a cell.",
                                                                               "READ CTX quotes passages under ids like [C.417]; the report cites one as [C.417] beside [cell 7], as written or in its English rendering, marked *rendered*.",
                                                                               "A code is a model's reading of a passage, not the writer's words; the words and the numbers can be days apart.",
                                                                               "Where the report explains a number by what was written, it says what that rests on - passages quoted, counts of codes, or your reading."))

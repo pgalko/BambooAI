@@ -446,6 +446,23 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The two frames described again in the Context section (2026-10-14, patch 0155).** The first thread under 0154
+  (two Deep questions, one Adaptive, read against the five earlier context-phase logs) showed the trim had taken out
+  a sentence that does change what the model does: with `CTX.codes()` a bare name, the analyst read the codes file
+  by the path DATA lists (the thing still described) in the codes-by-week question - seven `CTX.codes()` calls
+  under 0151, none under 0154 - and on the tired-legs question never glanced at the codes it had printed beside
+  each candidate before; every chain of the 0151 session had used `CTX.codes()`, none of the three under 0154.
+  The section now reads `CTX.frame()` (the passages, dated, with author and kind), `CTX.codes()` (the codes on
+  them, with the words they rest on) - 737 characters. The same reading of the logs: `CTX.grep`, `around`, `on`
+  and `text` have never been called in nine chains (the analyst does the same in pandas on the frame, with its own
+  three-language patterns over `text` and `text_en` - more than `grep` does), READ CTX once, where a digest across
+  many passages was wanted; the four examples stay until the benchmark's `context_enabled` rows have run and come
+  out if still unused. What the thread showed of 0154 itself: nothing lost by the trim on the two re-asked
+  questions; the reviewer's Words line present in both reviews with substance (a regex count read as a quoted
+  classification, a denial read off a cut-off rendering, the writing day against the ride the message hangs off)
+  and acted on; the post-report NARROW right. Observed, not changed: one analyst reply cut at the 16k cap with its
+  reasoning in the content (flash at `xhigh`, one in 42); the Reviewer seat (grok-4.7, `high`) 3-4 minutes and
+  $0.12 a review, 56% of the Adaptive chain's cost. Test: test_analyst's section check updated (210).
 - **Context, step 4: the contract section trimmed, the reviewer's Words lens (2026-10-14, patch 0154).** Palo: 0152
   worked well; proceed. The two texts of docs/CONTEXT_DESIGN.md §5-6, finished by the standing rule - a sentence
   stays only if it changes what the model does. (1) `analyst/contract_context.md` from 945 to 644 characters, within
