@@ -17,7 +17,8 @@
 //   pane_turn_end    -> paneTurnEnd      {turn, kind, peek, elapsed, cost, thinking, note, code}
 //   pane_cell        -> paneCell         {cell_no, ok, peek, elapsed, chars, figs, error_line}
 //   pane_lookup_start -> paneLookupStart {kind, query, model}          a READ or SEARCH under way: a pending row, replaced by the lookup row
-//   pane_lookup      -> paneLookup       {kind, query, peek, sources:[{title,url,host}], passages:[{id,where,quote}]}
+//   pane_lookup      -> paneLookup       {kind, query, peek, sources:[{title,url,host}], passages:[{id,where,quote,original}]}
+//   pane_passages    -> panePassages     {passages:[{id,where,quote,original}]}   the report's cited passages, for the chips' hover
 //   pane_heartbeat   -> paneHeartbeat    {turn, of, spent, dollars, estimate, mode}
 //   pane_datasets    -> paneDatasets     {files:[{path,name,rows,size}]}
 //   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, cost, seconds, replay_status, replay_line, plots}
@@ -357,11 +358,26 @@
     window.documentsReadMarks = unitPassages;
     window.paneCite = function (kind, ref) { return build.cite(kind, ref); };
     // [cell n], [fig n], [D1.17] and [C.417] in rendered answer HTML become chips - in the text between tags only, so the
-    // stored HTML carries the chips and no later re-render loses them (2026-10-03: a walk at run end had raced the rendering)
+    // stored HTML carries the chips and no later re-render loses them (2026-10-03: a walk at run end had raced the rendering).
+    // A passage named by its bare id - "C.39 - written 4 August" - is a chip too when the passage is known (a READ returned
+    // it, or the report's cited passages arrived), outside code (2026-10-14: the first live run named every passage so)
     window.paneCiteHtml = function (html) {
-        return String(html || '').split(/(<[^>]+>)/).map(seg => seg.startsWith('<') ? seg :
-            seg.replace(/\[(cell|fig)\s*(\d+)\]|\[(D\d+\.\d+)\]|\[(C\.\d+)\]/g, (m, kind, num, unit, passage) =>
-                passage ? build.cite('ctx', passage) : (unit ? build.cite('doc', unit) : build.cite(kind, num)))).join('');
+        let code = 0;
+        return String(html || '').split(/(<[^>]+>)/).map(seg => {
+            if (seg.startsWith('<')) {
+                if (/^<(code|pre)\b/i.test(seg)) code++; else if (/^<\/(code|pre)\b/i.test(seg)) code = Math.max(0, code - 1);
+                return seg;
+            }
+            let out = seg;
+            if (!code) out = out.replace(/(?<![\[\w.])(C\.\d+|D\d+\.\d+)(?![\w\]])(?!\.\d)/g, (m, id) => unitPassages[id] ? build.cite(id.startsWith('C.') ? 'ctx' : 'doc', id) : m);
+            return out.replace(/\[(cell|fig)\s*(\d+)\]|\[(D\d+\.\d+)\]|\[(C\.\d+)\]/g, (m, kind, num, unit, passage) =>
+                passage ? build.cite('ctx', passage) : (unit ? build.cite('doc', unit) : build.cite(kind, num)));
+        }).join('');
+    };
+    // the passages the report cites, resolved by the host at report time, so a chip has its hover even when no READ
+    // returned the passage (a cell read it); a READ's verified quote is kept where one exists
+    window.panePassages = function (d) {
+        (d.passages || []).forEach(p => { if (p && p.id && !unitPassages[p.id]) unitPassages[p.id] = { quote: p.quote || '', where: p.where || '', original: p.original || '' }; });
     };
     window.paneLookupStart = function (l) { append(build.lookupStart(l)); };
     window.paneLookup = function (l) {

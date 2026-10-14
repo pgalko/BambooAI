@@ -228,8 +228,14 @@ class Scenario:
             return _report("No passage came back.", _note(q, plan="report"), "## Nothing written about the legs\n\nThe context was read [cell 1] and no passage mentions the legs.")
         uid, day, kind, who, quote = m.groups()
         n = len(re.findall(r"^- \[C\.\d+\] \(", user, re.M))
+        # the passage after the quoted one, named by its bare id and never READ (as the first live run named every passage,
+        # 2026-10-14): the host resolves it at report time for the chip's hover; cell 1's print(CTX) said how many there are
+        total = re.search(r"CTX: (\d+) passages", user)
+        k = int(uid.split(".")[1])
+        nxt = f"C.{k + 1 if total and k + 1 <= int(total.group(1)) else max(1, k - 1)}"
         return _report("The Reader's quote is verified; the report quotes it, says the day and the kind, and cites the passage.", _note(q, plan="report"),
-                       f"## The rider wrote about the legs on {day}\n\nOn {day} the {who.strip()} wrote, under the session ({kind.strip()}): \"{quote}\" [{uid}]. "
+                       f"## The rider wrote about the legs on {day}\n\n**{uid} - written {day}** [cell 1]: the {who.strip()} wrote, under the session ({kind.strip()}): \"{quote}\" [{uid}]. "
+                       f"The passage beside it, {nxt}, is in the context too. "
                        f"The READ returned {n} such passage(s) [cell 1]; the day a thing was written and the day the numbers show it can differ, so a comparison with the "
                        f"power of those sessions would be a separate question over `df`.\n\n## How it was established\n\nCTX.grep over the subject's messages [cell 1], then READ CTX through the Reader.")
 

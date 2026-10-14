@@ -922,6 +922,10 @@ class Session:
         for uid in cited:
             text_u = self.unit_text(uid) if self.unit_text else None
             (unit_texts if text_u is not None else missing).append(text_u if text_u is not None else uid)
+        for uid in rep.named_units(report_text):       # a passage named by its bare id: a citation where it resolves, nothing otherwise (2026-10-14)
+            text_u = self.unit_text(uid) if uid not in cited and self.unit_text else None
+            if text_u is not None:
+                unit_texts.append(text_u)
         check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts)
         check_u = rep.guard_units(missing)
         disputed = disputed_cells(run)

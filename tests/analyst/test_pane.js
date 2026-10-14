@@ -54,6 +54,15 @@ check('an English passage shows no original line; an unknown passage says how to
 const citedCtx = w.paneCiteHtml('<p>Heavy legs [C.417], a document [D1.3], a cell [cell 2] and <code>CTX.text(\'C.417\')</code></p>');
 check('paneCiteHtml: a context chip beside a document chip and a cell chip; C.417 inside the code tag is not a chip',
       citedCtx.includes('class="cite ctx" data-unit="C.417"') && citedCtx.includes('data-unit="D1.3"') && citedCtx.includes('paneOpenCell(2)') && citedCtx.split('class="cite').length === 4 && citedCtx.includes("<code>CTX.text('C.417')</code>"), citedCtx);
+// a passage named by its bare id (2026-10-14: the first live run wrote "C.39 - written 4 August" and cited cells beside): a chip
+// when the passage is known, left alone otherwise and inside code; the report's cited passages arrive before the answer renders
+w.panePassages({passages:[{id:'C.600', where:'2026-09-01 · day_note · subject', quote:'slept badly, legs flat all day'}, {id:'C.417', where:'overwritten?', quote:'no'}, {id:'D1.5', where:'notes.md §Weather', quote:'sown a week later'}]});
+const bare = w.paneCiteHtml('<p><strong>C.600 - written 2026-09-01</strong> [cell 9]; C.417 again; C.601 unknown. See D1.5 and D1.2.5; <code>CTX.text(\'C.600\')</code> and <pre><code>print(CTX.text(\'C.417\'))</code></pre> end C.600.</p>');
+check('bare ids: C.600 and C.417 (known) and D1.5 (known) become chips, C.601 (unknown) and D1.2.5 do not, nothing inside code or pre; a sentence-ending full stop is allowed; the bracketed [cell 9] still a chip',
+      bare.split('class="cite ctx"').length === 4 && bare.split('class="cite doc"').length === 2 && bare.includes('C.601 unknown') && bare.includes('D1.2.5') && bare.includes("<code>CTX.text('C.600')</code>") && bare.includes("<pre><code>print(CTX.text('C.417'))</code></pre>") && bare.includes('paneOpenCell(9)') && bare.endsWith('>C.600</span>.</p>'), bare);
+check('panePassages fills the hover of a passage no READ returned and keeps the READ\'s verified quote where one exists',
+      w.paneCite('ctx', 'C.600').includes('day_note · subject — &quot;slept badly, legs flat all day&quot;') && w.paneCite('ctx', 'C.417').includes('Legs were heavy from the first climb') && !w.paneCite('ctx', 'C.417').includes('overwritten'), w.paneCite('ctx', 'C.417'));
+delete w.documentsReadMarks['C.600']; delete w.documentsReadMarks['D1.5'];
 w.paneLookupStart({kind:'replay', query:'9 cells', model:''});
 check('the replay under way: a pulsing REPLAY row saying it reproduces the report\'s cells in a fresh kernel', !!pane.querySelector('.sp-row.tool.pending[data-pending="replay"]') && pane.querySelector('.sp-row.tool.pending[data-pending="replay"]').textContent.includes('fresh kernel'));
 w.paneLookup({kind:'replay', query:'', peek:'Replay reproduced the cited results in a fresh run (9 cells, 41 numbers).', sources:[], passages:[]});

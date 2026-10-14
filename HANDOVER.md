@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (206/134/31/19/17/49/44/68/11/117/33/1/1 Python; 47/7/30/67/24/66 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (206/137/31/19/17/49/44/69/11/117/33/1/1 Python; 49/7/30/67/24/66 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (34); `tests/e2e/test_integrations.py` (59; hosted only - the loaders need the executor; the
@@ -446,6 +446,27 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Context: a passage named by its bare id is a citation too (2026-10-14, patch 0147).** Palo's first run on 0146 (a
+  Danish rider's 90 days; *what did the rider write about tired legs in August, and on which days*; DeepSeek v4.1
+  flash, 14 turns, $0.08) exercised step 2 where it reached: the Context section and the `READ CTX` row in the
+  contract, `CTX` alive from cell 1 and used in all twelve cells (`CTX.frame()` then pandas, with the model's own
+  Danish and English word lists - the better route while `text_en` is empty), the quotes verbatim (checked against
+  the printed passages), original Danish then the model's rendering marked *rendered*, the day written kept apart
+  from the day of the ride. Not exercised: READ CTX and the `CTX` calls (cells did the work), and the chips - the
+  report named every passage *C.39 - written 2026-08-04* and cited `[cell 9]` beside, never `[C.39]`, so no chip, no
+  hover, no guard resolution. The fix meets the model where it writes: `report.named_units` reads the bare ids
+  (outside brackets and code, a full stop allowed after); the session counts a bare id as a citation only where it
+  resolves (its passage is evidence) and discloses only a bracketed id that does not, so a stray "C.3" in prose is
+  nothing; the host resolves the report's cited passages at report time (`_cited_passages`: place, quote clipped to
+  300 characters, the original beneath a rendering) and sends them as `pane_passages` before the answer renders;
+  `paneCiteHtml` makes a chip of a bare id when the passage is known (a READ returned it or the report's passages
+  arrived), outside code and pre, the bracketed forms as before. The stack's context report names the quoted
+  passage bare in its heading and a neighbour never READ, and the walk checks three chips with their hovers. Also
+  seen in the run, not changed here: RESULT lines with "95% CI +3 to +4" on a census count (the model put a
+  definitional range in the interval slots and said so in the report - a sentence for step 4's trim); the model's
+  reading of one Danish idiom as a clipped adjective (step 3's rendering, and a Danish eye); the subject's name on
+  message rows only (events, notes, tags carry the id alone - fill from the athlete record with the next image bump).
+  Tests: test_read.py 69, test_app_path.py 137, test_pane.js 49; integrations 59.
 - **Context, step 2: `CTX` in the kernel, READ CTX, the passage cited as [C.n] (2026-10-14, patch 0146).** The
   words beside the data are now reached the way documents are (docs/CONTEXT_DESIGN.md §5, 5.1). `analyst/context.py`
   gains the kernel object: `kernel_api_source(notes_path, codes_path)` defines `CTX` over the loaded files -

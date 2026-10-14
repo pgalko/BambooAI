@@ -231,7 +231,7 @@ rows = [dict(zip(C.CONTEXT_COLUMNS, r)) for r in [
     ("C.2", "activity_message", "2026-08-03", "18:05", "", "a1", "", "m1", "i0", "", "subject", "", "da", "Benene var tunge fra den f\u00f8rste stigning", "Legs were heavy from the first climb", "40"),
     ("C.3", "activity_message", "2026-08-03", "19:20", "", "a1", "", "m2", "c1", "Kim", "coach", "", "", "Keep the next two days easy and we look again on Thursday", "", "50"),
     ("C.4", "tag", "2026-08-05", "", "", "a2", "", "t1", "i0", "", "subject", "", "", "sick", "", "4"),
-    ("C.5", "plan_note", "2026-08-20", "", "2026-08-21", "", "e1", "e1", "c1", "Kim", "coach", "", "", "Long climbs at a steady effort; stop if the legs go flat", "", "55"),
+    ("C.5", "plan_note", "2026-08-20", "", "2026-08-21", "", "e1", "e1", "c1", "Kim", "coach", "", "", "Long climbs at a steady effort for 90 minutes; stop if the legs go flat", "", "66"),
     ("C.6", "status", "2026-09-01", "", "", "", "e2", "e2", "i0", "", "subject", "", "", "Race day: 120 km with 2,400 m of climbing", "", "40")]]
 notes = pd.DataFrame(rows, columns=C.CONTEXT_COLUMNS)
 cu = C.passage_units(notes)
@@ -265,7 +265,8 @@ check("parse_digest reads a context digest as it reads a documents' one", [p["id
 check("parse_reader: a place echoed back with the rendering's nested brackets does not swallow the quote",
       R.parse_reader('- [C.2] (2026-08-03 · activity_message · subject (rendered from da)) "Legs were heavy"\n- [C.4] "sick"\nSUMMARY: x')[0] == [("C.2", "Legs were heavy"), ("C.4", "sick")])
 # the session with context: READ CTX goes to the host's read like any READ; the report guard resolves [C.n] through unit_text
-script_c = [act("READ CTX the legs on the climbs"), act("REPORT\n## Answer\nThe legs were heavy on the climb [C.2]; the coach asked for easy days [C.3]; [C.9] says nothing. The race had 120 km [C.6].")]
+script_c = [act("READ CTX the legs on the climbs"), act("REPORT\n## Answer\nThe legs were heavy on the climb [C.2]; the coach asked for easy days [C.3]; [C.9] says nothing. The race had 120 km [C.6]. "
+                                                       "**C.5 - the plan** said a steady effort for 90 minutes; C.77 is nothing; see `CTX.text('C.88')`.")]
 ic = {"n": 0}; prompts_c = []
 def llm_c(system, user, **hints):
     prompts_c.append((system, user))
@@ -286,8 +287,13 @@ run_c = sc_.run("How were the legs?", budget=Budget(turns=6, dollars=1.0))
 check("session with context: the contract carries the Context section and the READ CTX row, not the documents' section; the read turn holds the context digest",
       "## Context" in sc_.system and "`READ CTX <what>`" in sc_.system and "## Documents" not in sc_.system and run_c.turns[0].kind == "read" and run_c.turns[0].stdout.startswith("PASSAGES") and "[C.2]" in run_c.turns[0].stdout, sc_.system[-900:])
 check("the context's passages ride in the prompts after the read, cited as [C.417] or [D1.17]", any("[C.2]" in u and "cite one as [D1.17] or [C.417]" in u for _, u in prompts_c), [u[-300:] for _, u in prompts_c][-1])
-check("report guard: [C.2], [C.3] and [C.6] resolve to passages (120 verified by the passage it cites), [C.9] is disclosed as not in the context loaded",
-      "not in the context loaded: [C.9]" in run_c.report and "120" not in (run_c.report.split("CHECK:")[1] if "CHECK:" in run_c.report else "") and run_c.report.count("CHECK:") == 1, run_c.report[-500:])
+check("report guard: [C.2], [C.3] and [C.6] resolve to passages (120 verified by the passage it cites), [C.9] is disclosed as not in the context loaded; "
+      "a passage named bare (C.5) is a citation where it resolves, a bare id that does not (C.77) and one in code (C.88) are nothing - not disclosed",
+      "not in the context loaded: [C.9]" in run_c.report and "120" not in (run_c.report.split("CHECK:")[1] if "CHECK:" in run_c.report else "") and run_c.report.count("CHECK:") == 1
+      and "C.77" not in run_c.report.split("CHECK:")[1] and "C.88" not in run_c.report.split("CHECK:")[1] and "90" not in run_c.report.split("CHECK:")[1], run_c.report[-500:])
+check("report.named_units: the bare ids outside brackets and code, once each, in order; cited_units stays the bracketed ones",
+      rep.named_units("**C.39 - written** [cell 9]. See C.48. Also [C.52] and D1.17, D2.3. `C.64` and\n```\nC.70\n```\nxC.9 C.9x D1.2.5 C.48.") == ["C.39", "C.48", "D1.17", "D2.3"]
+      and rep.cited_units("**C.39 - written** [cell 9] [C.52]") == ["C.52"], rep.named_units("**C.39 - written** [cell 9]. See C.48. Also [C.52] and D1.17, D2.3. `C.64` and\n```\nC.70\n```\nxC.9 C.9x D1.2.5 C.48."))
 from analyst.render import notebook_html as _nbh
 _hc, _hd = _nbh(run_c), _nbh(run)
 check("the Investigation tab renders a READ as a step - 'Read the context' or 'Read a document' with the query as its peek, the digest in the fold, and the ids it quoted as data-units so a chip in the answer can land on it "

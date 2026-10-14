@@ -490,9 +490,13 @@ def main():
             answer_x = page.inner_text("#content-answer")
             check("the answer quotes a passage the Reader returned, with its day, and cites it as C.n (a chip now); the guard found the passage in the context (no CHECK line about passages)",
                   ("Good legs today" in answer_x or "legs" in answer_x.lower()) and re.search(r"\bC\.\d+\b", answer_x) is not None and "cited passage" not in answer_x and "not in the context loaded" not in answer_x, answer_x[:400])
-            chip_c = page.evaluate("() => { const c = document.querySelector('#content-answer .cite.ctx'); return c ? [c.textContent, c.getAttribute('data-unit'), c.getAttribute('title')] : null; }")
-            check("the answer's [C.n] is a chip of the context: the id, and as its hover the passage's day, kind and author with the verified quote",
-                  chip_c is not None and re.fullmatch(r"C\.\d+", chip_c[0] or "") and chip_c[1] == chip_c[0] and re.search(r"\d{4}-\d{2}-\d{2} · activity_message · subject — \"", chip_c[2] or "") and "legs" in (chip_c[2] or "").lower(), chip_c)
+            chips_c = page.evaluate("() => [...document.querySelectorAll('#content-answer .cite.ctx')].map(c => [c.textContent, c.getAttribute('data-unit'), c.getAttribute('title')])")
+            chip_c = chips_c[0] if chips_c else None
+            check("the answer's passages are chips of the context: the one quoted twice - named bare in the heading and cited as [C.n] - with the verified quote as hover, "
+                  "and the passage beside it, named bare and never READ, with its day, kind, author and text from the file (resolved at report time)",
+                  len(chips_c) == 3 and chips_c[0][0] == chips_c[1][0] and chips_c[0][2] == chips_c[1][2] and all(c[1] == c[0] and re.fullmatch(r"C\.\d+", c[0]) for c in chips_c)
+                  and re.search(r"\d{4}-\d{2}-\d{2} · activity_message · subject — \"", chip_c[2] or "") and "legs" in (chip_c[2] or "").lower()
+                  and chips_c[2][0] != chips_c[0][0] and re.search(r"^\d{4}-\d{2}-\d{2} · \w+ · ", chips_c[2][2] or "") and "print(CTX.text" not in (chips_c[2][2] or ""), chips_c)
             page.click("#content-answer .cite.ctx")
             page.wait_for_function("() => { const s = document.querySelector('.tab-content.active .nb-step.nb-read'); return !!s && s.open; }", timeout=15000)
             step_c = page.evaluate("([u]) => { const s = [...document.querySelectorAll('.tab-content.active .nb-step.nb-read')].find(x => (' ' + (x.getAttribute('data-units') || '') + ' ').includes(' ' + u + ' ')); return s ? [s.open, s.querySelector('.nb-out-label').textContent, s.querySelector('.nb-out-peek').textContent, s.querySelector('.nb-out-body').textContent.slice(0, 160)] : null; }", [chip_c[0] if chip_c else ""])

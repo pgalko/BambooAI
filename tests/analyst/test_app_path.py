@@ -627,14 +627,26 @@ try:
     check("the pane's READ row carries the passage with its place marked 'rendered from da', the English quote and the original - the chip shows both",
           _plk["passages"] == [{"id": "C.1", "where": "2026-03-01 · activity_message · subject (rendered from da)", "quote": "the legs were heavy", "original": "benene var tunge"}] and _plk["query"] == "CTX the legs", _plk)
     check("the report guard reads the rendering: unit_text of a rendered passage is its English text", _be._unit_text("C.1") == "the legs were heavy")
+    # the passages a report cites - bracketed or by bare id - resolved for the chips' hover at report time (2026-10-14)
+    _cp = _be._cited_passages("**C.1 - written 2026-03-01** [cell 1] and [C.1] again; C.7 is not there, nor D1.3; `CTX.text('C.1')` is code")
+    check("_cited_passages: one entry per cited passage, bracketed or bare, with its place, the rendering as the quote and the original; ids that do not resolve are left out",
+          _cp == [{"id": "C.1", "where": "2026-03-01 · activity_message · subject (rendered from da)", "quote": "the legs were heavy", "original": "benene var tunge"}], _cp)
+    _be.output_manager.output_queue = _q2.Queue()
+    _be._emit({"type": "report", "run": _run2.id, "text": "The legs: C.1 says so [cell 1]."})
+    _be._emit({"type": "report", "run": _run2.id, "text": "Nothing cited [cell 1]."})
+    _pev2 = [json.loads(_be.output_manager.output_queue.get()) for _ in range(_be.output_manager.output_queue.qsize())]
+    check("the report event sends the cited passages to the page as pane_passages, before the answer renders; a report citing none sends nothing",
+          [e.get("type") for e in _pev2] == ["pane_passages"] and _pev2[0]["passages"][0]["id"] == "C.1" and _pev2[0]["passages"][0]["original"] == "benene var tunge", _pev2)
     # the frames are read once per load: a load assigns the auxiliary list, which drops them (step 3 re-uploads the context file under its name)
     _n0 = len(_be._context_frames()[0])
     pd.DataFrame([{"id": "C.1", "kind": "day_note", "date": "2026-03-02", "time": "", "end_date": "", "activity_id": "", "event_id": "", "source_id": "1", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "", "text": "fine", "text_en": "", "chars": 4},
-                  {"id": "C.2", "kind": "day_note", "date": "2026-03-03", "time": "", "end_date": "", "activity_id": "", "event_id": "", "source_id": "2", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "", "text": "tired", "text_en": "", "chars": 5}]).to_csv(_ctx_da, index=False)
+                  {"id": "C.2", "kind": "day_note", "date": "2026-03-03", "time": "", "end_date": "", "activity_id": "", "event_id": "", "source_id": "2", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "", "text": "tired " * 80, "text_en": "", "chars": 480}]).to_csv(_ctx_da, index=False)
     _n1 = len(_be._context_frames()[0])
     _be.auxiliary_datasets = [_ctx_da]
     _n2 = len(_be._context_frames()[0])
-    check("the context frames are cached until the auxiliary list is assigned again (a load): the file rewritten under its name is read then, not before", (_n0, _n1, _n2) == (1, 1, 2) and _be._unit_text("C.2") == "tired", (_n0, _n1, _n2))
+    check("the context frames are cached until the auxiliary list is assigned again (a load): the file rewritten under its name is read then, not before", (_n0, _n1, _n2) == (1, 1, 2) and (_be._unit_text("C.2") or "").strip() == ("tired " * 80).strip(), (_n0, _n1, _be._unit_text("C.2")))
+    _cp2 = _be._cited_passages("C.2 goes on")
+    check("a long passage is clipped for the hover - 300 characters and an ellipsis - and an English passage carries no original", 295 <= len(_cp2[0]["quote"]) <= 301 and _cp2[0]["quote"].endswith("\u2026") and _cp2[0]["quote"].startswith("tired tired") and "original" not in _cp2[0] and _cp2[0]["where"] == "2026-03-03 · day_note · subject", _cp2)
     from bambooai.models import ModelManager as _MM
     _mm = _MM.__new__(_MM)
     _mm.config = {"agent_configs": [{"agent": "Analyst", "details": {"model": "x-ai/grok-4.7", "provider": "openrouter"}},

@@ -397,6 +397,11 @@ class BambooAI:
                 return None
             hit = notes[notes["id"].astype(str) == unit_id]
             return context_mod.passage_text(hit.iloc[0].to_dict()) if len(hit) else None
+        u = self._document_unit(unit_id)
+        return reading.unit_text(u) if u else None
+
+    def _document_unit(self, unit_id):
+        """A document's unit by id (D1.17), or None."""
         m = re.match(r"^(D\d+)\.(\d+)$", unit_id or "")
         if not m or self.thread_id is None:
             return None
@@ -404,8 +409,41 @@ class BambooAI:
             units = documents.read_units(self._documents_dir(), m.group(1)).get("units", [])
         except (OSError, ValueError, KeyError):
             return None
-        u = next((x for x in units if x.get("id") == unit_id), None)
-        return reading.unit_text(u) if u else None
+        return next((x for x in units if x.get("id") == unit_id), None)
+
+    def _cited_passages(self, text):
+        """The passages a report cites - [C.417], [D1.17] or the bare ids - resolved for the page's chips
+        (docs/CONTEXT_DESIGN.md S2): [{id, where, quote, original?}], the quote clipped. A READ's passages already on
+        the page keep their verified quote; this gives the chips of passages a cell read their hover (2026-10-14: the
+        first live run named every passage from cells, and no READ ran)."""
+        from analyst import report as rep
+
+        def clip(s, n=300):
+            s = re.sub(r"\s+", " ", str(s or "")).strip()
+            return s if len(s) <= n else s[:n].rstrip() + "\u2026"
+        cited = rep.cited_units(text)
+        ids = cited + [u for u in rep.named_units(text) if u not in cited]
+        out, notes = [], None
+        for uid in ids:
+            if uid.startswith("C."):
+                if notes is None:
+                    notes = self._context_frames()[0]
+                if notes is None or not len(notes):
+                    continue
+                hit = notes[notes["id"].astype(str) == uid]
+                if not len(hit):
+                    continue
+                r = hit.iloc[0].to_dict()
+                p = {"id": uid, "where": context_mod.where_of(r), "quote": clip(context_mod.passage_text(r))}
+                if str(r.get("text_en") or "").strip() and str(r.get("text") or "") != str(r.get("text_en") or ""):
+                    p["original"] = clip(r.get("text"))
+            else:
+                u = self._document_unit(uid)
+                if not u:
+                    continue
+                p = {"id": uid, "where": reading.where(u), "quote": clip(reading.unit_text(u))}
+            out.append(p)
+        return out
 
     # ---------------------------------------------------------- the replay
     def run_script(self, script, timeout, what="Replay", generated_dir=None):
@@ -937,6 +975,11 @@ class BambooAI:
             peek = (reading.digest_peek(text) if kind == "read" else next((ln.strip() for ln in text.splitlines() if ln.strip()), ''))[:160]
             self._pane('pane_lookup', kind=kind, query=query, peek=peek, sources=sources, passages=passages)
             self._tab('plan', self._notebook_view(run))
+        elif kind == "report":
+            # the passages the report cites, resolved, for the chips' hover - before the answer renders (S2)
+            passages = self._cited_passages(ev.get("text") or "")
+            if passages:
+                self._pane('pane_passages', passages=passages)
         elif kind == "replay_start":
             # the replay under way: a pending row in the pane, and the executor chip on Executing as for a cell
             self._pane('pane_lookup_start', kind='replay', query=f"{ev.get('cells') or 0} cells", model='')

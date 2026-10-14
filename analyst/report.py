@@ -17,6 +17,10 @@ from typing import Iterable, List, Set
 # several at once, and the replay read only the single form)
 CELL_REF_RE = re.compile(r"\[cells?\s+(\d+(?:\s*(?:,|;|and|&|-|\u2013)\s*(?:cells?\s*)?\d+)*)\]", re.I)
 UNIT_REF_RE = re.compile(r"\[(D\d+\.\d+|C\.\d+)\]")         # a document passage, [D1.17] (docs/DOCUMENTS_DESIGN.md D45), or a passage of the context, [C.417] (CONTEXT_DESIGN S2)
+# the same ids named without brackets - "C.39 - written 4 August" (2026-10-14: the first live run named every passage so);
+# not inside brackets, not part of a longer token, a sentence's full stop allowed after it
+BARE_UNIT_RE = re.compile(r"(?<![\[\w.])(D\d+\.\d+|C\.\d+)(?![\w\]])(?!\.\d)")
+_CODE_RE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 FIG_REF_RE = re.compile(r"\[figs?\s+(\d+(?:\s*(?:,|;|and|&|-|\u2013)\s*(?:figs?\s*)?\d+)*)\]", re.I)
 
 
@@ -42,6 +46,16 @@ def cited_units(text: str) -> List[str]:
     """Document passages the report cites, as [D1.17], and passages of the context, as [C.417], in order of first appearance."""
     seen, out = set(), []
     for m in UNIT_REF_RE.finditer(text or ""):
+        if m.group(1) not in seen:
+            seen.add(m.group(1)); out.append(m.group(1))
+    return out
+
+
+def named_units(text: str) -> List[str]:
+    """Passages named without brackets - C.417, D1.17 - outside code, in order of first appearance. A bare id is a
+    citation only where it resolves (the session checks each): a stray 'C.3' in prose is nothing, never disclosed."""
+    seen, out = set(), []
+    for m in BARE_UNIT_RE.finditer(_CODE_RE.sub(" ", text or "")):
         if m.group(1) not in seen:
             seen.add(m.group(1)); out.append(m.group(1))
     return out
