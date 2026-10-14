@@ -80,6 +80,15 @@ def _reply(messages):
     return thinking or "", text or ""
 
 
+CALL_REASONING = []            # what the dispatcher handed over for the last non-streaming call: [effort, reasoning models]
+
+
+def set_call_reasoning(effort, reasoning_models):
+    """The dispatcher's hand-off for llm_call (2026-10-14): recorded, so the stack walks the real branch - the first
+    live pass on 0149 failed in it on an attribute the units had planted by hand."""
+    CALL_REASONING[:] = [effort, list(reasoning_models or [])]
+
+
 def llm_call(messages, model, temperature, max_tokens, response_format=None, api_keys=None):
     t0 = time.time()
     thinking, text = _reply(messages)

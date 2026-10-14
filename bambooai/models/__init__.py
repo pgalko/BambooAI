@@ -294,7 +294,10 @@ class ModelManager:
             # over unconditionally; a provider without the hook keeps its default
             _set_call_reasoning = getattr(provider_module, 'set_call_reasoning', None)
             if _set_call_reasoning:
-                _set_call_reasoning(reasoning_effort, self.reasoning_models)
+                # the reasoning-model list as the host computes it for the stream (bambooai.py keeps it on the instance,
+                # not here - 2026-10-14, the first live pass on 0149: every call failed on the missing attribute)
+                _rmodels = [m for m, info in (self.get_model_properties() or {}).items() if (info or {}).get('capability') == 'reasoning']
+                _set_call_reasoning(reasoning_effort, _rmodels)
 
             content_received, local_llm_messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second = getattr(provider_module, function_name)(
                 messages, model, temperature, max_tokens, response_format, self.api_keys

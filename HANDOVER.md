@@ -446,6 +446,13 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The dispatcher's reasoning-model list on the non-streaming path (2026-10-14, patch 0150).** The first live pass
+  on 0149 failed on every call: `'ModelManager' object has no attribute 'reasoning_models'` - the list lives on the
+  BambooAI instance (bambooai.py computes it for the stream and passes it in), and 0149's `llm_call` read it off
+  the manager. The unit test had planted the attribute by hand, and the stack's scripted provider had no
+  `set_call_reasoning` hook, so the branch never ran in a walk. Now `llm_call` reads the list off
+  `model_properties` itself (capability `reasoning`, the same rule), the test plants nothing, and the stack's
+  provider takes the hand-off (`harness_models.set_call_reasoning`, recorded) so every walk runs the branch.
 - **Context: the coder behind the load, in parallel, reasoning off, remembered per subject (2026-10-14, patch 0149).**
   Palo's first pass on 0148 took seven minutes for 120 of 223 passages and the dialog gave up at five: six calls of
   65-80 s, each at the 16k reply cap, **three of them empty**. Root cause, from the log: the non-streaming path

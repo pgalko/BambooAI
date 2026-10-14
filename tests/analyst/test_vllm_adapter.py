@@ -244,7 +244,7 @@ _mm = _MM.__new__(_MM)
 _mm.config = {"agent_configs": [{"agent": "Coder", "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "none", "max_tokens": 16000, "temperature": 0}},
                                 {"agent": "Reader", "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "high", "max_tokens": 16000, "temperature": 0}}],
               "model_properties": {"deepseek/deepseek-v4.1-flash": dict(FLASH, prompt_tokens=0.0003, completion_tokens=0.0012)}}
-_mm.api_keys = {}; _mm.reasoning_models = ["deepseek/deepseek-v4.1-flash"]; _mm.model_dict = _mm.config["model_properties"]
+_mm.api_keys = {}                                           # nothing else: the list of reasoning models is read off model_properties (2026-10-14, the live failure)
 class _LACM:
     def write_to_log(self, *a, **k): pass
 FakeClient.calls.clear(); FakeClient.script[:] = [chunk(content="x", finish="stop")]
@@ -254,7 +254,7 @@ _mm.llm_call(_LACM(), [{"role": "system", "content": "s"}, {"role": "user", "con
 _reader_req = FakeClient.calls[-1]
 _mm.llm_call(_LACM(), [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], agent="Reader", chain_id="c", reasoning_effort="low")
 _lowered = FakeClient.calls[-1]
-check("ModelManager.llm_call: the Coder seat's 'none' and the Reader's 'high' reach the request as reasoning effort; a caller's lower word is honoured (the rescue rung)",
+check("ModelManager.llm_call: the Coder seat's 'none' and the Reader's 'high' reach the request as reasoning effort, the reasoning-model list read off model_properties by the dispatcher itself; a caller's lower word is honoured (the rescue rung)",
       _coder_req["extra_body"].get("reasoning") == {"effort": "none"} and _reader_req["extra_body"].get("reasoning") == {"effort": "high"} and _lowered["extra_body"].get("reasoning") == {"effort": "low"},
       (_coder_req.get("extra_body"), _reader_req.get("extra_body"), _lowered.get("extra_body")))
 
