@@ -173,7 +173,7 @@ What to do:
 4. Rewrite the code as find/replace edits, never by retyping it: each edit's "find" is a verbatim fragment that occurs exactly once in the cell it names, and "replace" is the same fragment with the constant replaced by INPUTS["key"]. A label written into a RESULT call that carries a constant (a count, an identifier) may read the input through an f-string. Leave the method, the cell markers, the order of the cells and every RESULT call otherwise untouched. The block INPUTS = {...} is written at the top of the script before each run; do not write it yourself.
 5. Reply with exactly this object:
 {"name": "a short title for the method, at most 60 characters",
- "inputs": [{"key": "snake_case", "label": "what the person sees", "type": "number | numbers | date_window | choice | toggle", "default": "the value the analysis used, in the type's form", "origin": "one short clause: where the value came from in the analysis", "column": "for a choice: the column its values come from", "multiple": false}],
+ "inputs": [{"key": "snake_case", "label": "what the person sees", "type": "number | numbers | date_window | choice | toggle", "default": "the value the analysis used, in the type's form", "origin": "one short clause: where the value came from in the analysis", "column": "for a choice over values of a column the data has (the frame or a loaded file): that column; none for words the script matches or computes", "multiple": false}],
  "edits": [{"cell": 3, "find": "verbatim fragment", "replace": "the same fragment reading INPUTS[...]"}],
  "kept": ["one clause per constant left as it is, and why"]}
 With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape.
@@ -1033,6 +1033,42 @@ def read_precheck(stdout: str) -> Optional[dict]:
             except ValueError:
                 return None
     return None
+
+
+def known_columns(record: Optional[dict]) -> Optional[set]:
+    """The columns the data had at promotion - the frame's and every recorded file's - or None when the record cannot
+    say (no columns recorded, or a recorded file whose columns were never probed)."""
+    d = record or {}
+    cols = {str(c.get("name")) for c in (d.get("columns") or []) if isinstance(c, dict) and c.get("name")}
+    if not cols:
+        return None
+    shapes = d.get("aux_shape") or {}
+    for path in d.get("aux") or []:
+        shape = shapes.get(str(path))
+        if not isinstance(shape, dict) or "columns" not in shape:
+            return None
+        cols |= {str(c.get("name")) for c in (shape.get("columns") or []) if isinstance(c, dict) and c.get("name")}
+    return cols
+
+
+def own_columns(parameters: List[dict], record: Optional[dict]) -> Tuple[List[dict], List[str]]:
+    """A choice over a column the data never had is a choice over the method's own words - a column the script
+    computes (2026-10-15: a routine's keyword list was declared over `head`, a column the script derives from the plan
+    notes, and every run was refused with 'column head is not in this data'). Its column is dropped: the values go to
+    the method as given and are not looked for in the data; a note says so. A record that cannot say what columns the
+    data had leaves the inputs as they are."""
+    known = known_columns(record)
+    if known is None:
+        return list(parameters or []), []
+    out, notes = [], []
+    for p in parameters or []:
+        q = dict(p)
+        col = str(q.get("column") or "")
+        if q.get("type") == "choice" and col and col not in known:
+            q.pop("column", None)
+            notes.append(f"{q.get('label') or q.get('key')}: the values go to the method as given - {col} is a column the script computes, not one of the data's, so they are not looked for in the data")
+        out.append(q)
+    return out, notes
 
 
 def value_checks(parameters: List[dict], values: Dict[str, object]) -> Dict[str, List[str]]:

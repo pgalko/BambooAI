@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/127/33/37/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/131/33/37/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_integrations.py` (88; hosted only - the loaders need the executor; the
@@ -446,6 +446,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **A choice over a column the script computes (2026-10-15, patch 0167).** Palo's routine from the benchmark's
+  interval-compliance question (thirteen cells over the plan notes, the summary's compliance score, the laps and the
+  codes; run zero reproduced) was refused at every run: *column head is not in this data (for 'VT1')*, sixteen
+  times. The promoter had made the session-name keyword list a `choice` over `head` - a column the script derives
+  from the plan notes, not a column of any file - and the value check, which looks for a choice's column in the
+  frame and the files loaded, found nothing and refused, as designed for a real column gone. `rt.known_columns`
+  reads the record's columns (the frame's and every probed file's; None when the record cannot say) and
+  `rt.own_columns` drops the column of a choice outside them with a note (*the values go to the method as given -
+  head is a column the script computes…*), at promotion (after `derive_inputs`) and again in `precheck` and `run`,
+  so routines saved before are served too. The promoter's spec line now says a column is one the data has, none
+  for words the script matches. docs/ROUTINES_DESIGN.md §4 rule 6. Tests: test_routines.py 131 (known_columns,
+  own_columns, a saved routine's precheck and run). On the analysis itself (the run log): a sound route - the plan
+  notes carry no numeric target (the loader keeps a planned workout's prose and drops its step lines, so *-10m
+  220w* is not in the context), the report said so and used the platform's compliance score in its place, checked
+  the messages' timing against the sessions, named its keyword tally as its own reading; a design question for
+  Palo, not a fault: whether the plan's step lines - the prescription - should join the context as a column. Also
+  here: the stack walk's favourite check now waits for the chain's file to read *individual* - the walk's earlier
+  Save leaves the chain marked *trajectory* until the creation's own save rewrites it a moment later (hosted, 104).
 - **Five auxiliary files, not three (2026-10-15, patch 0166).** Palo ran a context routine (five files: laps, summary,
   wellness, context, codes) on a window inside a cached load: the dialog said *inside the cached load … it will be
   cut*, and the run stopped with *Maximum 3 auxiliary datasets allowed*. The limit of three dates from the first

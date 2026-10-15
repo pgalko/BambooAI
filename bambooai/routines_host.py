@@ -281,6 +281,8 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         notes.append(f"this chain continues {len(earlier)} earlier chain{'s' if len(earlier) > 1 else ''} of the thread that ran on other data{theirs}: "
                      f"the method is this chain's own {own_cells}, computed on the data it ran on")
     inputs = derive_inputs(inputs, data)                  # a window that is the data's own period follows the data from now on
+    inputs, own_notes = rt.own_columns(inputs, data)      # a choice over a column the script computes is not looked for in the data
+    notes.extend(own_notes)
     kept_keys = {p["key"] for p in inputs}
     stray = {k for e in applied for k in rt._KEY_REF_RE.findall(str(e.get("replace") or ""))} - kept_keys
     if stray:                                           # an input left out after its edits applied: its edits go too
@@ -583,7 +585,7 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
     whether every chosen value of a choice input is in the data."""
     ver = version_of(routine, version_number)
     manifest = ver.get("manifest") or {}
-    params = manifest.get("parameters") or []
+    params = rt.own_columns(manifest.get("parameters") or [], manifest.get("data"))[0]   # a routine made before 2026-10-15 may still declare one
     d = current_data or {}
     loaded = bool(d.get("df_id")) or bool(d.get("columns"))
     out = {"loaded": loaded, "data": light_data(d), "fit": None, "values_missing": [], "values_notes": [], "problems": [], "ok": False, "line": ""}
@@ -630,7 +632,7 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         raise RoutineRefused(held)
     vnum = ver.get("number", 1)
     manifest = ver.get("manifest") or {}
-    params = manifest.get("parameters") or []
+    params = rt.own_columns(manifest.get("parameters") or [], manifest.get("data"))[0]
     expected = manifest.get("results") or []
     d = current_data or {}
     if not (d.get("df_id") or d.get("columns")):

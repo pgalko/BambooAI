@@ -166,7 +166,13 @@ The promoter proposes the inputs; the coach confirms them; the runner writes the
    summary file's `type` was refused as not in the data), and the message names the file ("'Ride' is not in column
    type of the summary file"). One of several chosen values absent is a note, not a refusal — the method keeps the
    other values; a single value absent, every chosen value absent, or a column in neither the frame nor the files
-   refuses: nothing to run on for that input.
+   refuses: nothing to run on for that input. **A column the data never had is the method's own** (2026-10-15: a
+   live promoter declared a keyword list over `head`, a column the script computes from the plan notes, and every
+   run was refused with "column head is not in this data"): the record knows the data's columns at promotion - the
+   frame's and every probed file's - so a choice over a column outside them loses its column, at promotion and
+   again at every check for routines saved before; its values go to the method as given and are not looked for in
+   the data, and the proposal's notes say so. A record that cannot say what columns the data had (none recorded, a
+   file never probed) leaves the inputs as they are.
 7. **A loader's file name is the loader's, never an input's** (2026-10-10, the second live run: the promoter had
    made the loaded window an input and written it into the summary's name as an f-string, so the recorded name was
    gone from the text and the run bound nothing). The period is chosen when the data is loaded, before the method

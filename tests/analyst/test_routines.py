@@ -797,6 +797,29 @@ check("the run with one of the chosen values absent goes ahead and the CHECK row
 ps = rt.precheck_script({"note": ["a"]}, [aux_notes, "datasets/x/own_notes.csv"])
 check("precheck_script reads the frame first, then each file's header and only the column it needs; a file that cannot be read is skipped", "_pd.read_csv(_p, nrows=0)" in ps and "usecols=[_col]" in ps and "own_notes.csv" in ps)
 v8["manifest"]["parameters"].pop(); store.save(R8)
+# a choice over a column the script computes (2026-10-15, Palo's routine: a keyword list declared over `head`, derived from the
+# plan notes, refused at every run as 'column head is not in this data'): the record knows the data's columns - the frame's
+# and the probed files' - so a column it never had is the method's own; its values go to the method as given
+rec5 = store.load(rid5)["versions"][0]["manifest"]["data"]
+kc = rt.known_columns(rec5)
+check("known_columns: the frame's columns and every recorded file's; None when the record has no columns or a recorded file was never probed",
+      kc == {"v", "hour", "load", "note"} and rt.known_columns({}) is None and rt.known_columns({"columns": [{"name": "v"}], "aux": ["x.csv"], "aux_shape": {}}) is None, kc)
+own, own_notes = rt.own_columns([{"key": "kw", "label": "Session words", "type": "choice", "default": ["VT1", "Vo2"], "column": "head", "multiple": True},
+                                 {"key": "n", "label": "Notes", "type": "choice", "default": ["a"], "column": "note", "multiple": True},
+                                 {"key": "t", "label": "Cut", "type": "number", "default": 95}], rec5)
+check("own_columns: the choice over the computed column loses its column with a note; the choice over the file's column and the number are untouched; a record that cannot say leaves all as they are",
+      "column" not in own[0] and own[1].get("column") == "note" and own[2] == {"key": "t", "label": "Cut", "type": "number", "default": 95}
+      and own_notes == ["Session words: the values go to the method as given - head is a column the script computes, not one of the data's, so they are not looked for in the data"]
+      and rt.own_columns([{"key": "kw", "type": "choice", "default": ["VT1"], "column": "head"}], {})[0][0].get("column") == "head", (own, own_notes))
+R8b = store.load(rid5); v8b = host.version_of(R8b)
+v8b["manifest"]["parameters"].append({"key": "kw", "label": "Session words", "type": "choice", "default": ["VT1", "Vo2"], "column": "head", "multiple": True, "origin": "the head regex"})
+store.save(R8b)
+pc8d = host.precheck(store.load(rid5), now8n, runner_on(df))
+check("a routine saved with a choice over a computed column: the precheck no longer refuses it - nothing is looked for, ok", pc8d["ok"] and pc8d["values_missing"] == [] and "is not in this data" not in pc8d["line"], (pc8d["ok"], pc8d["line"]))
+ev8d = []
+out8d = host.run(store.load(rid5), {"kw": ["VT1", "hill"]}, now8n, runner_on(df), store, emit=ev8d.append, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_10"))
+check("...and the run goes ahead with the words as given", out8d["run"]["status"] in ("ran", "reproduced", "differed", "failed") and out8d["run"].get("inputs", {}).get("kw") == ["VT1", "hill"], (out8d["run"]["status"], out8d["run"].get("inputs")))
+v8b["manifest"]["parameters"].pop(); store.save(R8b)
 ok7 = host.precheck(store.load(rid4), data_now, runner_on(df), values={"grp": "a"})
 check("a choice value in the data passes", ok7["ok"], ok7["line"])
 view0 = host.run_view(store.load(rid4), store, 0)
