@@ -205,7 +205,14 @@ a new window stopped on a time-zone offset typed into a cell): a value read off 
 identifier, a threshold — is computed and kept in a named variable, never typed as a literal, so the method holds
 when the data is loaded again; a value the question gives stays a literal. It is the one place the literals that
 make a routine window-bound originate, and the cheapest fix per routine; the promoter and the run's checks handle
-what still arrives as a literal.
+what still arrives as a literal. What the first live routine showed arriving anyway (2026-10-16, patch 0173): a
+month read off the data typed as a literal from cell 6 on, the count of complete months typed as a loop bound
+(`rng.integers(0, 11, 11)` over `c.index[i]`, an IndexError on a nine-month window), and a figure cell that typed
+the ledger's estimates as its points. The promoter's rule 2 now says a count the data determines, used as a bound,
+an index or a divisor, becomes that count (`len(...)`), not an input; the figures contract says every number
+drawn or written comes from a variable, never typed - a figure of typed numbers is a picture of one run. The
+all-or-nothing rule for an input's edits stands (an input is never half made); the promoter's edit that named a
+cell without the literal cost that routine its `peak_month` input, and the note said so.
 
 ## 5. Flows
 
@@ -740,7 +747,8 @@ Each step ships as its own patch, tested on dev before prod, the standing method
   *did* make the typed period an input, §4.8 (2026-10-11) now writes it from the data; what is left is text the
   promoter did not touch (a count, a place name, a fixed offset in a label). The figures step (2026-10-11) narrows
   it further for new chains: its one instruction on titles is that any number in a title or a label comes from a
-  variable, never typed.
+  variable, never typed; since 2026-10-16 (patch 0173) every number drawn or written - a point, a bar, an
+  interval - comes from a variable, after a figure cell typed the ledger's estimates as its points.
 - **How many runs to keep.** All, for now; the table and storage will say when that is wrong.
 - **Auxiliaries that are untickable.** Allowed with a warning (proposed), or fixed as in the original.
 - **The parameter cap of five.** A guess at "simple"; the first live promotions will test it.

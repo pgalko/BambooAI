@@ -446,6 +446,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **A count the data determines is computed; a figure's numbers are never typed (2026-10-16, patch 0173).** Palo
+  re-ran the same routine on 2026-01-01 → today, nine complete months: past cell 6 now (February inside, CTX the
+  window's) and stopped at cell 8 - *index 9 is out of bounds for axis 0 with size 9* - the analyst had typed the
+  eleven complete months of the first window as the cluster bootstrap's loop bound over `c.index[i]`. The same
+  script's figure cell types the ledger's three splits as its points, so on any other window the figure would have
+  shown the first run's numbers (the promoter kept them as "recomputed when the cells are re-run", which they are
+  not). Two sentences, one in each contract: the promoter's rule 2 makes a count the data determines, used as a
+  bound, an index or a divisor, that count (`len(...)`) rather than an input; the figures contract says every
+  number drawn or written comes from a variable, never typed. The routine itself stays as it is - it was made by a
+  cheap analyst seat that typed three data-read values (the month, the count, the figure's numbers) and a cheap
+  promoter that lifted one of them; it runs on its own year and reproduces, and is not transportable. test_analyst
+  210 (the figures prompt's f-string rule still named).
 - **The benchmark's keys name the plan file (2026-10-16, patch 0172; `benchmarking/20251125_task_eval_BambooAI.yaml`).**
   The three `context_enabled` rows about planned sessions (the interval targets, plan versus done, the pacing
   instructions) list `planned_workouts` among their datasets and their keys say where the prescription lives since
