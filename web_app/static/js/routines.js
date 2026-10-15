@@ -210,7 +210,7 @@
             const help = p.type === 'numbers' ? 'numbers, separated by commas' : (p.type === 'choice' ? (p.multiple ? 'values of ' + esc(p.column || 'the column') + ', separated by commas' : 'a value of ' + esc(p.column || 'the column')) : '');
             return '<input class="ui-input" data-key="' + k + '" data-type="' + esc(p.type) + '" value="' + esc(text) + '"' + (p.type === 'number' ? ' inputmode="decimal"' : '') + (help ? ' title="' + help + '"' : '') + '>';
         },
-        isoDay(d) { return d.toISOString().slice(0, 10); },
+        isoDay(d) { const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); },   // the local calendar day, as core.js's localIsoDay (2026-10-15: the UTC day put the run a day past the Data tab's load)
         loadSection(plan, pre, limits) {
             // the data: loaded as the original load asked for it (the window shifted to end today, the race picked, the
             // file uploaded), or the data loaded now; the fit line for the data loaded now - a load's is checked after it
@@ -229,7 +229,7 @@
                 const days = Math.max(1, Number((plan && plan.window_days) || 28));
                 const maxDays = limits && limits.max_days ? Number(limits.max_days) : null;
                 const span = maxDays ? Math.min(days, maxDays) : days;
-                const start = new Date(today.getTime() - span * 86400000);
+                const start = new Date(today); start.setDate(today.getDate() - span);       // calendar days back, not 24-hour steps (a clock change would shift the day)
                 const label = src === 'intervals' ? 'Intervals.icu' : 'SweatStack';
                 const withWhat = (src === 'intervals' ? (plan.aux_kinds || []) : (plan.sports || [])).join(', ');
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from ' + label + '</label>' +

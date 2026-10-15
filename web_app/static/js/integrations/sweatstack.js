@@ -325,16 +325,16 @@ async function applySubscriptionDateLimits() {
         const endDateInput = document.getElementById('endDate');
         
         // Set end date to today
-        endDateInput.value = today.toISOString().split('T')[0];
-        endDateInput.max = today.toISOString().split('T')[0];
+        endDateInput.value = localIsoDay(today);
+        endDateInput.max = localIsoDay(today);
         
         // Set start date to max allowed
-        startDateInput.value = earliestDate.toISOString().split('T')[0];
-        startDateInput.min = earliestDate.toISOString().split('T')[0];
-        startDateInput.max = today.toISOString().split('T')[0];
+        startDateInput.value = localIsoDay(earliestDate);
+        startDateInput.min = localIsoDay(earliestDate);
+        startDateInput.max = localIsoDay(today);
         
         // Lock the inputs to prevent bypassing
-        endDateInput.min = earliestDate.toISOString().split('T')[0];
+        endDateInput.min = localIsoDay(earliestDate);
         
     } catch (error) {
         console.error('Error fetching data limits:', error);
@@ -343,8 +343,8 @@ async function applySubscriptionDateLimits() {
         const twoWeeksAgo = new Date(today);
         twoWeeksAgo.setDate(today.getDate() - 14);
         
-        document.getElementById('startDate').value = twoWeeksAgo.toISOString().split('T')[0];
-        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        document.getElementById('startDate').value = localIsoDay(twoWeeksAgo);
+        document.getElementById('endDate').value = localIsoDay(today);
     }
 }
 
@@ -475,8 +475,8 @@ function getSelectedDateRange() {
         start.setMonth(start.getMonth() - 3);
         
         return {
-            start: start.toISOString().split('T')[0],
-            end: end.toISOString().split('T')[0],
+            start: localIsoDay(start),
+            end: localIsoDay(end),
             days: 90
         };
     }

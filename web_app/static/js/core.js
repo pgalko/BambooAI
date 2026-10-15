@@ -26,6 +26,14 @@ let answerTabInteractive = false;
 let answerTabExplore = false;      // the seedling's page: no PDF, no Simplified (2026-09-08)
 let answerTabSynthesis = false;
 let auxiliaryDatasetCount = 0;
+
+// The calendar day of a Date as the person sees it (2026-10-15): the loaders' dialogs and the routine run dialog had taken
+// "today" from toISOString(), the UTC day - before 11:00 in Melbourne the Data tab and a run made minutes apart asked for
+// windows a day apart, and the cache could never serve the one from the other. Every "today" on the page goes through this.
+function localIsoDay(d) {
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
 let limitMessageTimeout = null;
 
 let mermaidReady = false;

@@ -155,6 +155,9 @@ def main():
                 span: (document.querySelector('#routineRunModal .rt-derived-row') || {}).textContent || '', spanPickers: document.querySelectorAll('#routineRunModal [data-key="span"]').length,
                 kinds: document.querySelector('#routineRunModal [data-key="kinds"]').value, fit: (document.querySelector('#routineRunModal .rt-fit') || {}).textContent || '' })""")
             b_start, b_end = today - timedelta(days=59), today
+            local_today = page.evaluate("() => ({ today: localIsoDay(new Date()), dataTabMax: (document.getElementById('intervalsEndDate') || {}).max || '', utc: new Date().toISOString().slice(0, 10) })")
+            check("the run dialog's window ends on the page's local calendar day - the same day the Data tab's dialog offers as its latest (2026-10-15: both had taken the UTC day, a day apart before 11:00 in Melbourne)",
+                  rd["end"] == local_today["today"] and local_today["dataTabMax"] == local_today["today"], (rd["end"], local_today))
             check("the run dialog of an Intervals routine: Load from Intervals.icu on, the window of the original's 59 days ending today, with summary, wellness and the metrics as the original; the data loaded now as the other choice; the band at its default; Run on",
                   rd["choice"] == "load" and rd["start"] == b_start.isoformat() and rd["end"] == b_end.isoformat() and "the original\u2019s 59 days, ending today" in rd["help"] and "summary" in rd["help"] and "wellness" in rd["help"] and "metrics as the original" in rd["help"] and rd["now"] and rd["runOn"] and rd["band"] == "9, 11", rd)
             check("the session types (a choice over the summary file's column, not the frame's) are checked where they live: the data loaded now passes, nothing missing",
@@ -510,7 +513,7 @@ def main():
                   f"Path: datasets/{USER}/{_kf('stack-key')}/context_notes_{tag_a}.csv" in prompt1 and "Rows: " in prompt1 and "(the rows are passages: read them with CTX, not from this head)" in prompt1
                   and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in prompt1 and "activity_message" in prompt1 and "(subject " in prompt1 and "authors: subject " in prompt1
                   and "private entries " in prompt1 and "by month " in prompt1 and "A plan_note is dated the day it was planned for, not the day it was written." in prompt1 and "A passage is cited as" not in prompt1
-                  and "Sov dårligt" not in prompt1 and "Good legs today" not in prompt1, prompt1[prompt1.find("CONTEXT ("):prompt1.find("CONTEXT (") + 700] if "CONTEXT (" in prompt1 else prompt1[-800:])
+                  and "Private: check the sleep log" not in prompt1 and "Bra jobba" not in prompt1, prompt1[prompt1.find("CONTEXT ("):prompt1.find("CONTEXT (") + 700] if "CONTEXT (" in prompt1 else prompt1[-800:])    # the chat's lines are in the context alone (a description also sits in the summary's head, 2026-10-15)
             check("DATA after the pass: the codes file listed as columns and count, the map's languages and its codes line - the counts per code, 'of 36 codes used', the uncoded, the proposal",
                   f"context_codes_{tag_a}.csv" in prompt1 and "languages en " in prompt1 and " da " in prompt1 and "codes (the model's reading, one row per code, with the words it rests on): " in prompt1
                   and re.search(r"\(\d+ of 36 codes used\)", prompt1) is not None and re.search(r"\d+ passages? carr(y|ies) none", prompt1) is not None and "proposed: coach_flag." in prompt1,

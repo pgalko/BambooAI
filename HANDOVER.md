@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/120/33/29/1/1 Python; 49/7/30/67/24/66/8 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/120/33/29/1/1 Python; 49/7/30/67/24/66/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (74; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (75; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **"Today" is the local calendar day in every dialog (2026-10-15, patch 0158).** Palo's first routine over the words
+  (the benchmark's predictive question, a 1.3-million-row window) re-downloaded "the same window": the chain ran on
+  16 May → 14 October, the run asked for 17 May → 15 October. Both the loaders' dialogs and the routine run dialog
+  took "today" from `toISOString()`, the UTC day - he loaded at 10:29 Melbourne time (23:29 UTC on the 14th) and ran
+  at 11:28 (00:28 UTC on the 15th), so the run's default window ("the original's 151 days, ending today") slid a day
+  along and no cached window could serve it. Every "today" on the page now goes through `localIsoDay` (core.js; the
+  Intervals and SweatStack dialogs' ten uses each) and routines.js's `isoDay` reckons the same way, its window counted
+  back in calendar days rather than 24-hour steps. Tests: test_local_day.js 4 (new: 10:29 in Melbourne is the 15th
+  here and the 14th in UTC; no `toISOString()` left in the three dialogs), the integrations walk 75 (the run dialog's
+  end is the page's local day and the Data tab's latest day; a no-passage check made specific to the chat's lines,
+  since a description also sits in the summary's head). The same test thread found two more things, each its own
+  patch: the run failed on a path built as `folder + name` (0159), and creation took nine minutes in run zero (0160).
 - **The benchmark's context rows asked as a coach or a rider would (2026-10-15, patch 0157).** Palo, before testing
   0154-0156: the context questions of the benchmark and the testing notes "mention words like codes, context and
   others that a normal user like coach or athlete would not use ... sterile questions that already offer hints for
