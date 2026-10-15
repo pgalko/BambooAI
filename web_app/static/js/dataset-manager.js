@@ -934,9 +934,9 @@ window.DatasetManager = (function() {
     
     async function loadAuxiliaryDataset(filePath) {
         // Check auxiliary limit
-        if (auxiliaryDatasetCount >= 3) {
+        if (auxiliaryDatasetCount >= MAX_AUXILIARY_DATASETS) {
             if (typeof showUploadLimitMessage === 'function') {
-                showUploadLimitMessage('Maximum 3 auxiliary datasets allowed.');
+                showUploadLimitMessage('Maximum ' + MAX_AUXILIARY_DATASETS + ' auxiliary datasets allowed.');
             }
             return;
         }

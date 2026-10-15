@@ -23,6 +23,7 @@ def init_cache_integration(app, **dependencies):
     # Add preview generation dependencies
     cache_bp.utils = dependencies['utils']
     cache_bp.executor_client = dependencies['executor_client']
+    cache_bp.max_aux = int(dependencies.get('max_aux', 5))      # the one limit the app sets (MAX_AUXILIARY_DATASETS)
     
     # Register the blueprint
     app.register_blueprint(cache_bp)
@@ -236,9 +237,9 @@ def load_auxiliary_from_cache():
             'planning': False, 'ontology_path': None, 'auxiliary_datasets': []
         })
         
-        # Check auxiliary dataset limit
-        if len(prefs.get('auxiliary_datasets', [])) >= 3:
-            return jsonify({'error': 'Maximum 3 auxiliary datasets allowed'}), 400
+        # Check auxiliary dataset limit (a file already in the list is not a new one: loading it again is a no-op)
+        if file_path not in prefs.get('auxiliary_datasets', []) and len(prefs.get('auxiliary_datasets', [])) >= cache_bp.max_aux:
+            return jsonify({'error': f'Maximum {cache_bp.max_aux} auxiliary datasets allowed'}), 400
         
         # Add to auxiliary datasets if not already there
         if file_path not in prefs.get('auxiliary_datasets', []):

@@ -115,10 +115,10 @@ function initializeAuxiliaryDatasetUpload() {
     }
     
     auxiliaryDatasetButton.addEventListener('click', function() {
-        if (auxiliaryDatasetCount < 3) {
+        if (auxiliaryDatasetCount < MAX_AUXILIARY_DATASETS) {
             auxiliaryFileInput.click();
         } else {
-            showUploadLimitMessage('Maximum 3 auxiliary datasets allowed.');
+            showUploadLimitMessage('Maximum ' + MAX_AUXILIARY_DATASETS + ' auxiliary datasets allowed.');
         }
     });
     
@@ -126,7 +126,7 @@ function initializeAuxiliaryDatasetUpload() {
 }
 
 function handleAuxiliaryDatasetUpload() {
-    if (auxiliaryDatasetCount >= 3) {
+    if (auxiliaryDatasetCount >= MAX_AUXILIARY_DATASETS) {
         const pillsContainer = document.getElementById('datasetStatusPillsContainer');
         let errorMsgPill = document.getElementById('aux-max-error-pill');
         if (!errorMsgPill) {
@@ -135,7 +135,7 @@ function handleAuxiliaryDatasetUpload() {
             errorMsgPill.className = 'dataset-status-pill auxiliary-dataset-pill error';
             pillsContainer.appendChild(errorMsgPill);
         }
-        errorMsgPill.innerHTML = `<div class="dataset-pill-content"><span>Max 3 auxiliary datasets.</span></div>`;
+        errorMsgPill.innerHTML = `<div class="dataset-pill-content"><span>Max ${MAX_AUXILIARY_DATASETS} auxiliary datasets.</span></div>`;
         setTimeout(() => errorMsgPill?.remove(), 3000);
         this.value = '';
         return;

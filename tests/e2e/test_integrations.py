@@ -755,6 +755,40 @@ def main():
                   and "against run 1" in rv_s["cmp"] and "Run 2 complete" in rv_s["done"] and not rv_s["warn"] and rv_s["ctx"] is not None and rv_s["ctx"]["label"].startswith("Context (")
                   and not any(r_.startswith("Codes") for r_ in rv_s["ctx"]["rows"]),
                   (_chk_s, res2_n, rv_s["done"][:200], rv_s["ctx"], os.path.exists(ctx_c)))
+            # run 3: a window inside the original load, which the executor's cache still holds (the refresh's frame) with its four
+            # files - the run takes the cached frame and files through the cache routes and cuts them (2026-10-15: the cache route
+            # refused the fourth file, 'Maximum 3 auxiliary datasets allowed', so a context routine could never run from the cache;
+            # Palo's was five files). Run 1's own load has no wellness file (the fake stops logging sixty days ago), so it is no hit.
+            d_start, d_end = today - timedelta(days=80), today - timedelta(days=70)
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.evaluate("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); if (it) it.click(); }", [rid_n])
+            page.wait_for_function("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); return !!it && it.classList.contains('on'); }", arg=[rid_n], timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_selector("#routineRunModal .rt-load", timeout=30000)
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=15000)
+            page.fill("#routineRunModal input[data-load='start']", d_start.isoformat())
+            page.fill("#routineRunModal input[data-load='end']", d_end.isoformat())
+            page.wait_for_function("([s]) => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && c.textContent.includes('(' + s + ' '); }", arg=[d_start.isoformat()], timeout=15000)   # the typed window's answer, not the default's
+            cl_d = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-cache').textContent, cls: document.querySelector('#routineRunModal .rt-cache').className })")
+            check("the context routine on a window inside the original load: the line says it is inside the cached load, with summary, wellness, context, codes - it will be cut, no download",
+                  "hit" in cl_d["cls"] and f"inside the cached load {a_start.isoformat()} → {a_end.isoformat()}" in cl_d["text"] and all(k_ in cl_d["text"] for k_ in ("summary", "wellness", "context", "codes")) and "no download" in cl_d["text"], cl_d)
+            fits_before_d = calls_of(st, "fit-file")
+            page.click("#routineRunModal [data-act='run']")
+            page.wait_for_function("() => /run 3 of 3/.test((document.querySelector('#chainPosition') || {}).textContent || '') || /Maximum|could not be loaded|failed/.test(((document.querySelector('#routineRunModal .rt-progress') || {}).textContent) || '')", timeout=300000)
+            page.wait_for_timeout(800)
+            prog_d = page.evaluate("() => ((document.querySelector('#routineRunModal .rt-progress') || {}).textContent) || ''")
+            rv_d = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
+                position: (document.querySelector('#chainPosition') || {}).textContent || '' })""")
+            run3_path = os.path.join(os.path.dirname(rdirs_n[0]), "runs", "v1_3", "run.json")
+            run3_n = json.load(open(run3_path)) if os.path.exists(run3_path) else {}
+            _chk_d = next((r for r in rv_d["rows"] if "CHECK" in r), "")
+            check("run 3 ran from the cache with all four files - none refused by the auxiliary limit: no download, the LOAD row 'cut from the cache', the CHECK row 'cut to the window from the cached load', the context and codes files among the four bound, the run complete",
+                  "run 3 of 3" in rv_d["position"] and "Maximum" not in prog_d and calls_of(st, "fit-file") == fits_before_d
+                  and any("LOAD" in r and "cut from the cache" in r for r in rv_d["rows"]) and f"cut to {d_start.isoformat()} → {d_end.isoformat()} from the cached load" in _chk_d
+                  and run3_n.get("status") in ("ran", "reproduced") and sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []) == ["codes", "context", "summary", "wellness"]
+                  and not run3_n.get("aux_absent") and "Run 3 complete" in rv_d["done"] and not rv_d["warn"], (prog_d[:200], rv_d["position"], _chk_d[:300], sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []), run3_n.get("aux_absent"), rv_d["done"][:160]))
             errs = page.evaluate("window.__stackErrors || []")
             b.close()
         apis = __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"]

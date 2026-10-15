@@ -67,7 +67,7 @@
 - **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/127/33/37/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_integrations.py` (86; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_integrations.py` (88; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Five auxiliary files, not three (2026-10-15, patch 0166).** Palo ran a context routine (five files: laps, summary,
+  wellness, context, codes) on a window inside a cached load: the dialog said *inside the cached load … it will be
+  cut*, and the run stopped with *Maximum 3 auxiliary datasets allowed*. The limit of three dates from the first
+  version, when a load brought wellness, summary and laps at most; the Intervals loader route sets the session's
+  list whole and was never limited, but a run cut from the Dataset cache loads the cached frame and its files one by
+  one through the cache route, which refused the fourth - so no routine with the context (four files) or with the
+  context and the laps (five) could ever run from the cache, and neither could an Endura routine with all four of its
+  kinds. One number now, `MAX_AUXILIARY_DATASETS = 5` in web_app/app.py, handed to the cache blueprint (`max_aux`) and
+  mirrored in core.js for the page's upload button and the Dataset cache panel; the cache route also no longer counts
+  a file already in the list as a new one. Proof: the integrations walk's run 3 of the context routine, a window
+  inside run 1's load, taken from the cache with its four files, none refused, the CHECK row *cut to … from the
+  cached load* (88 checks).
 - **The dialogs' dates are the person's (2026-10-15, patch 0165).** Palo, testing on the dev box: the Intervals dialog's
   *to* date snapped to the *from* date as he changed it, and then neither could be changed. Reproduced in a real
   Chromium: a date being typed into an `<input type="date">` passes through `''` and partial values (`0009-10-15`,

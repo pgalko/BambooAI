@@ -204,6 +204,13 @@ def update_user_activity(user_id: str):
 # one. Purely a keepalive: the client ignores blank lines.
 STREAM_HEARTBEAT_SECONDS = float(os.getenv("STREAM_HEARTBEAT_SECONDS", "15"))
 
+# How many auxiliary files a session may hold beside the frame. Three from the first version, when a load could bring
+# wellness, summary and laps; an Intervals.icu load with the context brings five (the passages and the codes beside
+# them), and a run cut from the Dataset cache loads them one by one through the cache route - the fourth was refused
+# (2026-10-15, Palo's first run of a context routine on a window inside a cached load). The loader route sets the
+# list whole and was never limited; this is the one number the upload and cache routes and the page share.
+MAX_AUXILIARY_DATASETS = 5
+
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET')
 # Two instances on one host (a hosted service and a self-hosted test on another port, 2026-09-14) share a
@@ -340,7 +347,8 @@ init_cache_integration(app,
     bamboo_ai_instances=bamboo_ai_instances,
     get_bamboo_ai=lambda session_id: get_bamboo_ai(session_id),
     utils=utils,
-    executor_client=executor_client
+    executor_client=executor_client,
+    max_aux=MAX_AUXILIARY_DATASETS
 )
 
 # Function to generate a unique DataFrame ID
@@ -1045,8 +1053,8 @@ def upload_auxiliary_dataset():
     
     aux_datasets_list = prefs.get('auxiliary_datasets', [])
 
-    if len(aux_datasets_list) >= 3:
-        return jsonify({'message': 'Maximum 3 auxiliary datasets allowed.'}), 400
+    if len(aux_datasets_list) >= MAX_AUXILIARY_DATASETS:
+        return jsonify({'message': f'Maximum {MAX_AUXILIARY_DATASETS} auxiliary datasets allowed.'}), 400
         
     if file_to_upload and (file_to_upload.filename.endswith('.csv') or file_to_upload.filename.endswith('.parquet') or file_to_upload.filename.endswith('.json') or file_to_upload.filename.endswith('.xlsx')):
         filepath_to_store = "" # This will be the path stored in preferences
