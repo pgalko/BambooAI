@@ -446,6 +446,11 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The benchmark's keys name the plan file (2026-10-16, patch 0172; `benchmarking/20251125_task_eval_BambooAI.yaml`).**
+  The three `context_enabled` rows about planned sessions (the interval targets, plan versus done, the pacing
+  instructions) list `planned_workouts` among their datasets and their keys say where the prescription lives since
+  0169 - the steps, targets and structure in the planned workouts file, the prose in the words, the skipped sessions
+  as the rows with no activity. Doc only.
 - **The CHECK row's rows (2026-10-16, patch 0171).** The same run records showed two wrong counts. *The original's*:
   the promotion's shape probe counted a CSV's lines, not its rows - a passage of three lines was three rows - so the
   CHECK row read *the context file: 1,499 rows where the original had 2,080* of 978 passages, *the plan file … where

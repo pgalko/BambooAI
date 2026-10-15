@@ -173,12 +173,12 @@ categories:
           
       context_enabled:
         - question: When I set him interval sessions with a target, how close did he get to what I asked, and what did he say afterwards on the ones he did not manage?
-          datasets: [primary_df, activity_summary, context_notes, context_codes]
+          datasets: [primary_df, activity_summary, planned_workouts, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
-          # asked as the coach; key - both at once: the coach's prescriptions found in the words (the planned sessions, dated the day they were planned for) paired to the rides; the intervals actually ridden detected in the 1Hz data against the stated repeats and target; compliance from the summary beside it; his comments on the shortfalls quoted and cited
+          # asked as the coach; key - both at once: the coach's prescriptions found (the planned sessions, dated the day they were planned for - their steps, targets and structure in the planned workouts file since 2026-10-15, their prose in the words) paired to the rides; the intervals actually ridden detected in the 1Hz data against the stated repeats and target; compliance from the summary beside it; the sessions not done counted; his comments on the shortfalls quoted and cited
 
   - category: Environmental and Contextual Impact
     questions:
@@ -341,20 +341,20 @@ categories:
           
       context_enabled:
         - question: Over the year, how often did he actually do the session I set him, and when he did not, did he tell me why?
-          datasets: [activity_summary, context_notes, context_codes]
+          datasets: [activity_summary, planned_workouts, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
-          # asked as the coach; key - plan versus done: the planned sessions paired to the rides; done, cut, extended, skipped or replaced, by month, with the unplanned rides counted; the reasons from his messages within a few days of the skipped and cut sessions, quoted and grouped; a planned session dated the day it was planned for
+          # asked as the coach; key - plan versus done: the planned sessions (the planned workouts file: one row each, the skipped ones with no activity) paired to the rides; done, cut, extended, skipped or replaced, by month, with the unplanned rides counted; the reasons from his messages within a few days of the skipped and cut sessions, quoted and grouped; a planned session dated the day it was planned for
           
         - question: When I told him to pace a session a certain way, hold back early, build into it, keep under a number, did he? And did he notice himself when he did not?
-          datasets: [primary_df, activity_summary, context_notes, context_codes]
+          datasets: [primary_df, activity_summary, planned_workouts, context_notes, context_codes]
           join_required: true
           able_to_solve: null
           corrections: 0
           score: 0
-          # asked as the coach; key - both at once: the pacing instructions found in the coach's words; power by quarter of the paired ride from the 1Hz data and the pacing classified; matched or not per session; his own comments on the mismatches quoted, or the absence of any said
+          # asked as the coach; key - both at once: the pacing instructions found in the coach's words (the plan's prose in the context, its steps in the planned workouts file); power by quarter of the paired ride from the 1Hz data and the pacing classified; matched or not per session; his own comments on the mismatches quoted, or the absence of any said
 
   - category: Comparative Analysis
     questions:
