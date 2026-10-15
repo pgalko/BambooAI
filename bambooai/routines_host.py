@@ -527,11 +527,16 @@ def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable],
     files = [(bound[old], sources[old], columns.get(old) or [], "cut" if bound[old] in cut_files else "bound") for old in binding["map"]]
     files += [(placeholders[old], "", columns.get(old) or [], "placeholder") for old in binding["absent"]]
     files += [(new, old, [], "cache") for old, new, kind in subs if kind == "cache"]
-    logger.info("routine run: %d file(s) bound, %d absent (%s), %d substitution(s) in the executed text%s%s", len(binding["map"]), len(binding["absent"]),
+    # the words the method reads (2026-10-16): CTX over the run's own context and codes files - the mirror copies, cut
+    # to the window on a cached load, an empty table for one this load lacks - never the files loaded now
+    by_kind = {rt.aux_kind(old): new for old, new in list(bound.items()) + list(placeholders.items())}
+    context = (by_kind.get("context") or "", by_kind.get("codes") or "")
+    logger.info("routine run: %d file(s) bound, %d absent (%s), %d substitution(s) in the executed text%s%s%s", len(binding["map"]), len(binding["absent"]),
                 ", ".join(rt.aux_kind(p) for p in binding["absent"]) or "-", len(subs), ("; " + note) if note else "",
-                (f"; cut to {cut['start']} → {cut['end']} by {cut['column'] or '?'}, {len(cut_files)} file(s)") if cut else "")
+                (f"; cut to {cut['start']} → {cut['end']} by {cut['column'] or '?'}, {len(cut_files)} file(s)") if cut else "",
+                "; CTX over the run's context file" if context[0] else "")
     return {"binding": binding, "bound": bound, "placeholders": placeholders, "sources": sources, "shape": shape, "script": script, "subs": subs, "note": note, "cut": cut,
-            "prelude": rt.conform_prelude(rec.get("columns") or [], files, span_inputs((ver.get("manifest") or {}).get("parameters") or [], rec), cut)}
+            "prelude": rt.conform_prelude(rec.get("columns") or [], files, span_inputs((ver.get("manifest") or {}).get("parameters") or [], rec), cut, context)}
 
 
 def aux_line(binding: dict, shape: Optional[dict] = None) -> str:

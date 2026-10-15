@@ -773,6 +773,62 @@ store.save(R9)
 pc9b = host.precheck(store.load(rid9), now9, runner_on(df9c))
 check("the precheck of a cut run checks the values in the window: a1 (January) is not in the cut frame - a note, a2 is", pc9["ok"] and pc9b["ok"] and pc9b["values_notes"] == ["'a1' is not in column activity_id - the method keeps the other value"], (pc9["line"], pc9b.get("values_notes"), pc9b["line"]))
 v9["manifest"]["parameters"].pop(); store.save(R9)
+# ---- the words of a cut run are the window's (2026-10-16, Palo's routine on a four-month window inside a cached seventeen-month
+# load: CTX read the whole load's context - the host's prelude points it at the files loaded now - against a summary cut to the
+# window, and the method fell over on months with words but no rides): CTX is defined over the run's own context and codes
+# files, cut to the window, the codes to the passages the cut context keeps ----
+from analyst.context import kernel_api_source as _ctx_src
+def runner_ctx(frame, notes, codes):
+    """A runner as the host's: CTX over the files loaded now rides ahead of the script (the run's prelude must override it)."""
+    def _r(script, timeout, *rest):
+        k = PersistentKernel(df=frame)
+        try:
+            out, err, _ = k.execute(_ctx_src(notes, codes) + "\n\n" + script)
+        finally:
+            k.cleanup()
+        return out or "", err or "", [], []
+    return _r
+ctx_cols = ["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id", "author_name", "author_role", "private", "lang", "text", "text_en", "chars"]
+def ctx_rows(days):
+    return pd.DataFrame([dict(zip(ctx_cols, [f"C.{i + 1}", "activity_message", d, "07:30", "", "", "", "", "", "", "subject", "", "en", f"words {i + 1}", "", "7"])) for i, d in enumerate(days)])
+orig_c, orig_k = [os.path.join(aux_dir, n) for n in ("context_notes_20260713_to_20261011.csv", "context_codes_20260713_to_20261011.csv")]
+ctx_rows(["2026-08-01", "2026-08-02"]).to_csv(orig_c, index=False)
+pd.DataFrame({"id": ["C.1", "C.1", "C.2"], "code": ["fatigue", "effort", "fatigue"], "tone": ["negative"] * 3, "quote": ["words 1", "words 1", "words 2"], "status": ["ok"] * 3, "coder": ["m"] * 3, "codebook_version": [1] * 3}).to_csv(orig_k, index=False)
+nb10 = Notebook("t10")
+run10 = nb10.new_run("How many passages, and how many codes on them?")
+run10.turns = [Turn(kind="cell", cell_no=1, code="fr = CTX.frame(); cd = CTX.codes()\nprint(len(fr), len(cd))", results=[], stdout="2 3"),
+               Turn(kind="cell", cell_no=2, code="RESULT('passages', float(len(fr)), None, None, 'passages', 'n/a')\nRESULT('codes on them', float(len(cd)), None, None, 'codes', 'n/a')",
+                    results=[{"text": "passages: +2", "typed": False}, {"text": "codes on them: +3", "typed": False}], stdout="RESULT: passages: +2\nRESULT: codes on them: +3")]
+run10.report = "## Two\n\nTwo passages, three codes [cell 2]."
+run10.status = "answered"
+run10.data = {"df_id": "df9", "name": "", "source": "intervals", "columns": run9.data["columns"], "rows": 3, "date_range": "2026-07-13 to 2026-10-11", "aux": [orig_s, orig_c, orig_k],
+              "load": {"source": "intervals", "start_date": "2026-07-13", "end_date": "2026-10-11", "metrics": [], "aux_kinds": ["summary", "context"]}}
+run10.replay_script, _ = assemble(run10.cells(), run10.report)
+nb10.runs[run10.id] = run10
+p10 = host.propose(nb10, run10.id, empty_promoter, current_data={"df_id": "df9", "aux": [orig_s, orig_c, orig_k]}, runner=runner_ctx(df9, orig_c, orig_k))
+made10 = host.create(nb10, p10, {"name": "Words", "purpose": "", "drop_inputs": [], "drop_results": []}, runner_ctx(df9, orig_c, orig_k), store)
+rid10 = made10["routine"]["id"]
+check("a routine over CTX made: run zero reproduced on the load's own context (the host's prelude defines CTX there)", made10["run_zero"]["status"] == "reproduced", made10["run_zero"])
+cut_ctx, cut_codes = [os.path.join(cut_dir, n) for n in ("context_notes_20260101_to_20260630.csv", "context_codes_20260101_to_20260630.csv")]
+ctx_rows(["2026-01-20", "2026-02-10", "2026-03-01", "2026-04-01", "2026-06-20"]).to_csv(cut_ctx, index=False)
+pd.DataFrame({"id": ["C.1", "C.2", "C.2", "C.3", "C.4", "C.5", "C.5"], "code": ["fatigue"] * 7, "tone": ["negative"] * 7, "quote": ["q"] * 7, "status": ["ok"] * 7, "coder": ["m"] * 7, "codebook_version": [1] * 7}).to_csv(cut_codes, index=False)
+now10 = dict(now9, aux=[cut_summary, cut_ctx, cut_codes], load=dict(now9["load"], aux_kinds=["summary", "context"]))
+run10_dir = os.path.join(aux_dir, "routines", rid10, "v1_1")
+out10 = host.run(store.load(rid10), {}, now10, runner_ctx(df9c, cut_ctx, cut_codes), store, run_dir=run10_dir)
+r10 = out10["run"]
+got10 = {x["what"]: x["estimate"] for x in r10["results"]}
+ctx_mirror = rt.mirror_path(run10_dir, orig_c); codes_mirror = rt.mirror_path(run10_dir, orig_k)
+check("the cut run's words are the window's: the method's CTX reads the mirror copies cut to Feb-May - 3 of the cached load's 5 passages and the 4 codes on them (not the 7 of the whole load the host's CTX would give); the context file cut by its day, the codes file by the passages kept; the prelude defines CTX last, over the mirror paths",
+      r10["status"] in ("ran", "differed") and got10.get("passages") == "+3.00" and got10.get("codes on them") == "+4.00"
+      and pd.read_csv(ctx_mirror)["id"].tolist() == ["C.2", "C.3", "C.4"] and pd.read_csv(codes_mirror)["id"].tolist() == ["C.2", "C.2", "C.3", "C.4"]
+      and rt.cut_rule(cut_ctx) == ("date", "date") and rt.cut_rule(cut_codes) == ("passages", "id")
+      and f"CTX = _BambooContext({ctx_mirror!r}, {codes_mirror!r})" in rt.conform_prelude([], [], [], None, (ctx_mirror, codes_mirror)) and "CTX" not in rt.conform_prelude([], [], [], None, None),
+      (r10["status"], got10, (r10.get("error") or "")[-300:], os.path.exists(ctx_mirror) and pd.read_csv(ctx_mirror)["id"].tolist(), os.path.exists(codes_mirror) and pd.read_csv(codes_mirror)["id"].tolist()))
+# the same routine on a load that lacks the codes file (a window without words wrote none): CTX.codes() is the empty stand-in
+now10b = dict(now10, aux=[cut_summary, cut_ctx])
+out10b = host.run(store.load(rid10), {}, now10b, runner_ctx(df9c, cut_ctx, ""), store, run_dir=os.path.join(aux_dir, "routines", rid10, "v1_2"))
+got10b = {x["what"]: x["estimate"] for x in out10b["run"]["results"]}
+check("with no codes file in this load: CTX.codes() in the run is the empty stand-in at the recorded path, the passages still the window's", out10b["run"]["status"] in ("ran", "differed") and got10b.get("passages") == "+3.00" and got10b.get("codes on them") == "+0.00" and out10b["run"]["aux_absent"] == ["codes"], (got10b, out10b["run"].get("aux_absent"), (out10b["run"].get("error") or "")[-200:]))
 # a choice input whose value is not in the data: refused by the value check through the kernel
 R7 = store.load(rid4); v7 = host.version_of(R7)
 v7["manifest"]["parameters"].append({"key": "grp", "label": "Group", "type": "choice", "default": "a", "column": "g", "multiple": False, "origin": "x"})

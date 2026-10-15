@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/133/41/39/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/136/41/39/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (89; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (90; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,25 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **A cut run's words are the window's (2026-10-16, patch 0170).** Palo's first benchmark routine (the month-by-month
+  riding against his writing, made on a year, Adaptive) ran on its original window and on a seventeen-month window
+  but fell over on two windows cut from that cached load - *cannot unpack non-iterable numpy.float64* at the method's
+  bootstrap. Root cause: the host's kernel prelude defines `CTX` over the files loaded now, which on a cached load are
+  the whole load's; the summary was cut to the window, the context was not, so the method's months table spanned
+  eighteen months with rides in four, its per-ride series were NaN elsewhere, no bootstrap sample was finite and
+  `np.nanpercentile([])` returned a scalar. The crash was the lucky outcome - the numbers would otherwise have been
+  silently wrong. Now the run's prelude defines `CTX` last of all over the run's own context and codes files
+  (`prepare` passes their mirror paths to `conform_prelude(context=)`; an empty stand-in for one this load lacks), and
+  the cut has rules for both: the context file by its `date`, the codes file by the passages the cut context keeps
+  (`CUT_RULES`, `_routine_cut_table(..., passages)`; the codes file used to be taken whole, so a count over
+  `CTX.codes()` was the cached load's). Tests: test_routines.py 136 (a routine over CTX run on a cached load around
+  the window: 3 of 5 passages, 4 of 7 codes, the host's CTX over the whole files overridden; no codes file - the empty
+  stand-in), the integrations walk (the cut run's count is the fake calendar's for the window). Two things the same
+  log showed, left as they are: the routine hard-codes February 2026 as the peak month from cell 6 on (the analyst
+  typed a value read off the data; the promoter's lift of it into an input was refused whole because one of its
+  thirteen edits named a cell where the literal does not occur - the all-or-nothing rule of `apply_edits`), so on a
+  window without February it stops at cell 6 with a KeyError, legibly; and the method's own guard for an empty
+  bootstrap is the method's.
 - **The planned workouts file: the prescription beside the context (2026-10-15, patch 0169; executor image v56;
   docs/CONTEXT_DESIGN.md §3.1a).** Palo's decision after the interval-compliance routine: the context design drops a
   planned workout's step lines from the words - rightly, the coder should never see `-10m 220w` - but left the

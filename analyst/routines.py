@@ -683,8 +683,11 @@ def dtype_family(dtype: str) -> str:
 
 
 # how a cached load is cut to the window a run asks for (2026-10-11): the frame by its date column; each auxiliary file
-# by the column the loader keyed it on, or by the rides kept when it has none; a file with neither is taken whole and said
-CUT_RULES = {"summary": ("date", "start_date_local"), "wellness": ("date", "date"), "intervals": ("ids", "activity_id"), "plan": ("date", "date")}
+# by the column the loader keyed it on, or by the rides kept when it has none; a file with neither is taken whole and said.
+# The context file by its day and the codes file by the passages the cut context keeps (2026-10-16: the codes file has
+# no date - taken whole, a code count over CTX.codes() would have been the cached load's)
+CUT_RULES = {"summary": ("date", "start_date_local"), "wellness": ("date", "date"), "intervals": ("ids", "activity_id"), "plan": ("date", "date"),
+             "context": ("date", "date"), "codes": ("passages", "id")}
 DATA_MARK_OUT = "ROUTINE_DATA:"             # printed by a run's prelude after a cut: the rows the method saw
 
 
@@ -709,8 +712,10 @@ CUT_SNIPPET = """def _routine_cut_frame(frame, col, start, end):
         return frame
     _t = _pd.to_datetime(frame[col], errors='coerce')
     return frame[(_t >= _pd.Timestamp(start)) & (_t < _pd.Timestamp(end) + _pd.Timedelta(days=1))].copy()
-def _routine_cut_table(table, by, col, start, end, ids):
+def _routine_cut_table(table, by, col, start, end, ids, passages=None):
     import pandas as _pd
+    if by == 'passages':
+        return (table[table[col].astype(str).isin(passages)].copy(), 'passages') if col in table.columns and passages is not None else (table, 'whole')
     if by == 'auto':
         _named = [c for c in table.columns if any(k in str(c).lower() for k in ('date', 'start', 'time'))]
         for c in _named + [c for c in table.columns if c not in _named]:
@@ -757,9 +762,10 @@ def _routine_conform(frame, columns):
     import os as _os, json as _j, numpy as _np, pandas as _pd
     df = _routine_cut_frame(df, _ROUTINE_CUT['column'], _ROUTINE_CUT['start'], _ROUTINE_CUT['end'])
     _ids = set(df['activity_id'].astype(str)) if 'activity_id' in df.columns else set()
+    _passages = set()                                     # the ids of the context table's rows kept, for the codes file
     _later = []
     for _new, _spec in _ROUTINE_CUT['files'].items():
-        if _spec.get('by') == 'ids':
+        if _spec.get('by') in ('ids', 'passages'):
             _later.append((_new, _spec)); continue
         _later.insert(0, (_new, _spec))
     for _new, _spec in _later:
@@ -771,9 +777,11 @@ def _routine_conform(frame, columns):
         except Exception:
             _t = _pd.DataFrame(columns=list(_spec.get('columns') or []))
             print('ROUTINE: ' + _os.path.basename(_spec['source']) + ' could not be read from the cached load; an empty table stood in for it')
-        _t, _how = _routine_cut_table(_t, _spec.get('by') or 'auto', _spec.get('column') or '', _ROUTINE_CUT['start'], _ROUTINE_CUT['end'], _ids or None)
+        _t, _how = _routine_cut_table(_t, _spec.get('by') or 'auto', _spec.get('column') or '', _ROUTINE_CUT['start'], _ROUTINE_CUT['end'], _ids or None, _passages)
         if _how == 'date' and 'activity_id' in _t.columns:
             _ids |= set(_t['activity_id'].astype(str))
+        if _how == 'date' and 'id' in _t.columns and 'kind' in _t.columns:
+            _passages |= set(_t['id'].astype(str))
         for _c in _spec.get('columns') or []:
             if _c not in _t.columns:
                 _t[_c] = _np.nan
@@ -831,13 +839,16 @@ if _ROUTINE_SPAN and 'df' in globals() and df is not None:
 
 
 def conform_prelude(columns: Iterable[dict], files: Optional[Iterable[Tuple[str, str, List[str], str]]] = None,
-                    span: Optional[Iterable[Tuple[str, str]]] = None, cut: Optional[dict] = None) -> str:
+                    span: Optional[Iterable[Tuple[str, str]]] = None, cut: Optional[dict] = None,
+                    context: Optional[Tuple[str, str]] = None) -> str:
     """The block a run executes after its inputs: the recorded columns of `df`, the files the executed text names
     (each as [this run's path, the recorded path, the recorded columns, bound | placeholder | cache | cut]), the inputs
     that follow the frame's own dates (each as [key, date column]) and, for a run on a cached load, the cut to its
     window ({start, end, column, files: {this run's path: {source, columns, by, column}}}); then the cut, the conform
     of the frame, the files made sure of, and those inputs written from the frame and printed after ROUTINE_INPUTS:
-    for the record."""
+    for the record. With `context` (the run's own context and codes files, 2026-10-16) CTX is defined over them last
+    of all - the host's prelude points it at the files loaded now, which on a cached load are the whole load's, not
+    the window's (Palo's routine, cut to four months, read seventeen months of words against four months of rides)."""
     cols = [[str(c.get("name")), str(c.get("dtype") or "")] for c in (columns or []) if c.get("name") is not None]
     fl = [[str(n), str(o or ""), [str(c) for c in (cs or [])], str(k or "")] for n, o, cs, k in (files or [])]
     sp = [[str(k), str(c)] for k, c in (span or []) if k and c]
@@ -846,8 +857,12 @@ def conform_prelude(columns: Iterable[dict], files: Optional[Iterable[Tuple[str,
         ct = {"start": str(cut["start"]), "end": str(cut["end"]), "column": str(cut.get("column") or ""),
               "files": {str(n): {"source": str(v.get("source") or ""), "columns": [str(c) for c in (v.get("columns") or [])], "by": str(v.get("by") or "auto"), "column": str(v.get("column") or "")}
                         for n, v in (cut.get("files") or {}).items()}}
+    ctx = ""
+    if context and context[0]:
+        from analyst.context import kernel_api_source
+        ctx = "\n# the words the method reads: CTX over this run's own context and codes files\n" + kernel_api_source(str(context[0]), str(context[1] or ""))
     return ("_ROUTINE_COLUMNS = " + json.dumps(cols) + "\n_ROUTINE_FILES = " + json.dumps(fl) + "\n_ROUTINE_SPAN = " + json.dumps(sp)
-            + "\n_ROUTINE_CUT = " + ("None" if ct is None else json.dumps(ct)) + "\n" + CONFORM_PRELUDE)
+            + "\n_ROUTINE_CUT = " + ("None" if ct is None else json.dumps(ct)) + "\n" + CONFORM_PRELUDE + ctx)
 
 
 SHAPE_MARK = "SHAPE:"

@@ -277,7 +277,8 @@ question that needs words the window does not hold → the analyst says so, as w
 A routine made from a chain that read context records `context` and `codes` among its auxiliary kinds; its run
 loads them with the window (F1 in the run dialog's load, the coder included); the method's lines that print counts
 are compared like any RESULT line; a run on a window with no words prints zeros and the comparison says *no
-passages in this window*. A method that cites a passage id does not survive another window (ids are per load) —
+passages in this window*. `CTX` in a run is the run's own context and codes files — on a cached load cut to the
+window, the codes to the passages kept (2026-10-16; before, it was the whole load's words beside a cut summary). A method that cites a passage id does not survive another window (ids are per load) —
 the promoter's existing rule, values read off the data are variables, covers it: a routine counts and filters, it
 does not cite.
 

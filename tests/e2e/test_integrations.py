@@ -800,6 +800,10 @@ def main():
                   and any("LOAD" in r and "cut from the cache" in r for r in rv_d["rows"]) and f"cut to {d_start.isoformat()} → {d_end.isoformat()} from the cached load" in _chk_d
                   and run3_n.get("status") in ("ran", "reproduced") and sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []) == ["codes", "context", "plan", "summary", "wellness"]
                   and not run3_n.get("aux_absent") and "Run 3 complete" in rv_d["done"] and not rv_d["warn"], (prog_d[:200], rv_d["position"], _chk_d[:300], sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []), run3_n.get("aux_absent"), rv_d["done"][:160]))
+            # the words of a cut run are the window's (2026-10-16): the count the method printed is the fake calendar's for the
+            # window, not the cached load's (CTX used to read the files loaded now - the whole load's context)
+            res3_n = {r_.get("what"): rt_number(r_.get("estimate")) for r_ in run3_n.get("results") or []}
+            check("the cut run's words are the window's: the fatigue count is the fake calendar's for the window, smaller than the cached load's", res3_n.get("of them read as fatigue by the coding pass") == fatigue_expected(d_start, d_end) and fatigue_expected(d_start, d_end) < exp_a, (res3_n, fatigue_expected(d_start, d_end), exp_a))
             errs = page.evaluate("window.__stackErrors || []")
             b.close()
         apis = __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"]

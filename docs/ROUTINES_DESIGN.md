@@ -315,11 +315,16 @@ version's data record, `load`), and offers the data loaded now beside it.
    downloaded again, and used whole it would have shown the cached window's numbers — min/max, counts, all of it):
    the smallest such load is taken, and the run *cuts it to the window before the method runs* — the frame by its
    date column (the one recorded at promotion), the summary by each ride's `start_date_local`, the wellness file by
-   its `date`, the intervals file by the rides kept, any other file by a column of dates it finds or by the rides, or
+   its `date`, the intervals file by the rides kept, the context file by its `date` and the codes file by the
+   passages the cut context keeps (2026-10-16), any other file by a column of dates it finds or by the rides, or
    whole and said — each cut file written at its mirror path in the run's folder (since 0159; before, under the
    loader's own name for that window), with the recorded columns it lacks added, so the method sees what a fresh
    download of the window would have given it (`CUT_RULES`, `_ROUTINE_CUT` in the prelude; the value check cuts
-   the same way). The line reads *inside the cached load … → … - it will be cut to the window, no
+   the same way). **`CTX` in a run is defined over the run's own context and codes files** — the mirror copies,
+   cut, or the empty stand-in for one this load lacks — by the run's prelude, last of all (2026-10-16, patch 0170:
+   the host's kernel prelude points `CTX` at the files loaded now, which on a cached load are the whole load's;
+   Palo's routine, cut to four months, read seventeen months of words against four months of rides and fell over
+   on the months that had words but no rides). The line reads *inside the cached load … → … - it will be cut to the window, no
    download*; the LOAD row *cut from the cache*; the CHECK row *cut to … → … from the cached load … → …*; the
    record's `load` carries `cached_from`, its `date_range` and `rows` are the window's as the method saw them, its
    `bindings` read *cut*. The Data tab afterwards holds the cached load itself (that is what the executor has), and
