@@ -16,9 +16,17 @@
 /* ---- top bar ---- */
 .topbar .brand { display: flex; align-items: center; height: 100%; }
 .topbar .brand-name { font-size: var(--fs-body); font-weight: 600; letter-spacing: .02em; color: var(--text-secondary); margin-right: 8px; }
-.topbar .sp { flex: 1; }
-/* the dataset chips: the thread's identity, in the bar (file-management.js fills them) */
-.topbar #datasetStatusPillsContainer { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; margin: 0; padding: 0; min-width: 0; overflow: hidden; }
+/* the dataset chips: the thread's identity, in the bar (file-management.js fills them). One row that takes the bar up to
+   the chain navigation and scrolls sideways when the chips outrun it (2026-10-15: a load with the context brings five
+   files, and more auxiliaries are coming - the row used to clip what did not fit); the scrollbar is hidden, the wheel
+   scrolls it (core.js pillStrip), and a fade at either edge says there is more (.more-left / .more-right). */
+.topbar #datasetStatusPillsContainer { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; margin: 0; padding: 0; min-width: 0; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
+.topbar #datasetStatusPillsContainer::-webkit-scrollbar { display: none; }
+.topbar #datasetStatusPillsContainer.more-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+.topbar #datasetStatusPillsContainer.more-left { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px); mask-image: linear-gradient(to right, transparent, #000 28px); }
+.topbar #datasetStatusPillsContainer.more-left.more-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+.topbar #datasetStatusPillsContainer > * { flex-shrink: 0; }
+.topbar .sp { flex: 0 0 6px; }                                      /* the chips take the free width now; the spacer is the gap before the navigation */
 .topbar .dataset-status-pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-secondary); font-size: var(--fs-small); font-style: normal; color: var(--text-secondary); margin: 0; white-space: nowrap; max-width: 320px; }
 .topbar .dataset-status-pill .clickable-pill-content { overflow: hidden; text-overflow: ellipsis; }
 .topbar .dataset-status-pill.primary-dataset-pill, .topbar .dataset-status-pill.intervals-dataset-pill, .topbar .dataset-status-pill.sweatstack-dataset-pill, .topbar .dataset-status-pill.endura-dataset-pill { border-color: var(--chip-model-border); color: var(--c-model); }   /* a dataset from an integration is the primary dataset */

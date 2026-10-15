@@ -67,7 +67,7 @@
 - **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/131/33/37/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_integrations.py` (88; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (88; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,16 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The dataset chips: one row that scrolls (2026-10-15, patch 0168).** Palo: the bar's chip row is of limited width, a
+  load with the context brings five files, and more auxiliaries are coming (a rider profile, zones, custom metrics) -
+  the row must stay one row, reaching the chain navigation, and scroll sideways rather than wrap or clip (it clipped:
+  `overflow: hidden`). shell.css: `#datasetStatusPillsContainer` takes the free width (`flex: 1 1 auto`, the spacer is
+  now a 6 px gap before the navigation), `overflow-x: auto` with the scrollbar hidden, the chips never shrink, and a
+  mask fade at either edge under `.more-left` / `.more-right`; core.js `pillStrip` sets the two classes on scroll,
+  resize and mutation, turns a vertical wheel over the row into a sideways scroll, and brings the newest chip into
+  view when one is added (the chip that is loading or coding is the one changing). Tests: tests/e2e/test_pill_strip.py
+  (5, Chromium over the bar's own markup, CSS and script: two chips and nine, one row at the bar's height, the
+  navigation in place, the newest chip in view, the fades, the wheel); test_shell.js 67.
 - **A choice over a column the script computes (2026-10-15, patch 0167).** Palo's routine from the benchmark's
   interval-compliance question (thirteen cells over the plan notes, the summary's compliance score, the laps and the
   codes; run zero reproduced) was refused at every run: *column head is not in this data (for 'VT1')*, sixteen

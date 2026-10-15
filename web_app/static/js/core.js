@@ -342,11 +342,43 @@ function continueAppInitialization() {
 //  APPLICATION STARTUP
 //--------------------
 
+// The dataset chips' row in the top bar (2026-10-15): one row that scrolls sideways when the chips outrun it. The wheel
+// moves it (a mouse wheel is vertical; the row is not), the edge fades say there is more on either side, and a chip that
+// has just been added or is loading is brought into view. The chips themselves are made by file-management.js.
+function pillStrip(container) {
+    if (!container || container.__strip) return;
+    container.__strip = true;
+    const update = () => {
+        const more = container.scrollWidth - container.clientWidth > 1;
+        container.classList.toggle('more-left', more && container.scrollLeft > 1);
+        container.classList.toggle('more-right', more && container.scrollLeft + container.clientWidth < container.scrollWidth - 1);
+    };
+    container.addEventListener('wheel', e => {
+        if (container.scrollWidth <= container.clientWidth) return;
+        const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        if (!d) return;
+        container.scrollLeft += d;
+        e.preventDefault();
+    }, { passive: false });
+    container.addEventListener('scroll', update, { passive: true });
+    if (typeof ResizeObserver === 'function') new ResizeObserver(update).observe(container);
+    if (typeof MutationObserver === 'function') {
+        new MutationObserver(records => {
+            update();
+            const added = records.flatMap(r => [...r.addedNodes]).filter(n => n.nodeType === 1).pop();   // the newest chip, into view
+            if (added && typeof added.scrollIntoView === 'function') added.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }).observe(container, { childList: true });
+    }
+    update();
+    return update;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded event triggered');
     
     // Initialize core application (this happens immediately)
     initializeApp();
+    pillStrip(document.getElementById('datasetStatusPillsContainer'));
     
     // Initialize authentication after core is ready
     if (window.authService && typeof window.authService.initialize === 'function') {
