@@ -33,13 +33,14 @@ import re
 import hashlib
 import shutil
 from datetime import datetime, timedelta
+from intervals_store import Store, stores_under, RETENTION_DAYS as STORE_RETENTION_DAYS   # the Intervals.icu store (2026-10-15)
 
 # Set the number of CPU cores for pyarrow
 pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-14 v54 (the context: the coaches told by the plan; minute marks in step lines)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-15 v55 (the Intervals.icu store: a window is a view, only the new files are fetched)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -261,6 +262,7 @@ def inspect_cache():
             'cached_dataframes': cached_dataframes,
             'auxiliary_datasets': auxiliary_datasets,
             'generated_datasets': generated_datasets,  # Add this line
+            'stores': stores_under(user_datasets_dir),  # what each key's Intervals.icu store holds (2026-10-15)
             'cache_stats': {
                 'total_memory_mb': total_cache_mb,
                 'max_cache_size': df_cache.max_size,
@@ -1645,14 +1647,29 @@ def fetch_intervals_background(data, job_id):
         
         total_activities = len(activities_with_files)
         intervals_jobs[job_id]['total'] = total_activities
-        intervals_jobs[job_id]['message'] = f'Found {total_activities} activities to download...'
         
-        log_info(f"Found {total_activities} activities to process")
+        # The store (2026-10-15, docs/INCREMENTAL_LOADS_DESIGN.md): the window's list is the manifest of what
+        # Intervals holds. Every activity the store already has, under the same file signature, is taken from it;
+        # the rest are downloaded and kept; the frame is assembled from the store, cut to the metrics asked.
+        # `refresh` fetches every file and every chat again.
+        refresh = bool(data.get('refresh'))
+        store = Store(os.path.join('datasets', user_id), mark)
+        held = [] if refresh else [act for act in activities_with_files if store.has_detail(act)]
+        held_ids = {str(act.get('id')) for act in held}
+        todo = [act for act in activities_with_files if str(act.get('id')) not in held_ids]
+        intervals_jobs[job_id]['message'] = (f'The store holds all {total_activities} activities of this window; nothing to download'
+                                             if not todo else f'The store holds {len(held)} of {total_activities} activities; downloading {len(todo)}...')
+        log_info(f"Found {total_activities} activities to process; {len(held)} in the store, {len(todo)} to download" + (" (refresh)" if refresh else ""))
         
-        # Download and parse FIT files with progress tracking
-        detail_df = download_and_parse_fits_with_progress(
-            session, base_url, activities_with_files, selected_metrics, job_id
-        )
+        # Download and parse the files the store lacks, keeping each activity as it is parsed
+        kept = download_and_parse_fits_with_progress(session, base_url, todo, job_id, store) if todo else []
+        store.save()
+        
+        # The window's frame, from the store
+        intervals_jobs[job_id]['message'] = 'Assembling the window from the store...'
+        detail_df, unserved = store.assemble(activities_with_files, selected_metrics)
+        if unserved:
+            log_info(f"{len(unserved)} activities could not be served (download or parse failed): {unserved[:10]}")
         
         if detail_df.empty:
             intervals_jobs[job_id]['status'] = 'error'
@@ -1713,13 +1730,20 @@ def fetch_intervals_background(data, job_id):
             except Exception as e:                      # noqa: BLE001
                 log_info(f"context: the subject's record could not be fetched ({e})")
             rows, context_report = fetch_context_rows(session, base_url, activities, wellness_records or [], start_date, end_date,
-                                                      job_id=job_id, athlete=athlete)
+                                                      job_id=job_id, athlete=athlete, store=store, refresh=refresh)
             if athlete is None:
                 context_report['failed'].insert(0, "the subject's record could not be fetched, so authors are not told apart and custom fields are not read")
             context_path = save_aux_dataset(context_frame(rows), 'context', user_id, start_date, end_date, subdir=mark)
             aux_filepaths.append(context_path)
             context_report['path'] = context_path
-            log_info(f"context: {context_report['passages']} passages, {context_report['calls']} calls, {len(context_report['failed'])} failed")
+            log_info(f"context: {context_report['passages']} passages, {context_report['calls']} calls, {context_report.get('messages_reused', 0)} chats from the store, {len(context_report['failed'])} failed")
+        
+        # Housekeeping: what is older than the retention and not in recent use leaves the store; the manifest is written
+        retention = int(data.get('retention_days') or STORE_RETENTION_DAYS)
+        gone = store.prune(days=retention)
+        store.save()
+        if gone:
+            log_info(f"store: {gone} activities older than {retention} days left the store")
         
         # Mark as completed
         intervals_jobs[job_id]['status'] = 'completed'
@@ -1729,7 +1753,8 @@ def fetch_intervals_background(data, job_id):
             'shape': list(detail_df.shape),
             'columns': detail_df.columns.tolist(),
             'aux_datasets': aux_filepaths,
-            'context': context_report
+            'context': context_report,
+            'store': {'window': total_activities, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary()}
         }
         
         log_info(f"Intervals.icu data cached successfully: {detail_df.shape}")
@@ -1744,8 +1769,11 @@ def fetch_intervals_background(data, job_id):
         intervals_jobs[job_id]['error'] = f'Failed to fetch data: {str(e)}'
 
 
-def download_and_parse_fits_with_progress(session, base_url, activities, selected_metrics, job_id):
-    """Modified version that uses parallel processing for parsing"""
+def download_and_parse_fits_with_progress(session, base_url, activities, job_id, store):
+    """Download the files of `activities` (five at a time), parse them in parallel with every metric the file has,
+    and keep each activity's rows in the store as it is parsed (2026-10-15). Returns the ids kept; the caller
+    assembles the window from the store, cut to the metrics asked, so a later load asking for other metrics is
+    served from the same files."""
     
     def download_single_fit(activity):
         """Download a single FIT file"""
@@ -1804,8 +1832,8 @@ def download_and_parse_fits_with_progress(session, base_url, activities, selecte
             'percent': 0
         }
     
-    # PHASE 2: Parse with multiprocessing (NEW)
-    all_dfs = []
+    # PHASE 2: Parse with multiprocessing (NEW); every metric the file has, each activity kept in the store
+    kept = []
     parsed = 0
     total_to_parse = len(fit_data)
     
@@ -1813,18 +1841,19 @@ def download_and_parse_fits_with_progress(session, base_url, activities, selecte
     with ProcessPoolExecutor(max_workers=4) as executor:
         # Submit all parsing tasks
         future_to_activity = {
-            executor.submit(parse_fit_file_parallel, fit_bytes, activity_id, meta, selected_metrics): activity_id
+            executor.submit(parse_fit_file_parallel, fit_bytes, activity_id, meta, None): (activity_id, meta)
             for activity_id, (fit_bytes, meta) in fit_data.items()
         }
-        
+    
         # Collect results as they complete
         for future in as_completed(future_to_activity):
-            activity_id = future_to_activity[future]
+            activity_id, meta = future_to_activity[future]
             try:
                 df = future.result()
                 if df is not None:
-                    all_dfs.append(df)
-                
+                    store.put_detail(meta, df)
+                    kept.append(str(activity_id))
+    
                 # Update progress in main thread (thread-safe)
                 parsed += 1
                 if job_id in intervals_jobs:
@@ -1840,15 +1869,7 @@ def download_and_parse_fits_with_progress(session, base_url, activities, selecte
                 if job_id in intervals_jobs:
                     intervals_jobs[job_id]['progress'] = parsed
     
-    if not all_dfs:
-        return pd.DataFrame()
-    
-    # Final concatenation and sort (unchanged)
-    if job_id in intervals_jobs:
-        intervals_jobs[job_id]['message'] = 'Combining activity data...'
-    
-    combined_df = pd.concat(all_dfs, ignore_index=True)
-    return combined_df.sort_values('datetime', ascending=False).reset_index(drop=True)
+    return kept
 
 
 @app.route('/intervals_job/<job_id>', methods=['GET'])
@@ -2387,12 +2408,14 @@ def _custom_text_fields(custom_items):
     return out
 
 
-def fetch_context_rows(session, base_url, activities, wellness_records, start_date, end_date, job_id=None, athlete=None):
+def fetch_context_rows(session, base_url, activities, wellness_records, start_date, end_date, job_id=None, athlete=None, store=None, refresh=False):
     """The passages of a window (docs/CONTEXT_DESIGN.md §3.1). `activities` is the window's activity list as the API
     returned it; `wellness_records` the wellness JSON (a list of dicts, one per day); `athlete` the subject's record
     (GET /athlete/0: id, timezone, coach_ticks, custom_items) or None. Calls made here: the calendar events once, the
-    messages of every activity with a chat (one call each), one chat's members for the roles. Returns (rows, report)
-    where report = {'passages': n, 'kinds': {...}, 'calls': n, 'failed': [...]} and a failed call is a sentence."""
+    messages of every activity with a chat (one call each), one chat's members for the roles. With a `store`
+    (2026-10-15) the chat of an older, unchanged activity is taken from it instead of fetched, and every chat fetched
+    is kept there; `refresh` fetches them all. Returns (rows, report) where report = {'passages': n, 'kinds': {...},
+    'calls': n, 'messages_reused': n, 'failed': [...]} and a failed call is a sentence."""
     rows, failed, calls = [], [], 0
     athlete = athlete or {}
     subject_id = str(athlete.get('id') or '')
@@ -2517,18 +2540,28 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
             if val not in (None, '', []):
                 add('custom_field', day, f"{fname}: {val}", source_id=f"{day}#{code}", **own)
 
-    # --- the messages under activities with a chat ---------------------------------------------------------------
+    # --- the messages under activities with a chat: fetched for a recent or changed activity, from the store for
+    # an older unchanged one (its chat has settled; a refresh fetches every one again) -----------------------------
+    reused = 0
     for i, act in enumerate(with_chat, 1):
         aid = str(act.get('id') or '')
-        progress(f'Fetching messages {i}/{len(with_chat)}...')
-        try:
-            calls += 1
-            r = session.get(f"{base_url}/activity/{aid}/messages", params={'limit': 100}, timeout=30)
-            r.raise_for_status()
-            msgs = r.json() or []
-        except Exception as e:                              # noqa: BLE001
-            failed.append(f"the messages of activity {aid} could not be fetched ({type(e).__name__})")
-            continue
+        msgs = None
+        if store is not None and not refresh and store.messages_fresh(act):
+            msgs = store.get_messages(aid)
+            if msgs is not None:
+                reused += 1
+        if msgs is None:
+            progress(f'Fetching messages {i}/{len(with_chat)}...' + (f' ({reused} from the store)' if reused else ''))
+            try:
+                calls += 1
+                r = session.get(f"{base_url}/activity/{aid}/messages", params={'limit': 100}, timeout=30)
+                r.raise_for_status()
+                msgs = r.json() or []
+            except Exception as e:                              # noqa: BLE001
+                failed.append(f"the messages of activity {aid} could not be fetched ({type(e).__name__})")
+                continue
+            if store is not None and isinstance(msgs, list):
+                store.put_messages(act, msgs)
         for m in msgs:
             if not isinstance(m, dict) or m.get('deleted') or m.get('type') not in ('TEXT', 'NOTE'):
                 continue
@@ -2546,7 +2579,7 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
     kinds = {}
     for r in rows:
         kinds[r['kind']] = kinds.get(r['kind'], 0) + 1
-    return rows, {'passages': len(rows), 'kinds': kinds, 'calls': calls, 'failed': failed,
+    return rows, {'passages': len(rows), 'kinds': kinds, 'calls': calls, 'messages_reused': reused, 'failed': failed,
                   'activities_with_chat': len(with_chat), 'subject_id': subject_id, 'coach_ids': sorted(coach_ids), 'chat_roles': roles_seen}
 
 

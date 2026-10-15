@@ -32,6 +32,7 @@ COPY --from=builder /root/.local /home/appuser/.local
 
 # Copy application code
 COPY code_executor_api.py .
+COPY intervals_store.py .
 
 # The persistent kernel. kernel_service.py is the HTTP surface; the rest are
 # vendored from delv-e UNCHANGED and must stay at the same version as the copy

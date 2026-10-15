@@ -182,7 +182,7 @@ check("the file: context_notes_<start>_to_<end>.csv in the key's folder, readabl
       p == os.path.join("datasets", "u1", "abc123", "context_notes_20260615_to_20261013.csv") and os.path.exists(p) and list(pd.read_csv(p).columns) == E.CONTEXT_COLUMNS and len(pd.read_csv(p)) == 16, p)
 p2 = E.save_aux_dataset(pd.DataFrame(columns=["id", "code"]), "codes", "u1", "2026-06-15", "2026-10-13", subdir="abc123")
 check("the codes file's name beside it", p2.endswith(os.path.join("abc123", "context_codes_20260615_to_20261013.csv")), p2)
-check("the executor's build stamp is v54", "v54" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
+check("the executor's build stamp is v55 (the store is an image change)", "v55" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
 c = E.app.test_client()
 rr = c.post("/file_utils/read_aux_dataset", json={"file_path": p})
 check("the executor reads an auxiliary file whole (for the map and the coding pass): the text, its name and size; a path outside datasets/ is refused",

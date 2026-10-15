@@ -329,6 +329,10 @@ version's data record, `load`), and offers the data loaded now beside it.
    looking for its files in that folder; a frame marked with another key is said (*loaded under another key - it
    will be downloaded*), one from before the loader marked them is downloaded this once. The Intervals route puts
    the mark on the load record (`load.key`), so a routine and each run say which key they were made and run under.
+   **Below the cache, the store** (2026-10-15, docs/INCREMENTAL_LOADS_DESIGN.md): a miss no longer downloads the
+   window whole - the executor keeps every activity it has parsed under the key's folder and fetches only the
+   activities a window asks for that it does not hold (or whose file changed), so a run on a window a day wider
+   than a cached one costs one file, not a year's.
    A frame taken from the Dataset cache — the Data tab's cache, or a routine's run reusing a cached window — is
    recorded with the cached frame's own load (its source, window, metrics, auxiliary kinds and key mark, from the
    executor's metadata; `_load_of_cached`), marked `cached`, never as source "cache" (2026-10-12: a chain analysed

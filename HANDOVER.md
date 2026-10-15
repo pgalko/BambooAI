@@ -36,7 +36,7 @@
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v54** (patches 0143, 0145: the context fetch, the coaches by the plan) - rebuild and roll out.
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v55** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store) - rebuild and roll out; the hosted executor's job needs a volume at `/app/datasets` for the store to outlive a dispatch (docs/INCREMENTAL_LOADS_DESIGN.md §3).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/127/33/29/1/1 Python; 49/7/30/67/24/70/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/127/33/37/29/1/1 Python; 49/7/30/67/24/70/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (77; hosted only - the loaders need the executor; the
@@ -446,6 +446,32 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Intervals.icu store: a window is a view, only the new files are fetched (2026-10-15, patch 0161; executor image
+  v55; docs/INCREMENTAL_LOADS_DESIGN.md).** Every load from Intervals.icu downloaded its window whole - a routine's run
+  on a window a day wider than the Data tab's, or the Data tab's after a routine's, fetched a year's files again
+  (a gigabyte, minutes). Palo's decision: the cache is checked on every load, standard or by a routine, and only the
+  missing bits are downloaded. It is built where the files are fetched and parsed, in the executor
+  (`containers/executor/intervals_store.py`): under the key's folder, `datasets/<user>/<mark>/store/`, one parquet
+  file per activity with every metric its file had (zstd; a year 60-120 MB; a compressed pickle where pandas has no
+  parquet engine - the sandbox), the chat under each activity as JSON, and a manifest keyed by activity id. A load
+  fetches the window's activity list as before - it is the manifest of what Intervals holds - and takes from the
+  store every activity held under the same *signature* (a hash of `icu_sync_date`, `file_type`, `start_date_local`,
+  `elapsed_time`, `moving_time`, `distance`: a re-sync changes it, a rename does not), downloads the rest and keeps
+  them as they are parsed, then assembles the window from the store cut to the metrics asked (so other metrics over
+  the same window download nothing). The wellness log, the calendar and the subject's record are fetched fresh (one
+  call each); the chat under an activity is fetched again while the activity is within sixty days or its file
+  changed, and taken from the store for an older unchanged one; the request's `refresh` fetches every file and chat
+  again. When a load ends, activities older than 400 days (`retention_days` in the request for a shorter tier) leave
+  unless a load served them within thirty days - a routine over an old window keeps its data as long as it runs.
+  Progress says what the store held (*The store holds 91 of 101 activities; downloading 10...*); the job's result
+  carries `store` (window, held, fetched, refresh, the store's summary); the context report `messages_reused`;
+  `/cache/inspect` lists the stores by mark. The frame, the files and the Dataset cache above are unchanged; the
+  laps file is still fetched per activity (the same signature would serve it; later). Persistence is the next patch
+  (the single edition's container has no volume; the hosted job's volume is outside the repository). Tests:
+  tests/analyst/test_store.py (37: the pieces, and the executor's loader end to end over the fake calendar - a wider
+  second load fetches ten files and reuses the settled chats, the same window with other metrics nothing, a
+  re-synced activity alone, a refresh everything, the frame equal to a straight parse); the stamp checks of
+  test_context.py and test_documents_app.py read v55; the integrations walk 77 over the real executor process.
 - **Run zero behind the dialog; a run told its cost beforehand (2026-10-15, patch 0160).** Creating the first live
   routine over the words took nine minutes: not the promoter (36 s) and not the context - run zero, the method's
   twelve cells re-executed on the chain's data (cross-validated models and permutation tests over 1.3 million rows;
