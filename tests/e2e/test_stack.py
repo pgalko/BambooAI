@@ -353,6 +353,9 @@ def main():
                   and [p["key"] for p in rj["versions"][0]["manifest"]["parameters"]] == ["regime"] and "INPUTS['regime']" in rj["versions"][0]["script"]
                   and rj["origin"]["thread_id"] == str(page.evaluate("() => currentData.thread_id")) and rj.get("purpose", "").startswith("the within-soil"), (len(rdirs), rj.get("versions", [{}])[0].get("run_zero")))
             fav1 = os.path.join(workdir, "webapp", "storage", USER, "favourites", rj["origin"]["thread_id"], rj["origin"]["chain_id"] + ".json") if rdirs else ""
+            t_f = time.time()                                 # the favourite is saved by the page after the dialog closes; a quick run zero lands first (the local edition, 2026-10-15)
+            while fav1 and not os.path.exists(fav1) and time.time() - t_f < 20:
+                time.sleep(0.5)
             check("Save as routine saved the chain as a favourite too (individually)", fav1 and os.path.exists(fav1) and json.load(open(fav1)).get("bookmark_type") == "individual", fav1)
             page.hover("#rankButton")
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)

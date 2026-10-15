@@ -171,7 +171,9 @@ default in the auxiliary kinds. In the container, after the summary, wellness an
    turned inclusive.
 3. For each activity with `icu_chat_id` set, `GET /activity/{id}/messages?limit=100` — about two in three
    activities; 0.35 s each; the chat's members (from the first message's chat, or `GET /chats/{id}`) give the
-   roles. Deleted messages dropped; `ACTIVITY` / request types dropped.
+   roles. Deleted messages dropped; `ACTIVITY` / request types dropped. Since 2026-10-15 the chat of an activity
+   older than sixty days whose file is unchanged is taken from the executor's store instead of fetched
+   (docs/INCREMENTAL_LOADS_DESIGN.md); a load's *Refresh everything* fetches every chat again.
 4. The activity summary's new columns (§3.1); the context table written beside the other files in the key's
    folder; the job's result names it.
 

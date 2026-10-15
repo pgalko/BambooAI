@@ -67,7 +67,7 @@
 - **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/127/33/37/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_integrations.py` (77; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_integrations.py` (86; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,17 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The store proved on the real executor (2026-10-15, patch 0163).** The integrations walk counts the fake API's
+  calls around each load (`calls_of`): the first load fetches the 60-day window whole (the dialog's line *60
+  activities downloaded*; the key's store on disk with the manifest and a file per activity); the routine's run on
+  the window ending today (19 days overlap) fetches 41 FIT files, its LOAD row's fold and its record's `load.store`
+  say *19 of 60 activities from the store, 41 downloaded*; the second key gets a store of its own and the first's is
+  untouched; the original window loaded again with the context fetches no file and each chat once; the same window
+  in a new thread fetches no chat (all older than sixty days) and the context file carries the same messages; Refresh
+  everything fetches all 60 files and every chat again and the box is off after; the Dataset cache panel lists both
+  stores. The fake API's call log keeps 3000 entries now (the refresh load adds up). Integrations walk 86. The stack
+  walk's favourite check waits up to twenty seconds for the file: the page saves the favourite after the dialog
+  closes, and in the local edition a quick run zero now lands before it (a race of the walk's, not the page's).
 - **The store kept, and seen (2026-10-15, patch 0162).** Persistence: `bambooai serve` ran the executor container with no
   volume, and the container is recreated on every image change, so the store (and the loaded windows' files) would
   have gone with each executor update; `start_executor` now mounts the named Docker volume `bambooai-datasets` at

@@ -125,5 +125,9 @@ fake session - a first load fetches every file; a wider second load only the ten
 from the store; the same window with other metrics nothing; a re-synced activity alone, its chat with it; a refresh
 everything; the frame from the store equal to a straight parse; the progress lines; `/cache/inspect`; the error when
 nothing can be fetched. `tests/analyst/test_context.py` (33) still covers the context builder; the stamp check reads
-v55. The e2e integrations walk proves the same against the real executor process over the fake API's call log
-(patch 0163).
+v55. The e2e integrations walk (86) proves the same against the real executor process over the fake API's call
+log: the first load fetches the 60-day window whole; the routine's run on the window ending today (19 days of
+overlap) fetches 41 files and its LOAD row says *19 of 60 activities from the store, 41 downloaded*; a second key
+gets a store of its own; the original window loaded again with the context fetches no file and each chat once; the
+same window in a new thread fetches no chat; Refresh everything fetches all 60 files and every chat; the Dataset
+cache panel lists both stores.

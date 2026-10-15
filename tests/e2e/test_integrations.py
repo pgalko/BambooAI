@@ -75,6 +75,11 @@ def set_window(page, start, end):
     page.evaluate("([s, e]) => { const a = document.getElementById('intervalsStartDate'), b = document.getElementById('intervalsEndDate'); a.min = ''; b.min = ''; a.value = s; b.value = e; }", [start.isoformat(), end.isoformat()])
 
 
+def calls_of(st, kind):
+    """How many calls the fake APIs have seen whose path carries `kind` (fit-file, messages...), from their log."""
+    return len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if kind in c[1]])
+
+
 def fetch_json(page, url, body=None, method=None):
     return page.evaluate("([u, b, m]) => window.authService.fetch(u, b == null ? undefined : { method: m || 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json().then(j => ({ status: r.status, json: j })).catch(() => ({ status: r.status, json: null })))",
                          [url, body, method])
@@ -114,6 +119,13 @@ def main():
             tag_a = f"{a_start.strftime('%Y%m%d')}_to_{a_end.strftime('%Y%m%d')}"
             check("the loader wrote the summary and the wellness files named after the window, under the folder of the key that loaded them; nothing at the user's folder itself",
                   aux_a == [f"activity_summary_{tag_a}.csv", f"wellness_data_{tag_a}.csv"] and not glob.glob(os.path.join(workdir, "executor", "datasets", USER, "*.csv")), aux_a)
+            # the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): the first load fetched the window whole and kept it
+            msg_a = page.inner_text("#intervals-modal-message")
+            store_a = os.path.join(exec_ds, "store")
+            manifest_a = json.load(open(os.path.join(store_a, "activities.json"))) if os.path.isfile(os.path.join(store_a, "activities.json")) else {}
+            check("the first load downloaded the window whole and the dialog's line says so (60 activities downloaded); the executor kept every activity in the key's store - the manifest and one file each - beside the window's files",
+                  "Data loaded successfully! 60 activities downloaded." in msg_a and len(manifest_a) == 60 and len(os.listdir(os.path.join(store_a, "activities"))) == 60 and all(r.get("signature") and r.get("day") for r in manifest_a.values()),
+                  (msg_a, len(manifest_a), sorted(os.listdir(store_a)) if os.path.isdir(store_a) else None))
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
 
             page.fill("#queryInput", mod.QUESTIONS[0])
@@ -187,6 +199,9 @@ def main():
             page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && c.textContent.length > 0; }", timeout=15000)
             cl = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-cache').textContent, cls: document.querySelector('#routineRunModal .rt-cache').className })")
             check("the dialog asked the executor's cache about the window: the next window is not there, so it says it will be downloaded", "miss" in cl["cls"] and "not in the cache" in cl["text"] and "will be downloaded" in cl["text"], cl)
+            refresh_box = page.evaluate("() => { const b = document.querySelector('#routineRunModal input[data-load=\"refresh\"]'); return b ? { on: b.checked, text: b.closest('label').textContent } : null; }")
+            check("the run dialog offers Refresh everything under the window, off (the store below the cache, 2026-10-15)", refresh_box and refresh_box["on"] is False and "fetch every file and message of the window again" in refresh_box["text"], refresh_box)
+            fits_before_run1 = calls_of(st, "fit-file")
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && p.style.display !== 'none' && p.textContent.length > 0; }", timeout=30000)
             first = page.inner_text("#routineRunModal .rt-progress")
@@ -199,6 +214,10 @@ def main():
                 cmp: (document.getElementById('content-comparison') || {}).textContent || '', tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id), pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()),
                 locked: document.getElementById('queryInput').disabled, chip: document.querySelector('#containerStatusText').textContent })""")
             tag_b = f"{b_start.strftime('%Y%m%d')}_to_{b_end.strftime('%Y%m%d')}"
+            fits_run1 = calls_of(st, "fit-file") - fits_before_run1
+            load_row = page.evaluate("() => { const r = [...document.querySelectorAll('.sp-row.tool')].find(e => /LOAD/.test(e.textContent)); return r ? { text: r.textContent, fold: (r.querySelector('.out') || {}).title || '' } : null; }")
+            check("run 1's load fetched only the days the store lacked: 41 FIT files for the 60-day window (19 of its days are the original's, held under the same signature); the LOAD row's fold says 19 of 60 activities from the store, 41 downloaded",
+                  fits_run1 == 41 and load_row is not None and "19 of 60 activities from the store, 41 downloaded" in load_row["fold"], (fits_run1, load_row))
             check("the run view: a LOAD row naming the window and its auxiliaries, a CHECK row saying power is empty in this window, the wellness file absent and one of the chosen session types not in this window's summary (the method keeps the other), a RUN row, a COMPARE row; the closing card ran against run 0; the composer locked, the chip back to Ready",
                   any("LOAD" in r and f"Intervals.icu {b_start.isoformat()} → {b_end.isoformat()}" in r and "summary" in r and "wellness" in r for r in rv["rows"])
                   and any("CHECK" in r and "columns empty in this data: power" in r and "wellness absent in this data" in r and "'Ride' is not in column type of the summary file - the method keeps the other value" in r for r in rv["rows"])
@@ -227,6 +246,7 @@ def main():
                   "Loaded as" in dtab and f"Intervals.icu {b_start.isoformat()} → {b_end.isoformat()}" in dtab and f"activity_summary_{tag_a}.csv → activity_summary_{tag_b}.csv" in dtab and "wellness: absent in this data" in dtab, dtab[:400])
             run1 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "run.json")))
             run_dir = os.path.join(workdir, "executor", run1["run_dir"])
+            check("the run's record carries the store's part of its load (window, held, fetched, refresh) and the stored run's Data tab says it", run1["data"]["load"].get("store") == {"window": 60, "held": 19, "fetched": 41, "refresh": False} and "19 of 60 activities from the store, 41 downloaded" in dtab, (run1["data"]["load"].get("store"), dtab[:300]))
             sp = run1.get("inputs", {}).get("span") or ["", ""]
             check("the dates input was written from this window's frame: its first and last dates on the record, inside the window loaded and not the original's; the label printed carries them; the output keeps no marker line",
                   b_start.isoformat() <= sp[0] <= sp[1] <= b_end.isoformat() and sp != [a_start.isoformat(), a_end.isoformat()] and run1["inputs"].get("band") == [9, 11]
@@ -381,6 +401,8 @@ def main():
                   (r5["rows"], (fits_after4, fits_after5), run5["data"].get("load")))
             exec_ds2 = os.path.join(workdir, "executor", "datasets", USER, _kf("stack-key-two"))
             check("the second key's files went to its own folder; the first key's are where they were", os.path.exists(os.path.join(exec_ds2, f"activity_summary_{tag_a}.csv")) and os.path.exists(os.path.join(exec_ds, f"activity_summary_{tag_a}.csv")), (sorted(os.listdir(exec_ds2)), sorted(os.listdir(exec_ds))))
+            check("the second key has a store of its own, with the window just fetched; the first key's store was not consulted for it (the whole window was downloaded) and holds its 101 activities still",
+                  len(json.load(open(os.path.join(exec_ds2, "store", "activities.json")))) == 60 and len(json.load(open(os.path.join(exec_ds, "store", "activities.json")))) == 101, None)
             # the first key again: its window is still in the cache, untouched by the second key's load
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
             page.click("#routinesPill")
@@ -459,9 +481,13 @@ def main():
             set_window(page, a_start, a_end)
             cx_default = page.evaluate("() => document.getElementById('context-checkbox').checked")
             page.evaluate("() => ['summary-checkbox', 'wellness-checkbox', 'context-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
+            fits_before_c, msgs_before_c = calls_of(st, "fit-file"), calls_of(st, "/messages")
             page.click("#connectIntervals")
             page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
             msg = page.inner_text("#intervals-modal-message")
+            chats_a = sum(1 for i in range(60) if apis_data.has_chat(a_start + timedelta(days=i)))
+            check("the original window loaded again with the context: no FIT file fetched (all 60 activities from the store, the line says so); the chats fetched once, one call per activity with a chat",
+                  calls_of(st, "fit-file") == fits_before_c and calls_of(st, "/messages") - msgs_before_c == chats_a and "all 60 activities from the store, nothing downloaded" in msg, (calls_of(st, "fit-file") - fits_before_c, calls_of(st, "/messages") - msgs_before_c, chats_a, msg[:200]))
             page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /W\\+S\\+C/.test(p.textContent))", timeout=60000)
             pills_c = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
             ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); if (!p) return null; const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, spinner: !!p.querySelector('.file-upload-spinner'), rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
@@ -610,12 +636,32 @@ def main():
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
             set_window(page, a_start, a_end)
             page.evaluate("() => ['summary-checkbox', 'wellness-checkbox', 'context-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
+            msgs_before_r = calls_of(st, "/messages")
             page.click("#connectIntervals")
             page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             reuse_line = page.evaluate("() => (document.querySelector('#contextPill .dataset-pill-content') || {}).getAttribute('title')")
             check("the same window loaded again in a new thread: the pass reused the store (the line says so) and settled in seconds", "already coded by an earlier load" in (reuse_line or ""), reuse_line)
+            ctx_again = pd.read_csv(os.path.join(exec_ds, f"context_notes_{tag_a}.csv"), dtype=str, keep_default_na=False)
+            check("the chats of the window came from the store this time (every activity is older than sixty days and unchanged): no messages call, and the context file has the messages as before",
+                  calls_of(st, "/messages") == msgs_before_r and (ctx_again.kind == "activity_message").sum() > 0 and ctx is not None and (ctx_again.kind == "activity_message").sum() == (ctx.kind == "activity_message").sum(), (calls_of(st, "/messages") - msgs_before_r, (ctx_again.kind == "activity_message").sum()))
+            # Refresh everything: the whole window fetched again - every FIT file and every chat - and the box cleared after
+            page.evaluate("() => { const b = document.getElementById('intervals-refresh'); b.checked = true; b.closest('label').classList.add('selected'); }")
+            fits_before_rf, msgs_before_rf = calls_of(st, "fit-file"), calls_of(st, "/messages")
+            page.click("#connectIntervals")
+            page.wait_for_function("() => /fetched again/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
+            page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
+            msg_rf = page.inner_text("#intervals-modal-message")
+            check("Refresh everything: every FIT file and every chat of the window fetched again, the line says 60 activities fetched again, and the box is off again for the next load",
+                  calls_of(st, "fit-file") - fits_before_rf == 60 and calls_of(st, "/messages") - msgs_before_rf == chats_a and "60 activities fetched again" in msg_rf and page.evaluate("() => document.getElementById('intervals-refresh').checked") is False,
+                  (calls_of(st, "fit-file") - fits_before_rf, calls_of(st, "/messages") - msgs_before_rf, msg_rf[:160]))
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
+            # the Dataset cache panel lists the key's store
+            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
+            page.wait_for_function("() => (document.getElementById('storeList') || {}).textContent && !/Nothing kept|Loading/.test(document.getElementById('storeList').textContent)", timeout=15000)
+            store_items = page.evaluate("() => [...document.querySelectorAll('#storeList .dataset-item')].map(e => e.textContent.replace(/\\s+/g, ' ').trim())")
+            check("the Dataset cache panel lists the stores under Store: one per key, with the activities and chats held, the span and the size", len(store_items) == 2 and any("101 activities" in i and f"{a_start.isoformat()} → {today.isoformat()}" in i and "MB" in i for i in store_items) and any("60 activities" in i for i in store_items), store_items)
+            page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
             page.fill("#queryInput", mod.COUNT_QUESTION)
             page.evaluate("setMode('deep')")
             page.click("#submitQuery")
