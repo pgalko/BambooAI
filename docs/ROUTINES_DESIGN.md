@@ -258,16 +258,29 @@ as routine; the first item then reads "Saved as favourite".
    choice (2026-10-12: they were written once, so a new routine was created under a button reading *Make it v2*,
    and a next version took the promoter's title as the routine's new name; a next version now keeps the name unless
    the person typed another). Create / Cancel.
-4. **Run zero.** On Create, the runner executes the script with the defaults on the chain's data through the
-   executor (the replay's path and timeout). The RESULT lines that come back are checked by position against the
-   chain's records: identical numbers reproduce; a different count or a different number is *differed*, an error
-   *failed* — and the routine is refused with the lines named ("Try again" re-proposes). With the chain's data no
-   longer loaded, the routine is created *unverified* and says so. A chain from before the data record takes the
-   data loaded now for its own.
-5. Stored: the routine, v1 (or the next version), its manifest, run zero with its output and figures. Then the
-   chain is saved as a favourite (silently, no rank) when it is not one yet. The pane shows the *ROUTINE* row with
-   run zero's verdict; a toast says "Routine made: <name> · v1 · verified on the original data"; the Routines rail
-   entry shows a count.
+4. **Stored at once, run zero behind the dialog** (rebuilt 2026-10-15, patch 0160: run zero re-executes every cell of
+   the chain — nine minutes on the first live routine over a heavy chain — and nobody waits for a dialog that long).
+   On Create the routine is stored, v1 (or the next version) with its manifest and `run_zero.status = verifying`,
+   the dialog closes, the chain is saved as a favourite (silently, no rank) when it is not one yet, and a toast
+   says "Routine made: <name> · v1 · verifying on the original data in the background". Then, in a thread of the
+   app, the runner executes the script with the defaults on the chain's data through the executor (the replay's
+   path and timeout). The RESULT lines that come back are checked by position against the chain's records:
+   identical numbers *reproduced* (verified); a different count or a different number *differed*, an error *failed*
+   — the verdict and its line land on the stored version (`verify_zero`; the output and figures saved as `v1_0`),
+   and the page, which follows the routine every three seconds, says it in a toast and refreshes the manager if
+   it is open. No pane row: a row emitted after the dialog's stream closed would land in the next request's. The
+   refusal creation used to give moves to the run: **a run and the precheck are held** while the version is
+   verifying (*still being verified on its chain's own data — run it when it has settled*) and for good after a
+   verdict that did not reproduce (*run zero did not reproduce the chain's analysis (…) — the method is not run on
+   other data; delete the routine, or make it again from the chain*), `zero_holds`; the manager's Run button is
+   disabled with the reason, the card's chip pulses *verifying…* or reads *did not reproduce*, the side item says
+   so. With the chain's data no longer loaded, the routine is created *unverified* and says so, and may run (its
+   first run shows whether the method still runs). A chain from before the data record takes the data loaded now
+   for its own. The library's foreground mode (`create(..., background=False)`, the tests' default) keeps the old
+   contract: a method that does not reproduce is refused and not kept.
+5. The run dialog says what a run will take before Run is pressed — *the last run took 8 min — expect about as
+   long* (from the last run, or run zero's time) — and the pane's REPLAY row says *12 cells · about 7 min* from
+   what the cells took the first time: the method's own cost, told rather than discovered.
 
 ### F2 — Run — built (rebuilt 2026-10-10: the routine loads its own data and makes it fit)
 
@@ -487,8 +500,8 @@ from, "made from this chain: <name> v1 · again, or as a next version".
 ```
 
 While the promoter works the body reads "The analyst is reading the chain and naming its inputs… · Analyst on
-<model>" and the pane shows the quiet card; a refusal (run zero differed, the script not understood) shows in the body
-with *Try again*. On a chain of an origin thread the body opens with *Next version of "…"* / *A new routine* and the
+<model>" and the pane shows the quiet card; a refusal (the script not understood, an input dropped that the script still
+reads) shows in the body with *Try again*; run zero's verdict comes later, behind the dialog (F1 step 4). On a chain of an origin thread the body opens with *Next version of "…"* / *A new routine* and the
 *What changed* line, and the button reads *Make it v2*.
 
 ### S2 — Routines manager (modal, like Saved workflows)

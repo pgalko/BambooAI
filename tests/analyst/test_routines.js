@@ -95,6 +95,25 @@ check('manager body: purpose, question, the verified mark with run zero\'s line;
   && bd.querySelectorAll('.rt-vers .v').length === 2 && bd.querySelector('.rt-vers .v b').textContent === 'v2' && bd.querySelector('.rt-vers .v span').textContent.includes('the threshold became an input')
   && bd.querySelector('.rt-runs thead').textContent.includes('Run 0') && bd.querySelector('.rt-runlist .rt-run[data-run="0"] .rt-status').textContent === 'reproduced');
 check('manager actions carry Run first', el(b.actions(routine)).querySelector('[data-act="run"]') && el(b.actions(routine)).elements[0].getAttribute('data-act') === 'run');
+// run zero behind the dialog (2026-10-15): a routine can be verifying - the card's chip pulses and says so, the side item says so, Run is held with
+// the reason; a verdict that did not reproduce holds Run for good; an older record without a status reads from `verified` as before
+const verifying = JSON.parse(JSON.stringify(routine)); verifying.versions[1].run_zero = { status: 'verifying', verified: false, line: "verifying: the method is being run once on the chain's own data" };
+const differed = JSON.parse(JSON.stringify(routine)); differed.versions[1].run_zero = { status: 'differed', verified: false, line: '1 of 2 lines moved' };
+const vb = el(b.routineBody(verifying)), va = el(b.actions(verifying)), da = el(b.actions(differed)), db = el(b.routineBody(differed));
+check('a verifying routine: the chip says verifying… (pulsing class), Run disabled with the reason; a differed verdict: the chip says did not reproduce, Run disabled with the way out; a verified one: Run live',
+  vb.querySelector('.rt-status.verifying').textContent === 'verifying…' && va.querySelector('[data-act="run"]').hasAttribute('disabled') && va.querySelector('[data-act="run"]').getAttribute('title').includes('still being verified')
+  && db.querySelector('.rt-status.differed').textContent === 'did not reproduce' && db.textContent.includes('1 of 2 lines moved') && da.querySelector('[data-act="run"]').hasAttribute('disabled') && da.querySelector('[data-act="run"]').getAttribute('title').includes('make it again')
+  && !el(b.actions(routine)).querySelector('[data-act="run"]').hasAttribute('disabled') && b.zeroStatus({ verified: true }).includes('verified') && b.zeroStatus({}).includes('unverified'),
+  [vb.querySelector('.rt-status') && vb.querySelector('.rt-status').outerHTML, va.innerHTML.slice(0, 200)]);
+check('the side item says verifying… or did not reproduce from the summary card', el(b.sideItem({ id: 'x', name: 'N', source: 'file', current_version: 1, runs: 0, run_zero_status: 'verifying', created: 1791600000 }, false)).textContent.includes('verifying…')
+  && el(b.sideItem({ id: 'x', name: 'N', source: 'file', current_version: 1, runs: 0, run_zero_status: 'failed', created: 1791600000 }, false)).textContent.includes('did not reproduce')
+  && !el(b.sideItem({ id: 'x', name: 'N', source: 'file', current_version: 1, runs: 0, run_zero_status: 'reproduced', created: 1791600000 }, false)).textContent.includes('verifying'));
+// the run dialog says what a run will take, from the last run or from run zero (2026-10-15)
+const eta1 = el(b.runDialog(Object.assign({}, routine, { runs: [{ number: 1, version: 2, status: 'ran', created: 1791700100, elapsed: 512 }] }), { loaded: true, ok: true, line: 'fits', fit: { missing: [] }, data: { name: 'a.csv', source: 'csv', rows: 9, columns: 2 }, plan: { source: 'file' } })).textContent;
+const eta0 = el(b.runDialog(Object.assign({}, routine, { runs: [], versions: routine.versions.map((v, i) => i === 1 ? Object.assign({}, v, { run_zero: Object.assign({}, v.run_zero, { elapsed: 45 }) }) : v) }), { loaded: true, ok: true, line: 'fits', fit: { missing: [] }, data: { name: 'a.csv', source: 'csv', rows: 9, columns: 2 }, plan: { source: 'file' } })).textContent;
+const etaNone = el(b.runDialog(routine, { loaded: true, ok: true, line: 'fits', fit: { missing: [] }, data: { name: 'a.csv', source: 'csv', rows: 9, columns: 2 }, plan: { source: 'file' } })).textContent;
+check('the run dialog: the last run took 9 min - expect about as long; with no run yet, the check on the original data; nothing said under half a minute',
+  eta1.includes('the last run took 9 min — expect about as long') && eta0.includes('the check on the original data took 45 s') && !etaNone.includes('took'), [eta1.slice(0, 200), eta0.slice(0, 200)]);
 
 // ---- step 2: the run dialog ----
 const rr = Object.assign({}, routine, { runs: [{ number: 1, version: 2, created: 1791700000, status: 'ran', data: { name: 'small.csv', source: 'csv', rows: 5 }, inputs: { threshold: 155 }, comparison: { moved: 0, compared: 1, line: '0 of 1 changed' }, results: [{ estimate: '+3.00', low: null, high: null }] }] });

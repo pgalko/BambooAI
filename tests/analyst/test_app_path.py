@@ -128,10 +128,21 @@ check("the promoter's prompt carried the question, the two cells and the data's 
 check("the billing chain was charged as a query would be (the fake log manager wrote under it)", any(str(e.get("chain_id")) == "9001" for e in json.load(open(_runlog))), [e.get("chain_id") for e in json.load(open(_runlog))][-3:])
 made = BAMBOO.create_routine(prop["proposal_id"], {"name": "B against A", "purpose": "the difference, again", "drop_inputs": [], "drop_results": []})
 cev = [json.loads(q.get()) for _ in range(q.qsize())]
-check("create_routine: run zero ran through the executor (a pending row, the executor chip, the routine row) and the routine is stored verified",
-      [e.get("type") for e in cev] == ["pane_lookup_start", "pane_cell_start", "pane_lookup"] and cev[0].get("kind") == "routine" and cev[-1].get("kind") == "routine"
-      and made["run_zero"]["verified"] and made["run_zero"]["status"] == "reproduced" and made["routine"]["origin"] == {"thread_id": "1001", "chain_id": run1.id}
-      and os.path.exists(os.path.join(work, "storage", "u1", "routines", made["routine"]["id"], "routine.json")), (cev, made.get("run_zero")))
+def _settled(rid, timeout=60):
+    """Run zero runs behind the dialog (2026-10-15): the stored verdict, waited for."""
+    import time as _t
+    t0 = _t.time()
+    while _t.time() - t0 < timeout:
+        rz = (BAMBOO.routine_store().load(rid) or {}).get("versions", [{}])[-1].get("run_zero") or {}
+        if rz.get("status") not in ("verifying", None, ""):
+            return rz
+        _t.sleep(0.2)
+    return rz
+_rz = _settled(made["routine"]["id"])
+check("create_routine returns at once with the routine stored as verifying and no pane rows (run zero runs in a thread, 2026-10-15); the verdict lands on the record: reproduced, verified",
+      made["run_zero"]["status"] == "verifying" and not made["run_zero"]["verified"] and "verify" not in made and cev == [] and made["routine"]["origin"] == {"thread_id": "1001", "chain_id": run1.id}
+      and os.path.exists(os.path.join(work, "storage", "u1", "routines", made["routine"]["id"], "routine.json")) and _rz.get("status") == "reproduced" and _rz.get("verified") is True
+      and q.qsize() == 0, (cev, made.get("run_zero"), _rz))
 st = BAMBOO.routine_store()
 check("the store lists it with the favourite's card index pointing at run1", [r["id"] for r in st.all()] == [made["routine"]["id"]] and st.by_origin() == {("1001", run1.id): [{"id": made["routine"]["id"], "name": "B against A", "version": 1}]})
 try:
@@ -144,6 +155,7 @@ state["promoter"] = '{"name": "Broken", "inputs": [{"key": "arm_b", "label": "x"
 prop2 = BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9002")
 while not q.empty(): q.get()
 made2 = BAMBOO.create_routine(prop2["proposal_id"], {"name": "", "purpose": "", "drop_inputs": ["arm_b"], "drop_results": []})
+made2["run_zero"] = _settled(made2["routine"]["id"])          # the verdict, waited for (run zero runs behind the dialog)
 while not q.empty(): q.get()
 check("dropping the proposed input makes a routine without inputs; run zero on a chain without RESULT lines checks that the script runs",
       st.load(made2["routine"]["id"])["versions"][0]["manifest"]["parameters"] == [] and "INPUTS[" not in st.load(made2["routine"]["id"])["versions"][0]["script"] and "ran without error" in made2["run_zero"]["line"], made2.get("run_zero"))
@@ -214,7 +226,8 @@ check("route /routines/propose: streams the pane's rows and ends with routine_pr
 _pid = _msgs[-1]["routine_proposal"]["proposal_id"]
 _r = _wc.post("/routines/create", json={"proposal_id": _pid, "name": "Route made", "purpose": "p", "drop_inputs": [], "drop_results": []})
 _msgs = _lines(_r)
-check("route /routines/create: streams run zero's rows and ends with routine_made", "routine_made" in _msgs[-1] and _msgs[-1]["routine_made"]["run_zero"]["verified"] and _msgs[0].get("type") == "pane_lookup_start", _msgs[-1])
+_rz_r = _settled(_msgs[-1]["routine_made"]["routine"]["id"]) if "routine_made" in _msgs[-1] else {}
+check("route /routines/create: ends with routine_made at once, the routine verifying; the verdict lands behind it (no pane rows for it)", "routine_made" in _msgs[-1] and _msgs[-1]["routine_made"]["run_zero"]["status"] == "verifying" and _rz_r.get("status") == "reproduced" and not any(m.get("type") == "pane_lookup_start" for m in _msgs), _msgs[-1])
 _rid = _msgs[-1]["routine_made"]["routine"]["id"]
 check("route /routines: the list; /routines/<id>: the versions without scripts; by_origin: the card's index",
       [x["id"] for x in _wc.get("/routines").get_json()["routines"]] == [_rid] and _wc.get(f"/routines/{_rid}").get_json()["routine"]["versions"][0]["script_chars"] > 100
@@ -422,6 +435,7 @@ check("Save as routine on the follow-up: the script is its own cell (the earlier
       prop_b["cells"] == 1 and "groupby('arm')" not in prop_b["script"] and "z = 1" in prop_b["script"] and prop_b["data_state"] == "same"
       and any("continues 1 earlier chain of the thread that ran on other data (cells 1-2): the method is this chain's own cell 3" in n for n in prop_b["notes"]), (prop_b["cells"], prop_b["notes"]))
 made_b = BAMBOO.create_routine(prop_b["proposal_id"], {"name": "On the new frame", "purpose": ""}, routine_id=None)
+made_b["run_zero"] = dict(made_b["run_zero"], **_settled(made_b["routine"]["id"]))
 check("...created: run zero on the data loaded now runs the one cell and the routine's data is the new frame",
       made_b["run_zero"]["verified"] and made_b["routine"]["current_version"] == 1 and made_b["run_zero"]["data"]["df_id"] == "d2", made_b["run_zero"])
 st.delete(made_b["routine"]["id"])
@@ -456,6 +470,7 @@ FakeModels.config["agent_configs"].append({"agent": "Promoter", "details": {"mod
 while not q.empty(): q.get()
 prop_d = BAMBOO.propose_routine("1001", run_d.id, billing_chain_id="9009")
 made_d = BAMBOO.create_routine(prop_d["proposal_id"], {"name": "On the same frame again", "purpose": ""}, routine_id=None)
+made_d["run_zero"] = dict(made_d["run_zero"], **_settled(made_d["routine"]["id"]))
 check("Save as routine on it: the chain's data counts as loaded (the same data under a new id) - the script is the whole path, run zero verified",
       prop_d["data_state"] == "same" and prop_d["cells"] == 3 and made_d["run_zero"]["verified"] and made_d["run_zero"]["status"] == "reproduced", (prop_d["data_state"], prop_d["cells"], made_d["run_zero"]))
 st.delete(made_d["routine"]["id"])

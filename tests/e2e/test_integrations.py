@@ -53,6 +53,21 @@ def wait_run_end(page, n, timeout=240000):
     page.wait_for_timeout(300)
 
 
+def wait_verified(routine_json, timeout=240):
+    """Run zero runs behind the dialog (2026-10-15): wait until the stored version's verdict is in, and return it."""
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        try:
+            rj = json.load(open(routine_json))
+            rz = (rj.get("versions") or [{}])[-1].get("run_zero") or {}
+            if rz.get("status") not in (None, "", "verifying"):
+                return rj
+        except (OSError, ValueError):
+            pass
+        time.sleep(1.0)
+    return json.load(open(routine_json))
+
+
 def set_window(page, start, end):
     """The dialog's dates, set once the subscription limits have landed on the inputs (applyIntervalsDateLimits is
     async and writes today-365 when it resolves: set before it, the window was overwritten - 2026-10-14)."""
@@ -128,9 +143,14 @@ def main():
             page.click("#routineMakeModal [data-act='create']")
             page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
             err = page.evaluate("() => { const e = document.querySelector('#routineMakeModal .rt-error'); return e ? e.textContent : null; }")
-            check("Create routine: run zero reproduced the three lines on the original window", err is None, err)
+            t_create = time.time()
             rdirs = glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json"))
-            rj = json.load(open(rdirs[0])) if rdirs else {}
+            rj0 = json.load(open(rdirs[0])) if rdirs else {}
+            check("Create routine returns without waiting for run zero: the dialog closed with no error and the routine is stored - as verifying, or already with its verdict when run zero was quicker than the page (2026-10-15)",
+                  err is None and rdirs and (rj0.get("versions") or [{}])[0].get("run_zero", {}).get("status") in ("verifying", "reproduced"), (err, (rj0.get("versions") or [{}])[0].get("run_zero")))
+            rj = wait_verified(rdirs[0]) if rdirs else {}
+            check("run zero's verdict lands on the stored version: reproduced the three lines on the original window; the toast said so",
+                  (rj.get("versions") or [{}])[0].get("run_zero", {}).get("status") == "reproduced" and (rj.get("versions") or [{}])[0].get("run_zero", {}).get("verified") is True, (rj.get("versions") or [{}])[0].get("run_zero"))
             rec = rj["versions"][0]["manifest"]["data"] if rdirs else {}
             vs = rj["versions"][0] if rdirs else {}
             check("the stored script: the band read from INPUTS, the summary still read by the loader's dated name (the refused edit left no trace), the band the only parameter",
@@ -315,7 +335,9 @@ def main():
             page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
             err_c = page.evaluate("() => { const e = document.querySelector('#routineMakeModal .rt-error'); return e ? e.textContent : null; }")
             check("...created: run zero ran on the cached frame", err_c is None, err_c)
-            rj_c = next((json.load(open(f)) for f in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")) if "Again on the cached window" in open(f).read()), {})
+            rj_c_path = next((f for f in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")) if "Again on the cached window" in open(f).read()), None)
+            rj_c = wait_verified(rj_c_path) if rj_c_path else {}
+            check("...and its verdict landed: reproduced", (rj_c.get("versions") or [{}])[0].get("run_zero", {}).get("status") == "reproduced", (rj_c.get("versions") or [{}])[0].get("run_zero"))
             load_c = ((rj_c.get("versions") or [{}])[0].get("manifest") or {}).get("data", {}).get("load") or {}
             check("the routine's data record: the load is the cached frame's own Intervals load - the window, the kinds, the key's mark - marked cached, not 'cache'",
                   load_c.get("source") == "intervals" and load_c.get("cached") is True and load_c.get("start_date") == a_start.isoformat() and load_c.get("end_date") == a_end.isoformat()
@@ -404,6 +426,9 @@ def main():
             page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
             err = page.evaluate("() => { const e = document.querySelector('#routineMakeModal .rt-error'); return e ? e.textContent : null; }")
             check("an Endura routine is made from the generic chain (no inputs; run zero ran)", err is None, err)
+            # the Endura routine's verdict before its run (the manager holds Run while a routine is verifying)
+            for _f in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")):
+                wait_verified(_f)
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => document.querySelectorAll('#routinesModal .rt-side .it').length >= 2", timeout=15000)
@@ -613,7 +638,7 @@ def main():
             page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
             err_n = page.evaluate("() => { const e = document.querySelector('#routineMakeModal .rt-error'); return e ? e.textContent : null; }")
             rdirs_n = [d_ for d_ in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")) if "fatigue" in json.load(open(d_)).get("name", "").lower()]
-            rj_n = json.load(open(rdirs_n[0])) if rdirs_n else {}
+            rj_n = wait_verified(rdirs_n[0]) if rdirs_n else {}
             rec_n = ((rj_n.get("versions") or [{}])[0].get("manifest") or {}).get("data") or {}
             check("Create: run zero reproduced the two lines on the original window; the record's auxiliary files are the four of the load - summary, wellness, context, codes - under the key's folder, the load's kinds with context",
                   err_n is None and rdirs_n and (rj_n.get("versions") or [{}])[0].get("run_zero", {}).get("status") == "reproduced"

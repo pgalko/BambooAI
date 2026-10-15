@@ -337,12 +337,17 @@ def main():
             page.click("#routineMakeModal [data-act='create']")
             page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
             err_box = page.evaluate("() => { const e = document.querySelector('#routineMakeModal .rt-error'); return e ? e.textContent : null; }")
-            check("Create routine: run zero reproduced the chain's line through the executor and the dialog closed (no refusal)", err_box is None, err_box)
-            page.wait_for_timeout(1500)
-            pane_rows = page.evaluate("() => [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent)")
-            check("the pane carries the ROUTINE row with run zero's verdict", any("ROUTINE" in r and "reproduced: 1 result line(s) identical" in r for r in pane_rows), pane_rows[-2:])
+            check("Create routine: the dialog closed at once with no refusal (run zero runs behind it, 2026-10-15)", err_box is None, err_box)
             rdirs = glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json"))
+            # run zero behind the dialog: the verdict lands on the stored version; the pane carries no row for it (the toast and
+            # the manager's chip say it); wait for the verdict on disk before reading the record
+            t_v = time.time()
             rj = json.load(open(rdirs[0])) if rdirs else {}
+            while rdirs and (rj.get("versions") or [{}])[0].get("run_zero", {}).get("status") in ("verifying", None) and time.time() - t_v < 240:
+                time.sleep(1.0)
+                rj = json.load(open(rdirs[0]))
+            pane_rows = page.evaluate("() => [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent)")
+            check("the pane carries no ROUTINE row for run zero any more - it ran behind the dialog; the REPLAY row stays the chain's own", not any("ROUTINE" in r for r in pane_rows) and any("REPLAY" in r for r in pane_rows), pane_rows[-2:])
             check("the routine is stored under storage/<user>/routines with v1 verified by run zero, the regime input, and the chain as its origin",
                   len(rdirs) == 1 and rj.get("current_version") == 1 and rj["versions"][0]["run_zero"]["verified"] and rj["versions"][0]["run_zero"]["status"] == "reproduced"
                   and [p["key"] for p in rj["versions"][0]["manifest"]["parameters"]] == ["regime"] and "INPUTS['regime']" in rj["versions"][0]["script"]

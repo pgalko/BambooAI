@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/122/33/29/1/1 Python; 49/7/30/67/24/67/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/127/33/29/1/1 Python; 49/7/30/67/24/70/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (75; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (77; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,29 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Run zero behind the dialog; a run told its cost beforehand (2026-10-15, patch 0160).** Creating the first live
+  routine over the words took nine minutes: not the promoter (36 s) and not the context - run zero, the method's
+  twelve cells re-executed on the chain's data (cross-validated models and permutation tests over 1.3 million rows;
+  one cell six minutes), the same cost the chain's replay had just paid. The proof stays, the waiting goes: `create`
+  (`background=True`, the instance's way) stores the routine at once as *verifying* and returns a `verify` callable
+  the instance runs in a daemon thread (`verify_zero`: the script with its defaults, the lines checked by position,
+  the verdict - reproduced / differed / failed - written on the stored version, the output saved as `v1_0`; no pane
+  rows, since a row after the dialog's stream closed would land in the next request's). The page toasts *verifying
+  on the original data in the background*, follows the routine every three seconds (`watchVerification`) and says
+  the verdict; the manager's card chip pulses *verifying…* or reads *did not reproduce*, the side item says so, and
+  Run is disabled with the reason. The refusal creation used to give moves to the run: `zero_holds` - the precheck
+  and `run` refuse while verifying (*run it when it has settled*) and for good after a verdict that did not
+  reproduce (*delete the routine, or make it again from the chain*); unverified (the data gone) still runs, as
+  before; the library's foreground mode keeps the old refusal for the tests. The cost said before it is paid: the
+  run dialog reads *the last run took 8 min - expect about as long* (from the last run, else run zero), and the
+  pane's REPLAY row *12 cells · about 7 min* from what the cells took (the session's `replay_start` carries the
+  seconds). Palo's question answered on the way - the replay is not moved: it is how the Plots and Results tabs
+  and the verification line are made, drawn once from a reproduction. Tests: test_routines.py 127 (background
+  creation, the hold on the precheck and the run, the verdict landing, differed held for good, deleted while
+  verifying, the foreground refusal kept), test_routines.js 70 (the chip states, the hold, the side item, the
+  duration line), test_app_path 155 (the instance's thread, no pane rows, the route), the stack walk 104/101 (no
+  ROUTINE row; the verdict waited for on disk), the integrations walk 77 (both creations waited for). docs/
+  ROUTINES_DESIGN.md F1 step 4-5, S1.
 - **A run's folder mirrors the recorded layout (2026-10-15, patch 0159).** Palo's first routine over the words failed at
   cell 1 with FileNotFoundError on `run_folder/datasets/local/<key>/activity_summary_….csv`: the analyst had written
   `base = 'datasets/local/<key>/'` and `pd.read_csv(base + 'activity_summary_….csv')`, and `bind_script` rewrote the

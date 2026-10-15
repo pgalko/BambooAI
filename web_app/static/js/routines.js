@@ -157,7 +157,8 @@
                 '<div class="rt-right"><div class="ui-dlg-h"><div><div class="title"></div><div class="sub"></div></div><span class="sp"></span><div class="rt-actions"></div><button class="x" aria-label="Close">×</button></div><div class="rt-body"></div></div></div>';
         },
         sideItem(r, on) {
-            return '<div class="it' + (on ? ' on' : '') + '" data-id="' + esc(r.id) + '"><b>' + esc(r.name) + '</b><span>' + esc(sourceLabel(r.source)) + ' · v' + esc(r.current_version) + (r.runs ? ' · ' + r.runs + ' run' + (r.runs === 1 ? '' : 's') : '') + ' · ' + esc(fmtDate(r.updated || r.created)) + '</span></div>';
+            const st = r.run_zero_status === 'verifying' ? ' · verifying…' : (r.run_zero_status === 'differed' || r.run_zero_status === 'failed' ? ' · did not reproduce' : '');
+            return '<div class="it' + (on ? ' on' : '') + '" data-id="' + esc(r.id) + '"><b>' + esc(r.name) + '</b><span>' + esc(sourceLabel(r.source)) + ' · v' + esc(r.current_version) + (r.runs ? ' · ' + r.runs + ' run' + (r.runs === 1 ? '' : 's') : '') + st + ' · ' + esc(fmtDate(r.updated || r.created)) + '</span></div>';
         },
         empty() {
             return '<div class="rt-empty">No routines yet. On a finished analysis, hover <b>Save</b> and choose <b>Save as routine</b>: the method keeps its few inputs and runs again on new data, without a model.</div>';
@@ -176,7 +177,7 @@
             const m = v.manifest || {};
             const rz = v.run_zero || {};
             let h = '<div class="rt-sec"><div class="ui-kv">' + (r.purpose ? '<b>Purpose</b><span>' + esc(r.purpose) + '</span>' : '') + '<b>Question</b><span>' + esc(r.question) + '</span>' +
-                '<b>Checked</b><span><span class="rt-status ' + (rz.verified ? 'reproduced' : 'unverified') + '">' + (rz.verified ? 'verified' : 'unverified') + '</span> ' + esc(rz.line || '') + '</span></div></div>';
+                '<b>Checked</b><span>' + build.zeroStatus(rz) + ' ' + esc(rz.line || '') + '</span></div></div>';
             const params = m.parameters || [];
             h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— asked before each run</span></div>' + (params.length
                 ? '<table class="ui-table rt-inputs"><thead><tr><th>Input</th><th>Default</th><th>Where it comes from</th></tr></thead><tbody>' + params.map(p => '<tr' + (p.derived ? ' data-derived="' + esc(p.derived) + '"' : '') + '><td>' + esc(p.label) + '</td><td><span class="val">' + esc(valueText(p)) + '</span>' + (p.derived ? '<span class="rt-derived">' + esc(derivedText(p)) + '</span>' : '') + '</td><td><span class="from">' + esc(p.origin || '') + '</span></td></tr>').join('') + '</tbody></table>'
@@ -189,8 +190,23 @@
             h += '<div class="rt-sec"><div class="h">Runs <span class="n">— a run opens in the main panes</span></div>' + build.runsList(r) + '</div>';
             return h;
         },
+        // run zero's verdict as a status chip (2026-10-15: run zero runs behind the dialog, so a routine can be verifying)
+        zeroStatus(rz) {
+            const st = (rz && rz.status) || (rz && rz.verified ? 'reproduced' : 'unverified');
+            const cls = st === 'verifying' ? 'verifying' : (st === 'reproduced' || (rz && rz.verified) ? 'reproduced' : (st === 'differed' || st === 'failed' ? 'differed' : 'unverified'));
+            const word = cls === 'verifying' ? 'verifying…' : (cls === 'reproduced' ? 'verified' : (cls === 'differed' ? 'did not reproduce' : 'unverified'));
+            return '<span class="rt-status ' + cls + '">' + word + '</span>';
+        },
+        zeroHold(r) {
+            const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
+            const st = (v.run_zero || {}).status || r.run_zero_status || '';
+            if (st === 'verifying') return 'still being verified on its chain’s own data — run it when it has settled';
+            if (st === 'differed' || st === 'failed') return 'run zero did not reproduce the chain’s analysis — the method is not run on other data; delete it, or make it again from the chain';
+            return '';
+        },
         actions(r) {
-            return '<button class="ui-btn primary" data-act="run" title="run the method on the data loaded now">' + ICON_ROUTINE + 'Run</button>' +
+            const hold = build.zeroHold(r);
+            return '<button class="ui-btn primary" data-act="run"' + (hold ? ' disabled title="' + esc(hold) + '"' : ' title="run the method on the data loaded now"') + '>' + ICON_ROUTINE + 'Run</button>' +
                 '<a class="ui-btn ghost" href="/routines/' + esc(r.id) + '/script" download title="the script, with its inputs at the top">' + ICON_DOWN + '.py</a>' +
                 '<button class="ui-btn ghost" data-act="rename">Rename</button><button class="ui-btn ghost danger-text" data-act="delete">Delete</button>';
         },
@@ -268,6 +284,9 @@
             const runs = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status));
             const last = runs.length ? runs[runs.length - 1] : null;
             const zero = v.run_zero && v.run_zero.verified;
+            // what a run will take, from the last one (or run zero): the method's own cost, said before the person presses Run (2026-10-15)
+            const took = Number((last && last.elapsed) || (v.run_zero && v.run_zero.elapsed) || 0);
+            if (took >= 30) h += '<div class="rt-line rt-eta">the ' + (last ? 'last run' : 'check on the original data') + ' took ' + esc(fmtTook(took)) + ' — expect about as long</div>';
             if (last || zero) {
                 h += '<div class="rt-sec"><div class="h">Compare with</div><div class="rt-choices">' +
                     (last ? '<label class="rt-check"><input type="radio" name="rt-compare" value="previous" checked> run ' + esc(last.number) + ' (' + esc(fmtDate(last.created)) + ', the run before)</label>' : '') +
@@ -650,7 +669,9 @@
             forgetOrigins();
             p.d.style.display = 'none'; dialogState = null;
             const name = made.name || choices.name;
-            toast('Routine made: ' + name + ' · v' + made.version + (made.run_zero && made.run_zero.verified ? ' · verified on the original data' : ' · not verified'));
+            const rz = made.run_zero || {};
+            toast('Routine made: ' + name + ' · v' + made.version + (rz.verified ? ' · verified on the original data' : (rz.status === 'verifying' ? ' · verifying on the original data in the background' : ' · not verified')));
+            if (rz.status === 'verifying' && made.routine && made.routine.id) watchVerification(made.routine.id, name, made.version);
             if (!st.fromCard) await ensureFavourite(st.chain_id);
             if (typeof updateRankButtonVisibility === 'function') updateRankButtonVisibility();
             refreshBadge();
@@ -1184,6 +1205,34 @@
     }
 
     // ------------------------------------------------------------ the rail entry and its badge
+    // run zero behind the dialog (2026-10-15): the page follows the verdict and says it when it lands; the manager, open on
+    // the routine, shows the chip change and the Run button come alive
+    const watching = {};
+    function watchVerification(id, name, version) {
+        if (watching[id]) return;
+        watching[id] = true;
+        const t0 = Date.now();
+        const tick = () => fetchJson('/routines/' + encodeURIComponent(id)).then(res => {
+            const r = res.json && res.json.routine;
+            const v = r && (r.versions || []).find(x => x.number === version);
+            const st = v && v.run_zero ? v.run_zero.status : '';
+            if (!r || (st && st !== 'verifying')) {
+                delete watching[id];
+                if (v) toast(name + ' · v' + version + (v.run_zero.verified ? ' · verified on the original data' : ' · run zero did not reproduce: ' + (v.run_zero.line || '')));
+                if (manager && manager.style.display !== 'none') loadManager(id);
+                if (window.WorkflowModal && typeof window.WorkflowModal.refresh === 'function') window.WorkflowModal.refresh();
+                return;
+            }
+            if (Date.now() - t0 < 3600000) setTimeout(tick, 3000); else delete watching[id];
+        }).catch(() => { setTimeout(tick, 5000); });
+        setTimeout(tick, 3000);
+    }
+    function fmtTook(secs) {
+        const s = Math.round(Number(secs) || 0);
+        if (s < 60) return s + ' s';
+        const m = Math.round(s / 60);
+        return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min';
+    }
     function refreshBadge() {
         const badge = document.getElementById('routinesBadge'); if (!badge) return;
         fetchJson('/routines').then(res => {

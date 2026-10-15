@@ -401,6 +401,54 @@ check("propose with the data still loaded: the auxiliary files' columns and type
 made5 = host.create(nb5, p5, {"name": "Start hour", "purpose": "p", "drop_inputs": [], "drop_results": []}, runner_on(df), store)
 rid5 = made5["routine"]["id"]
 check("run zero binds the recorded file to itself and reproduces", made5["run_zero"]["status"] == "reproduced", made5["run_zero"])
+# run zero behind the dialog (2026-10-15): created at once as verifying, with a verify callable the host runs in a thread; a run
+# and the precheck are held until the verdict; reproduced frees it, a verdict that did not reproduce holds it for good
+p5b = host.propose(nb5, run5.id, empty_promoter, current_data={"df_id": "df5", "aux": [aux_old]}, runner=runner_on(df))
+made5b = host.create(nb5, p5b, {"name": "Start hour (behind)", "purpose": "p", "drop_inputs": [], "drop_results": []}, runner_on(df), store, background=True)
+rid5b = made5b["routine"]["id"]
+st5b = store.load(rid5b)
+pc5b = host.precheck(st5b, {"df_id": "df5", "name": "sessions.csv", "source": "csv", "columns": [{"name": "v", "dtype": "int64"}], "rows": 5, "aux": [aux_old]}, runner_on(df))
+try:
+    host.run(st5b, {}, {"df_id": "df5", "aux": [aux_old]}, runner_on(df), store)
+    held5b = ""
+except host.RoutineRefused as exc:
+    held5b = str(exc)
+check("create in the background: the routine is stored at once with run zero verifying (not verified, the line says so), the summary card says verifying, the result carries verify; the precheck's line and a run say it is still being verified",
+      made5b["run_zero"]["status"] == "verifying" and not made5b["run_zero"]["verified"] and "verifying" in made5b["run_zero"]["line"] and callable(made5b.get("verify"))
+      and st5b["versions"][0]["run_zero"]["status"] == "verifying" and made5b["routine"]["run_zero_status"] == "verifying" and not pc5b["ok"] and "still being verified" in pc5b["line"] and "still being verified" in held5b,
+      (made5b["run_zero"], pc5b["line"], held5b))
+vd5b = made5b["verify"]()
+st5b = store.load(rid5b)
+check("the verdict lands on the stored version: reproduced, verified, the two lines, the elapsed; run zero's output saved; the precheck is free again",
+      vd5b["status"] == "reproduced" and st5b["versions"][0]["run_zero"]["status"] == "reproduced" and st5b["versions"][0]["run_zero"]["verified"] and len(st5b["versions"][0]["run_zero"]["results"]) == 2
+      and os.path.exists(os.path.join(store.run_dir(rid5b, "v1_0"), "stdout.txt")) and host.precheck(st5b, {"df_id": "df5", "name": "sessions.csv", "source": "csv", "columns": [{"name": "v", "dtype": "int64"}], "rows": 5, "aux": [aux_old]}, runner_on(df))["ok"],
+      (vd5b, st5b["versions"][0]["run_zero"]))
+# a verdict that does not reproduce: the routine stays, says so, and is held for good (the refusal creation used to give, at the run)
+def runner_off(script, timeout, *rest):
+    return "RESULT: sessions in the file: +9.00\nRESULT: the hour most sessions start: +6.00\n", "", [], []
+made5c = host.create(nb5, p5b, {"name": "Start hour (differs)", "purpose": "p", "drop_inputs": [], "drop_results": []}, runner_off, store, background=True)
+vd5c = made5c["verify"]()
+st5c = store.load(made5c["routine"]["id"])
+try:
+    host.run(st5c, {}, {"df_id": "df5", "aux": [aux_old]}, runner_on(df), store)
+    held5c = ""
+except host.RoutineRefused as exc:
+    held5c = str(exc)
+check("a verdict that did not reproduce: the version says differed with the line, the card says so, a run is refused with the old refusal's words and the way out (delete, or make it again)",
+      vd5c["status"] == "differed" and st5c["versions"][0]["run_zero"]["status"] == "differed" and not st5c["versions"][0]["run_zero"]["verified"] and rt.RoutineStore.summary(st5c)["run_zero_status"] == "differed"
+      and "did not reproduce the analysis" in held5c and "delete the routine, or make it again" in held5c, (vd5c["status"], vd5c["line"], held5c))
+# the routine deleted while verifying: the verdict has nothing to write on and says nothing
+made5d = host.create(nb5, p5b, {"name": "Start hour (gone)", "purpose": "p", "drop_inputs": [], "drop_results": []}, runner_on(df), store, background=True)
+store.delete(made5d["routine"]["id"])
+vd5d = made5d["verify"]()
+check("deleted while verifying: the verdict is computed and dropped, nothing written", vd5d["status"] == "reproduced" and store.load(made5d["routine"]["id"]) is None)
+# in the foreground (the library's default) a method that does not reproduce is still refused, as before
+try:
+    host.create(nb5, p5b, {"name": "x", "purpose": "p", "drop_inputs": [], "drop_results": []}, runner_off, store)
+    fg5 = ""
+except host.RoutineRefused as exc:
+    fg5 = str(exc)
+check("in the foreground a method whose run zero does not reproduce is refused and not kept, as before", "did not reproduce the analysis" in fg5, fg5)
 plan5 = host.load_plan(store.load(rid5))
 check("load_plan: the source, the window's length, the auxiliary kinds and the metrics as the original load asked", plan5["source"] == "intervals" and plan5["window_days"] == 59 and plan5["aux_kinds"] == ["summary"] and plan5["start"] == "2026-08-12", plan5)
 # a record whose load says "cache" (from before 2026-10-12): the plan is the data's own source, the window from its date range

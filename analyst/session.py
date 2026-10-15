@@ -973,7 +973,8 @@ class Session:
         if run.cells() and (self.replay_runner is not None or self.kernel_factory is not None):
             # the replay can take as long as the analysis did; the pane shows it under way (2026-10-04: between the
             # rewrite and the closing card nothing was shown, and a person took a working run for a stuck one)
-            self.emit({"type": "replay_start", "run": run.id, "cells": len(run.cells())})
+            self.emit({"type": "replay_start", "run": run.id, "cells": len(run.cells()),
+                       "seconds": round(sum(float(c.elapsed or 0.0) for c in computed), 1)})   # what the cells took: the replay re-runs them, so about as long again (2026-10-15)
             try:
                 if self.replay_runner is not None:
                     from .replay import assemble, compare

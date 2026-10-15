@@ -729,10 +729,23 @@ class BambooAI:
                 proposal["data_state"] = "gone"
         # the version choice is the request's (2026-10-12): None makes a new routine even when the proposal was drawn for a
         # next version of one - the dialog's "A new routine" means that
+        # run zero behind the dialog (2026-10-15: it re-executes every cell of the chain - nine minutes on a heavy one): the
+        # routine is stored at once as verifying, the verdict lands on it from a thread, a run is refused until it has
         made = routines_host.create(nb, proposal, choices or {}, lambda script, timeout: self.run_script(script, timeout, what="Run zero"),
-                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id)
+                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id, background=True)
         pending.pop(proposal_id, None)
+        verify = made.pop("verify", None)
         logger.info("Routine %s v%d made from chain %s: %s", made["routine"]["id"], made["version"], proposal["chain_id"], made["run_zero"]["line"])
+        if verify is not None:
+            rid, vnum = made["routine"]["id"], made["version"]
+
+            def work():
+                try:
+                    verdict = verify()
+                    logger.info("Routine %s v%d verified: %s (%.0f s)", rid, vnum, verdict.get("line"), float(verdict.get("elapsed") or 0))
+                except Exception as exc:                            # noqa: BLE001
+                    logger.error("Routine %s v%d: the verification failed: %s", rid, vnum, exc)
+            threading.Thread(target=work, daemon=True, name=f"routine-verify-{rid}").start()
         return made
 
     # -------------------------------------------------------- the data view
@@ -1025,7 +1038,9 @@ class BambooAI:
                 self._pane('pane_passages', passages=passages)
         elif kind == "replay_start":
             # the replay under way: a pending row in the pane, and the executor chip on Executing as for a cell
-            self._pane('pane_lookup_start', kind='replay', query=f"{ev.get('cells') or 0} cells", model='')
+            secs = float(ev.get("seconds") or 0.0)             # the cells' own time: the replay re-runs them, so about as long again
+            about = f" · about {max(1, int(round(secs / 60)))} min" if secs >= 60 else ""
+            self._pane('pane_lookup_start', kind='replay', query=f"{ev.get('cells') or 0} cells{about}", model='')
             self._pane('pane_cell_start', turn='replay')
         elif kind == "replay_end":
             self._pane('pane_lookup', kind='replay', query='', peek=(ev.get("line") or ev.get("status") or "")[:160], sources=[], passages=[])

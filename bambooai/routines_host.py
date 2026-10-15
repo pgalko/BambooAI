@@ -301,11 +301,19 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
 UNVERIFIED_LINE = "not verified: the analysis's data is no longer loaded, so the method was not checked - the first run will show whether it still runs"
 
 
+VERIFYING_LINE = "verifying: the method is being run once on the chain's own data"
+
+
 def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callable], store: rt.RoutineStore, emit: Optional[Callable] = None,
-           routine_id: Optional[str] = None) -> dict:
-    """Apply the person's choices (name, purpose, inputs dropped, results dropped), run the method once on the chain's
-    data, and store the routine (a new one, or the next version of `routine_id`). A method whose run zero does not
-    reproduce the chain's lines is refused; with the data gone the routine is created unverified and says so."""
+           routine_id: Optional[str] = None, background: bool = False) -> dict:
+    """Apply the person's choices (name, purpose, inputs dropped, results dropped) and store the routine (a new one, or
+    the next version of `routine_id`); then run zero - the method once on the chain's own data, the proof that it
+    reproduces the chain's lines. In the foreground (the default, as the tests and the library use it) a method whose
+    run zero does not reproduce is refused and not kept. In the background (`background=True`, 2026-10-15: run zero
+    re-executes every cell of the chain, nine minutes on a heavy one, and nobody waits for a dialog that long) the
+    routine is stored at once as *verifying*, the result carries `verify`, a callable the host runs in a thread, and the
+    verdict - reproduced, differed, failed - lands on the record when it is in; a run is refused until it has settled,
+    and after a verdict that is not reproduced. With the chain's data gone the routine is created unverified and says so."""
     name = (choices.get("name") or proposal.get("name") or "").strip()[:80] or "Routine"
     purpose = (choices.get("purpose") or "").strip()[:300]
     drop_inputs = {str(k) for k in (choices.get("drop_inputs") or [])}
@@ -320,22 +328,17 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     manifest = {"data": proposal["data"], "parameters": inputs, "results": results, "figures": proposal.get("figures") or {"count": 0, "cells": []}, "notes": proposal.get("notes") or []}
     now = time.time()
     run_zero = {"created": now, "status": "unverified", "line": UNVERIFIED_LINE, "verified": False, "results": [], "figures": 0, "data": proposal["data"], "inputs": rt.defaults_of(inputs)}
+    verifying = runner is not None and proposal.get("data_state") != "gone"
+    timeout = int(proposal.get("timeout") or 300)
     stdout, figs = "", []
-    if runner is not None and proposal.get("data_state") != "gone":
-        if emit:
-            emit({"type": "lookup_start", "kind": "routine", "query": name})
-        t0 = time.time()
-        try:
-            stdout, err, figs, _generated = runner(rt.with_inputs(script, rt.defaults_of(inputs)), int(proposal.get("timeout") or 300))
-        except Exception as exc:                                   # noqa: BLE001
-            stdout, err, figs = "", f"the run could not start: {exc}", []
-        got = rt.result_lines_in(stdout or "")
-        status, line, diffs = rt.check_lines(results, got, err or "")
-        if emit:
-            emit({"type": "lookup", "kind": "routine", "query": name, "peek": line, "elapsed": round(time.time() - t0, 1)})
-        if status != "reproduced":
-            raise RoutineRefused(f"run zero on this chain's own data did not reproduce the analysis: {line}")
-        run_zero.update({"status": status, "line": line, "verified": True, "results": got, "figures": len(figs or []), "elapsed": round(time.time() - t0, 1)})
+    if verifying and not background:
+        verdict = verify_zero(name, script, results, run_zero["inputs"], runner, timeout, emit)
+        if verdict["status"] != "reproduced":
+            raise RoutineRefused(f"run zero on this chain's own data did not reproduce the analysis: {verdict['line']}")
+        run_zero.update({k: verdict[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
+        stdout, figs = verdict["stdout"], verdict["figs"]
+    elif verifying:
+        run_zero.update({"status": "verifying", "line": VERIFYING_LINE})
     routine = store.load(routine_id) if routine_id else None
     if routine_id and routine is None:
         raise RoutineRefused("the routine this version was meant for no longer exists")
@@ -358,7 +361,48 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
         store.save_run_files(routine["id"], f"v{number}_0", stdout or "", figs or [])
     except OSError:
         pass
-    return {"routine": rt.RoutineStore.summary(routine), "version": number, "run_zero": run_zero, "name": routine["name"]}
+    made = {"routine": rt.RoutineStore.summary(routine), "version": number, "run_zero": run_zero, "name": routine["name"]}
+    if verifying and background:
+        rid, inputs_defaults = routine["id"], run_zero["inputs"]
+
+        def verify():
+            """Run zero behind the dialog: the verdict written on the stored version when it is in. No pane rows - nobody
+            is watching a pane for it (a row emitted after the dialog's stream closed would land in the next request's);
+            the toast and the manager's chip say what happened."""
+            verdict = verify_zero(name, script, results, inputs_defaults, runner, timeout, None)
+            r = store.load(rid)
+            v = next((x for x in (r or {}).get("versions", []) if x.get("number") == number), None) if r else None
+            if v is None:
+                return verdict                                        # deleted meanwhile: nothing to write on
+            v["run_zero"].update({k: verdict[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
+            store.save(r)
+            try:
+                store.save_run_files(rid, f"v{number}_0", verdict["stdout"] or "", verdict["figs"] or [])
+            except OSError:
+                pass
+            return verdict
+        made["verify"] = verify
+    return made
+
+
+def verify_zero(name: str, script: str, results: List[dict], inputs: Dict[str, object], runner: Callable, timeout: int, emit: Optional[Callable] = None) -> dict:
+    """Run zero: the method once on the chain's own data with its inputs at their defaults, its lines against the
+    chain's. Returns {status, line, verified, results, figures, elapsed, stdout, figs}: reproduced (verified) or
+    differed / failed with the line that says how."""
+    if emit:
+        emit({"type": "lookup_start", "kind": "routine", "query": name})
+    t0 = time.time()
+    try:
+        stdout, err, figs, _generated = runner(rt.with_inputs(script, inputs), timeout)
+    except Exception as exc:                                   # noqa: BLE001
+        stdout, err, figs = "", f"the run could not start: {exc}", []
+    got = rt.result_lines_in(stdout or "")
+    status, line, _diffs = rt.check_lines(results, got, err or "")
+    elapsed = round(time.time() - t0, 1)
+    if emit:
+        emit({"type": "lookup", "kind": "routine", "query": name, "peek": line, "elapsed": elapsed})
+    return {"status": status, "line": line, "verified": status == "reproduced", "results": got, "figures": len(figs or []), "elapsed": elapsed,
+            "stdout": stdout or "", "figs": figs or []}
 
 
 # ----------------------------------------------------------------------------- a run on the data loaded now (F2)
@@ -521,6 +565,19 @@ def reference_run(routine: dict, version: dict, compare_with="previous") -> Tupl
     return zero if zero else (None, None)
 
 
+def zero_holds(ver: dict) -> str:
+    """Why a version may not run yet, or at all (2026-10-15): run zero still verifying behind the dialog, or a verdict
+    that the method did not reproduce the chain's lines on its own data - the refusal creation used to give, kept at
+    the run instead; '' when the version may run (reproduced, or unverified because the data was gone)."""
+    rz = ver.get("run_zero") or {}
+    status = str(rz.get("status") or "")
+    if status == "verifying":
+        return "the routine is still being verified on its chain's own data - run it when it has settled"
+    if status in ("differed", "failed"):
+        return f"run zero on this chain's own data did not reproduce the analysis ({rz.get('line') or status}) - the method is not run on other data; delete the routine, or make it again from the chain"
+    return ""
+
+
 def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Callable], values: Optional[dict] = None, version_number: Optional[int] = None) -> dict:
     """What the run dialog shows before Run: whether data is loaded, whether it fits the routine's columns, and
     whether every chosen value of a choice input is in the data."""
@@ -530,6 +587,10 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
     d = current_data or {}
     loaded = bool(d.get("df_id")) or bool(d.get("columns"))
     out = {"loaded": loaded, "data": light_data(d), "fit": None, "values_missing": [], "values_notes": [], "problems": [], "ok": False, "line": ""}
+    held = zero_holds(ver)
+    if held:
+        out["line"] = held
+        return out
     if not loaded:
         out["line"] = "no data is loaded: load the data on the Data tab, then run"
         return out
@@ -564,6 +625,9 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     script with the INPUTS block, the lines read by position, the status against the reference run, the comparison,
     the record stored (a failed run too). Returns the record with the printed output and the figures for the tabs."""
     ver = version_of(routine, version_number)
+    held = zero_holds(ver)
+    if held:
+        raise RoutineRefused(held)
     vnum = ver.get("number", 1)
     manifest = ver.get("manifest") or {}
     params = manifest.get("parameters") or []
