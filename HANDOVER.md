@@ -446,6 +446,15 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The README rewritten (Palo, 2026-10-16, patch 0174).** Palo's rewrite in plain prose (*Why BambooAI?* in place of
+  the overview; *Reports and checks*, *Modes and budgets*, *Follow-up questions*, *Ask about a plot* and *Memory* as
+  subsections of *How It Works*), brought current on the way: the *performance* preset as the template ships it
+  (the Claude seats on `anthropic`, the `Coder` seat) with the keys a first start needs (Anthropic + OpenRouter;
+  `BAMBOO_LEVEL=cost` for OpenRouter alone), the `Coder` seat in the table, the OWL ontology line gone (retired),
+  the image tag with the executor build and the datasets volume, `BAMBOO_EXECUTOR_DATASETS`, the working folder's
+  `routines/` and `context/`, and three sections the README had never had: *Routines*, *The words beside the
+  numbers*, *The Dataset cache and the store*; the two Chromium suites and the three design documents listed. No
+  real names, ids or quotes of athletes or coaches in it.
 - **A count the data determines is computed; a figure's numbers are never typed (2026-10-16, patch 0173).** Palo
   re-ran the same routine on 2026-01-01 → today, nine complete months: past cell 6 now (February inside, CTX the
   window's) and stopped at cell 8 - *index 9 is out of bounds for axis 0 with size 9* - the analyst had typed the
