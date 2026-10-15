@@ -38,7 +38,7 @@ DEFAULTS = {
     "AUTH_MODE": "single",
     "BAMBOO_COMPUTE": "docker",
     "BAMBOO_USER": "local",
-    "BAMBOO_LEVEL": "performance",
+    "BAMBOO_LEVEL": "cost",                 # an OpenRouter key alone runs it (2026-10-16, Palo); performance and max add Claude seats on an Anthropic key
     "SESSION_COOKIE_NAME": "bambooai",
     "WEB_SEARCH_MODE": "google_ai",
     "APP_PORT": "5001",
@@ -53,8 +53,10 @@ ENV_TEMPLATE = """# BambooAI - the self-hosted edition. This file is yours; the 
 AUTH_MODE=single
 # names your folders: config/local, storage/local, memory/local...
 BAMBOO_USER=local
-# cost | performance | max - the first default; the account dialog saves your later choice
-BAMBOO_LEVEL=performance
+# cost | performance | max - the first default; the account dialog saves your later choice.
+# cost runs on an OpenRouter key alone; performance and max put the Analyst and the writing seats
+# on Claude and need ANTHROPIC_API_KEY as well.
+BAMBOO_LEVEL=cost
 # docker: the analysis runs in the executor container, built and managed by `bambooai serve` (needs Docker running).
 # local: the kernel in a subprocess on this machine - no isolation, no integrations - for a machine without Docker.
 BAMBOO_COMPUTE=docker

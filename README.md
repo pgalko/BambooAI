@@ -117,12 +117,11 @@ nothing to install.
    writes a `.env` file, builds the executor image from the Dockerfile in the package, starts the
    container, and opens `http://127.0.0.1:5001`. The initial build takes several minutes: it installs
    pandas, numpy, scipy, statsmodels, scikit-learn, matplotlib, plotly and the other analysis libraries.
-2. Stop the app with Ctrl+C and add your model keys to `~/bambooai/.env`. The default preset,
-   `performance`, runs the Analyst, Figures, Rewriter and Promoter seats on Claude and the rest through
-   [OpenRouter](https://openrouter.ai), so it needs an Anthropic key and an OpenRouter key; the
-   `cost` preset needs an OpenRouter key alone - set `BAMBOO_LEVEL=cost` to start there. Add
-   `GEMINI_API_KEY` to enable web search. For locally hosted models, use the [Ollama](#ollama) or
-   [vLLM](#vllm) configuration below instead.
+2. Stop the app with Ctrl+C and add your model key to `~/bambooai/.env`. An
+   [OpenRouter](https://openrouter.ai) key is enough for the default preset, `cost`; the
+   `performance` and `max` presets put the Analyst, Figures, Rewriter and Promoter seats on Claude
+   and need an Anthropic key as well. Add `GEMINI_API_KEY` to enable web search. For locally hosted
+   models, use the [Ollama](#ollama) or [vLLM](#vllm) configuration below instead.
 3. Run `bambooai serve` again. Upload a CSV, Parquet, JSON or XLSX file and ask a question. Choose
    *Quick*, *Deep* or *Adaptive* in the composer.
 4. Open **Models & Compute** from the gear menu to choose and save a preset: `cost`, `performance`
@@ -304,7 +303,7 @@ Set these in `~/bambooai/.env`. Lines starting with `#` are ignored; do not put 
 | `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY` | Provider keys; add only those needed by your configured models |
 | `GEMINI_API_KEY` | also enables web search (Google AI grounding); without it `SEARCH` is off |
 | `REMOTE_OLLAMA`, `REMOTE_VLLM` | base URLs of local model servers, e.g. `http://localhost:11434` |
-| `BAMBOO_LEVEL` | `cost` / `performance` / `max`: the preset before one is saved in the app |
+| `BAMBOO_LEVEL` | `cost` (the default) / `performance` / `max`: the preset before one is saved in the app |
 | `BAMBOO_COMPUTE` | `docker` (default) or `local` |
 | `EXECUTOR_PORT` | the container's published port (default `5055`) |
 | `BAMBOO_EXECUTOR_DATASETS` | a folder for the executor's datasets (the loaded windows, the Intervals.icu store) in place of the Docker volume `bambooai-datasets` |
@@ -349,8 +348,8 @@ turn budgets per preset (`tier_properties`), and the properties of every model n
 }
 ```
 
-The `cost` preset keeps every seat on OpenRouter (DeepSeek, with Grok reviewing); `max` moves the
-Claude seats to Opus. `multimodal` indicates whether a model accepts images. For *Ask about a plot*,
+The `cost` preset, the default, keeps every seat on OpenRouter (DeepSeek, with Grok reviewing);
+`max` moves the Claude seats to Opus. `multimodal` indicates whether a model accepts images. For *Ask about a plot*,
 set it to `"true"` for an image-capable Analyst model so the picture is sent with the question.
 
 The available roles:

@@ -446,6 +446,11 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The default preset is `cost` (Palo, 2026-10-16, patch 0175).** A first start on an OpenRouter key alone had
+  nothing to run on since 0109 put the performance tier's Analyst, Figures, Rewriter and Promoter on Claude; the
+  edition's default (`cli.py` DEFAULTS and the `.env` template, the app's fallback in `supabase_client.py`) is
+  `cost` now, and the README's Quick Start says which presets need an Anthropic key as well. A `.env` written
+  before this keeps its own `BAMBOO_LEVEL=performance` line - the file is the person's.
 - **The README rewritten (Palo, 2026-10-16, patch 0174).** Palo's rewrite in plain prose (*Why BambooAI?* in place of
   the overview; *Reports and checks*, *Modes and budgets*, *Follow-up questions*, *Ask about a plot* and *Memory* as
   subsections of *How It Works*), brought current on the way: the *performance* preset as the template ships it

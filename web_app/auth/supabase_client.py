@@ -26,7 +26,7 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 # locally - one managed user, no tiers, no funds, no quotas - so the page initialises. The level the
 # analyst runs at (cost / performance / max) comes from BAMBOO_LEVEL. Phase 3 puts the person's own
 # tables (labels, usage, integrations...) behind these same names in SQLite; this is the skeleton.
-BAMBOO_LEVEL = os.getenv('BAMBOO_LEVEL', 'performance')
+BAMBOO_LEVEL = os.getenv('BAMBOO_LEVEL', 'cost')          # the edition's default (bambooai/cli.py DEFAULTS): an OpenRouter key alone
 
 
 def supabase_configured() -> bool:
@@ -168,7 +168,7 @@ def get_user_llm_config(auth0_id: str) -> dict:
         
         if not result.data:
             if not supabase_configured():             # the self-hosted edition: BAMBOO_LEVEL until the dialog saves a level
-                return BAMBOO_LEVEL if BAMBOO_LEVEL in ("cost", "performance", "max") else "performance"
+                return BAMBOO_LEVEL if BAMBOO_LEVEL in ("cost", "performance", "max") else "cost"
             preference = 'free'  # Default to free if no config
             return preference
         
