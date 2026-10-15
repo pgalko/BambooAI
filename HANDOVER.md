@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/120/33/29/1/1 Python; 49/7/30/67/24/66/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/122/33/29/1/1 Python; 49/7/30/67/24/67/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (75; hosted only - the loaders need the executor; the
@@ -446,6 +446,26 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **A run's folder mirrors the recorded layout (2026-10-15, patch 0159).** Palo's first routine over the words failed at
+  cell 1 with FileNotFoundError on `run_folder/datasets/local/<key>/activity_summary_….csv`: the analyst had written
+  `base = 'datasets/local/<key>/'` and `pd.read_csv(base + 'activity_summary_….csv')`, and `bind_script` rewrote the
+  two literals by two rules each right alone - a folder under the datasets dir to the run's folder (so a run never
+  writes into the cache), a bare recorded name to this load's full path - which concatenated existed nowhere; it
+  fails on the identical window too, and run zero passed because creation runs the script unbound on the chain's
+  own data. One rule now: the run's folder holds a mirror of the recorded layout - every recorded path exists under it
+  (`mirror_path`), filled with this load's file of that kind (the probe copies the bytes, or the frame with the
+  missing columns added; the cut on a cached load lands there; a stand-in for a file the load lacks) - and the
+  executed text has every literal under the datasets folder moved under the run's folder, a loader's file named with
+  other dates pointed at the mirror of its kind, bare names untouched; `prepare` builds the bound and placeholder
+  maps as mirror paths, keeps `sources` (recorded path → this load's file) on the record, and the prelude's
+  `_routine_materialise` copies a bound file the probe did not write from its source rather than standing an empty
+  table in (a bound file gone *after* the probe now runs on the probe's copy). The Data tab shows each recorded name
+  against its source (a stand-in as *an empty table*; an older record by its bound path). The recorded files' folder
+  is recognised even without a `datasets/<user>/` prefix (the tests' temp folders). Tests: test_routines.py 122 (the
+  mirror on the later window, the stand-in, the probe failed, the file gone after the probe, the cut copies at their
+  mirror paths, `bind_script` with the f-string and with folder + name, an end-to-end folder + name run),
+  test_routines.js 67 (the Data tab's sources), the integrations walk 75 (the record's mirror paths and sources).
+  docs/ROUTINES_DESIGN.md F2 step 3 and the cut paragraph.
 - **"Today" is the local calendar day in every dialog (2026-10-15, patch 0158).** Palo's first routine over the words
   (the benchmark's predictive question, a 1.3-million-row window) re-downloaded "the same window": the chain ran on
   16 May → 14 October, the run asked for 17 May → 15 October. Both the loaders' dialogs and the routine run dialog

@@ -30,7 +30,7 @@ except Exception:                                          # noqa: BLE001
 import vendor                                              # noqa: E402
 import harness_models                                      # noqa: E402
 import apis_data                                           # noqa: E402
-from analyst.routines import aux_kind, number as rt_number     # noqa: E402
+from analyst.routines import aux_kind, number as rt_number, mirror_path as aux_mirror     # noqa: E402
 from stack import Stack                                    # noqa: E402
 from browse import open_page                               # noqa: E402
 
@@ -214,8 +214,10 @@ def main():
                   and "ROUTINE_INPUTS" not in open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "stdout.txt"), encoding="utf-8").read(), (sp, run1.get("inputs"), (run1.get("results") or [{}])[0]))
             check("on disk: the run's record keeps the bindings, the absent file, the fit (power missing) and the shape it made (the summary copy with the columns this window lacked added); the copy and the wellness placeholder are in the run's own folder on the executor's side, nothing in the user's cache",
                   run1["status"] in ("ran", "reproduced") and run1["aux_absent"] == ["wellness"] and "power" in run1["fit"]["missing"] and run1["data"]["load"]["start_date"] == b_start.isoformat()
-                  and run1["bindings"] and run1["bindings"][0][0].endswith(f"activity_summary_{tag_a}.csv") and run1["bindings"][0][1].endswith(f"/v1_1/activity_summary_{tag_b}.csv")
-                  and "avg_power" in run1["shape"]["files"][run1["bindings"][0][0]]["missing"] and os.path.exists(os.path.join(run_dir, f"activity_summary_{tag_b}.csv")) and os.path.exists(os.path.join(run_dir, f"wellness_data_{tag_a}.csv"))
+                  and run1["bindings"] and run1["bindings"][0][0].endswith(f"activity_summary_{tag_a}.csv") and run1["bindings"][0][1] == aux_mirror(run1["run_dir"], run1["bindings"][0][0])     # the mirror of the recorded path (2026-10-15)
+                  and run1["sources"][run1["bindings"][0][0]].endswith(f"activity_summary_{tag_b}.csv")
+                  and "avg_power" in run1["shape"]["files"][run1["bindings"][0][0]]["missing"] and os.path.exists(os.path.join(workdir, "executor", run1["bindings"][0][1]))
+                  and os.path.exists(os.path.join(workdir, "executor", aux_mirror(run1["run_dir"], next(p_ for p_ in run1["shape"]["placeholders"]))))
                   and not os.path.exists(os.path.join(exec_ds, f"wellness_data_{tag_a}.csv.bak")) and sorted(os.path.basename(p) for p in glob.glob(os.path.join(exec_ds, "wellness_data_*.csv"))) == [f"wellness_data_{tag_a}.csv"],
                   (run1.get("status"), run1.get("aux_absent"), run1.get("fit"), run1.get("bindings"), run1.get("shape")))
             # a run on the data loaded now (the window just loaded) with the band changed: the dialog offers it; compared with run 1
@@ -281,7 +283,7 @@ def main():
                   any("LOAD" in r and f"Intervals.icu {c_start.isoformat()} → {c_end.isoformat()}" in r and "cut from the cache" in r for r in r4["rows"]) and any("CHECK" in r and f"cut to {c_start.isoformat()} → {c_end.isoformat()} from the cached load {a_start.isoformat()} → {a_end.isoformat()}" in r for r in r4["rows"])
                   and "Run 4 complete" in r4["done"] and fits_after4 == fits_after and run4["data"]["load"].get("cached_from") == [a_start.isoformat(), a_end.isoformat()] and run4["data"]["load"]["start_date"] == c_start.isoformat()
                   and run4["data"]["date_range"] == f"{c_start.isoformat()} to {c_end.isoformat()}" and run4["data"]["rows"] < run3["data"]["rows"] and all(b[2] == "cut" for b in run4["bindings"])
-                  and [os.path.basename(b[1]) for b in run4["bindings"]] == [f"activity_summary_{c_start.strftime('%Y%m%d')}_to_{c_end.strftime('%Y%m%d')}.csv"]   # the method names the summary only; the wellness file is cut beside it, unnamed
+                  and [os.path.basename(b[1]) for b in run4["bindings"]] == [f"activity_summary_{tag_a}.csv"] and run4["bindings"][0][1] == aux_mirror(run4["run_dir"], run4["bindings"][0][0])   # the method names the summary only, at its mirror path; the wellness file is cut beside it, unnamed
                   and sessions4 is not None and float(sessions4) == n_days and run4["inputs"].get("span") == [c_start.isoformat(), c_end.isoformat()] and run4["status"] in ("ran", "reproduced"),
                   (r4["rows"], (fits_after, fits_after4), run4["data"].get("load"), run4["data"].get("date_range"), run4["data"].get("rows"), run4.get("bindings"), got4, run4.get("inputs"), run4.get("status"), (run4.get("error") or "")[-200:]))
             check("the Data tab's pills after the cut run show what the session holds - the cached load's window - not the run's", any(f"Intervals ICU (59 days [W+S]) loaded" in p for p in r4["pills"]), r4["pills"])

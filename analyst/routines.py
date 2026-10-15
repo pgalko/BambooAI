@@ -578,6 +578,16 @@ def loader_file_literals(text: str) -> List[str]:
     return sorted(out)
 
 
+def mirror_path(run_dir: str, path: str) -> str:
+    """Where a run keeps its copy of a file the method names (2026-10-15): the recorded path under the run's folder, so
+    the recorded script runs against a mirror of the layout it was written for - a folder literal, a full path and a
+    path built as folder + name all resolve there. A trailing slash (a folder literal) is kept."""
+    body = str(path or "").replace("\\", "/")
+    while body.startswith("./"):
+        body = body[2:]
+    return (run_dir or "").rstrip("/") + "/" + body.lstrip("/")
+
+
 def datasets_dir_of(paths: Iterable[str]) -> str:
     """The datasets folder the recorded paths live in (datasets/<user>), from the first path that has one."""
     for p in paths or []:
@@ -607,21 +617,22 @@ def bind_aux(recorded: Iterable[str], now: Iterable[str]) -> dict:
     return {"map": out, "absent": absent, "extra": [p for p in cur if p not in used]}
 
 
-def bind_script(script: str, bindings: Dict[str, str], run_dir: str, datasets_dir: str = "", placeholders: Optional[Dict[str, str]] = None) -> Tuple[str, List[Tuple[str, str]]]:
-    """The executed text of a run: every string literal that is a recorded auxiliary path (or its bare name) becomes
-    this load's path - or the placeholder written for a file this load lacks -, and any other literal under the
-    datasets folder becomes a file in the run's own folder, so a run never writes into the person's cache. Returns the
-    text and the substitutions made, for the run's record."""
-    subs: List[Tuple[str, str, str]] = []
+def bind_script(script: str, bindings: Dict[str, str], run_dir: str, datasets_dir: str = "", placeholders: Optional[Dict[str, str]] = None) -> Tuple[str, List[Tuple[str, str, str]]]:
+    """The executed text of a run: every string literal under the datasets folder is moved under the run's folder, where
+    the run keeps a mirror of the recorded layout (2026-10-15) - a recorded auxiliary path, a folder literal, a path the
+    method builds as folder + name, a file of the person's own, a write target all resolve there; a loader's file named
+    with other dates than the recorded ones (an f-string on an input, another window) is this load's file of that kind,
+    under the recorded name. A bare file name is left as it is: it meets a mirrored folder. `bindings` and `placeholders`
+    map recorded paths to their mirror paths (the host makes them; a recorded file this load lacks is an empty table
+    there). Returns the text and the substitutions made, for the run's record: (literal, mirror path, bound |
+    placeholder | cache)."""
     table: Dict[str, Tuple[str, str]] = {}
     by_kind: Dict[str, Tuple[str, str]] = {}
     for old, new in (bindings or {}).items():
         table[old] = (new, "bound")
-        table[os.path.basename(old)] = (new, "bound")
         by_kind.setdefault(aux_kind(old), (new, "bound"))
     for old, new in (placeholders or {}).items():
         table.setdefault(old, (new, "placeholder"))
-        table.setdefault(os.path.basename(old), (new, "placeholder"))
         by_kind.setdefault(aux_kind(old), (new, "placeholder"))
     ddir = (datasets_dir or "").rstrip("/")
     seen = set()
@@ -630,22 +641,22 @@ def bind_script(script: str, bindings: Dict[str, str], run_dir: str, datasets_di
         body = m.group("body")
         q = m.group("q")
         new, kind = None, ""
-        name_kind = aux_kind(body) if (ddir and body.startswith(ddir + "/")) or body.startswith(("datasets/", "./datasets/")) else ""
+        under = (ddir and (body == ddir or body.startswith(ddir + "/"))) or body.startswith(("datasets/", "./datasets/"))
         if body in table:
             new, kind = table[body]
-        elif name_kind and not name_kind.startswith("file:") and name_kind in by_kind:
-            # a loader's file named with something other than the recorded dates - an f-string built from an input, a
-            # variable, another window (2026-10-10: a promoter wrote the window into the name) - is this load's file of
-            # that kind, whatever the rest of the name says
-            new, kind = by_kind[name_kind]
-        elif ddir and body.startswith(ddir + "/") and run_dir:
-            new, kind = run_dir.rstrip("/") + "/" + os.path.basename(body), "cache"
+        elif under:
+            name_kind = aux_kind(body)
+            if not name_kind.startswith("file:") and name_kind in by_kind and os.path.basename(body):
+                new, kind = by_kind[name_kind]                 # the loader's file of that kind, whatever the rest of the name says
+            elif run_dir:
+                new, kind = mirror_path(run_dir, body), "cache"
         if new is None or new == body:
             return m.group(0)
         if (body, new) not in seen:
             seen.add((body, new))
             subs.append((body, new, kind))
         return q + new + q
+    subs: List[Tuple[str, str, str]] = []
     return _STRING_RE.sub(repl, script or ""), subs
 
 
@@ -773,21 +784,25 @@ if 'df' in globals() and df is not None:
     df = _routine_conform(df, _ROUTINE_COLUMNS)
     if '_BambooSource' in globals():
         DS = _BambooSource(df)
-# every file the executed text names is there before the cells run: a stand-in that was not written gets written now
-# (an empty table with the recorded columns), a bound file that is not there is said and stood in for, a cache file the
-# method reads under its run-folder name is copied there
+# every file the method may name is in the run's mirror before the cells run (2026-10-15): a recorded file the probe did
+# not copy is copied from this load's file now, a stand-in that was not written gets written (an empty table with the
+# recorded columns), a bound file that is nowhere is said and stood in for, a cache file the method reads is copied
 def _routine_materialise(files):
     import os as _os, pandas as _pd
     for _new, _old, _cols, _kind in files:
-        if not _new or _os.path.exists(_new):
+        if not _new or _new.endswith('/') or _os.path.exists(_new):
+            if _new and _new.endswith('/'):
+                _os.makedirs(_new, exist_ok=True)
             continue
         _d = _os.path.dirname(_new)
         if _d:
             _os.makedirs(_d, exist_ok=True)
-        if _kind == 'cache' and _old and _os.path.exists(_old):
+        if _kind in ('cache', 'bound', 'cut') and _old and _os.path.isfile(_old):
             with open(_old, 'rb') as _s, open(_new, 'wb') as _t:
                 _t.write(_s.read())
             continue
+        if _kind == 'cache':
+            continue                                          # a write target, or a folder: nothing to copy
         _pd.DataFrame(columns=list(_cols or [])).to_csv(_new, index=False)
         if _kind in ('bound', 'cut'):
             print('ROUTINE: ' + _os.path.basename(_old or _new) + ' was not where this load left it; an empty table stood in for it')
@@ -838,11 +853,14 @@ SHAPE_MARK = "SHAPE:"
 
 
 def shape_script(bindings: Dict[str, str], aux_columns: Dict[str, List[str]], run_dir: str, absent: Iterable[str] = ()) -> str:
-    """A script, run before the method, that makes this load's auxiliary files fit the recorded ones: for each binding
-    a copy in the run's folder with the recorded columns it lacks added empty; for a recorded file this load lacks an
-    empty table with its columns; and prints what it found - rows, the columns added - as JSON after SHAPE:."""
+    """A script, run before the method, that makes this load's auxiliary files fit the recorded ones and lays them out as
+    the method expects (2026-10-15): for each binding a copy under the recorded path in the run's folder - the bytes as
+    they are, or with the recorded columns it lacks added empty; for a recorded file this load lacks an empty table with
+    its columns, at its recorded path; and prints what it found - rows, the columns added, the source - as JSON after
+    SHAPE:."""
     spec = {"bindings": dict(bindings or {}), "columns": {k: list(v) for k, v in (aux_columns or {}).items()},
-            "run_dir": run_dir, "absent": list(absent or [])}
+            "run_dir": run_dir, "absent": list(absent or []),
+            "mirror": {old: mirror_path(run_dir, old) for old in list((bindings or {}).keys()) + list(absent or [])}}
     return ("import json as _j, os as _os\n"
             "import pandas as _pd\n"
             "_spec = _j.loads(" + repr(json.dumps(spec)) + ")\n"
@@ -857,15 +875,18 @@ def shape_script(bindings: Dict[str, str], aux_columns: Dict[str, List[str]], ru
             "        continue\n"
             "    _missing = [c for c in _rec if c not in _fr.columns]\n"
             "    _empty = [c for c in _fr.columns if _fr[c].isna().all()]\n"
-            "    _target = _new\n"
+            "    _target = _spec['mirror'][_old]\n"
+            "    _os.makedirs(_os.path.dirname(_target) or '.', exist_ok=True)\n"
             "    if _missing:\n"
             "        for c in _missing: _fr[c] = _pd.NA\n"
-            "        _target = _os.path.join(_spec['run_dir'], _os.path.basename(_new))\n"
             "        _fr.to_csv(_target, index=False)\n"
-            "    _out['files'][_old] = {'path': _target, 'rows': int(len(_fr)), 'missing': _missing, 'empty': _empty, 'columns': [str(c) for c in _fr.columns]}\n"
+            "    else:\n"
+            "        with open(_new, 'rb') as _s, open(_target, 'wb') as _t: _t.write(_s.read())\n"
+            "    _out['files'][_old] = {'path': _target, 'source': _new, 'rows': int(len(_fr)), 'missing': _missing, 'empty': _empty, 'columns': [str(c) for c in _fr.columns]}\n"
             "for _old in _spec['absent']:\n"
             "    _rec = _spec['columns'].get(_old) or []\n"
-            "    _target = _os.path.join(_spec['run_dir'], _os.path.basename(_old))\n"
+            "    _target = _spec['mirror'][_old]\n"
+            "    _os.makedirs(_os.path.dirname(_target) or '.', exist_ok=True)\n"
             "    _pd.DataFrame(columns=_rec).to_csv(_target, index=False)\n"
             "    _out['placeholders'][_old] = _target\n"
             "print(" + repr(SHAPE_MARK + " ") + " + _j.dumps(_out))\n")

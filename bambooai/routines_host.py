@@ -438,16 +438,17 @@ def cut_window(ver: dict, current_data: Optional[dict]) -> Optional[dict]:
 
 
 def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable], run_dir: str) -> dict:
-    """A run's data made to fit the recorded shape: the recorded auxiliary files bound by kind to this load's (a copy
-    with the missing columns added, in the run's folder, when one lacks columns; an empty table for one this load
-    lacks), the executed text with this load's names, and the prelude that conforms `df` and writes the inputs that
-    follow the frame's own dates."""
+    """A run's data made to fit the recorded shape, laid out as the method expects (2026-10-15): every recorded auxiliary
+    path exists under the run's folder - a mirror of the recorded layout - holding this load's file of that kind (a copy;
+    with the missing columns added when one lacks columns; cut to the window on a cached load around it; an empty table
+    for one this load lacks), the executed text with every path under the datasets folder moved under the run's folder,
+    and the prelude that conforms `df`, makes sure of the files and writes the inputs that follow the frame's own dates."""
     rec = (ver.get("manifest") or {}).get("data") or {}
     d = current_data or {}
     binding = rt.bind_aux(rec.get("aux") or [], d.get("aux") or [])
     shape_rec = rec.get("aux_shape") or {}
     columns = {p: [c.get("name") for c in (shape_rec.get(p) or {}).get("columns") or []] for p in (rec.get("aux") or [])}
-    shape, placeholders, note = None, {}, ""
+    shape, note = None, ""
     if runner is not None and (binding["map"] or binding["absent"]):
         try:
             stdout, err, _f, _g = runner(rt.shape_script(binding["map"], columns, run_dir, binding["absent"]), 180)
@@ -456,34 +457,34 @@ def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable],
                 note = f"the auxiliary files could not be prepared ({str(err).strip().splitlines()[-1][:160]})"
         except Exception as exc:                                       # noqa: BLE001
             note = f"the auxiliary files could not be prepared ({exc})"
-    bound = dict(binding["map"])
-    if shape:
-        for old, info in (shape.get("files") or {}).items():
-            if isinstance(info, dict) and info.get("path"):
-                bound[old] = info["path"]
-        placeholders = dict(shape.get("placeholders") or {})
-    # a recorded file this load lacks stands in as an empty table in the run's folder whether or not the probe wrote it
-    # (the prelude writes what is not there), so a recorded name is never rewritten as a cache path
-    for old in binding["absent"]:
-        placeholders.setdefault(old, run_dir.rstrip("/") + "/" + os.path.basename(old))
-    # a run on a cached load around the window asked: each bound file is cut to the window by the prelude and written in the
-    # run's folder under the loader's name for that window - the executed text names the cut copy, never the cached file
+    # the mirror: each recorded path under the run's folder, whether or not the probe wrote it (the prelude makes sure of
+    # what is not there), so a recorded name is never rewritten as a cache path and folder + name resolves
+    bound = {old: rt.mirror_path(run_dir, old) for old in binding["map"]}
+    placeholders = {old: rt.mirror_path(run_dir, old) for old in binding["absent"]}
+    sources = dict(binding["map"])                                    # recorded path -> this load's file, for the record
+    # a run on a cached load around the window asked: each bound file is cut to the window by the prelude and written at
+    # its mirror path - the executed text names the mirror, never the cached file
     cut = cut_window(ver, d)
     cut_files: Dict[str, dict] = {}
     if cut:
         for old, src_path in binding["map"].items():
-            new = run_dir.rstrip("/") + "/" + rt.cut_name(src_path, cut["start"], cut["end"])
+            new = bound[old]
             by, col = rt.cut_rule(src_path)
             cut_files[new] = {"source": src_path, "columns": columns.get(old) or [], "by": by, "column": col}
-            bound[old] = new
         cut["files"] = cut_files
-    script, subs = rt.bind_script(ver.get("script") or "", bound, run_dir, rt.datasets_dir_of(rec.get("aux") or []) or rt.datasets_dir_of(d.get("aux") or []), placeholders)
+    # the folder the method's paths live under: the datasets folder of the recorded files, else the folder of the first of them
+    ddir = rt.datasets_dir_of(rec.get("aux") or []) or rt.datasets_dir_of(d.get("aux") or []) or os.path.dirname(str((rec.get("aux") or [""])[0]).replace("\\", "/"))
+    script, subs = rt.bind_script(ver.get("script") or "", bound, run_dir, ddir, placeholders)
     subs = [(old, new, ("cut" if new in cut_files else kind)) for old, new, kind in subs]
-    files = [(new, old, columns.get(old) or [], kind) for old, new, kind in subs]
+    # what the prelude makes sure of: every recorded file at its mirror path (from this load's file, or an empty table),
+    # and any other cache file the text reads, copied under the run's folder
+    files = [(bound[old], sources[old], columns.get(old) or [], "cut" if bound[old] in cut_files else "bound") for old in binding["map"]]
+    files += [(placeholders[old], "", columns.get(old) or [], "placeholder") for old in binding["absent"]]
+    files += [(new, old, [], "cache") for old, new, kind in subs if kind == "cache"]
     logger.info("routine run: %d file(s) bound, %d absent (%s), %d substitution(s) in the executed text%s%s", len(binding["map"]), len(binding["absent"]),
                 ", ".join(rt.aux_kind(p) for p in binding["absent"]) or "-", len(subs), ("; " + note) if note else "",
                 (f"; cut to {cut['start']} → {cut['end']} by {cut['column'] or '?'}, {len(cut_files)} file(s)") if cut else "")
-    return {"binding": binding, "bound": bound, "placeholders": placeholders, "shape": shape, "script": script, "subs": subs, "note": note, "cut": cut,
+    return {"binding": binding, "bound": bound, "placeholders": placeholders, "sources": sources, "shape": shape, "script": script, "subs": subs, "note": note, "cut": cut,
             "prelude": rt.conform_prelude(rec.get("columns") or [], files, span_inputs((ver.get("manifest") or {}).get("parameters") or [], rec), cut)}
 
 
@@ -650,7 +651,7 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     record = {"number": number, "version": vnum, "created": t0, "finished": now, "elapsed": elapsed, "status": status, "line": line,
               "data": d, "inputs": vals, "results": got, "figures": len(figs or []), "stdout_chars": len(stdout or ""), "cells": n_cells,
               "against": ref_number, "comparison": cmp, "narrative": "", "error": (str(err).strip()[-2000:] if err else ""),
-              "fit": {k: fit[k] for k in ("missing", "extra", "retyped", "line")}, "bindings": prep["subs"], "aux_absent": [rt.aux_kind(p) for p in prep["binding"]["absent"]],
+              "fit": {k: fit[k] for k in ("missing", "extra", "retyped", "line")}, "bindings": prep["subs"], "sources": prep["sources"], "aux_absent": [rt.aux_kind(p) for p in prep["binding"]["absent"]],
               "differences": differences, "check": check_line, "failed_cell": failed_cell,
               "shape": prep["shape"], "run_dir": run_dir, "generated": list(generated or []) if isinstance(generated, (list, tuple)) else []}
     summary = {k: record[k] for k in ("number", "version", "created", "finished", "elapsed", "status", "line", "inputs", "results", "figures", "against", "cells")}

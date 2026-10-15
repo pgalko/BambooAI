@@ -114,6 +114,15 @@ check('run dialog (a file routine): a hidden choice for a file from the Dataset 
   && !el(b.runDialog(rr, { loaded: false, ok: false, line: '', plan: { source: 'intervals', window_days: 28, aux_kinds: ['summary'] } })).querySelector('.rt-cachepick')
   && rtSrcPick.includes("fetchJson('/routines/cache_files')") && rtSrcPick.includes("if (dataChoice() === 'cache')") && rtSrcPick.includes("choice === 'upload' || choice === 'cache' ? 'primary' : 'all'"));
 check('a run loaded from the Dataset cache says so where its load is named', el(b.dataTab({ source: 'file', load: { source: 'file', name: 'a.csv', cached: true } }, {})).textContent.includes('File · a.csv · from the Dataset cache'));
+// the run's files (2026-10-15): the executed text names the run's mirror of the recorded path, so the Data tab shows the recorded name
+// against this load's file from run.sources; a stand-in reads as an empty table; an older record without sources shows the bound path
+const dtF = el(b.dataTab({ source: 'intervals', load: { source: 'intervals', start_date: '2026-07-03', end_date: '2026-08-31', aux_kinds: ['summary', 'wellness'] } },
+  { bindings: [['datasets/u/k/activity_summary_20260501_to_20260630.csv', 'datasets/u/routines/r/v1_1/datasets/u/k/activity_summary_20260501_to_20260630.csv', 'bound'], ['datasets/u/k/wellness_data_20260501_to_20260630.csv', 'datasets/u/routines/r/v1_1/datasets/u/k/wellness_data_20260501_to_20260630.csv', 'placeholder']],
+    sources: { 'datasets/u/k/activity_summary_20260501_to_20260630.csv': 'datasets/u/k/activity_summary_20260703_to_20260831.csv' }, aux_absent: ['wellness'] })).textContent;
+const dtO = el(b.dataTab({ source: 'intervals', load: { source: 'intervals', start_date: '2026-07-03', end_date: '2026-08-31' } }, { bindings: [['datasets/u/k/activity_summary_a.csv', 'datasets/u/routines/r/v1_1/activity_summary_b.csv', 'bound']] })).textContent;
+check('the Data tab names each recorded file against this load\'s file (the source), a stand-in as an empty table, and an older record by its bound path',
+  dtF.includes('activity_summary_20260501_to_20260630.csv → activity_summary_20260703_to_20260831.csv') && dtF.includes('wellness_data_20260501_to_20260630.csv → an empty table') && dtF.includes('wellness: absent in this data')
+  && dtO.includes('activity_summary_a.csv → activity_summary_b.csv'), [dtF.slice(0, 300), dtO.slice(0, 200)]);
 rd = el(b.runDialog(rr, { loaded: false, ok: false, line: 'no data is loaded', plan: { source: 'file', name: 'small.csv' } }));
 check('run dialog (a file routine) with nothing loaded: the upload is the choice, on, naming the original file; Run waits for a file', rd.querySelector('input[name="rt-data"][value="upload"]').hasAttribute('checked') && rd.textContent.includes('the original: small.csv') && !rd.querySelector('input[name="rt-data"][value="now"]') && rd.querySelector('.rt-line.muted').textContent.includes('upload the file'));
 rd = el(b.runDialog(rr, { loaded: true, ok: true, line: '1 of 2 columns empty in this data: g', fit: { missing: ['g'] }, data: { name: 'other.csv', source: 'csv', rows: 9, columns: 1 }, plan: { source: 'file' } }));

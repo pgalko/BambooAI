@@ -1,7 +1,7 @@
 """Routines (docs/ROUTINES_DESIGN.md): the pure module, the promoter's prompt under the standing rule, the records a
 run keeps, the host's propose/create path over a real kernel with a scripted promoter, and the store.
 Run: python3 tests/analyst/test_routines.py"""
-import os, sys, json, re, tempfile, shutil
+import os, sys, json, re, tempfile, shutil, glob
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.dirname(os.path.abspath(__file__)), ROOT, os.path.join(ROOT, "delve")]
 import _stubs  # noqa: F401
@@ -427,10 +427,12 @@ ev5 = []
 run_dir5 = os.path.join(aux_dir, "routines", rid5, "v1_1")
 out5b = host.run(store.load(rid5), {}, now5, runner_on(df), store, emit=ev5.append, run_dir=run_dir5)
 r5 = out5b["run"]
-check("a run on the later window: the method read this window's summary under the recorded name (bound in the executed text, the stored script untouched), its lines moved, the copy in the run's folder carries the column the new file lacked",
-      r5["status"] == "ran" and [rt.number(x["estimate"]) for x in r5["results"]] == [6.0, 7.0] and r5["bindings"] and r5["bindings"][0][0] == aux_old and r5["bindings"][0][1].startswith(run_dir5)
-      and r5["shape"]["files"][aux_old]["missing"] == ["note"] and r5["shape"]["files"][aux_old]["rows"] == 6 and aux_old in store.load(rid5)["versions"][0]["script"]
-      and os.path.exists(os.path.join(run_dir5, "activity_summary_20260910_to_20261010.csv")), (r5["status"], r5["results"], r5.get("bindings"), r5.get("shape")))
+check("a run on the later window: the method read this window's summary under the recorded name - the executed text names the run's mirror of the recorded path (2026-10-15), the stored script untouched - its lines moved; "
+      "the copy at the mirror path carries the column the new file lacked; the record says which file of this load it was",
+      r5["status"] == "ran" and [rt.number(x["estimate"]) for x in r5["results"]] == [6.0, 7.0] and r5["bindings"] and r5["bindings"][0][0] == aux_old and r5["bindings"][0][1] == rt.mirror_path(run_dir5, aux_old)
+      and r5["shape"]["files"][aux_old]["missing"] == ["note"] and r5["shape"]["files"][aux_old]["rows"] == 6 and r5["shape"]["files"][aux_old]["source"] == aux_new and r5["sources"] == {aux_old: aux_new}
+      and aux_old in store.load(rid5)["versions"][0]["script"] and os.path.exists(rt.mirror_path(run_dir5, aux_old)) and pd.read_csv(rt.mirror_path(run_dir5, aux_old)).columns.tolist() == ["hour", "load", "note"]
+      and not os.path.exists(os.path.join(run_dir5, "activity_summary_20260910_to_20261010.csv")), (r5["status"], r5["results"], r5.get("bindings"), r5.get("shape")))
 # what differs, said in sentences (step 4, 2026-10-11): the rows of the frame and of each bound file against the original's,
 # the columns added empty; in the dialog's line (the frame's rows), on the CHECK row and on the record
 check("precheck's line says the frame's rows against the original's (no probe needed)", "the same 5 rows as the original" in pc5["line"] and pc5["differences"] == ["the same 5 rows as the original"], pc5["line"])
@@ -462,6 +464,19 @@ check("cached_files: the cache's frames that came from a file, newest first, by 
                                              {"df_id": "d4e5f6g7h8", "shape": [1, 1]}]})
       == [{"df_id": "c3", "name": "new.csv", "rows": 12, "cached_at": "2026-10-11T09:00:00"}, {"df_id": "a1", "name": "old.csv", "rows": 720, "cached_at": "2026-10-10T10:00:00"}, {"df_id": "d4e5f6g7h8", "name": "frame d4e5f6g7", "rows": 1, "cached_at": ""}]
       and rt.cached_files({}) == [], rt.cached_files({"cached_dataframes": [{"df_id": "a1", "source": "csv", "original_filename": "old.csv", "shape": [720, 6], "cached_at": "2026-10-10T10:00:00"}]}))
+# a path built as folder + name, end to end (2026-10-15, Palo's first routine over the words failed here): the same recorded
+# file read as base + name; on the later window the run reads this window's file at the mirror - the same answer as the full-path run
+R5f = json.loads(json.dumps(store.load(rid5)))
+R5f["id"] = "mirror5f"
+_base = aux_dir.rstrip("/") + "/"
+R5f["versions"][0]["script"] = R5f["versions"][0]["script"].replace(f"pd.read_csv({aux_old!r})", f"base = {_base!r}\nsumm = pd.read_csv(base + {os.path.basename(aux_old)!r})")
+assert "base + " in R5f["versions"][0]["script"]
+store.save(R5f)
+run_dir5f = os.path.join(aux_dir, "routines", "mirror5f", "v1_1")
+r5f = host.run(store.load("mirror5f"), {}, now5, runner_on(df), store, run_dir=run_dir5f)["run"]
+check("a method that builds the path as folder + name runs on the later window: the folder literal moved under the run's folder, the bare name kept, the file read at the mirror - the same two lines as the full-path method",
+      r5f["status"] in ("ran", "reproduced") and [rt.number(x["estimate"]) for x in r5f["results"]] == [6.0, 7.0] and r5f["bindings"] and r5f["bindings"][0][0] == _base and r5f["bindings"][0][2] == "cache"
+      and r5f["bindings"][0][1] == rt.mirror_path(run_dir5f, _base) and r5f["sources"] == {aux_old: aux_new} and "FileNotFoundError" not in (r5f.get("error") or ""), (r5f["status"], r5f.get("bindings"), (r5f.get("error") or "")[-200:]))
 # a window whose load produced no summary at all: the method sees an empty table, the CHECK row and the record say so
 now5c = dict(now5, aux=[])
 pc5c = host.precheck(store.load(rid5), now5c, runner_on(df))
@@ -471,15 +486,29 @@ out5c = host.run(store.load(rid5), {}, now5c, runner_on(df), store, emit=ev5c.ap
 r5c = out5c["run"]
 check("a run with the summary absent: an empty table with the recorded columns stood in, the method failed on it (nothing to count), the run is kept and names the cell, the record lists the absent file",
       r5c["status"] == "failed" and r5c["line"].startswith("failed at cell 1") and r5c["aux_absent"] == ["summary"] and any("summary absent" in (e.get("peek") or "") for e in ev5c if e.get("kind") == "check")
-      and os.path.exists(os.path.join(aux_dir, "routines", rid5, "v1_2", "activity_summary_20260812_to_20261010.csv")), (r5c["status"], r5c["line"], r5c.get("aux_absent")))
+      and os.path.exists(rt.mirror_path(os.path.join(aux_dir, "routines", rid5, "v1_2"), aux_old)) and r5c["sources"] == {}, (r5c["status"], r5c["line"], r5c.get("aux_absent")))
 # a loader's file named with something other than the recorded dates (2026-10-10, Palo's second live run: the promoter had
 # written the loaded window into the summary's name as an f-string on an input, so the recorded name was gone from the text
 # and the run could not bind it): bound by kind, whatever the rest of the name says
 fs = "au = pd.read_csv(f\"datasets/local/activity_summary_{str(INPUTS['window'][0]).replace('-','')}_to_{str(INPUTS['window'][1]).replace('-','')}.csv\")\nw = pd.read_csv('datasets/local/wellness_data_20260712_to_20261010.csv')\nx = pd.read_csv('datasets/local/own_notes.csv')"
-bt, bsubs = rt.bind_script(fs, {"datasets/local/activity_summary_20260712_to_20261010.csv": "datasets/local/activity_summary_20260112_to_20260710.csv"}, "datasets/local/routines/r/v1_1", "datasets/local",
-                           {"datasets/local/wellness_data_20260712_to_20261010.csv": "datasets/local/routines/r/v1_1/wellness_data_20260712_to_20261010.csv"})
-check("bind_script: a summary named by an f-string on an input is bound to this load's summary by its kind; the wellness name to its stand-in; a file of the person's own under the datasets folder to the run's folder",
-      "pd.read_csv(f\"datasets/local/activity_summary_20260112_to_20260710.csv\")" in bt and [k for _, _, k in bsubs] == ["bound", "placeholder", "cache"] and "routines/r/v1_1/own_notes.csv" in bt, (bt, bsubs))
+_mir = "datasets/local/routines/r/v1_1"
+bt, bsubs = rt.bind_script(fs, {"datasets/local/activity_summary_20260712_to_20261010.csv": rt.mirror_path(_mir, "datasets/local/activity_summary_20260712_to_20261010.csv")}, _mir, "datasets/local",
+                           {"datasets/local/wellness_data_20260712_to_20261010.csv": rt.mirror_path(_mir, "datasets/local/wellness_data_20260712_to_20261010.csv")})
+check("bind_script (the mirror, 2026-10-15): a summary named by an f-string on an input is bound by its kind to the mirror of the recorded summary; the wellness name to its stand-in at its recorded path under the run's folder; "
+      "a file of the person's own under the datasets folder to the same place under the run's folder",
+      "pd.read_csv(f\"datasets/local/routines/r/v1_1/datasets/local/activity_summary_20260712_to_20261010.csv\")" in bt and [k for _, _, k in bsubs] == ["bound", "placeholder", "cache"]
+      and "'datasets/local/routines/r/v1_1/datasets/local/wellness_data_20260712_to_20261010.csv'" in bt and "'datasets/local/routines/r/v1_1/datasets/local/own_notes.csv'" in bt, (bt, bsubs))
+# a path built as folder + name (2026-10-15, Palo's first routine over the words: base='datasets/local/<key>/' then base+'activity_summary_...csv'
+# came out as run_folder/datasets/local/<key>/... with the name bound to a full path): the folder literal moves under the run's
+# folder, the bare name stays, and the two meet at the mirror of the recorded file - on the same window and on another
+fb = "base='datasets/local/'\nact=pd.read_csv(base+'activity_summary_20260712_to_20261010.csv')\nwel=pd.read_csv(base+'wellness_data_20260712_to_20261010.csv')\nalso=pd.read_csv('datasets/local/activity_summary_20260712_to_20261010.csv')"
+bt2, bsubs2 = rt.bind_script(fb, {"datasets/local/activity_summary_20260712_to_20261010.csv": rt.mirror_path(_mir, "datasets/local/activity_summary_20260712_to_20261010.csv")}, _mir, "datasets/local",
+                             {"datasets/local/wellness_data_20260712_to_20261010.csv": rt.mirror_path(_mir, "datasets/local/wellness_data_20260712_to_20261010.csv")})
+check("bind_script: a folder literal under the datasets folder moves under the run's folder (its slash kept), a bare file name is left alone, so folder + name resolves to the mirror file; the full path resolves to the same file",
+      "base='datasets/local/routines/r/v1_1/datasets/local/'" in bt2 and "base+'activity_summary_20260712_to_20261010.csv'" in bt2 and "base+'wellness_data_20260712_to_20261010.csv'" in bt2
+      and "also=pd.read_csv('datasets/local/routines/r/v1_1/datasets/local/activity_summary_20260712_to_20261010.csv')" in bt2
+      and [(o, k) for o, _, k in bsubs2] == [("datasets/local/", "cache"), ("datasets/local/activity_summary_20260712_to_20261010.csv", "bound")]
+      and rt.mirror_path(_mir, "datasets/local/") == "datasets/local/routines/r/v1_1/datasets/local/" and rt.mirror_path(_mir, "./datasets/local/x.csv") == "datasets/local/routines/r/v1_1/datasets/local/x.csv", (bt2, bsubs2))
 # the promoter's edit that writes an input into a loader's file name is refused, and the input dropped with the reason
 ed_cells = "# --- cell 1 ---\nau = pd.read_csv(\"datasets/local/activity_summary_20260712_to_20261010.csv\")\nband = [9, 11]\n"
 ed_text, ed_applied, ed_failed = rt.apply_edits(ed_cells, [
@@ -505,8 +534,8 @@ ev5d = []
 out5d = host.run(store.load(rid5), {}, now5c, probe_fails, store, emit=ev5d.append, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_3"))
 r5d = out5d["run"]
 check("the probe failed and the summary is absent: the CHECK row says the files could not be prepared, the stand-in path is still what the executed text names (never a cache path), the prelude wrote it, and the method failed on the empty table - not on a missing file",
-      any("could not be prepared" in (e.get("peek") or "") for e in ev5d if e.get("kind") == "check") and r5d["bindings"] and r5d["bindings"][0][2] == "placeholder" and r5d["bindings"][0][1].endswith("/v1_3/activity_summary_20260812_to_20261010.csv")
-      and os.path.exists(os.path.join(aux_dir, "routines", rid5, "v1_3", "activity_summary_20260812_to_20261010.csv")) and "FileNotFoundError" not in (r5d.get("error") or "") and r5d["status"] == "failed",
+      any("could not be prepared" in (e.get("peek") or "") for e in ev5d if e.get("kind") == "check") and r5d["bindings"] and r5d["bindings"][0][2] == "placeholder" and r5d["bindings"][0][1] == rt.mirror_path(os.path.join(aux_dir, "routines", rid5, "v1_3"), aux_old)
+      and os.path.exists(rt.mirror_path(os.path.join(aux_dir, "routines", rid5, "v1_3"), aux_old)) and "FileNotFoundError" not in (r5d.get("error") or "") and r5d["status"] == "failed",
       (r5d.get("bindings"), r5d.get("status"), (r5d.get("error") or "")[-160:]))
 # a bound file that is not there when the cells run (the loader's file gone between the probe and the run): stood in for and said
 now5e = dict(now5, aux=[os.path.join(aux_dir, "activity_summary_20260501_to_20260630.csv")])
@@ -519,9 +548,10 @@ def probe_then_gone(script, timeout, *rest):
     return runner_on(df)(script, timeout)
 out5e = host.run(store.load(rid5), {}, now5e, probe_then_gone, store, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_4"))
 r5e = out5e["run"]
-check("a bound file gone before the cells ran: the prelude stood an empty table in for it (the file is there, with the recorded columns); the run failed on the empty table, not on a missing file",
-      r5e["bindings"][0][2] == "bound" and os.path.exists(now5e["aux"][0]) and pd.read_csv(now5e["aux"][0]).columns.tolist() == ["hour", "load", "note"] and "FileNotFoundError" not in (r5e.get("error") or "")
-      and "empty sequence" in (r5e.get("error") or ""), (r5e.get("bindings"), (r5e.get("error") or "")[-160:]))
+_mir5e = rt.mirror_path(os.path.join(aux_dir, "routines", rid5, "v1_4"), aux_old)
+check("a bound file gone after the probe (2026-10-15): the probe's copy in the run's mirror carries the run - the method read its one row, the loader's path stays gone, no stand-in and no FileNotFoundError",
+      r5e["bindings"][0][2] == "bound" and r5e["bindings"][0][1] == _mir5e and not os.path.exists(now5e["aux"][0]) and os.path.exists(_mir5e) and pd.read_csv(_mir5e).columns.tolist() == ["hour", "load", "note"]
+      and r5e["status"] == "ran" and [rt.number(x["estimate"]) for x in r5e["results"]] == [1.0, 6.0] and "FileNotFoundError" not in (r5e.get("error") or ""), (r5e.get("bindings"), r5e.get("status"), r5e.get("results"), (r5e.get("error") or "")[-160:]))
 # ---- an input that only restates the period the data covers follows the data (2026-10-11: the first run that completed on a
 # new window carried the original window in its labels and titles, typed, and the promoter had made it an input to retype) ----
 df_d = pd.DataFrame({"datetime": pd.to_datetime(["2026-07-13 06:00", "2026-08-01 07:00", "2026-09-10 06:30", "2026-10-07 18:00"]), "v": [1, 2, 3, 4]})
@@ -674,10 +704,11 @@ check("the run on a cached load around the window: the frame cut to Feb-May (2 o
       r9["status"] in ("ran", "differed") and got9.get("rows in the summary") == "+2.00" and got9.get("rows in the wellness file") == "+1.00" and got9.get("rows in the intervals file") == "+2.00"
       and any(k.startswith("sessions in the frame 2026-02-10 to 2026-04-01") for k in got9) and got9[next(k for k in got9 if k.startswith("sessions in the frame"))] == "+2.00"
       and r9["inputs"] == {"span": ["2026-02-10", "2026-04-01"]} and any(e.get("kind") == "check" and "cut to 2026-02-01 → 2026-05-31 from the cached load 2026-01-01 → 2026-06-30" in (e.get("peek") or "") for e in ev9), (r9["status"], got9, r9["inputs"], [e.get("peek") for e in ev9 if e.get("kind") == "check"], (r9.get("error") or "")[-300:]))
-check("the executed text names the cut copies under the loader's names for the window, in the run's folder; the record's bindings say cut; the data record says the window and the rows the method saw; the files are there",
-      all(k == "cut" for _, _, k in r9["bindings"]) and sorted(os.path.basename(n) for _, n, _ in r9["bindings"]) == ["activity_intervals_20260201_to_20260531.csv", "activity_summary_20260201_to_20260531.csv", "wellness_data_20260201_to_20260531.csv"]
-      and all(os.path.dirname(n) == run9_dir for _, n, _ in r9["bindings"]) and all(os.path.exists(n) for _, n, _ in r9["bindings"]) and r9["data"]["date_range"] == "2026-02-01 to 2026-05-31" and r9["data"]["rows"] == 2
-      and rt.DATA_MARK_OUT not in out9["stdout"] and pd.read_csv(os.path.join(run9_dir, "activity_summary_20260201_to_20260531.csv"))["activity_id"].tolist() == ["a2", "a3"], (r9["bindings"], r9["data"].get("date_range"), r9["data"].get("rows")))
+check("the executed text names the cut copies at the mirror of the recorded paths under the run's folder (2026-10-15); the record's bindings say cut and the sources name the cached load's files; the data record says the window and the rows the method saw; the files are there, cut",
+      all(k == "cut" for _, _, k in r9["bindings"]) and sorted(n for _, n, _ in r9["bindings"]) == sorted(rt.mirror_path(run9_dir, o) for o in r9["sources"]) and len(r9["sources"]) == 3
+      and all(os.path.exists(n) for _, n, _ in r9["bindings"]) and r9["data"]["date_range"] == "2026-02-01 to 2026-05-31" and r9["data"]["rows"] == 2
+      and rt.DATA_MARK_OUT not in out9["stdout"] and pd.read_csv(next(n for o, n, _ in r9["bindings"] if rt.aux_kind(o) == "summary"))["activity_id"].tolist() == ["a2", "a3"]
+      and not glob.glob(os.path.join(run9_dir, "*.csv")), (r9["bindings"], r9.get("sources"), r9["data"].get("date_range"), r9["data"].get("rows")))
 pc9 = host.precheck(store.load(rid9), now9, runner_on(df9c))
 R9 = store.load(rid9); v9 = host.version_of(R9)
 v9["manifest"]["parameters"].append({"key": "which", "label": "Which", "type": "choice", "default": ["a1", "a2"], "column": "activity_id", "multiple": True, "origin": "x"})

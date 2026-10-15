@@ -319,7 +319,11 @@
             const ld = loadLabel(d.load);
             const subs = (run && run.bindings) || [];
             const absent = (run && run.aux_absent) || [];
-            const bound = subs.length ? '<b>Files</b><span>' + subs.map(x => esc(String(x[0]).split('/').pop()) + ' → ' + esc(String(x[1]).split('/').pop())).join('<br>') + (absent.length ? '<br>' + esc(absent.join(', ')) + ': absent in this data (an empty table stood in)' : '') + '</span>' : (absent.length ? '<b>Files</b><span>' + esc(absent.join(', ')) + ': absent in this data (an empty table stood in)</span>' : '');
+            // each recorded file against this load's (run.sources, 2026-10-15: the executed text names the run's mirror of the
+            // recorded layout, so the mirror path would only repeat the recorded name); an older record shows the bound path
+            const srcOf = x => (run && run.sources && run.sources[x[0]]) || (x[2] === 'placeholder' ? '' : x[1]);
+            const files = subs.length ? subs : Object.keys((run && run.sources) || {}).map(k => [k, run.sources[k], 'bound']);
+            const bound = files.length ? '<b>Files</b><span>' + files.map(x => esc(String(x[0]).split('/').pop()) + ' → ' + esc(String(srcOf(x)).split('/').pop() || 'an empty table')).join('<br>') + (absent.length ? '<br>' + esc(absent.join(', ')) + ': absent in this data (an empty table stood in)' : '') + '</span>' : (absent.length ? '<b>Files</b><span>' + esc(absent.join(', ')) + ': absent in this data (an empty table stood in)</span>' : '');
             // what differed from the original's data, as the CHECK row said it (step 4, 2026-10-11): one sentence a line
             const diffs = (run && run.differences) || [];
             const differs = diffs.length ? '<b>Differs</b><span class="rt-differs">' + diffs.map(x => esc(x)).join('<br>') + '</span>' : '';

@@ -297,10 +297,10 @@ version's data record, `load`), and offers the data loaded now beside it.
    the smallest such load is taken, and the run *cuts it to the window before the method runs* — the frame by its
    date column (the one recorded at promotion), the summary by each ride's `start_date_local`, the wellness file by
    its `date`, the intervals file by the rides kept, any other file by a column of dates it finds or by the rides, or
-   whole and said — each cut file written in the run's folder under the loader's own name for that window
-   (`activity_summary_<start>_to_<end>.csv`), with the recorded columns it lacks added, so the method sees what a
-   fresh download of the window would have given it (`CUT_RULES`, `cut_name`, `_ROUTINE_CUT` in the prelude; the
-   value check cuts the same way). The line reads *inside the cached load … → … - it will be cut to the window, no
+   whole and said — each cut file written at its mirror path in the run's folder (since 0159; before, under the
+   loader's own name for that window), with the recorded columns it lacks added, so the method sees what a fresh
+   download of the window would have given it (`CUT_RULES`, `_ROUTINE_CUT` in the prelude; the value check cuts
+   the same way). The line reads *inside the cached load … → … - it will be cut to the window, no
    download*; the LOAD row *cut from the cache*; the CHECK row *cut to … → … from the cached load … → …*; the
    record's `load` carries `cached_from`, its `date_range` and `rows` are the window's as the method saw them, its
    `bindings` read *cut*. The Data tab afterwards holds the cached load itself (that is what the executor has), and
@@ -349,16 +349,27 @@ version's data record, `load`), and offers the data loaded now beside it.
    sentences (`differences`) and the whole line (`check`); a stored run's CHECK row repeats it, and its Data tab
    lists the sentences under *Differs*.
 3. **The data made to fit** (`prepare`), in the run's own folder on the executor's side
-   (`datasets/<user>/routines/<id>/<tag>/`): each recorded auxiliary file bound, by kind, to this load's file - a
-   copy with the recorded columns it lacks added empty when it lacks any; an empty table with the recorded columns
-   for a file this load did not write; the executed text is the stored script with every string literal that names
-   a recorded file - by its exact name, or by its loader kind when the rest of the name differs (§4.7) - or any
-   other path under the user's datasets folder - replaced by this run's path, so the method reads this window's
-   summary under the name it was written with and never writes into the person's cache; the
-   prelude after the INPUTS block conforms `df`: a recorded column this frame lacks is added empty in its type, a
-   column whose type family changed is read back (`conform_prelude`), and `DS` is rebuilt on the conformed frame;
-   then the inputs that follow the frame's own dates are written from it (§4.8). The stored script is not changed;
-   the record keeps the substitutions and the values written.
+   (`datasets/<user>/routines/<id>/<tag>/`), laid out as **a mirror of the recorded layout** (2026-10-15, patch
+   0159): every recorded auxiliary path exists under the run's folder (`<run folder>/datasets/<user>/<mark>/
+   activity_summary_<recorded window>.csv`, `mirror_path`) holding this load's file of that kind - the bytes as
+   they are, or with the recorded columns it lacks added empty; cut to the window on a cached load around it; an
+   empty table with the recorded columns for a file this load did not write. The executed text is the stored
+   script with every string literal under the user's datasets folder moved under the run's folder - a recorded
+   path, a folder literal, a file of the person's own, a write target alike - and a loader's file named with other
+   dates than the recorded ones (§4.7) pointed at the mirror of that kind's recorded file; a bare file name is left
+   as it is and meets a mirrored folder. So the method reads this window's summary under the name it was written
+   with, a path built as `folder + name` resolves (the first live routine over the words had read every file that
+   way: the folder had become the run's folder and the bare name a full path, and the two concatenated existed
+   nowhere), and nothing is ever written into the person's cache. Before the mirror the text was rewritten literal
+   by literal - a recorded path to this load's cache path, a bare name to a full path, any other datasets path to
+   the run's folder - three rules that were each right alone. The prelude after the INPUTS block conforms `df`: a
+   recorded column this frame lacks is added empty in its type, a column whose type family changed is read back
+   (`conform_prelude`), and `DS` is rebuilt on the conformed frame; it makes sure of every mirror file (a recorded
+   file the probe did not copy is copied from this load's file now; a stand-in not written is written); then the
+   inputs that follow the frame's own dates are written from it (§4.8). The stored script is not changed; the record
+   keeps the substitutions (`bindings`: literal, mirror path, bound | placeholder | cut | cache), the files of this
+   load each recorded path was filled from (`sources`), and the values written; the Data tab shows each recorded
+   name against its source.
 4. **The run**: the manager closes, the main panes enter the run's view (S4) - the strip *run n · vX*, the position
    *run n · running* with both arrows off, the composer locked - with a *LOAD* row when the dialog loaded, then the
    *CHECK* row (the fit line and the files), *RUN* (run n · vX · k cells → the status line, the figures, the seconds),
