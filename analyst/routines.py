@@ -868,32 +868,50 @@ def conform_prelude(columns: Iterable[dict], files: Optional[Iterable[Tuple[str,
 SHAPE_MARK = "SHAPE:"
 
 
-def shape_script(bindings: Dict[str, str], aux_columns: Dict[str, List[str]], run_dir: str, absent: Iterable[str] = ()) -> str:
+def shape_script(bindings: Dict[str, str], aux_columns: Dict[str, List[str]], run_dir: str, absent: Iterable[str] = (), cut: Optional[dict] = None) -> str:
     """A script, run before the method, that makes this load's auxiliary files fit the recorded ones and lays them out as
     the method expects (2026-10-15): for each binding a copy under the recorded path in the run's folder - the bytes as
     they are, or with the recorded columns it lacks added empty; for a recorded file this load lacks an empty table with
     its columns, at its recorded path; and prints what it found - rows, the columns added, the source - as JSON after
-    SHAPE:."""
+    SHAPE:. On a cached load around the window (`cut`: {start, end, column}, 2026-10-16) each copy is cut to the window
+    as the run's prelude cuts it, so the rows reported - and the frame's, as `frame_rows` - are the ones the method
+    sees (the CHECK row had said the cached load's: 517 wellness rows for a four-month window)."""
+    ct = {"start": str(cut["start"]), "end": str(cut["end"]), "column": str(cut.get("column") or "")} if cut and cut.get("start") and cut.get("end") else None
     spec = {"bindings": dict(bindings or {}), "columns": {k: list(v) for k, v in (aux_columns or {}).items()},
-            "run_dir": run_dir, "absent": list(absent or []),
+            "run_dir": run_dir, "absent": list(absent or []), "cut": ct,
+            "rules": {old: list(cut_rule(str(new))) for old, new in (bindings or {}).items()},
             "mirror": {old: mirror_path(run_dir, old) for old in list((bindings or {}).keys()) + list(absent or [])}}
     return ("import json as _j, os as _os\n"
             "import pandas as _pd\n"
             "_spec = _j.loads(" + repr(json.dumps(spec)) + ")\n"
             "_os.makedirs(_spec['run_dir'], exist_ok=True)\n"
             "_out = {'files': {}, 'placeholders': {}}\n"
-            "for _old, _new in _spec['bindings'].items():\n"
+            + CUT_SNIPPET +
+            "_cut = _spec['cut']\n"
+            "_ids, _passages = set(), set()\n"
+            "if _cut and 'df' in globals() and df is not None:\n"
+            "    _dfc = _routine_cut_frame(df, _cut['column'], _cut['start'], _cut['end'])\n"
+            "    _out['frame_rows'] = int(len(_dfc))\n"
+            "    _ids = set(_dfc['activity_id'].astype(str)) if 'activity_id' in _dfc.columns else set()\n"
+            "_order = sorted(_spec['bindings'].items(), key=lambda kv: _spec['rules'].get(kv[0], ['auto'])[0] in ('ids', 'passages'))\n"
+            "for _old, _new in _order:\n"
             "    _rec = _spec['columns'].get(_old) or []\n"
             "    try:\n"
             "        _fr = _pd.read_csv(_new) if _new.lower().endswith('.csv') else _pd.read_parquet(_new)\n"
             "    except Exception as _exc:\n"
             "        _out['files'][_old] = {'path': _new, 'error': str(_exc)[:200]}\n"
             "        continue\n"
+            "    _how = ''\n"
+            "    if _cut:\n"
+            "        _by, _c = _spec['rules'].get(_old, ['auto', ''])\n"
+            "        _fr, _how = _routine_cut_table(_fr, _by, _c, _cut['start'], _cut['end'], _ids or None, _passages)\n"
+            "        if _how == 'date' and 'activity_id' in _fr.columns: _ids |= set(_fr['activity_id'].astype(str))\n"
+            "        if _how == 'date' and 'id' in _fr.columns and 'kind' in _fr.columns: _passages |= set(_fr['id'].astype(str))\n"
             "    _missing = [c for c in _rec if c not in _fr.columns]\n"
             "    _empty = [c for c in _fr.columns if _fr[c].isna().all()]\n"
             "    _target = _spec['mirror'][_old]\n"
             "    _os.makedirs(_os.path.dirname(_target) or '.', exist_ok=True)\n"
-            "    if _missing:\n"
+            "    if _missing or _cut:\n"
             "        for c in _missing: _fr[c] = _pd.NA\n"
             "        _fr.to_csv(_target, index=False)\n"
             "    else:\n"
@@ -953,7 +971,7 @@ def shape_sentences(record: dict, data: dict, shape: Optional[dict], binding: di
             out.append("no passages in this window (the context and codes tables are empty)" if aux_kind(old) == "context" else f"the {word} is empty in this data (0 rows)")
             continue
         orig = (aux_rec.get(old) or {}).get("rows") if isinstance(aux_rec.get(old), dict) else None
-        s_ = f"the {word}: {int(rows):,} rows" if isinstance(rows, (int, float)) else f"the {word}"
+        s_ = f"the {word}: {int(rows):,} row{'s' if int(rows) != 1 else ''}" if isinstance(rows, (int, float)) else f"the {word}"
         if isinstance(rows, (int, float)) and isinstance(orig, (int, float)):
             s_ += " as the original" if int(rows) == int(orig) else f" where the original had {int(orig):,}"
         missing = [str(c) for c in (info.get("missing") or [])]

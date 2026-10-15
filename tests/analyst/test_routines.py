@@ -766,6 +766,9 @@ check("the executed text names the cut copies at the mirror of the recorded path
       and all(os.path.exists(n) for _, n, _ in r9["bindings"]) and r9["data"]["date_range"] == "2026-02-01 to 2026-05-31" and r9["data"]["rows"] == 2
       and rt.DATA_MARK_OUT not in out9["stdout"] and pd.read_csv(next(n for o, n, _ in r9["bindings"] if rt.aux_kind(o) == "summary"))["activity_id"].tolist() == ["a2", "a3"]
       and not glob.glob(os.path.join(run9_dir, "*.csv")), (r9["bindings"], r9.get("sources"), r9["data"].get("date_range"), r9["data"].get("rows")))
+check("the CHECK row of the cut run: the summary's 2 rows and the intervals file's 2 against the original's 1, the wellness file's 1 as the original, the frame's 2 against the original's 3 - what the method sees, said before it runs",
+      "2 rows where the original had 3" in r9["check"] and "the summary file: 2 rows where the original had 1" in r9["check"] and "the intervals file: 2 rows where the original had 1" in r9["check"] and "the wellness file: 1 row as the original" in r9["check"]
+      and any(e.get("kind") == "check" and "the summary file: 2 rows where the original had 1" in (e.get("peek") or "") for e in ev9), r9["check"])
 pc9 = host.precheck(store.load(rid9), now9, runner_on(df9c))
 R9 = store.load(rid9); v9 = host.version_of(R9)
 v9["manifest"]["parameters"].append({"key": "which", "label": "Which", "type": "choice", "default": ["a1", "a2"], "column": "activity_id", "multiple": True, "origin": "x"})
@@ -790,7 +793,8 @@ def runner_ctx(frame, notes, codes):
     return _r
 ctx_cols = ["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id", "author_name", "author_role", "private", "lang", "text", "text_en", "chars"]
 def ctx_rows(days):
-    return pd.DataFrame([dict(zip(ctx_cols, [f"C.{i + 1}", "activity_message", d, "07:30", "", "", "", "", "", "", "subject", "", "en", f"words {i + 1}", "", "7"])) for i, d in enumerate(days)])
+    # the first passage's text has a second line (2026-10-16): a row count that counted lines said 3 rows for 2 passages
+    return pd.DataFrame([dict(zip(ctx_cols, [f"C.{i + 1}", "activity_message", d, "07:30", "", "", "", "", "", "", "subject", "", "en", f"words {i + 1}" + ("\nand a second line" if i == 0 else ""), "", "7"])) for i, d in enumerate(days)])
 orig_c, orig_k = [os.path.join(aux_dir, n) for n in ("context_notes_20260713_to_20261011.csv", "context_codes_20260713_to_20261011.csv")]
 ctx_rows(["2026-08-01", "2026-08-02"]).to_csv(orig_c, index=False)
 pd.DataFrame({"id": ["C.1", "C.1", "C.2"], "code": ["fatigue", "effort", "fatigue"], "tone": ["negative"] * 3, "quote": ["words 1", "words 1", "words 2"], "status": ["ok"] * 3, "coder": ["m"] * 3, "codebook_version": [1] * 3}).to_csv(orig_k, index=False)
@@ -808,7 +812,9 @@ nb10.runs[run10.id] = run10
 p10 = host.propose(nb10, run10.id, empty_promoter, current_data={"df_id": "df9", "aux": [orig_s, orig_c, orig_k]}, runner=runner_ctx(df9, orig_c, orig_k))
 made10 = host.create(nb10, p10, {"name": "Words", "purpose": "", "drop_inputs": [], "drop_results": []}, runner_ctx(df9, orig_c, orig_k), store)
 rid10 = made10["routine"]["id"]
-check("a routine over CTX made: run zero reproduced on the load's own context (the host's prelude defines CTX there)", made10["run_zero"]["status"] == "reproduced", made10["run_zero"])
+rec10 = host.version_of(store.load(rid10))["manifest"]["data"]
+check("a routine over CTX made: run zero reproduced on the load's own context (the host's prelude defines CTX there); the record's shape counts the context file's rows, not its lines (a passage of two lines is one row)",
+      made10["run_zero"]["status"] == "reproduced" and rec10["aux_shape"][orig_c]["rows"] == 2 and rec10["aux_shape"][orig_k]["rows"] == 3 and len(open(orig_c, encoding="utf-8").read().strip().splitlines()) == 4, (made10["run_zero"], {k_: v_.get("rows") for k_, v_ in rec10.get("aux_shape", {}).items()}))
 cut_ctx, cut_codes = [os.path.join(cut_dir, n) for n in ("context_notes_20260101_to_20260630.csv", "context_codes_20260101_to_20260630.csv")]
 ctx_rows(["2026-01-20", "2026-02-10", "2026-03-01", "2026-04-01", "2026-06-20"]).to_csv(cut_ctx, index=False)
 pd.DataFrame({"id": ["C.1", "C.2", "C.2", "C.3", "C.4", "C.5", "C.5"], "code": ["fatigue"] * 7, "tone": ["negative"] * 7, "quote": ["q"] * 7, "status": ["ok"] * 7, "coder": ["m"] * 7, "codebook_version": [1] * 7}).to_csv(cut_codes, index=False)
@@ -824,6 +830,9 @@ check("the cut run's words are the window's: the method's CTX reads the mirror c
       and rt.cut_rule(cut_ctx) == ("date", "date") and rt.cut_rule(cut_codes) == ("passages", "id")
       and f"CTX = _BambooContext({ctx_mirror!r}, {codes_mirror!r})" in rt.conform_prelude([], [], [], None, (ctx_mirror, codes_mirror)) and "CTX" not in rt.conform_prelude([], [], [], None, None),
       (r10["status"], got10, (r10.get("error") or "")[-300:], os.path.exists(ctx_mirror) and pd.read_csv(ctx_mirror)["id"].tolist(), os.path.exists(codes_mirror) and pd.read_csv(codes_mirror)["id"].tolist()))
+check("the CHECK row of a cut run says the rows the method sees - the frame's and each file's after the cut - against the original's rows (2026-10-16; it said the cached load's: 5 rows, 5 passages, 7 codes)",
+      "2 rows where the original had 3" in r10["check"] and "the context file: 3 rows where the original had 2" in r10["check"] and "the codes file: 4 rows where the original had 3" in r10["check"]
+      and r10["shape"]["frame_rows"] == 2 and r10["shape"]["files"][orig_c]["rows"] == 3 and r10["data"]["rows"] == 2, (r10["check"], r10["shape"].get("frame_rows")))
 # the same routine on a load that lacks the codes file (a window without words wrote none): CTX.codes() is the empty stand-in
 now10b = dict(now10, aux=[cut_summary, cut_ctx])
 out10b = host.run(store.load(rid10), {}, now10b, runner_ctx(df9c, cut_ctx, ""), store, run_dir=os.path.join(aux_dir, "routines", rid10, "v1_2"))

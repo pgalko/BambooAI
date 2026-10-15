@@ -101,15 +101,16 @@ SPAN_MARK = "SPAN:"
 def shape_probe_script(paths: List[str], date_column: str = "") -> str:
     """A script, run at promotion on the chain's data, that prints after AUXSHAPE: each auxiliary file's columns with
     their types and its row count - the shape a run is later made to fit - and after SPAN: the first and last dates
-    of the frame's date column, the period the data itself covers (an input that equals it follows the data)."""
+    of the frame's date column, the period the data itself covers (an input that equals it follows the data). The
+    rows are the table's, read whole (2026-10-16: a line count had put a passage's every line on the CHECK row -
+    "the context file: 1,499 rows where the original had 2,080" of 978 passages)."""
     return ("import json as _j, os as _os\n"
             "import pandas as _pd\n"
             "_out = {}\n"
             "for _p in " + json.dumps([str(p) for p in paths]) + ":\n"
             "    try:\n"
-            "        _fr = _pd.read_csv(_p, nrows=5000) if _p.lower().endswith('.csv') else _pd.read_parquet(_p)\n"
-            "        _rows = sum(1 for _ in open(_p, 'rb')) - 1 if _p.lower().endswith('.csv') else int(len(_fr))\n"
-            "        _out[_p] = {'columns': [{'name': str(c), 'dtype': str(_fr[c].dtype)} for c in _fr.columns], 'rows': int(max(_rows, 0))}\n"
+            "        _fr = _pd.read_csv(_p) if _p.lower().endswith('.csv') else _pd.read_parquet(_p)\n"
+            "        _out[_p] = {'columns': [{'name': str(c), 'dtype': str(_fr[c].dtype)} for c in _fr.columns], 'rows': int(len(_fr))}\n"
             "    except Exception as _exc:\n"
             "        _out[_p] = {'error': str(_exc)[:200]}\n"
             "print(" + repr(AUXSHAPE_MARK + " ") + " + _j.dumps(_out))\n"
@@ -495,9 +496,10 @@ def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable],
     shape_rec = rec.get("aux_shape") or {}
     columns = {p: [c.get("name") for c in (shape_rec.get(p) or {}).get("columns") or []] for p in (rec.get("aux") or [])}
     shape, note = None, ""
+    cut = cut_window(ver, d)
     if runner is not None and (binding["map"] or binding["absent"]):
         try:
-            stdout, err, _f, _g = runner(rt.shape_script(binding["map"], columns, run_dir, binding["absent"]), 180)
+            stdout, err, _f, _g = runner(rt.shape_script(binding["map"], columns, run_dir, binding["absent"], cut), 180)
             shape = rt.read_shape(stdout or "")
             if shape is None and err:
                 note = f"the auxiliary files could not be prepared ({str(err).strip().splitlines()[-1][:160]})"
@@ -508,9 +510,9 @@ def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable],
     bound = {old: rt.mirror_path(run_dir, old) for old in binding["map"]}
     placeholders = {old: rt.mirror_path(run_dir, old) for old in binding["absent"]}
     sources = dict(binding["map"])                                    # recorded path -> this load's file, for the record
-    # a run on a cached load around the window asked: each bound file is cut to the window by the prelude and written at
-    # its mirror path - the executed text names the mirror, never the cached file
-    cut = cut_window(ver, d)
+    # a run on a cached load around the window asked: each bound file is cut to the window - by the probe above, whose rows
+    # the CHECK row reports (2026-10-16), and again by the prelude - and written at its mirror path; the executed text
+    # names the mirror, never the cached file
     cut_files: Dict[str, dict] = {}
     if cut:
         for old, src_path in binding["map"].items():
@@ -672,6 +674,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     # empty tables for the absent ones) in the run's own folder, the executed text with this load's names, `df` conformed
     run_dir = run_dir or f"routines/{routine.get('id', 'routine')}/{run_tag(vnum, number)}"
     prep = prepare(ver, d, runner, run_dir)
+    if (prep.get("shape") or {}).get("frame_rows") is not None:                     # a cut run: the frame's rows as the method sees them (2026-10-16)
+        d = dict(d, rows=int(prep["shape"]["frame_rows"]))
     # what differs from the original, in sentences (step 4, 2026-10-11): the rows of the frame and of each bound file against
     # the original's, columns added or empty, a file empty or unreadable; the CHECK row says it, the record keeps it
     differences = rt.shape_sentences(manifest.get("data") or {}, d, prep["shape"], prep["binding"])

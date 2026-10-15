@@ -99,7 +99,8 @@ version"; later the coach's one line), run_zero (status, line, verified, results
   how the data was asked for (the loader routes put it on the instance when a load completes: intervals — the
   window, the metrics, the auxiliary kinds; endura — the race and its auxiliaries; sweatstack — the sports, the
   subjects, the window; a file — its name), which a run repeats; `aux`, the auxiliary files' paths; `aux_shape`,
-  each file's columns with their types and its row count, read at promotion while the files are still there;
+  each file's columns with their types and its row count, read at promotion while the files are still there (the
+  table's rows, read whole - 2026-10-16, patch 0171: a line count had put a passage's every line on the CHECK row);
   `span`, the period the frame itself covers (its date column, first and last dates), read by the same probe.
 - `parameters`: at most five, each `{key, label, type (number | numbers | date_window | choice | toggle), default,
   origin ("the exploration used …"), column? (choice), multiple? (choice), derived? (span | window)}`. The script
@@ -375,7 +376,10 @@ version's data record, `load`), and offers the data loaded now beside it.
    the original's (*the same 5,860 rows as the original* / *2,184 rows where the original had 5,860*); the CHECK row
    at the run adds, from the shape probe, each bound file's rows against the original's, the columns added empty and
    the columns the file has but left empty, a file empty in this data, a file that could not be read
-   (`shape_sentences`) - beside the fit line, the absent files, the values and the cut. The record keeps the
+   (`shape_sentences`) - beside the fit line, the absent files, the values and the cut. On a cached load around the
+   window the probe cuts the copies as the prelude will and reports the rows after the cut, the frame's too
+   (`frame_rows`), so the sentences say what the method sees (2026-10-16, patch 0171: they had said the cached
+   load's - 517 wellness rows for a four-month window). The record keeps the
    sentences (`differences`) and the whole line (`check`); a stored run's CHECK row repeats it, and its Data tab
    lists the sentences under *Differs*.
 3. **The data made to fit** (`prepare`), in the run's own folder on the executor's side

@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/136/41/39/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/138/41/39/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (90; hosted only - the loaders need the executor; the
@@ -446,6 +446,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The CHECK row's rows (2026-10-16, patch 0171).** The same run records showed two wrong counts. *The original's*:
+  the promotion's shape probe counted a CSV's lines, not its rows - a passage of three lines was three rows - so the
+  CHECK row read *the context file: 1,499 rows where the original had 2,080* of 978 passages, *the plan file … where
+  the original had 2,629*, *the summary file … had 773* of 452; the probe reads the table whole now (`len(read_csv)`).
+  *The run's*, on a cached load around the window: the run's probe reported the cached load's rows (517 wellness
+  rows for a four-month window, the frame's 4.5 million) because the cut happened later, in the prelude; the probe
+  now cuts the copies as the prelude will (the same snippet and order: dates first, then the rides kept and the
+  passages kept) and reports the rows after the cut, the frame's as `frame_rows`, which the host puts on the record
+  before the sentences are written - so the CHECK row says what the method sees, before it runs, and the record's
+  `rows` is the window's even when the run fails. "1 row", not "1 rows". Routines promoted before this carry the
+  line counts in `aux_shape` until they are promoted again. Tests: test_routines.py 138 (the two-line passage is one
+  row at promotion; the cut run's CHECK row: the frame's 2 of 3, the summary's 2 of 1, the context's 3 of 2, the
+  codes' 4 of 3).
 - **A cut run's words are the window's (2026-10-16, patch 0170).** Palo's first benchmark routine (the month-by-month
   riding against his writing, made on a year, Adaptive) ran on its original window and on a seventeen-month window
   but fell over on two windows cut from that cached load - *cannot unpack non-iterable numpy.float64* at the method's
