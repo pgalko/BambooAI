@@ -139,6 +139,12 @@ function initializeSweatStackMainModal() {
             showModalMessage('Please select at least one user.', 'error');
             return;
         }
+        // the dates as typed: both needed, the start before the end (checked here, not while typing - 2026-10-15)
+        const sRaw = document.getElementById('startDate')?.value, eRaw = document.getElementById('endDate')?.value;
+        if (!sRaw || !eRaw || sRaw >= eRaw) {
+            showModalMessage(!sRaw || !eRaw ? 'Please pick both dates.' : 'Please select a valid date range: the start before the end.', 'error');
+            return;
+        }
     
         const dateRange = getSelectedDateRange();
     
@@ -309,66 +315,34 @@ function hideSweatStackModal() {
 //  FORM HANDLING
 //--------------------
 
+// The plan's limit, asked once per page (2026-10-15); the bounds on every opening, the values only while the inputs
+// are empty - a window the person set stays, and an answer landing late does not wipe it (as in the Intervals dialog).
+let sweatstackLimitsPromise = null;
+
 async function applySubscriptionDateLimits() {
-    try {
-        const response = await window.authService.fetch('/sweatstack/get_data_limits');
-        const limits = await response.json();
-        
-        const today = new Date();
-        const maxDays = limits.max_days || 14;
-        
-        // Calculate earliest allowed date
-        const earliestDate = new Date(today);
-        earliestDate.setDate(today.getDate() - maxDays);
-        
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        
-        // Set end date to today
-        endDateInput.value = localIsoDay(today);
-        endDateInput.max = localIsoDay(today);
-        
-        // Set start date to max allowed
-        startDateInput.value = localIsoDay(earliestDate);
-        startDateInput.min = localIsoDay(earliestDate);
-        startDateInput.max = localIsoDay(today);
-        
-        // Lock the inputs to prevent bypassing
-        endDateInput.min = localIsoDay(earliestDate);
-        
-    } catch (error) {
-        console.error('Error fetching data limits:', error);
-        // Default to 14 days on error
-        const today = new Date();
-        const twoWeeksAgo = new Date(today);
-        twoWeeksAgo.setDate(today.getDate() - 14);
-        
-        document.getElementById('startDate').value = localIsoDay(twoWeeksAgo);
-        document.getElementById('endDate').value = localIsoDay(today);
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    if (!startDateInput || !endDateInput) return;
+    if (!sweatstackLimitsPromise) {
+        sweatstackLimitsPromise = window.authService.fetch('/sweatstack/get_data_limits').then(r => r.json())
+            .catch(error => { console.error('Error fetching data limits:', error); return {}; });   // 14 days when the answer fails
     }
+    const limits = await sweatstackLimitsPromise;
+    const today = new Date();
+    const maxDays = limits.max_days || 14;
+    const earliestDate = new Date(today);
+    earliestDate.setDate(today.getDate() - maxDays);
+    const lo = localIsoDay(earliestDate), hi = localIsoDay(today);
+    startDateInput.min = lo; startDateInput.max = hi;
+    endDateInput.min = lo; endDateInput.max = hi;
+    if (!startDateInput.value) startDateInput.value = lo;       // each input on its own: one typed before the answer landed stays
+    if (!endDateInput.value) endDateInput.value = hi;
 }
 
 function initializeDatePickers() {
-    const startDateInput = document.getElementById('startDate');
-    const endDateInput = document.getElementById('endDate');
-    
-    if (!startDateInput || !endDateInput) return;
-    
-    // Apply subscription limits immediately
+    // the bounds and, the first time, the default window; no handler rewrites a date while it is typed (the clamps
+    // that did are gone, 2026-10-15 - see the Intervals dialog); the order is checked when Load is pressed
     applySubscriptionDateLimits();
-    
-    // Simple validation - dates are already constrained by min/max
-    startDateInput.addEventListener('change', function() {
-        if (endDateInput.value && this.value > endDateInput.value) {
-            this.value = endDateInput.value;
-        }
-    });
-    
-    endDateInput.addEventListener('change', function() {
-        if (startDateInput.value && this.value < startDateInput.value) {
-            this.value = startDateInput.value;
-        }
-    });
 }
 
 async function fetchSweatStackUsers() {

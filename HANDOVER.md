@@ -67,7 +67,7 @@
 - **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/127/33/37/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_integrations.py` (86; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_integrations.py` (86; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The dialogs' dates are the person's (2026-10-15, patch 0165).** Palo, testing on the dev box: the Intervals dialog's
+  *to* date snapped to the *from* date as he changed it, and then neither could be changed. Reproduced in a real
+  Chromium: a date being typed into an `<input type="date">` passes through `''` and partial values (`0009-10-15`,
+  `202601-10-15`) on every keystroke, and the dialog's `change` handlers - kept from the first version, one pair added
+  at every opening - clamped start and end to each other on each of them (`'' < anything`), so typing an end date
+  snapped it to the start, and with both equal every edit of either was out of order and overwritten. The handlers
+  are gone from the Intervals and SweatStack dialogs; the order is checked where it belongs, when Load is pressed
+  (*Please pick both dates.* / *Please select a valid date range: the start before the end.*), and the empty-date
+  fallback to a three-month window is no longer reached from Load. The same principle on the other rewrite: the
+  plan's limit used to be fetched at every opening and written over both dates when it landed - a second or more
+  on the dev box, wiping a choice made meanwhile, and never remembering a window between openings. Now
+  `applyIntervalsDateLimits` (and SweatStack's) fetches once per page, puts the bounds on the inputs at every
+  opening and writes a default only into an empty input - so a date typed before the answer landed stays, and the
+  window chosen last time is there at the next opening. Not changed, for a decision: the default *from* is the
+  plan's earliest allowed day (today - 365 on pro, today - 3650 on the local tier, which is why the dialog opened on
+  2016), not a sensible working window. Tests: tests/e2e/test_date_inputs.py (8, Chromium over the dialogs' own
+  functions: the old trap for the record, a date typed before the answer kept, no clamp, the reopening keeps the
+  window, one request per page, both dialogs; the scripts' Load checks), test_local_day.js's call count loosened.
 - **The hosted edition's store kept (2026-10-15, patch 0164).** Palo: the Nomad jobs live in the repository, under
   `nomad/jobs/` (the 0162 entry below had them outside it). The four job specifications - `bambooai-executor-free`,
   `-plus`, `-pro` and the generic one - give the executor task `volume_driver = "local"` and `volumes =

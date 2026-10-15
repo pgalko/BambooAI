@@ -25,7 +25,7 @@ check('routines.js isoDay agrees with localIsoDay on the morning that differs in
 const src = { intervals: fs.readFileSync(path.join(root, 'integrations', 'intervals.js'), 'utf8'), sweatstack: fs.readFileSync(path.join(root, 'integrations', 'sweatstack.js'), 'utf8'), routines: fs.readFileSync(path.join(root, 'routines.js'), 'utf8') };
 check('no dialog takes a day from toISOString() any more; the Intervals and SweatStack dialogs go through localIsoDay; the run dialog counts its window back in calendar days',
       !/toISOString\(\)/.test(src.intervals) && !/toISOString\(\)/.test(src.sweatstack) && !/toISOString\(\)/.test(src.routines)
-      && (src.intervals.match(/localIsoDay\(/g) || []).length >= 8 && (src.sweatstack.match(/localIsoDay\(/g) || []).length >= 8
+      && (src.intervals.match(/localIsoDay\(/g) || []).length >= 3 && (src.sweatstack.match(/localIsoDay\(/g) || []).length >= 3     // fewer calls since 0165 (the bounds computed once per opening)
       && src.routines.includes("start.setDate(today.getDate() - span)"), [(src.intervals.match(/localIsoDay\(/g) || []).length, (src.sweatstack.match(/localIsoDay\(/g) || []).length]);
 const fails = results.filter(r => !r[1]);
 results.forEach(r => console.log((r[1] ? '  ok   ' : '  FAIL ') + r[0] + (r[1] ? '' : '  <- ' + String(r[2]).slice(0, 300))));

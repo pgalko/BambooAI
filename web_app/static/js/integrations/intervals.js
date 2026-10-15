@@ -61,43 +61,30 @@ function initializeIntervalsDataOption() {
     });
 }
 
+// The plan's limit, asked once per page (2026-10-15). The dialog's dates are the person's once set: every opening puts
+// the bounds on the inputs, but the values are written only while the inputs are empty - the first opening - so a
+// window typed in stays for the next opening, and an answer landing after the dialog opened does not wipe a choice
+// made meanwhile (it did: the limits were fetched and both values rewritten on every opening).
+let intervalsLimitsPromise = null;
+
 async function applyIntervalsDateLimits() {
-    try {
-        const response = await window.authService.fetch('/intervals/get_data_limits');
-        const limits = await response.json();
-        
-        const today = new Date();
-        const maxDays = limits.max_days || 14;
-        
-        // Calculate earliest allowed date
-        const earliestDate = new Date(today);
-        earliestDate.setDate(today.getDate() - maxDays);
-        
-        const startDateInput = document.getElementById('intervalsStartDate');
-        const endDateInput = document.getElementById('intervalsEndDate');
-        
-        // Set end date to today
-        endDateInput.value = localIsoDay(today);
-        endDateInput.max = localIsoDay(today);
-        
-        // Set start date to max allowed
-        startDateInput.value = localIsoDay(earliestDate);
-        startDateInput.min = localIsoDay(earliestDate);
-        startDateInput.max = localIsoDay(today);
-        
-        // Lock the inputs to prevent bypassing
-        endDateInput.min = localIsoDay(earliestDate);
-        
-    } catch (error) {
-        console.error('Error fetching data limits:', error);
-        // Default to 14 days on error
-        const today = new Date();
-        const twoWeeksAgo = new Date(today);
-        twoWeeksAgo.setDate(today.getDate() - 14);
-        
-        document.getElementById('intervalsStartDate').value = localIsoDay(twoWeeksAgo);
-        document.getElementById('intervalsEndDate').value = localIsoDay(today);
+    const startDateInput = document.getElementById('intervalsStartDate');
+    const endDateInput = document.getElementById('intervalsEndDate');
+    if (!startDateInput || !endDateInput) return;
+    if (!intervalsLimitsPromise) {
+        intervalsLimitsPromise = window.authService.fetch('/intervals/get_data_limits').then(r => r.json())
+            .catch(error => { console.error('Error fetching data limits:', error); return {}; });   // 14 days when the answer fails
     }
+    const limits = await intervalsLimitsPromise;
+    const today = new Date();
+    const maxDays = limits.max_days || 14;
+    const earliestDate = new Date(today);
+    earliestDate.setDate(today.getDate() - maxDays);
+    const lo = localIsoDay(earliestDate), hi = localIsoDay(today);
+    startDateInput.min = lo; startDateInput.max = hi;
+    endDateInput.min = lo; endDateInput.max = hi;
+    if (!startDateInput.value) startDateInput.value = lo;       // each input on its own: one typed before the answer landed stays
+    if (!endDateInput.value) endDateInput.value = hi;
 }
 
 // The context's report as one line (docs/CONTEXT_DESIGN.md §4 F1): "Context: 212 passages — activity_message 198,
@@ -383,6 +370,11 @@ function initializeIntervalsMainModal() {
     });
 
     connectButton.addEventListener('click', function() {
+        // the dates as typed: both needed, the start before the end (checked here, not while typing - 2026-10-15)
+        if (!document.getElementById('intervalsStartDate')?.value || !document.getElementById('intervalsEndDate')?.value) {
+            showIntervalsMessage('Please pick both dates.', 'error');
+            return;
+        }
         const dateRange = getIntervalsDateRange();
         const auxDatasets = getSelectedAuxDatasets();
         const refresh = !!document.getElementById('intervals-refresh')?.checked;    // Refresh everything (2026-10-15): the whole window fetched again
@@ -395,7 +387,7 @@ function initializeIntervalsMainModal() {
         }
         
         if (daysDiff <= 0) {
-            showIntervalsMessage('Please select a valid date range.', 'error');
+            showIntervalsMessage('Please select a valid date range: the start before the end.', 'error');
             return;
         }
     
@@ -770,26 +762,11 @@ function hideIntervalsModal() {
 //--------------------
 
 function initializeIntervalsDatePickers() {
-    const startDateInput = document.getElementById('intervalsStartDate');
-    const endDateInput = document.getElementById('intervalsEndDate');
-    
-    if (!startDateInput || !endDateInput) return;
-    
-    // Apply subscription limits immediately
+    // The bounds and, the first time, the default window. Nothing rewrites a date while it is being typed: the
+    // change handlers that clamped start and end to each other are gone (2026-10-15) - a date being typed passes
+    // through '' and through partial values, each of which the clamp read as out of order and overwrote, until both
+    // inputs held the same day and neither could be changed. The order is checked when Load is pressed.
     applyIntervalsDateLimits();
-    
-    // Simple validation - dates are already constrained by min/max
-    startDateInput.addEventListener('change', function() {
-        if (endDateInput.value && this.value > endDateInput.value) {
-            this.value = endDateInput.value;
-        }
-    });
-    
-    endDateInput.addEventListener('change', function() {
-        if (startDateInput.value && this.value < startDateInput.value) {
-            this.value = startDateInput.value;
-        }
-    });
 }
 
 function initializeAuxDatasetOptions() {
