@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/127/33/37/29/1/1 Python; 49/7/30/67/24/70/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/127/33/37/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (36); `tests/e2e/test_integrations.py` (77; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_integrations.py` (77; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The store kept, and seen (2026-10-15, patch 0162).** Persistence: `bambooai serve` ran the executor container with no
+  volume, and the container is recreated on every image change, so the store (and the loaded windows' files) would
+  have gone with each executor update; `start_executor` now mounts the named Docker volume `bambooai-datasets` at
+  `/app/datasets` (`executor_datasets()`; `BAMBOO_EXECUTOR_DATASETS=<folder>` in .env mounts a folder of the person's
+  own instead - a named volume by default because a folder of the home is owned by the host user, whom the image's
+  `appuser` cannot write for on Linux). The hosted executor's persistence is the Nomad job's volume, outside the
+  repository (noted on the ship line). The app's load route passes `refresh` and the tier's `retention_days` (120 on
+  the free tier, 400 otherwise) to the executor. The page: the Intervals dialog has a *Download* section with *Refresh
+  everything* (off; cleared after each load) and the line *only what the store lacks is downloaded*; the load's
+  success message carries `storeLine` (core.js: *91 of 101 activities from the store, 10 downloaded* / *all 101 …,
+  nothing downloaded* / *101 activities downloaded* / *… fetched again*); the routine run dialog has the same box
+  under the window - ticked, the Dataset cache route is skipped and the load fetches the window whole - and the run's
+  LOAD row carries the phrase in its fold (the row's text is clipped at sixty characters) and its record's `load.store`
+  the counts (`_load_as_said` admits that one dict; the loader route puts the same on the Data tab's load record, so a
+  routine made from a chain says it too, through `loadLabel`); the Dataset cache panel lists each key's store under
+  *Store* (activities, chats, span, size; shown, not loaded or removed). Tests: test_dialogs.js 33 (the option,
+  storeLine's phrases, the script's hooks), test_routines.js 71 (the box in the run dialog), test_app_path.py 155 (the
+  store dict on the run's record, other dicts still dropped), test_package.py 37 (the volume on the docker run).
 - **The Intervals.icu store: a window is a view, only the new files are fetched (2026-10-15, patch 0161; executor image
   v55; docs/INCREMENTAL_LOADS_DESIGN.md).** Every load from Intervals.icu downloaded its window whole - a routine's run
   on a window a day wider than the Data tab's, or the Data tab's after a routine's, fetched a year's files again

@@ -71,7 +71,7 @@ check('prompt viewer: the script builds the shell with the ids it fills and the 
 check('agent-instructions.css is retired; the card button rules are kept', !html.includes("filename='css/agent-instructions.css'") && dcss.includes('.agent-instructions-btn'));
 // ---- the integration dialogs: seven elements, one form ----
 const intIds = {sweatstackModal: ['cycling-checkbox', 'running-checkbox', 'users-selection', 'startDate', 'endDate', 'modal-message', 'connectSweatstack'], sweatstackAuthenticatedModal: ['logoutSweatstack'],
-  intervalsModal: ['intervalsStartDate', 'intervalsEndDate', 'wellness-checkbox', 'summary-checkbox', 'intervals-checkbox', 'intervals-modal-message', 'connectIntervals'], intervalsConfigModal: ['intervalsApiKeyStatus', 'intervalsApiKeyInput', 'intervals-config-message', 'removeIntervalsApiKey', 'saveIntervalsApiKey'],
+  intervalsModal: ['intervalsStartDate', 'intervalsEndDate', 'wellness-checkbox', 'summary-checkbox', 'intervals-checkbox', 'context-checkbox', 'intervals-refresh', 'intervals-modal-message', 'connectIntervals'], intervalsConfigModal: ['intervalsApiKeyStatus', 'intervalsApiKeyInput', 'intervals-config-message', 'removeIntervalsApiKey', 'saveIntervalsApiKey'],
   enduraModal: ['enduraRaceSelect', 'endura-modal-message', 'loadEnduraData'], enduraConfigModal: ['enduraApiKeyStatus', 'enduraApiKeyInput', 'endura-config-message', 'removeEnduraApiKey', 'saveEnduraApiKey']};
 const intMissing = [];
 for (const [mid, ids] of Object.entries(intIds)) { const r = doc.createElement('div'); r.innerHTML = fragment(mid); ids.forEach(id => { if (!r.querySelector('#' + id)) intMissing.push(mid + '#' + id); }); if (!r.querySelector('.ui-dlg-h .x.close')) intMissing.push(mid + ' close'); if (!r.querySelector('#' + mid).className.includes('integration-dialog')) intMissing.push(mid + ' class'); }
@@ -80,5 +80,17 @@ const hookClasses = ['sport-option', 'metric-option', 'intervals-aux-option', 'e
 check('integration dialogs: the hook classes the scripts query survive', hookClasses.every(c => html.includes('class="' + c) || html.includes(' ' + c + '"') || html.includes(' ' + c + ' ')));
 check('integration dialogs: the SweatStack metrics are still rendered by the template loop', html.includes('{% for metric in sweatstack_metrics %}') && html.includes('{{ metric.value }}-checkbox'));
 check('integration stylesheets are retired (not linked); one ruleset in dialogs.css', !html.includes("css/integrations/sweatstack.css") && !html.includes("css/integrations/intervals.css") && !html.includes("css/integrations/endura.css") && dcss.includes('.integration-dialog .int-options label'));
+// ---- the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): Refresh everything in the Intervals dialog, off; the load's line from core.js
+const iroot = doc.createElement('div'); iroot.innerHTML = fragment('intervalsModal');
+check('Intervals dialog: a Refresh everything option in its own Download section, off by default, with the line saying only what the store lacks is downloaded',
+  iroot.querySelector('.int-refresh #intervals-refresh') && !iroot.querySelector('#intervals-refresh').hasAttribute('checked') && iroot.querySelector('.int-refresh .help').textContent.includes('only what the store lacks is downloaded') && dcss.includes('.integration-dialog .int-refresh'));
+const core = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'core.js'), 'utf8');
+const storeLine = new Function(core.match(/function storeLine\(st\) \{[\s\S]*?\n\}\n/)[0] + '; return storeLine;')();
+check('storeLine: the load\'s completion phrase - held and downloaded, all held, none held, a refresh, nothing without a window',
+  storeLine({ window: 101, held: 91, fetched: 10 }) === '91 of 101 activities from the store, 10 downloaded' && storeLine({ window: 101, held: 101, fetched: 0 }) === 'all 101 activities from the store, nothing downloaded'
+  && storeLine({ window: 91, held: 0, fetched: 91 }) === '91 activities downloaded' && storeLine({ window: 1, held: 0, fetched: 1 }) === '1 activity downloaded' && storeLine({ window: 101, held: 0, fetched: 101, refresh: true }) === '101 activities fetched again' && storeLine(null) === '' && storeLine({}) === '',
+  [storeLine({ window: 101, held: 91, fetched: 10 }), storeLine({ window: 1, held: 0, fetched: 1 })]);
+const ij = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'), 'utf8');
+check('intervals.js sends the flag with the load, says the store\'s line with the success message and clears the box after', ij.includes('refresh: refresh') && ij.includes("storeLine(job.result && job.result.store)") && ij.includes('refreshBox.checked = false'));
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

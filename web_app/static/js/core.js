@@ -34,6 +34,17 @@ function localIsoDay(d) {
     const p = n => String(n).padStart(2, '0');
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
 }
+// The store's part in a load from Intervals.icu (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): the executor keeps every
+// activity it has fetched and downloads only what a window asks for that it does not hold. One phrase for the load's
+// completion line, from the job result's `store` (window, held, fetched, refresh).
+function storeLine(st) {
+    if (!st || !st.window) return '';
+    const n = st.window, held = st.held || 0, word = n === 1 ? 'activity' : 'activities';
+    if (st.refresh) return n + ' ' + word + ' fetched again';
+    if (!held) return n + ' ' + word + ' downloaded';
+    if (held === n) return 'all ' + n + ' ' + word + ' from the store, nothing downloaded';
+    return held + ' of ' + n + ' ' + word + ' from the store, ' + (n - held) + ' downloaded';
+}
 let limitMessageTimeout = null;
 
 let mermaidReady = false;

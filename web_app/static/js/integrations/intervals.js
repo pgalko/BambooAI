@@ -385,6 +385,7 @@ function initializeIntervalsMainModal() {
     connectButton.addEventListener('click', function() {
         const dateRange = getIntervalsDateRange();
         const auxDatasets = getSelectedAuxDatasets();
+        const refresh = !!document.getElementById('intervals-refresh')?.checked;    // Refresh everything (2026-10-15): the whole window fetched again
         
         // Validation
         const daysDiff = Math.ceil((new Date(dateRange.end) - new Date(dateRange.start)) / (1000 * 60 * 60 * 24));
@@ -413,7 +414,8 @@ function initializeIntervalsMainModal() {
                     start_date: dateRange.start,
                     end_date: dateRange.end,
                     metrics: [],
-                    aux_datasets: auxDatasets
+                    aux_datasets: auxDatasets,
+                    refresh: refresh
                 })
             });
         })
@@ -459,9 +461,13 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                 
                 console.log('Intervals ICU data loaded successfully');
                 setIntervalsButtonLoading(false);
+                // the store's line (docs/INCREMENTAL_LOADS_DESIGN.md): what was already held and what was downloaded; the box cleared for the next load
+                const stLine = storeLine(job.result && job.result.store);
+                const refreshBox = document.getElementById('intervals-refresh');
+                if (refreshBox) { refreshBox.checked = false; refreshBox.closest('.intervals-aux-option')?.classList.remove('selected'); }
                 // the context's line (docs/CONTEXT_DESIGN.md §4 F1): what was written beside the data, and any call that failed
                 const ctxLine = contextReportLine(job.result && job.result.context);
-                showIntervalsMessage('Data loaded successfully!' + (ctxLine ? ' ' + ctxLine : ''), 'success');
+                showIntervalsMessage('Data loaded successfully!' + (stLine ? ' ' + stLine + '.' : '') + (ctxLine ? ' ' + ctxLine : ''), 'success');
 
                 setTimeout(() => {
                     hideIntervalsModal();

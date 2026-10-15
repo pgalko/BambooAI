@@ -153,8 +153,10 @@ check('run dialog with nothing of the routine\'s data: the fit line is bad, noth
 // an Intervals routine: the load as the original did - the window of the original's length ending today, clamped to the plan's limit, the auxiliary kinds and metrics as the original; the data loaded now as the other choice
 rd = el(b.runDialog(rr, { loaded: true, ok: true, line: 'fits the routine (49 of 49 columns)', data: { name: '', source: 'intervals', rows: 10200, columns: 49, date_range: '2026-08-12 to 2026-10-10' },
   plan: { source: 'intervals', window_days: 59, aux_kinds: ['summary', 'wellness'], metrics: [] } }, { max_days: 14 }));
-const win = [...rd.querySelectorAll('input[data-load]')].map(e => [e.getAttribute('data-load'), e.getAttribute('value')]);
+const win = [...rd.querySelectorAll('input[data-load]')].filter(e => e.getAttribute('data-load') !== 'refresh').map(e => [e.getAttribute('data-load'), e.getAttribute('value')]);
 const dayGap = (Date.parse(win[1][1]) - Date.parse(win[0][1])) / 86400000;
+check('run dialog (an Intervals routine): a Refresh everything box under the window, off, saying what it does (the store below the cache, 2026-10-15)',
+  rd.querySelector('.rt-refresh input[data-load="refresh"]') && !rd.querySelector('.rt-refresh input').hasAttribute('checked') && rd.querySelector('.rt-refresh').textContent.includes('fetch every file and message of the window again'));
 check('run dialog (an Intervals routine): Load from Intervals.icu is the choice, on, with a start → end window ending today of the original\'s length clamped to the plan\'s limit, saying so; with summary, wellness and the metrics as the original; the data loaded now as the other choice',
   rd.querySelector('input[name="rt-data"][value="load"]').hasAttribute('checked') && rd.querySelector('.rt-check').textContent.includes('Load from Intervals.icu') && win.length === 2 && win[0][0] === 'start' && win[1][0] === 'end'
   && dayGap === 14 && rd.querySelector('.rt-load .help').textContent.includes('the original\u2019s 59 days, ending today (your plan allows 14)') && rd.querySelector('.rt-load .help').textContent.includes('with summary, wellness') && rd.querySelector('.rt-load .help').textContent.includes('metrics as the original')

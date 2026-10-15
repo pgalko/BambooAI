@@ -545,6 +545,10 @@
                     <label class="intervals-aux-option"><input type="checkbox" id="intervals-checkbox" value="intervals"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Activity intervals</span></label>
                     <label class="intervals-aux-option"><input type="checkbox" id="context-checkbox" value="context" checked><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Context (notes, messages, calendar)</span></label>
                 </div></div>
+                <div class="modal-section"><h4>Download</h4><div class="int-options int-refresh">
+                    <label class="intervals-aux-option" title="Activities already fetched are kept on the executor and reused; only what this window lacks or what changed is downloaded. Tick to fetch every file and every message of the window again."><input type="checkbox" id="intervals-refresh" value="refresh"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Refresh everything</span></label>
+                    <span class="help">only what the store lacks is downloaded; tick to fetch the whole window again</span>
+                </div></div>
                 <p id="intervals-modal-message" class="intervals-status-message int-message"></p>
             </div>
             <div class="modal-footer ui-dlg-f"><span class="sp"></span><div class="button-label">Load data</div><button id="connectIntervals" class="circular-button ui-btn primary" title="Load data from Intervals ICU" aria-label="Load Data from Intervals ICU"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>

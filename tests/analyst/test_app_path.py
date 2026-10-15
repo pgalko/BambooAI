@@ -312,11 +312,11 @@ check("the run's record names its own folder on the executor's side (datasets/<u
       _msgs[-1]["routine_run"]["run"]["run_dir"] == f"datasets/u1/routines/{_rid}/v1_1" and _msgs[-1]["routine_run"]["run"]["fit"]["missing"] == [] and _msgs[-1]["routine_run"]["run"]["bindings"] == [], _msgs[-1]["routine_run"]["run"].get("run_dir"))
 _end = next(m for m in _msgs if m.get("type") == "pane_routine_end")
 check("the closing card's fields: number, name, version, status, results, compared, figures, elapsed, against", _end["number"] == 1 and _end["name"] == "Route made" and _end["version"] == 1 and _end["status"] == "ran" and _end["against"] == 0 and "elapsed" in _end, _end)
-_r2 = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "A"}, "load": {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "cached": True, "df_id": "never-recorded", "junk": {"a": 1}}})
+_r2 = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "A"}, "load": {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "cached": True, "df_id": "never-recorded", "junk": {"a": 1}, "store": {"window": 60, "held": 19, "fetched": 41, "refresh": False}}})
 _run2 = _lines(_r2)[-1]["routine_run"]["run"]
 check("route run with the arm set to A: ran (the difference is now A against A), compared with run 1", _run2["status"] in ("ran", "reproduced") and _run2["against"] == 1 and _run2["inputs"] == {"arm_b": "A"}, _run2.get("line"))
-check("the load as the page did it rides into the run's data record (a cached load says so; plain values only, no frame id)",
-      _run2["data"].get("load") == {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "cached": True}, _run2["data"].get("load"))
+check("the load as the page did it rides into the run's data record (a cached load says so; plain values only, no frame id; the store's counts as the one dict, 2026-10-15)",
+      _run2["data"].get("load") == {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "cached": True, "store": {"window": 60, "held": 19, "fetched": 41, "refresh": False}}, _run2["data"].get("load"))
 _v = _wc.get(f"/routines/{_rid}/runs/2").get_json()
 check("route runs/<n>: the stored run with its output, the numbers to step through and the manifest's lines", _v["run"]["number"] == 2 and "reusing" not in _v["stdout"] and _v["numbers"] == [0, 1, 2] and isinstance(_v["figures"], list) and _v["name"] == "Route made", list(_v.keys()))
 _v0 = _wc.get(f"/routines/{_rid}/runs/0").get_json()

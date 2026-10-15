@@ -60,6 +60,9 @@ BAMBOO_LEVEL=performance
 BAMBOO_COMPUTE=docker
 # the port the executor container is published on
 EXECUTOR_PORT=5055
+# what the executor keeps between loads (the Intervals.icu store, the loaded windows' files) lives in the Docker volume
+# bambooai-datasets, which outlives the container and its image. Set a folder here to keep those files there instead.
+# BAMBOO_EXECUTOR_DATASETS=
 # an executor you run yourself (Docker or a server): set these two and BAMBOO_COMPUTE is ignored
 # EXECUTION_MODE=api
 # EXECUTOR_API_BASE_URL=http://localhost:5055
@@ -157,6 +160,7 @@ def _missing_keys():
 
 # ---------------------------------------------------------------------------- the executor container
 EXECUTOR_CONTAINER = "bambooai-executor"
+EXECUTOR_VOLUME = "bambooai-datasets"          # the executor's /app/datasets: the store and the loaded windows' files (2026-10-15)
 
 
 def _version():
@@ -217,6 +221,19 @@ def build_executor_image(image):
         sys.exit(f"bambooai: the image build failed (see above). Fix and retry, or run `bambooai serve --compute local`.")
 
 
+def executor_datasets():
+    """Where the executor's datasets folder lives on this machine (docs/INCREMENTAL_LOADS_DESIGN.md §3, 2026-10-15): a
+    named Docker volume by default, so the Intervals.icu store and the loaded windows' files outlive the container
+    (recreated on every image change) and are owned by the image's own user on every platform; a folder of the
+    person's choosing with BAMBOO_EXECUTOR_DATASETS in .env (on Linux its owner must be writable by the image's user)."""
+    folder = (os.environ.get("BAMBOO_EXECUTOR_DATASETS") or "").strip()
+    if folder:
+        folder = os.path.abspath(os.path.expanduser(folder))
+        os.makedirs(folder, exist_ok=True)
+        return folder
+    return EXECUTOR_VOLUME
+
+
 def start_executor(port):
     """Build if absent, start or reuse the container, wait for its health. Returns the executor's URL."""
     image = executor_image()
@@ -238,7 +255,7 @@ def start_executor(port):
     if not reuse:
         _docker("rm", "-f", EXECUTOR_CONTAINER)                     # a stopped, older, or differently-published one
         r = _docker("run", "-d", "--name", EXECUTOR_CONTAINER, "-p", f"127.0.0.1:{port}:5000",
-                    "-e", "KERNEL_MAX_SESSIONS=4", image)
+                    "-e", "KERNEL_MAX_SESSIONS=4", "-v", f"{executor_datasets()}:/app/datasets", image)
         if r.returncode != 0:
             sys.exit(f"bambooai: could not start the executor container: {r.stderr.strip()[-400:]}")
         print(f"bambooai: executor started ({image}, port {port})")

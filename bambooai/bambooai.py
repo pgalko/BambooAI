@@ -674,6 +674,8 @@ class BambooAI:
                 out[k] = v
             elif isinstance(v, (list, tuple)):
                 out[k] = [str(x) for x in v]
+            elif k == "store" and isinstance(v, dict) and all(isinstance(x, (str, int, float, bool)) or x is None for x in v.values()):
+                out[k] = dict(v)                              # the store's counts (2026-10-15): window, held, fetched, refresh
         return out
 
     def run_routine(self, routine_id, values=None, compare_with="previous", aux=None, load=None):

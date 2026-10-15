@@ -35,7 +35,8 @@
         if (!ld || !ld.source) return '';
         const src = sourceKind(ld.source);
         const from = ld.cached ? (ld.cached_from && ld.cached_from.length === 2 ? ' · cut from the cached load ' + ld.cached_from[0] + ' → ' + ld.cached_from[1] : ' · from the cache') : '';
-        if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '') + from;
+        const store = ld.store && typeof storeLine === 'function' ? storeLine(ld.store) : '';          // what the store held of the window (2026-10-15)
+        if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '') + from + (store ? ' · ' + store : '');
         if (src === 'endura') return 'Endura · ' + (ld.race_title || ('race ' + (ld.race_id || ''))) + from;
         return ld.name ? 'File · ' + ld.name + (ld.cached ? ' · from the Dataset cache' : '') : '';
     }
@@ -252,7 +253,9 @@
                     '<div class="rt-window rt-loadwin"><input type="date" class="ui-input" data-load="start" value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end" value="' + build.isoDay(today) + '"></div>' +
                     '<div class="help">the original’s ' + esc(days) + ' days, ending today' + (maxDays && days > maxDays ? ' (your plan allows ' + esc(maxDays) + ')' : '') +
                     (withWhat ? ' · with ' + esc(withWhat) : '') + (src === 'intervals' ? ' · metrics as the original' : (plan.users && plan.users.length ? ' · ' + esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')) + '</div>' +
-                    (src === 'intervals' ? '<div class="rt-cache" style="display:none"></div>' : '');
+                    (src === 'intervals' ? '<div class="rt-cache" style="display:none"></div>' +
+                        // the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): only what the window lacks is downloaded; the box fetches it all again
+                        '<label class="rt-check rt-refresh"><input type="checkbox" data-load="refresh"> Refresh everything <span class="n">— fetch every file and message of the window again, not only what the store lacks</span></label>' : '');
             } else if (src === 'endura') {
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from Endura</label>' +
                     '<div class="rt-field rt-race"><select class="ui-input" data-load="race"><option value="">loading the races…</option></select>' +
@@ -931,13 +934,14 @@
         // which can lag behind a date typed and committed by the click on Run itself (2026-10-11: a window loaded minutes
         // before was downloaded again)
         let cached = null;
+        const refresh = !!(q('input[data-load="refresh"]') && q('input[data-load="refresh"]').checked);
         if (src === 'intervals' || src === 'endura') {
             progress('Asking the cache…', 'loading');
             const c = await askCache(runState, asked);
             cached = c && c.hit ? c : null;
             showCache(p, c);
         }
-        if (cached) {
+        if (cached && !refresh) {
             // the load is in the cache with every file the routine wants: the cached frame and files are taken through the
             // Dataset cache's own routes, the pills as a load's, no download
             progress('Taking it from the cache…', 'loading');
@@ -969,7 +973,7 @@
             const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
             if (!start || !end || start >= end) throw new Error('the window needs a start before its end');
             progress('Starting the load from Intervals.icu…', 'loading');
-            const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [] }) });
+            const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [], refresh }) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load could not start');
             const jobId = res.json.job_id;
             const t0 = Date.now();
@@ -992,7 +996,10 @@
                     if (typeof createIntervalsPill === 'function') createIntervalsPill(info);
                     if (typeof createIntervalsAuxiliaryPills === 'function' && files.length) createIntervalsAuxiliaryPills(files, info);
                     dfTab(job);
-                    return { source: 'intervals', start, end, aux: files, load: asked, loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') + (coding && coding.line ? ' · ' + coding.line : '') };
+                    // the store's part (docs/INCREMENTAL_LOADS_DESIGN.md): on the record and in the LOAD row's fold, not in its clipped text
+                    const st_ = job.result && job.result.store;
+                    const store = st_ && st_.window ? { window: st_.window, held: st_.held || 0, fetched: st_.fetched || 0, refresh: !!st_.refresh } : null;
+                    return { source: 'intervals', start, end, aux: files, load: Object.assign({}, asked, store ? { store } : {}), store, loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') + (coding && coding.line ? ' · ' + coding.line : '') };
                 }
                 if (job.status === 'error' || job.status === 'not_found') throw new Error(job.error || 'the load failed');
                 progress((job.message || 'Loading…') + (job.percent != null ? ' (' + job.percent + '%)' : ''), 'loading');
@@ -1104,7 +1111,7 @@
             closeManager();                                   // the run shows in the main panes; the manager would cover them
             const numbers = runNumbers(routine);
             enterRunView(summaryOf(routine), numbers.concat([numbers.length ? Math.max.apply(null, numbers) + 1 : 1]), numbers.length, { pending: true, version: routine.current_version });
-            if (loaded && typeof paneLookup === 'function') paneLookup({ kind: 'load', query: loaded.loaded || '', peek: (pr.json && pr.json.line) || '', sources: [], passages: [] });
+            if (loaded && typeof paneLookup === 'function') paneLookup({ kind: 'load', query: loaded.loaded || '', peek: [typeof storeLine === 'function' ? storeLine(loaded.store) : '', (pr.json && pr.json.line) || ''].filter(Boolean).join(' · '), sources: [], passages: [] });
             stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with, aux: auxLoaded, load: loadDone }, true, data => {
                 if (data.type === 'pane_routine_end' && typeof paneRoutineEnd === 'function') { paneRoutineEnd(data); chipIdle(); return true; }
                 return false;

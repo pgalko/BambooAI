@@ -166,6 +166,7 @@ def load_data():
         return jsonify({'error': 'No API key configured. Please add your Intervals.icu API key.'}), 401
     
     # Validate and auto-adjust date range based on compute tier
+    retention_days = 400                        # how long the executor's store keeps a key's activities (docs/INCREMENTAL_LOADS_DESIGN.md)
     if data.get('start_date') and data.get('end_date'):
         from datetime import datetime, timedelta
         
@@ -178,6 +179,7 @@ def load_data():
         # Max days based on compute tier
         max_days_map = {'free': 14, 'plus': 182, 'pro': 365, 'local': 3650}
         max_days = max_days_map.get(compute_tier, 14)
+        retention_days = {'free': 120}.get(compute_tier, 400)
         
         # Parse and adjust dates
         requested_start = datetime.strptime(data['start_date'], '%Y-%m-%d')
@@ -223,7 +225,9 @@ def load_data():
                 'end_date': data['end_date'],
                 'metrics': data.get('metrics', []),
                 'aux_datasets': data.get('aux_datasets', []),
-                'user_id': user_id
+                'user_id': user_id,
+                'refresh': bool(data.get('refresh')),          # Refresh everything: every file and chat of the window again (2026-10-15)
+                'retention_days': retention_days
             },
             timeout=10
         )
@@ -296,6 +300,9 @@ def get_job_status(job_id):
             intervals_bp.bamboo_ai_instances[session_id].df_id = prefs.get('df_id')
             intervals_bp.bamboo_ai_instances[session_id].auxiliary_datasets = prefs.get('auxiliary_datasets', [])
             if (prefs.get('load') or {}).get('df_id') == result['df_id']:
+                st = result.get('store') or {}                # what the store held of the window (docs/INCREMENTAL_LOADS_DESIGN.md), on the load record
+                if st.get('window'):
+                    prefs['load']['store'] = {'window': st.get('window'), 'held': st.get('held', 0), 'fetched': st.get('fetched', 0), 'refresh': bool(st.get('refresh'))}
                 intervals_bp.bamboo_ai_instances[session_id].load_params = dict(prefs['load'])
             
             # Generate DataFrame sample

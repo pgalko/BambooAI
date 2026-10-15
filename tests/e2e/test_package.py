@@ -194,6 +194,8 @@ def main():
         cs = requests.get(f"{base2}/api/container/status").json()
         check("compute: the executor container (status ready, tier docker, from its own /health)", cs.get("status") == "ready" and cs.get("tier") == "docker", cs)
         check("the container's port is published on localhost only", any("127.0.0.1:" in c[c.index("-p") + 1] for c in st_["calls"] if c[:1] == ["run"] and "-p" in c))
+        check("the executor's datasets folder is the named volume bambooai-datasets at /app/datasets, so the store outlives the container (2026-10-15)",
+              any("-v" in c and c[c.index("-v") + 1] == "bambooai-datasets:/app/datasets" for c in st_["calls"] if c[:1] == ["run"]), [c for c in st_["calls"] if c[:1] == ["run"]])
         job_before = cs.get("job_id")
         check("the status carries a job id for the managed container (Docker's start time)", bool(job_before) and cs.get("managed") is True, cs)
         rr = requests.post(f"{base2}/api/container/restart", json={})

@@ -47,6 +47,10 @@ window.DatasetManager = (function() {
                             <h4>Generated</h4>
                             <div id="generatedDatasetList"></div>
                         </div>
+                        <div class="dataset-category">
+                            <h4>Store</h4>
+                            <div id="storeList"></div>
+                        </div>
                     </div>
                     <div class="dataset-details-panel">
                         <div id="datasetDetails" class="dataset-details-empty">Select a dataset to see its details</div>
@@ -174,6 +178,7 @@ window.DatasetManager = (function() {
             currentDatasets.cached = cacheData.cached_dataframes || [];
             currentDatasets.auxiliary = cacheData.auxiliary_datasets || [];
             currentDatasets.generated = cacheData.generated_datasets || [];
+            currentDatasets.stores = cacheData.stores || [];
             displayDatasets();
         })
         .catch(error => {
@@ -209,6 +214,30 @@ window.DatasetManager = (function() {
                 currentDatasets.auxiliary.forEach(dataset => {
                     const item = createDatasetItem(dataset, 'auxiliary');
                     auxList.appendChild(item);
+                });
+            }
+        }
+
+        // The Intervals.icu store (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): what the executor keeps for each key,
+        // by the key's mark - activities kept by file, the chats under them, the span and the size. Not a dataset to
+        // load or remove: a load takes from it what the window asks for.
+        const storeList = document.getElementById('storeList');
+        if (storeList) {
+            storeList.innerHTML = '';
+            const stores = currentDatasets.stores || [];
+            if (!stores.length) {
+                storeList.innerHTML = '<div class="dataset-empty">Nothing kept yet — a load from Intervals.icu fills it</div>';
+            } else {
+                stores.forEach(st => {
+                    const item = document.createElement('div');
+                    item.className = 'dataset-item store-type';
+                    const key = String(st.key_mark || '');
+                    item.title = 'Activities fetched under the key ' + (key ? '…' + key.slice(-4) : '') + ' are kept and reused; only what a window lacks is downloaded.';
+                    item.innerHTML = `
+                        <span class="dataset-item-name">Intervals.icu${key ? ' · key …' + escapeHtml(key.slice(-4)) : ''} · ${st.activities || 0} activit${st.activities === 1 ? 'y' : 'ies'}, ${st.chats || 0} chat${st.chats === 1 ? '' : 's'}${st.from ? ' · ' + escapeHtml(st.from) + ' → ' + escapeHtml(st.to) : ''}</span>
+                        <span class="dataset-size">${Number(st.size_mb || 0).toFixed(1)} MB</span>
+                    `;
+                    storeList.appendChild(item);
                 });
             }
         }

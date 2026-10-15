@@ -197,6 +197,7 @@
 .rt-load .rt-race select { max-width: 100%; }
 .rt-load .help { margin: 0 0 6px 22px; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }
 .rt-load .rt-check .n { font-weight: 400; color: var(--text-quaternary); }
+.rt-load .rt-refresh { margin: 2px 0 6px 22px; }                                       /* Refresh everything (2026-10-15), under the window */
 .rt-load .rt-fit { margin-left: 22px; }
 .rt-progress { margin: 6px 0 0 22px; font-size: var(--fs-small); color: var(--text-secondary); line-height: 1.4; }
 .rt-progress.loading::before { content: '…'; margin-right: 6px; }
@@ -345,6 +346,8 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #datasetManagerModal .dataset-item { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-1); font-size: 12.5px; color: var(--text-secondary); cursor: pointer; }
 #datasetManagerModal .dataset-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 #datasetManagerModal .dataset-item.active { background: var(--bg-tertiary); color: var(--text-primary); box-shadow: inset 2px 0 0 var(--c-kernel); }
+#datasetManagerModal .dataset-item.store-type { cursor: default; }                     /* the store (2026-10-15): shown, not loaded or removed */
+#datasetManagerModal .dataset-item.store-type:hover { background: none; color: var(--text-secondary); }
 #datasetManagerModal .dataset-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #datasetManagerModal .dataset-size { font-size: var(--fs-small); color: var(--text-quaternary); font-variant-numeric: tabular-nums; white-space: nowrap; }
 #datasetManagerModal .dataset-icon-download { width: 14px; height: 14px; color: var(--c-model); flex-shrink: 0; }
@@ -700,6 +703,8 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 .integration-dialog .int-options label:has(input:checked), .integration-dialog .int-options label.selected { border-color: var(--chip-model-border); color: var(--c-model); background: var(--accent-bg); }
 .integration-dialog .int-options label:has(input:checked) .check-icon, .integration-dialog .int-options label.selected .check-icon { width: 12px; margin-right: 6px; opacity: 1; }
 .integration-dialog .int-options label:has(input:disabled) { opacity: .6; cursor: default; }
+.integration-dialog .int-refresh { align-items: center; }                              /* Refresh everything (2026-10-15): the option and its line */
+.integration-dialog .int-refresh .help { font-size: 11.5px; color: var(--text-tertiary); }
 .integration-dialog .int-options .loading-spinner { font-size: var(--fs-meta); color: var(--text-quaternary); }
 .integration-dialog .ui-field { margin-bottom: 0; }
 .integration-dialog .date-input, .integration-dialog .endura-race-select { height: 32px; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 0 10px; font-family: var(--font-ui); font-size: var(--fs-body); color-scheme: dark; }
