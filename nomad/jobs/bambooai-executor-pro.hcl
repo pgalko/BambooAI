@@ -43,6 +43,16 @@ job "bambooai-executor-pro" {
         force_pull = false
         privileged = false
         memory_hard_limit = 16384  # 16GB hard limit
+
+        # The executor's datasets - the Intervals.icu store and the loaded windows' files - in a Docker volume of the
+        # user's own, created on first use with the image's ownership and kept across dispatches, so a load downloads
+        # only what the store lacks (docs/INCREMENTAL_LOADS_DESIGN.md §3, 2026-10-15). volume_driver makes the entry a
+        # named volume: without it Nomad reads a relative source as a folder inside the allocation directory, which
+        # goes with the allocation. Needs `plugin "docker" { config { volumes { enabled = true } } }` in the client's
+        # configuration. A volume lives on the node that made it: a cluster of several client nodes needs a shared
+        # volume driver or a node constraint for the store to follow the user.
+        volume_driver = "local"
+        volumes = ["bambooai-datasets-${NOMAD_META_user_id}:/app/datasets"]
       }
       
       resources {

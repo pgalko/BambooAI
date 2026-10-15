@@ -1,7 +1,7 @@
 # Incremental loads: the Intervals.icu store
 
 *2026-10-15, v1.0. Built in patches 0161 (the store in the executor, image v55), 0162 (persistence and the page),
-0163 (the walk's proof). Companion to docs/ROUTINES_DESIGN.md (F2, the Dataset cache) and docs/CONTEXT_DESIGN.md
+0163 (the walk's proof), 0164 (the hosted edition's volume). Companion to docs/ROUTINES_DESIGN.md (F2, the Dataset cache) and docs/CONTEXT_DESIGN.md
 (§3.1, the passages).*
 
 ## 1. The problem
@@ -79,9 +79,25 @@ method's inputs and the Data tab's pills; they are small).
   by the image's `appuser` on every platform (a folder of the home mounted instead would need its ownership changed
   on Linux, where the host user's id and the container's differ). `BAMBOO_EXECUTOR_DATASETS=<folder>` in the
   working folder's `.env` mounts that folder instead, for a person who wants the files where they can see them.
-- **Hosted edition**: the executor is a Nomad dispatch; persistence is the job template's volume, outside this
-  repository (HANDOVER notes it for the roll-out). Without one the store lives as long as the container does and is
-  simply rebuilt on the first load after.
+- **Hosted edition** (patch 0164): the executor is a Nomad dispatch - a container started for the person and thrown
+  away when it ends, its disk with it. The four job specifications in `nomad/jobs/` (`bambooai-executor-free`,
+  `-plus`, `-pro` and the generic one) now give the task a Docker volume of the user's own,
+  `bambooai-datasets-<user id>`, at `/app/datasets` (`volume_driver = "local"` with the `volumes` entry - without
+  the driver Nomad reads a relative source as a folder inside the allocation directory, which goes with the
+  allocation) - created on first use with the image's ownership, like the single edition's, and kept across
+  dispatches; one volume per user, so a person's executor never sees another's files. Inside the container nothing
+  differs from the single edition: the same image, the same `/app/datasets/<user>/<mark>/store/`.
+  **Roll-out on a box** (HANDOVER has the steps): the Nomad client's configuration needs `plugin "docker" { config {
+  volumes { enabled = true } } }` (the documentation gives the default as false; a volume driver is refused without
+  it) and a restart of the agent (running allocations survive one); the four jobs re-registered (`nomad job run
+  nomad/jobs/bambooai-executor-<tier>.hcl`) and the running dispatches stopped so the next ones carry the volume;
+  then `docker volume ls` shows `bambooai-datasets-<user id>` after a login and a load, `docker inspect` of the
+  container shows `/app/datasets` as a volume mount, and a window loaded again after a new dispatch downloads
+  nothing. Named volumes survive `docker volume prune` (anonymous volumes only since Docker 23) but not `docker
+  volume prune --all` or `docker system prune --volumes`: those remove every user's store. Disk: about 100 MB per
+  user-year, bounded by the retention. A volume lives on the node that made it - a cluster of several client nodes
+  needs a shared volume driver or a node constraint. Without the volume the store lives as long as the container
+  does and is simply rebuilt on the first load after.
 - **`--compute local`** runs no integrations, so no store.
 
 ## 4. What the person sees (patch 0162)
@@ -114,7 +130,9 @@ method's inputs and the Data tab's pills; they are small).
   a download next time, never a wrong frame (the files are written whole and replaced atomically).
 - **D7 Parquet, with a fallback.** The image pins pyarrow; the sandbox has none and stubs it, so the store writes
   compressed pickles there and says `engine: pickle` in its summary. The walk proves the same code path.
-- **D8 A named volume for the single edition** (over a folder of the home) - §3.
+- **D8 A named volume for the single edition** (over a folder of the home) - §3; and one per user for the hosted
+  edition (over a shared host folder, where every container would see every user's files, and the host folder's
+  ownership would need setting for the image's user).
 
 ## 6. Tests
 

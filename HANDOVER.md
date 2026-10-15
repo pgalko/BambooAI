@@ -36,7 +36,7 @@
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v55** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store) - rebuild and roll out; the hosted executor's job needs a volume at `/app/datasets` for the store to outlive a dispatch (docs/INCREMENTAL_LOADS_DESIGN.md §3).
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v55** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
@@ -446,6 +446,32 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The hosted edition's store kept (2026-10-15, patch 0164).** Palo: the Nomad jobs live in the repository, under
+  `nomad/jobs/` (the 0162 entry below had them outside it). The four job specifications - `bambooai-executor-free`,
+  `-plus`, `-pro` and the generic one - give the executor task `volume_driver = "local"` and `volumes =
+  ["bambooai-datasets-${NOMAD_META_user_id}:/app/datasets"]`: a Docker volume of the user's own, created on first use
+  with the image's ownership (the same thing `bambooai serve` does, one per user), kept across dispatches, so the
+  store and the loaded windows' files outlive the container; one volume per user, so a container never sees another
+  user's files (a shared host folder would, and its ownership would need setting for the image's `appuser`). The
+  driver line matters: without it Nomad reads a relative source as a folder inside the allocation directory (the
+  documentation: "If volume_driver is omitted, then relative paths will be mounted from inside the allocation dir"),
+  which goes with the allocation. **Roll-out on each box, in this order:** (1) the Nomad client's configuration gets
+  `plugin "docker" { config { volumes { enabled = true } } }` if it is not there (`grep -rn volumes /etc/nomad.d/`;
+  the documentation gives the default as false, and a volume driver is refused without it) and the agent is
+  restarted (running allocations survive a client restart); (2) image v55 built and pushed to the box's registry as
+  before; (3) the four jobs re-registered (`nomad job run nomad/jobs/bambooai-executor-<tier>.hcl`) and the running
+  dispatches stopped (`nomad job status`, stop the dispatch children) so the next ones carry the volume; (4) check:
+  log in and load a window - `docker volume ls` shows `bambooai-datasets-<user id>`, `docker inspect <container>
+  --format '{{json .Mounts}}'` shows `/app/datasets` of type volume, the executor's log reads *Found N activities to
+  process; 0 in the store, N to download*; stop the dispatch, log in again, load the same window - *N in the store,
+  0 to download*. Named volumes survive `docker volume prune` (anonymous volumes only, since Docker 23) but not
+  `docker volume prune --all` or `docker system prune --volumes` - never run those on the boxes. Disk: about 100 MB
+  per user-year, bounded by the retention; a departed user's volume is removed by hand (`docker volume rm`). A volume
+  lives on the node that made it, so a cluster of several client nodes needs a shared volume driver or a node
+  constraint. The user id in the volume name is the app's file-system-safe one (the part after the provider's `|`),
+  which fits Docker's volume-name rules for the ids seen. Nothing diverges from the single edition inside the
+  container: the same image, the same paths; only how the volume is attached differs (`-v` in `bambooai serve`, the
+  job's `volumes` here).
 - **The store proved on the real executor (2026-10-15, patch 0163).** The integrations walk counts the fake API's
   calls around each load (`calls_of`): the first load fetches the 60-day window whole (the dialog's line *60
   activities downloaded*; the key's store on disk with the manifest and a file per activity); the routine's run on
@@ -462,8 +488,8 @@
   have gone with each executor update; `start_executor` now mounts the named Docker volume `bambooai-datasets` at
   `/app/datasets` (`executor_datasets()`; `BAMBOO_EXECUTOR_DATASETS=<folder>` in .env mounts a folder of the person's
   own instead - a named volume by default because a folder of the home is owned by the host user, whom the image's
-  `appuser` cannot write for on Linux). The hosted executor's persistence is the Nomad job's volume, outside the
-  repository (noted on the ship line). The app's load route passes `refresh` and the tier's `retention_days` (120 on
+  `appuser` cannot write for on Linux). The hosted executor's persistence is the Nomad job's volume - in
+  `nomad/jobs/`, patch 0164 (this entry had it outside the repository). The app's load route passes `refresh` and the tier's `retention_days` (120 on
   the free tier, 400 otherwise) to the executor. The page: the Intervals dialog has a *Download* section with *Refresh
   everything* (off; cleared after each load) and the line *only what the store lacks is downloaded*; the load's
   success message carries `storeLine` (core.js: *91 of 101 activities from the store, 10 downloaded* / *all 101 …,
