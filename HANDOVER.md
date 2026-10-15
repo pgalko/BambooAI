@@ -36,7 +36,7 @@
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v55** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch).
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v56** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/131/33/37/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/133/41/39/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (88; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (89; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,22 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The planned workouts file: the prescription beside the context (2026-10-15, patch 0169; executor image v56;
+  docs/CONTEXT_DESIGN.md §3.1a).** Palo's decision after the interval-compliance routine: the context design drops a
+  planned workout's step lines from the words - rightly, the coder should never see `-10m 220w` - but left the
+  prescription with no home; of the rider's 237 plan notes four carried a watt figure in prose. The executor now
+  fetches the calendar once per load (`fetch_calendar`; `fetch_context_rows` takes it as `events=` and fetches only
+  when not given) and writes `planned_workouts_<window>.csv` (`planned_workouts_frame`, `PLAN_COLUMNS`): one row per
+  WORKOUT entry - day, name, sport, author, the paired activity and its compliance (empty activity for a session not
+  done), the plan's numbers and targets, the prose, the step lines as written and `workout_doc` as JSON. Kind `plan`
+  (`planned_workouts_`), cut by `date`, among a run's kinds; the page's Context option asks for `context` and `plan`
+  together (the label says so), the pill reads *Planned workouts (N days)*; the auxiliary limit is six. A bare repeat
+  count on its own line ("4x") is a step line now (`_STEP_LINE_RE`): live plan notes read *Endurance: 4x | 4x* once
+  the steps under it were dropped. The fake calendar's workouts carry numbers and a `workout_doc`, and every eleventh
+  non-ride day a planned session nobody did. Tests: test_context.py 41 (fetch_calendar, the frame's rows and
+  columns, the calendar given, the repeat line), test_store.py 39 (the file written with the context and on its
+  own), test_routines.py 133 (the kind, the cut rule, cache_match wanting it, load_plan), the integrations walk.
+  Known limit, in the design note: the DATA head of the file is cut by the JSON column.
 - **The dataset chips: one row that scrolls (2026-10-15, patch 0168).** Palo: the bar's chip row is of limited width, a
   load with the context brings five files, and more auxiliaries are coming (a rider profile, zones, custom metrics) -
   the row must stay one row, reaching the chain navigation, and scroll sideways rather than wrap or clip (it clipped:

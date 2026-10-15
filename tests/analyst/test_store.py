@@ -7,6 +7,7 @@ second load only the new ones, a third nothing; a changed file is fetched again;
     python3 tests/analyst/test_store.py
 """
 import gzip
+import json
 import os
 import sys
 import tempfile
@@ -228,6 +229,17 @@ df1 = E.df_cache.get(r1["df_id"])
 check("the frame is the window's: every activity, the metrics asked, newest first, the activity's name and type from the list",
       df1 is not None and df1.activity_id.nunique() == n1 and {"power", "heart_rate", "activity_id", "datetime", "activity_type", "activity_name"} == set(df1.columns)
       and df1.datetime.is_monotonic_decreasing and df1.activity_name.str.startswith(("Ride ", "Run ")).all(), (None if df1 is None else (df1.shape, list(df1.columns))))
+# the planned workouts file (2026-10-15): written with the context, one row per WORKOUT entry of the window's calendar
+plan_path = next((p_ for p_ in r1["aux_datasets"] if "planned_workouts_" in p_), "")
+plan_df = pd.read_csv(plan_path, dtype=str, keep_default_na=False) if plan_path else None
+ev1 = [e for e in D.events(s1, e1) if e["category"] == "WORKOUT"]
+check("the load with the context wrote the planned workouts file beside the context file: one row per WORKOUT entry, the ride days paired to their activity (with its compliance), the skipped sessions with none, the plan's numbers, the step lines and the structure as JSON",
+      plan_df is not None and len(plan_df) == len(ev1) and plan_path.endswith(f"planned_workouts_{s1.replace('-', '')}_to_{e1.replace('-', '')}.csv")
+      and (plan_df.activity_id != "").sum() == sum(1 for e in ev1 if e["name"] == "Endurance") and (plan_df.activity_id == "").sum() == sum(1 for e in ev1 if e["name"] == "Strength")
+      and set(plan_df[plan_df["name"] == "Endurance"].steps) == {"-2h 60%"} and set(plan_df[plan_df["name"] == "Endurance"].prose) == {"Keep it conversational, fuel every hour."}
+      and set(plan_df[plan_df["name"] == "Endurance"].planned_duration_sec) == {"7200"} and all(json.loads(x)["steps"][0]["duration"] == 7200 for x in plan_df[plan_df["name"] == "Endurance"].workout_doc)
+      and set(plan_df[plan_df["name"] == "Strength"].steps) == {"-45m core"} and set(plan_df[plan_df["name"] == "Strength"].prose) == {""},
+      (plan_path, None if plan_df is None else (len(plan_df), len(ev1), plan_df.head(3).to_dict("records"))))
 chats1 = len(SESSION.chats())
 check("the context: every chat of the window fetched on the first load and kept", chats1 == sum(1 for d in D.days_in(s1, e1) if D.has_chat(d)) and chats1 > 0 and r1["context"]["messages_reused"] == 0, (chats1, r1.get("context")))
 store_dir = os.path.join("datasets", "u", E.key_mark("key-1"), "store")
@@ -256,6 +268,11 @@ check("the chats of the settled activities come from the store; only the new act
 ctx2 = pd.read_csv(r2["context"]["path"])
 check("the context file of the second window has the passages of both (the reused chats among them)", len(ctx2) > 0 and (ctx2.kind == "activity_message").sum() >= chats1, (len(ctx2), ctx2.kind.value_counts().to_dict()))
 
+jp = load(s1, e1, aux=("summary", "plan"))
+rp = jp.get("result") or {}
+check("the planned workouts asked for on their own: the file written from the calendar (one call), no context file, nothing downloaded",
+      jp["status"] == "completed" and any("planned_workouts_" in p_ for p_ in rp["aux_datasets"]) and not any("context_notes_" in p_ for p_ in rp["aux_datasets"]) and rp.get("context") is None
+      and len(SESSION.fits()) == 0 and sum(1 for c in SESSION.calls if c == "/athlete/0/events") == 1, (jp.get("error"), rp.get("aux_datasets"), [c for c in SESSION.calls if "events" in c]))
 j3 = load(s2, e1, metrics=("heart_rate", "speed"))
 r3 = j3.get("result") or {}
 check("the same window again, other metrics: nothing downloaded, the frame served from the store with the metrics now asked",

@@ -335,6 +335,8 @@ version's data record, `load`), and offers the data loaded now beside it.
    looking for its files in that folder; a frame marked with another key is said (*loaded under another key - it
    will be downloaded*), one from before the loader marked them is downloaded this once. The Intervals route puts
    the mark on the load record (`load.key`), so a routine and each run say which key they were made and run under.
+   The kinds a run's load can ask for are summary, wellness, intervals, context and, since 2026-10-15, plan - the
+   planned workouts table written with the context (docs/CONTEXT_DESIGN.md §3.1a), cut to a window by its `date`.
    **Below the cache, the store** (2026-10-15, docs/INCREMENTAL_LOADS_DESIGN.md): a miss no longer downloads the
    window whole - the executor keeps every activity it has parsed under the key's folder and fetches only the
    activities a window asks for that it does not hold (or whose file changed), so a run on a window a day wider

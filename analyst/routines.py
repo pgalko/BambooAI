@@ -417,6 +417,7 @@ def fit_check(expected: Iterable[dict], now: Iterable[dict]) -> dict:
 # file this load produced, and the executed text carries this load's names; the stored method is not changed.
 AUX_KINDS = (("activity_summary_", "summary"), ("wellness_data_", "wellness"), ("activity_intervals_", "intervals"),
              ("context_notes_", "context"), ("context_codes_", "codes"),        # the words beside the data and the model's reading of them (2026-10-13)
+             ("planned_workouts_", "plan"),                                       # the prescription: the calendar's planned workouts with their numbers and steps (2026-10-15)
              ("athlete_profiles_race_", "profile"), ("race_turns_race_", "turns"), ("race_climbs_race_", "climbs"),
              ("race_waymarkers_race_", "waymarkers"))
 _STRING_RE = re.compile(r"""(?P<q>'|")(?P<body>(?:(?!(?P=q)).)*)(?P=q)""")
@@ -683,7 +684,7 @@ def dtype_family(dtype: str) -> str:
 
 # how a cached load is cut to the window a run asks for (2026-10-11): the frame by its date column; each auxiliary file
 # by the column the loader keyed it on, or by the rides kept when it has none; a file with neither is taken whole and said
-CUT_RULES = {"summary": ("date", "start_date_local"), "wellness": ("date", "date"), "intervals": ("ids", "activity_id")}
+CUT_RULES = {"summary": ("date", "start_date_local"), "wellness": ("date", "date"), "intervals": ("ids", "activity_id"), "plan": ("date", "date")}
 DATA_MARK_OUT = "ROUTINE_DATA:"             # printed by a run's prelude after a cut: the rows the method saw
 
 

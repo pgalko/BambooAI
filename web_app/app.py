@@ -208,8 +208,9 @@ STREAM_HEARTBEAT_SECONDS = float(os.getenv("STREAM_HEARTBEAT_SECONDS", "15"))
 # wellness, summary and laps; an Intervals.icu load with the context brings five (the passages and the codes beside
 # them), and a run cut from the Dataset cache loads them one by one through the cache route - the fourth was refused
 # (2026-10-15, Palo's first run of a context routine on a window inside a cached load). The loader route sets the
-# list whole and was never limited; this is the one number the upload and cache routes and the page share.
-MAX_AUXILIARY_DATASETS = 5
+# list whole and was never limited; this is the one number the upload and cache routes and the page share. Six since
+# the planned workouts file joined the context (2026-10-15).
+MAX_AUXILIARY_DATASETS = 6
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET')

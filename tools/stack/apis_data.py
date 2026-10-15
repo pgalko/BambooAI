@@ -166,8 +166,15 @@ def events(oldest: str, newest: str, today: date = None):
         start = d.strftime("%Y-%m-%dT00:00:00")
         nxt = (d + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
         if is_ride(d, today):
+            # the plan's numbers and its structure beside the words (2026-10-15: the planned workouts file)
             out.append({"id": workout_event_id(d), "category": "WORKOUT", "start_date_local": start, "end_date_local": nxt, "name": "Endurance",
-                        "description": "Keep it conversational, fuel every hour.\n-2h 60%", "created_by_id": COACH_ID, "type": "Ride", "tags": ["primary"] if o % 10 == 0 else []})
+                        "description": "Keep it conversational, fuel every hour.\n-2h 60%", "created_by_id": COACH_ID, "type": "Ride", "tags": ["primary"] if o % 10 == 0 else [],
+                        "moving_time": 7200, "icu_training_load": 90, "distance": 56000, "training_availability": "NORMAL",
+                        "workout_doc": {"steps": [{"duration": 7200, "power": {"units": "%ftp", "value": 60}}]}})
+        elif o % 11 == 0:
+            # a planned session with no activity paired to it: a skipped one (its description is steps alone - no passage)
+            out.append({"id": workout_event_id(d), "category": "WORKOUT", "start_date_local": start, "end_date_local": nxt, "name": "Strength",
+                        "description": "-45m core", "created_by_id": COACH_ID, "type": "WeightTraining", "moving_time": 2700, "icu_training_load": 20})
         if o % 17 == 0:
             out.append({"id": 800000 + o % 100000, "category": "NOTE", "start_date_local": start, "end_date_local": nxt, "name": "Exam week", "description": "Exams all week, short sessions only.", "created_by_id": SUBJECT["id"]})
         if o % 50 == 10:

@@ -23,7 +23,7 @@ def init_cache_integration(app, **dependencies):
     # Add preview generation dependencies
     cache_bp.utils = dependencies['utils']
     cache_bp.executor_client = dependencies['executor_client']
-    cache_bp.max_aux = int(dependencies.get('max_aux', 5))      # the one limit the app sets (MAX_AUXILIARY_DATASETS)
+    cache_bp.max_aux = int(dependencies.get('max_aux', 6))      # the one limit the app sets (MAX_AUXILIARY_DATASETS)
     
     # Register the blueprint
     app.register_blueprint(cache_bp)

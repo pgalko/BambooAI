@@ -95,7 +95,7 @@ One row per passage, in date order, ids given in that order and stable for the l
 | `author_role` | `subject`, `coach`, `other` (the chat's member roles decide `coach`; the key's athlete is `subject`) |
 | `private` | true for `hide_from_athlete` entries and private wellness keys (only present under a coach's key) |
 | `lang` | the coder's detection (`da`, `no`, `en`), filled by the coding pass; empty before it |
-| `text` | the passage as written, plain text: HTML stripped, whitespace normalised, a plan's structured step lines removed (they are in `workout_doc`; the prose stays) |
+| `text` | the passage as written, plain text: HTML stripped, whitespace normalised, a plan's structured step lines removed (they are in the planned workouts table, §3.1a; the prose stays) |
 | `text_en` | the English rendering, written by the coder at load; equal to `text` when `lang` is `en`; empty before the coding pass |
 | `chars` | the length of `text` |
 
@@ -109,6 +109,34 @@ activity, as `custom_field` (text = "field: value"). The numbers beside the word
 `session_rpe`, `compliance`, the seven scales, the tick's value, numeric custom fields — stay in the summary and
 wellness frames; the activity summary gains `description`, `tags` (joined by `|`), `coach_tick`, `compliance`,
 `paired_event_id` and `icu_chat_id` so that the join needs nothing but the frames.
+
+### 3.1a The planned workouts table — `planned_workouts_<start>_to_<end>.csv` (kind `plan`)
+
+The prescription, on the numbers side (2026-10-15; built with the context and written beside it - the page asks for
+both under the one Context option). The design above was right to keep a planned workout's step lines out of the
+words - `-10m 220w` is not something anyone wrote to anyone, and the coder never sees it - but it left them with
+no home at all: of one rider's 237 plan notes, four carried a watt figure in prose, so "how close did he get to
+what I asked" had only the platform's compliance score to stand on. One row per `WORKOUT` entry on the calendar:
+
+| column | what |
+|---|---|
+| `event_id`, `date`, `name`, `type` | the entry, its day, its title, the sport |
+| `author_id` | who set it (`created_by_id`) |
+| `activity_id` | the activity it was done as (through the activity's `paired_event_id`); **empty for a session not done** - the skipped sessions are these rows |
+| `compliance` | that activity's compliance as Intervals scores it (the same number the summary carries as `workout_compliance`) |
+| `planned_duration_sec`, `planned_load`, `planned_distance_m` | the plan's numbers (`moving_time`, `icu_training_load`, `distance`) |
+| `load_target`, `time_target`, `distance_target` | the targets, when set |
+| `prose` | the plan's prose, as the context's `plan_note` has it |
+| `steps` | the step lines as written, newline-joined - the lines the context leaves out (a bare repeat count on its own line, "4x", is a step line too) |
+| `workout_doc` | the structured workout as Intervals keeps it, as JSON text (each step's duration and power target); empty when the entry has none |
+| `availability` | the day's `training_availability` when other than NORMAL |
+| `tags` | the entry's tags, joined by `\|` |
+
+The calendar is fetched once per load (`fetch_calendar`) and serves both this table and the context. A routine
+made from a chain that read it carries `plan` among its load's kinds; a cached load is cut to a window by `date`.
+The laps file holds the executed side (labels, zones, watts per lap), so prescription and execution are two tables
+a method can join by `activity_id`. Known limit: the DATA head of this file is cut by the `workout_doc` column's
+length; a compact structure column can follow once the shape of `workout_doc` is known from a live load.
 
 ### 3.2 The codes table — `context_codes_<start>_to_<end>.csv` (kind `codes`)
 

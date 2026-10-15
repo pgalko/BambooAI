@@ -26,7 +26,7 @@ let answerTabInteractive = false;
 let answerTabExplore = false;      // the seedling's page: no PDF, no Simplified (2026-09-08)
 let answerTabSynthesis = false;
 let auxiliaryDatasetCount = 0;
-const MAX_AUXILIARY_DATASETS = 5;   // as the app's (web_app/app.py): an Intervals.icu load with the context brings five files (2026-10-15)
+const MAX_AUXILIARY_DATASETS = 6;   // as the app's (web_app/app.py): an Intervals.icu load with the context brings six files - laps, summary, wellness, context, codes, planned workouts (2026-10-15)
 
 // The calendar day of a Date as the person sees it (2026-10-15): the loaders' dialogs and the routine run dialog had taken
 // "today" from toISOString(), the UTC day - before 11:00 in Melbourne the Data tab and a run made minutes apart asked for

@@ -493,16 +493,17 @@ def main():
             ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); if (!p) return null; const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, spinner: !!p.querySelector('.file-upload-spinner'), rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
             check("the context option is on by default in the dialog; the load with it carries [W+S+C] and ONE Context pill - the days, a spinner and 'coding…' while the pass runs behind the load, its list naming the passages and the codes as coding - no separate pill per file; the dialog's line reports the passages by kind, names no failed call and says the coding runs in the background",
                   cx_default is True and any("Intervals ICU (59 days [W+S+C]) loaded" in p for p in pills_c) and ctx_pill is not None and ctx_pill["label"] == "Context (59 days) \u00b7 coding\u2026" and ctx_pill["spinner"] is True
-                  and len(ctx_pill["rows"]) == 2 and ctx_pill["rows"][0].startswith("Passagescontext_notes_") and ctx_pill["rows"][1] == "Codescoding\u2026" and ctx_pill["pills"] == 4
+                  and len(ctx_pill["rows"]) == 2 and ctx_pill["rows"][0].startswith("Passagescontext_notes_") and ctx_pill["rows"][1] == "Codescoding\u2026" and ctx_pill["pills"] == 5
+                  and any(p == "Auxiliary (Planned workouts (59 days))" for p in pills_c)      # the planned workouts file rides with the context (2026-10-15), a pill of its own
                   and not any(p.startswith("Auxiliary (Context") for p in pills_c)
                   and "Context: " in msg and "passages" in msg and "activity_message" in msg and "failed" not in msg and "coding in the background" in msg, (cx_default, pills_c, ctx_pill, msg))
             # the pass behind the load (2026-10-14): the page follows it on the one pill; when it ends the pill settles - the line, the codes row
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             pills_c = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
             ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
-            check("when the pass ends the one pill reads plain with the pass's line as its tooltip - coded of total, the renderings, the proposal - and its list names the passages, the codes and the line; still four pills in the bar",
+            check("when the pass ends the one pill reads plain with the pass's line as its tooltip - coded of total, the renderings, the proposal - and its list names the passages, the codes and the line; still five pills in the bar",
                   ctx_pill["label"] == "Context (59 days)" and re.search(r"^Context: \d+ of \d+ coded, \d+ rendered into English, 1 code proposed$", ctx_pill["title"]) is not None
-                  and len(ctx_pill["rows"]) == 3 and ctx_pill["rows"][1].startswith("Codescontext_codes_") and re.search(r"^\d+ of \d+ coded", ctx_pill["rows"][2]) and ctx_pill["pills"] == 4, (pills_c, ctx_pill))
+                  and len(ctx_pill["rows"]) == 3 and ctx_pill["rows"][1].startswith("Codescontext_codes_") and re.search(r"^\d+ of \d+ coded", ctx_pill["rows"][2]) and ctx_pill["pills"] == 5, (pills_c, ctx_pill))
             page.evaluate("() => { const r = [...document.querySelectorAll('#contextPill .context-pill-menu .row')][0]; r.click(); }")
             page.wait_for_function("() => { const t = document.querySelector('#content-dataframe, .tab-content.active'); return !!t && /text_en/.test(t.textContent || ''); }", timeout=30000)
             check("the list's Passages row previews the context file in the Data tab, with the lang and text_en columns", True)
@@ -512,6 +513,16 @@ def main():
             check("the executor wrote the context file beside the summary and wellness files, in the key's folder, with the columns of the design and the kinds the fake calendar holds: messages (subject and coach), the coach's private notes, descriptions, tags, ticks, wellness comments, the custom select, the plan's prose, notes, the sick span, the race",
                   ctx is not None and list(ctx.columns)[:5] == ["id", "kind", "date", "time", "end_date"]
                   and all(k in kinds_c for k in ("activity_message", "activity_private_note", "activity_note", "tag", "coach_tick", "wellness_note", "custom_field", "plan_note", "day_note", "status")), (ctx_path, kinds_c))
+            # the planned workouts file beside it (2026-10-15): one row per WORKOUT entry of the window's calendar, the rides paired
+            # to their activity with its compliance, the skipped sessions with none, the step lines and the structure as JSON
+            plan_path = os.path.join(exec_ds, f"planned_workouts_{tag_a}.csv")
+            plan_f = pd.read_csv(plan_path, dtype=str, keep_default_na=False) if os.path.exists(plan_path) else None
+            ev_a = [e_ for e_ in apis_data.events(a_start.isoformat(), a_end.isoformat()) if e_["category"] == "WORKOUT"]
+            check("the executor wrote the planned workouts file beside the context file: a row per planned workout, the rides paired (with the activity's compliance), the skipped sessions unpaired, the step lines the context leaves out, the plan's numbers and the structured workout as JSON",
+                  plan_f is not None and len(plan_f) == len(ev_a) and (plan_f.activity_id != "").sum() == sum(1 for e_ in ev_a if e_["name"] == "Endurance") and (plan_f.activity_id == "").sum() == sum(1 for e_ in ev_a if e_["name"] == "Strength")
+                  and set(plan_f[plan_f["name"] == "Endurance"].steps) == {"-2h 60%"} and set(plan_f[plan_f["name"] == "Endurance"].planned_duration_sec) == {"7200"} and all(json.loads(x_)["steps"][0]["duration"] == 7200 for x_ in plan_f[plan_f["name"] == "Endurance"].workout_doc)
+                  and all(c_ != "" for c_ in plan_f[plan_f["name"] == "Endurance"].compliance) and (ctx is None or not ctx["text"].str.contains("-2h 60%").any()),
+                  (plan_path, None if plan_f is None else (len(plan_f), len(ev_a), plan_f.head(2).to_dict("records"))))
             if ctx is not None:
                 msgs = ctx[ctx["kind"] == "activity_message"]
                 sick = ctx[(ctx["kind"] == "status") & ctx["text"].str.startswith("SICK")]
@@ -686,9 +697,9 @@ def main():
             rdirs_n = [d_ for d_ in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")) if "fatigue" in json.load(open(d_)).get("name", "").lower()]
             rj_n = wait_verified(rdirs_n[0]) if rdirs_n else {}
             rec_n = ((rj_n.get("versions") or [{}])[0].get("manifest") or {}).get("data") or {}
-            check("Create: run zero reproduced the two lines on the original window; the record's auxiliary files are the four of the load - summary, wellness, context, codes - under the key's folder, the load's kinds with context",
+            check("Create: run zero reproduced the two lines on the original window; the record's auxiliary files are the five of the load - summary, wellness, context, planned workouts, codes - under the key's folder, the load's kinds with context and plan",
                   err_n is None and rdirs_n and (rj_n.get("versions") or [{}])[0].get("run_zero", {}).get("status") == "reproduced"
-                  and sorted(aux_kind(p_) for p_ in rec_n.get("aux") or []) == ["codes", "context", "summary", "wellness"] and "context" in (rec_n.get("load") or {}).get("aux_kinds", []), (err_n, rec_n.get("aux"), (rec_n.get("load") or {}).get("aux_kinds")))
+                  and sorted(aux_kind(p_) for p_ in rec_n.get("aux") or []) == ["codes", "context", "plan", "summary", "wellness"] and {"context", "plan"} <= set((rec_n.get("load") or {}).get("aux_kinds", [])), (err_n, rec_n.get("aux"), (rec_n.get("load") or {}).get("aux_kinds")))
             rid_n = rj_n.get("id")
             # run 1: the next window - the dialog's load asks for the context too; the pass behind the load is waited for; the count compared
             page.click("#routinesPill")
@@ -784,10 +795,10 @@ def main():
             run3_path = os.path.join(os.path.dirname(rdirs_n[0]), "runs", "v1_3", "run.json")
             run3_n = json.load(open(run3_path)) if os.path.exists(run3_path) else {}
             _chk_d = next((r for r in rv_d["rows"] if "CHECK" in r), "")
-            check("run 3 ran from the cache with all four files - none refused by the auxiliary limit: no download, the LOAD row 'cut from the cache', the CHECK row 'cut to the window from the cached load', the context and codes files among the four bound, the run complete",
+            check("run 3 ran from the cache with all five files - none refused by the auxiliary limit: no download, the LOAD row 'cut from the cache', the CHECK row 'cut to the window from the cached load', the context, codes and plan files among the five bound, the run complete",
                   "run 3 of 3" in rv_d["position"] and "Maximum" not in prog_d and calls_of(st, "fit-file") == fits_before_d
                   and any("LOAD" in r and "cut from the cache" in r for r in rv_d["rows"]) and f"cut to {d_start.isoformat()} → {d_end.isoformat()} from the cached load" in _chk_d
-                  and run3_n.get("status") in ("ran", "reproduced") and sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []) == ["codes", "context", "summary", "wellness"]
+                  and run3_n.get("status") in ("ran", "reproduced") and sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []) == ["codes", "context", "plan", "summary", "wellness"]
                   and not run3_n.get("aux_absent") and "Run 3 complete" in rv_d["done"] and not rv_d["warn"], (prog_d[:200], rv_d["position"], _chk_d[:300], sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []), run3_n.get("aux_absent"), rv_d["done"][:160]))
             errs = page.evaluate("window.__stackErrors || []")
             b.close()

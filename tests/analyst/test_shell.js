@@ -108,10 +108,11 @@ check('live chain: a running chain is a navigable entry; its DOM parks in holder
 check('live chain: rebuilding a viewed chain targets the view, not the parked run', wm2.includes('liveState.forceView = true;'));
 // ---- the context (2026-10-13, docs/CONTEXT_DESIGN.md §7 S1): the Intervals dialog's fourth option, on by default; the pill letter; the report line ----
 const intMod = html.slice(html.indexOf('id="intervalsModal"'), html.indexOf('id="intervals-modal-message"'));
-check('intervals dialog: a Context option (notes, messages, calendar) beside wellness, summary and intervals, checked by default; the other three stay unchecked',
-  /id="context-checkbox" value="context" checked/.test(intMod) && intMod.includes('<span>Context (notes, messages, calendar)</span>') && !/id="wellness-checkbox"[^>]*checked/.test(intMod) && !/id="summary-checkbox"[^>]*checked/.test(intMod), intMod.length);
+check('intervals dialog: a Context option (notes, messages, calendar, planned workouts) beside wellness, summary and intervals, checked by default; the other three stay unchecked',
+  /id="context-checkbox" value="context" checked/.test(intMod) && intMod.includes('<span>Context (notes, messages, calendar, planned workouts)</span>') && !/id="wellness-checkbox"[^>]*checked/.test(intMod) && !/id="summary-checkbox"[^>]*checked/.test(intMod), intMod.length);
 const ij = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'), 'utf8');
-check('intervals.js: the option is read into the load\'s auxiliary kinds and the pill carries a C for it', ij.includes("if (contextCheckbox?.checked) auxDatasets.push('context');") && ij.includes("if (auxDatasets.includes('context')) auxText += auxText ? '+C' : 'C';"));
+check('intervals.js: the option is read into the load\'s auxiliary kinds as context and plan (the planned workouts ride with the context, 2026-10-15), the pill carries a C for it and the plan file has its own pill name',
+  ij.includes("if (contextCheckbox?.checked) auxDatasets.push('context', 'plan');") && ij.includes("if (auxDatasets.includes('context')) auxText += auxText ? '+C' : 'C';") && ij.includes("if (filename.includes('planned_workouts')) return `Planned workouts (${dayCount} days)`;"));
 const { contextReportLine } = require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'));
 check('intervals.js: the report line - the passages by kind, most first, and the failed calls; no passages said; nothing without a report',
   contextReportLine({ passages: 15, kinds: { tag: 2, activity_message: 9, status: 4 }, failed: ['the calendar entries could not be fetched (HTTPError)'] }) === 'Context: 15 passages — activity_message 9, status 4, tag 2; 1 call failed: the calendar entries could not be fetched (HTTPError).'

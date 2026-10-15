@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-15 v55 (the Intervals.icu store: a window is a view, only the new files are fetched)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-15 v56 (the planned workouts file: the prescription beside the context)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -1719,7 +1719,12 @@ def fetch_intervals_background(data, job_id):
         
         # The context (2026-10-13): the words written beside the data, one file of passages. Never fatal to the
         # load - a call that fails is a sentence in the report, and a window without words is a file with no rows.
+        # The calendar is fetched once here (2026-10-15) and serves both the context and the planned workouts file.
         context_report = None
+        events, events_failed = None, ''
+        if 'context' in aux_datasets or 'plan' in aux_datasets:
+            intervals_jobs[job_id]['message'] = 'Fetching the calendar...'
+            events, events_failed = fetch_calendar(session, base_url, start_date, end_date)
         if 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching the words written beside the data...'
             athlete = None
@@ -1730,13 +1735,23 @@ def fetch_intervals_background(data, job_id):
             except Exception as e:                      # noqa: BLE001
                 log_info(f"context: the subject's record could not be fetched ({e})")
             rows, context_report = fetch_context_rows(session, base_url, activities, wellness_records or [], start_date, end_date,
-                                                      job_id=job_id, athlete=athlete, store=store, refresh=refresh)
+                                                      job_id=job_id, athlete=athlete, store=store, refresh=refresh, events=events, events_failed=events_failed)
             if athlete is None:
                 context_report['failed'].insert(0, "the subject's record could not be fetched, so authors are not told apart and custom fields are not read")
             context_path = save_aux_dataset(context_frame(rows), 'context', user_id, start_date, end_date, subdir=mark)
             aux_filepaths.append(context_path)
             context_report['path'] = context_path
             log_info(f"context: {context_report['passages']} passages, {context_report['calls']} calls, {context_report.get('messages_reused', 0)} chats from the store, {len(context_report['failed'])} failed")
+
+        # The planned workouts (2026-10-15): the prescription - every planned workout on the calendar, paired to its
+        # activity when one was done, with the plan's numbers, its step lines and its structure - the numbers side of
+        # what the context keeps as words. Written with the context (the page asks for both) or on its own.
+        if 'plan' in aux_datasets or 'context' in aux_datasets:
+            intervals_jobs[job_id]['message'] = 'Preparing the planned workouts...'
+            plan_df = planned_workouts_frame(events or [], activities)
+            plan_path = save_aux_dataset(plan_df, 'plan', user_id, start_date, end_date, subdir=mark)
+            aux_filepaths.append(plan_path)
+            log_info(f"plan: {len(plan_df)} planned workouts, {int(plan_df['activity_id'].astype(bool).sum()) if len(plan_df) else 0} paired" + (f" ({events_failed})" if events_failed else ""))
         
         # Housekeeping: what is older than the retention and not in recent use leaves the store; the manifest is written
         retention = int(data.get('retention_days') or STORE_RETENTION_DAYS)
@@ -2335,8 +2350,10 @@ CONTEXT_COLUMNS = ['id', 'kind', 'date', 'time', 'end_date', 'activity_id', 'eve
                    'author_name', 'author_role', 'private', 'lang', 'text', 'text_en', 'chars']
 _HTML_TAG_RE = re.compile(r'<[^>]+>')
 # a planned workout's structured step lines ("-10m 220w", "2x -10s CZSS sprint", "-3h40m CZEE", "10m 60%"): a
-# line that begins with an optional repeat and a duration or distance; the structure is in workout_doc
-_STEP_LINE_RE = re.compile(r'^\s*(?:\d+\s*[x\u00d7]\s*)?-?\s*\d+(?:[.,]\d+)?\s*(?:(?:s|sec|secs|m|min|mins|h|hr|hrs|km|mi|w)(?:\d+\s*(?:m|min|mins|s|sec|secs|\'|"))?\b|[\'"])', re.I)
+# line that begins with an optional repeat and a duration or distance; the structure is in workout_doc. A bare
+# repeat count on a line of its own ("4x", the head of a block of steps) is structure too (2026-10-15: live plan
+# notes read "Endurance: 4x | 4x" once the steps under it were dropped).
+_STEP_LINE_RE = re.compile(r'^\s*(?:(?:\d+\s*[x\u00d7]\s*)?-?\s*\d+(?:[.,]\d+)?\s*(?:(?:s|sec|secs|m|min|mins|h|hr|hrs|km|mi|w)(?:\d+\s*(?:m|min|mins|s|sec|secs|\'|"))?\b|[\'"])|\d+\s*[x\u00d7]\s*$)', re.I)
 _COACH_TICK_DEFAULT = {1: 'WTF?', 2: 'Not great', 3: 'Seen', 4: 'Good', 5: 'Amazing'}
 
 
@@ -2408,14 +2425,63 @@ def _custom_text_fields(custom_items):
     return out
 
 
-def fetch_context_rows(session, base_url, activities, wellness_records, start_date, end_date, job_id=None, athlete=None, store=None, refresh=False):
+def fetch_calendar(session, base_url, start_date, end_date):
+    """The calendar of a window, every category (one call); (events, '') or ([], a sentence saying why not)."""
+    try:
+        r = session.get(f"{base_url}/athlete/0/events", params={'oldest': start_date, 'newest': end_date}, timeout=60)
+        r.raise_for_status()
+        return (r.json() or []), ''
+    except Exception as e:                                  # noqa: BLE001
+        return [], f"the calendar entries could not be fetched ({type(e).__name__}: {str(e)[:120]})"
+
+
+PLAN_COLUMNS = ['event_id', 'date', 'name', 'type', 'author_id', 'activity_id', 'compliance', 'planned_duration_sec', 'planned_load',
+                'planned_distance_m', 'load_target', 'time_target', 'distance_target', 'prose', 'steps', 'workout_doc', 'availability', 'tags']
+
+
+def planned_workouts_frame(events, activities):
+    """The planned workouts of a window as a table (2026-10-15): one row per WORKOUT entry on the calendar - its day,
+    name and sport, who set it, the activity it was paired with (and that activity's compliance, as Intervals scores
+    it), the plan's numbers (duration, load, distance, the targets), the prose, the step lines as written (the lines
+    the context's plan_note leaves out) and the structured workout as JSON. A planned workout with no paired activity
+    is one that was not done - the skipped sessions are the rows with an empty activity_id."""
+    paired, compliance = {}, {}
+    for act in activities or []:
+        if isinstance(act, dict) and act.get('paired_event_id') is not None:
+            paired[str(act['paired_event_id'])] = str(act.get('id') or '')
+            compliance[str(act['paired_event_id'])] = act.get('compliance')
+    rows = []
+    for ev in events or []:
+        if not isinstance(ev, dict) or str(ev.get('category') or '') != 'WORKOUT':
+            continue
+        eid = str(ev.get('id') or '')
+        text = plain_text(ev.get('description'))
+        steps = [ln.strip() for ln in text.split('\n') if ln.strip() and _is_step_line(ln)]
+        doc = ev.get('workout_doc')
+        avail = str(ev.get('training_availability') or '')
+        rows.append({'event_id': eid, 'date': str(ev.get('start_date_local') or '')[:10], 'name': plain_text(ev.get('name')), 'type': str(ev.get('type') or ''),
+                     'author_id': str(ev.get('created_by_id') or ''), 'activity_id': paired.get(eid, ''), 'compliance': compliance.get(eid),
+                     'planned_duration_sec': ev.get('moving_time'), 'planned_load': ev.get('icu_training_load'), 'planned_distance_m': ev.get('distance'),
+                     'load_target': ev.get('load_target'), 'time_target': ev.get('time_target'), 'distance_target': ev.get('distance_target'),
+                     'prose': plan_prose(ev.get('description')), 'steps': '\n'.join(steps),
+                     'workout_doc': json.dumps(doc, ensure_ascii=False) if doc not in (None, '', {}, []) else '',
+                     'availability': '' if avail in ('', 'NORMAL') else avail, 'tags': '|'.join(str(t) for t in (ev.get('tags') or []))})
+    df = pd.DataFrame(rows, columns=PLAN_COLUMNS)
+    if len(df):
+        df = df.sort_values(['date', 'event_id']).reset_index(drop=True)
+    return df
+
+
+def fetch_context_rows(session, base_url, activities, wellness_records, start_date, end_date, job_id=None, athlete=None, store=None, refresh=False,
+                       events=None, events_failed=''):
     """The passages of a window (docs/CONTEXT_DESIGN.md §3.1). `activities` is the window's activity list as the API
     returned it; `wellness_records` the wellness JSON (a list of dicts, one per day); `athlete` the subject's record
     (GET /athlete/0: id, timezone, coach_ticks, custom_items) or None. Calls made here: the calendar events once, the
     messages of every activity with a chat (one call each), one chat's members for the roles. With a `store`
     (2026-10-15) the chat of an older, unchanged activity is taken from it instead of fetched, and every chat fetched
-    is kept there; `refresh` fetches them all. Returns (rows, report) where report = {'passages': n, 'kinds': {...},
-    'calls': n, 'messages_reused': n, 'failed': [...]} and a failed call is a sentence."""
+    is kept there; `refresh` fetches them all. With `events` (the calendar the loader fetched already, 2026-10-15) the
+    calendar is not fetched again (`events_failed` is its failure sentence, if any). Returns (rows, report) where
+    report = {'passages': n, 'kinds': {...}, 'calls': n, 'messages_reused': n, 'failed': [...]} and a failed call is a sentence."""
     rows, failed, calls = [], [], 0
     athlete = athlete or {}
     subject_id = str(athlete.get('id') or '')
@@ -2466,15 +2532,13 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
     for act in activities or []:
         if isinstance(act, dict) and act.get('paired_event_id') is not None:
             paired[str(act['paired_event_id'])] = str(act.get('id') or '')
-    progress('Fetching calendar entries...')
-    try:
+    if events is None:
+        progress('Fetching calendar entries...')
         calls += 1
-        r = session.get(f"{base_url}/athlete/0/events", params={'oldest': start_date, 'newest': end_date}, timeout=60)
-        r.raise_for_status()
-        events = r.json() or []
-    except Exception as e:                                  # noqa: BLE001
-        events = []
-        failed.append(f"the calendar entries could not be fetched ({type(e).__name__}: {str(e)[:120]})")
+        events, events_failed = fetch_calendar(session, base_url, start_date, end_date)
+    if events_failed:
+        failed.append(events_failed)
+    events = events or []
     for ev in events:                                       # the plan's authors are coaches (the subject's own workouts aside)
         if isinstance(ev, dict) and str(ev.get('category') or '') in ('WORKOUT', 'PLAN') and ev.get('created_by_id') and str(ev['created_by_id']) != subject_id:
             coach_ids.add(str(ev['created_by_id']))
@@ -2605,7 +2669,8 @@ def save_aux_dataset(df, dataset_type, user_id, start_date, end_date, subdir='')
         'wellness': 'wellness_data',
         'intervals': 'activity_intervals',
         'context': 'context_notes',             # the passages (2026-10-13, docs/CONTEXT_DESIGN.md)
-        'codes': 'context_codes'                # the model's reading of them, written by the app
+        'codes': 'context_codes',               # the model's reading of them, written by the app
+        'plan': 'planned_workouts'              # the prescription: the calendar's planned workouts with their numbers and steps (2026-10-15)
     }
     clean_type = type_mapping.get(dataset_type, dataset_type)
     

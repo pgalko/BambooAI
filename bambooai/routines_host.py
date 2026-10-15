@@ -458,7 +458,7 @@ def load_plan(routine: dict, version_number: Optional[int] = None) -> dict:
         plan["metrics"] = list(load.get("metrics") or extra.get("metrics") or [])
         # the kinds a load can be asked for: the codes are never asked, the pass behind a load with context makes them
         # (docs/CONTEXT_DESIGN.md F3, 2026-10-14: a routine made from a chain that read the words loads them again)
-        plan["aux_kinds"] = [k for k in (load.get("aux_kinds") or plan["aux_kinds"]) if k in ("summary", "wellness", "intervals", "context")]
+        plan["aux_kinds"] = [k for k in (load.get("aux_kinds") or plan["aux_kinds"]) if k in ("summary", "wellness", "intervals", "context", "plan")]
     elif src == "endura":
         plan["race_id"] = load.get("race_id") or extra.get("race_id")
         plan["race_title"] = load.get("race_title") or extra.get("race_title") or ""

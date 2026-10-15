@@ -33,7 +33,7 @@ check("plain_text: whitespace normalised, None is ''", E.plain_text("  legs   he
 check("plan_prose: a planned workout's step lines go, the prose stays (durations, repeats, compound durations, percentages)",
       E.plan_prose("Adjust power to altitude.\n-20m coasting for FC\n-3h40m CZEE\n2x -10s CZSS sprint\n10m 60%\n5 x 3m at 300w") == "Adjust power to altitude.",
       repr(E.plan_prose("Adjust power to altitude.\n-20m coasting for FC\n-3h40m CZEE\n2x -10s CZSS sprint\n10m 60%\n5 x 3m at 300w")))
-check("plan_prose: steps alone are no prose; a sentence with a number in it is prose", E.plan_prose("-5m CZEE -5m CZVT1\n-10m 220w") == "" and E.plan_prose("3 minutes easy then go") == "3 minutes easy then go")
+check("plan_prose: steps alone are no prose; a sentence with a number in it is prose; a bare repeat count on its own line is structure (2026-10-15)", E.plan_prose("-5m CZEE -5m CZVT1\n-10m 220w") == "" and E.plan_prose("3 minutes easy then go") == "3 minutes easy then go" and E.plan_prose("Endurance w/VT1 efforts 5x20':\n3x\n2x") == "Endurance w/VT1 efforts 5x20':" and E.plan_prose("4x") == "")
 check("plan_prose: minute and second marks are step lines too (5x20' @ 300w, 30\" all out); a title with a mark after letters is prose",
       E.plan_prose("Very important session, you will feel fatigued.\n5x20' @ 300w\n- 30\" all out\n3 x 8' @ 95% of FTP") == "Very important session, you will feel fatigued." and E.plan_prose("VT1 5x20': just get through it") == "VT1 5x20': just get through it",
       repr(E.plan_prose("Very important session, you will feel fatigued.\n5x20' @ 300w\n- 30\" all out\n3 x 8' @ 95% of FTP")))
@@ -182,7 +182,35 @@ check("the file: context_notes_<start>_to_<end>.csv in the key's folder, readabl
       p == os.path.join("datasets", "u1", "abc123", "context_notes_20260615_to_20261013.csv") and os.path.exists(p) and list(pd.read_csv(p).columns) == E.CONTEXT_COLUMNS and len(pd.read_csv(p)) == 16, p)
 p2 = E.save_aux_dataset(pd.DataFrame(columns=["id", "code"]), "codes", "u1", "2026-06-15", "2026-10-13", subdir="abc123")
 check("the codes file's name beside it", p2.endswith(os.path.join("abc123", "context_codes_20260615_to_20261013.csv")), p2)
-check("the executor's build stamp is v55 (the store is an image change)", "v55" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
+check("the executor's build stamp is v56 (the planned workouts file is an image change)", "v56" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
+
+# ---- the planned workouts file (2026-10-15): the prescription on the numbers side, beside the context's words ----------
+sp = FakeSession()
+events, failed_cal = E.fetch_calendar(sp, "http://icu/api/v1", "2026-06-15", "2026-10-13")
+check("fetch_calendar: the window's events in one call, no failure sentence; a failed call is an empty list and a sentence",
+      len(events) == 7 and failed_cal == "" and sp.calls == ["/athlete/0/events"] and E.fetch_calendar(FakeSession(fail={"/athlete/0/events"}), "http://icu/api/v1", "2026-06-15", "2026-10-13") == ([], "the calendar entries could not be fetched (RuntimeError: HTTP 500)"),
+      (len(events), failed_cal, sp.calls))
+plan = E.planned_workouts_frame(events, ACTS + [{"id": "a7", "start_date_local": "2026-09-10T07:00:00", "paired_event_id": 16, "compliance": 88.5}])
+check("planned_workouts_frame: one row per WORKOUT entry, in day order, with the columns of the design",
+      list(plan.columns) == E.PLAN_COLUMNS and list(plan.event_id) == ["11", "16"] and list(plan.date) == ["2026-09-01", "2026-09-10"], (list(plan.columns), plan.event_id.tolist()))
+r11, r16 = plan.iloc[0], plan.iloc[1]
+check("the paired entry: the activity it was done as and that activity's compliance; the prose and the step lines kept apart (the context's plan_note keeps the prose alone)",
+      r11.activity_id == "a1" and r11["name"] == "Endurance" and r11.author_id == "c9" and r11.prose == "Steady, keep it conversational" and r11.steps == "- 2h 60%" and r11.tags == "primary" and r11.workout_doc == "" and r11.availability == "",
+      r11.to_dict())
+check("an entry that is steps alone: no prose (no passage in the context either), the steps as written, the paired activity's compliance; the structured workout as JSON when the entry carries one",
+      r16.activity_id == "a7" and r16.compliance == 88.5 and r16.prose == "" and r16.steps == "-10m 220w\n-5m 240w" and r16["name"] == "Ramp", r16.to_dict())
+plan2 = E.planned_workouts_frame([{"id": 21, "category": "WORKOUT", "start_date_local": "2026-09-20T00:00:00", "name": "Vo2", "description": "Hard one.\n5x\n-3m 320w\n-3m 150w", "created_by_id": "c9", "type": "Ride",
+                                   "moving_time": 5400, "icu_training_load": 120, "distance": 45000, "load_target": 110, "time_target": 5400, "training_availability": "LIMITED", "workout_doc": {"steps": [{"reps": 5, "duration": 180, "power": {"units": "w", "value": 320}}]}},
+                                  {"id": 22, "category": "NOTE", "start_date_local": "2026-09-21T00:00:00", "name": "note", "created_by_id": "i1"}], [])
+check("the plan's numbers, the targets, an availability other than NORMAL and the workout_doc as JSON; a NOTE is not a planned workout; an entry with no paired activity is a skipped session (empty activity_id)",
+      len(plan2) == 1 and plan2.iloc[0].planned_duration_sec == 5400 and plan2.iloc[0].planned_load == 120 and plan2.iloc[0].planned_distance_m == 45000 and plan2.iloc[0].load_target == 110 and plan2.iloc[0].time_target == 5400
+      and plan2.iloc[0].availability == "LIMITED" and json.loads(plan2.iloc[0].workout_doc)["steps"][0]["reps"] == 5 and plan2.iloc[0].activity_id == "" and plan2.iloc[0].prose == "Hard one." and plan2.iloc[0].steps == "5x\n-3m 320w\n-3m 150w", plan2.iloc[0].to_dict())
+check("an empty calendar is an empty table with the columns", list(E.planned_workouts_frame([], ACTS).columns) == E.PLAN_COLUMNS and len(E.planned_workouts_frame([], ACTS)) == 0)
+s6 = FakeSession()
+rows6, rep6 = E.fetch_context_rows(s6, "http://icu/api/v1", ACTS, WELL, "2026-06-15", "2026-10-13", athlete=ATH, events=events)
+check("fetch_context_rows given the calendar fetches it no second time and reads the same passages", "/athlete/0/events" not in s6.calls and rep6["passages"] == rep["passages"] and rep6["calls"] == rep["calls"] - 1, (s6.calls, rep6["passages"], rep["passages"]))
+rows6b, rep6b = E.fetch_context_rows(FakeSession(), "http://icu/api/v1", ACTS, WELL, "2026-06-15", "2026-10-13", athlete=ATH, events=[], events_failed="the calendar entries could not be fetched (RuntimeError: HTTP 500)")
+check("...and given the calendar's failure sentence, carries it in the report", "the calendar entries could not be fetched (RuntimeError: HTTP 500)" in rep6b["failed"], rep6b["failed"])
 c = E.app.test_client()
 rr = c.post("/file_utils/read_aux_dataset", json={"file_path": p})
 check("the executor reads an auxiliary file whole (for the map and the coding pass): the text, its name and size; a path outside datasets/ is refused",

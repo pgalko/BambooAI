@@ -138,6 +138,7 @@ function intervalsAuxDisplayName(filepath, dayCount) {
     if (filename.includes('activity_intervals')) return `Activity Intervals (${dayCount} days)`;
     if (filename.includes('context_notes')) return `Context (${dayCount} days)`;
     if (filename.includes('context_codes')) return `Context codes (${dayCount} days)`;
+    if (filename.includes('planned_workouts')) return `Planned workouts (${dayCount} days)`;
     return filename.replace('.csv', '');
 }
 
@@ -834,7 +835,7 @@ function getSelectedAuxDatasets() {
     if (summaryCheckbox?.checked) auxDatasets.push('summary');
     if (intervalsCheckbox?.checked) auxDatasets.push('intervals');
     const contextCheckbox = document.getElementById('context-checkbox');
-    if (contextCheckbox?.checked) auxDatasets.push('context');
+    if (contextCheckbox?.checked) auxDatasets.push('context', 'plan');   // the planned workouts ride with the context (2026-10-15): the calendar's numbers beside its words
     
     return auxDatasets;
 }

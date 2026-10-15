@@ -675,6 +675,15 @@ check("cache_match with context: no hit without the codes file beside the cached
       "a cached context file of its header alone (a window without words) is a hit without codes",
       not cmc1["hit"] and "without codes" in cmc1["line"] and cmc2["hit"] and cmc2["files"] == ["datasets/u/activity_summary_20260712_to_20261010.csv", "datasets/u/context_notes_20260712_to_20261010.csv", "datasets/u/context_codes_20260712_to_20261010.csv"]
       and cmc3["hit"] and cmc3["df_id"] == "q" and cmc3["files"] == ["datasets/u/activity_summary_20260901_to_20260910.csv", "datasets/u/context_notes_20260901_to_20260910.csv"], (cmc1, cmc2, cmc3))
+# the planned workouts file (2026-10-15): a kind of its own, named by the window, cut by its date column, wanted beside the context
+cmp1 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "context", "plan"], "metrics": []}, insp_c, "2026-07-12", "2026-10-10")
+insp_c["auxiliary_datasets"].append({"filename": "planned_workouts_20260712_to_20261010.csv", "path": "datasets/u/planned_workouts_20260712_to_20261010.csv", "size_mb": 0.03})
+cmp2 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "context", "plan"], "metrics": []}, insp_c, "2026-07-12", "2026-10-10")
+check("the planned workouts file: its kind, prefix and cut rule; a routine that wants it is no hit without it beside the cached load and a hit with it, the file among those taken",
+      rt.aux_kind("datasets/u/k/planned_workouts_20260712_to_20261010.csv") == "plan" and rt.kind_prefix("plan") == "planned_workouts_" and rt.cut_rule("planned_workouts_x.csv") == ("date", "date")
+      and not cmp1["hit"] and "without plan" in cmp1["line"] and cmp2["hit"] and "datasets/u/planned_workouts_20260712_to_20261010.csv" in cmp2["files"], (cmp1, cmp2))
+check("load_plan keeps the plan among a run's kinds", "plan" in host.load_plan({"versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "aux_kinds": ["summary", "context", "plan", "other"], "start_date": "2026-07-12", "end_date": "2026-10-10"}}}}], "current_version": 1})["aux_kinds"]
+      and "other" not in host.load_plan({"versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "aux_kinds": ["summary", "context", "plan", "other"], "start_date": "2026-07-12", "end_date": "2026-10-10"}}}}], "current_version": 1})["aux_kinds"])
 check("cache_match: an Endura event by its id with its files; a file missing is no hit; SweatStack never matches (its entries do not say which subjects they hold); no window or event asked - nothing to say",
       cm5["hit"] and cm5["df_id"] == "e" and cm5["files"] == ["datasets/u/race_turns_race_2.csv"] and not cm6["hit"] and "without climbs" in cm6["line"] and cm7 == {"hit": False, "line": ""}
       and rt.cache_match({"source": "intervals", "aux_kinds": []}, insp) == {"hit": False, "line": ""} and rt.cache_match({"source": "intervals"}, None, "2026-07-12", "2026-10-10")["hit"] is False, (cm5, cm6, cm7))
