@@ -1020,6 +1020,15 @@ view = nbw.render_cells(rw.id)
 check("window: the newest cell's code and output ride whole; the two before it show 14 code lines and 1500 chars of output; older cells one line",
       view.count("--- cell") == 4 and "SHOW 5 for all" not in view and view.count("more lines (SHOW") == 3
       and "[cell 1]" in view and view.count("more characters; SHOW") == 3, (view.count("--- cell"), view.count("more lines (SHOW")))
+# the cap's slack (2026-10-16): an output a line or two over 1500 rides whole - a live prompt read "[2 more characters; SHOW 1 for all]"
+nbs = Notebook("ts"); rs = nbs.new_run("q")
+for i, n in enumerate((1502, 1650, 1700, 40)):
+    nbs.runs[rs.id].turns.append(Turn(kind="cell", code="x = 1", stdout="o" * n, cell_no=i + 1))
+views = nbs.render_cells(rs.id)
+check("window: an earlier cell's output within the slack of the cap (1502, 1650 chars) rides whole; one beyond it (1700) is cut at the cap with the count of what follows",
+      "SHOW 1 for all" not in views and "SHOW 2 for all" not in views and "... [200 more characters; SHOW 3 for all]" in views
+      and re.search(r"^o{1502}$", views, re.M) and re.search(r"^o{1650}$", views, re.M) and re.search(r"^o{1500}$", views, re.M) and not re.search(r"^o{1700}$", views, re.M),
+      [l for l in views.splitlines() if "SHOW" in l])
 check("guard: a constant that appears in a cell's code (a filter bound) is not flagged as unverified",
       report.numbers_missing("laps with pace 2.8-8 min/km gave 1.069 [cell 1]", ["ratio 1.069"] + ["q = df[(df.pace >= 2.8) & (df.pace <= 8)]"]) == [])
 

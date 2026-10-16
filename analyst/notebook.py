@@ -273,6 +273,7 @@ class Notebook:
         return line[:width]
 
     REPORT_VIEW_CHARS = 160_000   # the report turn's total for outputs (~40k tokens); only a pathological print reaches it
+    CAP_SLACK = 160               # an earlier recent cell's output within this of its cap is not cut: the cut line itself is some 50 characters
 
     def render_cells(self, run_id: str, recent: int = 4, full_chars: int = 3000, everything: bool = False) -> str:
         """Recent cells in full, older ones as one line each. The prompt does
@@ -301,7 +302,9 @@ class Notebook:
             is_last = (k == len(latest) - 1)
             out = (t.stdout or "")
             cap = None if is_last else min(full_chars, 1500)      # the newest output rides whole; the decision turns on it
-            if cap is not None and len(out) > cap:
+            # an output a line or two over the cap rides whole: the cut line is longer than what it would save (2026-10-16,
+            # a live run's prompt read "... [2 more characters; SHOW 1 for all]")
+            if cap is not None and len(out) > cap + self.CAP_SLACK:
                 out = out[:cap].rstrip() + f"\n... [{len(t.stdout) - cap} more characters; SHOW {t.cell_no} for all]"
             code = t.code.rstrip()
             code_lines = code.splitlines()

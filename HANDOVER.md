@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (212/164/31/24/18/49/44/69/13/138/41/39/29/15/1/1 Python; 49/7/40/69/24/71/14/25/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (213/164/31/24/18/49/44/69/13/138/41/39/29/15/1/1 Python; 49/7/40/69/24/71/14/25/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (97; hosted only - the loaders need the executor; the
@@ -446,6 +446,10 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The prompt's output cap has a slack (2026-10-16, patch 0180).** A1's second prompt showed cell 1's output cut
+  with *... [2 more characters; SHOW 1 for all]*: an earlier recent cell's output is capped at 1,500 characters
+  and the cut line is longer than what it saved. An output within 160 characters of the cap now rides whole
+  (`Notebook.CAP_SLACK`); beyond that the cut is as before. Tests: test_analyst.py 213.
 - **The plain-language version keeps the passages' quotes and citations (2026-10-16, patch 0179).** Palo's A1 run
   (Deep, the cost preset: DeepSeek flash on every seat) met its key - the days 4, 9, 10 August with 13 August stated
   as a back-reference, the Danish quoted verbatim, the English the file's own rendering marked *rendered*, four
