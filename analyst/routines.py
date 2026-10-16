@@ -421,6 +421,24 @@ AUX_KINDS = (("activity_summary_", "summary"), ("wellness_data_", "wellness"), (
              ("athlete_profiles_race_", "profile"), ("race_turns_race_", "turns"), ("race_climbs_race_", "climbs"),
              ("race_waymarkers_race_", "waymarkers"))
 _STRING_RE = re.compile(r"""(?P<q>'|")(?P<body>(?:(?!(?P=q)).)*)(?P=q)""")
+# What a load can be asked for, per source (2026-10-16: one registry, where load_plan and the limits read it). The kinds a
+# load *brings without being asked* ride beside the kind that asks for them: the codes with the context (the pass behind the
+# load writes them), the planned workouts with the context (the page asks for both). LOADER_FILES_MAX is the most files one
+# load can bring - the app's auxiliary limit is derived from it, so a new kind never trips the limit again (the sixth did).
+LOAD_KINDS = {"intervals": ("summary", "wellness", "intervals", "context", "plan"), "endura": ("profile", "turns", "climbs", "waymarkers")}
+LOAD_BRINGS = {"intervals": {"context": ("codes",)}, "endura": {}}
+LOADER_FILES_MAX = max(len(kinds) + sum(len(v) for v in LOAD_BRINGS.get(src, {}).values()) for src, kinds in LOAD_KINDS.items())
+
+
+def brings(src: str, kinds: Iterable[str]) -> List[str]:
+    """The kinds a load of these kinds brings without being asked (LOAD_BRINGS), in order, each once: the codes beside
+    the context."""
+    out: List[str] = []
+    for k in kinds:
+        for b in LOAD_BRINGS.get(str(src), {}).get(str(k), ()):
+            if b not in out:
+                out.append(b)
+    return out
 
 
 CONTEXT_HEADER_BYTES = 300     # a context file of its header alone (sixteen column names) is well under this; any passage takes it past
@@ -527,10 +545,14 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
             tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
             folder = str(f.get("key_mark") or "")
             names = {k: f"{kind_prefix(k)}{tag}.csv" for k in kinds if kind_prefix(k)}
-            # a load with context wants the codes the pass wrote beside it (2026-10-14) - unless the cached context file is
-            # its header alone, a window without words, for which no pass runs and no codes file exists
-            if "context" in names and sizes.get((folder, names["context"]), CONTEXT_HEADER_BYTES + 1) > CONTEXT_HEADER_BYTES:
-                names["codes"] = f"{kind_prefix('codes')}{tag}.csv"
+            # the files a load brings beside the kinds asked (LOAD_BRINGS) are wanted too: the codes the pass wrote beside
+            # the context (2026-10-14) - unless the cached context file is its header alone, a window without words, for
+            # which no pass runs and no codes file exists
+            for b in brings(src, kinds):
+                if b == "codes" and sizes.get((folder, names.get("context", "")), CONTEXT_HEADER_BYTES + 1) <= CONTEXT_HEADER_BYTES:
+                    continue
+                if kind_prefix(b):
+                    names[b] = f"{kind_prefix(b)}{tag}.csv"
             missing = [k for k, n in names.items() if (folder, n) not in have]
             if missing:
                 continue
@@ -546,7 +568,7 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
         f, cs, ce = candidates[0]
         tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
         folder = str(f.get("key_mark") or "")
-        missing = [k for k in kinds + (["codes"] if "context" in kinds else []) if kind_prefix(k) and (folder, f"{kind_prefix(k)}{tag}.csv") not in have]
+        missing = [k for k in kinds + brings(src, kinds) if kind_prefix(k) and (folder, f"{kind_prefix(k)}{tag}.csv") not in have]
         held = what if exact else f"the cached load around {what}"
         return {"hit": False, "line": f"{held} is in the cache without {', '.join(missing)} - it will be downloaded"}
     elif src == "endura":

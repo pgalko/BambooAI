@@ -64,7 +64,10 @@ tools, and the one expensive step — coding every passage — happens once per 
 - **The Intervals.icu load** (patches 0116–0125, 0136): auxiliary files named by kind and window
   (`AUX_KINDS` in `analyst/routines.py`), kept in the key's folder in the executor's cache, listed by
   `/cache/inspect`, matched by `cache_match` for a routine's run, described in DATA by `_auxiliary_block`. The
-  context and codes files are two more kinds in that table and travel the same way.
+  context and codes files are two more kinds in that table and travel the same way. What a load can be asked for,
+  and what it brings beside, is the registry `LOAD_KINDS` / `LOAD_BRINGS` there (2026-10-16), which the app's
+  auxiliary limit is derived from; the heads in DATA keep to a budget together (`AUX_BLOCK_CHARS`), the context
+  and codes entries exempt - they are columns and a count already.
 - **Routines**: the recorded data shape binds auxiliary files by kind; a run loads the same way; results are
   compared by position. A routine that counts codes compares them like any result line.
 - **The reviewer** (`analyst/reviewer.md`): five lenses, one line each; a sixth when context is present.

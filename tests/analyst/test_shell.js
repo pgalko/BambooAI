@@ -126,5 +126,12 @@ check('codebook: no gear item and no rail entry carry it; the Context card of th
 check('intervals.js: the Context pill carries the count of proposals waiting inside it and its list a row to the codebook screen when the pass proposed codes; shell.css styles both',
   ij.includes("if (st.proposed > 0 && !st.coding) rows.push('<div class=\"row codebook\" onclick=\"event.stopPropagation(); contextCodebookOpen()\">") && ij.includes('contextPillState.proposed = Number(view && view.report && view.report.proposed) || 0;')
   && ij.includes("const badge = (st.proposed > 0 && !st.coding) ? '<span class=\"pill-badge\"") && shell.includes('.topbar .context-pill-menu .row.codebook .id { color: var(--c-model); }') && shell.includes('.topbar .context-pill .pill-badge {'));
+// room for more auxiliaries (2026-10-16, patch 0181): the page's auxiliary limit is the app's one number, set on the page by the template before core.js
+// and read there; the pills' and the upload's checks use the constant, never a literal
+const dmj = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'dataset-manager.js'), 'utf8'); const fmj = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'file-management.js'), 'utf8');
+check('the auxiliary limit: the template sets window.MAX_AUXILIARY_DATASETS from the app before core.js, core.js reads it with a fallback, and dataset-manager.js and file-management.js compare against the constant',
+  html.includes('window.MAX_AUXILIARY_DATASETS = Number("{{ max_auxiliary_datasets|default(10)|int }}") || 10;') && html.indexOf('window.MAX_AUXILIARY_DATASETS') < html.indexOf("js/core.js") && html.indexOf('window.MAX_AUXILIARY_DATASETS') > html.indexOf("js/workspace-gate.js")
+  && core.includes('const MAX_AUXILIARY_DATASETS = Number(window.MAX_AUXILIARY_DATASETS) || 10;') && !/MAX_AUXILIARY_DATASETS = \d/.test(core)
+  && dmj.includes('auxiliaryDatasetCount >= MAX_AUXILIARY_DATASETS') && fmj.includes('auxiliaryDatasetCount < MAX_AUXILIARY_DATASETS') && !/Maximum \d+ auxiliary/.test(dmj + fmj));
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

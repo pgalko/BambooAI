@@ -777,6 +777,7 @@
 
     <!-- Load core modules in dependency order -->
     <script src="{{ url_for('static', filename='js/workspace-gate.js') }}"></script>
+    <script>window.MAX_AUXILIARY_DATASETS = Number("{{ max_auxiliary_datasets|default(10)|int }}") || 10;</script>   <!-- the app's one auxiliary limit (web_app/app.py), read by core.js (2026-10-16); a page rendered without the template keeps the fallback -->
     <script src="{{ url_for('static', filename='js/core.js') }}"></script>
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
     <script src="{{ url_for('static', filename='js/compression-utils.js') }}"></script>

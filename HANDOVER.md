@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (213/164/31/24/18/49/44/69/13/138/41/39/29/15/1/1 Python; 49/7/40/69/24/71/14/25/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (213/168/31/24/18/49/44/69/13/139/41/39/29/15/1/1 Python; 49/7/40/70/24/71/14/25/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (97; hosted only - the loaders need the executor; the
@@ -446,6 +446,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Room for more auxiliaries (2026-10-16, patch 0181).** Before the rider profile joins the Intervals.icu load
+  (two more files), the consequences of adding a kind that had bitten twice (0166, five files; 0176, six) are
+  settled in one place. `LOAD_KINDS` / `LOAD_BRINGS` in analyst/routines.py say what a load can be asked for per
+  source and what it brings beside without being asked (the codes with the context); `LOADER_FILES_MAX` counts
+  the most files one load can bring (six). `load_plan` keeps a routine's kinds by the registry (it had its own
+  lists), `cache_match` wants the brought files by it (it had the codes special-cased; the header-only context
+  rule stands), and the app's limit is derived: `MAX_AUXILIARY_DATASETS = LOADER_FILES_MAX + UPLOAD_ROOM` (4 for
+  files a person attaches), handed to the template and set on the page as `window.MAX_AUXILIARY_DATASETS` before
+  core.js reads it (core.js had its own literal 6 mirroring the app's). The model's side: the DATA block's heads
+  keep to a budget together (`AUX_BLOCK_CHARS` 14,000; each head was already cut at 3,000) - past it a file's
+  entry is its path and columns (one call to the columns describer for the rest), the context and codes entries
+  exempt; a full load today is ~10,000, so the budget bites only when a person attaches several wide files. The
+  kernel needs nothing: the loader route sets the list whole, the files are read by path. A new kind is now added
+  once: its prefix in `AUX_KINDS`, its rule in `CUT_RULES`, its place in `LOAD_KINDS` (and `LOAD_BRINGS` when
+  another file rides with it); the registry test says so. Tests: test_routines.py 139 (the registry: prefixes, cut
+  rules, the count, `brings`), test_app_path.py 168 (six wide files and a context file against the budget; the
+  limit derived, the template and core.js), test_shell.js 70 (the page's one number). docs/ROUTINES_DESIGN.md F2
+  step 1 and docs/CONTEXT_DESIGN.md §2 carry the note.
 - **The prompt's output cap has a slack (2026-10-16, patch 0180).** A1's second prompt showed cell 1's output cut
   with *... [2 more characters; SHOW 1 for all]*: an earlier recent cell's output is capped at 1,500 characters
   and the cut line is longer than what it saved. An output within 160 characters of the cap now rides whole

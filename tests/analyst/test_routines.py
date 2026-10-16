@@ -684,6 +684,15 @@ check("the planned workouts file: its kind, prefix and cut rule; a routine that 
       and not cmp1["hit"] and "without plan" in cmp1["line"] and cmp2["hit"] and "datasets/u/planned_workouts_20260712_to_20261010.csv" in cmp2["files"], (cmp1, cmp2))
 check("load_plan keeps the plan among a run's kinds", "plan" in host.load_plan({"versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "aux_kinds": ["summary", "context", "plan", "other"], "start_date": "2026-07-12", "end_date": "2026-10-10"}}}}], "current_version": 1})["aux_kinds"]
       and "other" not in host.load_plan({"versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "aux_kinds": ["summary", "context", "plan", "other"], "start_date": "2026-07-12", "end_date": "2026-10-10"}}}}], "current_version": 1})["aux_kinds"])
+# room for more auxiliaries (2026-10-16, patch 0181): one registry of what a load can be asked for (LOAD_KINDS) and what it brings
+# beside without being asked (LOAD_BRINGS); load_plan, cache_match and the app's auxiliary limit read it, so a new kind is added
+# once - the sixth file of a load had tripped a limit written as a literal
+check("the loaders' registry: every kind a load can be asked for, and every kind it brings, has a file prefix; the windowed source's kinds all have a cut rule; the most files one load brings is six (five kinds and the codes beside the context); brings() says what rides beside the kinds asked",
+      all(rt.kind_prefix(k) for src in rt.LOAD_KINDS for k in rt.LOAD_KINDS[src]) and all(rt.kind_prefix(b) for src in rt.LOAD_BRINGS for v in rt.LOAD_BRINGS[src].values() for b in v)
+      and all(k in rt.CUT_RULES for k in rt.LOAD_KINDS["intervals"] + tuple(rt.brings("intervals", rt.LOAD_KINDS["intervals"])))
+      and rt.LOADER_FILES_MAX == 6 and rt.brings("intervals", ["summary", "context"]) == ["codes"] and rt.brings("intervals", ["summary"]) == [] and rt.brings("endura", ["profile"]) == [] and rt.brings("x", ["context"]) == []
+      and set(rt.LOAD_KINDS["intervals"]) == {"summary", "wellness", "intervals", "context", "plan"} and set(rt.LOAD_KINDS["endura"]) == {"profile", "turns", "climbs", "waymarkers"},
+      (rt.LOADER_FILES_MAX, rt.LOAD_KINDS, rt.LOAD_BRINGS))
 check("cache_match: an Endura event by its id with its files; a file missing is no hit; SweatStack never matches (its entries do not say which subjects they hold); no window or event asked - nothing to say",
       cm5["hit"] and cm5["df_id"] == "e" and cm5["files"] == ["datasets/u/race_turns_race_2.csv"] and not cm6["hit"] and "without climbs" in cm6["line"] and cm7 == {"hit": False, "line": ""}
       and rt.cache_match({"source": "intervals", "aux_kinds": []}, insp) == {"hit": False, "line": ""} and rt.cache_match({"source": "intervals"}, None, "2026-07-12", "2026-10-10")["hit"] is False, (cm5, cm6, cm7))

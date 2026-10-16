@@ -645,6 +645,29 @@ try:
           _ak("datasets/u/k/context_notes_20260615_to_20261013.csv") == "context" and _ak("datasets/u/k/context_codes_20260615_to_20261013.csv") == "codes")
     _rec = _bc._load_of_cached({"source": "intervals", "date_range": "2026-06-15 to 2026-10-13", "metrics": ["watts"], "key_mark": "k"}, {"aux": [_ath, _ctx, _codes]})
     check("a cached frame's load record lists context and codes among its auxiliary kinds", _rec.get("aux_kinds") == ["context", "codes"] and _rec.get("start_date") == "2026-06-15", _rec)
+    # room for more auxiliaries (2026-10-16, patch 0181): the heads together keep to AUX_BLOCK_CHARS - every turn carries the
+    # block, a load brings several files and a person can attach more; past the budget a file's entry is its path and columns
+    # (one call for the columns of the rest), a context file's entry is exempt (it is columns and a count already)
+    _wide = [os.path.join(_auxdir, f"wide{k}.csv") for k in range(6)]
+    for _p in _wide:
+        pd.DataFrame({f"column_number_{c}": [f"value_{c}_{r}" for r in range(5)] for c in range(40)}).to_csv(_p, index=False)
+    _descw = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=_wide + [_ctx])._auxiliary_block()
+    _entries = _descw.split("AUXILIARY FILES", 1)[1].split("\n\nCONTEXT (", 1)[0].split("\n\n")
+    _full = [e for e in _entries if "Head:" in e]; _compact = [e for e in _entries if "(the rows are left out to keep the prompt short; read the file for them)" in e]
+    check("the auxiliary block keeps to its budget: six wide files and a context file - the first heads whole (cut at AUX_HEAD_CHARS each), the files past AUX_BLOCK_CHARS as path and columns, the context file's entry exempt",
+          B.BambooAI.AUX_BLOCK_CHARS == 14000 and len(_full) == 4 and len(_compact) == 2 and all("Columns (40): column_number_0, column_number_1" in e and "value_" not in e for e in _compact)
+          and all(f"Path: {_wide[k]}" in _compact[k - 4] for k in (4, 5)) and f"Path: {_ctx}\nColumns: id, kind, date" in _descw and "Rows: 4 (the rows are passages" in _descw
+          and len(_descw) < B.BambooAI.AUX_BLOCK_CHARS + 2 * 600 + 1200, (len(_descw), [len(e) for e in _entries]))
+    check("the auxiliary block under the budget is as it was: every head whole", "(the rows are left out" not in B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=_wide[:3])._auxiliary_block())
+    check("the compact entry without the columns says to read the file", B.BambooAI._aux_compact(3, "x.csv", None) == "3.\nPath: x.csv\nColumns: read the file for them\n(the rows are left out to keep the prompt short; read the file for them)")
+    from analyst.routines import LOADER_FILES_MAX as _lfm
+    _tpl = open(os.path.join(ROOT, "web_app", "templates", "index.html"), encoding="utf-8").read().replace("\r\n", "\n")
+    _core = open(os.path.join(ROOT, "web_app", "static", "js", "core.js"), encoding="utf-8").read()
+    check("the auxiliary limit is one number, derived (the sixth file had tripped a literal 6): app.py takes LOADER_FILES_MAX from the loaders' registry plus room for uploads, hands it to the template, and the page sets window.MAX_AUXILIARY_DATASETS before core.js reads it",
+          _lfm == 6 and "MAX_AUXILIARY_DATASETS = LOADER_FILES_MAX + UPLOAD_ROOM" in _app_src and "UPLOAD_ROOM = 4" in _app_src and "MAX_AUXILIARY_DATASETS = 6" not in _app_src
+          and "common_context['max_auxiliary_datasets'] = MAX_AUXILIARY_DATASETS" in _app_src
+          and 'window.MAX_AUXILIARY_DATASETS = Number("{{ max_auxiliary_datasets|default(10)|int }}") || 10;' in _tpl and _tpl.index("window.MAX_AUXILIARY_DATASETS") < _tpl.index("js/core.js")
+          and "const MAX_AUXILIARY_DATASETS = Number(window.MAX_AUXILIARY_DATASETS) || 10;" in _core and "MAX_AUXILIARY_DATASETS = 6" not in _core)
     # step 2 (docs/CONTEXT_DESIGN.md §5): CTX in the kernel, READ CTX through the host, [C.n] for the report guard and the page
     _pre = _bd._kernel_prelude()
     check("the kernel prelude defines CTX over the loaded context and codes files (no documents on this thread: the prelude is the context's alone); none without a context file",

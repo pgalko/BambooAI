@@ -850,11 +850,41 @@ class BambooAI:
         return text + ("\n\n" + aux if aux else "")
 
     AUX_HEAD_CHARS = 3000
+    AUX_BLOCK_CHARS = 14000       # the heads of all the files together (2026-10-16): a load brings several files, a person can attach more, and every turn carries the block
+
+    def _aux_columns(self, paths):
+        """The column names of these files, from the executor in api mode or read here otherwise (one call for them all):
+        what a file's entry shows once the heads' budget is spent. {path: "a, b, c"}; empty when the describer could not
+        pair them - the entries then say to read the file."""
+        try:
+            described = utils.get_aux_datasets_columns(paths, execution_mode=self.execution_mode,
+                                                       executor_client=self.api_client if self.execution_mode == 'api' else None) or ""
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("auxiliary files: the columns could not be read (%s)", exc)
+            return {}
+        parts = [p for p in described.split("\n\n") if p.strip()]
+        if len(parts) != len(paths):
+            return {}
+        out = {}
+        for path, part in zip(paths, parts):
+            lines = part.split("\n")
+            if "Columns:" in lines and lines.index("Columns:") + 1 < len(lines):
+                out[path] = lines[lines.index("Columns:") + 1]
+        return out
+
+    @staticmethod
+    def _aux_compact(i, path, cols):
+        """A file's entry without its rows (the heads' budget is spent): the path, the column names when the describer
+        read them, and a note to read the file."""
+        names = [c.strip() for c in str(cols or "").split(",") if c.strip()]
+        line = f"Columns ({len(names)}): {', '.join(names)}" if names else "Columns: read the file for them"
+        return f"{i}.\nPath: {path}\n{line}\n(the rows are left out to keep the prompt short; read the file for them)"
 
     def _auxiliary_block(self):
         """The auxiliary files as the analyst reads them: each one's path as the kernel sees it (relative to its working
         directory, the same path in both compute modes) and its first rows, from the executor in api mode or read here
-        otherwise - the description the original BambooAI gave; a very wide head is cut with a note."""
+        otherwise - the description the original BambooAI gave; a very wide head is cut with a note. The heads together
+        keep to AUX_BLOCK_CHARS: once the budget is spent, the files that follow show their path and columns alone."""
         paths = [p for p in (self.auxiliary_datasets or []) if p]
         if not paths:
             return ""
@@ -872,6 +902,7 @@ class BambooAI:
         notes_path, codes_path = self._context_paths()
         notes_df, codes_df = self._context_frames() if notes_path else (None, None)
         frames = {}
+        spent, columns = 0, None                           # the heads' budget; the columns, fetched once if it is spent
         for i, (path, part) in enumerate(zip(paths, parts), 1):
             kind = aux_kind(path)
             if kind in ("context", "codes"):               # the rows are passages: the columns and the count, the map below says the rest
@@ -880,6 +911,11 @@ class BambooAI:
                     part = f"{i}.\n" + context_mod.aux_head_for_text_file(path, list(frames[path].columns), len(frames[path]))
             if len(part) > self.AUX_HEAD_CHARS:
                 part = part[:self.AUX_HEAD_CHARS].rstrip() + "\n... [the head is cut here; read the file for the rest]"
+            if spent + len(part) > self.AUX_BLOCK_CHARS and kind not in ("context", "codes"):
+                if columns is None:
+                    columns = self._aux_columns(paths[i - 1:])
+                part = self._aux_compact(i, path, columns.get(path))
+            spent += len(part)
             shown.append(part)
         block = ("AUXILIARY FILES (read them with pandas from these paths, which are relative to the kernel's working directory):\n"
                  + "\n\n".join(shown))

@@ -209,9 +209,13 @@ STREAM_HEARTBEAT_SECONDS = float(os.getenv("STREAM_HEARTBEAT_SECONDS", "15"))
 # wellness, summary and laps; an Intervals.icu load with the context brings five (the passages and the codes beside
 # them), and a run cut from the Dataset cache loads them one by one through the cache route - the fourth was refused
 # (2026-10-15, Palo's first run of a context routine on a window inside a cached load). The loader route sets the
-# list whole and was never limited; this is the one number the upload and cache routes and the page share. Six since
-# the planned workouts file joined the context (2026-10-15).
-MAX_AUXILIARY_DATASETS = 6
+# list whole and was never limited; this is the one number the upload and cache routes and the page share. Derived
+# (2026-10-16, before the rider profile joined - the sixth file had bitten once already): what a full Intervals.icu
+# load can bring, counted from the loaders' registry, plus room for files a person attaches by hand; the page reads
+# it from the template (window.MAX_AUXILIARY_DATASETS), so there is one number.
+from analyst.routines import LOADER_FILES_MAX
+UPLOAD_ROOM = 4
+MAX_AUXILIARY_DATASETS = LOADER_FILES_MAX + UPLOAD_ROOM
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET')
@@ -900,6 +904,7 @@ def index():
     # Add payment status if present
     payment_status = request.args.get('payment')
     common_context['payment_status'] = payment_status
+    common_context['max_auxiliary_datasets'] = MAX_AUXILIARY_DATASETS     # the one limit, read by the page (2026-10-16)
     
     return render_template('index.html', **common_context)
 
