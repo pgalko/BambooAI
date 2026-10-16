@@ -287,6 +287,7 @@ User-Agent with error 1010, so it sends one) on the U23 rider's key, 60 days, 40
   and empty. The standard keys beyond the loader's map: `average_respiration`, `average_tidal_volume`, `average_epoc`,
   `average_smo2`, `average_thb`, `ss_cp` / `ss_p_max` / `ss_w_prime`, `strain_score`, running dynamics.
 - **The wellness records** carry an `INPUT_FIELD`'s value under its code the same way (none in this window).
-- The loader reads four interval codes by name (label, RPE, lactate, lap number) - one coach's vocabulary. The rider
-  profile (docs/RIDER_PROFILE_DESIGN.md, patch 0182) carries every definition the account has; the intervals and
-  wellness files carrying every field's values under its code is the step after it.
+- The loader read four interval codes by name (label, RPE, lactate, lap number) - one coach's vocabulary; those
+  columns stay. The rider profile (docs/RIDER_PROFILE_DESIGN.md, patch 0182) carries every definition the account
+  has, and the intervals, wellness and summary files carry every field's values under its code, a select as its
+  text with the number beside it (patch 0183).

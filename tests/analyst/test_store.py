@@ -131,6 +131,10 @@ class _R:
     def __init__(self, body=None, status=200, content=b""):
         self._b, self.status_code, self.content = body, status, content
 
+    @property
+    def ok(self):
+        return self.status_code == 200
+
     def raise_for_status(self):
         if self.status_code != 200:
             raise RuntimeError(f"HTTP {self.status_code}")
@@ -165,6 +169,8 @@ class FakeSession:
             return _R(content=gzip.compress(write_activity(D.fit_records(d), fields=D.fit_fields(d))))
         if path == "/athlete/0/wellness":
             return _R(D.wellness(params["oldest"], params["newest"]))
+        if path.endswith("/intervals"):
+            return _R(D.laps(self._day(path.split("/")[2])))
         if path == "/athlete/0":
             return _R(D.SUBJECT)
         if path == "/athlete/0/events":
@@ -335,6 +341,17 @@ check("a load with the rider profile: the record fetched once for the context an
       and zt is not None and len(zt) == 3 * rides and rides > 0 and set(zt.zone_name) == {"Low", "High", "Grind"} and set(zt.stream) == {"respiration", "cadence"}
       and {"max_hr_setting", "pm_ftp_watts", "power_zones", "hr_zones"} <= set(pd.read_csv(next(p_ for p_ in rr["aux_datasets"] if "activity_summary_" in p_), nrows=1).columns),
       (jr.get("error"), rr.get("aux_datasets"), None if prof is None else prof.head(12).to_dict("records"), None if zt is None else zt.head(3).to_dict("records")))
+# every custom field under its code (2026-10-16, patch 0183): the intervals file carries the account's interval select as the option's
+# text under its code with the number beside it; the record is fetched for the definitions whatever files are asked
+ji = load(sr, er, aux=("intervals",))
+ri = ji.get("result") or {}
+ipath = next((p_ for p_ in ri.get("aux_datasets", []) if "activity_intervals_" in p_), "")
+idf = pd.read_csv(ipath) if ipath else None
+days_r = sum(1 for _ in D.days_in(sr, er))
+check("a load with the intervals: the record fetched once for the definitions; the file carries the account's select under its code as the option's text with the number in <code>_value on the rides' laps, nothing on the runs'; the legacy label column (another coach's code) is empty; three laps per activity",
+      ji["status"] == "completed" and SESSION.calls.count("/athlete/0") == 1 and idf is not None and len(idf) == 3 * days_r
+      and set(idf["Lbl"].dropna()) == {"Recovery", "Endurance", "Tempo"} and sorted(idf["Lbl_value"].dropna().unique()) == [1.0, 2.0, 3.0] and idf["Lbl"].notna().sum() == 3 * rides
+      and idf["label"].isna().all() and list(idf.columns)[:2] == ["activity_id", "lap_number"], (ji.get("error"), ipath, None if idf is None else (len(idf), list(idf.columns)[-6:], idf["Lbl"].notna().sum(), rides)))
 saved_subject = D.SUBJECT
 D.SUBJECT = dict(saved_subject, custom_items=[it for it in saved_subject["custom_items"] if it["type"] != "ZONES"])
 try:

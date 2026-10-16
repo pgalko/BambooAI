@@ -43,6 +43,17 @@ so the pill never appears for a coach who has none.
 (`icu_pm_ftp`) beside `ftp_watts`, and `power_zones` / `hr_zones` / `pace_zones` pipe-joined — a threshold or zone
 change between loads is in the file itself.
 
+**Every custom field under its code (patch 0183).** The account's definitions (`field_definitions`, one kind at a
+time) decode the files' columns: the intervals file carries every `INTERVAL_FIELD` under its code, the wellness
+file every `INPUT_FIELD`, the summary file every `ACTIVITY_FIELD`. A select is its option's text in the code's
+column with the number in `<code>_value` beside it (`decode_select`: the API returns the text; a number entered by
+hand is decoded the other way; a value outside the options is kept as text with no number; options that are bare
+texts carry no number). A numeric or text field is the value as it is. A key the account does not define is left
+out; a field with no value in the window makes no column (a routine's conform adds it empty). The four columns the
+loader has always read by name — `label`, `RPE`, `lactate`, `lap_number`, one coach's codes — stay for the routines
+that read them. The record is fetched once per load, before the files, whatever is asked; without it the files
+carry the records' keys as they come.
+
 ## 3. The load
 
 The fifth card of the Intervals dialog, **Rider profile**, between Wellness and Context (which now spans the row
@@ -78,18 +89,18 @@ line short of its closing sentence).
 
 ## 6. Not in this step
 
-The intervals and wellness files carrying every custom field under its code, with a select's text and its number
-beside it (the next patch); writing to the profile; the profile's history as a file (the summary's per-activity
-columns carry it); the store (the record is fetched each load — the current state, cheap, and stale is wrong).
+Writing to the profile; the profile's history as a file (the summary's per-activity columns carry it); the store
+(the record is fetched each load — the current state, cheap, and stale is wrong).
 
 ## 7. Tests
 
 `test_context.py` (profile_frame against a record shaped like the live one: the whitelist, the sport and model
 rows, the zone bounds and the open top, the custom sets, the custom fields' options in both shapes; the zone times
-frame; None without sets; the summary's settings columns; the file names; the stamp), `test_store.py` (the real
-loader over the fake stack: the record fetched once for the context and the profile, the two files after the plan,
+frame; None without sets; the summary's settings columns; the file names; the stamp; `field_definitions`,
+`decode_select`, the interval records, the summary and the wellness frame with their custom fields decoded),
+`test_store.py` (the real loader over the fake stack: the record fetched once, the two files after the plan,
 nothing identifying, one zone-time row per ride and custom zone; an account without sets writes no zone times
-file), `test_routines.py` (the kinds, prefixes and cut rules; `cache_match` without and with the profile and the
+file; the intervals file's select as text with its number beside it), `test_routines.py` (the kinds, prefixes and cut rules; `cache_match` without and with the profile and the
 zone times; `load_plan`; the registry's count), `test_app_path.py` (the DATA entry and the Settings line from the
 rows), `test_dialogs.js` (five cards, the profile on, Context spanning), `test_shell.js` (the page's reading of
 the card), the integrations walk (the default load brings the two files with their pills, the profile's sections

@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (213/171/31/24/18/49/44/69/13/141/52/41/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (213/171/31/24/18/49/44/69/13/141/57/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -446,6 +446,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Every custom field under its code (2026-10-16, patch 0183; docs/RIDER_PROFILE_DESIGN.md §2).** The second
+  half of Palo's decision: the loader read four interval codes by name - one coach's vocabulary - and nothing
+  else, so another coach's fields never reached a file. The account's definitions now decode the files' columns
+  (`field_definitions`, one kind at a time): the intervals file carries every INTERVAL_FIELD under its code, the
+  wellness file every INPUT_FIELD, the summary file every ACTIVITY_FIELD; a select is its option's text in the
+  code's column with the number in `<code>_value` beside it (`decode_select` reads the API's text, a number
+  entered by hand, a value outside the options kept as text, bare-text options without a number); a key the
+  account does not define is left out; the four legacy columns stay. The record is fetched once per load before
+  the files, whatever is asked (it was fetched for the context and the profile alone). The fake stack's rides
+  carry the account's select on their laps as the API returns it - the text. Executor image v59. Tests:
+  test_context.py 57, test_store.py 42 (a load with the intervals: the select as text with its number on the
+  rides' laps, the legacy column empty), test_documents_app.py 44 (the stamp).
 - **The rider profile (2026-10-16, patch 0182; docs/RIDER_PROFILE_DESIGN.md).** The sixth kind an Intervals.icu
   load can be asked for, with a seventh beside it, built against the live account's record (two probes, the facts
   in docs/INTERVALS_CONTEXT_INVENTORY.md §6) and Palo's three decisions: two files under one card, a select's text

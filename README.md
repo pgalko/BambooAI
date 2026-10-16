@@ -631,9 +631,10 @@ as a file beside the data: the rider's weight, height, resting HR and age; per s
 thresholds and the zones with their bounds, and the power-duration model's estimates; every custom
 zone set the account defines, zone by zone; and the meaning of every custom field - its code, type,
 units and options - so the columns of the other files explain themselves. When the account defines
-custom zone sets, a second file carries the time in each custom zone per ride. Everything comes from
-the account's own record, nothing is named in code, and nothing identifying goes in (the record's
-e-mail, names and key stay out). The Analyst reads the thresholds from the file's rows in its data
+custom zone sets, a second file carries the time in each custom zone per ride. The intervals, wellness
+and summary files carry every custom field under its code - a select as its option's text, with the
+number beside it. Everything comes from the account's own record, nothing is named in code, and
+nothing identifying goes in (the record's e-mail, names and key stay out). The Analyst reads the thresholds from the file's rows in its data
 description, and the summary file carries the settings in force on each day. The design is
 `docs/RIDER_PROFILE_DESIGN.md`.
 

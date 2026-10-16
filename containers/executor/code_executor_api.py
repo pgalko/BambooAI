@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-16 v58 (the rider profile and the custom zone times; the summary carries the settings in force)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-16 v59 (every custom field under its code on the intervals, wellness and summary files)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -1699,16 +1699,29 @@ def fetch_intervals_background(data, job_id):
         # Handle auxiliary datasets
         aux_filepaths = []
 
+        # the subject's record, once (2026-10-16): the custom fields' definitions decode the files' columns (0183), the
+        # context tells authors apart and reads the custom fields by it, the rider profile is built from it. Never
+        # fatal: without it the files carry the records' keys as they come and there is no profile
+        athlete = None
+        if aux_datasets:
+            try:
+                ar = session.get(f"{base_url}/athlete/0", timeout=30)
+                ar.raise_for_status()
+                athlete = ar.json() if isinstance(ar.json(), dict) else None
+            except Exception as e:                      # noqa: BLE001
+                log_info(f"the subject's record could not be fetched ({e})")
+        custom_items = (athlete or {}).get('custom_items') or []
+
         if 'intervals' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching activity intervals data...'
-            intervals_df = fetch_activity_intervals_data(session, base_url, activities, job_id)
+            intervals_df = fetch_activity_intervals_data(session, base_url, activities, job_id, field_definitions(custom_items, 'INTERVAL_FIELD'))
             if not intervals_df.empty:
                 intervals_path = save_aux_dataset(intervals_df, 'intervals', user_id, start_date, end_date, subdir=mark)
                 aux_filepaths.append(intervals_path)
         
         if 'summary' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Preparing summary data...'
-            summary_df = create_activity_summary(activities)
+            summary_df = create_activity_summary(activities, field_definitions(custom_items, 'ACTIVITY_FIELD'))
             if not summary_df.empty:
                 summary_path = save_aux_dataset(summary_df, 'summary', user_id, start_date, end_date, subdir=mark)
                 aux_filepaths.append(summary_path)
@@ -1716,7 +1729,7 @@ def fetch_intervals_background(data, job_id):
         wellness_records = None
         if 'wellness' in aux_datasets or 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching wellness data...'
-            wellness_df, wellness_records = fetch_wellness_data(session, base_url, start_date, end_date, with_records=True)
+            wellness_df, wellness_records = fetch_wellness_data(session, base_url, start_date, end_date, with_records=True, fields=field_definitions(custom_items, 'INPUT_FIELD'))
             if 'wellness' in aux_datasets and not wellness_df.empty:
                 wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date, subdir=mark)
                 aux_filepaths.append(wellness_path)
@@ -1729,16 +1742,6 @@ def fetch_intervals_background(data, job_id):
         if 'context' in aux_datasets or 'plan' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching the calendar...'
             events, events_failed = fetch_calendar(session, base_url, start_date, end_date)
-        # the subject's record (2026-10-16: fetched once for the context, which tells authors apart and reads the custom
-        # fields by it, and for the rider profile, which is built from it)
-        athlete = None
-        if 'context' in aux_datasets or 'rider' in aux_datasets:
-            try:
-                ar = session.get(f"{base_url}/athlete/0", timeout=30)
-                ar.raise_for_status()
-                athlete = ar.json() if isinstance(ar.json(), dict) else None
-            except Exception as e:                      # noqa: BLE001
-                log_info(f"the subject's record could not be fetched ({e})")
         if 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching the words written beside the data...'
             rows, context_report = fetch_context_rows(session, base_url, activities, wellness_records or [], start_date, end_date,
@@ -2049,8 +2052,9 @@ def transform_intervals_detail_data(df):
     
     return df
 
-def fetch_activity_intervals_data(session, base_url, activities, job_id):
-    """Fetch intervals for all activities using parallel requests"""
+def fetch_activity_intervals_data(session, base_url, activities, job_id, fields=None):
+    """Fetch intervals for all activities using parallel requests. `fields`: the account's INTERVAL_FIELD definitions
+    (field_definitions), whose values ride on the records under their codes (2026-10-16)."""
     
     # Filter activities with IDs
     activities_with_ids = [act for act in activities if 'id' in act]
@@ -2068,7 +2072,7 @@ def fetch_activity_intervals_data(session, base_url, activities, job_id):
             if response.ok:
                 data = response.json()
                 # Transform to flat structure - returns list of records
-                return process_interval_data(data, activity_id)
+                return process_interval_data(data, activity_id, fields)
             return []
         except Exception as e:
             log_info(f"Error fetching intervals for activity {activity_id}: {e}")
@@ -2107,8 +2111,11 @@ def fetch_activity_intervals_data(session, base_url, activities, job_id):
     
     return df
 
-def process_interval_data(data, activity_id):
-    """Transform the JSON response into multiple flat records"""
+def process_interval_data(data, activity_id, fields=None):
+    """Transform the JSON response into multiple flat records. The four columns read by name (label, RPE, lactate,
+    lap_number) are one coach's codes and stay for the routines that read them; every INTERVAL_FIELD the account
+    defines rides under its own code beside them, a select as its text with the number in <code>_value (2026-10-16,
+    patch 0183, docs/RIDER_PROFILE_DESIGN.md)."""
     intervals_list = []
     
     if 'icu_intervals' in data and data['icu_intervals']:
@@ -2150,13 +2157,15 @@ def process_interval_data(data, activity_id):
                 'RPE': interval.get('TVLRPEfield'),
                 'lactate': interval.get('Lactate'),
             }
+            record.update(custom_columns(interval, fields))
             intervals_list.append(record)
     
     return intervals_list
 
 
-def create_activity_summary(activities):
-    """Create comprehensive summary DataFrame from activities list"""
+def create_activity_summary(activities, fields=None):
+    """Create comprehensive summary DataFrame from activities list. `fields`: the account's ACTIVITY_FIELD definitions,
+    whose values ride on the records under their codes (2026-10-16)."""
     
     # Field mapping for summary
     summary_fields = {
@@ -2291,6 +2300,9 @@ def create_activity_summary(activities):
                         
                 row[df_field] = value
         
+        # the account's activity fields under their codes, a select as its text with the number beside it (2026-10-16)
+        row.update(custom_columns(activity, fields))
+        
         # The zone bounds in force that day (2026-10-16): the record's lists, pipe-joined - a change of zones between
         # loads is in the file itself
         for api_field, df_field in (('icu_power_zones', 'power_zones'), ('icu_hr_zones', 'hr_zones'), ('pace_zones', 'pace_zones')):
@@ -2333,9 +2345,11 @@ def create_activity_summary(activities):
     return df
 
 
-def fetch_wellness_data(session, base_url, start_date, end_date, with_records=False):
+def fetch_wellness_data(session, base_url, start_date, end_date, with_records=False, fields=None):
     """Fetch wellness data from Intervals.icu. With `with_records`, returns (frame, the JSON list as returned) - the
-    context (2026-10-13) reads the day's comment and the custom fields off the records."""
+    context (2026-10-13) reads the day's comment and the custom fields off the records. `fields`: the account's
+    INPUT_FIELD definitions - every one rides under its code already (the frame is the records); a select's column
+    becomes its text, with the number in <code>_value (2026-10-16)."""
     records = []
     
     url = f"{base_url}/athlete/0/wellness"
@@ -2356,6 +2370,7 @@ def fetch_wellness_data(session, base_url, start_date, end_date, with_records=Fa
         if 'id' in df.columns:
             df.rename(columns={'id': 'date'}, inplace=True)
             df['date'] = pd.to_datetime(df['date'])
+        df = decode_select_columns(df, fields)
         
         # Remove columns with no data
         df = df.dropna(axis=1, how='all')
@@ -2369,6 +2384,19 @@ def fetch_wellness_data(session, base_url, start_date, end_date, with_records=Fa
     except Exception as e:
         log_info(f"Error fetching wellness data: {e}")
         return (pd.DataFrame(), records) if with_records else pd.DataFrame()
+
+
+def decode_select_columns(df, fields):
+    """A frame whose columns are the records' keys: each select the account defines becomes its text, with the number
+    in <code>_value beside it (when the options carry numbers); other fields are already under their codes."""
+    for code, (_name, ftype, pairs) in (fields or {}).items():
+        if ftype != 'select' or not pairs or code not in df.columns:
+            continue
+        decoded = [decode_select(v, pairs) for v in df[code]]
+        df[code] = [t for t, _n in decoded]
+        if any(n is not None for _t, n in decoded):
+            df[f'{code}_value'] = [n for _t, n in decoded]
+    return df
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -2729,6 +2757,54 @@ def _option_text(pairs):
         tag = str(int(n)) if n is not None and float(n).is_integer() else (str(v) if v is not None else '')
         parts.append(f"{tag} {t}".strip() if tag and tag != t else t)
     return ' | '.join(parts)
+
+
+def field_definitions(custom_items, item_type):
+    """The account's custom fields of one kind as {code: (name, type, option pairs)} - INTERVAL_FIELD for the interval
+    records, INPUT_FIELD for the wellness records, ACTIVITY_FIELD for the activity records (2026-10-16, patch 0183).
+    The values ride on the records under the code; a select's are decoded with the pairs."""
+    out = {}
+    for it in custom_items or []:
+        c = it.get('content') if isinstance(it, dict) and isinstance(it.get('content'), dict) else None
+        if not c or it.get('type') != item_type or not c.get('code'):
+            continue
+        ftype = str(c.get('type') or '').lower()
+        out[str(c['code'])] = (str(it.get('name') or c['code']), ftype, option_pairs(c.get('options')) if ftype == 'select' else [])
+    return out
+
+
+def decode_select(value, pairs):
+    """A select's value as (text, number): the option's text for its number, the number for its text (the API returns
+    the text; a number entered by hand is read too); a value outside the options is kept as text with no number; a
+    select whose options are bare texts has no numbers."""
+    if value is None or (isinstance(value, float) and value != value):
+        return None, None
+    n_value = _num(value)
+    for v, t in pairs:
+        n = _num(v)
+        if n is not None and n_value is not None and float(n_value) == float(n):
+            return t, n
+    for v, t in pairs:
+        if str(value) == t:
+            return t, _num(v)
+    return str(value), None
+
+
+def custom_columns(record, fields):
+    """The custom fields' values of one record as columns: the code's column with the value - a select's option text -
+    and `<code>_value` with a select's number, for the codes the account defines that carry a value on the record."""
+    out = {}
+    for code, (_name, ftype, pairs) in (fields or {}).items():
+        if not isinstance(record, dict) or record.get(code) is None:
+            continue
+        if ftype == 'select' and pairs:
+            text, number = decode_select(record[code], pairs)
+            out[code] = text
+            if number is not None:
+                out[f'{code}_value'] = number
+        else:
+            out[code] = record[code]
+    return out
 
 
 def _zone_rows(sport_types, prefix, bounds, names, unit, note_top=''):

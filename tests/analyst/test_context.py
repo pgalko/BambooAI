@@ -286,7 +286,38 @@ check("the summary carries the settings in force that day: max_hr_setting, pm_ft
       summ.iloc[0]["max_hr_setting"] == 190 and summ.iloc[0]["pm_ftp_watts"] == 280 and summ.iloc[0]["ftp_watts"] == 300 and summ.iloc[0]["power_zones"] == "55|75|90" and summ.iloc[0]["hr_zones"] == "140|155" and "pace_zones" not in summ.columns, summ.to_dict())
 check("save_aux_dataset names the two files by their kinds and the window", os.path.basename(E.save_aux_dataset(prof, "rider", "u", "2026-06-15", "2026-10-13")) == "rider_profile_20260615_to_20261013.csv"
       and os.path.basename(E.save_aux_dataset(zt, "zones", "u", "2026-06-15", "2026-10-13")) == "custom_zone_times_20260615_to_20261013.csv")
-check("the executor's build stamp is v58 (the rider profile)", "v58" in E.EXECUTOR_BUILD and "rider profile" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
+check("the executor's build stamp is v59 (every custom field under its code)", "v59" in E.EXECUTOR_BUILD and "custom field" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
+
+# ---- every custom field under its code (2026-10-16, patch 0183): the account's definitions decode the files' columns ----
+IF = E.field_definitions(REC["custom_items"], "INTERVAL_FIELD")
+check("field_definitions: one kind at a time, by code, with the name, the type and a select's option pairs; a chart and an item without a code make no entry",
+      set(IF) == {"Lbl", "Br"} and IF["Lbl"] == ("Label", "select", [(1.0, "Recovery"), (2.0, "Endurance")]) and IF["Br"] == ("Breaths", "numeric", [])
+      and set(E.field_definitions(REC["custom_items"], "INPUT_FIELD")) == {"Sickness"} and E.field_definitions(REC["custom_items"], "INPUT_FIELD")["Sickness"][2] == [("None", "None"), ("Mild", "Mild"), ("Severe", "Severe")]
+      and set(E.field_definitions(REC["custom_items"], "ACTIVITY_FIELD")) == {"HowISlept"} and E.field_definitions(None, "INTERVAL_FIELD") == {}, IF)
+check("decode_select: the API's text gives (text, its number); a number entered by hand gives (its text, the number); a value outside the options is kept as text with no number; bare-text options carry no number; None stays None",
+      E.decode_select("Endurance", IF["Lbl"][2]) == ("Endurance", 2.0) and E.decode_select(2, IF["Lbl"][2]) == ("Endurance", 2.0) and E.decode_select(2.0, IF["Lbl"][2]) == ("Endurance", 2.0)
+      and E.decode_select("Sprint", IF["Lbl"][2]) == ("Sprint", None) and E.decode_select("Mild", [("None", "None"), ("Mild", "Mild")]) == ("Mild", None) and E.decode_select(None, IF["Lbl"][2]) == (None, None)
+      and E.decode_select(float("nan"), IF["Lbl"][2]) == (None, None))
+recs = E.process_interval_data({"icu_intervals": [{"LapNumber": 1, "start_time": 0, "zone": "Z2", "Lbl": "Endurance", "Br": 31.5, "TVLlabelfield": "x", "Other": 9},
+                                                  {"LapNumber": 2, "start_time": 100, "Lbl": 1, "Br": None},
+                                                  {"LapNumber": 3, "start_time": 200}]}, "a1", IF)
+check("process_interval_data with the definitions: the select's text in its code's column and the number in <code>_value (the text decoded, a number decoded the other way), a numeric field under its code, a key the account does not define left out, a value absent making no column, the four legacy columns as before",
+      recs[0]["Lbl"] == "Endurance" and recs[0]["Lbl_value"] == 2.0 and recs[0]["Br"] == 31.5 and recs[0]["label"] == "x" and "Other" not in recs[0]
+      and recs[1]["Lbl"] == "Recovery" and recs[1]["Lbl_value"] == 1.0 and "Br" not in recs[1] and "Lbl" not in recs[2] and recs[2]["lap_number"] == 3 and recs[2]["label"] is None
+      and E.process_interval_data({"icu_intervals": [{"LapNumber": 1, "Lbl": "Tempo"}]}, "a1")[0].get("Lbl") is None, recs)
+summ2 = E.create_activity_summary([{"id": "a1", "start_date_local": "2026-09-01T07:00:00", "HowISlept": "badly", "Mood": 4}, {"id": "a2", "start_date_local": "2026-09-02T07:00:00"}],
+                                   {"HowISlept": ("How I slept", "text", []), "Mood": ("Mood", "select", [(1.0, "low"), (4.0, "high")])})
+check("the summary carries the account's activity fields under their codes - a text as it is, a select as its text with the number beside it; a day without them is empty there",
+      summ2.set_index("activity_id").loc["a1", "HowISlept"] == "badly" and summ2.set_index("activity_id").loc["a1", "Mood"] == "high" and summ2.set_index("activity_id").loc["a1", "Mood_value"] == 4.0
+      and pd.isna(summ2.set_index("activity_id").loc["a2", "Mood"]), summ2.to_dict("records"))
+class _WellSession:
+    def get(self, url, params=None, timeout=None):
+        return _R([{"id": "2026-09-01", "fatigue": 3, "Sickness": "Mild", "Mood": 4}, {"id": "2026-09-02", "fatigue": 2, "Sickness": None, "Mood": "low"}, {"id": "2026-09-03", "fatigue": 1}])
+wdf = E.fetch_wellness_data(_WellSession(), "http://icu/api/v1", "2026-09-01", "2026-09-03", fields={"Sickness": ("Sickness", "select", [("None", "None"), ("Mild", "Mild")]), "Mood": ("Mood", "select", [(1.0, "low"), (4.0, "high")]), "Bolt": ("Bolt", "numeric", [])})
+wrow = wdf.set_index(wdf["date"].dt.strftime("%Y-%m-%d"))
+check("the wellness file: every field under its code as the records carry it; a select with numbered options becomes its text with <code>_value beside it (a number and a text both decoded); bare-text options keep the text and add no number; a field with no value in the window makes no column",
+      wrow.loc["2026-09-01", "Sickness"] == "Mild" and "Sickness_value" not in wdf.columns and wrow.loc["2026-09-01", "Mood"] == "high" and wrow.loc["2026-09-01", "Mood_value"] == 4.0
+      and wrow.loc["2026-09-02", "Mood"] == "low" and wrow.loc["2026-09-02", "Mood_value"] == 1.0 and pd.isna(wrow.loc["2026-09-03", "Mood"]) and "Bolt" not in wdf.columns and wrow.loc["2026-09-03", "fatigue"] == 1, wdf.to_dict("records"))
 
 passed = sum(1 for _, ok in results if ok)
 failed = [n for n, ok in results if not ok]

@@ -268,6 +268,7 @@ def laps(day: date, today: date = None):
                "average_heartrate": 125 + _h(day, f"lap{k}") % 30, "zone": "Z2"}
         if ride:
             lap["average_watts"] = 185 + _h(day, f"w{k}") % 50
+            lap["Lbl"] = ["Recovery", "Endurance", "Tempo"][k - 1]           # the account's interval select, as the API returns it: the option's text (2026-10-16)
         out.append(lap)
     return {"icu_intervals": out}
 
