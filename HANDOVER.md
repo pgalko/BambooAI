@@ -36,7 +36,7 @@
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v56** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch).
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v57** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file; 0176: a failed script's output) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/11/138/41/39/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/13/138/41/39/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (90; hosted only - the loaders need the executor; the
@@ -446,6 +446,20 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **A failed script returns what it printed (2026-10-16, patch 0176; executor image v57).** Palo's second benchmark
+  routine (the tired-days question, Adaptive; four inputs, 38 lines, run zero reproduced in 7 s) ran on the window
+  May–Oct 2026 cut from its cached year - the cut right this time, CTX the window's, the CHECK row's rows the
+  window's against the original's true rows - and stopped at cell 9 with *ZeroDivisionError* inside statsmodels: the
+  method's within-week paired fit found one week with a tired and a fresh ride, two rows for two parameters, and
+  the cluster covariance divided by zero. The method's own assumption, not the system's; but the record said *no
+  result line came before the failure (38 not reached)* of a run whose first eight cells had printed nine RESULT
+  lines, because the executor's `/execute` returned `results: None` on any exception - the output printed before
+  the failure died with the thread. The thread hands its buffer back with the exception now and the route returns
+  it beside the error, so a failed run's lines are compared and its stdout kept, as the local kernel always did (the
+  host was built for it: `compare_runs(..., failed=True)`). On the way: `log_info("Executing code")` was printed
+  inside the captured output, so every replay's and run's stdout began with an INFO line - moved out. Tests:
+  test_executor_kernel.py 13 (the lines before the failure returned, none when nothing was printed), the stamps
+  v57 (test_context, test_documents_app).
 - **The default preset is `cost` (Palo, 2026-10-16, patch 0175).** A first start on an OpenRouter key alone had
   nothing to run on since 0109 put the performance tier's Analyst, Figures, Rewriter and Promoter on Claude; the
   edition's default (`cli.py` DEFAULTS and the `.env` template, the app's fallback in `supabase_client.py`) is

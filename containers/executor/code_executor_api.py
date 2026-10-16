@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-15 v56 (the planned workouts file: the prescription beside the context)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-16 v57 (a failed script returns the output printed before the failure)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -418,6 +418,7 @@ def execute_code():
     output_buffer = io.StringIO()
     plot_images = []
     generated_files = []
+    partial_output = ''                      # what a failed script printed before it failed
     
     # Track existing files before execution
     existing_files = set()
@@ -448,6 +449,7 @@ def execute_code():
                 # Create a separate output buffer for the thread
                 thread_output_buffer = io.StringIO()
                 
+                log_info(f"Executing code")          # to the container's log, not into the script's output (2026-10-16)
                 with redirect_stdout(thread_output_buffer):
                     local_vars = {
                         'df': df,
@@ -455,8 +457,7 @@ def execute_code():
                         '_generated_files': generated_files,
                         '_generated_dir': generated_datasets_path      # the replay stub's DS.save writes here (2026-10-06)
                     }
-                    
-                    log_info(f"Executing code")
+                
                     exec(patch_code + code, local_vars)
                     
                     # Put results in queue
@@ -464,7 +465,9 @@ def execute_code():
                     result_queue.put(local_vars)
                     
             except Exception as e:
-                exception_queue.put(e)
+                # the output printed before the failure rides with the exception (2026-10-16): a routine's run compares
+                # the RESULT lines its cells printed before the one that failed, and the record keeps them
+                exception_queue.put((e, thread_output_buffer.getvalue()))
         
         # Start execution thread as daemon
         thread = threading.Thread(target=execute_target, daemon=True)
@@ -498,7 +501,8 @@ def execute_code():
         
         # Check for exceptions from the execution thread
         if not exception_queue.empty():
-            raise exception_queue.get()
+            failed, partial_output = exception_queue.get()
+            raise failed
         
         # Get results from execution thread
         if not result_queue.empty():
@@ -602,7 +606,7 @@ def execute_code():
             df_cache.put(df_id, original_df)
         
         return jsonify({
-            'results': None,
+            'results': partial_output or None,
             'error': exec_traceback,
             'plot_images': [],
             'generated_datasets': []

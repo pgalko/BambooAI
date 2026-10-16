@@ -99,6 +99,19 @@ _files = sorted(f for f in os.listdir(_plots) if f.startswith("figure_"))
 check("executor: four figures shown in one script come back in the order shown, their files numbered 000-003 in that order",
       _names == ["first", "second", "third", "fourth"] and [f[:10] for f in _files] == ["figure_000", "figure_001", "figure_002", "figure_003"], (_names, _files, (_r.get("error") or "")[-200:]))
 
+# a script that fails returns what it printed before the failure beside the error (2026-10-16, image v57): a routine's run
+# compares the RESULT lines its cells printed before the one that failed - the route used to return results: None, and
+# the record said "no result line came before the failure" of a run whose first eight cells had printed nine
+_f = c.post("/execute", json={"code": "print('RESULT: first, 10 rows: +1.00 units')\nprint('RESULT: second, 10 rows: +2.00 units')\nx = 1 / 0\nprint('never')",
+                              "df_id": "t1", "persist_df": False, "patch_code": f"_plots_dir = {_plots!r}\n_generated_files = []\n", "plots_dir": _plots, "plot_format": "json", "timeout": 60,
+                              "generated_datasets_path": os.path.join(_plots, "gen2")}).get_json() or {}
+check("executor: a failed script's results are the lines it printed before the failure, beside the error naming the line",
+      "ZeroDivisionError" in (_f.get("error") or "") and (_f.get("results") or "").strip().splitlines() == ["RESULT: first, 10 rows: +1.00 units", "RESULT: second, 10 rows: +2.00 units"] and "line 3" in (_f.get("error") or ""),
+      (_f.get("results"), (_f.get("error") or "")[-300:]))
+_g = c.post("/execute", json={"code": "x = 1 / 0", "df_id": "t1", "persist_df": False, "patch_code": f"_plots_dir = {_plots!r}\n_generated_files = []\n", "plots_dir": _plots, "plot_format": "json", "timeout": 60,
+                              "generated_datasets_path": os.path.join(_plots, "gen3")}).get_json() or {}
+check("executor: a script that fails before printing anything returns no results, as before", _g.get("results") is None and "ZeroDivisionError" in (_g.get("error") or ""), _g)
+
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")
