@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/164/31/24/18/49/44/69/13/138/41/39/29/15/1/1 Python; 49/7/40/69/24/71/14/25/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (212/164/31/24/18/49/44/69/13/138/41/39/29/15/1/1 Python; 49/7/40/69/24/71/14/25/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (97; hosted only - the loaders need the executor; the
@@ -446,6 +446,20 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The plain-language version keeps the passages' quotes and citations (2026-10-16, patch 0179).** Palo's A1 run
+  (Deep, the cost preset: DeepSeek flash on every seat) met its key - the days 4, 9, 10 August with 13 August stated
+  as a back-reference, the Danish quoted verbatim, the English the file's own rendering marked *rendered*, four
+  `[C.n]` chips, the coach's passages excluded with the reason; the codes opened as a cross-check and never used as
+  the index - but its Simplified view had no chip to open: the Rewriter paraphrased every quote and dropped every
+  bracketed citation, cells and passages alike, because its task said "no bracketed intervals" and nothing about
+  passages (the stack walk passed on a scripted rewriter that keeps them). The rewrite task now names them: a
+  passage cited as `[C.n]` or `[Dn.m]` keeps its citation and its quoted words exactly, with the *rendered* mark; a
+  `[cell n]` citation is dropped. `guard_rewrite` discloses a dropped cited passage by id under the plain version,
+  beside the number check. The run's other lessons are in `ASSESSMENT_A1_deep_2026-10-16.md`: fifteen turns for an
+  answer in hand at turn 5 (the model's trait at xhigh effort; the budget's forced REPORT did its job; nothing
+  changed - the same question on the performance preset is the comparison), a census count printed as a *95% CI*
+  by RESULT (a contract wording decision for Palo), the output cap cutting two characters (0180). Tests:
+  test_analyst.py 212 (the task's sentence; the guard's three cases).
 - **The codebook screen (2026-10-16, patch 0178; context step 6, S3).** The coach's side of the codebook, which until
   now only the file showed. Where it lives was argued out first: a gear-menu item was built, Palo asked for the rail
   with a badge like Memory's, then saw the better objection himself - the rail and the gear are universal and the

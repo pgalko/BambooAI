@@ -404,7 +404,11 @@ routine's narrative may say, not analysis methods the contract may prescribe (C2
   (2026-10-14) named every passage so and cited cells beside; the host resolves the report's ids at report time and
   sends the passages to the page, so a chip has its hover even when a cell, not a READ, read the passage. The report
   guard reads a bare id the same way - evidence where it resolves, nothing otherwise - and discloses only a
-  bracketed id that does not resolve, so a stray "C.3" in prose is never a finding.
+  bracketed id that does not resolve, so a stray "C.3" in prose is never a finding. The Simplified view keeps the
+  quotes and their citations because the rewrite task asks for them by name (2026-10-16, patch 0179: the first live
+  Deep run's rewrite paraphrased every quote and dropped every `[C.n]` - its task had only said "no bracketed
+  intervals"); a rewrite that drops a cited passage gets a CHECK line under it naming the ids, as a number the
+  report never had does.
 - **S3 — The codebook.** Settings → *Context codebook*: the codes by group with definition, status and the last
   load's counts; proposals at the top with the passages they came from (quoted), *Confirm* / *Rename or merge
   into…* / *Decline*; export and import as JSON. Read-only list and proposals first; editing definitions later.

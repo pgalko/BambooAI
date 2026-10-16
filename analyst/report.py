@@ -130,12 +130,19 @@ def guard_technical(report: str, cell_outputs: Iterable[str]) -> str:
 
 
 def guard_rewrite(rewrite: str, report: str) -> str:
+    """Disclosure line under the plain-language version, or '' when clean: a number the report never had, and a
+    passage the report cited that the rewrite dropped (2026-10-16: a live rewrite paraphrased every quote and lost
+    every [C.n], so the Simplified view had no chips to open)."""
+    lines = []
     missing = numbers_missing(rewrite, [report])
-    if not missing:
-        return ""
-    shown = ", ".join(missing[:8]) + (" ..." if len(missing) > 8 else "")
-    return (f"CHECK: {len(missing)} number(s) in the plain-language version do not appear in the "
-            f"technical report ({shown}).")
+    if missing:
+        shown = ", ".join(missing[:8]) + (" ..." if len(missing) > 8 else "")
+        lines.append(f"CHECK: {len(missing)} number(s) in the plain-language version do not appear in the technical report ({shown}).")
+    dropped = [u for u in cited_units(report) if u not in cited_units(rewrite) and u not in named_units(rewrite)]
+    if dropped:
+        shown = ", ".join(dropped[:8]) + (" ..." if len(dropped) > 8 else "")
+        lines.append(f"CHECK: the plain-language version dropped {len(dropped)} cited passage(s) the report quotes ({shown}); the quotes and their citations are in the technical report.")
+    return " ".join(lines)
 
 
 def repair_markdown_tables(text: str) -> str:

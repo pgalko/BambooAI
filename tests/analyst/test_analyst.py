@@ -1001,6 +1001,16 @@ from analyst.session import REWRITE_TASK as _RW
 check("prose: the contract and the rewrite both ask for direct statements, never metaphor", "never metaphor" in open(os.path.join(ROOT, "analyst", "contract.md")).read() and "never let a metaphor" in _RW)
 check("rewrite task: the figure citations stay, at the end of the sentence that says what the figure shows (2026-10-11); a [fig n] in the rewrite is no unverified number for the guard",
       "keep that citation at the end of the sentence that says what the figure shows" in _RW and report.guard_rewrite("The spread is in the figure [fig 12].", "x [fig 12]") == "")
+# a passage's quote and citation survive the rewrite (2026-10-16: a live rewrite paraphrased every quote and dropped every [C.n] -
+# the Simplified view had no chips); the guard says so when one is dropped, as it says of a number the report never had
+_rep_q = 'He wrote *"Benene var tunge"* - "the legs were heavy" (*rendered*) [C.807]; the day before [C.806]; the plan [D1.2]; count 3 [cell 4].'
+check("rewrite task: a passage cited as [C.n] or [Dn.m] keeps its citation and its quoted words verbatim, with the rendered mark; [cell n] is dropped",
+      "keep the citation and the quoted words exactly as the report has them, with the *rendered* mark" in _RW and "a [cell n] citation is dropped" in _RW)
+check("rewrite guard: the cited passages kept (bracketed or named bare) pass; a dropped one is disclosed by id; a dropped number and a dropped passage both, in one line",
+      report.guard_rewrite('He wrote "Benene var tunge" [C.807], the day before C.806, the plan [D1.2]; count 3.', _rep_q) == ""
+      and report.guard_rewrite('He wrote that the legs were heavy; the plan [D1.2]; count 3.', _rep_q) == "CHECK: the plain-language version dropped 2 cited passage(s) the report quotes (C.807, C.806); the quotes and their citations are in the technical report."
+      and report.guard_rewrite('He wrote that the legs were heavy, 7.777 on average; the plan [D1.2].', _rep_q).startswith("CHECK: 1 number(s) in the plain-language version do not appear in the technical report (7.777). CHECK: the plain-language version dropped 2 cited passage(s)"),
+      report.guard_rewrite('He wrote that the legs were heavy, 7.777 on average; the plan [D1.2].', _rep_q))
 
 # ---- the prompt window: newest cell whole, earlier recent cells collapsed ----
 nbw = Notebook("tw"); rw = nbw.new_run("q")
