@@ -490,25 +490,25 @@
     <!-- SweatStack Sports Selection Modal -->
     <div id="sweatstackModal" class="modal ui-modal integration-dialog">
         <div class="modal-content ui-dlg">
-            <div class="ui-dlg-h"><img src="/static/image/sweatstack-favicon.svg" alt="" class="int-logo"><div><div class="title">Load data from SweatStack</div><div class="sub">sports, metrics, athletes and a date range</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-h"><img src="/static/image/sweatstack-favicon.svg" alt="" class="int-logo"><div><div class="title">Load data from SweatStack</div><div class="sub">the sessions of a window, by athlete, sport and metric</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <!-- the load dialogs share one grammar (2026-10-16): the window first, then the choices as grids of equal cells, the status in the foot -->
             <div class="ui-dlg-b modal-sections-container">
-                <div class="modal-section"><h4>Sports</h4><div class="sports-selection int-options">
+                <div class="modal-section"><h4>Window</h4><div class="date-range-selection ui-row2">
+                    <div class="date-input-group ui-field"><label for="startDate">From</label><input type="date" id="startDate" name="startDate" class="date-input"></div>
+                    <div class="date-input-group ui-field"><label for="endDate">To</label><input type="date" id="endDate" name="endDate" class="date-input"></div>
+                </div></div>
+                <div class="modal-section"><h4>Athletes</h4><div class="users-selection int-options int-chips" id="users-selection"><div class="loading-spinner">Loading users…</div></div></div>
+                <div class="modal-section"><h4>Sports</h4><div class="sports-selection int-options int-chips">
                     <label class="sport-option"><input type="checkbox" id="cycling-checkbox" value="cycling" checked><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Cycling</span></label>
                     <label class="sport-option"><input type="checkbox" id="running-checkbox" value="running"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Running</span></label>
                 </div></div>
-                <div class="modal-section"><h4>Metrics</h4><div class="metrics-selection int-options">
+                <div class="modal-section"><h4>Metrics</h4><div class="metrics-selection int-options int-chips">
                     {% for metric in sweatstack_metrics %}
                     <label class="metric-option"><input type="checkbox" id="{{ metric.value }}-checkbox" value="{{ metric.value }}" {% if metric in sweatstack_default_metrics %}checked{% endif %}><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>{{ metric.value.replace('_', ' ') }}</span></label>
                     {% endfor %}
                 </div></div>
-                <div class="modal-section"><h4>Athletes</h4><div class="users-selection int-options" id="users-selection"><div class="loading-spinner">Loading users…</div></div></div>
-                <div class="modal-section"><h4>Date range</h4><div class="date-range-selection ui-row2">
-                    <div class="date-input-group ui-field"><label for="startDate">From</label><input type="date" id="startDate" name="startDate" class="date-input"></div>
-                    <div class="date-input-group ui-field"><label for="endDate">To</label><input type="date" id="endDate" name="endDate" class="date-input"></div>
-                </div></div>
-                <p id="modal-message" class="warning-note int-message">More metrics and a longer window take longer to load and process.</p>
             </div>
-            <div class="modal-footer ui-dlg-f"><span class="sp"></span><div class="button-label">Load data</div><button id="connectSweatstack" class="circular-button ui-btn primary" title="Load data from SweatStack" aria-label="Load Data from SweatStack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
+            <div class="modal-footer ui-dlg-f"><p id="modal-message" class="warning-note int-message status">More metrics and a longer window take longer to load and process.</p><span class="sp"></span><div class="button-label">Load data</div><button id="connectSweatstack" class="circular-button ui-btn primary" title="Load data from SweatStack" aria-label="Load Data from SweatStack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
         </div>
     </div>
 
@@ -533,25 +533,27 @@
     <!-- Intervals ICU Data Selection Modal -->
     <div id="intervalsModal" class="modal ui-modal integration-dialog">
         <div class="modal-content ui-dlg">
-            <div class="ui-dlg-h"><img src="/static/image/intervals-favicon.png" alt="" class="int-logo"><div><div class="title">Load data from Intervals ICU</div><div class="sub">activities in a date range, with optional auxiliary datasets</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-h"><img src="/static/image/intervals-favicon.png" alt="" class="int-logo"><div><div class="title">Load data from Intervals.icu</div><div class="sub">the activities of a window, and what you want beside them</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <!-- the load dialogs share one grammar (2026-10-16): the window first; Also load as cards of one size in the data's order - the rides, inside
+                 the rides, the days, the words; Download as a two-sided choice (the hidden box keeps the state the script reads); the status in the foot -->
             <div class="ui-dlg-b modal-sections-container">
-                <div class="modal-section"><h4>Date range</h4><div class="date-range-selection ui-row2">
+                <div class="modal-section"><h4>Window</h4><div class="date-range-selection ui-row2">
                     <div class="date-input-group ui-field"><label for="intervalsStartDate">From</label><input type="date" id="intervalsStartDate" name="intervalsStartDate" class="date-input"></div>
                     <div class="date-input-group ui-field"><label for="intervalsEndDate">To</label><input type="date" id="intervalsEndDate" name="intervalsEndDate" class="date-input"></div>
                 </div></div>
-                <div class="modal-section"><h4>Auxiliary datasets</h4><div class="aux-datasets-selection int-options">
-                    <label class="intervals-aux-option"><input type="checkbox" id="wellness-checkbox" value="wellness"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Wellness</span></label>
-                    <label class="intervals-aux-option"><input type="checkbox" id="summary-checkbox" value="summary"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Activity summary</span></label>
-                    <label class="intervals-aux-option"><input type="checkbox" id="intervals-checkbox" value="intervals"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Activity intervals</span></label>
-                    <label class="intervals-aux-option"><input type="checkbox" id="context-checkbox" value="context" checked><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Context (notes, messages, calendar, planned workouts)</span></label>
+                <div class="modal-section"><h4>Also load</h4><div class="aux-datasets-selection int-cards">
+                    <label class="int-card intervals-aux-option"><input type="checkbox" id="summary-checkbox" value="summary"><span class="tick"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><b>Activity summary</b><span class="d">one row per activity: duration, distance, load, intensity, compliance with the plan</span></label>
+                    <label class="int-card intervals-aux-option"><input type="checkbox" id="intervals-checkbox" value="intervals"><span class="tick"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><b>Activity intervals</b><span class="d">the efforts inside each ride, as Intervals.icu detected them</span></label>
+                    <label class="int-card intervals-aux-option"><input type="checkbox" id="wellness-checkbox" value="wellness"><span class="tick"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><b>Wellness</b><span class="d">the daily log: sleep, resting HR, HRV, weight, how the day felt</span></label>
+                    <label class="int-card intervals-aux-option"><input type="checkbox" id="context-checkbox" value="context" checked><span class="tick"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><b>Context</b><span class="d">the words beside the data: notes, messages, calendar entries, the plan’s prose; the planned workouts ride along</span></label>
                 </div></div>
-                <div class="modal-section"><h4>Download</h4><div class="int-options int-refresh">
-                    <label class="intervals-aux-option" title="Activities already fetched are kept on the executor and reused; only what this window lacks or what changed is downloaded. Tick to fetch every file and every message of the window again."><input type="checkbox" id="intervals-refresh" value="refresh"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Refresh everything</span></label>
-                    <span class="help">only what the store lacks is downloaded; tick to fetch the whole window again</span>
+                <div class="modal-section"><h4>Download</h4><div class="int-dl">
+                    <span class="ui-seg" id="intervalsDownload" role="radiogroup" aria-label="Download"><button type="button" class="on" data-refresh="0" title="Activities and messages already fetched are kept on the executor and reused; only what this window lacks or what changed is downloaded">Only what’s new</button><button type="button" data-refresh="1" title="Every file and every message of the window fetched again - after editing activities or messages on Intervals.icu">Everything again</button></span>
+                    <input type="checkbox" id="intervals-refresh" value="refresh" hidden>
+                    <span class="help">what the store already holds is reused · or the whole window fetched afresh</span>
                 </div></div>
-                <p id="intervals-modal-message" class="intervals-status-message int-message"></p>
             </div>
-            <div class="modal-footer ui-dlg-f"><span class="sp"></span><div class="button-label">Load data</div><button id="connectIntervals" class="circular-button ui-btn primary" title="Load data from Intervals ICU" aria-label="Load Data from Intervals ICU"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
+            <div class="modal-footer ui-dlg-f"><p id="intervals-modal-message" class="intervals-status-message int-message status"></p><span class="sp"></span><div class="button-label">Load data</div><button id="connectIntervals" class="circular-button ui-btn primary" title="Load data from Intervals.icu" aria-label="Load Data from Intervals.icu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
         </div>
     </div>
 
@@ -571,18 +573,17 @@
     <!-- Endura Data Selection Modal -->
     <div id="enduraModal" class="modal ui-modal integration-dialog">
         <div class="modal-content ui-dlg">
-            <div class="ui-dlg-h"><div><div class="title">Load data from Endura</div><div class="sub">a race, with up to three auxiliary datasets</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-h"><img src="/static/image/endura-favicon.png" alt="" class="int-logo"><div><div class="title">Load data from Endura</div><div class="sub">a race, and what you want beside it</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
             <div class="ui-dlg-b modal-sections-container">
                 <div class="modal-section ui-field"><h4>Race</h4><select id="enduraRaceSelect" class="endura-race-select"><option value="">Loading races…</option></select></div>
-                <div class="modal-section"><h4>Auxiliary datasets (max 3)</h4><div class="aux-datasets-selection int-options">
-                    <label class="endura-aux-option always-selected"><input type="checkbox" value="profile" checked disabled><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Athlete profile</span></label>
-                    <label class="endura-aux-option"><input type="checkbox" value="turns"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Turns</span></label>
-                    <label class="endura-aux-option"><input type="checkbox" value="climbs"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Climbs</span></label>
-                    <label class="endura-aux-option"><input type="checkbox" value="waymarkers"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Waymarkers</span></label>
+                <div class="modal-section"><h4>Also load <span class="h-note">· up to three</span></h4><div class="aux-datasets-selection int-cards">
+                    <label class="int-card endura-aux-option always-selected"><input type="checkbox" value="profile" checked disabled><span class="tick"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><b>Athlete profile</b><span class="d">the rider as Endura holds them: FTP, weight, zones</span></label>
+                    <label class="int-card endura-aux-option"><input type="checkbox" value="turns"><span class="tick"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><b>Turns</b><span class="d">every turn of the course with its radius and direction</span></label>
+                    <label class="int-card endura-aux-option"><input type="checkbox" value="climbs"><span class="tick"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><b>Climbs</b><span class="d">the course’s climbs: length, gradient, where they sit</span></label>
+                    <label class="int-card endura-aux-option"><input type="checkbox" value="waymarkers"><span class="tick"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><b>Waymarkers</b><span class="d">feed zones, timing points, the marked places along the route</span></label>
                 </div></div>
-                <p id="endura-modal-message" class="endura-status-message int-message"></p>
             </div>
-            <div class="modal-footer ui-dlg-f"><span class="sp"></span><div class="button-label">Load data</div><button id="loadEnduraData" class="circular-button ui-btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
+            <div class="modal-footer ui-dlg-f"><p id="endura-modal-message" class="endura-status-message int-message status"></p><span class="sp"></span><div class="button-label">Load data</div><button id="loadEnduraData" class="circular-button ui-btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
         </div>
     </div>
 

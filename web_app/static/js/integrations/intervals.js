@@ -272,7 +272,7 @@ function pollContextCoding(jobId, dataInfo, onDone) {
     };
     setTimeout(tick, 2000);
 }
-if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace }); }
+if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, showIntervalsStoreLine }); }
 
 function removeIntervalsPill() {
     if (currentIntervalsState.pillId) {
@@ -456,8 +456,7 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                 setIntervalsButtonLoading(false);
                 // the store's line (docs/INCREMENTAL_LOADS_DESIGN.md): what was already held and what was downloaded; the box cleared for the next load
                 const stLine = storeLine(job.result && job.result.store);
-                const refreshBox = document.getElementById('intervals-refresh');
-                if (refreshBox) { refreshBox.checked = false; refreshBox.closest('.intervals-aux-option')?.classList.remove('selected'); }
+                setIntervalsRefresh(false);
                 // the context's line (docs/CONTEXT_DESIGN.md §4 F1): what was written beside the data, and any call that failed
                 const ctxLine = contextReportLine(job.result && job.result.context);
                 showIntervalsMessage('Data loaded successfully!' + (stLine ? ' ' + stLine + '.' : '') + (ctxLine ? ' ' + ctxLine : ''), 'success');
@@ -732,7 +731,41 @@ function showIntervalsModal() {
         showIntervalsMessage('', 'default');
         initializeIntervalsDatePickers();
         initializeAuxDatasetOptions();
+        initializeDownloadChoice();
+        showIntervalsStoreLine();
     }
+}
+
+// Download (2026-10-16): a two-sided choice, Only what's new / Everything again; the hidden box #intervals-refresh keeps the
+// state the load reads (docs/INCREMENTAL_LOADS_DESIGN.md: the request's `refresh`)
+function setIntervalsRefresh(on) {
+    const box = document.getElementById('intervals-refresh');
+    if (box) box.checked = !!on;
+    document.querySelectorAll('#intervalsDownload [data-refresh]').forEach(b => b.classList.toggle('on', (b.getAttribute('data-refresh') === '1') === !!on));
+}
+function initializeDownloadChoice() {
+    const seg = document.getElementById('intervalsDownload');
+    if (!seg || seg._bound) return;
+    seg._bound = true;
+    seg.addEventListener('click', e => {
+        const b = e.target.closest('[data-refresh]');
+        if (b) setIntervalsRefresh(b.getAttribute('data-refresh') === '1');
+    });
+}
+// the foot's line while nothing is happening: what the store holds for this account (the Dataset cache panel's figures), so a
+// person sees before loading that the window will come mostly from the store; a message of the load replaces it
+function showIntervalsStoreLine() {
+    const el = document.getElementById('intervals-modal-message');
+    if (!el || !window.authService || typeof window.authService.fetch !== 'function') return;
+    window.authService.fetch('/cache/inspect').then(r => r.ok ? r.json() : null).then(d => {
+        if (!el || el.textContent.trim() !== '' || !d) return;
+        const stores = d.stores || [];
+        if (!stores.length) { el.innerHTML = 'Nothing in the store yet \u00b7 the first load fills it; later loads fetch only what they lack'; return; }
+        const n = stores.reduce((a, st) => a + (Number(st.activities) || 0), 0);
+        const froms = stores.map(st => st.from).filter(Boolean).sort(), tos = stores.map(st => st.to).filter(Boolean).sort();
+        const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        el.innerHTML = 'Store \u00b7 <b>' + n + ' activit' + (n === 1 ? 'y' : 'ies') + '</b>' + (froms.length ? ' \u00b7 ' + esc(froms[0]) + ' \u2192 ' + esc(tos[tos.length - 1]) : '') + ' \u00b7 only what the window lacks is fetched';
+    }).catch(() => {});
 }
 
 async function showIntervalsConfigModal() {

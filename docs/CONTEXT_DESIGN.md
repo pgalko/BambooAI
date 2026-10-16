@@ -201,7 +201,7 @@ default in the auxiliary kinds. In the container, after the summary, wellness an
    activities; 0.35 s each; the chat's members (from the first message's chat, or `GET /chats/{id}`) give the
    roles. Deleted messages dropped; `ACTIVITY` / request types dropped. Since 2026-10-15 the chat of an activity
    older than sixty days whose file is unchanged is taken from the executor's store instead of fetched
-   (docs/INCREMENTAL_LOADS_DESIGN.md); a load's *Refresh everything* fetches every chat again.
+   (docs/INCREMENTAL_LOADS_DESIGN.md); a load's *Everything again* fetches every chat again.
 4. The activity summary's new columns (§3.1); the context table written beside the other files in the key's
    folder; the job's result names it.
 
@@ -390,7 +390,8 @@ routine's narrative may say, not analysis methods the contract may prescribe (C2
 ## 7. Screens
 
 - **S1 — The load.** The Data tab's dialog gains nothing visible: context is one of the auxiliary kinds, on by
-  default, with the others' checkbox pattern if one is wanted. The dialog's line carries the pass's report (§F1). The
+  default, with the others' checkbox pattern if one is wanted (since 2026-10-16 a card under *Also load*, with a
+  line on what it holds and that the planned workouts ride along). The dialog's line carries the pass's report (§F1). The
   context and codes files stack under **one Context pill** (2026-10-14, as the documents do): the label with the
   days and a spinner with *coding…* while the pass runs; the hover list naming the passages and the codes, each a
   click away from the existing preview (first rows) — the preview of the context file is the passages, which is the

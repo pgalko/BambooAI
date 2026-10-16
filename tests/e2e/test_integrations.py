@@ -200,7 +200,7 @@ def main():
             cl = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-cache').textContent, cls: document.querySelector('#routineRunModal .rt-cache').className })")
             check("the dialog asked the executor's cache about the window: the next window is not there, so it says it will be downloaded", "miss" in cl["cls"] and "not in the cache" in cl["text"] and "will be downloaded" in cl["text"], cl)
             refresh_box = page.evaluate("() => { const b = document.querySelector('#routineRunModal input[data-load=\"refresh\"]'); return b ? { on: b.checked, text: b.closest('label').textContent } : null; }")
-            check("the run dialog offers Refresh everything under the window, off (the store below the cache, 2026-10-15)", refresh_box and refresh_box["on"] is False and "fetch every file and message of the window again" in refresh_box["text"], refresh_box)
+            check("the run dialog offers Everything again under the window, off (the store below the cache, 2026-10-15)", refresh_box and refresh_box["on"] is False and "fetch every file and message of the window afresh" in refresh_box["text"], refresh_box)
             fits_before_run1 = calls_of(st, "fit-file")
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && p.style.display !== 'none' && p.textContent.length > 0; }", timeout=30000)
@@ -656,15 +656,18 @@ def main():
             ctx_again = pd.read_csv(os.path.join(exec_ds, f"context_notes_{tag_a}.csv"), dtype=str, keep_default_na=False)
             check("the chats of the window came from the store this time (every activity is older than sixty days and unchanged): no messages call, and the context file has the messages as before",
                   calls_of(st, "/messages") == msgs_before_r and (ctx_again.kind == "activity_message").sum() > 0 and ctx is not None and (ctx_again.kind == "activity_message").sum() == (ctx.kind == "activity_message").sum(), (calls_of(st, "/messages") - msgs_before_r, (ctx_again.kind == "activity_message").sum()))
-            # Refresh everything: the whole window fetched again - every FIT file and every chat - and the box cleared after
-            page.evaluate("() => { const b = document.getElementById('intervals-refresh'); b.checked = true; b.closest('label').classList.add('selected'); }")
+            # Everything again (the Download choice's second side): the whole window fetched again - every FIT file and every chat - and the
+            # choice back on Only what's new after
+            page.click("#intervalsDownload [data-refresh='1']")
+            dl_state = page.evaluate("() => ({ box: document.getElementById('intervals-refresh').checked, on: document.querySelector('#intervalsDownload .on').textContent })")
+            check("the Download choice: Everything again clicked - the hidden box on, the side lit", dl_state["box"] is True and dl_state["on"] == "Everything again", dl_state)
             fits_before_rf, msgs_before_rf = calls_of(st, "fit-file"), calls_of(st, "/messages")
             page.click("#connectIntervals")
             page.wait_for_function("() => /fetched again/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             msg_rf = page.inner_text("#intervals-modal-message")
-            check("Refresh everything: every FIT file and every chat of the window fetched again, the line says 60 activities fetched again, and the box is off again for the next load",
-                  calls_of(st, "fit-file") - fits_before_rf == 60 and calls_of(st, "/messages") - msgs_before_rf == chats_a and "60 activities fetched again" in msg_rf and page.evaluate("() => document.getElementById('intervals-refresh').checked") is False,
+            check("Everything again: every FIT file and every chat of the window fetched again, the line says 60 activities fetched again, and the choice is back on Only what's new for the next load",
+                  calls_of(st, "fit-file") - fits_before_rf == 60 and calls_of(st, "/messages") - msgs_before_rf == chats_a and "60 activities fetched again" in msg_rf and page.evaluate("() => document.getElementById('intervals-refresh').checked") is False and page.evaluate("() => document.querySelector('#intervalsDownload .on').textContent") == "Only what\u2019s new",
                   (calls_of(st, "fit-file") - fits_before_rf, calls_of(st, "/messages") - msgs_before_rf, msg_rf[:160]))
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
             # the Dataset cache panel lists the key's store

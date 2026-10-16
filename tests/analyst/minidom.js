@@ -14,7 +14,7 @@ class Element extends Node {
   _c() { return (this.attrs['class'] || '').split(/\s+/).filter(Boolean); }
   _cls(c, on) { const cs = this._c().filter(x => x !== c); if (on) cs.push(c); this.attrs['class'] = cs.join(' '); }
   get className() { return this.attrs['class'] || ''; } set className(v) { this.attrs['class'] = v; }
-  get id() { return this.attrs['id'] || ''; }
+  get id() { return this.attrs['id'] || ''; } set id(v) { this.attrs['id'] = String(v); }
   getAttribute(a) { return this.attrs[a] == null ? null : this.attrs[a]; } setAttribute(a, v) { this.attrs[a] = String(v); } removeAttribute(a) { delete this.attrs[a]; } hasAttribute(a) { return a in this.attrs; }
   appendChild(n) { if (n.parent) n.parent.children = n.parent.children.filter(c => c !== n); n.parent = this; this.children.push(n); return n; }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); this.parent = null; }
@@ -25,6 +25,13 @@ class Element extends Node {
   get textContent() { return this.children.map(c => c.textContent).join(''); } set textContent(v) { this.children = [new Text(String(v))]; this.children[0].parent = this; }
   insertAdjacentHTML(pos, html) { const tmp = new Element('div'); parseInto(tmp, html); for (const c of [...tmp.children]) this.appendChild(c); }
   get lastElementChild() { for (let i = this.children.length - 1; i >= 0; i--) if (this.children[i].nodeType === 1) return this.children[i]; return null; }
+  // events and ancestry, enough for a module's click handler to be driven by a test (2026-10-16): listeners are kept per type,
+  // dispatch(type, target) calls them with {target}; closest/matches test a selector against the element's own ancestors
+  addEventListener(type, fn) { (this.listeners = this.listeners || {})[type] = (this.listeners[type] || []).concat(fn); }
+  dispatch(type, target, extra) { const ev = Object.assign({ type, target: target || this, preventDefault() {}, stopPropagation() {} }, extra || {}); for (const fn of ((this.listeners || {})[type] || [])) fn(ev); return ev; }
+  matches(sel) { return this.parent ? this.parent.querySelectorAll(sel).includes(this) : false; }
+  closest(sel) { let n = this; while (n && n.nodeType === 1) { if (n.matches(sel)) return n; n = n.parent; } return null; }
+  focus() {} select() {} blur() {}
   get elements() { return this.children.filter(c => c.nodeType === 1); }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   querySelectorAll(sel) {

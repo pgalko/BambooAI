@@ -49,7 +49,7 @@ asking for other metrics over the same window downloads nothing.
 call each, small, and the source of the summary and wellness files and most of the passages. **The chat under an
 activity** is fetched again while the activity is recent (started within `MESSAGES_FRESH_DAYS` = 60 days; a chat is
 still being written) or when its file changed (a re-sync is a reason to look again), and taken from the store for an
-older, unchanged one. **Refresh everything** (the request's `refresh`) fetches every file and every chat of the window
+older, unchanged one. **Everything again** (the request's `refresh`; *Refresh everything* until 2026-10-16) fetches every file and every chat of the window
 again, for the person who knows something changed that the signature does not see (a message added under an old
 activity, say).
 
@@ -107,7 +107,9 @@ method's inputs and the Data tab's pills; they are small).
   messages step counts the chats taken from the store.
 - The load's result carries `store` (`window`, `held`, `fetched`, `refresh`, and the store's `summary` - activities,
   chats, span, size, engine); the Data tab's completion line says *91 of 101 activities from the store, 10 downloaded*.
-- The Intervals dialog and the routine run dialog offer *Refresh everything* (off by default).
+- The Intervals dialog's Download choice has two sides, *Only what's new* (the default) and *Everything again*; the routine run
+  dialog offers *Everything again* as a box (off by default). Until 2026-10-16 both were a box named *Refresh everything*, which
+  read as a reload of the page as easily as a re-download.
 - `/cache/inspect` lists the stores (`stores`: one per key with a store, by mark); the Dataset cache panel shows
   what each key's store holds.
 
@@ -121,7 +123,7 @@ method's inputs and the Data tab's pills; they are small).
   a download is needed defeats the purpose. `icu_sync_date` is the field Intervals changes on a re-sync; the others
   guard the cases where it is absent (the fake calendar carries none, and its signature is still stable).
 - **D4 Chats settle at sixty days.** A chat under a recent activity is still being written; under an old one, almost
-  never. Refresh everything covers the rest.
+  never. Everything again covers the rest.
 - **D5 Retention by the activity's day, with the in-use exemption.** By day alone, a routine over an old window would
   re-download it every run that followed a load of a recent one; by use alone, the store would hold every year
   anyone ever looked at.
@@ -147,5 +149,5 @@ v55. The e2e integrations walk (86) proves the same against the real executor pr
 log: the first load fetches the 60-day window whole; the routine's run on the window ending today (19 days of
 overlap) fetches 41 files and its LOAD row says *19 of 60 activities from the store, 41 downloaded*; a second key
 gets a store of its own; the original window loaded again with the context fetches no file and each chat once; the
-same window in a new thread fetches no chat; Refresh everything fetches all 60 files and every chat; the Dataset
+same window in a new thread fetches no chat; Everything again fetches all 60 files and every chat; the Dataset
 cache panel lists both stores.

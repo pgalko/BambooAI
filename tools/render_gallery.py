@@ -22,7 +22,9 @@ STATES = {
     'dlg_dataset': "document.getElementById('datasetManagerPill').click(); setTimeout(()=>{ const it=document.querySelector('#primaryDatasetList .dataset-item'); it && it.click(); }, 700);",
     'dlg_memory': "document.getElementById('memoryReviewPill').style.display=''; document.getElementById('memoryReviewPill').click();",
     'dlg_rank': "currentRankData = {chain_id: 1, thread_id: 't'}; showRankModal(); setTimeout(()=>document.querySelectorAll('#rankModal .rating-segment')[6].click(), 200);",
-    'dlg_sweatstack': "document.getElementById('sweatstackModal').style.display='flex';",
+    'dlg_sweatstack': "document.getElementById('sweatstackModal').style.display='flex'; document.getElementById('users-selection').innerHTML='<label class=\"user-option\"><input type=\"checkbox\" checked><svg class=\"check-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\"><polyline points=\"20 6 9 17 4 12\"></polyline></svg><span>Athlete A</span></label><label class=\"user-option\"><input type=\"checkbox\"><svg class=\"check-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\"><polyline points=\"20 6 9 17 4 12\"></polyline></svg><span>Athlete B</span></label>';",
+    'dlg_intervals': "showIntervalsModal(); document.getElementById('intervalsStartDate').value='2025-10-18'; document.getElementById('intervalsEndDate').value='2026-10-16';",     # the load dialogs' shared grammar (2026-10-16)
+    'dlg_endura': "document.getElementById('enduraModal').style.display='flex'; document.getElementById('enduraRaceSelect').innerHTML='<option>Spring classic 2026</option>';",
     'dlg_intervals_cfg': "document.getElementById('intervalsConfigModal').style.display='flex';",
 }
 

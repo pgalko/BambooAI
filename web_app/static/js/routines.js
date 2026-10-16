@@ -255,7 +255,7 @@
                     (withWhat ? ' · with ' + esc(withWhat) : '') + (src === 'intervals' ? ' · metrics as the original' : (plan.users && plan.users.length ? ' · ' + esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')) + '</div>' +
                     (src === 'intervals' ? '<div class="rt-cache" style="display:none"></div>' +
                         // the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): only what the window lacks is downloaded; the box fetches it all again
-                        '<label class="rt-check rt-refresh"><input type="checkbox" data-load="refresh"> Refresh everything <span class="n">— fetch every file and message of the window again, not only what the store lacks</span></label>' : '');
+                        '<label class="rt-check rt-refresh"><input type="checkbox" data-load="refresh"> Everything again <span class="n">— fetch every file and message of the window afresh, not only what the store lacks</span></label>' : '');
             } else if (src === 'endura') {
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from Endura</label>' +
                     '<div class="rt-field rt-race"><select class="ui-input" data-load="race"><option value="">loading the races…</option></select>' +

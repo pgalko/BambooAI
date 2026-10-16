@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/13/138/41/39/29/1/1 Python; 49/7/33/67/24/71/8/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (210/155/31/24/18/49/44/69/13/138/41/39/29/1/1 Python; 49/7/40/67/24/71/8/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (90; hosted only - the loaders need the executor; the
@@ -446,6 +446,26 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The load dialogs share one grammar (2026-10-16, patch 0177).** Palo, on the Intervals dialog: the pills of unequal
+  sizes, the confusing order, the ambiguous *Refresh everything* - a chance to redesign it and match Endura and
+  SweatStack. Three mockups rendered on the app's own stylesheets (the outputs folder, `mockups_load_dialogs/`); he
+  chose the first, the cleanest. The three dialogs now follow one order - what you load first (*Window*, or *Race*
+  for Endura), then the choices, then *Download* where it applies - with the status line in the foot beside the
+  Load button. The auxiliary datasets are cards of one size in a two-column grid (`.int-cards`/`.int-card`: the
+  hidden checkbox the scripts read, a drawn tick, the name, one line on what it holds; a `.span` class for the day
+  the grid is odd - the rider profile is coming), in the data's order: activity summary, activity intervals,
+  wellness, context (the planned workouts ride along). Where the options are many and short (SweatStack's athletes,
+  sports, metrics) the chips stay, in a grid of three equal columns (`.int-chips`). *Refresh everything* became a
+  two-sided choice, *Only what's new* / *Everything again* (`#intervalsDownload`, a `ui-seg` over the hidden
+  `#intervals-refresh` box the load reads; `setIntervalsRefresh`), with one line on what each side does; the routine
+  run dialog's box took the same name. The foot's line while nothing is happening is the store's state
+  (`/cache/inspect`: activities held, the span), replaced by the load's messages. The ids and hook classes the three
+  scripts drive are unchanged; the gallery gained `dlg_intervals` and `dlg_endura` (`dlg_sweatstack` with two
+  athletes). The mini DOM gained listeners, `dispatch`, `matches`, `closest` and an `id` setter so a module's click
+  handler can be driven by a test. Tests: test_dialogs.js 40 (the three dialogs' sections, cards and chips; the
+  Download choice driven; the store line), test_shell.js 67 (the Context card), test_routines.js 71 (the run
+  dialog's wording), the integrations walk (the choice clicked for the refresh round, back on *Only what's new*
+  after). Docs: INCREMENTAL_LOADS_DESIGN, CONTEXT_DESIGN S1.
 - **A failed script returns what it printed (2026-10-16, patch 0176; executor image v57).** Palo's second benchmark
   routine (the tired-days question, Adaptive; four inputs, 38 lines, run zero reproduced in 7 s) ran on the window
   May–Oct 2026 cut from its cached year - the cut right this time, CTX the window's, the CHECK row's rows the

@@ -687,7 +687,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 /* ---- the integration dialogs (SweatStack, Intervals ICU, Endura: load, configure, connected) — one form ----
    Seven elements keep their ids and hook classes; one ruleset on .integration-dialog styles them all.
    integrations/sweatstack.css, intervals.css and endura.css are retired. */
-.integration-dialog .ui-dlg { width: min(640px, 100%); }
+.integration-dialog .ui-dlg { width: min(680px, 100%); }
 .integration-dialog .int-logo { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
 .integration-dialog .modal-sections-container { display: flex; flex-direction: column; gap: 14px; }
 .integration-dialog .modal-section h4 { margin: 0 0 8px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
@@ -703,8 +703,35 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 .integration-dialog .int-options label:has(input:checked), .integration-dialog .int-options label.selected { border-color: var(--chip-model-border); color: var(--c-model); background: var(--accent-bg); }
 .integration-dialog .int-options label:has(input:checked) .check-icon, .integration-dialog .int-options label.selected .check-icon { width: 12px; margin-right: 6px; opacity: 1; }
 .integration-dialog .int-options label:has(input:disabled) { opacity: .6; cursor: default; }
-.integration-dialog .int-refresh { align-items: center; }                              /* Refresh everything (2026-10-15): the option and its line */
-.integration-dialog .int-refresh .help { font-size: 11.5px; color: var(--text-tertiary); }
+/* the load dialogs' shared grammar (2026-10-16): the window first, then the choices - cards of one size with a name and a line on
+   what they hold (Also load), or chips in a grid of equal columns where the options are many and short (SweatStack's athletes,
+   sports, metrics) - then Download as a two-sided choice; the status line in the foot beside the Load button */
+.integration-dialog .modal-section h4 .h-note { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-quaternary); }
+.integration-dialog .int-options.int-chips { display: grid; grid-template-columns: repeat(3, 1fr); }
+.integration-dialog .int-options.int-chips label { justify-content: flex-start; width: 100%; box-sizing: border-box; }
+.integration-dialog .int-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.integration-dialog .int-cards .span { grid-column: 1 / -1; }                             /* a card across the row, for the day the grid is odd (the rider profile) */
+.integration-dialog .int-card { position: relative; display: block; border: 1px solid var(--border-color); border-radius: var(--r-3); padding: 9px 12px 9px 36px; background: var(--bg-primary); cursor: pointer; }
+.integration-dialog .int-card:hover { border-color: var(--text-tertiary); }
+.integration-dialog .int-card input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+.integration-dialog .int-card .tick { position: absolute; left: 12px; top: 11px; width: 14px; height: 14px; border: 1px solid var(--border-color); border-radius: 4px; display: grid; place-items: center; background: var(--bg-secondary); }
+.integration-dialog .int-card .tick .check-icon { width: 10px; height: 10px; margin: 0; stroke: var(--c-model); opacity: 0; }
+.integration-dialog .int-card:has(input:checked), .integration-dialog .int-card.selected { border-color: var(--chip-model-border); background: var(--accent-bg); }
+.integration-dialog .int-card:has(input:checked) .tick, .integration-dialog .int-card.selected .tick { border-color: var(--c-model); }
+.integration-dialog .int-card:has(input:checked) .tick .check-icon, .integration-dialog .int-card.selected .tick .check-icon { opacity: 1; width: 10px; }
+.integration-dialog .int-card:has(input:disabled), .integration-dialog .int-card.disabled { cursor: default; }
+.integration-dialog .int-card.disabled:not(.selected) { opacity: .5; }
+.integration-dialog .int-card.always-selected b::after { content: ' · always'; font-weight: 400; color: var(--text-quaternary); }
+.integration-dialog .int-card b { display: block; font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); line-height: 1.3; }
+.integration-dialog .int-card .d { display: block; font-size: var(--fs-small); color: var(--text-tertiary); line-height: 1.45; margin-top: 2px; }
+.integration-dialog .int-card .more { display: block; margin-top: 6px; font-size: var(--fs-small); color: var(--text-tertiary); }
+.integration-dialog .int-card .more:empty { display: none; }
+.integration-dialog .int-card .more a { color: var(--c-model); text-decoration: none; }
+.integration-dialog .int-card .more a:hover { text-decoration: underline; }
+.integration-dialog .int-dl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.integration-dialog .int-dl .help { font-size: var(--fs-small); color: var(--text-quaternary); }
+.integration-dialog .ui-dlg-f .status { flex: 1 1 auto; min-width: 0; font-size: var(--fs-small); line-height: 1.4; white-space: normal; }   /* the colour is the message's state's */
+.integration-dialog .ui-dlg-f .status b { color: var(--text-tertiary); font-weight: 600; }
 .integration-dialog .int-options .loading-spinner { font-size: var(--fs-meta); color: var(--text-quaternary); }
 .integration-dialog .ui-field { margin-bottom: 0; }
 .integration-dialog .date-input, .integration-dialog .endura-race-select { height: 32px; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 0 10px; font-family: var(--font-ui); font-size: var(--fs-body); color-scheme: dark; }

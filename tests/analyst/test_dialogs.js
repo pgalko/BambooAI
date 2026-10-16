@@ -80,10 +80,29 @@ const hookClasses = ['sport-option', 'metric-option', 'intervals-aux-option', 'e
 check('integration dialogs: the hook classes the scripts query survive', hookClasses.every(c => html.includes('class="' + c) || html.includes(' ' + c + '"') || html.includes(' ' + c + ' ')));
 check('integration dialogs: the SweatStack metrics are still rendered by the template loop', html.includes('{% for metric in sweatstack_metrics %}') && html.includes('{{ metric.value }}-checkbox'));
 check('integration stylesheets are retired (not linked); one ruleset in dialogs.css', !html.includes("css/integrations/sweatstack.css") && !html.includes("css/integrations/intervals.css") && !html.includes("css/integrations/endura.css") && dcss.includes('.integration-dialog .int-options label'));
-// ---- the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): Refresh everything in the Intervals dialog, off; the load's line from core.js
+// ---- the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): the download choice in the Intervals dialog, off; the load's line from core.js
+// (2026-10-16: Refresh everything became a two-sided choice, Only what's new / Everything again; the hidden box keeps the state the script reads)
 const iroot = doc.createElement('div'); iroot.innerHTML = fragment('intervalsModal');
-check('Intervals dialog: a Refresh everything option in its own Download section, off by default, with the line saying only what the store lacks is downloaded',
-  iroot.querySelector('.int-refresh #intervals-refresh') && !iroot.querySelector('#intervals-refresh').hasAttribute('checked') && iroot.querySelector('.int-refresh .help').textContent.includes('only what the store lacks is downloaded') && dcss.includes('.integration-dialog .int-refresh'));
+check('Intervals dialog: Download is a two-sided choice - Only what\'s new on, Everything again - over a hidden box that is off by default, with one line on what each side does',
+  iroot.querySelectorAll('#intervalsDownload [data-refresh]').map(b => b.textContent + ':' + b.className).join('|') === 'Only what’s new:on|Everything again:' && iroot.querySelector('#intervals-refresh').hasAttribute('hidden') && !iroot.querySelector('#intervals-refresh').hasAttribute('checked')
+  && iroot.querySelector('.int-dl .help').textContent === 'what the store already holds is reused · or the whole window fetched afresh' && dcss.includes('.integration-dialog .int-dl'), iroot.querySelectorAll('#intervalsDownload [data-refresh]').map(b => b.textContent + ':' + b.className).join('|'));
+// ---- the load dialogs' shared grammar (2026-10-16): the window first; Also load as cards of one size in the data's order; the status in the foot ----
+const secs = iroot.querySelectorAll('.modal-section h4').map(h => h.textContent);
+const icards = iroot.querySelectorAll('.int-cards .int-card');
+check('Intervals dialog: the sections in order - Window, Also load, Download - and the four cards in the data\'s order (summary, intervals, wellness, context), each a label with its checkbox, a tick, a name and a line; Context on, with an empty slot for its codebook line',
+  secs.join('|') === 'Window|Also load|Download' && icards.map(c => c.querySelector('input').id).join(',') === 'summary-checkbox,intervals-checkbox,wellness-checkbox,context-checkbox'
+  && icards.every(c => c.className.includes('intervals-aux-option') && c.querySelector('.tick .check-icon') && c.querySelector('b').textContent && c.querySelector('.d').textContent)
+  && icards[3].querySelector('input').hasAttribute('checked') && !icards[0].querySelector('input').hasAttribute('checked') && icards[3].querySelector('b').textContent === 'Context' && icards[3].querySelector('.d').textContent.includes('the planned workouts ride along'), secs.join('|'));
+check('Intervals dialog: the status line sits in the foot before the Load button; the title names Intervals.icu', iroot.querySelector('.ui-dlg-f #intervals-modal-message.status') && iroot.querySelector('.ui-dlg-f .sp') && iroot.querySelector('.ui-dlg-f #connectIntervals') && iroot.querySelector('.ui-dlg-h .title').textContent === 'Load data from Intervals.icu');
+const sroot = doc.createElement('div'); sroot.innerHTML = fragment('sweatstackModal');
+const eroot = doc.createElement('div'); eroot.innerHTML = fragment('enduraModal');
+check('SweatStack dialog: the same grammar - Window first, then Athletes, Sports and Metrics as grids of equal columns; the message in the foot',
+  sroot.querySelectorAll('.modal-section h4').map(h => h.textContent).join('|') === 'Window|Athletes|Sports|Metrics' && sroot.querySelectorAll('.int-options.int-chips').length === 3 && sroot.querySelector('.ui-dlg-f #modal-message.status') && dcss.includes('.integration-dialog .int-options.int-chips { display: grid; grid-template-columns: repeat(3, 1fr); }'));
+check('Endura dialog: the race, then Also load as cards (the profile always on and disabled; up to three); the message in the foot; the logo in the header',
+  eroot.querySelectorAll('.modal-section h4').map(h => h.textContent.trim().startsWith('Race') || h.textContent.trim().startsWith('Also load')).every(Boolean) && eroot.querySelectorAll('.int-cards .int-card.endura-aux-option').length === 4
+  && eroot.querySelector('.int-card.always-selected input').hasAttribute('disabled') && eroot.querySelector('.h-note').textContent === '· up to three' && eroot.querySelector('.ui-dlg-f #endura-modal-message.status') && eroot.querySelector('.ui-dlg-h .int-logo'));
+check('the cards\' rules: one size in a two-column grid, a span class for an odd card, the tick drawn from the hidden input (checked or the scripts\' selected class), the disabled state',
+  dcss.includes('.integration-dialog .int-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }') && dcss.includes('.integration-dialog .int-cards .span { grid-column: 1 / -1; }') && dcss.includes('.integration-dialog .int-card:has(input:checked), .integration-dialog .int-card.selected {') && dcss.includes('.integration-dialog .int-card.disabled:not(.selected) { opacity: .5; }'));
 const core = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'core.js'), 'utf8');
 const storeLine = new Function(core.match(/function storeLine\(st\) \{[\s\S]*?\n\}\n/)[0] + '; return storeLine;')();
 check('storeLine: the load\'s completion phrase - held and downloaded, all held, none held, a refresh, nothing without a window',
@@ -91,6 +110,23 @@ check('storeLine: the load\'s completion phrase - held and downloaded, all held,
   && storeLine({ window: 91, held: 0, fetched: 91 }) === '91 activities downloaded' && storeLine({ window: 1, held: 0, fetched: 1 }) === '1 activity downloaded' && storeLine({ window: 101, held: 0, fetched: 101, refresh: true }) === '101 activities fetched again' && storeLine(null) === '' && storeLine({}) === '',
   [storeLine({ window: 101, held: 91, fetched: 10 }), storeLine({ window: 1, held: 0, fetched: 1 })]);
 const ij = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'), 'utf8');
-check('intervals.js sends the flag with the load, says the store\'s line with the success message and clears the box after', ij.includes('refresh: refresh') && ij.includes("storeLine(job.result && job.result.store)") && ij.includes('refreshBox.checked = false'));
-let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
-console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);
+check('intervals.js sends the flag with the load, says the store\'s line with the success message and puts the choice back on Only what\'s new after', ij.includes('refresh: refresh') && ij.includes("storeLine(job.result && job.result.store)") && ij.includes('setIntervalsRefresh(false);'));
+// the Download choice driven on the mini DOM: a click on a side sets the hidden box and lights the side; the foot's store line
+const dmx = makeDocument(); global.document = dmx; const dlHost = dmx.createElement('div'); dlHost.innerHTML = fragment("intervalsModal"); dmx.body.appendChild(dlHost);
+const fetched = []; global.window = { authService: { fetch: async u => { fetched.push(u); return { ok: true, json: async () => ({ stores: [{ key_mark: 'abcd', activities: 101, chats: 40, from: '2025-10-18', to: '2026-10-08', size_mb: 12.3 }, { key_mark: 'efgh', activities: 60, from: '2026-07-01', to: '2026-08-30' }] }) }; } } };
+const ijm = require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'));
+ijm.initializeDownloadChoice(); const seg = dmx.getElementById('intervalsDownload');
+seg.dispatch('click', seg.querySelector('[data-refresh="1"]'));
+const after1 = { box: dmx.getElementById('intervals-refresh').checked, on: seg.querySelectorAll('.on').map(b => b.textContent).join() };
+seg.dispatch('click', seg.querySelector('[data-refresh="0"]'));
+const after0 = { box: dmx.getElementById('intervals-refresh').checked, on: seg.querySelectorAll('.on').map(b => b.textContent).join() };
+ijm.setIntervalsRefresh(true); const afterSet = seg.querySelectorAll('.on').map(b => b.textContent).join();
+check('the Download choice: Everything again sets the hidden box and lights its side alone; Only what\'s new clears it; setIntervalsRefresh drives both', after1.box === true && after1.on === 'Everything again' && after0.box === false && after0.on === 'Only what’s new' && afterSet === 'Everything again', [after1, after0, afterSet]);
+(async () => { await ijm.showIntervalsStoreLine(); await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r));
+  const line = dmx.getElementById('intervals-modal-message').textContent;
+  check('the foot\'s store line on opening: the activities held across the account\'s stores, the span from the earliest to the latest, and that only what the window lacks is fetched', fetched[0] === '/cache/inspect' && line === 'Store · 161 activities · 2025-10-18 → 2026-10-08 · only what the window lacks is fetched', line);
+  global.document = doc; finish(); })();
+function finish() {
+  let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
+  console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);
+}
