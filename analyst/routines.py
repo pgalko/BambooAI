@@ -419,14 +419,18 @@ AUX_KINDS = (("activity_summary_", "summary"), ("wellness_data_", "wellness"), (
              ("context_notes_", "context"), ("context_codes_", "codes"),        # the words beside the data and the model's reading of them (2026-10-13)
              ("planned_workouts_", "plan"),                                       # the prescription: the calendar's planned workouts with their numbers and steps (2026-10-15)
              ("athlete_profiles_race_", "profile"), ("race_turns_race_", "turns"), ("race_climbs_race_", "climbs"),
-             ("race_waymarkers_race_", "waymarkers"))
+             ("race_waymarkers_race_", "waymarkers"),
+             ("rider_profile_", "rider"), ("custom_zone_times_", "zones"))     # the rider profile and the custom zone times (2026-10-16, docs/RIDER_PROFILE_DESIGN.md)
 _STRING_RE = re.compile(r"""(?P<q>'|")(?P<body>(?:(?!(?P=q)).)*)(?P=q)""")
 # What a load can be asked for, per source (2026-10-16: one registry, where load_plan and the limits read it). The kinds a
 # load *brings without being asked* ride beside the kind that asks for them: the codes with the context (the pass behind the
 # load writes them), the planned workouts with the context (the page asks for both). LOADER_FILES_MAX is the most files one
 # load can bring - the app's auxiliary limit is derived from it, so a new kind never trips the limit again (the sixth did).
-LOAD_KINDS = {"intervals": ("summary", "wellness", "intervals", "context", "plan"), "endura": ("profile", "turns", "climbs", "waymarkers")}
-LOAD_BRINGS = {"intervals": {"context": ("codes",)}, "endura": {}}
+LOAD_KINDS = {"intervals": ("summary", "wellness", "intervals", "context", "plan", "rider"), "endura": ("profile", "turns", "climbs", "waymarkers")}
+LOAD_BRINGS = {"intervals": {"context": ("codes",), "rider": ("zones",)}, "endura": {}}
+# a brought kind the loader writes only when the account defines what it holds (the custom zone times, when the account has
+# custom zone sets): its absence beside a cached load is not a miss, and a run binds an empty table for it
+BRINGS_IF_DEFINED = ("zones",)
 LOADER_FILES_MAX = max(len(kinds) + sum(len(v) for v in LOAD_BRINGS.get(src, {}).values()) for src, kinds in LOAD_KINDS.items())
 
 
@@ -551,6 +555,8 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
             for b in brings(src, kinds):
                 if b == "codes" and sizes.get((folder, names.get("context", "")), CONTEXT_HEADER_BYTES + 1) <= CONTEXT_HEADER_BYTES:
                     continue
+                if b in BRINGS_IF_DEFINED and (folder, f"{kind_prefix(b)}{tag}.csv") not in have:
+                    continue                                        # the account defines none: no file, no miss
                 if kind_prefix(b):
                     names[b] = f"{kind_prefix(b)}{tag}.csv"
             missing = [k for k, n in names.items() if (folder, n) not in have]
@@ -568,7 +574,7 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
         f, cs, ce = candidates[0]
         tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
         folder = str(f.get("key_mark") or "")
-        missing = [k for k in kinds + brings(src, kinds) if kind_prefix(k) and (folder, f"{kind_prefix(k)}{tag}.csv") not in have]
+        missing = [k for k in kinds + [b for b in brings(src, kinds) if b not in BRINGS_IF_DEFINED] if kind_prefix(k) and (folder, f"{kind_prefix(k)}{tag}.csv") not in have]
         held = what if exact else f"the cached load around {what}"
         return {"hit": False, "line": f"{held} is in the cache without {', '.join(missing)} - it will be downloaded"}
     elif src == "endura":
@@ -709,7 +715,8 @@ def dtype_family(dtype: str) -> str:
 # The context file by its day and the codes file by the passages the cut context keeps (2026-10-16: the codes file has
 # no date - taken whole, a code count over CTX.codes() would have been the cached load's)
 CUT_RULES = {"summary": ("date", "start_date_local"), "wellness": ("date", "date"), "intervals": ("ids", "activity_id"), "plan": ("date", "date"),
-             "context": ("date", "date"), "codes": ("passages", "id")}
+             "context": ("date", "date"), "codes": ("passages", "id"),
+             "rider": ("whole", ""), "zones": ("date", "start_date_local")}    # the profile is the load's settings, taken as it is; the zone times are per activity (2026-10-16)
 DATA_MARK_OUT = "ROUTINE_DATA:"             # printed by a run's prelude after a cut: the rows the method saw
 
 
@@ -809,7 +816,7 @@ def _routine_conform(frame, columns):
                 _t[_c] = _np.nan
         _t.to_csv(_new, index=False)
         if _how == 'whole':
-            print('ROUTINE: ' + _os.path.basename(_new) + ' was taken whole from the cached load - nothing in it to cut by the window')
+            print('ROUTINE: ' + _os.path.basename(_new) + ' was taken whole from the cached load - ' + ('a settings file, not rows of the window' if _spec.get('by') == 'whole' else 'nothing in it to cut by the window'))
     print('ROUTINE_DATA: ' + _j.dumps({'rows': int(len(df)), 'window': [_ROUTINE_CUT['start'], _ROUTINE_CUT['end']]}))
 if 'df' in globals() and df is not None:
     df = _routine_conform(df, _ROUTINE_COLUMNS)

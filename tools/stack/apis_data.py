@@ -78,12 +78,18 @@ def activity(day: date, today: date = None) -> dict:
            "timezone": TRAVEL_TZ if is_travel(day) else HOME_TZ, "elapsed_time": secs + 120, "moving_time": secs, "distance": round(dist, 1),
            "average_heartrate": 128 + _h(day, "hr") % 25, "max_heartrate": 160 + _h(day, "mhr") % 20, "icu_training_load": 40 + _h(day, "tl") % 60,
            "file_type": "fit", "icu_zone_times": [{"id": "Z1", "secs": secs // 3}, {"id": "Z2", "secs": secs // 2}], "icu_hr_zone_times": [secs // 3, secs // 2, secs // 6, 0, 0],
-           "source": "GARMIN_CONNECT", "device_name": "device-7", "trainer": False, "race": False, "commute": False}
+           "source": "GARMIN_CONNECT", "device_name": "device-7", "trainer": False, "race": False, "commute": False,
+           # the settings in force that day (2026-10-16, the rider profile): the record's thresholds and zone bounds ride on every activity
+           "icu_ftp": 280, "icu_pm_ftp": 265, "lthr": 168, "athlete_max_hr": 188, "icu_resting_hr": 47, "icu_weight": 71.0,
+           "icu_power_zones": [55, 75, 90, 105, 120, 999], "icu_hr_zones": [140, 155, 165, 175, 188]}
     if ride:
         act["icu_average_watts"] = 180 + _h(day, "w") % 60
         act["total_elevation_gain"] = 300 + _h(day, "elev") % 500
         act["paired_event_id"] = workout_event_id(day)
         act["compliance"] = round(0.7 + (_h(day, "cmp") % 30) / 100.0, 2)
+        # time in the account's custom zones (the two sets SUBJECT defines), as the list route carries it
+        act["custom_zones"] = [{"code": "Breath", "zones": [{"id": "low", "start": 10, "end": 25, "secs": secs // 2}, {"id": "high", "start": 25, "end": 60, "secs": secs // 4}]},
+                               {"code": "Cad", "zones": [{"id": "grind", "start": 0, "end": 60, "secs": secs // 10}]}]
     # the words beside the numbers (2026-10-13)
     o = day.toordinal()
     if has_chat(day, today):
@@ -104,9 +110,21 @@ def activity(day: date, today: date = None) -> dict:
 # ---- the words beside the data (docs/CONTEXT_DESIGN.md) ----
 SUBJECT = {"id": "i0", "name": "The subject", "timezone": HOME_TZ, "status": "ACTIVE", "icu_coach": False,
            "coach_ticks": [{"id": 4, "text": "Good"}], "icu_wellness_keys": ["weight", "restingHR", "comments", "Sickness"],
-           "custom_items": [{"type": "INPUT_FIELD", "name": "Sickness", "visibility": "PRIVATE",
+           # the record as the live one is shaped (the rider profile, 2026-10-16): the identifying fields the whitelist leaves out,
+           # the measurements, the settings per sport group linking the custom zone sets, and the custom items of every kind
+           "email": "subject@example.test", "firstname": "The", "lastname": "Subject", "strava_id": "424242", "icu_api_key": "not-a-real-key",
+           "height": 1.78, "height_units": "m", "weight": 70.5, "icu_weight": 71.0, "icu_resting_hr": 47, "icu_date_of_birth": "1998-05-20", "sex": "M",
+           "sportSettings": [{"types": ["Ride", "VirtualRide"], "ftp": 280, "indoor_ftp": 270, "lthr": 168, "max_hr": 188, "hr_zones": [140, 155, 165, 175, 188],
+                              "hr_zone_names": ["Recovery", "Endurance", "Tempo", "Threshold", "VO2max"], "power_zones": [55, 75, 90, 105, 120, 999],
+                              "power_zone_names": ["Recovery", "Endurance", "Tempo", "Threshold", "VO2max", "Anaerobic"], "mmp_model": {"type": "FFT_CURVES", "criticalPower": 275, "wPrime": 18000, "pMax": 1050, "ftp": 278},
+                              "custom_zones_ids": [501, 502], "custom_field_ids": [], "activity_field_ids": []},
+                             {"types": ["Run"], "lthr": 160, "max_hr": 182, "hr_zones": [130, 148, 160, 170, 182], "hr_zone_names": ["Z1", "Z2", "Z3", "Z4", "Z5"], "threshold_pace": 3.4,
+                              "pace_zones": [78, 88, 95, 100, 106, 999], "pace_zone_names": ["easy", "steady", "tempo", "threshold", "fast", "sprint"], "custom_zones_ids": []}],
+           "custom_items": [{"id": 601, "type": "INPUT_FIELD", "name": "Sickness", "visibility": "PRIVATE",
                              "content": {"code": "Sickness", "type": "select", "options": ["None", "Mild", "Severe"]}},
-                            {"type": "INTERVAL_FIELD", "name": "Label", "content": {"code": "Lbl", "type": "select"}}]}
+                            {"id": 602, "type": "INTERVAL_FIELD", "name": "Label", "content": {"code": "Lbl", "type": "select", "options": [{"value": 1.0, "text": "Recovery"}, {"value": 2.0, "text": "Endurance"}, {"value": 3.0, "text": "Tempo"}]}},
+                            {"id": 501, "type": "ZONES", "name": "Breathing", "description": "ventilation bins", "content": {"code": "Breath", "stream_type": "respiration", "zones": [{"id": "low", "name": "Low", "start": 10, "end": 25}, {"id": "high", "name": "High", "start": 25, "end": 60}]}},
+                            {"id": 502, "type": "ZONES", "name": "Cadence", "content": {"code": "Cad", "stream_type": "cadence", "zones": [{"id": "grind", "name": "Grind", "start": 0, "end": 60}]}}]}
 COACH_ID = "c1"
 SUBJECT_LINES = ["Benene var tunge i dag, kørte kortere end planlagt.", "Good legs today, held the power easily.",
                  "Sov dårligt, var træt fra start.", "Felt strong on the climbs, no complaints.",

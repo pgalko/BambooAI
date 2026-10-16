@@ -1250,7 +1250,7 @@ def _authored_strings(path):
     return [n.value for n in _ast.walk(tree) if isinstance(n, _ast.Constant) and isinstance(n.value, str) and id(n) not in docs]
 _texts = {"contract (plain)": contract(False, 0), "contract (documents, reviews)": contract(True, 8), "contract (context)": contract(False, 0, context=True),
           "reviewer": REVIEWER, "reviewer (context)": reviewer_text(True), "rewrite task": REWRITE_TASK, "reader": READER_SYSTEM, "last turns": LAST_TURNS_LINE, "report now": REPORT_NOW}
-for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py", "analyst/routines.py", "bambooai/routines_host.py", "analyst/context.py", "analyst/coder.py", "analyst/codebook.py", "analyst/coded.py"):
+for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py", "analyst/routines.py", "bambooai/routines_host.py", "analyst/context.py", "analyst/coder.py", "analyst/codebook.py", "analyst/coded.py", "analyst/profile.py"):
     for _k, _t in enumerate(_authored_strings(_path)):
         _texts[f"{_path} string {_k}"] = _t
 _hits = {name: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for name, t in _texts.items() if _DOMAIN.search(t)}

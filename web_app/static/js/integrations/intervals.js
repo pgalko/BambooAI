@@ -115,6 +115,7 @@ function createIntervalsPill(dataInfo) {
     if (auxDatasets.includes('summary')) auxText += auxText ? '+S' : 'S';
     if (auxDatasets.includes('intervals')) auxText += auxText ? '+I' : 'I';
     if (auxDatasets.includes('context')) auxText += auxText ? '+C' : 'C';
+    if (auxDatasets.includes('rider')) auxText += auxText ? '+R' : 'R';
     if (auxText) auxText = ` [${auxText}]`;
     
     const displayText = `Intervals ICU (${dayCount} days${auxText}) loaded`;
@@ -139,6 +140,8 @@ function intervalsAuxDisplayName(filepath, dayCount) {
     if (filename.includes('context_notes')) return `Context (${dayCount} days)`;
     if (filename.includes('context_codes')) return `Context codes (${dayCount} days)`;
     if (filename.includes('planned_workouts')) return `Planned workouts (${dayCount} days)`;
+    if (filename.includes('rider_profile')) return 'Rider profile';                       // the settings as they stand: no window on the pill (2026-10-16)
+    if (filename.includes('custom_zone_times')) return `Custom zones (${dayCount} days)`;
     return filename.replace('.csv', '');
 }
 
@@ -885,6 +888,8 @@ function getSelectedAuxDatasets() {
     if (wellnessCheckbox?.checked) auxDatasets.push('wellness');
     if (summaryCheckbox?.checked) auxDatasets.push('summary');
     if (intervalsCheckbox?.checked) auxDatasets.push('intervals');
+    const riderCheckbox = document.getElementById('rider-checkbox');
+    if (riderCheckbox?.checked) auxDatasets.push('rider');                // the settings the data is read against (2026-10-16); the custom zone times ride with it when the account defines any
     const contextCheckbox = document.getElementById('context-checkbox');
     if (contextCheckbox?.checked) auxDatasets.push('context', 'plan');   // the planned workouts ride with the context (2026-10-15): the calendar's numbers beside its words
     

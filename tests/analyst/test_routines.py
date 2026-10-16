@@ -684,14 +684,31 @@ check("the planned workouts file: its kind, prefix and cut rule; a routine that 
       and not cmp1["hit"] and "without plan" in cmp1["line"] and cmp2["hit"] and "datasets/u/planned_workouts_20260712_to_20261010.csv" in cmp2["files"], (cmp1, cmp2))
 check("load_plan keeps the plan among a run's kinds", "plan" in host.load_plan({"versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "aux_kinds": ["summary", "context", "plan", "other"], "start_date": "2026-07-12", "end_date": "2026-10-10"}}}}], "current_version": 1})["aux_kinds"]
       and "other" not in host.load_plan({"versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "aux_kinds": ["summary", "context", "plan", "other"], "start_date": "2026-07-12", "end_date": "2026-10-10"}}}}], "current_version": 1})["aux_kinds"])
+# the rider profile and the custom zone times (2026-10-16, docs/RIDER_PROFILE_DESIGN.md): two kinds of their own - the profile taken
+# whole by a cut run (the load's settings, not rows of the window), the zone times cut by the activity's day like the summary; a
+# routine that wants the profile is no hit without it beside the cached load; the zone times file, written only when the account
+# defines custom zone sets, is taken when there and is no miss when not
+cmr1 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "rider"], "metrics": []}, insp_c, "2026-07-12", "2026-10-10")
+insp_c["auxiliary_datasets"].append({"filename": "rider_profile_20260712_to_20261010.csv", "path": "datasets/u/rider_profile_20260712_to_20261010.csv", "size_mb": 0.004})
+cmr2 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "rider"], "metrics": []}, insp_c, "2026-07-12", "2026-10-10")
+insp_c["auxiliary_datasets"].append({"filename": "custom_zone_times_20260712_to_20261010.csv", "path": "datasets/u/custom_zone_times_20260712_to_20261010.csv", "size_mb": 0.02})
+cmr3 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "rider"], "metrics": []}, insp_c, "2026-07-12", "2026-10-10")
+check("the rider profile and the zone times: their kinds, prefixes and cut rules (whole; by the activity's day); no hit without the profile beside the cached load, a hit with it and no zone times file (none defined), the zone times taken when there",
+      rt.aux_kind("datasets/u/k/rider_profile_20260712_to_20261010.csv") == "rider" and rt.aux_kind("custom_zone_times_20260712_to_20261010.csv") == "zones" and rt.kind_prefix("rider") == "rider_profile_" and rt.kind_prefix("zones") == "custom_zone_times_"
+      and rt.cut_rule("rider_profile_x.csv") == ("whole", "") and rt.cut_rule("custom_zone_times_x.csv") == ("date", "start_date_local") and rt.cut_name("datasets/u/rider_profile_20260712_to_20261010.csv", "2026-08-01", "2026-08-31") == "rider_profile_20260801_to_20260831.csv"
+      and not cmr1["hit"] and "without rider" in cmr1["line"] and cmr2["hit"] and cmr2["files"] == ["datasets/u/activity_summary_20260712_to_20261010.csv", "datasets/u/rider_profile_20260712_to_20261010.csv"]
+      and cmr3["hit"] and cmr3["files"][-1] == "datasets/u/custom_zone_times_20260712_to_20261010.csv" and "with summary, rider, zones" in cmr3["line"], (cmr1, cmr2, cmr3))
+check("load_plan keeps the rider profile among a run's kinds and never the zone times (brought, not asked)",
+      host.load_plan({"versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "aux_kinds": ["summary", "rider", "zones"], "start_date": "2026-07-12", "end_date": "2026-10-10"}}}}]})["aux_kinds"] == ["summary", "rider"])
 # room for more auxiliaries (2026-10-16, patch 0181): one registry of what a load can be asked for (LOAD_KINDS) and what it brings
 # beside without being asked (LOAD_BRINGS); load_plan, cache_match and the app's auxiliary limit read it, so a new kind is added
 # once - the sixth file of a load had tripped a limit written as a literal
-check("the loaders' registry: every kind a load can be asked for, and every kind it brings, has a file prefix; the windowed source's kinds all have a cut rule; the most files one load brings is six (five kinds and the codes beside the context); brings() says what rides beside the kinds asked",
+check("the loaders' registry: every kind a load can be asked for, and every kind it brings, has a file prefix; the windowed source's kinds all have a cut rule; the most files one load brings is eight (six kinds, the codes beside the context, the zone times beside the profile); brings() says what rides beside the kinds asked",
       all(rt.kind_prefix(k) for src in rt.LOAD_KINDS for k in rt.LOAD_KINDS[src]) and all(rt.kind_prefix(b) for src in rt.LOAD_BRINGS for v in rt.LOAD_BRINGS[src].values() for b in v)
       and all(k in rt.CUT_RULES for k in rt.LOAD_KINDS["intervals"] + tuple(rt.brings("intervals", rt.LOAD_KINDS["intervals"])))
-      and rt.LOADER_FILES_MAX == 6 and rt.brings("intervals", ["summary", "context"]) == ["codes"] and rt.brings("intervals", ["summary"]) == [] and rt.brings("endura", ["profile"]) == [] and rt.brings("x", ["context"]) == []
-      and set(rt.LOAD_KINDS["intervals"]) == {"summary", "wellness", "intervals", "context", "plan"} and set(rt.LOAD_KINDS["endura"]) == {"profile", "turns", "climbs", "waymarkers"},
+      and rt.LOADER_FILES_MAX == 8 and rt.brings("intervals", ["summary", "context"]) == ["codes"] and rt.brings("intervals", ["summary"]) == [] and rt.brings("endura", ["profile"]) == [] and rt.brings("x", ["context"]) == []
+      and rt.brings("intervals", ["rider", "context"]) == ["zones", "codes"] and rt.BRINGS_IF_DEFINED == ("zones",)
+      and set(rt.LOAD_KINDS["intervals"]) == {"summary", "wellness", "intervals", "context", "plan", "rider"} and set(rt.LOAD_KINDS["endura"]) == {"profile", "turns", "climbs", "waymarkers"},
       (rt.LOADER_FILES_MAX, rt.LOAD_KINDS, rt.LOAD_BRINGS))
 check("cache_match: an Endura event by its id with its files; a file missing is no hit; SweatStack never matches (its entries do not say which subjects they hold); no window or event asked - nothing to say",
       cm5["hit"] and cm5["df_id"] == "e" and cm5["files"] == ["datasets/u/race_turns_race_2.csv"] and not cm6["hit"] and "without climbs" in cm6["line"] and cm7 == {"hit": False, "line": ""}

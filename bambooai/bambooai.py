@@ -23,6 +23,7 @@ from bambooai.models import ModelManager
 from bambooai import synthesis_infographic
 from analyst import Session, Budget, Notebook, NotebookStore
 from analyst import context as context_mod
+from analyst import profile as profile_mod
 from analyst.replay import rehydrate
 from logger_config import get_logger
 
@@ -609,8 +610,10 @@ class BambooAI:
             if (ev.get("kind") or 'routine') in ('routine', 'run'):
                 self._pane('pane_cell_start', turn='routine')           # the executor chip on Executing while the method runs
         elif kind == "lookup":
-            # a CHECK row's sentences run long (step 4, 2026-10-11): the row shows what fits and carries the whole line on hover
-            self._pane('pane_lookup', kind=ev.get("kind") or 'routine', query=ev.get("query") or '', peek=(ev.get("peek") or '')[:600], sources=[], passages=[])
+            # a CHECK row's sentences run long (step 4, 2026-10-11): the row shows what fits and carries the whole line on hover.
+            # The cap is for a runaway line, not a long one (2026-10-16: at 600 a run with seven files lost its closing sentence -
+            # the cut to the window - before the page saw it; a sentence per file, a dozen files, is ~1,500)
+            self._pane('pane_lookup', kind=ev.get("kind") or 'routine', query=ev.get("query") or '', peek=(ev.get("peek") or '')[:self.LOOKUP_PEEK_CHARS], sources=[], passages=[])
 
     def propose_routine(self, thread_id, chain_id, routine_id=None, billing_chain_id=None):
         """Save as routine, step one: the promoter reads the chain and proposes its inputs. The call is accounted to
@@ -850,6 +853,7 @@ class BambooAI:
         return text + ("\n\n" + aux if aux else "")
 
     AUX_HEAD_CHARS = 3000
+    LOOKUP_PEEK_CHARS = 3000      # a routine's LOAD / CHECK / RUN / COMPARE row text as the page gets it (whole on hover): a cap for a runaway line
     AUX_BLOCK_CHARS = 14000       # the heads of all the files together (2026-10-16): a load brings several files, a person can attach more, and every turn carries the block
 
     def _aux_columns(self, paths):
@@ -909,9 +913,13 @@ class BambooAI:
                 frames[path] = notes_df if path == notes_path else codes_df
                 if frames[path] is not None:
                     part = f"{i}.\n" + context_mod.aux_head_for_text_file(path, list(frames[path].columns), len(frames[path]))
+            elif kind == "rider":                           # the settings (2026-10-16): the columns, the count and a line from the rows, not a head of five
+                prof = self._profile_frame(path)
+                if prof is not None:
+                    part = f"{i}.\n" + profile_mod.aux_head(path, prof)
             if len(part) > self.AUX_HEAD_CHARS:
                 part = part[:self.AUX_HEAD_CHARS].rstrip() + "\n... [the head is cut here; read the file for the rest]"
-            if spent + len(part) > self.AUX_BLOCK_CHARS and kind not in ("context", "codes"):
+            if spent + len(part) > self.AUX_BLOCK_CHARS and kind not in ("context", "codes", "rider"):
                 if columns is None:
                     columns = self._aux_columns(paths[i - 1:])
                 part = self._aux_compact(i, path, columns.get(path))
@@ -934,24 +942,42 @@ class BambooAI:
                 codes = p
         return notes, codes
 
+    def _aux_file_text(self, path):
+        """An auxiliary file's text: from the executor in api mode (the file lives there), read here otherwise; None when
+        it is not there."""
+        if self.execution_mode == 'api' and self.api_client is not None:
+            return self.api_client.read_aux_dataset(path)
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding='utf-8', errors='replace') as f:
+            return f.read()
+
     def _context_file(self, path):
         """A context or codes file as a frame: from the executor in api mode (the file lives there), read here otherwise;
         None when it cannot be read."""
         from analyst.routines import aux_kind
         try:
-            if self.execution_mode == 'api' and self.api_client is not None:
-                text = self.api_client.read_aux_dataset(path)
-                if text is None:
-                    return None
-            else:
-                if not os.path.exists(path):
-                    return None
-                with open(path, encoding='utf-8', errors='replace') as f:
-                    text = f.read()
+            text = self._aux_file_text(path)
+            if text is None:
+                return None
             return context_mod.read_codes(text) if aux_kind(path) == "codes" else context_mod.read_context(text)
         except Exception as exc:                              # noqa: BLE001
             logger.warning("context: %s could not be read (%s)", path, exc)
             return None
+
+    def _profile_frame(self, path):
+        """The rider profile file as a frame, read once per load (the path is the key); None when it cannot be read."""
+        cached = getattr(self, '_profile_cache', None)
+        if cached and cached[0] == path:
+            return cached[1]
+        try:
+            text = self._aux_file_text(path)
+            frame = profile_mod.read_profile(text) if text is not None else None
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("profile: %s could not be read (%s)", path, exc)
+            frame = None
+        self._profile_cache = (path, frame)
+        return frame
 
     def _context_map(self, frames=None):
         """The map of the context for DATA (§3.4), '' without a context file. `frames` - files already read this call."""

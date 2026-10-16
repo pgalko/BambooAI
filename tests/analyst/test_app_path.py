@@ -311,6 +311,16 @@ check("route run: the pane's rows (check, run, compare), the tabs (Data, Results
       and _msgs[-1]["routine_run"]["run"]["number"] == 1 and _msgs[-1]["routine_run"]["run"]["status"] == "ran" and "no result lines to compare" in _msgs[-1]["routine_run"]["run"]["line"] and _msgs[-1]["routine_run"]["numbers"] == [0, 1], (_types, _msgs[-1].get("routine_error")))
 check("the run's record names its own folder on the executor's side (datasets/<user>/routines/<id>/<tag>), where its files and datasets go, and the fit it ran under",
       _msgs[-1]["routine_run"]["run"]["run_dir"] == f"datasets/u1/routines/{_rid}/v1_1" and _msgs[-1]["routine_run"]["run"]["fit"]["missing"] == [] and _msgs[-1]["routine_run"]["run"]["bindings"] == [], _msgs[-1]["routine_run"]["run"].get("run_dir"))
+# a routine row's text reaches the page whole up to LOOKUP_PEEK_CHARS (2026-10-16: at 600 a run with seven files lost its closing
+# sentence - the cut to the window - before the page saw it; the page shows what fits and keeps the whole line on hover)
+_pk = []
+_keep_pane = BAMBOO._pane
+BAMBOO._pane = lambda _k, **kw: _pk.append((_k, kw))
+BAMBOO._emit_routine({"type": "lookup", "kind": "check", "query": "r", "peek": "x" * 1200})
+BAMBOO._emit_routine({"type": "lookup", "kind": "check", "query": "r", "peek": "y" * 5000})
+BAMBOO._pane = _keep_pane
+check("a CHECK row of 1,200 characters reaches the page whole; a runaway line is cut at 3,000 (LOOKUP_PEEK_CHARS, not 600)",
+      B.BambooAI.LOOKUP_PEEK_CHARS == 3000 and len(_pk) == 2 and len(_pk[0][1]["peek"]) == 1200 and len(_pk[1][1]["peek"]) == 3000, [len(p[1].get("peek", "")) for p in _pk])
 _end = next(m for m in _msgs if m.get("type") == "pane_routine_end")
 check("the closing card's fields: number, name, version, status, results, compared, figures, elapsed, against", _end["number"] == 1 and _end["name"] == "Route made" and _end["version"] == 1 and _end["status"] == "ran" and _end["against"] == 0 and "elapsed" in _end, _end)
 _r2 = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "A"}, "load": {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "metrics": [], "aux_kinds": ["summary"], "cached": True, "df_id": "never-recorded", "junk": {"a": 1}, "store": {"window": 60, "held": 19, "fetched": 41, "refresh": False}}})
@@ -660,11 +670,32 @@ try:
           and len(_descw) < B.BambooAI.AUX_BLOCK_CHARS + 2 * 600 + 1200, (len(_descw), [len(e) for e in _entries]))
     check("the auxiliary block under the budget is as it was: every head whole", "(the rows are left out" not in B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=_wide[:3])._auxiliary_block())
     check("the compact entry without the columns says to read the file", B.BambooAI._aux_compact(3, "x.csv", None) == "3.\nPath: x.csv\nColumns: read the file for them\n(the rows are left out to keep the prompt short; read the file for them)")
+    # the rider profile (2026-10-16, docs/RIDER_PROFILE_DESIGN.md): its DATA entry is the columns, the count and a line assembled from
+    # the file's own rows - the measurements and each sport group's thresholds, the rest counted - never a head of five of a settings file
+    _rider = os.path.join(_auxdir, "rider_profile_20260615_to_20261013.csv")
+    pd.DataFrame([{"section": "subject", "sport_types": "", "key": "weight", "value": 71.5, "unit": "kg", "low": "", "high": "", "note": "the record's current weight"},
+                  {"section": "subject", "sport_types": "", "key": "age", "value": 26, "unit": "years", "low": "", "high": "", "note": ""},
+                  {"section": "sport", "sport_types": "Ride|VirtualRide", "key": "ftp", "value": 300, "unit": "W", "low": "", "high": "", "note": ""},
+                  {"section": "sport", "sport_types": "Ride|VirtualRide", "key": "lthr", "value": 170, "unit": "bpm", "low": "", "high": "", "note": ""},
+                  {"section": "sport", "sport_types": "Ride|VirtualRide", "key": "model_cp", "value": 295, "unit": "W", "low": "", "high": "", "note": "from the power-duration model"},
+                  {"section": "sport", "sport_types": "Run", "key": "threshold_pace", "value": 3.5, "unit": "m/s", "low": "", "high": "", "note": ""},
+                  {"section": "zone", "sport_types": "Ride|VirtualRide", "key": "hr_zone_1", "value": 140, "unit": "bpm", "low": 0, "high": 140, "note": "Z1"},
+                  {"section": "zone", "sport_types": "Ride|VirtualRide", "key": "hr_zone_2", "value": 155, "unit": "bpm", "low": 140, "high": 155, "note": "Z2"},
+                  {"section": "custom_zone", "sport_types": "Ride|VirtualRide", "key": "Breath:low", "value": "Low", "unit": "respiration", "low": 10, "high": 25, "note": "set 'Breathing'"},
+                  {"section": "custom_field", "sport_types": "", "key": "Lbl", "value": "INTERVAL_FIELD", "unit": "", "low": "", "high": "", "note": "select · 'Label' · options: 1 Recovery | 2 Endurance"}]).to_csv(_rider, index=False)
+    _descr = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ath, _rider])._dataset_description()
+    check("DATA with the rider profile: the entry is the path, the columns, the count with what a row is, and the Settings line from the rows - the measurements, each sport group's thresholds (the model's estimates left in the file), the rest counted; no head of rows",
+          f"Path: {_rider}\nColumns: section, sport_types, key, value, unit, low, high, note\nRows: 10 (one row per setting: section, key, value, unit, the bounds for a zone, a note; read the file with pandas)\nSettings: weight 71.5 kg, age 26 years; "
+          "Ride|VirtualRide: ftp 300 W, lthr 170 bpm; Run: threshold_pace 3.5 m/s; also in the file: 2 zone rows with their bounds, 1 custom zone rows in 1 set, 1 custom field definitions - the codes other files' columns carry, with their options" in _descr
+          and "model_cp" not in _descr and "Head:\nsection" not in _descr and "KEN" in _descr, _descr[-1100:])
+    from analyst import profile as _pm
+    check("profile_line: '' for an empty or missing frame; read_profile of a header alone is an empty frame with the columns", _pm.profile_line(None) == "" and _pm.profile_line(_pm.read_profile("")) == ""
+          and list(_pm.read_profile("section,sport_types,key,value,unit,low,high,note\n").columns) == _pm.PROFILE_COLUMNS and len(_pm.read_profile("section,sport_types,key,value,unit,low,high,note\n")) == 0)
     from analyst.routines import LOADER_FILES_MAX as _lfm
     _tpl = open(os.path.join(ROOT, "web_app", "templates", "index.html"), encoding="utf-8").read().replace("\r\n", "\n")
     _core = open(os.path.join(ROOT, "web_app", "static", "js", "core.js"), encoding="utf-8").read()
     check("the auxiliary limit is one number, derived (the sixth file had tripped a literal 6): app.py takes LOADER_FILES_MAX from the loaders' registry plus room for uploads, hands it to the template, and the page sets window.MAX_AUXILIARY_DATASETS before core.js reads it",
-          _lfm == 6 and "MAX_AUXILIARY_DATASETS = LOADER_FILES_MAX + UPLOAD_ROOM" in _app_src and "UPLOAD_ROOM = 4" in _app_src and "MAX_AUXILIARY_DATASETS = 6" not in _app_src
+          _lfm == 8 and "MAX_AUXILIARY_DATASETS = LOADER_FILES_MAX + UPLOAD_ROOM" in _app_src and "UPLOAD_ROOM = 4" in _app_src and "MAX_AUXILIARY_DATASETS = 6" not in _app_src
           and "common_context['max_auxiliary_datasets'] = MAX_AUXILIARY_DATASETS" in _app_src
           and 'window.MAX_AUXILIARY_DATASETS = Number("{{ max_auxiliary_datasets|default(10)|int }}") || 10;' in _tpl and _tpl.index("window.MAX_AUXILIARY_DATASETS") < _tpl.index("js/core.js")
           and "const MAX_AUXILIARY_DATASETS = Number(window.MAX_AUXILIARY_DATASETS) || 10;" in _core and "MAX_AUXILIARY_DATASETS = 6" not in _core)

@@ -624,6 +624,19 @@ status and the last load's uses.
 The book can be exported and imported as JSON. A confirmed change applies from the next load;
 nothing already coded is re-coded. The design is `docs/CONTEXT_DESIGN.md`.
 
+### The settings the data is read against
+
+The **Rider profile** option of an Intervals.icu load (on by default) writes the account's settings
+as a file beside the data: the rider's weight, height, resting HR and age; per sport, the FTP, the
+thresholds and the zones with their bounds, and the power-duration model's estimates; every custom
+zone set the account defines, zone by zone; and the meaning of every custom field - its code, type,
+units and options - so the columns of the other files explain themselves. When the account defines
+custom zone sets, a second file carries the time in each custom zone per ride. Everything comes from
+the account's own record, nothing is named in code, and nothing identifying goes in (the record's
+e-mail, names and key stay out). The Analyst reads the thresholds from the file's rows in its data
+description, and the summary file carries the settings in force on each day. The design is
+`docs/RIDER_PROFILE_DESIGN.md`.
+
 ### The Dataset cache and the store
 
 The executor keeps what it has loaded - the frames with their window and metrics, the auxiliary

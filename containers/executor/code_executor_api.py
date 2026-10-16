@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-16 v57 (a failed script returns the output printed before the failure)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-16 v58 (the rider profile and the custom zone times; the summary carries the settings in force)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -1729,15 +1729,18 @@ def fetch_intervals_background(data, job_id):
         if 'context' in aux_datasets or 'plan' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching the calendar...'
             events, events_failed = fetch_calendar(session, base_url, start_date, end_date)
-        if 'context' in aux_datasets:
-            intervals_jobs[job_id]['message'] = 'Fetching the words written beside the data...'
-            athlete = None
+        # the subject's record (2026-10-16: fetched once for the context, which tells authors apart and reads the custom
+        # fields by it, and for the rider profile, which is built from it)
+        athlete = None
+        if 'context' in aux_datasets or 'rider' in aux_datasets:
             try:
                 ar = session.get(f"{base_url}/athlete/0", timeout=30)
                 ar.raise_for_status()
                 athlete = ar.json() if isinstance(ar.json(), dict) else None
             except Exception as e:                      # noqa: BLE001
-                log_info(f"context: the subject's record could not be fetched ({e})")
+                log_info(f"the subject's record could not be fetched ({e})")
+        if 'context' in aux_datasets:
+            intervals_jobs[job_id]['message'] = 'Fetching the words written beside the data...'
             rows, context_report = fetch_context_rows(session, base_url, activities, wellness_records or [], start_date, end_date,
                                                       job_id=job_id, athlete=athlete, store=store, refresh=refresh, events=events, events_failed=events_failed)
             if athlete is None:
@@ -1756,6 +1759,24 @@ def fetch_intervals_background(data, job_id):
             plan_path = save_aux_dataset(plan_df, 'plan', user_id, start_date, end_date, subdir=mark)
             aux_filepaths.append(plan_path)
             log_info(f"plan: {len(plan_df)} planned workouts, {int(plan_df['activity_id'].astype(bool).sum()) if len(plan_df) else 0} paired" + (f" ({events_failed})" if events_failed else ""))
+
+        # The rider profile (2026-10-16, docs/RIDER_PROFILE_DESIGN.md): the settings the data is read against, from the
+        # record - one long-form file; and the time in the account's custom zones per activity beside it, when the
+        # account defines any. Never fatal: without the record there is no profile, and the result says so.
+        profile_note = ''
+        if 'rider' in aux_datasets:
+            intervals_jobs[job_id]['message'] = 'Preparing the rider profile...'
+            if athlete is None:
+                profile_note = "the subject's record could not be fetched, so there is no rider profile in this load"
+                log_info(f"rider profile: {profile_note}")
+            else:
+                profile_df = profile_frame(athlete)
+                aux_filepaths.append(save_aux_dataset(profile_df, 'rider', user_id, start_date, end_date, subdir=mark))
+                zones_df = custom_zone_times_frame(activities, athlete.get('custom_items'))
+                if zones_df is not None:
+                    aux_filepaths.append(save_aux_dataset(zones_df, 'zones', user_id, start_date, end_date, subdir=mark))
+                log_info(f"rider profile: {len(profile_df)} rows ({', '.join(f'{s} {n}' for s, n in profile_df['section'].value_counts().items())})"
+                         + (f"; custom zone times: {len(zones_df)} rows" if zones_df is not None else "; no custom zone sets defined"))
         
         # Housekeeping: what is older than the retention and not in recent use leaves the store; the manifest is written
         retention = int(data.get('retention_days') or STORE_RETENTION_DAYS)
@@ -1773,6 +1794,7 @@ def fetch_intervals_background(data, job_id):
             'columns': detail_df.columns.tolist(),
             'aux_datasets': aux_filepaths,
             'context': context_report,
+            'profile_note': profile_note,
             'store': {'window': total_activities, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary()}
         }
         
@@ -2173,6 +2195,8 @@ def create_activity_summary(activities):
         'average_heartrate': 'avg_hr',
         'max_heartrate': 'max_hr',
         'lthr': 'lactate_threshold_hr',
+        'athlete_max_hr': 'max_hr_setting',     # the settings in force that day (2026-10-16, with the rider profile): the max HR, the power meter's FTP, the zone bounds
+        'icu_pm_ftp': 'pm_ftp_watts',
         'icu_resting_hr': 'resting_hr',
         'hr_load': 'hr_load',
         
@@ -2266,6 +2290,12 @@ def create_activity_summary(activities):
                         pass
                         
                 row[df_field] = value
+        
+        # The zone bounds in force that day (2026-10-16): the record's lists, pipe-joined - a change of zones between
+        # loads is in the file itself
+        for api_field, df_field in (('icu_power_zones', 'power_zones'), ('icu_hr_zones', 'hr_zones'), ('pace_zones', 'pace_zones')):
+            if isinstance(activity.get(api_field), list) and activity[api_field]:
+                row[df_field] = '|'.join(str(v) for v in activity[api_field])
         
         # Add zone times if available
         if 'icu_zone_times' in activity and activity['icu_zone_times']:
@@ -2656,6 +2686,188 @@ def context_frame(rows):
     return pd.DataFrame(rows, columns=CONTEXT_COLUMNS)
 
 
+# ----------------------------------------------------------------------------------------------------------------
+# The rider profile (2026-10-16, docs/RIDER_PROFILE_DESIGN.md): the settings the data is read against - the subject's
+# measurements, the thresholds and zones per sport, the custom zone sets and the custom fields' meanings - as one
+# long-form file of the load, and the time in the custom zones per activity as another. Everything is the account's
+# own: the rows are the record's keys and the custom items it defines, so an account without custom items gets the
+# standard rows alone and nothing here names one coach's fields. A whitelist, never the record minus a few fields:
+# the record carries the e-mail, the names, the Strava id and the API key itself.
+# ----------------------------------------------------------------------------------------------------------------
+PROFILE_COLUMNS = ['section', 'sport_types', 'key', 'value', 'unit', 'low', 'high', 'note']
+ZONE_TIMES_COLUMNS = ['activity_id', 'start_date_local', 'type', 'set_code', 'set_name', 'stream', 'zone_id', 'zone_name', 'low', 'high', 'secs']
+_PROFILE_SPORT_KEYS = (('ftp', 'W'), ('indoor_ftp', 'W'), ('lthr', 'bpm'), ('max_hr', 'bpm'), ('threshold_pace', 'm/s'), ('w_prime', 'J'), ('p_max', 'W'),
+                       ('sweet_spot_min', '%FTP'), ('sweet_spot_max', '%FTP'))
+_PROFILE_MODEL_KEYS = (('criticalPower', 'model_cp', 'W'), ('wPrime', 'model_w_prime', 'J'), ('pMax', 'model_p_max', 'W'), ('ftp', 'model_ftp', 'W'))
+_FIELD_ITEM_FILES = {'INTERVAL_FIELD': 'the intervals file', 'INPUT_FIELD': 'the wellness file', 'ACTIVITY_FIELD': 'the summary file'}
+
+
+def _num(value):
+    """A number as it is, or None for anything else (the record keeps None for a setting that is not set)."""
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def option_pairs(options):
+    """A select item's options as [(value, text)]: the API keeps them as {value, text, ...} objects; an older or a
+    hand-made definition may keep bare texts, which stand for themselves."""
+    out = []
+    for o in options or []:
+        if isinstance(o, dict):
+            if o.get('text') is None and o.get('value') is None:
+                continue
+            out.append((o.get('value'), str(o.get('text') if o.get('text') is not None else o.get('value'))))
+        elif o is not None:
+            out.append((o, str(o)))
+    return out
+
+
+def _option_text(pairs):
+    """The options as a reader meets them in a note: '1 Recovery | 2 Endurance', or 'None | Mild' for bare texts."""
+    parts = []
+    for v, t in pairs:
+        n = _num(v)
+        tag = str(int(n)) if n is not None and float(n).is_integer() else (str(v) if v is not None else '')
+        parts.append(f"{tag} {t}".strip() if tag and tag != t else t)
+    return ' | '.join(parts)
+
+
+def _zone_rows(sport_types, prefix, bounds, names, unit, note_top=''):
+    """One row per zone from the record's upper bounds: a zone runs from the bound before it (0 for the first) to its
+    own; a bound of 999 is the open top."""
+    rows, low = [], 0
+    for i, b in enumerate(bounds or [], 1):
+        b = _num(b)
+        if b is None:
+            continue
+        name = str(names[i - 1]) if names and i - 1 < len(names) and names[i - 1] is not None else ''
+        top = b >= 999
+        note = name + (' · the open top' if top else '')
+        if i == 1 and note_top:
+            note = (note + ' · ' if note else '') + note_top
+        rows.append({'section': 'zone', 'sport_types': sport_types, 'key': f'{prefix}_{i}', 'value': b, 'unit': unit, 'low': low, 'high': '' if top else b, 'note': note})
+        low = b
+    return rows
+
+
+def _custom_items_of(athlete, item_type):
+    return [it for it in (athlete or {}).get('custom_items') or [] if isinstance(it, dict) and it.get('type') == item_type and isinstance(it.get('content'), dict)]
+
+
+def profile_frame(athlete, today=None):
+    """The profile as a long-form table (PROFILE_COLUMNS): the subject's measurements (section `subject`), the thresholds
+    per sport group (`sport`), the standard zones with their bounds (`zone`), the custom zone sets (`custom_zone`, one
+    row per zone, keyed `set:zone`) and the custom fields' meanings (`custom_field`, keyed by the code the values ride
+    under in the other files). Nothing identifying: the date of birth becomes an age."""
+    a = athlete if isinstance(athlete, dict) else {}
+    rows = []
+    weight = _num(a.get('icu_weight')) if _num(a.get('icu_weight')) is not None else _num(a.get('weight'))
+    if weight is not None:
+        rows.append({'section': 'subject', 'key': 'weight', 'value': weight, 'unit': 'kg', 'note': "the record's current weight; the daily weight is in the wellness file"})
+    if _num(a.get('height')) is not None:
+        rows.append({'section': 'subject', 'key': 'height', 'value': a['height'], 'unit': str(a.get('height_units') or ''), 'note': ''})
+    if _num(a.get('icu_resting_hr')) is not None:
+        rows.append({'section': 'subject', 'key': 'resting_hr', 'value': a['icu_resting_hr'], 'unit': 'bpm', 'note': "the record's resting HR; the daily one is in the wellness file"})
+    dob = str(a.get('icu_date_of_birth') or '')[:10]
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', dob):
+        try:
+            d = datetime.strptime(dob, '%Y-%m-%d').date()
+            t = today or datetime.utcnow().date()
+            age = t.year - d.year - ((t.month, t.day) < (d.month, d.day))
+            rows.append({'section': 'subject', 'key': 'age', 'value': age, 'unit': 'years', 'note': 'from the date of birth, which stays out of the file'})
+        except ValueError:
+            pass
+    for key in ('sex', 'timezone'):
+        if a.get(key) not in (None, ''):
+            rows.append({'section': 'subject', 'key': key, 'value': str(a[key]), 'unit': '', 'note': ''})
+    zones_by_id = {str(it.get('id')): it for it in _custom_items_of(a, 'ZONES')}
+    fields_by_id = {str(it.get('id')): it for it in _custom_items_of(a, 'INTERVAL_FIELD') + _custom_items_of(a, 'INPUT_FIELD') + _custom_items_of(a, 'ACTIVITY_FIELD')}
+    set_sports, field_sports = {}, {}
+    for group in a.get('sportSettings') or []:
+        if not isinstance(group, dict):
+            continue
+        types = '|'.join(str(t) for t in (group.get('types') or []) if t)
+        for key, unit in _PROFILE_SPORT_KEYS:
+            if _num(group.get(key)) is not None:
+                rows.append({'section': 'sport', 'sport_types': types, 'key': key, 'value': group[key], 'unit': unit, 'note': ''})
+        model = group.get('mmp_model') if isinstance(group.get('mmp_model'), dict) else {}
+        for mkey, key, unit in _PROFILE_MODEL_KEYS:
+            if _num(model.get(mkey)) is not None:
+                rows.append({'section': 'sport', 'sport_types': types, 'key': key, 'value': model[mkey], 'unit': unit,
+                             'note': "from the power-duration model fitted on the record (mmp_model); model_ftp is its estimate of the FTP"})
+        ftp = _num(group.get('ftp'))
+        rows += _zone_rows(types, 'hr_zone', group.get('hr_zones'), group.get('hr_zone_names'), 'bpm',
+                           "the bounds are the record's upper bounds: a zone runs from the one before up to its own")
+        prows = _zone_rows(types, 'power_zone', group.get('power_zones'), group.get('power_zone_names'), '%FTP',
+                           "percent of the FTP; a zone runs from the bound before up to its own, 999 is the open top")
+        for r in prows:
+            if ftp:
+                lo, hi = round(float(r['low']) * ftp / 100), (round(float(r['high']) * ftp / 100) if r['high'] != '' else '')
+                r['note'] = (r['note'] + ' · ' if r['note'] else '') + (f"{lo}-{hi} W" if hi != '' else f"over {lo} W") + f" at FTP {ftp}"
+        rows += prows
+        rows += _zone_rows(types, 'pace_zone', group.get('pace_zones'), group.get('pace_zone_names'), '%threshold_pace',
+                           "percent of the threshold pace; a zone runs from the bound before up to its own")
+        for zid in group.get('custom_zones_ids') or []:
+            set_sports.setdefault(str(zid), []).append(types)
+        for fid in list(group.get('custom_field_ids') or []) + list(group.get('activity_field_ids') or []):
+            field_sports.setdefault(str(fid), []).append(types)
+    for zid, it in zones_by_id.items():
+        c = it['content']
+        set_code, set_name = str(c.get('code') or it.get('name') or zid), str(it.get('name') or c.get('name') or c.get('code') or zid)
+        stream = str(c.get('stream_type') or '')
+        desc = str(it.get('description') or '').strip()
+        types = '|'.join(set_sports.get(zid, []))
+        for z in c.get('zones') or []:
+            if not isinstance(z, dict):
+                continue
+            rows.append({'section': 'custom_zone', 'sport_types': types, 'key': f"{set_code}:{z.get('id')}", 'value': str(z.get('name') or ''), 'unit': stream,
+                         'low': z.get('start') if z.get('start') is not None else '', 'high': z.get('end') if z.get('end') is not None else '',
+                         'note': f"set '{set_name}'" + (f" · {desc}" if desc else '') + " · time in it per activity is in the custom zone times file"})
+    for fid, it in fields_by_id.items():
+        c = it['content']
+        code = c.get('code')
+        if not code:
+            continue
+        ftype = str(c.get('type') or '').lower()
+        pairs = option_pairs(c.get('options')) if ftype == 'select' else []
+        note = f"{ftype or 'field'} · '{it.get('name') or code}'" + (f" · options: {_option_text(pairs)}" if pairs else '') + f" · on {_FIELD_ITEM_FILES.get(it.get('type'), 'the data')} under this code"
+        rows.append({'section': 'custom_field', 'sport_types': '|'.join(field_sports.get(fid, [])), 'key': str(code), 'value': str(it.get('type')), 'unit': str(c.get('units') or ''), 'note': note})
+    # every column filled before the frame is built: a column of numbers and blanks stays as written (NaN would make
+    # the numbers floats - 0.0 for a bound of 0)
+    return pd.DataFrame([{c: (r[c] if r.get(c) is not None else '') for c in PROFILE_COLUMNS} for r in rows], columns=PROFILE_COLUMNS)
+
+
+def custom_zone_times_frame(activities, custom_items):
+    """Time in every custom zone per activity (ZONE_TIMES_COLUMNS), from the activity records' `custom_zones` with the
+    names from the account's ZONES items; None when the account defines no custom zone set (no file is written then)."""
+    sets = {}
+    for it in custom_items or []:
+        c = it.get('content') if isinstance(it, dict) and isinstance(it.get('content'), dict) else None
+        if not c or it.get('type') != 'ZONES':
+            continue
+        code = str(c.get('code') or it.get('name') or it.get('id'))
+        sets[code] = (str(it.get('name') or c.get('name') or code), str(c.get('stream_type') or ''),
+                      {str(z.get('id')): str(z.get('name') or '') for z in (c.get('zones') or []) if isinstance(z, dict)})
+    if not sets:
+        return None
+    rows = []
+    for act in activities or []:
+        for entry in act.get('custom_zones') or []:
+            if not isinstance(entry, dict):
+                continue
+            code = str(entry.get('code') or '')
+            set_name, stream, names = sets.get(code, (code, '', {}))
+            for z in entry.get('zones') or []:
+                if not isinstance(z, dict):
+                    continue
+                rows.append({'activity_id': act.get('id'), 'start_date_local': act.get('start_date_local'), 'type': act.get('type'), 'set_code': code, 'set_name': set_name,
+                             'stream': stream, 'zone_id': z.get('id'), 'zone_name': names.get(str(z.get('id')), ''), 'low': z.get('start'), 'high': z.get('end'), 'secs': z.get('secs')})
+    df = pd.DataFrame(rows, columns=ZONE_TIMES_COLUMNS)
+    if len(df):
+        df['start_date_local'] = pd.to_datetime(df['start_date_local'], errors='coerce')
+        df = df.sort_values(['start_date_local', 'set_code'], ascending=[False, True], kind='stable')
+    return df
+
+
 def save_aux_dataset(df, dataset_type, user_id, start_date, end_date, subdir=''):
     """Save auxiliary dataset to filesystem. With `subdir` - the mark of the key that loaded it (2026-10-11) - the file
     goes under datasets/<user>/<mark>/, so two keys' loads of the same window do not overwrite each other."""
@@ -2674,7 +2886,9 @@ def save_aux_dataset(df, dataset_type, user_id, start_date, end_date, subdir='')
         'intervals': 'activity_intervals',
         'context': 'context_notes',             # the passages (2026-10-13, docs/CONTEXT_DESIGN.md)
         'codes': 'context_codes',               # the model's reading of them, written by the app
-        'plan': 'planned_workouts'              # the prescription: the calendar's planned workouts with their numbers and steps (2026-10-15)
+        'plan': 'planned_workouts',             # the prescription: the calendar's planned workouts with their numbers and steps (2026-10-15)
+        'rider': 'rider_profile',               # the settings the data is read against (2026-10-16, docs/RIDER_PROFILE_DESIGN.md)
+        'zones': 'custom_zone_times'            # time in the account's custom zones per activity, written beside the profile when any are defined
     }
     clean_type = type_mapping.get(dataset_type, dataset_type)
     

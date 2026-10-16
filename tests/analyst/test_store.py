@@ -315,6 +315,38 @@ j7 = load((TODAY + timedelta(days=5)).isoformat(), (TODAY + timedelta(days=9)).i
 check("a window whose files all fail to download is the error it was, and the store keeps none of them", j7["status"] == "error" and "No data could be extracted" in j7["error"]
       and all(not S.Store(os.path.join("datasets", "u"), E.key_mark("key-1")).has_detail(a) for a in D.activities((TODAY + timedelta(days=5)).isoformat(), (TODAY + timedelta(days=9)).isoformat())), j7)
 
+# the rider profile (2026-10-16, docs/RIDER_PROFILE_DESIGN.md): a load asking for it writes the profile from the record - fetched once
+# for the context and the profile - and the custom zone times from the list, after the plan; the summary carries the settings in force
+sr, er = (TODAY - timedelta(days=120)).isoformat(), (TODAY - timedelta(days=61)).isoformat()      # a window with rides (the fake's rides are older than sixty days)
+jr = load(sr, er, aux=("summary", "rider", "context"))
+rr = jr.get("result") or {}
+rider_path = next((p_ for p_ in rr.get("aux_datasets", []) if "rider_profile_" in p_), "")
+zones_path = next((p_ for p_ in rr.get("aux_datasets", []) if "custom_zone_times_" in p_), "")
+prof = pd.read_csv(rider_path, dtype=str, keep_default_na=False) if rider_path else None
+zt = pd.read_csv(zones_path, dtype=str, keep_default_na=False) if zones_path else None
+rides = sum(1 for d in D.days_in(sr, er) if D.is_ride(d))
+ptxt = open(rider_path, encoding="utf-8").read() if rider_path else ""
+check("a load with the rider profile: the record fetched once for the context and the profile; the profile and the zone times after the plan; the profile's five sections from the record, nothing identifying in it; one zone-time row per ride and custom zone, named from the definitions; the summary's settings columns",
+      jr["status"] == "completed" and SESSION.calls.count("/athlete/0") == 1 and rr["aux_datasets"][-2:] == [rider_path, zones_path] and rr.get("profile_note") == ""
+      and prof is not None and list(prof.columns) == E.PROFILE_COLUMNS and list(dict.fromkeys(prof.section)) == ["subject", "sport", "zone", "custom_zone", "custom_field"]
+      and prof[(prof.section == "sport") & (prof.key == "ftp")].value.tolist() == ["280"] and prof[(prof.section == "subject") & (prof.key == "weight")].value.tolist() == ["71.0"]
+      and prof[prof.section == "custom_zone"].key.tolist() == ["Breath:low", "Breath:high", "Cad:grind"] and set(prof[prof.section == "custom_field"].key) == {"Sickness", "Lbl"}
+      and all(s not in ptxt for s in ("subject@example.test", "not-a-real-key", "424242", "1998-05-20", "Subject"))
+      and zt is not None and len(zt) == 3 * rides and rides > 0 and set(zt.zone_name) == {"Low", "High", "Grind"} and set(zt.stream) == {"respiration", "cadence"}
+      and {"max_hr_setting", "pm_ftp_watts", "power_zones", "hr_zones"} <= set(pd.read_csv(next(p_ for p_ in rr["aux_datasets"] if "activity_summary_" in p_), nrows=1).columns),
+      (jr.get("error"), rr.get("aux_datasets"), None if prof is None else prof.head(12).to_dict("records"), None if zt is None else zt.head(3).to_dict("records")))
+saved_subject = D.SUBJECT
+D.SUBJECT = dict(saved_subject, custom_items=[it for it in saved_subject["custom_items"] if it["type"] != "ZONES"])
+try:
+    jn = load(sr, er, aux=("summary", "rider"))
+    rn = jn.get("result") or {}
+    profn = pd.read_csv(next(p_ for p_ in rn["aux_datasets"] if "rider_profile_" in p_), dtype=str, keep_default_na=False)
+    check("an account without custom zone sets: the profile without custom_zone rows and no zone times file beside it; without the context no chat is fetched",
+          jn["status"] == "completed" and not any("custom_zone_times_" in p_ for p_ in rn["aux_datasets"]) and "custom_zone" not in set(profn.section) and len(profn[profn.section == "custom_field"]) == 2
+          and SESSION.calls.count("/athlete/0") == 1 and not SESSION.chats(), (jn.get("error"), rn.get("aux_datasets")))
+finally:
+    D.SUBJECT = saved_subject
+
 fails = [n for n, ok in results if not ok]
 print(f"\n{len(results) - len(fails)} passed, {len(fails)} failed")
 sys.exit(1 if fails else 0)

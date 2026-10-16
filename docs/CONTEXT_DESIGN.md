@@ -67,7 +67,9 @@ tools, and the one expensive step — coding every passage — happens once per 
   context and codes files are two more kinds in that table and travel the same way. What a load can be asked for,
   and what it brings beside, is the registry `LOAD_KINDS` / `LOAD_BRINGS` there (2026-10-16), which the app's
   auxiliary limit is derived from; the heads in DATA keep to a budget together (`AUX_BLOCK_CHARS`), the context
-  and codes entries exempt - they are columns and a count already.
+  and codes entries exempt - they are columns and a count already. The rider profile and the custom zone times
+  (docs/RIDER_PROFILE_DESIGN.md, 2026-10-16) are two more kinds in the table; the profile's entry in DATA is a
+  line from its rows, exempt like the context's.
 - **Routines**: the recorded data shape binds auxiliary files by kind; a run loads the same way; results are
   compared by position. A routine that counts codes compares them like any result line.
 - **The reviewer** (`analyst/reviewer.md`): five lenses, one line each; a sixth when context is present.

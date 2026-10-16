@@ -137,7 +137,7 @@ check("executor: remove one file, and its emptied folder", r.status_code == 200 
 r = c.post("/file_utils/remove_document", json={"user_id": "u1", "path": "D1"})
 check("executor: remove a whole document by id; a second remove says 'not present' and is not an error",
       r.status_code == 200 and not os.path.exists(os.path.join("datasets", "u1", "documents", "D1")) and c.post("/file_utils/remove_document", json={"user_id": "u1", "path": "D1"}).get_json()["message"] == "not present")
-check("executor: /health carries the build stamp (v57: a failed script returns what it printed)", "v57" in c.get("/health").get_json().get("build", ""))
+check("executor: /health carries the build stamp (v58: the rider profile and the custom zone times)", "v58" in c.get("/health").get_json().get("build", ""))
 
 # ---- the executor client's sync over HTTP, against the executor app on a port ----
 def free_port():
@@ -181,7 +181,7 @@ check("the engine with a current executor: the DATA block names the objects and 
 # ---- the CLI's executor image tag carries the executor's build stamp, so a changed executor rebuilds (2026-10-03) ----
 import importlib.util
 spec = importlib.util.spec_from_file_location("bamboo_cli", os.path.join(ROOT, "bambooai", "cli.py")); cli = importlib.util.module_from_spec(spec); spec.loader.exec_module(cli)
-check("cli: the executor image is tagged <version>-<executor build>, v57 for this image", re.fullmatch(r"bambooai-executor:[\w.]+-v57", cli.executor_image()) is not None, cli.executor_image())
+check("cli: the executor image is tagged <version>-<executor build>, v58 for this image", re.fullmatch(r"bambooai-executor:[\w.]+-v58", cli.executor_image()) is not None, cli.executor_image())
 
 # ---- the web routes, on a test app with the app's two names faked ----
 sys.path.insert(0, os.path.join(ROOT, "web_app"))

@@ -64,10 +64,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (213/168/31/24/18/49/44/69/13/139/41/39/29/15/1/1 Python; 49/7/40/70/24/71/14/25/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (213/171/31/24/18/49/44/69/13/141/52/41/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (97; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -446,6 +446,36 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The rider profile (2026-10-16, patch 0182; docs/RIDER_PROFILE_DESIGN.md).** The sixth kind an Intervals.icu
+  load can be asked for, with a seventh beside it, built against the live account's record (two probes, the facts
+  in docs/INTERVALS_CONTEXT_INVENTORY.md §6) and Palo's three decisions: two files under one card, a select's text
+  with its number beside it (the next patch's part), on by default. `rider_profile_<window>.csv` is long form, one
+  row per setting - the subject's measurements (the age from the date of birth, which stays out), the thresholds
+  and the power-duration model per sport group, the standard zones with their bounds (the upper bounds as the
+  record keeps them, 999 the open top, the watts at the FTP in a power row's note), every custom zone set zone by
+  zone, every custom field's meaning keyed by the code its values ride under, with its type, units, options and
+  which file carries it. A whitelist (`profile_frame`): the record carries the e-mail, the names, the Strava id
+  and the API key itself, and the tests write such a record and check none of it reaches the file. Nothing is
+  named in code but the record's keys - one coach's vocabulary is this account's `custom_items`, another's is
+  theirs, and a coach without any gets the standard rows alone. `custom_zone_times_<window>.csv` is the time in every custom zone per
+  activity from the list route's `custom_zones`, named from the definitions, written only when the account defines
+  zone sets (`BRINGS_IF_DEFINED`: no file, no pill, no cache miss for a coach without any). The summary file gains
+  the settings in force that day (`max_hr_setting`, `pm_ftp_watts`, the zone bounds pipe-joined). The dialog: a
+  fifth card between Wellness and Context, on; Context spans the row beneath. The record is fetched once for the
+  context and the profile. DATA: the profile's entry is its columns, its count and a Settings line assembled by
+  `analyst/profile.py` from the file's rows (C5: the module is in the scanner's list), exempt from the heads'
+  budget; the zone times file described as any other. Routines: `rider` in `LOAD_KINDS`, `zones` brought by it,
+  `CUT_RULES` whole / by the activity's day, the prelude's line *a settings file, not rows of the window*; the
+  registry's count is eight, the app's limit twelve. The fake stack's subject record has the live shape (sport
+  groups, two zone sets, a select with options, the identifying fields) and its rides carry custom zone times.
+  Found by the walk: a routine row's text reached the page cut at 600 characters, and a CHECK line with a sentence
+  per file (seven now) lost its closing sentence, the cut to the window, before the page saw it - the cap is 3,000
+  now (`LOOKUP_PEEK_CHARS`), for a runaway line, not a long one. Executor image v58. Tests: test_context.py 52,
+  test_store.py 41 (the real loader over the fake: the record once, the two files after the plan, nothing
+  identifying; no zone times file without sets), test_routines.py 141, test_app_path.py 171, test_documents_app.py
+  44 (the stamp), test_dialogs.js 40, test_shell.js 71; the integrations walk (the default load's pills and files,
+  the Settings line in DATA, run 3 from the cache binding all seven files, its CHECK row whole). README has a
+  section; CONTEXT_DESIGN §2 and the inventory §6 carry the notes.
 - **Room for more auxiliaries (2026-10-16, patch 0181).** Before the rider profile joins the Intervals.icu load
   (two more files), the consequences of adding a kind that had bitten twice (0166, five files; 0176, six) are
   settled in one place. `LOAD_KINDS` / `LOAD_BRINGS` in analyst/routines.py say what a load can be asked for per

@@ -182,7 +182,6 @@ check("the file: context_notes_<start>_to_<end>.csv in the key's folder, readabl
       p == os.path.join("datasets", "u1", "abc123", "context_notes_20260615_to_20261013.csv") and os.path.exists(p) and list(pd.read_csv(p).columns) == E.CONTEXT_COLUMNS and len(pd.read_csv(p)) == 16, p)
 p2 = E.save_aux_dataset(pd.DataFrame(columns=["id", "code"]), "codes", "u1", "2026-06-15", "2026-10-13", subdir="abc123")
 check("the codes file's name beside it", p2.endswith(os.path.join("abc123", "context_codes_20260615_to_20261013.csv")), p2)
-check("the executor's build stamp is v57 (a failed script returns what it printed - an image change)", "v57" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
 
 # ---- the planned workouts file (2026-10-15): the prescription on the numbers side, beside the context's words ----------
 sp = FakeSession()
@@ -216,6 +215,78 @@ rr = c.post("/file_utils/read_aux_dataset", json={"file_path": p})
 check("the executor reads an auxiliary file whole (for the map and the coding pass): the text, its name and size; a path outside datasets/ is refused",
       rr.status_code == 200 and rr.get_json()["filename"] == "context_notes_20260615_to_20261013.csv" and rr.get_json()["text"].startswith("id,kind,date") and rr.get_json()["text"].count("\n") >= 16
       and c.post("/file_utils/read_aux_dataset", json={"file_path": "../etc/passwd"}).status_code == 404 and c.post("/file_utils/read_aux_dataset", json={"file_path": "/etc/passwd"}).status_code == 404, rr.get_data(as_text=True)[:200])
+
+
+# ---- the rider profile (2026-10-16, docs/RIDER_PROFILE_DESIGN.md): the settings the data is read against, from the record ----
+# a record shaped like the live one (the probe of 2026-10-16), with invented values: measurements, four sport groups, the
+# custom items of every kind, and the identifying fields the whitelist must leave behind
+REC = {"id": "i1", "email": "x@y.z", "firstname": "A", "lastname": "B", "strava_id": "987654", "icu_api_key": "SECRET", "bio": "about me", "city": "Somewhere",
+       "height": 1.80, "height_units": "m", "weight": 70.0, "icu_weight": 71.5, "icu_resting_hr": 48, "icu_date_of_birth": "2000-03-15", "sex": "M", "timezone": "Europe/Copenhagen",
+       "sportSettings": [{"types": ["Ride", "VirtualRide"], "ftp": 300, "indoor_ftp": 290, "lthr": 170, "max_hr": 190, "hr_zones": [140, 155, 165, 175, 190], "hr_zone_names": ["Z1", "Z2", "Z3", "Z4", "Z5"],
+                          "power_zones": [55, 75, 90, 105, 120, 999], "power_zone_names": ["Recovery", "Endurance", "Tempo", "Threshold", "VO2max", "Anaerobic"], "pace_zones": None, "threshold_pace": None,
+                          "w_prime": None, "p_max": None, "mmp_model": {"type": "FFT_CURVES", "criticalPower": 295, "wPrime": 20000, "pMax": 1100, "ftp": 298}, "custom_zones_ids": [501, 502], "custom_field_ids": [], "activity_field_ids": []},
+                         {"types": ["Run"], "ftp": None, "lthr": 165, "max_hr": 185, "hr_zones": [130, 150, 170, 185], "hr_zone_names": ["easy", "steady", "hard", "max"], "power_zones": None, "pace_zones": [77, 90, 100, 110, 999],
+                          "pace_zone_names": ["P1", "P2", "P3", "P4", "P5"], "threshold_pace": 3.5, "mmp_model": None, "custom_zones_ids": [], "custom_field_ids": []},
+                         {"types": ["Other"], "lthr": 165, "max_hr": 185, "hr_zones": None, "custom_zones_ids": []}],
+       "custom_items": [{"id": 501, "type": "ZONES", "name": "Breathing", "description": "ventilation bins", "content": {"code": "Breath", "stream_type": "respiration", "zones": [{"id": "low", "name": "Low", "start": 10, "end": 25}, {"id": "high", "name": "High", "start": 25, "end": 60}]}},
+                        {"id": 502, "type": "ZONES", "name": "Cadence", "content": {"code": "Cad", "stream_type": "cadence", "zones": [{"id": "grind", "name": "Grind", "start": 0, "end": 60}]}},
+                        {"id": 601, "type": "INTERVAL_FIELD", "name": "Label", "content": {"code": "Lbl", "type": "select", "units": "", "options": [{"value": 1.0, "text": "Recovery"}, {"value": 2.0, "text": "Endurance"}]}},
+                        {"id": 602, "type": "INTERVAL_FIELD", "name": "Breaths", "content": {"code": "Br", "type": "numeric", "units": "bpm"}},
+                        {"id": 603, "type": "INPUT_FIELD", "name": "Sickness", "content": {"code": "Sickness", "type": "select", "options": ["None", "Mild", "Severe"]}},
+                        {"id": 604, "type": "ACTIVITY_FIELD", "name": "How I slept", "content": {"code": "HowISlept", "type": "text"}},
+                        {"id": 605, "type": "FITNESS_CHART", "name": "HRV", "content": {}},
+                        {"id": 606, "type": "INTERVAL_FIELD", "name": "no code", "content": {"type": "numeric"}}]}
+import datetime as _dt
+prof = E.profile_frame(REC, today=_dt.date(2026, 10, 16))
+ptext = prof.to_csv(index=False)
+rows_of = lambda sec: prof[prof["section"] == sec]
+keyed = {(r["section"], r["sport_types"], r["key"]): r for _, r in prof.iterrows()}
+check("profile_frame: the columns of the design; the subject rows are the whitelist - weight (icu_weight first), height with the record's unit, resting_hr, the age from the date of birth, sex, timezone - and nothing identifying is in the file",
+      list(prof.columns) == E.PROFILE_COLUMNS and list(rows_of("subject")["key"]) == ["weight", "height", "resting_hr", "age", "sex", "timezone"]
+      and keyed[("subject", "", "weight")]["value"] == 71.5 and keyed[("subject", "", "weight")]["unit"] == "kg" and keyed[("subject", "", "height")]["unit"] == "m" and keyed[("subject", "", "age")]["value"] == 26
+      and all(s not in ptext for s in ("x@y.z", "SECRET", "2000-03-15", "firstname", "lastname", "strava", "987654", "about me", "Somewhere", "i1")), ptext[:600])
+check("the sport rows: per group with its types pipe-joined - ftp, indoor_ftp, lthr, max_hr for the ride group, the model's cp / w_prime / p_max / ftp as model_* with the note; the run group's lthr, max_hr and threshold_pace; None settings make no row",
+      keyed[("sport", "Ride|VirtualRide", "ftp")]["value"] == 300 and keyed[("sport", "Ride|VirtualRide", "indoor_ftp")]["value"] == 290 and keyed[("sport", "Ride|VirtualRide", "model_cp")]["value"] == 295
+      and "power-duration model" in keyed[("sport", "Ride|VirtualRide", "model_ftp")]["note"] and keyed[("sport", "Run", "threshold_pace")]["value"] == 3.5 and keyed[("sport", "Run", "threshold_pace")]["unit"] == "m/s"
+      and ("sport", "Run", "ftp") not in keyed and ("sport", "Ride|VirtualRide", "w_prime") not in keyed and list(rows_of("sport")[rows_of("sport")["sport_types"] == "Other"]["key"]) == ["lthr", "max_hr"], rows_of("sport").to_string()[:800])
+check("the zone rows: hr zones from the upper bounds (a zone runs from the one before to its own), power zones as %FTP with the watts in the note and the open top high empty, the run's pace zones; the first row of each kind carries the convention",
+      keyed[("zone", "Ride|VirtualRide", "hr_zone_2")]["low"] == 140 and keyed[("zone", "Ride|VirtualRide", "hr_zone_2")]["high"] == 155 and keyed[("zone", "Ride|VirtualRide", "hr_zone_2")]["note"] == "Z2"
+      and keyed[("zone", "Ride|VirtualRide", "hr_zone_1")]["low"] == 0 and "upper bounds" in keyed[("zone", "Ride|VirtualRide", "hr_zone_1")]["note"]
+      and keyed[("zone", "Ride|VirtualRide", "power_zone_3")]["value"] == 90 and keyed[("zone", "Ride|VirtualRide", "power_zone_3")]["unit"] == "%FTP" and keyed[("zone", "Ride|VirtualRide", "power_zone_3")]["note"] == "Tempo · 225-270 W at FTP 300"
+      and keyed[("zone", "Ride|VirtualRide", "power_zone_6")]["high"] == "" and keyed[("zone", "Ride|VirtualRide", "power_zone_6")]["note"] == "Anaerobic · the open top · over 360 W at FTP 300"
+      and keyed[("zone", "Run", "pace_zone_5")]["unit"] == "%threshold_pace" and ("zone", "Other", "hr_zone_1") not in keyed, rows_of("zone").to_string()[:1200])
+check("the custom zone rows: one per zone keyed set:zone, the zone's name as the value, the stream as the unit, the bounds as low/high, the sports whose settings link the set, the set and its description in the note",
+      keyed[("custom_zone", "Ride|VirtualRide", "Breath:high")]["value"] == "High" and keyed[("custom_zone", "Ride|VirtualRide", "Breath:high")]["unit"] == "respiration" and keyed[("custom_zone", "Ride|VirtualRide", "Breath:high")]["low"] == 25
+      and keyed[("custom_zone", "Ride|VirtualRide", "Breath:high")]["high"] == 60 and keyed[("custom_zone", "Ride|VirtualRide", "Breath:high")]["note"] == "set 'Breathing' · ventilation bins · time in it per activity is in the custom zone times file"
+      and keyed[("custom_zone", "Ride|VirtualRide", "Cad:grind")]["note"] == "set 'Cadence' · time in it per activity is in the custom zone times file" and len(rows_of("custom_zone")) == 3, rows_of("custom_zone").to_string())
+check("the custom field rows: keyed by code with the item's kind as the value, the units, the type and name and the options (number and text, or bare texts) and which file carries it in the note; a chart and an item without a code make no row",
+      keyed[("custom_field", "", "Lbl")]["value"] == "INTERVAL_FIELD" and keyed[("custom_field", "", "Lbl")]["note"] == "select · 'Label' · options: 1 Recovery | 2 Endurance · on the intervals file under this code"
+      and keyed[("custom_field", "", "Br")]["unit"] == "bpm" and keyed[("custom_field", "", "Br")]["note"] == "numeric · 'Breaths' · on the intervals file under this code"
+      and keyed[("custom_field", "", "Sickness")]["note"] == "select · 'Sickness' · options: None | Mild | Severe · on the wellness file under this code"
+      and keyed[("custom_field", "", "HowISlept")]["note"] == "text · 'How I slept' · on the summary file under this code" and len(rows_of("custom_field")) == 4 and "HRV" not in ptext, rows_of("custom_field").to_string())
+check("an account without custom items or sport settings: the subject rows alone; an empty record: an empty table with the columns",
+      list(E.profile_frame({"icu_weight": 60, "sex": "F"})["key"]) == ["weight", "sex"] and len(E.profile_frame({})) == 0 and list(E.profile_frame(None).columns) == E.PROFILE_COLUMNS)
+ZACTS = [{"id": "a1", "start_date_local": "2026-09-01T07:00:00", "type": "Ride", "custom_zones": [{"code": "Breath", "zones": [{"id": "low", "start": 10, "end": 25, "secs": 1200}, {"id": "high", "start": 25, "end": 60, "secs": 300}]},
+                                                                                                   {"code": "Cad", "zones": [{"id": "grind", "start": 0, "end": 60, "secs": 90}]}]},
+         {"id": "a2", "start_date_local": "2026-09-02T07:00:00", "type": "Ride", "custom_zones": [{"code": "Breath", "zones": [{"id": "low", "start": 10, "end": 25, "secs": 2000}, {"id": "high", "start": 25, "end": 60, "secs": 0}]},
+                                                                                                   {"code": "Gone", "zones": [{"id": "x", "start": 0, "end": 1, "secs": 5}]}]},
+         {"id": "a3", "start_date_local": "2026-09-03T07:00:00", "type": "Run"}]
+zt = E.custom_zone_times_frame(ZACTS, REC["custom_items"])
+check("custom_zone_times_frame: a row per activity and zone with the set and zone names from the definitions, the bounds in force and the seconds; newest first; a set the account no longer defines keeps its code with no name; an activity without custom zones makes no row",
+      list(zt.columns) == E.ZONE_TIMES_COLUMNS and len(zt) == 6 and zt.iloc[0]["activity_id"] == "a2" and set(zt["set_code"]) == {"Breath", "Cad", "Gone"}
+      and zt[(zt["activity_id"] == "a1") & (zt["zone_id"] == "high")].iloc[0]["secs"] == 300 and zt[(zt["activity_id"] == "a1") & (zt["zone_id"] == "high")].iloc[0]["zone_name"] == "High"
+      and zt[zt["set_code"] == "Gone"].iloc[0]["set_name"] == "Gone" and zt[zt["set_code"] == "Gone"].iloc[0]["zone_name"] == "" and "a3" not in set(zt["activity_id"]), zt.to_string())
+check("custom_zone_times_frame is None for an account without custom zone sets (no file is written), and an empty table with the columns when the sets are defined but no activity carries times",
+      E.custom_zone_times_frame(ZACTS, [it for it in REC["custom_items"] if it["type"] != "ZONES"]) is None and len(E.custom_zone_times_frame([{"id": "a3"}], REC["custom_items"])) == 0
+      and list(E.custom_zone_times_frame([], REC["custom_items"]).columns) == E.ZONE_TIMES_COLUMNS)
+check("option_pairs: objects as (value, text), bare texts standing for themselves, nothing for an empty option",
+      E.option_pairs([{"value": 1.0, "text": "A"}, "B", {"text": "C"}, {}]) == [(1.0, "A"), ("B", "B"), (None, "C")] and E.option_pairs(None) == [])
+summ = E.create_activity_summary([{"id": "a1", "start_date_local": "2026-09-01T07:00:00", "athlete_max_hr": 190, "icu_pm_ftp": 280, "icu_ftp": 300, "icu_power_zones": [55, 75, 90], "icu_hr_zones": [140, 155], "pace_zones": None}])
+check("the summary carries the settings in force that day: max_hr_setting, pm_ftp_watts beside ftp_watts, the zone bounds pipe-joined; no column for an absent list",
+      summ.iloc[0]["max_hr_setting"] == 190 and summ.iloc[0]["pm_ftp_watts"] == 280 and summ.iloc[0]["ftp_watts"] == 300 and summ.iloc[0]["power_zones"] == "55|75|90" and summ.iloc[0]["hr_zones"] == "140|155" and "pace_zones" not in summ.columns, summ.to_dict())
+check("save_aux_dataset names the two files by their kinds and the window", os.path.basename(E.save_aux_dataset(prof, "rider", "u", "2026-06-15", "2026-10-13")) == "rider_profile_20260615_to_20261013.csv"
+      and os.path.basename(E.save_aux_dataset(zt, "zones", "u", "2026-06-15", "2026-10-13")) == "custom_zone_times_20260615_to_20261013.csv")
+check("the executor's build stamp is v58 (the rider profile)", "v58" in E.EXECUTOR_BUILD and "rider profile" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
 
 passed = sum(1 for _, ok in results if ok)
 failed = [n for n, ok in results if not ok]

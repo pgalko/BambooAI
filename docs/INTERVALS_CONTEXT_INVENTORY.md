@@ -254,3 +254,39 @@ imported descriptions are HTML. Chats: 27 private, 2 activity, 2 group (the team
 **Across both:** the words are under the activities; the scales and plan-versus-done are the numbers beside them;
 custom fields and tags are a coach's own structured vocabulary already in use; the coach's view (`icu_notes`, hidden
 entries, private wellness keys) remains unverified without a coach's key.
+
+## 6. The settings and the custom items (the probes of 2026-10-16, for the rider profile)
+
+Two runs of a stdlib probe (`intervals_fields_probe.py`, in the outputs folder; Cloudflare refuses urllib's default
+User-Agent with error 1010, so it sends one) on the U23 rider's key, 60 days, 40 activities' intervals.
+
+- **The athlete record** (`GET /athlete/0`) carries the measurements — `height` with `height_units`, `weight` and
+  `icu_weight`, `icu_resting_hr`, `icu_date_of_birth`, `sex`, `timezone` — beside the e-mail, the names, the Strava
+  id and **the API key itself** (`icu_api_key`): a profile built from it is a whitelist, never the record minus a
+  few fields. `sportSettings[]` is one group per set of sport `types` with `ftp`, `indoor_ftp`, `lthr`, `max_hr`,
+  `threshold_pace` (m/s), the zones as upper bounds — `hr_zones` in bpm, `power_zones` as % of FTP with 999 the open
+  top, `pace_zones` as % of the threshold pace — with their `*_zone_names`, the fitted `mmp_model` (`criticalPower`,
+  `wPrime`, `pMax`, `ftp`), and `custom_zones_ids` / `custom_field_ids` / `activity_field_ids` naming the custom items
+  that apply to the group. Four groups on this account (cycling, running, swimming, other).
+- **`custom_items[]`** on the record is the account's whole vocabulary, each with `id`, `type`, `name`, `description`
+  and a `content` object: `FITNESS_CHART` (not data), `INPUT_FIELD` (the wellness form), `ACTIVITY_FIELD`,
+  `INTERVAL_FIELD` — with `content.code` (the key the values ride under), `content.type` (`numeric`, `select`,
+  `text`), `content.units`, and for a select `content.options` as `[{value, text, color, icon}]` (an older or a
+  hand-made definition may hold bare texts) — and **`ZONES`**: `content.stream_type` (`watts`, `tidal_volume_min`,
+  `respiration`, `cadence`, `altitude`, `temp` here), `content.zones[{id, name, start, end, color}]`, `anchor`. Seven
+  zone sets on this account: two power sets, the ventilatory zones over the ventilation stream, the breathing-rate
+  zones, cadence bins, altitude bands, temperature bins.
+- **Time in every custom zone is on the activity record** of the list route: `custom_zones[{code, zones[{id, start,
+  end, start_value, end_value, secs}]}]`, the bounds as they stood that day. The record also carries the settings
+  in force — `icu_ftp`, `icu_pm_ftp`, `lthr`, `athlete_max_hr`, `icu_resting_hr`, `icu_weight`, `icu_power_zones`,
+  `icu_hr_zones` — so a threshold or zone change between loads is in the summary file itself.
+- **The interval records** (`GET /activity/{id}/intervals` → `{analyzed, icu_groups, icu_intervals, id}`) carry a
+  custom `INTERVAL_FIELD`'s value under its code only when a value was entered; **a select's value comes back as the
+  option's text** (the loader's `label` column read `Endurance`, not `2`). On this account the label select rode on
+  every interval of the window, the two ventilation numbers on most, the RPE select on a few, six more fields defined
+  and empty. The standard keys beyond the loader's map: `average_respiration`, `average_tidal_volume`, `average_epoc`,
+  `average_smo2`, `average_thb`, `ss_cp` / `ss_p_max` / `ss_w_prime`, `strain_score`, running dynamics.
+- **The wellness records** carry an `INPUT_FIELD`'s value under its code the same way (none in this window).
+- The loader reads four interval codes by name (label, RPE, lactate, lap number) - one coach's vocabulary. The rider
+  profile (docs/RIDER_PROFILE_DESIGN.md, patch 0182) carries every definition the account has; the intervals and
+  wellness files carrying every field's values under its code is the step after it.

@@ -106,7 +106,8 @@ def main():
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
             set_window(page, a_start, a_end)
-            page.evaluate("() => { ['summary-checkbox', 'wellness-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; }); const cx = document.getElementById('context-checkbox'); if (cx) cx.checked = false; }")   # the context (on by default) is walked at the end
+            rd_default = page.evaluate("() => document.getElementById('rider-checkbox').checked")
+            page.evaluate("() => { ['summary-checkbox', 'wellness-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; }); ['context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); if (c) c.checked = false; }); }")   # the context and the rider profile (both on by default) are walked at the end
             page.click("#connectIntervals")
             page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /Intervals ICU \\(\\d+ days/.test(p.textContent) && /loaded/.test(p.textContent))", timeout=240000)
             pills = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
@@ -491,9 +492,9 @@ def main():
             page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /W\\+S\\+C/.test(p.textContent))", timeout=60000)
             pills_c = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
             ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); if (!p) return null; const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, spinner: !!p.querySelector('.file-upload-spinner'), rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
-            check("the context option is on by default in the dialog; the load with it carries [W+S+C] and ONE Context pill - the days, a spinner and 'coding…' while the pass runs behind the load, its list naming the passages and the codes as coding - no separate pill per file; the dialog's line reports the passages by kind, names no failed call and says the coding runs in the background",
-                  cx_default is True and any("Intervals ICU (59 days [W+S+C]) loaded" in p for p in pills_c) and ctx_pill is not None and ctx_pill["label"] == "Context (59 days) \u00b7 coding\u2026" and ctx_pill["spinner"] is True
-                  and len(ctx_pill["rows"]) == 2 and ctx_pill["rows"][0].startswith("Passagescontext_notes_") and ctx_pill["rows"][1] == "Codescoding\u2026" and ctx_pill["pills"] == 5
+            check("the context option is on by default in the dialog; the load with it carries [W+S+C+R] (the rider profile on by default too) and ONE Context pill - the days, a spinner and 'coding…' while the pass runs behind the load, its list naming the passages and the codes as coding - no separate pill per file; the dialog's line reports the passages by kind, names no failed call and says the coding runs in the background",
+                  cx_default is True and rd_default is True and any("Intervals ICU (59 days [W+S+C+R]) loaded" in p for p in pills_c) and ctx_pill is not None and ctx_pill["label"] == "Context (59 days) \u00b7 coding\u2026" and ctx_pill["spinner"] is True
+                  and len(ctx_pill["rows"]) == 2 and ctx_pill["rows"][0].startswith("Passagescontext_notes_") and ctx_pill["rows"][1] == "Codescoding\u2026" and ctx_pill["pills"] == 7
                   and any(p == "Auxiliary (Planned workouts (59 days))" for p in pills_c)      # the planned workouts file rides with the context (2026-10-15), a pill of its own
                   and not any(p.startswith("Auxiliary (Context") for p in pills_c)
                   and "Context: " in msg and "passages" in msg and "activity_message" in msg and "failed" not in msg and "coding in the background" in msg, (cx_default, pills_c, ctx_pill, msg))
@@ -503,7 +504,7 @@ def main():
             ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
             check("when the pass ends the one pill reads plain with the pass's line as its tooltip - coded of total, the renderings, the proposal - and its list names the passages, the codes, the line and (the pass proposed a code) the row to the codebook screen; still five pills in the bar",
                   ctx_pill["label"] == "Context (59 days)" and re.search(r"^Context: \d+ of \d+ coded, \d+ rendered into English, 1 code proposed$", ctx_pill["title"]) is not None
-                  and len(ctx_pill["rows"]) == 4 and ctx_pill["rows"][1].startswith("Codescontext_codes_") and re.search(r"^\d+ of \d+ coded", ctx_pill["rows"][2]) and ctx_pill["rows"][3] == "CodebookCodebook \u00b7 1 proposal awaits you" and ctx_pill["pills"] == 5, (pills_c, ctx_pill))
+                  and len(ctx_pill["rows"]) == 4 and ctx_pill["rows"][1].startswith("Codescontext_codes_") and re.search(r"^\d+ of \d+ coded", ctx_pill["rows"][2]) and ctx_pill["rows"][3] == "CodebookCodebook \u00b7 1 proposal awaits you" and ctx_pill["pills"] == 7, (pills_c, ctx_pill))
             page.evaluate("() => { const r = [...document.querySelectorAll('#contextPill .context-pill-menu .row')][0]; r.click(); }")
             page.wait_for_function("() => { const t = document.querySelector('#content-dataframe, .tab-content.active'); return !!t && /text_en/.test(t.textContent || ''); }", timeout=30000)
             check("the list's Passages row previews the context file in the Data tab, with the lang and text_en columns", True)
@@ -523,6 +524,23 @@ def main():
                   and set(plan_f[plan_f["name"] == "Endurance"].steps) == {"-2h 60%"} and set(plan_f[plan_f["name"] == "Endurance"].planned_duration_sec) == {"7200"} and all(json.loads(x_)["steps"][0]["duration"] == 7200 for x_ in plan_f[plan_f["name"] == "Endurance"].workout_doc)
                   and all(c_ != "" for c_ in plan_f[plan_f["name"] == "Endurance"].compliance) and (ctx is None or not ctx["text"].str.contains("-2h 60%").any()),
                   (plan_path, None if plan_f is None else (len(plan_f), len(ev_a), plan_f.head(2).to_dict("records"))))
+            # the rider profile (2026-10-16, docs/RIDER_PROFILE_DESIGN.md): on by default, two files beside the others - the settings the data
+            # is read against from the subject's record (a whitelist: nothing identifying), and the time in the account's custom zones per ride
+            rider_path, zones_path = os.path.join(exec_ds, f"rider_profile_{tag_a}.csv"), os.path.join(exec_ds, f"custom_zone_times_{tag_a}.csv")
+            prof_f = pd.read_csv(rider_path, dtype=str, keep_default_na=False) if os.path.exists(rider_path) else None
+            zones_f = pd.read_csv(zones_path, dtype=str, keep_default_na=False) if os.path.exists(zones_path) else None
+            rides_a = sum(1 for i in range(60) if apis_data.is_ride(a_start + timedelta(days=i)))
+            prof_text = open(rider_path, encoding="utf-8").read() if os.path.exists(rider_path) else ""
+            check("the rider profile loads by default beside the others: its pill without a window and the custom zones pill with it; the profile file's five sections from the fake record (the subject's measurements, the ride and run groups' thresholds, the zones with bounds, "
+                  "the two custom zone sets, the two custom fields with their options) and nothing identifying in it; the zone times file one row per ride and custom zone, named from the definitions",
+                  any(p == "Auxiliary (Rider profile)" for p in pills_c) and any(p == "Auxiliary (Custom zones (59 days))" for p in pills_c)
+                  and prof_f is not None and list(dict.fromkeys(prof_f.section)) == ["subject", "sport", "zone", "custom_zone", "custom_field"]
+                  and prof_f[(prof_f.section == "sport") & (prof_f.key == "ftp")].value.tolist() == ["280"] and prof_f[(prof_f.section == "sport") & (prof_f.key == "threshold_pace")].sport_types.tolist() == ["Run"]
+                  and prof_f[(prof_f.section == "zone") & (prof_f.key == "power_zone_6")].high.tolist() == [""] and prof_f[prof_f.section == "custom_zone"].key.tolist() == ["Breath:low", "Breath:high", "Cad:grind"]
+                  and "options: 1 Recovery | 2 Endurance | 3 Tempo" in prof_f[(prof_f.section == "custom_field") & (prof_f.key == "Lbl")].note.iloc[0]
+                  and all(s_ not in prof_text for s_ in ("subject@example.test", "not-a-real-key", "424242", "1998-05-20", "Subject"))
+                  and zones_f is not None and len(zones_f) == 3 * rides_a and rides_a > 0 and set(zones_f.zone_name) == {"Low", "High", "Grind"},
+                  (pills_c, None if prof_f is None else prof_f.head(8).to_dict("records"), None if zones_f is None else (len(zones_f), rides_a)))
             if ctx is not None:
                 msgs = ctx[ctx["kind"] == "activity_message"]
                 sick = ctx[(ctx["kind"] == "status") & ctx["text"].str.startswith("SICK")]
@@ -578,6 +596,11 @@ def main():
                   and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in prompt1 and "activity_message" in prompt1 and "(subject " in prompt1 and "authors: subject " in prompt1
                   and "private entries " in prompt1 and "by month " in prompt1 and "A plan_note is dated the day it was planned for, not the day it was written." in prompt1 and "A passage is cited as" not in prompt1
                   and "Private: check the sleep log" not in prompt1 and "Bra jobba" not in prompt1, prompt1[prompt1.find("CONTEXT ("):prompt1.find("CONTEXT (") + 700] if "CONTEXT (" in prompt1 else prompt1[-800:])    # the chat's lines are in the context alone (a description also sits in the summary's head, 2026-10-15)
+            check("DATA with the rider profile: its entry is the columns, the count with what a row is, and the Settings line from the file's rows - the measurements, the ride and run groups' thresholds, the rest counted; the zone times file described as any other",
+                  re.search(rf"Path: datasets/{USER}/{_kf('stack-key')}/rider_profile_{tag_a}\.csv\s+Columns: section, sport_types, key, value, unit, low, high, note\s+Rows: \d+ \(one row per setting: section, key, value, unit, the bounds for a zone, a note; read the file with pandas\)", prompt1) is not None
+                  and re.search(r"Settings: weight 71\.0 kg, height 1\.78 m, resting_hr 47 bpm, age \d+ years, sex M, timezone [\w/]+; Ride\|VirtualRide: ftp 280 W, indoor_ftp 270 W, lthr 168 bpm, max_hr 188 bpm; Run: lthr 160 bpm, max_hr 182 bpm, threshold_pace 3\.4 m/s; "
+                            r"also in the file: 22 zone rows with their bounds, 3 custom zone rows in 2 sets, 2 custom field definitions - the codes other files' columns carry, with their options", prompt1) is not None
+                  and "model_cp" not in prompt1 and re.search(rf"custom_zone_times_{tag_a}\.csv\s+Head:", prompt1) is not None, prompt1[prompt1.find("rider_profile_"):prompt1.find("rider_profile_") + 900] if "rider_profile_" in prompt1 else prompt1[-800:])
             check("DATA after the pass: the codes file listed as columns and count, the map's languages and its codes line - the counts per code, 'of 36 codes used', the uncoded, the proposal",
                   f"context_codes_{tag_a}.csv" in prompt1 and "languages en " in prompt1 and " da " in prompt1 and "codes (the model's reading, one row per code, with the words it rests on): " in prompt1
                   and re.search(r"\(\d+ of 36 codes used\)", prompt1) is not None and re.search(r"\d+ passages? carr(y|ies) none", prompt1) is not None and "proposed: coach_flag." in prompt1,
@@ -745,9 +768,9 @@ def main():
             rdirs_n = [d_ for d_ in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")) if "fatigue" in json.load(open(d_)).get("name", "").lower()]
             rj_n = wait_verified(rdirs_n[0]) if rdirs_n else {}
             rec_n = ((rj_n.get("versions") or [{}])[0].get("manifest") or {}).get("data") or {}
-            check("Create: run zero reproduced the two lines on the original window; the record's auxiliary files are the five of the load - summary, wellness, context, planned workouts, codes - under the key's folder, the load's kinds with context and plan",
+            check("Create: run zero reproduced the two lines on the original window; the record's auxiliary files are the seven of the load - summary, wellness, context, planned workouts, codes, the rider profile and the custom zone times (on by default, 2026-10-16) - under the key's folder, the load's kinds with context, plan and rider",
                   err_n is None and rdirs_n and (rj_n.get("versions") or [{}])[0].get("run_zero", {}).get("status") == "reproduced"
-                  and sorted(aux_kind(p_) for p_ in rec_n.get("aux") or []) == ["codes", "context", "plan", "summary", "wellness"] and {"context", "plan"} <= set((rec_n.get("load") or {}).get("aux_kinds", [])), (err_n, rec_n.get("aux"), (rec_n.get("load") or {}).get("aux_kinds")))
+                  and sorted(aux_kind(p_) for p_ in rec_n.get("aux") or []) == ["codes", "context", "plan", "rider", "summary", "wellness", "zones"] and {"context", "plan", "rider"} <= set((rec_n.get("load") or {}).get("aux_kinds", [])), (err_n, rec_n.get("aux"), (rec_n.get("load") or {}).get("aux_kinds")))
             rid_n = rj_n.get("id")
             # run 1: the next window - the dialog's load asks for the context too; the pass behind the load is waited for; the count compared
             page.click("#routinesPill")
@@ -861,11 +884,12 @@ def main():
             run3_path = os.path.join(os.path.dirname(rdirs_n[0]), "runs", "v1_3", "run.json")
             run3_n = json.load(open(run3_path)) if os.path.exists(run3_path) else {}
             _chk_d = next((r for r in rv_d["rows"] if "CHECK" in r), "")
-            check("run 3 ran from the cache with all five files - none refused by the auxiliary limit: no download, the LOAD row 'cut from the cache', the CHECK row 'cut to the window from the cached load', the context, codes and plan files among the five bound, the run complete",
+            check("run 3 ran from the cache with all seven files - none refused by the auxiliary limit (derived from the loaders' registry since 0181): no download, the LOAD row 'cut from the cache', the CHECK row - a sentence per file, whole on the page (the 600-character cut had lost its tail) - ending 'cut to the window from the cached load', the context, codes, plan, rider profile and zone times files among the seven bound, the run complete",
                   "run 3 of 3" in rv_d["position"] and "Maximum" not in prog_d and calls_of(st, "fit-file") == fits_before_d
                   and any("LOAD" in r and "cut from the cache" in r for r in rv_d["rows"]) and f"cut to {d_start.isoformat()} → {d_end.isoformat()} from the cached load" in _chk_d
-                  and run3_n.get("status") in ("ran", "reproduced") and sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []) == ["codes", "context", "plan", "summary", "wellness"]
-                  and not run3_n.get("aux_absent") and "Run 3 complete" in rv_d["done"] and not rv_d["warn"], (prog_d[:200], rv_d["position"], _chk_d[:300], sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []), run3_n.get("aux_absent"), rv_d["done"][:160]))
+                  and run3_n.get("status") in ("ran", "reproduced") and sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []) == ["codes", "context", "plan", "rider", "summary", "wellness", "zones"]
+                  and not run3_n.get("aux_absent") and "Run 3 complete" in rv_d["done"] and not rv_d["warn"],
+                  (prog_d[:200], rv_d["position"], _chk_d[-300:], calls_of(st, "fit-file") - fits_before_d, rv_d["warn"], sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []), run3_n.get("status"), run3_n.get("aux_absent"), rv_d["done"][:160]))
             # the words of a cut run are the window's (2026-10-16): the count the method printed is the fake calendar's for the
             # window, not the cached load's (CTX used to read the files loaded now - the whole load's context)
             res3_n = {r_.get("what"): rt_number(r_.get("estimate")) for r_ in run3_n.get("results") or []}
