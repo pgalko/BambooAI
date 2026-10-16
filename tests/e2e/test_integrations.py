@@ -501,9 +501,9 @@ def main():
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             pills_c = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
             ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
-            check("when the pass ends the one pill reads plain with the pass's line as its tooltip - coded of total, the renderings, the proposal - and its list names the passages, the codes and the line; still five pills in the bar",
+            check("when the pass ends the one pill reads plain with the pass's line as its tooltip - coded of total, the renderings, the proposal - and its list names the passages, the codes, the line and (the pass proposed a code) the row to the codebook screen; still five pills in the bar",
                   ctx_pill["label"] == "Context (59 days)" and re.search(r"^Context: \d+ of \d+ coded, \d+ rendered into English, 1 code proposed$", ctx_pill["title"]) is not None
-                  and len(ctx_pill["rows"]) == 3 and ctx_pill["rows"][1].startswith("Codescontext_codes_") and re.search(r"^\d+ of \d+ coded", ctx_pill["rows"][2]) and ctx_pill["pills"] == 5, (pills_c, ctx_pill))
+                  and len(ctx_pill["rows"]) == 4 and ctx_pill["rows"][1].startswith("Codescontext_codes_") and re.search(r"^\d+ of \d+ coded", ctx_pill["rows"][2]) and ctx_pill["rows"][3] == "CodebookCodebook \u00b7 1 proposal awaits you" and ctx_pill["pills"] == 5, (pills_c, ctx_pill))
             page.evaluate("() => { const r = [...document.querySelectorAll('#contextPill .context-pill-menu .row')][0]; r.click(); }")
             page.wait_for_function("() => { const t = document.querySelector('#content-dataframe, .tab-content.active'); return !!t && /text_en/.test(t.textContent || ''); }", timeout=30000)
             check("the list's Passages row previews the context file in the Data tab, with the lang and text_en columns", True)
@@ -622,6 +622,51 @@ def main():
             page.click("#content-answer .simplified-summary-btn")
             page.wait_for_timeout(300)
 
+            # ---- step 6: the codebook screen (docs/CONTEXT_DESIGN.md §7 S3, 2026-10-16) - Intervals-only, so its ways in are the Intervals
+            # dialog's Context card (its line: the book's size, the proposals waiting as a link) and the Context pill (the green count, the
+            # row); the dialog shows the book with the coder's proposal first (its definition, its coder, the passages it came from) and the
+            # codes by group with the last load's uses; Confirm makes the proposal a code of the book - version 2, the count and the pill's
+            # row gone - and the next pass (run 1 below) uses it as the book's own ----
+            pill_badge = page.evaluate("() => { const b = document.querySelector('#contextPill .pill-badge'); return b ? b.textContent : null; }")
+            page.evaluate("showIntervalsModal()")
+            page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            page.wait_for_function("() => /codebook/.test((document.getElementById('contextCodebookLine') || {}).textContent || '')", timeout=15000)
+            card_line = page.evaluate("() => document.getElementById('contextCodebookLine').textContent")
+            page.click("#contextCodebookLink")
+            page.wait_for_selector("#codebookModal .cb-card", timeout=15000)
+            ctx_still_on = page.evaluate("() => document.getElementById('context-checkbox').checked")
+            check("the ways in: the Context pill carries the count (1) since the pass proposed a code; the Intervals dialog's Context card says 'Coded against your codebook · 36 codes · 1 proposal waiting'; the link opens the screen without toggling the Context box",
+                  pill_badge == "1" and card_line == "Coded against your codebook \u00b7 36 codes \u00b7 1 proposal waiting1" and ctx_still_on is True, (pill_badge, card_line, ctx_still_on))
+            cbv = page.evaluate("""() => ({ sub: document.querySelector('#codebookModal .ui-dlg-h .sub').textContent, shown: document.getElementById('codebookModal').style.display,
+                cards: [...document.querySelectorAll('#codebookModal .cb-card')].map(c => ({ code: c.getAttribute('data-code'), def: c.querySelector('.def').textContent, meta: c.querySelector('.cb-meta').textContent, ex: [...c.querySelectorAll('.cb-examples .ex')].map(e => e.textContent), acts: [...c.querySelectorAll('[data-act]')].map(b => b.getAttribute('data-act')) })),
+                groups: [...document.querySelectorAll('#codebookModal .cb-group .h')].map(h => h.textContent), rows: document.querySelectorAll('#codebookModal .cb-table tbody tr').length,
+                used: [...document.querySelectorAll('#codebookModal .cb-table tbody tr')].filter(r => !r.querySelector('td.num .ui-muted')).length, foot: document.querySelector('#codebookModal .ui-dlg-f .note').textContent, exp: document.querySelector('#codebookModal .ui-dlg-f a[download]').getAttribute('href') })""")
+            check("the codebook screen: version 1, the 36 codes in the seed's six groups with the last load's uses on some; the coder's proposal first with its definition, its coder and day, the passage it came from (an id and the opening) and the four decisions; the foot's line and the Export link",
+                  cbv["shown"] == "flex" and cbv["sub"] == "version 1 \u00b7 36 codes \u00b7 uses from the last load" and [c["code"] for c in cbv["cards"]] == ["coach_flag"] and "private note" in cbv["cards"][0]["def"]
+                  and re.match(r"^proposed by \S+ on \S+ \S+ \u00b7 on \d+ passages? in the last load$", cbv["cards"][0]["meta"]) and len(cbv["cards"][0]["ex"]) >= 1 and re.match(r"^C\.\d+", cbv["cards"][0]["ex"][0]) and cbv["cards"][0]["acts"] == ["confirm", "rename", "merge", "decline"]
+                  and cbv["groups"] == ["body and health 10 codes", "mind 7 codes", "the session 10 codes", "performance 2 codes", "the exchange 4 codes", "life 3 codes"] and cbv["rows"] == 36 and cbv["used"] >= 4
+                  and cbv["foot"] == "A confirmed change applies from the next load; nothing already coded is re-coded." and cbv["exp"] == "/codebook/export", cbv)
+            page.click("#codebookModal .cb-card[data-code='coach_flag'] [data-act='rename']")
+            page.fill("#codebookModal .cb-card[data-code='coach_flag'] input[data-field='rename']", "fatigue")
+            page.click("#codebookModal .cb-card[data-code='coach_flag'] [data-act='rename-go']")
+            page.wait_for_selector("#codebookModal .cb-card .cb-error", timeout=15000)
+            cb_err = page.evaluate("() => document.querySelector('#codebookModal .cb-card .cb-error').textContent")
+            check("a rename onto a name the book has is refused in the card with the reason; nothing changed", cb_err == "the book already has a code named fatigue" and json.load(open(os.path.join(workdir, "webapp", "storage", USER, "context", "codebook.json")))["version"] == 1, cb_err)
+            page.click("#codebookModal .cb-card[data-code='coach_flag'] [data-act='confirm']")
+            page.wait_for_function("() => document.querySelectorAll('#codebookModal .cb-card').length === 0 && /^version 2/.test(document.querySelector('#codebookModal .ui-dlg-h .sub').textContent)", timeout=15000)
+            page.wait_for_timeout(500)
+            cbv2 = page.evaluate("""() => ({ sub: document.querySelector('#codebookModal .ui-dlg-h .sub').textContent, none: (document.querySelector('#codebookModal .cb-proposals .h') || {}).textContent,
+                groups: [...document.querySelectorAll('#codebookModal .cb-group .h')].map(h => h.textContent), confirmed: document.querySelectorAll('#codebookModal .cb-group tbody tr[data-code="coach_flag"] .cb-status.confirmed').length,
+                line: document.getElementById('contextCodebookLine').textContent, badge: (() => { const b = document.querySelector('#contextPill .pill-badge'); return b ? b.textContent : null; })(),
+                pillrow: (() => { const r = [...document.querySelectorAll('#contextPill .context-pill-menu .row')].find(x => x.className.includes('codebook')); return r ? r.textContent : null; })() })""")
+            book2 = json.load(open(os.path.join(workdir, "webapp", "storage", USER, "context", "codebook.json")))
+            check("Confirm: the proposal is a confirmed code of the book - version 2, 37 codes, a 'confirmed' group last with it; no proposal waiting, the card's line now 'open the codebook' with 37 codes, the pill's count and row gone; the file says the same",
+                  cbv2["sub"] == "version 2 \u00b7 37 codes \u00b7 uses from the last load" and cbv2["none"] == "Proposals none waiting" and cbv2["groups"][-1] == "confirmed 1 code" and cbv2["confirmed"] == 1 and cbv2["line"] == "Coded against your codebook \u00b7 37 codes \u00b7 open the codebook" and cbv2["badge"] is None and cbv2["pillrow"] is None
+                  and book2["version"] == 2 and any(c["code"] == "coach_flag" and c["status"] == "confirmed" and c["group"] == "confirmed" for c in book2["codes"]), (cbv2, book2["version"]))
+            exp_r = fetch_json(page, "/codebook/export")
+            check("Export: the stored book as a file (version 2, 37 codes)", exp_r["status"] == 200 and isinstance(exp_r["json"], dict) and exp_r["json"].get("version") == 2 and len(exp_r["json"].get("codes") or []) == 37, (exp_r["status"], (exp_r["json"] or {}).get("version") if isinstance(exp_r["json"], dict) else exp_r["json"]))
+            page.evaluate("() => { CodebookUI.close(); const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
+
             # ---- step 5: routines carry context (docs/CONTEXT_DESIGN.md F3, 2026-10-14) - a chain that counts a code on the rider's
             # own passages, made a routine; run on the next window (the load with context, the pass behind it waited for, the count
             # compared like any result line) and on a window without words (a context file of its header, no codes: zeros, said so) ----
@@ -736,6 +781,24 @@ def main():
                   and res1_n.get("of them read as fatigue by the coding pass") == exp_b and "against run 0" in rv_n["cmp"] and "fatigue" in rv_n["cmp"] and "Run 1 complete" in rv_n["done"] and not rv_n["warn"],
                   (rv_n["rows"], _chk_n, res1_n, exp_b, run1_n.get("aux_absent"), rv_n["done"][:200]))
             check("the Data tab after the run: the one Context pill for the run's window, settled (no spinner), its list with the passages and the codes", rv_n["ctx"] is not None and not rv_n["ctx"]["spinner"] and rv_n["ctx"]["label"].startswith("Context (") and any(r_.startswith("Codescontext_codes_") for r_ in rv_n["ctx"]["rows"]), rv_n["ctx"])
+            # the confirmed code in the next pass (step 6): the window overlaps the original's tail, whose passages the store holds - those
+            # are not re-coded and keep version 1 with coach_flag as it was coded (proposed); the days after it are coded now, under version
+            # 2, and the coder's coach_flag (it still proposes it) is the book's own there - marked codebook, not proposed
+            tag_b = f"{b_start_n.replace('-', '')}_to_{b_end_n.replace('-', '')}"
+            codes_b_path = os.path.join(exec_ds, f"context_codes_{tag_b}.csv")
+            codes_b = pd.read_csv(codes_b_path, dtype=str, keep_default_na=False) if os.path.exists(codes_b_path) else None
+            ctx_b_path = os.path.join(exec_ds, f"context_notes_{tag_b}.csv")
+            ctx_b = pd.read_csv(ctx_b_path, dtype=str, keep_default_na=False) if os.path.exists(ctx_b_path) else None
+            cb_rows = codes_b.merge(ctx_b[["id", "date"]], on="id", how="left") if codes_b is not None and ctx_b is not None else None
+            old_b = cb_rows[cb_rows["date"] <= a_end.isoformat()] if cb_rows is not None else None
+            new_b = cb_rows[cb_rows["date"] > a_end.isoformat()] if cb_rows is not None else None
+            check("after the confirmation the next pass uses the code as the book's own and re-codes nothing: in run 1's codes file the passages the store held (the original window's tail) keep version 1 and coach_flag as it was coded (proposed); "
+                  "the days after it are coded under version 2 with coach_flag marked codebook; the pill shows no count and no codebook row",
+                  cb_rows is not None and len(old_b) > 0 and len(new_b) > 0 and (old_b["codebook_version"] == "1").all() and (new_b["codebook_version"] == "2").all()
+                  and len(new_b[new_b["code"] == "coach_flag"]) >= 1 and (new_b[new_b["code"] == "coach_flag"]["status"] == "codebook").all() and not (new_b["status"] == "proposed").any()
+                  and (old_b[old_b["code"] == "coach_flag"]["status"] == "proposed").all()
+                  and page.evaluate("() => !document.querySelector('#contextPill .pill-badge')") is True and not any(r_.startswith("Codebook") for r_ in rv_n["ctx"]["rows"]),
+                  (codes_b_path, None if cb_rows is None else (len(old_b), set(old_b["codebook_version"]), len(new_b), set(new_b["codebook_version"]), cb_rows[cb_rows["code"] == "coach_flag"][["id", "date", "status", "codebook_version"]].to_dict("records"))))
             # run 2: a window without words (the fake's silent fortnight): the context file is its header, no codes file, the method
             # prints zeros, the CHECK row says 'no passages in this window' and does not call the codes absent
             c_start, c_end = today - timedelta(days=33), today - timedelta(days=22)

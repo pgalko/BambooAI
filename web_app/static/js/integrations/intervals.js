@@ -174,7 +174,9 @@ function createIntervalsAuxiliaryPills(auxDatasets, dataInfo, options) {
 // The passages and the codes of a load stack under a single pill, as the documents do: the label carries the days and a
 // spinner with "coding…" while the pass runs behind the load; the hover list names the two files with their row counts
 // (a click previews either in the Data tab) and the pass's line once it has ended; the pill's x removes both files.
-const contextPillState = { notes: null, codes: null, dataInfo: null, coding: false, line: '' };
+// When the pass proposed codes, the list gains a row to the codebook screen (step 6, 2026-10-16): it stays while the book
+// has proposals waiting (the count follows the book's) and goes when the coach has decided on them all.
+const contextPillState = { notes: null, codes: null, dataInfo: null, coding: false, line: '', proposed: 0 };
 const CONTEXT_PILL_REMOVE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>';
 function contextPillEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 function contextPillRender() {
@@ -197,7 +199,9 @@ function contextPillRender() {
     if (st.codes) rows.push('<div class="row" onclick="contextPreview(\'' + contextPillEsc(st.codes) + '\')"><span class="id">Codes</span><span class="file">' + contextPillEsc(st.codes.split('/').pop()) + '</span></div>');
     else if (st.coding) rows.push('<div class="row muted"><span class="id">Codes</span><span class="file">coding…</span></div>');
     if (st.line && !st.coding) rows.push('<div class="row muted line"><span class="file">' + contextPillEsc(st.line) + '</span></div>');
-    pill.innerHTML = '<span class="dataset-pill-content clickable-pill-content" title="' + contextPillEsc(title) + '" onclick="contextPreview(\'' + contextPillEsc(first) + '\')"><span>' + contextPillEsc(label) + '</span>' +
+    if (st.proposed > 0 && !st.coding) rows.push('<div class="row codebook" onclick="event.stopPropagation(); contextCodebookOpen()"><span class="id">Codebook</span><span class="file">' + contextPillEsc(contextPillProposalsText(st.proposed)) + '</span></div>');
+    const badge = (st.proposed > 0 && !st.coding) ? '<span class="pill-badge" title="' + contextPillEsc(contextPillProposalsText(st.proposed).replace('Codebook · ', '')) + ' in the codebook">' + st.proposed + '</span>' : '';
+    pill.innerHTML = '<span class="dataset-pill-content clickable-pill-content" title="' + contextPillEsc(title) + '" onclick="contextPreview(\'' + contextPillEsc(first) + '\')"><span>' + contextPillEsc(label) + '</span>' + badge +
         (st.coding ? '<div class="file-upload-spinner"></div>' : '') + '</span>' +
         '<span class="dataset-pill-remove-icon" title="Remove the context" onclick="event.stopPropagation(); contextRemove()">' + CONTEXT_PILL_REMOVE + '</span>' +
         '<div class="context-pill-menu">' + rows.join('') + '</div>';
@@ -221,11 +225,24 @@ function contextPillSettle(view) {
     contextPillState.coding = false;
     contextPillState.line = view ? (view.line || view.status || '') : 'the coding pass could not be followed';
     if (view && view.codes_path) contextPillState.codes = view.codes_path;
+    contextPillState.proposed = Number(view && view.report && view.report.proposed) || 0;
     contextPillRender();
+    // the gear item's count follows the book when a pass ends (the codebook screen reads it; it corrects the row's count too)
+    if (window.CodebookUI && typeof window.CodebookUI.badge === 'function') window.CodebookUI.badge();
 }
 function contextPillClear() {
-    contextPillState.notes = null; contextPillState.codes = null; contextPillState.coding = false; contextPillState.line = '';
+    contextPillState.notes = null; contextPillState.codes = null; contextPillState.coding = false; contextPillState.line = ''; contextPillState.proposed = 0;
     contextPillRender();
+}
+function contextPillProposalsText(n) { return 'Codebook · ' + (n === 1 ? '1 proposal awaits you' : n + ' proposals await you'); }
+// the book's count of proposals waiting, read by the codebook screen: the row shown when the last pass proposed codes follows it
+function contextPillProposals(n) {
+    if (!(contextPillState.proposed > 0)) return;
+    contextPillState.proposed = Number(n) || 0;
+    contextPillRender();
+}
+function contextCodebookOpen() {
+    if (window.CodebookUI && typeof window.CodebookUI.open === 'function') window.CodebookUI.open();
 }
 function contextMenuPlace(pill) {
     const menu = pill && pill.querySelector ? pill.querySelector('.context-pill-menu') : null;
@@ -272,7 +289,7 @@ function pollContextCoding(jobId, dataInfo, onDone) {
     };
     setTimeout(tick, 2000);
 }
-if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, showIntervalsStoreLine }); }
+if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, contextPillProposals, contextPillProposalsText, contextCodebookOpen, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, showIntervalsStoreLine }); }
 
 function removeIntervalsPill() {
     if (currentIntervalsState.pillId) {
@@ -733,6 +750,7 @@ function showIntervalsModal() {
         initializeAuxDatasetOptions();
         initializeDownloadChoice();
         showIntervalsStoreLine();
+        if (window.CodebookUI && typeof window.CodebookUI.badge === 'function') window.CodebookUI.badge();   // the Context card's codebook line, current
     }
 }
 

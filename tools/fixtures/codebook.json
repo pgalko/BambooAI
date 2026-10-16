@@ -1,0 +1,293 @@
+{
+ "/codebook": {
+  "version": 2,
+  "updated": "2026-10-15T10:00:00Z",
+  "counts": {
+   "codes": 37,
+   "proposed": 2,
+   "used": 9
+  },
+  "proposals": [
+   {
+    "code": "heavy_legs",
+    "definition": "the legs feel heavy, before or during a session",
+    "proposed_by": "x/coder-1",
+    "proposed_on": "2026-10-15T10:00:00Z",
+    "examples": [
+     "C.12: the legs were heavy today, rode shorter than planned",
+     "C.41: heavy legs again on the climb"
+    ],
+    "uses": 2
+   },
+   {
+    "code": "coach_flag",
+    "definition": "a private note by the coach to watch something in the coming days",
+    "proposed_by": "x/coder-1",
+    "proposed_on": "2026-10-15T10:00:00Z",
+    "examples": [
+     "C.9: Private: check the sleep log this week"
+    ],
+    "uses": 1
+   }
+  ],
+  "groups": [
+   {
+    "name": "body and health",
+    "codes": [
+     {
+      "code": "fatigue",
+      "definition": "tired, heavy, flat, no energy, needing rest",
+      "status": "seeded",
+      "uses": 31
+     },
+     {
+      "code": "freshness",
+      "definition": "fresh, light, strong, recovered",
+      "status": "seeded",
+      "uses": 6
+     },
+     {
+      "code": "soreness",
+      "definition": "muscle soreness, stiffness, aches without a named injury",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "injury",
+      "definition": "a named injury or pain that limits",
+      "status": "seeded",
+      "uses": 2
+     },
+     {
+      "code": "illness",
+      "definition": "sick, cold, fever, stomach, cold sore, feeling off",
+      "status": "seeded",
+      "uses": 1
+     },
+     {
+      "code": "sleep",
+      "definition": "how the night went, duration, waking",
+      "status": "seeded",
+      "uses": 14
+     },
+     {
+      "code": "nutrition",
+      "definition": "eating, fuelling, hunger, carbohydrates, bonking",
+      "status": "seeded",
+      "uses": 3
+     },
+     {
+      "code": "hydration",
+      "definition": "drinking, thirst, dehydration",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "body",
+      "definition": "weight, heat, cramps, gut, cycle, breathing",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "recovery",
+      "definition": "rest taken or needed, a day off, recovering",
+      "status": "seeded",
+      "uses": 4
+     }
+    ]
+   },
+   {
+    "name": "mind",
+    "codes": [
+     {
+      "code": "mood",
+      "definition": "upbeat, down, flat, irritable",
+      "status": "seeded",
+      "uses": 5
+     },
+     {
+      "code": "motivation",
+      "definition": "wanting to or not",
+      "status": "seeded",
+      "uses": 2
+     },
+     {
+      "code": "stress",
+      "definition": "pressure, worry, tension from life",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "confidence",
+      "definition": "belief or doubt in oneself",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "focus",
+      "definition": "concentration, mental fatigue, distraction",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "nerves",
+      "definition": "anxiety before an event",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "enjoyment",
+      "definition": "fun, boring, grind",
+      "status": "seeded",
+      "uses": 1
+     }
+    ]
+   },
+   {
+    "name": "the session",
+    "codes": [
+     {
+      "code": "execution",
+      "definition": "done as planned, targets hit or missed",
+      "status": "seeded",
+      "uses": 12
+     },
+     {
+      "code": "deviation",
+      "definition": "the plan changed, cut, extended, and why",
+      "status": "seeded",
+      "uses": 8
+     },
+     {
+      "code": "effort",
+      "definition": "how hard it felt against what was expected",
+      "status": "seeded",
+      "uses": 3
+     },
+     {
+      "code": "pacing",
+      "definition": "too hard or too easy early, fading",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "technique",
+      "definition": "form, position, skill",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "equipment",
+      "definition": "mechanical, device, bike, trainer, data missing",
+      "status": "seeded",
+      "uses": 1
+     },
+     {
+      "code": "conditions",
+      "definition": "weather, heat, wind, road, altitude",
+      "status": "seeded",
+      "uses": 4
+     },
+     {
+      "code": "company",
+      "definition": "group, teammates, alone",
+      "status": "seeded",
+      "uses": 0
+     },
+     {
+      "code": "logistics",
+      "definition": "time, travel, schedule, a clash with work or study",
+      "status": "seeded",
+      "uses": 2
+     },
+     {
+      "code": "test",
+      "definition": "a test or measurement reported",
+      "status": "seeded",
+      "uses": 0
+     }
+    ]
+   },
+   {
+    "name": "performance",
+    "codes": [
+     {
+      "code": "good_day",
+      "definition": "felt strong, a breakthrough",
+      "status": "seeded",
+      "uses": 7
+     },
+     {
+      "code": "bad_day",
+      "definition": "nothing there, weak, worse than usual",
+      "status": "seeded",
+      "uses": 3
+     }
+    ]
+   },
+   {
+    "name": "the exchange",
+    "codes": [
+     {
+      "code": "question",
+      "definition": "something asked of the coach",
+      "status": "seeded",
+      "uses": 2
+     },
+     {
+      "code": "instruction",
+      "definition": "the coach's direction for a session or a day",
+      "status": "seeded",
+      "uses": 19
+     },
+     {
+      "code": "feedback",
+      "definition": "the coach's judgement or encouragement",
+      "status": "seeded",
+      "uses": 11
+     },
+     {
+      "code": "plan_change",
+      "definition": "an agreed change to the plan",
+      "status": "seeded",
+      "uses": 3
+     }
+    ]
+   },
+   {
+    "name": "life",
+    "codes": [
+     {
+      "code": "work_study",
+      "definition": "work or study: hours, exams, a job's demands",
+      "status": "seeded",
+      "uses": 4
+     },
+     {
+      "code": "family_social",
+      "definition": "family, friends, a social occasion",
+      "status": "seeded",
+      "uses": 1
+     },
+     {
+      "code": "travel",
+      "definition": "travelling, away from home, a journey",
+      "status": "seeded",
+      "uses": 2
+     }
+    ]
+   },
+   {
+    "name": "confirmed",
+    "codes": [
+     {
+      "code": "knee",
+      "definition": "the knee: pain, stiffness or care taken",
+      "status": "confirmed",
+      "uses": 3
+     }
+    ]
+   }
+  ]
+ }
+}

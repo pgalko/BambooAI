@@ -214,8 +214,9 @@ _fs = _types.ModuleType("auth.supabase_client"); _fs.can_execute_chain = lambda 
 _fapp = _types.ModuleType("app"); _fapp.user_path = lambda root, *p: os.path.join(os.getcwd(), root, "u1", *p); _fapp.get_bamboo_ai = lambda sid: BAMBOO; _fapp.get_user_id = lambda: "u1"; _fapp.update_user_activity = lambda u: None
 sys.modules["app"] = _fapp
 import routines_routes as RR
+import codebook_routes as CR
 from flask import Flask
-_w = Flask("t"); _w.secret_key = "t"; _w.register_blueprint(RR.routines_bp); _wc = _w.test_client()
+_w = Flask("t"); _w.secret_key = "t"; _w.register_blueprint(RR.routines_bp); _w.register_blueprint(CR.codebook_bp); _wc = _w.test_client()
 with _wc.session_transaction() as _sess: _sess["session_id"] = "s1"
 def _lines(resp): return [json.loads(x) for x in resp.get_data(as_text=True).splitlines() if x.strip()]
 _r = _wc.post("/routines/propose", json={"thread_id": "1001", "chain_id": run1.id})
@@ -337,6 +338,47 @@ _r = _wc.post("/routines/create", json={"proposal_id": "gone"})
 check("route /routines/create with a spent proposal: the stream ends with routine_error", "routine_error" in _lines(_r)[-1] and "expired" in _lines(_r)[-1]["routine_error"])
 _r = _wc.post("/routines/propose", json={"thread_id": "1001", "chain_id": "nope"})
 check("route /routines/propose on an unknown chain: routine_error with the reason", "routine_error" in _lines(_r)[-1] and "not in this thread" in _lines(_r)[-1]["routine_error"], _lines(_r)[-1])
+
+# the codebook screen's routes (web_app/codebook_routes.py; docs/CONTEXT_DESIGN.md §7 S3, step 6) on the same test app: the book
+# under storage/u1/context/codebook.json, seeded on the first read; a proposal confirmed with a rename, one merged, one declined,
+# the version moving only on confirmed changes; the export/import round trip; a bad import and a bad decision refused with the reason
+from analyst import codebook as _cb
+_cv = _wc.get("/codebook")
+check("route GET /codebook: the view of the user's book, seeded on first use - version 1, 36 codes, no proposals, the seed's six groups",
+      _cv.status_code == 200 and _cv.get_json()["version"] == 1 and _cv.get_json()["counts"] == {"codes": 36, "proposed": 0, "used": 0} and [g["name"] for g in _cv.get_json()["groups"]] == _cb.seed_groups()
+      and os.path.exists(os.path.join(os.getcwd(), "storage", "u1", "context", "codebook.json")), _cv.get_json() if _cv.status_code == 200 else _cv.status_code)
+_cs = _fapp.user_path("storage")
+_bk = _cb.load(_cs)
+_bk, _ = _cb.add_proposals(_bk, [{"code": "heavy legs", "definition": "the legs feel heavy", "example": "C.2: the legs were heavy"}, {"code": "coach flag", "definition": "a private note to watch something", "example": "C.9: check the sleep log"},
+                                 {"code": "spare", "definition": "a third proposal", "example": "C.11: spare"}], coder="x/coder-1")
+_cb.save(_cs, _bk)
+_cv = _wc.get("/codebook").get_json()
+check("route GET /codebook with proposals waiting: three proposals first, each with its proposer and example; the count says so", [p["code"] for p in _cv["proposals"]] == ["heavy_legs", "coach_flag", "spare"] and _cv["counts"]["proposed"] == 3 and _cv["proposals"][0]["examples"] == ["C.2: the legs were heavy"] and _cv["proposals"][0]["proposed_by"] == "x/coder-1", _cv["proposals"])
+_r = _wc.post("/codebook/confirm", json={"code": "heavy_legs", "rename_to": "Leg heaviness"})
+check("route POST /codebook/confirm with a rename: the code confirmed under its normalised new name in the 'confirmed' group, the version 2, the answer the whole view",
+      _r.status_code == 200 and _r.get_json()["version"] == 2 and _r.get_json()["counts"]["proposed"] == 2 and _r.get_json()["groups"][-1]["name"] == "confirmed" and _r.get_json()["groups"][-1]["codes"][0]["code"] == "leg_heaviness"
+      and _cb.load(_cs)["version"] == 2 and "leg_heaviness" in _cb.active_codes(_cb.load(_cs)), _r.get_json())
+_r = _wc.post("/codebook/confirm", json={"code": "coach_flag", "merge_into": "fatigue"})
+check("route POST /codebook/confirm with a merge: the proposal leaves the book, the target unchanged, the version 3", _r.status_code == 200 and _r.get_json()["version"] == 3 and [p["code"] for p in _r.get_json()["proposals"]] == ["spare"] and _r.get_json()["counts"]["codes"] == 37, _r.get_json().get("version"))
+_bad = [({"code": "nothing"}, "there is no proposal named nothing"), ({"code": "spare", "rename_to": "fatigue"}, "the book already has a code named fatigue"), ({"code": "spare", "merge_into": "nothing"}, "nothing is not a code of the book to merge into"), ({"code": "spare", "rename_to": " "}, "the new name is empty"), ({"code": "spare", "rename_to": ""}, "the new name is empty"), ({"code": "spare", "merge_into": ""}, "no code chosen to merge into")]
+check("route POST /codebook/confirm refused with the reason: an unknown proposal, a taken name, a merge target the book lacks, an empty name or no target chosen (a blank key is not a plain confirmation); the version stays 3",
+      all(_wc.post("/codebook/confirm", json=j).status_code == 400 and _wc.post("/codebook/confirm", json=j).get_json()["error"] == e for j, e in _bad) and _cb.load(_cs)["version"] == 3, [_wc.post("/codebook/confirm", json=j).get_json() for j, e in _bad])
+_r = _wc.post("/codebook/decline", json={"code": "spare"})
+check("route POST /codebook/decline: the proposal leaves the book, the version does not move (a decline is not a confirmed change); declining it again is refused with the reason",
+      _r.status_code == 200 and _r.get_json()["version"] == 3 and _r.get_json()["counts"]["proposed"] == 0 and _wc.post("/codebook/decline", json={"code": "spare"}).status_code == 400 and _wc.post("/codebook/decline", json={"code": "spare"}).get_json()["error"] == "there is no proposal named spare", _r.get_json().get("counts"))
+_ex = _wc.get("/codebook/export")
+_exj = json.loads(_ex.get_data(as_text=True))
+check("route GET /codebook/export: the stored book as a JSON download named by its version", _ex.status_code == 200 and _ex.mimetype == "application/json" and _ex.headers["Content-Disposition"] == 'attachment; filename="codebook_v3.json"' and _exj["version"] == 3 and len(_exj["codes"]) == 37, _ex.headers.get("Content-Disposition"))
+import io as _io
+_r = _wc.post("/codebook/import", data={"file": (_io.BytesIO(_ex.get_data()), "codebook_v3.json")}, content_type="multipart/form-data")
+check("route POST /codebook/import of the export: the book replaced by its own copy, the version one more than the greater of the two (4)", _r.status_code == 200 and _r.get_json()["version"] == 4 and _r.get_json()["counts"]["codes"] == 37 and _cb.load(_cs)["version"] == 4, _r.get_json())
+_r = _wc.post("/codebook/import", data={"file": (_io.BytesIO(b'{"codes": [{"code": "a"}]}'), "bad.json")}, content_type="multipart/form-data")
+_r2 = _wc.post("/codebook/import", data={"file": (_io.BytesIO(b"not json"), "bad.json")}, content_type="multipart/form-data")
+_v_bad = _cb.load(_cs)["version"]
+_r3 = _wc.post("/codebook/import", json={"version": 9, "codes": [{"code": "only", "definition": "the one code", "status": "seeded"}]})
+check("route POST /codebook/import refused with the reason (a code without a definition; a file that is not JSON), the book untouched; a JSON body imports too (version 10)",
+      _r.status_code == 400 and _r.get_json()["error"] == "the code a has no definition" and _r2.status_code == 400 and _r2.get_json()["error"] == "the file is not JSON" and _v_bad == 4
+      and _r3.status_code == 200 and _r3.get_json()["version"] == 10 and _r3.get_json()["counts"]["codes"] == 1 and _r3.get_json()["groups"] == [{"name": "other", "codes": [{"code": "only", "definition": "the one code", "status": "seeded", "uses": 0}]}], (_r.get_json(), _r2.get_json(), _r3.get_json()))
 for _m in ("auth", "auth.supabase_client", "app"): sys.modules.pop(_m, None)
 
 # the v1 replay and edit-and-run are retired with step 4 (docs/ROUTINES_DESIGN.md S10, 2026-10-11): the replay routes and

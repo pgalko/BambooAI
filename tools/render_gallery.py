@@ -26,12 +26,14 @@ STATES = {
     'dlg_intervals': "showIntervalsModal(); document.getElementById('intervalsStartDate').value='2025-10-18'; document.getElementById('intervalsEndDate').value='2026-10-16';",     # the load dialogs' shared grammar (2026-10-16)
     'dlg_endura': "document.getElementById('enduraModal').style.display='flex'; document.getElementById('enduraRaceSelect').innerHTML='<option>Spring classic 2026</option>';",
     'dlg_intervals_cfg': "document.getElementById('intervalsConfigModal').style.display='flex';",
+    'dlg_codebook': "CodebookUI.open();",
 }
 
 def render_all(out, light=False):
     os.makedirs(out, exist_ok=True)
     from playwright.sync_api import sync_playwright
     html = rp.static_index(); fixtures = json.load(open(os.path.join(HERE, 'fixtures', 'workflows.json'))); ROOT = rp.ROOT
+    fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'codebook.json'))))     # the codebook screen's book (2026-10-16), a file of its own
     with sync_playwright() as pw:
         b = pw.chromium.launch()
         for name, js in STATES.items():

@@ -613,8 +613,16 @@ words are `CTX`: `CTX.frame()` and `CTX.codes()` are the two tables, `CTX.grep(p
 `CTX.around(date, days=3)`, `CTX.between(a, b)` and `CTX.on(activity_id)` find passages, `CTX.text(ref)`
 reads one whole. `READ CTX what` puts a question to the `Reader` over the passages, as over documents.
 The report cites a passage as `[C.417]`, quoted verbatim and marked *rendered* when it was translated;
-a count of codes is reported as the model's reading, not as what was said. The design is
-`docs/CONTEXT_DESIGN.md`.
+a count of codes is reported as the model's reading, not as what was said.
+
+The codebook is yours. When no code fits a passage the `Coder` proposes one, uses it meanwhile with
+its rows marked, and leaves the decision to you: the Context card of the Intervals.icu load dialog
+says how many proposals wait and opens the codebook (the Context pill carries the count too), which
+shows each proposal with the passages it came from - confirm it, confirm it under another name,
+merge it into a code the book has, or decline it - and the codes by group with their definition,
+status and the last load's uses.
+The book can be exported and imported as JSON. A confirmed change applies from the next load;
+nothing already coded is re-coded. The design is `docs/CONTEXT_DESIGN.md`.
 
 ### The Dataset cache and the store
 

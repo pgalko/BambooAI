@@ -310,6 +310,11 @@ function continueAppInitialization() {
         window.RoutinesUI.initialize();
     }
 
+    // The context codebook (docs/CONTEXT_DESIGN.md S3): the gear item and its count of proposals, read once auth has settled
+    if (typeof window.CodebookUI !== 'undefined' && typeof window.CodebookUI.initialize === 'function') {
+        window.CodebookUI.initialize();
+    }
+
     // Initialize Labels Manager
     if (typeof window.LabelsManager !== 'undefined' && typeof window.LabelsManager.initialize === 'function') {
         window.LabelsManager.initialize();

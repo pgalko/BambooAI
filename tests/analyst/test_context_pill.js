@@ -38,6 +38,29 @@ m.contextPreview(CODES);
 check('a row\'s click previews that file in the Data tab through the shared preview', previews.length === 1 && previews[0][0] === '/get_dataset_preview' && previews[0][1].file_path === CODES && previews[0][2] === 'auxiliary', previews);
 check('a codes file arriving alone later joins the same pill (the load route\'s completion read again)', m.contextPillAdd([CODES], info, { coding: false, line: 'x' }) === true && doc.querySelectorAll('#contextPill').length === 1 && doc.getElementById('contextPill').querySelectorAll('.context-pill-menu .row').length === 3);
 check('a file that is not a context file is not taken', m.contextPillAdd([WELL], info) === false);
+// the row to the codebook screen (step 6, 2026-10-16): when the pass proposed codes, a fourth row - a click opens the screen; the
+// gear item's count is refreshed through the screen's module; the row's count follows the book and the row goes with the last proposal
+const badges = [], opened = [];
+window.CodebookUI = { badge: () => { badges.push(1); return Promise.resolve(2); }, open: () => opened.push(1) };
+m.contextPillSettle({ status: 'done', line: '201 of 223 coded, 2 codes proposed', codes_path: CODES, report: { proposed: 2 } });
+pill = doc.getElementById('contextPill');
+let rowsP = pill.querySelectorAll('.context-pill-menu .row');
+check('a pass that proposed codes: the green count inside the pill, and a Codebook row after the line - "2 proposals await you" - opening the screen on click; the screen\'s module asked to refresh the count',
+      rowsP.length === 4 && rowsP[3].className === 'row codebook' && rowsP[3].textContent === 'CodebookCodebook · 2 proposals await you' && rowsP[3].getAttribute('onclick').includes('contextCodebookOpen()') && badges.length === 1
+      && pill.querySelector('.dataset-pill-content .pill-badge').textContent === '2' && pill.querySelector('.pill-badge').getAttribute('title') === '2 proposals await you in the codebook', pill.outerHTML);
+m.contextPillProposals(1);
+pill = doc.getElementById('contextPill'); rowsP = pill.querySelectorAll('.context-pill-menu .row');
+check('the book\'s count read by the screen corrects the row and the badge (one proposal left after a decision)', rowsP.length === 4 && rowsP[3].textContent === 'CodebookCodebook · 1 proposal awaits you' && pill.querySelector('.pill-badge').textContent === '1', rowsP[3].textContent);
+m.contextCodebookOpen();
+m.contextPillProposals(0);
+pill = doc.getElementById('contextPill'); rowsP = pill.querySelectorAll('.context-pill-menu .row');
+check('a click on the row opens the screen; with no proposal left the row and the badge go', opened.length === 1 && rowsP.length === 3 && !rowsP.some(r => r.className.includes('codebook')) && !pill.querySelector('.pill-badge'), rowsP.map(r => r.className));
+m.contextPillProposals(3);
+check('a count arriving when the last pass proposed nothing does not raise the row (it is the pass\'s row, the book\'s count)', doc.getElementById('contextPill').querySelectorAll('.context-pill-menu .row').length === 3);
+m.contextPillSettle({ status: 'done', line: 'nothing proposed', codes_path: CODES, report: { proposed: 0 } });
+check('a pass that proposed nothing: no row; the gear count still refreshed', doc.getElementById('contextPill').querySelectorAll('.context-pill-menu .row.codebook').length === 0 && badges.length === 2);
+check('the wording', m.contextPillProposalsText(1) === 'Codebook · 1 proposal awaits you' && m.contextPillProposalsText(5) === 'Codebook · 5 proposals await you');
+delete window.CodebookUI;
 m.contextRemove().then(() => {
   check('the pill\'s x removes both files through the auxiliary route and the pill goes; the count moves back by two', posts.length === 2 && posts.every(p => p[0] === '/remove_auxiliary_dataset') && posts.map(p => p[1].file_path).sort().join() === [CODES, NOTES].sort().join() && !doc.getElementById('contextPill') && window.auxiliaryDatasetCount === 2, (posts, window.auxiliaryDatasetCount));
   check('a load without context leaves no Context pill', m.createIntervalsAuxiliaryPills([WELL], info) && !doc.getElementById('contextPill'));

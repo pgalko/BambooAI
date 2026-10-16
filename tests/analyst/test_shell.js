@@ -120,5 +120,11 @@ check('intervals.js: the report line - the passages by kind, most first, and the
   && contextReportLine({ passages: 212, kinds: { activity_message: 198, day_note: 14 }, coding_line: '201 of 212 coded, 180 rendered into English, 2 codes proposed' }) === 'Context: 212 passages — activity_message 198, day_note 14; 201 of 212 coded, 180 rendered into English, 2 codes proposed.'
   && contextReportLine({ passages: 0, kinds: {}, coding_line: 'nothing to code' }) === 'Context: no passages in this window.',
   contextReportLine({ passages: 15, kinds: { tag: 2, activity_message: 9, status: 4 }, failed: ['the calendar entries could not be fetched (HTTPError)'] }));
+// ---- the context codebook (2026-10-16, docs/CONTEXT_DESIGN.md §7 S3, step 6): Intervals-only, so its ways in are the Intervals dialog's Context card and the Context pill - nothing universal carries it ----
+check('codebook: no gear item and no rail entry carry it; the Context card of the Intervals dialog has the line slot the module fills; codebook.js is loaded after memory-review.js',
+  !root.querySelector('.codebook-option') && !root.querySelector('.rail #codebookPill') && /id="contextCodebookLine"/.test(intMod) && html.indexOf("js/codebook.js") > html.indexOf("js/memory-review.js") && html.indexOf("js/codebook.js") < html.indexOf("js/integrations/sweatstack.js"));
+check('intervals.js: the Context pill carries the count of proposals waiting inside it and its list a row to the codebook screen when the pass proposed codes; shell.css styles both',
+  ij.includes("if (st.proposed > 0 && !st.coding) rows.push('<div class=\"row codebook\" onclick=\"event.stopPropagation(); contextCodebookOpen()\">") && ij.includes('contextPillState.proposed = Number(view && view.report && view.report.proposed) || 0;')
+  && ij.includes("const badge = (st.proposed > 0 && !st.coding) ? '<span class=\"pill-badge\"") && shell.includes('.topbar .context-pill-menu .row.codebook .id { color: var(--c-model); }') && shell.includes('.topbar .context-pill .pill-badge {'));
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

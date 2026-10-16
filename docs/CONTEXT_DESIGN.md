@@ -408,6 +408,27 @@ routine's narrative may say, not analysis methods the contract may prescribe (C2
 - **S3 — The codebook.** Settings → *Context codebook*: the codes by group with definition, status and the last
   load's counts; proposals at the top with the passages they came from (quoted), *Confirm* / *Rename or merge
   into…* / *Decline*; export and import as JSON. Read-only list and proposals first; editing definitions later.
+  *Built 2026-10-16 (patch 0178):* the book is Intervals-only - it exists for the words an Intervals.icu load
+  brings - so nothing universal carries it (not the rail, not the gear menu, which a file or Endura user would see
+  and could never fill; Palo, 2026-10-16). Its ways in are where the context is: the Intervals dialog's Context
+  card ends with *Coded against your codebook · 36 codes · 2 proposals waiting* - a link that opens the dialog, the
+  count as the green badge; with nothing waiting *… · open the codebook* - and the Context pill carries the count
+  inside it when proposals wait, its hover list a row *Codebook · 2 proposals await you*, both appearing when the
+  last pass proposed codes and staying while the book has proposals waiting (the count the book's, read at page
+  load, when the load dialog opens and when a pass ends). One dialog (`#codebookModal`, `codebook.js`): the header *version 2 · 37 codes · uses
+  from the last load*; the proposals as cards - the code, its definition, *proposed by <the coder's model> on <day>
+  · on N passages in the last load*, the stored example passages (the id and the opening), and the decisions:
+  *Confirm* as it is, *Rename…* (an inline field; a taken or empty name is refused in the card with the reason),
+  *Merge into…* (a select over the active codes), *Decline*; every decision answers with the whole book and the
+  dialog re-renders from it. Then the codes by group in the seed's order, any other group after, *confirmed* last,
+  each code with its definition, status chip and uses. The foot: *Export* (`codebook_v<version>.json`), *Import*
+  (a file picker; the file validated - every entry a code, a definition, a status the book knows; the book replaced,
+  its version one more than the greater of the two, so a version never goes back), and the line *A confirmed change
+  applies from the next load; nothing already coded is re-coded.* Routes in `web_app/codebook_routes.py`, both
+  editions: `GET /codebook`, `POST /codebook/confirm`, `POST /codebook/decline`, `GET /codebook/export`,
+  `POST /codebook/import`. The coder keeps using a proposal before the coach decides (its rows marked); a confirmed
+  code is the book's own from the next pass (its rows marked `codebook`, under the new version); nothing cached is
+  re-coded, and the store's entries keep the version they were coded under.
 - **S4 — Routines.** Nothing new: the run dialog's load carries context; the comparison table shows count lines
   the method prints; the Comparison tab says *no passages in this window* when so.
 
@@ -487,7 +508,21 @@ Nothing. The summary file's columns grow (§3.1); no existing column changes mea
    for the window with no coding line. Live: pending (D9 is moot until a run carries a narrative - the record's
    `narrative` field is empty by construction today).
 6. **The codebook screen** — S3. *Accepted by:* the markup tests, the screens tool, a proposal confirmed live and
-   used by the next load.
+   used by the next load. *Built 2026-10-16 (patch 0178):* the module side (`analyst/codebook.py`: the view, the
+   reasons a decision is refused, the import's validation, the replacement), the routes, the dialog, the Context
+   card's line and the pill's count and row. *Accepted by:* `tests/analyst/test_codebook.py` (the view, the refusals, the import, the
+   version never going back), the routes on the test app (`test_app_path.py`: a rename, a merge, a decline, the
+   refusals with their reasons, the export/import round trip, a bad file refused), `test_codebook.js` (the markup
+   and the module driven on the mini DOM against a scripted server), the pill's row (`test_context_pill.js`), the
+   page's hooks (`test_shell.js`), the gallery state `dlg_codebook`; the integrations walk - the first load's pass
+   proposes `coach_flag`, the pill carries *1*, the Context card's line says *1 proposal waiting* and its link opens
+   the screen without toggling the box, the dialog shows the
+   proposal with its passage and the 36 codes with their uses, a rename onto `fatigue` is refused with the reason,
+   Confirm makes it a code of the book (version 2, the count and the row gone, the export says so), and the
+   routine's run 1 on a window overlapping the original's tail re-codes nothing: the passages the store held keep
+   version 1 and `coach_flag` as it was coded (proposed), the days after are coded under version 2 with
+   `coach_flag` as the book's own (rows marked `codebook`, none proposed). Live: pending Palo's trial (a proposal
+   from a real pass, confirmed, the next load's codes file).
 7. **The joint display** — no code until the field trial shows the analyst cannot draw one with what it has (C6);
    the trial's third question is the test.
 

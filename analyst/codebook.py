@@ -157,3 +157,113 @@ def decline(book: dict, code: str, when: Optional[str] = None) -> Tuple[dict, bo
     if changed:
         book["updated"] = when or _now()
     return book, changed
+
+
+# ----------------------------------------------------------------------------- the codebook screen (step 6, S3)
+STATUSES = ("seeded", "confirmed", "proposed")
+
+
+def seed_groups() -> List[str]:
+    """The seed's groups in its own order: the order the page lists them in."""
+    try:
+        with open(SEED_PATH, encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    out: List[str] = []
+    for c in raw.get("codes", []):
+        g = str((c or {}).get("group") or "")
+        if g and g not in out:
+            out.append(g)
+    return out
+
+
+def why_not(book: dict, code: str, rename_to: Optional[str] = None, merge_into: Optional[str] = None) -> str:
+    """Why `confirm` would refuse, in a sentence for the person; '' when it would not."""
+    code = normalise_code(code)
+    if not any(c["code"] == code and c.get("status") == "proposed" for c in entries(book)):
+        return f"there is no proposal named {code or '?'}"
+    if merge_into:
+        target = normalise_code(merge_into)
+        if not any(c["code"] == target and c.get("status", "seeded") in ACTIVE for c in entries(book)):
+            return f"{target or '?'} is not a code of the book to merge into"
+        return ""
+    if rename_to:
+        new = normalise_code(rename_to)
+        if not new:
+            return "the new name is empty"
+        if any(c["code"] == new for c in entries(book) if c["code"] != code):
+            return f"the book already has a code named {new}"
+    return ""
+
+
+def view(book: dict) -> dict:
+    """The book as the page shows it (docs/CONTEXT_DESIGN.md §7 S3): the version and date, the counts, the proposals
+    first (each with its definition, proposer, date, example passages and the last load's uses), then the codes by
+    group - the seed's groups in the seed's order, any other group after them, `confirmed` last - each code with
+    its definition, status and uses."""
+    items = entries(book)
+    proposals = [{"code": c["code"], "definition": c.get("definition", ""), "proposed_by": c.get("proposed_by", ""),
+                  "proposed_on": c.get("proposed_on", ""), "examples": list(c.get("examples") or []), "uses": int(c.get("uses") or 0)}
+                 for c in items if c.get("status") == "proposed"]
+    active = [c for c in items if c.get("status", "seeded") in ACTIVE]
+    order = seed_groups()
+    others = sorted({str(c.get("group") or "") for c in active} - set(order) - {"confirmed", ""})
+    groups = []
+    for g in order + others + ["confirmed", ""]:
+        codes = [{"code": c["code"], "definition": c.get("definition", ""), "status": c.get("status", "seeded"), "uses": int(c.get("uses") or 0)}
+                 for c in active if str(c.get("group") or "") == g]
+        if codes:
+            groups.append({"name": g or "other", "codes": codes})
+    return {"version": int(book.get("version", 1)), "updated": str(book.get("updated") or ""),
+            "counts": {"codes": len(active), "proposed": len(proposals), "used": sum(1 for c in active if int(c.get("uses") or 0) > 0)},
+            "proposals": proposals, "groups": groups}
+
+
+def validate_import(obj) -> Tuple[Optional[dict], str]:
+    """A book from a file, checked: a dict with a list of codes, each a dict with a code (normalised, unique), a
+    definition and a status the book knows; the proposals keep their proposer, date and examples. Returns (book,
+    '') or (None, the reason)."""
+    if not isinstance(obj, dict) or not isinstance(obj.get("codes"), list):
+        return None, "the file is not a codebook: it needs a list of codes"
+    codes: List[dict] = []
+    seen = set()
+    for i, c in enumerate(obj["codes"]):
+        if not isinstance(c, dict):
+            return None, f"entry {i + 1} is not an object"
+        code = normalise_code(c.get("code"))
+        definition = str(c.get("definition") or "").strip()
+        status = str(c.get("status") or "seeded")
+        if not code:
+            return None, f"entry {i + 1} has no code"
+        if code in seen:
+            return None, f"the code {code} appears twice"
+        if not definition:
+            return None, f"the code {code} has no definition"
+        if status not in STATUSES:
+            return None, f"the code {code} has an unknown status ({status})"
+        seen.add(code)
+        entry = {"code": code, "group": str(c.get("group") or ("proposed" if status == "proposed" else "")), "definition": definition,
+                 "status": status, "uses": int(c.get("uses") or 0) if str(c.get("uses") or "0").lstrip("-").isdigit() else 0}
+        if status == "proposed":
+            entry.update({"proposed_by": str(c.get("proposed_by") or ""), "proposed_on": str(c.get("proposed_on") or ""),
+                          "examples": [str(x) for x in (c.get("examples") or []) if str(x).strip()]})
+        codes.append(entry)
+    if not codes:
+        return None, "the file holds no codes"
+    try:
+        version = int(obj.get("version", 1))
+    except (TypeError, ValueError):
+        version = 1
+    return {"version": max(version, 1), "updated": str(obj.get("updated") or _now()), "codes": codes}, ""
+
+
+def replace(storage_dir: str, imported: dict, when: Optional[str] = None) -> dict:
+    """The imported book in place of the user's: the version never goes back (the codes files carry versions), so it
+    is one more than the greater of the two; written."""
+    current = load(storage_dir)
+    book = dict(imported)
+    book["version"] = max(int(current.get("version", 1)), int(imported.get("version", 1))) + 1
+    book["updated"] = when or _now()
+    save(storage_dir, book)
+    return book

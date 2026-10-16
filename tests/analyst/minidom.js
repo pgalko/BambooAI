@@ -75,7 +75,9 @@ function parseInto(parent, html) {
 function makeDocument() {
   const body = new Element('body');
   const doc = { body, createElement: t => new Element(t), getElementById: id => { const find = n => { for (const c of n.elements) { if (c.id === id) return c; const r = find(c); if (r) return r; } return null; }; return find(body); },   // by id, not by selector: a dotted id (unit-D1.2) is an id, as in the browser
-    querySelector: s => body.querySelector(s), querySelectorAll: s => body.querySelectorAll(s), addEventListener() {} };
+    querySelector: s => body.querySelector(s), querySelectorAll: s => body.querySelectorAll(s),
+    listeners: {}, addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    dispatch(type, target, extra) { const ev = Object.assign({ type, target, preventDefault() { ev.defaulted = true; }, stopPropagation() { ev.stopped = true; } }, extra || {}); for (const fn of (this.listeners[type] || [])) fn(ev); return ev; } };
   return doc;
 }
 module.exports = { Element, Text, makeDocument, parseInto };

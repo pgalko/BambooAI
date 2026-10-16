@@ -728,6 +728,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 .integration-dialog .int-card .more:empty { display: none; }
 .integration-dialog .int-card .more a { color: var(--c-model); text-decoration: none; }
 .integration-dialog .int-card .more a:hover { text-decoration: underline; }
+.integration-dialog .n-badge { display: inline-block; min-width: 14px; height: 14px; padding: 0 4px; margin-left: 4px; border-radius: 7px; background: var(--c-model); color: #000; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; vertical-align: 1px; }   /* the Context card's proposals waiting (the codebook, 2026-10-16) */
 .integration-dialog .int-dl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .integration-dialog .int-dl .help { font-size: var(--fs-small); color: var(--text-quaternary); }
 .integration-dialog .ui-dlg-f .status { flex: 1 1 auto; min-width: 0; font-size: var(--fs-small); line-height: 1.4; white-space: normal; }   /* the colour is the message's state's */
@@ -819,3 +820,40 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #documentsModal .docs-table th, #documentsModal .docs-table td { border: 1px solid var(--border-color); padding: 3px 8px; text-align: left; }
 #documentsModal .docs-table th { background: var(--bg-tertiary); font-weight: 600; }
 #documentsModal .docs-unit.read .loc { color: var(--accent-color); }
+
+/* ---- the context codebook (2026-10-16, codebook.js; docs/CONTEXT_DESIGN.md §7 S3): the dialog behind the gear item - the
+   coder's proposals as cards with the coach's four decisions, then the codes by group as tables, the foot with Export and Import ---- */
+#codebookModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+#codebookModal .ui-dlg.cb-dlg { width: min(900px, 100%); max-height: min(90vh, 900px); }
+#codebookModal .ui-dlg-b { display: flex; flex-direction: column; gap: 18px; }
+#codebookModal .ui-dlg-f .note { max-width: 460px; line-height: 1.4; }
+#codebookModal .ui-dlg-f .ui-btn { text-decoration: none; }
+#codebookModal .cb-import { cursor: pointer; }
+.cb-sec { display: flex; flex-direction: column; gap: 8px; }
+.cb-sec > .h { font-size: var(--fs-small); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .03em; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.cb-sec > .h .n { color: var(--text-quaternary); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.cb-none { font-size: var(--fs-meta); color: var(--text-quaternary); line-height: 1.5; max-width: 620px; }
+.cb-card { border: 1px solid var(--chip-kernel-border); border-radius: var(--r-2); background: var(--bg-primary); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.cb-card .cb-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cb-card .cb-head .code { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--c-kernel); font-weight: 600; }
+.cb-card .cb-head .def { font-size: var(--fs-meta); color: var(--text-primary); line-height: 1.45; }
+.cb-card .cb-meta { font-size: var(--fs-small); color: var(--text-quaternary); }
+.cb-examples { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px; border-left: 2px solid var(--border-color); }
+.cb-examples .ex { display: flex; gap: 8px; align-items: baseline; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.45; }
+.cb-examples .ex .id { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--c-kernel); flex-shrink: 0; }
+.cb-examples .ex .t { font-style: italic; }
+.cb-actions { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.cb-actions .sp { flex: 1; }
+.cb-actions .danger-text { color: var(--c-fail); }
+.cb-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); font-size: var(--fs-meta); color: var(--text-secondary); }
+.cb-form > label { color: var(--text-primary); }
+.cb-form .ui-input { height: 28px; min-width: 220px; font-family: var(--font-mono); font-size: var(--fs-meta); }
+.cb-form .help { flex-basis: 100%; font-size: var(--fs-small); color: var(--text-quaternary); }
+.cb-error { padding: 8px 10px; border: 1px solid var(--chip-fail-border); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--c-fail); line-height: 1.45; }
+.cb-wait { padding: 24px 0; font-size: var(--fs-meta); color: var(--text-tertiary); }
+.cb-table td.code { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--text-primary); white-space: nowrap; }
+.cb-table td.def { color: var(--text-secondary); line-height: 1.45; }
+.cb-table td.num, .cb-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; width: 60px; }
+.cb-status { font-size: var(--fs-small); padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; }
+.cb-status.confirmed { color: var(--c-model); border-color: var(--chip-model-border); }
+.cb-status.proposed { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
