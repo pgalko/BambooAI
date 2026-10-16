@@ -691,6 +691,12 @@ try:
     from analyst import profile as _pm
     check("profile_line: '' for an empty or missing frame; read_profile of a header alone is an empty frame with the columns", _pm.profile_line(None) == "" and _pm.profile_line(_pm.read_profile("")) == ""
           and list(_pm.read_profile("section,sport_types,key,value,unit,low,high,note\n").columns) == _pm.PROFILE_COLUMNS and len(_pm.read_profile("section,sport_types,key,value,unit,low,high,note\n")) == 0)
+    # the rule about custom sets (2026-10-16, patch 0184, Palo: a coach's own zones come from testing and are the ones meant): said
+    # at the end of the line when the file has custom_zone rows, and nothing of it for an account without any
+    _pf = _pm.read_profile(open(_rider, encoding="utf-8").read())
+    check("the Settings line ends with the custom-sets rule when the file has custom_zone rows - the sets are the account's own and take precedence over the standard zones, their times in the zone times file - and carries nothing of it without them",
+          _pm.profile_line(_pf).endswith("; " + _pm.CUSTOM_SETS_RULE) and "take precedence over the standard zones when reading intensity" in _descr
+          and "precedence" not in _pm.profile_line(_pf[_pf["section"] != "custom_zone"]) and "custom zone rows" not in _pm.profile_line(_pf[_pf["section"] != "custom_zone"]), _pm.profile_line(_pf))
     from analyst.routines import LOADER_FILES_MAX as _lfm
     _tpl = open(os.path.join(ROOT, "web_app", "templates", "index.html"), encoding="utf-8").read().replace("\r\n", "\n")
     _core = open(os.path.join(ROOT, "web_app", "static", "js", "core.js"), encoding="utf-8").read()

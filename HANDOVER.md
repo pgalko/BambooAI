@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (213/171/31/24/18/49/44/69/13/141/57/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (213/172/31/24/18/49/44/69/13/141/57/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -446,6 +446,14 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Custom zone sets take precedence (2026-10-16, patch 0184).** Palo, reading his first profile: a coach's own zone
+  sets come from lab testing and are always the ones meant when they exist; the platform's standard zones are the
+  default scheme. A rule about what a custom set is, not one coach's preference - so it rides in the Settings line
+  built from the profile's rows, said only when the file has `custom_zone` rows (`CUSTOM_SETS_RULE` in
+  analyst/profile.py): *the custom zone sets are the account's own, set by hand rather than the platform's defaults,
+  and take precedence over the standard zones when reading intensity - time in them is in the custom zone times
+  file, the standard zones' times in the summary file*. An account without custom sets reads nothing of it. Tests:
+  test_app_path.py 172; the walk's DATA check.
 - **Every custom field under its code (2026-10-16, patch 0183; docs/RIDER_PROFILE_DESIGN.md §2).** The second
   half of Palo's decision: the loader read four interval codes by name - one coach's vocabulary - and nothing
   else, so another coach's fields never reached a file. The account's definitions now decode the files' columns

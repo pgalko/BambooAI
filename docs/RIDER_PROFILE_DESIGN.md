@@ -70,8 +70,12 @@ The profile's DATA entry is not a head of five rows of a settings file: the path
 what a row is, and a **Settings** line assembled from the file's own rows by `analyst/profile.py` — the subject's
 measurements and each sport group's thresholds as `key value unit` (the model's estimates stay in the file), then
 what else the file holds, counted: *also in the file: 22 zone rows with their bounds, 3 custom zone rows in 2 sets,
-2 custom field definitions - the codes other files' columns carry, with their options*. No word of it is a prompt
-constant (DESIGN_CHECKLIST C5; `analyst/profile.py` is in the scanner's list). The entry is exempt from the heads'
+2 custom field definitions - the codes other files' columns carry, with their options*. When the file has
+`custom_zone` rows the line ends with the rule about them (patch 0184, Palo: a coach's own zones come from testing
+and are the ones meant): *the custom zone sets are the account's own, set by hand rather than the platform's
+defaults, and take precedence over the standard zones when reading intensity - time in them is in the custom zone
+times file, the standard zones' times in the summary file*; an account without custom sets reads nothing of it.
+No word of the rest is a prompt constant (DESIGN_CHECKLIST C5; `analyst/profile.py` is in the scanner's list). The entry is exempt from the heads'
 budget like the context's. The zone times file is described like any other (its head). The file is read once per
 load (`_profile_frame`, by path), from the executor in api mode.
 

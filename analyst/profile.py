@@ -11,6 +11,11 @@ PROFILE_COLUMNS = ["section", "sport_types", "key", "value", "unit", "low", "hig
 # the sections, in the file's order: the subject's measurements, the thresholds per sport group, the standard zones, the
 # custom zone sets, the custom fields' meanings
 SECTIONS = ("subject", "sport", "zone", "custom_zone", "custom_field")
+# what a custom zone set is, for the line - said only when the file has custom_zone rows: the sets are the account's own
+# (set by hand, from testing), not the platform's defaults, and they are the ones meant when intensity is read
+CUSTOM_SETS_RULE = ("the custom zone sets are the account's own, set by hand rather than the platform's defaults, and take precedence "
+                    "over the standard zones when reading intensity - time in them is in the custom zone times file, the standard "
+                    "zones' times in the summary file")
 
 
 def read_profile(text: str) -> pd.DataFrame:
@@ -54,6 +59,10 @@ def profile_line(df: Optional[pd.DataFrame]) -> str:
     line = "; ".join(p for p in parts if p)
     if counts:
         line += ("; " if line else "") + "also in the file: " + ", ".join(counts)
+    if len(cz):
+        # the rule about what a custom set is (2026-10-16, Palo: a coach's own zones come from testing and are the ones meant),
+        # said only when the account has any - an account without them reads nothing of it
+        line += "; " + CUSTOM_SETS_RULE
     return line
 
 
