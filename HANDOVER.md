@@ -446,6 +446,15 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The profile's units and dates (2026-10-16, patch 0185; executor v60).** Palo's first live runs (the assessment
+  in the outputs folder, `ASSESSMENT_rider_profile_2026-10-16.md`): the hard question - two readings of intensity
+  from two custom sets, heat, altitude and the diary as explanations, across a year - was met, and the analyst found
+  the ventilation stream's scale had stepped in late November 2025 while the VE bounds stood, which is what the
+  question was for. Three small faults in the profile showed in the Settings line: *height 1.9 CM* (the record keeps
+  metres; `height_units` is a display preference - the unit is `m` now), *sweet_spot_min 0 %FTP* (a 0 is not set -
+  dropped), and nothing said when a custom zone set was defined - the set's `updated` day is in the custom_zone
+  rows' note now (*defined as it stands on 2026-01-29*), the one fact that would have dated the redefinition the
+  analyst had to infer. Tests: test_context.py 57, test_documents_app.py 44 (the stamp).
 - **Custom zone sets take precedence (2026-10-16, patch 0184).** Palo, reading his first profile: a coach's own zone
   sets come from lab testing and are always the ones meant when they exist; the platform's standard zones are the
   default scheme. A rule about what a custom set is, not one coach's preference - so it rides in the Settings line

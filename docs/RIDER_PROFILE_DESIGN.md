@@ -22,10 +22,10 @@ setting: `section, sport_types, key, value, unit, low, high, note`. The sections
 
 | section | rows | key / value / unit | low, high | note |
 |---|---|---|---|---|
-| `subject` | weight (`icu_weight`, else `weight`, kg), height (the record's `height_units`), resting_hr (bpm), age (years, from the date of birth, which stays out), sex, timezone | | | where the daily value lives |
-| `sport` | per group (`sport_types` = the group's types pipe-joined): ftp, indoor_ftp (W), lthr, max_hr (bpm), threshold_pace (m/s), w_prime (J), p_max (W), sweet_spot_min/max (%FTP) when set; `model_cp`, `model_w_prime`, `model_p_max`, `model_ftp` from `mmp_model` | | | the model rows say they are the fitted model's |
+| `subject` | weight (`icu_weight`, else `weight`, kg), height (m — the record keeps metres whatever `height_units`, the display preference, says; 0185), resting_hr (bpm), age (years, from the date of birth, which stays out), sex, timezone | | | where the daily value lives |
+| `sport` | per group (`sport_types` = the group's types pipe-joined): ftp, indoor_ftp (W), lthr, max_hr (bpm), threshold_pace (m/s), w_prime (J), p_max (W), sweet_spot_min/max (%FTP) when set and not 0; `model_cp`, `model_w_prime`, `model_p_max`, `model_ftp` from `mmp_model` | | | the model rows say they are the fitted model's |
 | `zone` | `hr_zone_n` (bpm), `power_zone_n` (%FTP), `pace_zone_n` (% of the threshold pace) — the upper bound as the value | the bound before (0 first), the bound; 999 → high blank | the zone's name; the first row of each kind states the convention; a power row adds the watts at the group's FTP |
-| `custom_zone` | one per zone of every `ZONES` item: key `set:zone`, value the zone's name, unit the stream | the zone's start, end | the set, its description, where the times are |
+| `custom_zone` | one per zone of every `ZONES` item: key `set:zone`, value the zone's name, unit the stream | the zone's start, end | the set, the day it was last defined (`updated`; 0185 — a ride before that day was analysed under another definition, which the zone times file's per-ride bounds show), its description, where the times are |
 | `custom_field` | one per `INPUT_FIELD`, `ACTIVITY_FIELD`, `INTERVAL_FIELD` with a code: key the code, value the item kind, unit the item's units | | type · name · the options as `1 Recovery \| 2 Endurance` (or bare texts) · which file carries it |
 
 Every column is filled before the frame is built, so a column of numbers and blanks stays as written. Charts and

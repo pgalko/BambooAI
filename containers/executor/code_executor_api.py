@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-16 v59 (every custom field under its code on the intervals, wellness and summary files)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-16 v60 (the profile: height in metres, no zero sweet spot, a zone set carries the day it was defined)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -2840,7 +2840,8 @@ def profile_frame(athlete, today=None):
     if weight is not None:
         rows.append({'section': 'subject', 'key': 'weight', 'value': weight, 'unit': 'kg', 'note': "the record's current weight; the daily weight is in the wellness file"})
     if _num(a.get('height')) is not None:
-        rows.append({'section': 'subject', 'key': 'height', 'value': a['height'], 'unit': str(a.get('height_units') or ''), 'note': ''})
+        # the record keeps the height in metres whatever the display preference says (2026-10-16: a profile read "1.9 CM")
+        rows.append({'section': 'subject', 'key': 'height', 'value': a['height'], 'unit': 'm', 'note': ''})
     if _num(a.get('icu_resting_hr')) is not None:
         rows.append({'section': 'subject', 'key': 'resting_hr', 'value': a['icu_resting_hr'], 'unit': 'bpm', 'note': "the record's resting HR; the daily one is in the wellness file"})
     dob = str(a.get('icu_date_of_birth') or '')[:10]
@@ -2863,8 +2864,9 @@ def profile_frame(athlete, today=None):
             continue
         types = '|'.join(str(t) for t in (group.get('types') or []) if t)
         for key, unit in _PROFILE_SPORT_KEYS:
-            if _num(group.get(key)) is not None:
-                rows.append({'section': 'sport', 'sport_types': types, 'key': key, 'value': group[key], 'unit': unit, 'note': ''})
+            if _num(group.get(key)) is None or (key.startswith('sweet_spot') and not group[key]):     # a sweet spot of 0 is not set
+                continue
+            rows.append({'section': 'sport', 'sport_types': types, 'key': key, 'value': group[key], 'unit': unit, 'note': ''})
         model = group.get('mmp_model') if isinstance(group.get('mmp_model'), dict) else {}
         for mkey, key, unit in _PROFILE_MODEL_KEYS:
             if _num(model.get(mkey)) is not None:
@@ -2891,13 +2893,14 @@ def profile_frame(athlete, today=None):
         set_code, set_name = str(c.get('code') or it.get('name') or zid), str(it.get('name') or c.get('name') or c.get('code') or zid)
         stream = str(c.get('stream_type') or '')
         desc = str(it.get('description') or '').strip()
+        updated = str(it.get('updated') or '')[:10]            # when the set was last defined: a zone's bounds before that day were another definition's
         types = '|'.join(set_sports.get(zid, []))
         for z in c.get('zones') or []:
             if not isinstance(z, dict):
                 continue
             rows.append({'section': 'custom_zone', 'sport_types': types, 'key': f"{set_code}:{z.get('id')}", 'value': str(z.get('name') or ''), 'unit': stream,
                          'low': z.get('start') if z.get('start') is not None else '', 'high': z.get('end') if z.get('end') is not None else '',
-                         'note': f"set '{set_name}'" + (f" · {desc}" if desc else '') + " · time in it per activity is in the custom zone times file"})
+                         'note': f"set '{set_name}'" + (f" · defined as it stands on {updated}" if updated else '') + (f" · {desc}" if desc else '') + " · time in it per activity is in the custom zone times file"})
     for fid, it in fields_by_id.items():
         c = it['content']
         code = c.get('code')
