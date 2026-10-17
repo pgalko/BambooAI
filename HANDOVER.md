@@ -30,13 +30,18 @@
   tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands),
   2.2.2 (2026-10-08: the Claude 5.5 family on the Anthropic adapter, the contract's STEP section, the forced report's
   card, the replay's display options, auxiliary files in DATA, the template's Claude seats - patches 0101-0110;
-  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.3.0 (2026-10-13: routines - an analysis
+  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.4.0 (2026-10-17: the context - the words
+  written beside Intervals.icu data as a file, coded against a codebook, CTX in the kernel, READ CTX, passages cited
+  as [C.n], the codebook screen; the Intervals.icu store with incremental loads and the hosted volume per user; the
+  load dialogs' one grammar; the rider profile, the custom zone times and every custom field under its code; the
+  auxiliary limit derived from the loaders' registry; the report's title as its first line and the PDF's top section
+  for a reader outside the thread - patches 0142-0187; executor image v60), 2.3.0 (2026-10-13: routines - an analysis
   saved as a method and run again on new data: the promoter and its inputs, run zero verified against the kernel's
   records, the manager and the runs table, versions, the loaders in the run dialog, the Dataset cache, the retirements,
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **Next ship carries executor image v57** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file; 0176: a failed script's output) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch).
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **2.4.0 ships executor image v60** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file; 0176: a failed script's output; 0182-0183, 0185: the rider profile, the custom zone times, every custom field under its code, the profile's units) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch; `volumes { enabled = true }` is in both boxes' client configuration since 2026-10-17).
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in

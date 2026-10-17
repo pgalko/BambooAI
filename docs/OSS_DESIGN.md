@@ -305,6 +305,16 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-10-17: 2.4.0.** The context (docs/CONTEXT_DESIGN.md): the words written beside Intervals.icu data -
+  messages, notes, the plan's prose, calendar entries, custom fields - as a file of the load, coded against a codebook
+  by the Coder seat, `CTX` in the kernel, `READ CTX` through the Reader, passages cited as [C.n] and shown as chips,
+  the codebook screen with the coach's decisions; the Intervals.icu store (docs/INCREMENTAL_LOADS_DESIGN.md): a load
+  downloads only what the store lacks, the hosted executor's datasets in a Docker volume per user (`nomad/jobs/`); the
+  load dialogs' one grammar; the rider profile, the custom zone times and every custom field under its code
+  (docs/RIDER_PROFILE_DESIGN.md); the auxiliary limit derived from the loaders' registry; the report's title as its
+  first line, heading the Answer tab and the PDF export's top section (title, the question as understood, the data,
+  the day and the reproduction verdict) - patches 0142-0187. Executor build v60: the image is rebuilt with this ship,
+  and the four Nomad jobs re-registered for the volume.
 
 ### Phase 6 — team mode (O5)
 - A users table, a login page, per-user kernels (subprocess or Docker), one process.
