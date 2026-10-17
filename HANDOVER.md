@@ -451,6 +451,17 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The README's head and overview in a technical register (Palo, 2026-10-17, patch 0189).** Palo's rewrite of the
+  opening after reading the 0174 text as a technical reader would ("low tech and baity"): the head says what BambooAI is
+  built around - a persistent Python kernel, an explicit analysis protocol, an inspectable computational record - and
+  *Why BambooAI?* becomes *Overview*: the iterative analysis, the transactional kernel, evidence-linked results, full
+  visibility, the reproduction and what it does and does not establish, the Reviewer, the roles' own models and
+  providers, the isolated execution; then the origin in sports science with the integrations, and routines. Every
+  claim checked against the code before the cut (one action a turn, the checkpoint and the rollback, RESULT records
+  cited by cell, the replay's scope, the reviewer's cadence, the provider list against `bambooai/models/`, the
+  container as the default). The body from Installation on is unchanged. The table of contents gains *The settings
+  the data is read against*, which 0182 had left out. No test touches the README. 2.4.0 was already pushed and
+  tagged, so this lands as 2.4.1 (patch 0190); the boxes pick it up at their next pull.
 - **The title is the report's first line (2026-10-17, patch 0187).** Palo's first export after 0186 showed the typed
   question as the title again. The log: the Rewriter had written its TITLE and LEAD lines behind the analyst-style
   scaffold it wraps its reply in (`###STEP### … ###ACTION### REPORT`), where the parser never looked; and its lead
