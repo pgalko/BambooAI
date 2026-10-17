@@ -87,13 +87,13 @@ SCRIPT = [
  "###NOTE###\n" + NOTE + "\n###ACTION###\nNAMES",
  "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\ndiff = round(g['B'] - g['A'], 3)\nper_unit = df.groupby(['unit','arm'])['x'].mean().unstack()\nprint('diff', diff)\nprint('n units', per_unit.shape[0])\n```",
  "###NOTE###\n" + NOTE + "\n###ACTION###\nSHOW 1",
- "###NOTE###\n" + NOTE.replace("none yet", "B-A = see cell 2") + "\n###ACTION###\nREPORT\n## Answer\nB exceeds A by {DIFF} units on average across 4 units [cell 2]; the group means are in [cell 1]. The spread 0.999 is a made-up number.\n\n| arm | mean |\n|---|---|---|\n| A | 1 |\n",
+ "###NOTE###\n" + NOTE.replace("none yet", "B-A = see cell 2") + "\n###ACTION###\nREPORT\n# B is higher than A by a small margin.\n\n## Answer\nB exceeds A by {DIFF} units on average across 4 units [cell 2]; the group means are in [cell 1]. The spread 0.999 is a made-up number.\n\n| arm | mean |\n|---|---|---|\n| A | 1 |\n",
 ]
 calls = {"n": 0, "prompts": []}
 def fake_llm(system, user, **hints):
     calls["prompts"].append(user)
-    if user.startswith("Rewrite the technical report"):
-        return "**TITLE:** B is higher than A by a small margin.\nLEAD: Asked whether B exceeds A, the report finds it does, by about {DIFF} units.\n\nB is higher than A by about {DIFF} units; and 7.777 is invented.", {"cost": 0.01}
+    if user.startswith("Rewrite the technical report"):      # the seat's scaffold around the text, the title line forgotten, a cell citation left bare (2026-10-17: as a live Rewriter wrote)
+        return "###STEP###\nI will rewrite.\n###NOTE###\n**Question as understood:** rewrite\n###ACTION###\nREPORT\n\nB is higher than A by about {DIFF} units, see cell 2 and [cells 1, 2]; and 7.777 is invented.", {"cost": 0.01}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = min(calls["n"], len(SCRIPT) - 1); calls["n"] += 1
     return SCRIPT[i], {"cost": 0.05, "prompt_tokens": 100, "completion_tokens": 50}
@@ -122,9 +122,9 @@ finally:
 kinds = [t.kind for t in run.turns]
 check("loop: every action kind ran and was recorded, in order",
       kinds == ["cell", "cell", "names", "cell", "show", "report", "rewrite"], kinds)
-check("the report's head (2026-10-17): the rewrite's reply opens with TITLE and LEAD lines, read whatever dressing they wear (the title without its full stop), kept on the run and cut from the plain-language text",
-      run.title == "B is higher than A by a small margin" and run.lead.startswith("Asked whether B exceeds A, the report finds it does, by about ") and not run.rewrite.startswith("**TITLE")
-      and run.rewrite.startswith("B is higher than A by about") and run.turns[-1].text == run.rewrite, (run.title, run.lead, run.rewrite[:80]))
+check("the report's title (2026-10-17): the report's first line, read without its marks or full stop, kept on the run and left in the report; the plain-language text has the seat's scaffold off, its cell citations out in any dress, and the same title as its first line",
+      run.title == "B is higher than A by a small margin" and run.report.startswith("# B is higher than A by a small margin.\n") and run.rewrite.startswith("# B is higher than A by a small margin\n\nB is higher than A by about ")
+      and "cell" not in run.rewrite.split("CHECK")[0] and "###" not in run.rewrite and "I will rewrite" not in run.rewrite and ", see; and 7.777" not in run.rewrite and run.turns[-1].text == run.rewrite, (run.title, run.rewrite[:160]))
 cells = run.cells()
 check("loop: only committed cells get numbers (the syntax error did not), numbering along the path",
       [c.cell_no for c in cells] == [1, 2] and run.turns[1].error and run.turns[1].cell_no is None)
@@ -146,7 +146,8 @@ check("emit: the replay announces itself before it runs and reports when done (r
 check("emit: cells, show, names, report, rewrite, replay_status all streamed",
       {e["type"] for e in events} >= {"cell", "names", "show", "report", "rewrite", "replay_status"})
 saved = store.load("t2"); rr = saved.runs[run.id]
-check("store: the run is on disk with its turns, reports, replay and head", rr.report == run.report and rr.replay_status == "reproduced" and len(rr.turns) == 7 and rr.title == run.title and rr.lead == run.lead)
+check("store: the run is on disk with its turns, reports, replay and title; a record carrying a key this version does not know loads all the same", rr.report == run.report and rr.replay_status == "reproduced" and len(rr.turns) == 7 and rr.title == run.title
+      and Notebook.from_dict({"thread_id": "x", "runs": {"r": {"id": "r", "parent": None, "question": "q", "lead": "an old key", "turns": [{"kind": "cell", "stranger": 1}]}}}).runs["r"].question == "q")
 
 # ---- error correction: the analyst SEES its failures; the namespace keeps pd/np/plt through a rollback ----
 FAILS = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nx = 1.5\nprint(x.round(2))\n```",           # fails: float has no round
@@ -594,16 +595,23 @@ check("contract: an estimate is recorded with the kernel's RESULT(...), the word
 # ---- figures (2026-10-11): a figure cell during the analysis is not run; after the report the figures step draws once from the
 # kernel's variables - a failed cell corrected with its error, the section in the report, each attempt a card, the record ----
 from analyst.session import parse_figures_reply, FIGURES_SYSTEM, FIGURES_ATTEMPTS, unwrap_error
-from analyst.session import split_head, question_line, REWRITE_TASK as _RW
-check("question_line: the note's 'Question as understood' content, in markdown dressing or bare, running on to the next heading; '' without the line",
+from analyst.session import report_title, with_title, strip_scaffold, strip_cell_tokens, question_line, REWRITE_TASK as _RW
+check("question_line: the note's 'Question as understood' content in any dressing - bulleted, bold around the heading or the line, numbered, a dash for the colon - running on to the next heading; '' without the line",
       question_line("- **Question as understood:** extend the earlier plot\n  to 45 terms\n- Best estimate so far: none yet\n- Plan: p") == "extend the earlier plot to 45 terms"
+      and question_line("**Question as understood**: q2\n**Best estimate so far:** x") == "q2" and question_line("1. Question as understood: q3\n2. Best estimate so far: x") == "q3"
+      and question_line("Question as understood \u2014 q5\nBest estimate so far: x") == "q5"
       and question_line(NOTE) == "is B higher than A" and question_line("- Best estimate so far: 3\n- Plan: p") == "" and question_line("") == "")
-check("split_head: the TITLE and LEAD lines among the reply's first lines, in markdown dressing or bare, the title without its full stop or quotes, whitespace folded, the text without them; a reply without them is the text whole; a TITLE line further down is the text's own",
-      split_head("TITLE: Ventilation ran ahead of power before December.\nLEAD: Two readings  were compared.\n\n## The answer\nText.") == ("Ventilation ran ahead of power before December", "Two readings were compared.", "## The answer\nText.")
-      and split_head("- **Title:** \"The gap is a measurement\"\n- **Lead:** One sentence.\nBody.") == ("The gap is a measurement", "One sentence.", "Body.")
-      and split_head("LEAD: only a lead\n\nBody.") == ("", "only a lead", "Body.") and split_head("") == ("", "", "") and split_head("## Answer\n\nTITLE: not a head\nmore") == ("", "", "## Answer\n\nTITLE: not a head\nmore"))
-check("the rewrite task asks for the head first: a title of at most twelve words that says what was found, a statement, not a question, and a lead of at most forty words for a reader who has never seen the data",
-      "TITLE: a title of at most twelve words" in _RW and "a statement, not a question" in _RW and "LEAD: one or two plain sentences, at most forty words" in _RW and "never seen the data" in _RW and "Then the text, and nothing else." in _RW)
+check("report_title: the report's first non-blank line when it is a level-one heading, without marks, quotes or a full stop; '' when the report opens with a lower heading or prose",
+      report_title("# Two hard weeks then a taper went to plan.\n\n## What this answers") == "Two hard weeks then a taper went to plan" and report_title("\n#   **Quoted title**  ##\nbody") == "Quoted title"
+      and report_title("## What this answers\n# later") == "" and report_title("Prose first\n# then") == "" and report_title("") == "")
+check("with_title: the title replaces the text's own first heading or is prepended; a text without a title stays; strip_scaffold: the text after the last ###ACTION###, a leading REPORT and a stray marker dropped; strip_cell_tokens: cell citations out in any dress, the punctuation tidied",
+      with_title("# Old\n\nBody", "New") == "# New\n\nBody" and with_title("Body", "New") == "# New\n\nBody" and with_title("Body", "") == "Body"
+      and strip_scaffold("###STEP###\nI will rewrite.\n###NOTE###\nx\n###ACTION###\nREPORT\n\n# T\nBody") == "# T\nBody" and strip_scaffold("# T\nBody") == "# T\nBody" and strip_scaffold("###STEP###\nText only") == "Text only"
+      and strip_cell_tokens("one athlete cell 14; the window is set cell 5. Shape [cells 9, 10] moved (cell 3). Fine [cell 7], ok.") == "one athlete; the window is set. Shape moved. Fine, ok."
+      and strip_cell_tokens("a cell phone and cellar 7") == "a cell phone and cellar 7")
+check("the contract makes the report's first line its title - a statement of what was found, twelve words at most, for a reader outside the thread - and the rewrite task keeps it as its own first line, nothing of its own before the text",
+      "Its first line is its title: `# ` and what was found, twelve words at most, clear\noutside this thread; then markdown headings for its parts:" in contract(False, 0) and "The report's first line is its title (`# ...`): keep it, unchanged, as your own first line. Then the text, and nothing else." in _RW
+      and "TITLE:" not in _RW and "LEAD:" not in _RW)
 check("parse_figures_reply: NONE or prose is no cell; python blocks are joined in order; CAPTION lines - plain, bold, numbered, bulleted - in order",
       parse_figures_reply("NONE") == (None, []) and parse_figures_reply("no block here\nCAPTION: x") == (None, [])
       and parse_figures_reply("```python\na = 1\n```\ntext\n```py\nb = 2\n```\n**CAPTION 1:** first\n- Caption 2: second\nCAPTION: third") == ("a = 1\n\nb = 2", ["first", "second", "third"]),

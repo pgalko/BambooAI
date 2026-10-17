@@ -143,32 +143,63 @@ REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader wh
                 "headings and short paragraphs; about two-thirds the length of the original. Say what you mean in "
                 "direct statements: when a literal phrase is available, use it, and never let a metaphor or a flourish "
                 "stand in for a statement ('this still matters', not 'this earns its keep'; 'a parameter worth varying', "
-                "not 'a dial worth turning'). Before the text, two lines of their own, then a blank line - "
-                "TITLE: a title of at most twelve words that says what the report found, a statement, not a question, with no colon, "
-                "no quotation marks and no column names; LEAD: one or two plain sentences, at most forty words, for a reader who has never seen "
-                "the data or the report - what was asked, in essence (a follow-up said with what it follows, so it stands on its own), and what "
-                "the answer is, with the one number that matters when there is one. Then the text, and nothing else.\n\n")
+                "not 'a dial worth turning'). The report's first line is its title (`# ...`): keep it, unchanged, as your own first "
+                "line. Then the text, and nothing else.\n\n")
 
-# the report's head (2026-10-17): a title and a lead for the finished report, written by the rewrite's call as its first two
-# lines - no call of its own - for the page's export: a reader who has never seen the app or the data should know from the
-# top of the page what was asked and what was found.
-_HEAD_LINE_RE = re.compile(r"^\s*[*#>\-\s]*(TITLE|LEAD)\s*:\s*(.+?)\s*$", re.I)
+# the report's title (2026-10-17): the report's first line, `# ...` - a statement of what was found, written by the analyst
+# at REPORT time, the one party that knows the whole investigation - heads the report in the Answer tab and the page's export.
+# (A first cut had the rewrite's reply open with TITLE and LEAD lines; the Rewriter wrote them behind its scaffold, where no
+# parser looked, and a lead that was told to mention a follow-up invented one.)
+_TITLE_LINE_RE = re.compile(r"^\s*#(?!#)\s*(.+?)\s*#*\s*$")
 
 
-def split_head(text: str) -> tuple:
-    """(title, lead, rest) from the rewrite's reply: the TITLE: and LEAD: lines among its first lines, trimmed of markdown
-    dressing (the title without a closing full stop), and the text without them; ('', '', text) when they are not there.
-    A TITLE or LEAD line further down is the text's own and stays."""
-    lines = (text or "").splitlines()
-    out, rest, k = {"TITLE": "", "LEAD": ""}, [], 0
-    while k < len(lines) and (not lines[k].strip() or _HEAD_LINE_RE.match(lines[k])) and k < 4:
-        m = _HEAD_LINE_RE.match(lines[k])
-        if m and not out[m.group(1).upper()]:
-            out[m.group(1).upper()] = re.sub(r"^[*\"'`\s]+|[*\"'`\s]+$", "", m.group(2)).strip()
-        k += 1
-    rest = "\n".join(lines[k:]).strip() if (out["TITLE"] or out["LEAD"]) else (text or "").strip()
-    title = " ".join(out["TITLE"].rstrip(".").split())
-    return title, " ".join(out["LEAD"].split()), rest
+def report_title(text: str) -> str:
+    """The title of a report: its first non-blank line when that is a level-one heading, without the marks, a closing full
+    stop or wrapping quotes; '' when the report opens otherwise."""
+    first = next((ln for ln in (text or "").splitlines() if ln.strip()), "")
+    m = _TITLE_LINE_RE.match(first)
+    if not m:
+        return ""
+    return " ".join(re.sub(r"^[*\"'`\s]+|[*\"'`.\s]+$", "", m.group(1)).split())
+
+
+def with_title(text: str, title: str) -> str:
+    """The text headed by the title: its own first line replaced when that is a level-one heading, the title prepended
+    otherwise; the text as it is without a title."""
+    t = (text or "").strip()
+    if not title:
+        return t
+    lines = t.splitlines()
+    k = next((i for i, ln in enumerate(lines) if ln.strip()), None)
+    if k is not None and _TITLE_LINE_RE.match(lines[k]):
+        lines[k] = f"# {title}"
+        return "\n".join(lines).strip()
+    return f"# {title}\n\n{t}".strip()
+
+
+def strip_scaffold(text: str) -> str:
+    """A reply's text without the analyst's three-section form a seat may wrap it in: the text after the last ###ACTION###
+    when there is one, a leading REPORT line and a stray ###MARK### dropped (2026-10-17: the Rewriter's reply opened with
+    ###STEP### ... ###NOTE### ... ###ACTION### REPORT, and the plain-language text began with its working note)."""
+    t = (text or "").strip()
+    if "###ACTION###" in t:
+        t = t.rsplit("###ACTION###", 1)[1]
+    t = re.sub(r"^\s*REPORT\b[ \t]*\n?", "", t.strip())
+    t = re.sub(r"^\s*###[A-Z]+###\s*", "", t)
+    return t.strip()
+
+
+_CELL_TOKEN_RE = re.compile(r"\s*\[?\bcells?\s+\d+(?:\s*(?:,|and|&)\s*\d+)*\]?")
+
+
+def strip_cell_tokens(text: str) -> str:
+    """The plain-language text without cell citations in any dress - [cell 7], [cells 9, 10], or the bare 'cell 14' a
+    Rewriter leaves when it drops the brackets and not the citation (2026-10-17) - and the punctuation tidied after them."""
+    t = _CELL_TOKEN_RE.sub("", text or "")
+    t = re.sub(r"\(\s*\)", "", t)                       # an emptied parenthesis
+    t = re.sub(r"\s+([.,;:])", r"\1", t)                 # a space left before punctuation
+    t = re.sub(r"([.,;:])\1+", r"\1", t)                 # doubled punctuation
+    return t
 
 
 _NOTE_RE = re.compile(r"###NOTE###\s*\n(.*?)\n###ACTION###", re.S)
@@ -339,20 +370,27 @@ def evidence_code(turn) -> str:
     return "\n".join(ln for ln in (turn.code or "").splitlines() if "RESULT(" not in ln)
 
 
+def _note_heading_line(ln: str) -> str:
+    """A note line with its dressing off - a bullet, a number, bold marks around the heading or the line - so a heading is read
+    whether it is written '- Heading:', '**Heading:**', '**Heading**:' or '1. Heading:' (2026-10-17)."""
+    s = re.sub(r"^\s*(?:[-•*]+|\d+[.)])?\s*", "", ln or "")
+    return s.replace("**", "").replace("__", "").strip()
+
+
 def question_line(note: str) -> str:
     """The note's 'Question as understood' content - the analyst's own statement of what it answered, in context, which the
     report's head carries as the question (2026-10-17: a follow-up's question as typed, 'Extend to 45 terms', says nothing
     to a reader outside the thread, and the thread's earlier questions are the trajectory, not the result). The content
     runs on over following lines until the next heading; '' when the note has no such line."""
     out, on = [], False
-    for ln in clean_note(note).splitlines():
-        s = ln.strip().lstrip("-• ").strip()
-        if on and re.match(r"^(Best estimate so far|Held fixed|Open doubts|Plan|Names|Standing instructions from the person|Re-check|Shown)\s*:", s, re.I):
+    for ln in (note or "").splitlines():
+        s = _note_heading_line(ln)
+        if on and re.match(r"^(Best estimate so far|Held fixed|Open doubts|Plan|Names|Standing instructions from the person|Re-check|Shown)\s*[:\u2014\u2013-]", s, re.I):
             break
         if on:
             out.append(s)
-        elif s.lower().startswith("question as understood") and ":" in s:
-            out.append(s.split(":", 1)[1].strip())
+        elif re.match(r"^question as understood\s*[:\u2014\u2013-]\s*", s, re.I):
+            out.append(re.sub(r"^question as understood\s*[:\u2014\u2013-]\s*", "", s, flags=re.I))
             on = True
     return " ".join(" ".join(out).split())
 
@@ -968,6 +1006,7 @@ class Session:
     # ----- the ending: rewrite, guards, replay ------------------------------
     def _finish(self, run: Run, report_text: str, budget: Budget, spent: float) -> None:
         report_text = rep.repair_markdown_tables(report_text)
+        run.title = report_title(report_text)         # the report's first line, the analyst's own title (2026-10-17); '' when it opens otherwise
         run.report = report_text                      # as written, on the record from here (a stop during the steps below keeps it)
         # the figures, drawn once, after the report, from the variables the cells left in the kernel (2026-10-11): the
         # report gains a Figures section that cites them, and from here on the section is part of the report - the
@@ -1002,13 +1041,9 @@ class Session:
         text, usage = self.llm(self.system, REWRITE_TASK + report_text, rewrite=True)   # the app runs it on the Rewriter seat when the config has one (2026-09-11)
         self.emit({"type": "turn_end", "run": run.id, "turn": "rewrite", "kind": "rewrite", "thinking": "", "note": "", "code": "",
                    "elapsed": round(time.time() - t_rw, 1), "cost": (usage or {}).get("cost", 0.0)})
-        rewrite = (text or "").strip()
-        rewrite = re.sub(r"^###.*?###\s*", "", rewrite, flags=re.S).strip()
-        # the head (2026-10-17): the reply's first two lines are the report's title and lead, for the page's export; a lead
-        # with a number the report does not carry is dropped (the title carries none worth guarding)
-        run.title, run.lead, rewrite = split_head(rewrite)
-        if run.lead and rep.guard_rewrite(run.lead, report_text):
-            run.lead = ""
+        # the plain-language text: the seat's scaffold off, the cell citations out in any dress, the report's title as its
+        # first line - the same anchor in both versions of the Answer tab and at the top of the export (2026-10-17)
+        rewrite = with_title(strip_cell_tokens(strip_scaffold(text)), run.title)
         check2 = rep.guard_rewrite(rewrite, report_text)
         run.rewrite = rewrite + (f"\n\n> {check2}" if check2 else "")
         run.turns.append(Turn(kind="rewrite", note=run.note, text=run.rewrite, usage=dict(usage or {})))

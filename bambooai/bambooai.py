@@ -1271,8 +1271,8 @@ class BambooAI:
         return None
 
     def _report_head(self, run, mode=""):
-        """The report's head for the page and its export (2026-10-17): the title and lead the rewrite's reply opened with
-        (the page falls back to the question when they are empty), the question as the analyst understood it, what data
+        """The report's head for the page and its export (2026-10-17): the report's title (its first line, the analyst's;
+        the page falls back to the question when there is none), the question as the analyst understood it, what data
         the report stands on, the mode, the replay's verdict and the day - what a reader who has never seen the app
         needs at the top of the page."""
         from analyst.routines import data_line
@@ -1285,7 +1285,7 @@ class BambooAI:
         # the question the head carries is the analyst's own statement of what it answered (the note's 'Question as understood'),
         # in context: a follow-up's question as typed says nothing outside the thread, and the thread's earlier questions are the
         # trajectory, not the result (Palo, 2026-10-17); the typed question stands in when the note has no such line
-        return {"title": run.title or "", "lead": run.lead or "", "question": question_line(run.note) or run.question or "", "data": data,
+        return {"title": run.title or "", "question": question_line(run.note) or run.question or "", "data": data,
                 "mode": str(mode or ""), "replay": run.replay_status or "",
                 "cells": len(run.cells()), "prepared": time.strftime("%Y-%m-%d")}
 

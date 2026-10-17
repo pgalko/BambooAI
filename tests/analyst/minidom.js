@@ -25,6 +25,7 @@ class Element extends Node {
   get textContent() { return this.children.map(c => c.textContent).join(''); } set textContent(v) { this.children = [new Text(String(v))]; this.children[0].parent = this; }
   insertAdjacentHTML(pos, html) { const tmp = new Element('div'); parseInto(tmp, html); for (const c of [...tmp.children]) this.appendChild(c); }
   get lastElementChild() { for (let i = this.children.length - 1; i >= 0; i--) if (this.children[i].nodeType === 1) return this.children[i]; return null; }
+  get firstElementChild() { for (const c of this.children) if (c.nodeType === 1) return c; return null; }
   // events and ancestry, enough for a module's click handler to be driven by a test (2026-10-16): listeners are kept per type,
   // dispatch(type, target) calls them with {target}; closest/matches test a selector against the element's own ancestors
   addEventListener(type, fn) { (this.listeners = this.listeners || {})[type] = (this.listeners[type] || []).concat(fn); }

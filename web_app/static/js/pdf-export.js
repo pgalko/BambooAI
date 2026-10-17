@@ -132,12 +132,27 @@ function injectPrintStyles() {
                 color: #4a9d5b;
                 margin: 0 0 2mm 0;
             }
-            #pdf-print-container .pdf-lead {
-                font-size: 11.5pt;
-                line-height: 1.5;
-                color: #2c3e50;
-                margin: 0 0 4mm 0;
+            /* The citation chips (2026-10-17): on the page they are styled under the Answer tab alone, so the export showed
+               them as bare text - a quiet pill here, highlighted, not interactive (print is not) */
+            #pdf-print-container .cite {
+                display: inline-block;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-size: 8.5pt;
+                line-height: 12pt;
+                padding: 0 1.4mm;
+                margin: 0 0.3mm;
+                border: 0.5pt solid #9db9a4;
+                border-radius: 2.5pt;
+                color: #2f6b3a;
+                background: #f1f8e9 !important;
+                white-space: nowrap;
+                vertical-align: 0.5pt;
+                cursor: default;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
+            #pdf-print-container .cite.doc, #pdf-print-container .cite.ctx { color: #1f5f8b; border-color: #9cbfd8; background: #eef5fb !important; }
+            #pdf-print-container .cite.fig { color: #6b4e16; border-color: #d5c39a; background: #fbf6ea !important; }
             #pdf-print-container .pdf-meta {
                 font-size: 9pt;
                 line-height: 1.5;
@@ -397,16 +412,16 @@ function createPDFButton() {
 
 // The top section of the export (2026-10-17). Before, the title was the question cut at 200 characters and the subtitle a
 // timestamp - truncated, and nothing for a reader who had never seen the app. The head comes with the answer and is kept
-// with the chain: the title and lead the analyst wrote for the finished report, and the question as the analyst understood
-// it - its own statement of what it answered, in context, so a follow-up ('Extend to 45 terms') reads whole without the
-// thread - then what data the report stands on, the day, the mode and the replay's verdict. Without a head (an older chain,
-// a rewrite without the lines) the question as typed is the title.
+// with the chain: the report's title - its first line, written by the analyst as a statement of what was found - and the
+// question as the analyst understood it, its own statement of what it answered, in context, so a follow-up ('Extend to 45
+// terms') reads whole without the thread; then what data the report stands on, the day, the mode and the replay's verdict.
+// Without a head (an older chain) the question as typed is the title. The body beneath - the version on screen, technical
+// or plain - opens with the same title line, which the export takes off since the head carries it.
 function pdfHeadModel(data, now) {
     const d = data || {};
     const head = d.reportHead || {};
     const question = String(head.question || (d.queryText && d.queryText !== 'No query' ? d.queryText : '') || '').trim();
     const title = String(head.title || '').trim() || question || 'Analysis report';
-    const lead = String(head.lead || '').trim();
     const rows = [];
     if (question && title !== question) rows.push(['Question', question]);
     if (head.data) rows.push(['Data', String(head.data)]);
@@ -418,7 +433,46 @@ function pdfHeadModel(data, now) {
     else if (head.replay === 'differed') prepared.push('the re-computation differed from the report - read the CHECK lines');
     if (d.summaryViewMode === 'simplified') prepared.push('plain-language version');
     rows.push(['Prepared', prepared.join(' · ')]);
-    return { kicker: 'Analysis report', title, lead, rows };
+    return { kicker: 'Analysis report', title, rows };
+}
+
+// the body's own title line is the head's: the first element, when it is a level-one heading, comes off (a heading further
+// down is the body's own); the text compared with whitespace folded
+function dropBodyTitle(root, title) {
+    if (!root || !root.firstElementChild) return false;
+    const first = root.firstElementChild;
+    if (first.tagName !== 'H1') return false;
+    const fold = s => String(s || '').replace(/\s+/g, ' ').trim().replace(/[.]+$/, '');
+    if (title && fold(first.textContent) !== fold(title)) return false;
+    first.remove();
+    return true;
+}
+
+// a Plotly figure's layout for print (2026-10-17): the page shows figures on the dark theme and the export captured them
+// as they stood - dark, their titles clipped at the image's edge. White paper, dark text, light grid, the title broken into
+// lines of at most ~90 characters so it stays whole at the print width.
+function printLayout(layout) {
+    const L = JSON.parse(JSON.stringify(layout || {}));
+    delete L.template;
+    L.paper_bgcolor = '#ffffff'; L.plot_bgcolor = '#ffffff';
+    L.font = Object.assign({}, L.font || {}, { color: '#333333' });
+    const titleText = L.title && typeof L.title === 'object' ? L.title.text : L.title;
+    if (titleText) {
+        const words = String(titleText).split(/\s+/); const lines = []; let cur = '';
+        for (const w of words) { if ((cur + ' ' + w).trim().length > 90) { lines.push(cur.trim()); cur = w; } else { cur = (cur + ' ' + w); } }
+        if (cur.trim()) lines.push(cur.trim());
+        L.title = Object.assign({}, typeof L.title === 'object' ? L.title : {}, { text: lines.join('<br>'), x: 0.02, xanchor: 'left', font: Object.assign({}, (typeof L.title === 'object' && L.title.font) || {}, { color: '#2c3e50', size: 14 }) });
+        L.margin = Object.assign({}, L.margin || {}, { t: Math.max((L.margin && L.margin.t) || 0, 40 + 22 * lines.length) });
+    }
+    Object.keys(L).forEach(k => {
+        if (/^(xaxis|yaxis)\d*$/.test(k) && L[k] && typeof L[k] === 'object') {
+            L[k] = Object.assign({}, L[k], { gridcolor: '#e6e6e6', zerolinecolor: '#cccccc', linecolor: '#999999', tickfont: Object.assign({}, L[k].tickfont || {}, { color: '#333333' }) });
+            if (L[k].title && typeof L[k].title === 'object') L[k].title = Object.assign({}, L[k].title, { font: Object.assign({}, L[k].title.font || {}, { color: '#333333' }) });
+        }
+    });
+    if (L.legend && typeof L.legend === 'object') L.legend = Object.assign({}, L.legend, { bgcolor: 'rgba(255,255,255,0.8)', font: Object.assign({}, L.legend.font || {}, { color: '#333333' }) });
+    if (Array.isArray(L.annotations)) L.annotations = L.annotations.map(a => Object.assign({}, a, { font: Object.assign({}, a.font || {}, { color: '#333333' }) }));
+    return L;
 }
 
 // the file name the browser offers for the PDF: the title, without the characters a file name cannot carry, at most 120
@@ -430,10 +484,9 @@ function renderPdfHead(model) {
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     return '<div class="pdf-kicker">' + esc(model.kicker) + '</div>' +
            '<h1>' + esc(model.title) + '</h1>' +
-           (model.lead ? '<p class="pdf-lead">' + esc(model.lead) + '</p>' : '') +
            '<div class="pdf-meta">' + model.rows.map(r => '<div><b>' + esc(r[0]) + '</b>' + esc(r[1]) + '</div>').join('') + '</div>';
 }
-if (typeof module !== 'undefined' && module.exports) { module.exports.pdfHeadModel = pdfHeadModel; module.exports.renderPdfHead = renderPdfHead; module.exports.pdfFileTitle = pdfFileTitle; }
+if (typeof module !== 'undefined' && module.exports) { module.exports.pdfHeadModel = pdfHeadModel; module.exports.renderPdfHead = renderPdfHead; module.exports.pdfFileTitle = pdfFileTitle; module.exports.printLayout = printLayout; module.exports.dropBodyTitle = dropBodyTitle; }
 
 function extractQueryHeader() {
     // kept for callers: the title of the export, as the head model gives it
@@ -497,12 +550,13 @@ async function handlePDFExport(event) {
         for (const plot of plots) {
             if (plot.type === 'plotly' && plot.element && plot.element._fullData && typeof Plotly !== 'undefined') {
                 try {
-                    const imgData = await Plotly.toImage(plot.element, {
-                        format: 'png',
-                        width: 900,
-                        height: 500,
-                        scale: 2
-                    });
+                    let imgData;
+                    try {                                   // on the print layout: white paper, dark text, the title whole (2026-10-17)
+                        imgData = await Plotly.toImage({ data: plot.element.data || plot.element._fullData, layout: printLayout(plot.element.layout || {}) }, { format: 'png', width: 1000, height: 560, scale: 2 });
+                    } catch (e2) {                          // as it stands on the page, then
+                        console.warn('Chart print layout failed, capturing as shown:', e2);
+                        imgData = await Plotly.toImage(plot.element, { format: 'png', width: 1000, height: 560, scale: 2 });
+                    }
                     chartImages.push({ id: plot.id, data: imgData });
                 } catch (e) {
                     console.warn('Failed to capture chart:', e);
@@ -522,8 +576,9 @@ async function handlePDFExport(event) {
         headerDiv.innerHTML = renderPdfHead(headModel);
         printContainer.appendChild(headerDiv);
         
-        // Clone and add content
+        // Clone and add content; the body's own title line comes off - the head carries it (2026-10-17)
         const contentClone = answerContent.cloneNode(true);
+        dropBodyTitle(contentClone, headModel.title);
         
         // Remove buttons and interactive elements
         contentClone.querySelectorAll('button, .copy-btn, .pdf-export-btn, script').forEach(el => el.remove());

@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (217/175/31/24/18/49/44/69/13/142/57/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/11 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (218/175/31/24/18/49/44/69/13/142/57/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -446,6 +446,28 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The title is the report's first line (2026-10-17, patch 0187).** Palo's first export after 0186 showed the typed
+  question as the title again. The log: the Rewriter had written its TITLE and LEAD lines behind the analyst-style
+  scaffold it wraps its reply in (`###STEP### … ###ACTION### REPORT`), where the parser never looked; and its lead
+  opened with *a follow-up to the season review* - invented, because the instruction mentioned follow-ups to a seat
+  that cannot see the thread. The title now comes from the party that knows the whole investigation, through the
+  channel parsed every run: the contract makes the report's first line its title - `# ` and what was found, twelve
+  words at most, clear outside the thread (`report_title`; `run.title`) - which heads the Answer tab in both
+  versions (Palo: a proper anchor in place of *What this shows, in plain language*) and the export, where the body's
+  own title line comes off (`dropBodyTitle`) since the head carries it. No lead: the body's first paragraph is the
+  lead. The Rewriter keeps the title as its first line; its reply has the scaffold stripped whole
+  (`strip_scaffold`), the cell citations out in any dress (`strip_cell_tokens`: the bare *cell 14* a Rewriter leaves
+  when it drops the brackets and not the citation), and the title put there when it forgot (`with_title`). The
+  note's *Question as understood* is read in any dressing - bulleted, bold, numbered, a dash (`_note_heading_line`).
+  The export: the citation chips styled in the print container (a quiet pill, highlighted, not interactive - they
+  had printed as bare text), the figures captured on a print layout (`printLayout`: white paper, dark text, light
+  grid, the title in lines that stay whole - the page's dark theme had been captured as it stood, titles clipped),
+  with the on-screen capture as the fallback. The contract was trimmed by a few words elsewhere to stay under its
+  one page (8,999). Tests: test_analyst.py 218 (`report_title`, `with_title`, `strip_scaffold`, `strip_cell_tokens`,
+  `question_line` in four dressings, the contract's rule, the rewrite task; the scripted run's rewrite now arrives
+  scaffolded and title-less, as a live one did), test_app_path.py 175 (the head's title from the report; the plain
+  version headed by it), test_pdf_export.js 14 (the body's title off, the print layout, the chips' styles). The
+  figures step's own bug seen in the same PDF - block labels Plotly parsed as dates - is not touched here.
 - **The report's head, and the PDF's top section (2026-10-17, patch 0186).** Palo, preparing to share reports with
   third parties: the PDF's title was the question cut at 200 characters and its subtitle a timestamp - truncated, and
   nothing for a reader who had never seen the app. Nothing in the system carried a title. Now the rewrite's reply

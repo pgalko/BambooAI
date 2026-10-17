@@ -19,7 +19,7 @@ from bambooai import bambooai as B
 NOTE = "- Question as understood: q\n- Best estimate so far: none yet\n- Held fixed: -\n- Open doubts: -\n- Plan: p\n- Names: df"
 SCRIPT = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nm = df.groupby('arm')['x'].mean().round(3)\nprint('means', m.to_dict())\n```",
           "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nd = round(m['B'] - m['A'], 3)\nprint('diff', d)\n```",
-          "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nB exceeds A by DIFF units [cell 2]; means in [cell 1].\n"]
+          "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# B exceeds A\n\n## Answer\nB exceeds A by DIFF units [cell 2]; means in [cell 1].\n"]
 FOLLOW = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nprint('reusing d from before:', d)\n```",
           "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nStill DIFF [cell 3].\n"]
 state = {"i": 0, "script": SCRIPT, "calls": []}
@@ -36,7 +36,7 @@ class FakeModels:
         state.setdefault("images", []).append(bool(isinstance(raw, list) and any(isinstance(p, dict) and p.get("type") == "image_url" and str(p["image_url"].get("url", "")).startswith("data:image/png;base64,") for p in raw)))
         lacm.write_to_log(agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
         if user.startswith("Rewrite the technical report"):
-            return "TITLE: B is higher than A.\nLEAD: Asked whether B exceeds A, the report finds it does, by DIFF.\n\nPlain: B is higher by DIFF."
+            return "Plain: B is higher by DIFF."
         if messages[0]["content"].startswith("You are drawing the figures"):
             fs = state.get("figures")
             return fs.pop(0) if isinstance(fs, list) and fs else (fs if isinstance(fs, str) and fs else "NONE")
@@ -76,13 +76,13 @@ check("web events: id, the Data tab (no Query tab), live Investigation-tab updat
 # report stands on, the mode, the replay's verdict and the day - kept with the chain for the export's top section
 _heads = [e for e in events if "report_head" in e]
 _head = _heads[0]["report_head"] if _heads else {}
-check("the report's head rides before the answer as a top-level key (no tab for it): the title and lead from the rewrite's reply, the question as the analyst understood it (the note's line, not the typed question), the data line, the mode, the replay's verdict, the cells, the day",
-      len(_heads) == 1 and events.index(_heads[0]) < next(i for i, e in enumerate(events) if e.get("type") == "answer") and _head.get("title") == "B is higher than A"
-      and str(_head.get("lead", "")).startswith("Asked whether B exceeds A, the report finds it does, by ") and _head.get("question") == "q" and _head.get("mode") in ("deep", "quick", "adaptive")
+check("the report's head rides before the answer as a top-level key (no tab for it): the report's title (its first line), the question as the analyst understood it (the note's line, not the typed question), the data line, the mode, the replay's verdict, the cells, the day; no lead",
+      len(_heads) == 1 and events.index(_heads[0]) < next(i for i, e in enumerate(events) if e.get("type") == "answer") and _head.get("title") == "B exceeds A"
+      and "lead" not in _head and _head.get("question") == "q" and _head.get("mode") in ("deep", "quick", "adaptive")
       and _head.get("replay") in ("reproduced", "differed", "failed", "") and isinstance(_head.get("cells"), int) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(_head.get("prepared"))) and isinstance(_head.get("data"), str)
       and "lineage" not in _head, (_head, [e.get("type") or next(iter(e)) for e in events][:12]))
-check("the plain-language version carries no TITLE or LEAD line - they are the head's", not any(str(e.get("data", "")).startswith("TITLE:") for e in events if e.get("type") == "simplified_answer")
-      and any(str(e.get("data", "")).startswith("Plain: B is higher") for e in events if e.get("type") == "simplified_answer"))
+check("the plain-language version opens with the report's title line (the Rewriter forgot it; it is put there), then its text - the same anchor in both versions",
+      any(str(e.get("data", "")).startswith("# B exceeds A\n\nPlain: B is higher") for e in events if e.get("type") == "simplified_answer"))
 pane_types = [e.get("type") for e in events if str(e.get("type", "")).startswith("pane_")]
 check("the pane protocol: run_start, a turn_start/turn_end pair per model call (three turns, the figures step, the rewrite - no review outside Adaptive), a cell row per cell, heartbeats, run_end",
       pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 5 and pane_types.count("pane_turn_end") == 5
@@ -112,8 +112,8 @@ check("the replay ran through the executor: the results text is the script's own
       and any("call_summary" in e for e in events))
 run1 = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
 check("the run id IS the chain id the browser was told", any(e.get("type") == "id" and str(e.get("chain_id")) == run1.id for e in events) or True)
-check("report stored with the replay line; the rewrite by the same 'model'; status answered",
-      run1.status == "answered" and "Replay reproduced" in run1.report and run1.rewrite.startswith("Plain:"), run1.report[-160:])
+check("report stored with the replay line; the rewrite by the same 'model', headed by the report's title (2026-10-17); status answered",
+      run1.status == "answered" and "Replay reproduced" in run1.report and run1.rewrite.startswith("# B exceeds A\n\nPlain:") and run1.title == "B exceeds A", run1.report[-160:])
 answer_ev = next(e for e in events if e.get("type") == "answer")
 check("the answer event carries the report (with its replay line) and the code event carries the assembled script",
       "Replay" in answer_ev["data"] and "# --- cell 1 ---" in next(e for e in events if e.get("type") == "code")["data"])

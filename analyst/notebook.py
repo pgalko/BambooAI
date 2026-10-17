@@ -26,7 +26,7 @@ import os
 import re
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, fields, asdict
 from typing import Dict, List, Optional
 
 
@@ -134,8 +134,7 @@ class Run:
     turns: List[Turn] = field(default_factory=list)
     report: str = ""                # the technical report (final)
     rewrite: str = ""               # the simplified rewrite (final)
-    title: str = ""                 # the report's head (2026-10-17): a title that says what was found, and a lead of a sentence or two
-    lead: str = ""
+    title: str = ""                 # the report's title (2026-10-17): its first line, a statement of what was found, for the Answer tab and the export
     replay_status: str = ""         # reproduced | differed | failed | (empty = not run)
     replay_script: str = ""
     status: str = "running"         # running | answered | asked | stopped | failed
@@ -470,9 +469,12 @@ class Notebook:
     @classmethod
     def from_dict(cls, d: dict) -> "Notebook":
         runs = {}
+        run_keys = {f.name for f in fields(Run)}
+        turn_keys = {f.name for f in fields(Turn)}
         for rid, r in (d.get("runs") or {}).items():
-            turns = [Turn(**t) for t in r.get("turns", [])]
-            r2 = {k: v for k, v in r.items() if k != "turns"}
+            # a key this version does not know (a record written by another) is left behind, not fatal (2026-10-17)
+            turns = [Turn(**{k: v for k, v in t.items() if k in turn_keys}) for t in r.get("turns", [])]
+            r2 = {k: v for k, v in r.items() if k != "turns" and k in run_keys}
             runs[rid] = Run(**r2, turns=turns)
         nb = cls(str(d.get("thread_id", "")), runs)
         # a thread file from the previous design (chains, ledger): keep its keys untouched
