@@ -434,6 +434,51 @@ BRINGS_IF_DEFINED = ("zones",)
 LOADER_FILES_MAX = max(len(kinds) + sum(len(v) for v in LOAD_BRINGS.get(src, {}).values()) for src, kinds in LOAD_KINDS.items())
 
 
+# the kinds' names for a reader (2026-10-17: the report's head says what data a report stands on); a kind without a name
+# reads as its kind, a brought kind named None rides under the kind that brought it (the codes under the context)
+KIND_NAMES = {"summary": "activity summary", "wellness": "wellness", "intervals": "activity intervals", "context": "context", "codes": None,
+              "plan": "planned workouts", "rider": "rider profile", "zones": "custom zone times",
+              "profile": "profiles", "turns": "turns", "climbs": "climbs", "waymarkers": "waymarkers"}
+SOURCE_NAMES = {"intervals": "Intervals.icu", "endura": "Endura", "sweatstack": "SweatStack"}
+
+
+def data_line(rec: dict) -> str:
+    """One line saying what data a report stands on, from a run's data record: the source and its window or event, then
+    the auxiliary files by their names - 'Intervals.icu · 2026-01-01 to 2026-03-31 · activity summary, wellness, context,
+    planned workouts'; an attached file by its name; 'no dataset' with the files alone when there is no frame."""
+    rec = rec or {}
+    load = rec.get("load") or {}
+    src = str(load.get("source") or rec.get("source") or "")
+    kinds = []
+    for p in rec.get("aux") or []:
+        k = aux_kind(str(p))
+        if k not in kinds:
+            kinds.append(k)
+    names = [KIND_NAMES.get(k, k[5:] if k.startswith("file:") else k) for k in kinds]
+    names = [n for n in names if n]
+    start, end = load.get("start_date") or "", load.get("end_date") or ""
+    if not (start and end) and rec.get("date_range"):
+        m = _RANGE_RE.match(str(rec["date_range"]))
+        if m:
+            start, end = m.group(1), m.group(2)
+    extra = rec.get("extra") or {}
+    rows = rec.get("rows")
+    count = (f" · {int(extra['activities_count']):,} activities" if isinstance(extra.get("activities_count"), (int, float)) and extra["activities_count"] else "")
+    if src == "intervals":
+        head = SOURCE_NAMES[src] + (f" · {start} to {end}" if start and end else "") + count
+    elif src == "endura":
+        head = SOURCE_NAMES[src] + (f" · {load.get('race_title') or load.get('race_id')}" if (load.get('race_title') or load.get('race_id')) else "")
+    elif src == "sweatstack":
+        head = SOURCE_NAMES[src] + (f" · {start} to {end}" if start and end else "") + (" · " + ", ".join(str(s) for s in load.get("sports") or []) if load.get("sports") else "")
+    elif src == "none" or (not rec.get("name") and rows is None and not rec.get("df_id")):
+        head = "no dataset" if not names else ""
+    else:
+        name = str(rec.get("name") or load.get("name") or "")
+        size = f"{int(rows):,} rows" if isinstance(rows, (int, float)) and rows is not None else ""
+        head = (name + (f" · {size}" if size else "")) if name else (f"a dataset of {size}" if size else "an attached dataset")
+    return head + ((" · " if head else "") + ", ".join(names) if names else "")
+
+
 def brings(src: str, kinds: Iterable[str]) -> List[str]:
     """The kinds a load of these kinds brings without being asked (LOAD_BRINGS), in order, each once: the codes beside
     the context."""

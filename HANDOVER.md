@@ -64,7 +64,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (213/172/31/24/18/49/44/69/13/141/57/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (217/175/31/24/18/49/44/69/13/142/57/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/11 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -446,6 +446,32 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The report's head, and the PDF's top section (2026-10-17, patch 0186).** Palo, preparing to share reports with
+  third parties: the PDF's title was the question cut at 200 characters and its subtitle a timestamp - truncated, and
+  nothing for a reader who had never seen the app. Nothing in the system carried a title. Now the rewrite's reply
+  opens with two lines of its own - *TITLE:* a statement of what was found (twelve words at most), *LEAD:* a sentence
+  or two for a reader who has never seen the data, a follow-up said with what it follows - which `split_head` takes
+  off the plain-language text (a lead with a number the report does not carry is dropped, by the rewrite guard); no
+  call of its own. The run keeps `title` and `lead`; the app sends a `report_head` with the answer - a top-level key,
+  like `error`, so the page makes no tab of it - carrying **the question as the analyst understood it** (the final
+  note's *Question as understood* line, `question_line`; the typed question stands in when the note has none), a
+  **data line** from the run's data record (`data_line` in analyst/routines.py over `KIND_NAMES`: *Intervals.icu ·
+  2025-10-18 to 2026-10-16 · 307 activities · activity summary, wellness, context, planned workouts, rider profile,
+  custom zone times*; a file by its name and rows; Endura by its event), the mode, the replay's verdict, the cell
+  count and the day. The typed question is not on the page: a follow-up's reads *Extend to 45 terms*, which says
+  nothing outside the thread, and the thread's earlier questions are the trajectory, not the result (a first cut
+  carried the parent questions as a lineage; Palo: forty chains would make it overbearing - dropped before delivery).
+  The page keeps the head with the chain (`reportHead` through the new chain's shell, the saved response, the
+  restore, the save payload and the load route), keyed to its chain so one never outlives its answer. The export
+  (`pdfHeadModel`, pure, tested in node): a kicker, the title (the typed question when there is no head - a chain
+  from before this patch), the lead, then *Question*, *Data*, *Prepared <day> with BambooAI · Deep mode · every
+  number re-computed from the recorded cells and reproduced · plain-language version*; the page's title becomes the
+  report's for the print dialog, so the browser offers it as the file's name, and is restored after. Also here:
+  `_load_of_cached` had its own kind lists (an 0181 miss) - the registry now. Tests: test_analyst.py 217
+  (`split_head`, `question_line`, the head on the run and in the store, the task's text in the C5 scan),
+  test_app_path.py 175 (the event before the answer with the note's question, on a root chain and a follow-up; the
+  plain version without the lines), test_routines.py 142 (`data_line`), test_pdf_export.js 11 (new, in the
+  battery). README's Reports section says it.
 - **The profile's units and dates (2026-10-16, patch 0185; executor v60).** Palo's first live runs (the assessment
   in the outputs folder, `ASSESSMENT_rider_profile_2026-10-16.md`): the hard question - two readings of intensity
   from two custom sets, heat, altitude and the diary as explanations, across a year - was met, and the analyst found

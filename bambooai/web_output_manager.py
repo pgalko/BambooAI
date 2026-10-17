@@ -225,7 +225,7 @@ class WebOutputManager(OutputManager):
                         plan=None, code=None, answer=None, 
                         simplified_answer=None,
                         plot_jsons=None, review=None, 
-                        generated_datasets=None, code_exec_results=None, explore=False):
+                        generated_datasets=None, code_exec_results=None, explore=False, report_head=None):
         from bambooai import utils
         
         if self.web_mode:
@@ -253,6 +253,10 @@ class WebOutputManager(OutputManager):
                     df_json = json.dumps({'type': 'dataframe', 'data': df_html, 'chain_id': chain_id})
                 self.output_queue.put(df_json)
             
+            # the report's head (2026-10-17): a top-level key, like 'error' - the page keeps it with the chain for its export and
+            # never makes a tab of it; sent before the answer so the Answer tab's head is there when the answer renders
+            if report_head:
+                self.output_queue.put(json.dumps({'report_head': report_head, 'chain_id': chain_id}))
             for data_type, data in [
                 ('query', query),
                 ('model', data_model),

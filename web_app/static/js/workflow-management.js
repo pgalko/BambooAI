@@ -139,7 +139,7 @@ function beginLiveChain() {
     liveState.running = true; liveState.away = false; liveState.holders = null;
     liveState.parent = lastActiveChainId;
     responses.push({ status: 'running', chain_id: currentData.chain_id || null, thread_id: currentData.thread_id || null, parentChainId: lastActiveChainId,
-                     queryText: currentData.queryText || 'No query', tabContent: '', contentOutput: '', streamOutput: '', taskContents: {}, technicalAnswer: null });
+                     queryText: currentData.queryText || 'No query', tabContent: '', contentOutput: '', streamOutput: '', taskContents: {}, technicalAnswer: null, reportHead: null });
     liveState.index = responses.length - 1;
     currentResponseIndex = liveState.index;
     if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
@@ -208,6 +208,7 @@ async function saveCurrentResponse(explicitParentChainId = null) {
         simplifiedAnswer: data.simplifiedAnswer || null,
         summaryViewMode: data.summaryViewMode || 'technical',
         synthesisImage: data.synthesisImage || null,
+        reportHead: data.reportHead || null,                     // the report's head, for the export (2026-10-17)
         rankData: rank || null
     };
     
@@ -300,6 +301,7 @@ function loadResponseContent(response) {
     currentData.simplifiedAnswer = response.simplifiedAnswer || null;
     currentData.summaryViewMode = response.summaryViewMode || 'technical';
     currentData.synthesisImage = response.synthesisImage || null;
+    currentData.reportHead = response.reportHead || null;
     currentRankData = response.rankData || null;
     console.log('Loaded chain_id:', currentData.chain_id);
 

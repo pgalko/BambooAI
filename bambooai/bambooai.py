@@ -568,19 +568,20 @@ class BambooAI:
         a cached window: the cached frame's own load, from the executor's metadata - its source, window, metrics and
         the auxiliary kinds loaded with it - marked cached, never "cache" (2026-10-12: a chain on such a frame made a
         routine whose plan read "file", and its run dialog offered an upload in place of the window)."""
+        from analyst import routines as rt
         from analyst.routines import aux_kind
         src = str(meta.get("source") or "").lower()
         out = {"source": src if src in ("intervals", "endura", "sweatstack") else "file", "cached": True}
         m = re.match(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-)\s*(\d{4}-\d{2}-\d{2})\s*$", str(meta.get("date_range") or ""))
         kinds = [aux_kind(p) for p in rec.get("aux") or []]
         if src == "intervals":
-            out.update(metrics=list(meta.get("metrics") or []), aux_kinds=[k for k in kinds if k in ("summary", "wellness", "intervals", "context", "codes")])
+            out.update(metrics=list(meta.get("metrics") or []), aux_kinds=[k for k in kinds if k in rt.LOAD_KINDS["intervals"] or k in rt.brings("intervals", rt.LOAD_KINDS["intervals"])])
             if m:
                 out.update(start_date=m.group(1), end_date=m.group(2))
             if meta.get("key_mark"):
                 out["key"] = meta["key_mark"]
         elif src == "endura":
-            out.update(race_id=meta.get("race_id"), race_title=meta.get("race_title") or "", aux_kinds=[k for k in kinds if k in ("profile", "turns", "climbs", "waymarkers")])
+            out.update(race_id=meta.get("race_id"), race_title=meta.get("race_title") or "", aux_kinds=[k for k in kinds if k in rt.LOAD_KINDS["endura"]])
         elif src == "sweatstack":
             out.update(sports=list(meta.get("sports") or []), metrics=list(meta.get("metrics") or []))
             if m:
@@ -1253,6 +1254,7 @@ class BambooAI:
                           plan=self._notebook_view(run))
             if self.webui:
                 kwargs["simplified_answer"] = run.rewrite or None
+                kwargs["report_head"] = self._report_head(run, mode)
             self.output_manager.display_results(**kwargs)
         try:
             self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
@@ -1267,6 +1269,25 @@ class BambooAI:
                     run.id, run.status, len(run.cells()), run.replay_status or "-", self._chain_cost(), _n)
         self._stage_memory_source(run)
         return None
+
+    def _report_head(self, run, mode=""):
+        """The report's head for the page and its export (2026-10-17): the title and lead the rewrite's reply opened with
+        (the page falls back to the question when they are empty), the question as the analyst understood it, what data
+        the report stands on, the mode, the replay's verdict and the day - what a reader who has never seen the app
+        needs at the top of the page."""
+        from analyst.routines import data_line
+        try:
+            data = data_line(run.data or self._data_record(light=True))
+        except Exception as exc:                                  # noqa: BLE001
+            logger.warning("the report's data line could not be built (%s)", exc)
+            data = ""
+        from analyst.session import question_line
+        # the question the head carries is the analyst's own statement of what it answered (the note's 'Question as understood'),
+        # in context: a follow-up's question as typed says nothing outside the thread, and the thread's earlier questions are the
+        # trajectory, not the result (Palo, 2026-10-17); the typed question stands in when the note has no such line
+        return {"title": run.title or "", "lead": run.lead or "", "question": question_line(run.note) or run.question or "", "data": data,
+                "mode": str(mode or ""), "replay": run.replay_status or "",
+                "cells": len(run.cells()), "prepared": time.strftime("%Y-%m-%d")}
 
     # ------------------------------------------------------------- memory
     def _stage_memory_source(self, run):

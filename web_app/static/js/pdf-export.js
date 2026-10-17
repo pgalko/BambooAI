@@ -121,6 +121,32 @@ function injectPrintStyles() {
                 color: #7f8c8d;
                 font-style: italic;
             }
+
+            /* The top section (2026-10-17): a kicker, the title that says what was found, the lead, then what the report
+               stands on - the question as asked (whole), the data, when and how it was prepared - for a reader who has
+               never seen the app */
+            #pdf-print-container .pdf-kicker {
+                font-size: 8.5pt;
+                letter-spacing: 0.6px;
+                text-transform: uppercase;
+                color: #4a9d5b;
+                margin: 0 0 2mm 0;
+            }
+            #pdf-print-container .pdf-lead {
+                font-size: 11.5pt;
+                line-height: 1.5;
+                color: #2c3e50;
+                margin: 0 0 4mm 0;
+            }
+            #pdf-print-container .pdf-meta {
+                font-size: 9pt;
+                line-height: 1.5;
+                color: #555;
+                border-top: 0.5pt solid #c8e6c9;
+                padding-top: 2.5mm;
+            }
+            #pdf-print-container .pdf-meta div { margin: 0 0 1mm 0; }
+            #pdf-print-container .pdf-meta b { color: #2c3e50; font-weight: 600; margin-right: 1.5mm; }
             
             /* Tables - Professional Styling */
             #pdf-print-container table {
@@ -369,14 +395,49 @@ function createPDFButton() {
 //  CONTENT EXTRACTION
 //--------------------
 
+// The top section of the export (2026-10-17). Before, the title was the question cut at 200 characters and the subtitle a
+// timestamp - truncated, and nothing for a reader who had never seen the app. The head comes with the answer and is kept
+// with the chain: the title and lead the analyst wrote for the finished report, and the question as the analyst understood
+// it - its own statement of what it answered, in context, so a follow-up ('Extend to 45 terms') reads whole without the
+// thread - then what data the report stands on, the day, the mode and the replay's verdict. Without a head (an older chain,
+// a rewrite without the lines) the question as typed is the title.
+function pdfHeadModel(data, now) {
+    const d = data || {};
+    const head = d.reportHead || {};
+    const question = String(head.question || (d.queryText && d.queryText !== 'No query' ? d.queryText : '') || '').trim();
+    const title = String(head.title || '').trim() || question || 'Analysis report';
+    const lead = String(head.lead || '').trim();
+    const rows = [];
+    if (question && title !== question) rows.push(['Question', question]);
+    if (head.data) rows.push(['Data', String(head.data)]);
+    const when = now || new Date();
+    const day = when.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    const prepared = [day + ' with BambooAI'];
+    if (head.mode) prepared.push(String(head.mode).charAt(0).toUpperCase() + String(head.mode).slice(1) + ' mode');
+    if (head.replay === 'reproduced') prepared.push('every number re-computed from the recorded cells and reproduced');
+    else if (head.replay === 'differed') prepared.push('the re-computation differed from the report - read the CHECK lines');
+    if (d.summaryViewMode === 'simplified') prepared.push('plain-language version');
+    rows.push(['Prepared', prepared.join(' · ')]);
+    return { kicker: 'Analysis report', title, lead, rows };
+}
+
+// the file name the browser offers for the PDF: the title, without the characters a file name cannot carry, at most 120
+function pdfFileTitle(title) {
+    return String(title || '').replace(/[\\/:*?"<>|\n\r]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+}
+
+function renderPdfHead(model) {
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return '<div class="pdf-kicker">' + esc(model.kicker) + '</div>' +
+           '<h1>' + esc(model.title) + '</h1>' +
+           (model.lead ? '<p class="pdf-lead">' + esc(model.lead) + '</p>' : '') +
+           '<div class="pdf-meta">' + model.rows.map(r => '<div><b>' + esc(r[0]) + '</b>' + esc(r[1]) + '</div>').join('') + '</div>';
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports.pdfHeadModel = pdfHeadModel; module.exports.renderPdfHead = renderPdfHead; module.exports.pdfFileTitle = pdfFileTitle; }
+
 function extractQueryHeader() {
-    // The Query tab is retired (2026-09-05): the report's title is the question as typed.
-    try {
-        if (typeof currentData !== 'undefined' && currentData && currentData.queryText && currentData.queryText !== 'No query') {
-            return String(currentData.queryText).trim().substring(0, 200);
-        }
-    } catch (e) { /* fall through */ }
-    return 'BambooAI Analysis Report';
+    // kept for callers: the title of the export, as the head model gives it
+    try { return pdfHeadModel(typeof currentData !== 'undefined' ? currentData : null).title; } catch (e) { return 'Analysis report'; }
 }
 
 function extractAnswerContent() {
@@ -423,7 +484,7 @@ async function handlePDFExport(event) {
         showPDFLoadingState(button, true);
         
         // Get content
-        const header = extractQueryHeader();
+        const headModel = pdfHeadModel(typeof currentData !== 'undefined' ? currentData : null);
         const answerContent = extractAnswerContent();
         const plots = extractPlotData();
         
@@ -455,13 +516,10 @@ async function handlePDFExport(event) {
         const printContainer = document.createElement('div');
         printContainer.id = 'pdf-print-container';
         
-        // Add header
+        // the top section (2026-10-17): the head the analyst wrote, the question whole, the data, the day
         const headerDiv = document.createElement('div');
         headerDiv.className = 'pdf-header';
-        headerDiv.innerHTML = `
-            <h1>${escapeHtml(header)}</h1>
-            <div class="pdf-timestamp">Generated: ${new Date().toLocaleString()}</div>
-        `;
+        headerDiv.innerHTML = renderPdfHead(headModel);
         printContainer.appendChild(headerDiv);
         
         // Clone and add content
@@ -585,11 +643,14 @@ async function handlePDFExport(event) {
         // Wait a moment for rendering
         await new Promise(r => setTimeout(r, 100));
         
-        // Trigger print
+        // Trigger print - the page's title is the file name the browser offers (2026-10-17): the report's title, not the app's
+        const pageTitle = document.title;
+        document.title = pdfFileTitle(headModel.title) || pageTitle;
         window.print();
         
         // Clean up after print dialog closes
         setTimeout(() => {
+            document.title = pageTitle;
             if (document.getElementById('pdf-print-container')) {
                 document.body.removeChild(printContainer);
             }
@@ -647,8 +708,10 @@ function handleAnswerTabUpdate() {
     }, 100);
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializePDFExport);
-} else {
-    initializePDFExport();
+if (typeof document !== 'undefined') {                       // the tests load this file in node for the head model (2026-10-17)
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializePDFExport);
+    } else {
+        initializePDFExport();
+    }
 }

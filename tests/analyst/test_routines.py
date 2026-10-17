@@ -700,6 +700,19 @@ check("the rider profile and the zone times: their kinds, prefixes and cut rules
       and cmr3["hit"] and cmr3["files"][-1] == "datasets/u/custom_zone_times_20260712_to_20261010.csv" and "with summary, rider, zones" in cmr3["line"], (cmr1, cmr2, cmr3))
 check("load_plan keeps the rider profile among a run's kinds and never the zone times (brought, not asked)",
       host.load_plan({"versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "aux_kinds": ["summary", "rider", "zones"], "start_date": "2026-07-12", "end_date": "2026-10-10"}}}}]})["aux_kinds"] == ["summary", "rider"])
+# the report's head (2026-10-17): one line saying what data a report stands on, from the run's data record - the source and its
+# window or event, the activity count, the auxiliary files by their names (the codes ride under the context); a file by its
+# name and rows; nothing but files when there is no frame
+check("data_line: Intervals with its window, count and files by name; Endura by its event; SweatStack with its sports; a file with its rows and an attached file; a bare frame; no dataset",
+      rt.data_line({"load": {"source": "intervals", "start_date": "2025-10-18", "end_date": "2026-10-16"}, "extra": {"activities_count": 307},
+                    "aux": ["d/activity_summary_x.csv", "d/context_notes_x.csv", "d/context_codes_x.csv", "d/planned_workouts_x.csv", "d/rider_profile_x.csv", "d/custom_zone_times_x.csv"]})
+      == "Intervals.icu · 2025-10-18 to 2026-10-16 · 307 activities · activity summary, context, planned workouts, rider profile, custom zone times"
+      and rt.data_line({"load": {"source": "endura", "race_title": "Spring classic"}, "aux": ["athlete_profiles_race_1.csv", "race_turns_race_1.csv"]}) == "Endura · Spring classic · profiles, turns"
+      and rt.data_line({"load": {"source": "sweatstack", "start_date": "2026-01-01", "end_date": "2026-02-01", "sports": ["cycling"]}}) == "SweatStack · 2026-01-01 to 2026-02-01 · cycling"
+      and rt.data_line({"source": "file", "name": "field_trial.csv", "rows": 12000, "aux": ["laps.csv"]}) == "field_trial.csv · 12,000 rows · laps.csv"
+      and rt.data_line({"source": "frame", "rows": 200, "df_id": "d1"}) == "a dataset of 200 rows" and rt.data_line({"source": "none", "aux": ["a.csv"]}) == "a.csv" and rt.data_line({"source": "none"}) == "no dataset"
+      and rt.data_line({"source": "intervals", "date_range": "2026-01-01 to 2026-01-31", "df_id": "x"}) == "Intervals.icu · 2026-01-01 to 2026-01-31" and rt.data_line(None) == "no dataset"
+      and all(rt.KIND_NAMES.get(k) for src in rt.LOAD_KINDS for k in rt.LOAD_KINDS[src]), rt.data_line({"source": "frame", "rows": 200, "df_id": "d1"}))
 # room for more auxiliaries (2026-10-16, patch 0181): one registry of what a load can be asked for (LOAD_KINDS) and what it brings
 # beside without being asked (LOAD_BRINGS); load_plan, cache_match and the app's auxiliary limit read it, so a new kind is added
 # once - the sixth file of a load had tripped a limit written as a literal

@@ -134,6 +134,8 @@ class Run:
     turns: List[Turn] = field(default_factory=list)
     report: str = ""                # the technical report (final)
     rewrite: str = ""               # the simplified rewrite (final)
+    title: str = ""                 # the report's head (2026-10-17): a title that says what was found, and a lead of a sentence or two
+    lead: str = ""
     replay_status: str = ""         # reproduced | differed | failed | (empty = not run)
     replay_script: str = ""
     status: str = "running"         # running | answered | asked | stopped | failed

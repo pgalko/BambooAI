@@ -1930,6 +1930,7 @@ def load_thread(thread_id, chain_id):
                     'simplifiedAnswer': chain_data.get('simplifiedAnswer'),
                     'summaryViewMode': chain_data.get('summaryViewMode', 'technical'),
                     'synthesisImage': chain_data.get('synthesisImage'),
+                    'reportHead': chain_data.get('reportHead'),          # the report's head, for the export (2026-10-17)
                 }
                 
                 responses.append(response)

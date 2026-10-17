@@ -279,6 +279,10 @@ function processChunk(chunk) {
                     }
                     
                     console.log("Simplified summary received");
+                } else if (data.report_head) {
+                    // the report's head (2026-10-17): the title and lead the analyst wrote for the finished report, the question,
+                    // what data it stands on, the mode, the replay's verdict - kept with the chain for the PDF export's top section
+                    currentData.reportHead = Object.assign({}, data.report_head, { chain_id: data.chain_id || null });
                 } else if (data.call_summary) {
                     if (typeof paneSummary === 'function') paneSummary(data.call_summary);
                 } else if (data.system_message) {
@@ -292,6 +296,8 @@ function processChunk(chunk) {
                     if (data.type === 'answer') {
                         currentData.simplifiedAnswer = null;
                         currentData.summaryViewMode = 'technical';
+                        // the head arrives just before the answer (2026-10-17); one from an earlier chain never outlives its answer
+                        if (currentData.reportHead && String(currentData.reportHead.chain_id) !== String(data.chain_id)) currentData.reportHead = null;
                     }
                     
                     console.log(`Right panel data detected: ${data.type}`, data);
@@ -794,7 +800,8 @@ async function saveAllResponsesToFavorites(userRank, statusMessage, submitButton
                     technicalAnswer: chainData.technicalAnswer || null,
                     simplifiedAnswer: chainData.simplifiedAnswer || null,
                     summaryViewMode: chainData.summaryViewMode || 'technical',
-                    synthesisImage: chainData.synthesisImage || null
+                    synthesisImage: chainData.synthesisImage || null,
+                    reportHead: chainData.reportHead || null
                 }
             });
         }

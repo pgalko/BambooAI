@@ -143,7 +143,33 @@ REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader wh
                 "headings and short paragraphs; about two-thirds the length of the original. Say what you mean in "
                 "direct statements: when a literal phrase is available, use it, and never let a metaphor or a flourish "
                 "stand in for a statement ('this still matters', not 'this earns its keep'; 'a parameter worth varying', "
-                "not 'a dial worth turning'). Reply with the text only.\n\n")
+                "not 'a dial worth turning'). Before the text, two lines of their own, then a blank line - "
+                "TITLE: a title of at most twelve words that says what the report found, a statement, not a question, with no colon, "
+                "no quotation marks and no column names; LEAD: one or two plain sentences, at most forty words, for a reader who has never seen "
+                "the data or the report - what was asked, in essence (a follow-up said with what it follows, so it stands on its own), and what "
+                "the answer is, with the one number that matters when there is one. Then the text, and nothing else.\n\n")
+
+# the report's head (2026-10-17): a title and a lead for the finished report, written by the rewrite's call as its first two
+# lines - no call of its own - for the page's export: a reader who has never seen the app or the data should know from the
+# top of the page what was asked and what was found.
+_HEAD_LINE_RE = re.compile(r"^\s*[*#>\-\s]*(TITLE|LEAD)\s*:\s*(.+?)\s*$", re.I)
+
+
+def split_head(text: str) -> tuple:
+    """(title, lead, rest) from the rewrite's reply: the TITLE: and LEAD: lines among its first lines, trimmed of markdown
+    dressing (the title without a closing full stop), and the text without them; ('', '', text) when they are not there.
+    A TITLE or LEAD line further down is the text's own and stays."""
+    lines = (text or "").splitlines()
+    out, rest, k = {"TITLE": "", "LEAD": ""}, [], 0
+    while k < len(lines) and (not lines[k].strip() or _HEAD_LINE_RE.match(lines[k])) and k < 4:
+        m = _HEAD_LINE_RE.match(lines[k])
+        if m and not out[m.group(1).upper()]:
+            out[m.group(1).upper()] = re.sub(r"^[*\"'`\s]+|[*\"'`\s]+$", "", m.group(2)).strip()
+        k += 1
+    rest = "\n".join(lines[k:]).strip() if (out["TITLE"] or out["LEAD"]) else (text or "").strip()
+    title = " ".join(out["TITLE"].rstrip(".").split())
+    return title, " ".join(out["LEAD"].split()), rest
+
 
 _NOTE_RE = re.compile(r"###NOTE###\s*\n(.*?)\n###ACTION###", re.S)
 _STEP_MARK_RE = re.compile(r"###(?:STEP|THINKING)###[ \t]*\n?")       # the step's marker, and the one it replaced
@@ -311,6 +337,24 @@ def evidence_code(turn) -> str:
     if not any(r.get("typed") for r in (turn.results or [])):
         return turn.code or ""
     return "\n".join(ln for ln in (turn.code or "").splitlines() if "RESULT(" not in ln)
+
+
+def question_line(note: str) -> str:
+    """The note's 'Question as understood' content - the analyst's own statement of what it answered, in context, which the
+    report's head carries as the question (2026-10-17: a follow-up's question as typed, 'Extend to 45 terms', says nothing
+    to a reader outside the thread, and the thread's earlier questions are the trajectory, not the result). The content
+    runs on over following lines until the next heading; '' when the note has no such line."""
+    out, on = [], False
+    for ln in clean_note(note).splitlines():
+        s = ln.strip().lstrip("-• ").strip()
+        if on and re.match(r"^(Best estimate so far|Held fixed|Open doubts|Plan|Names|Standing instructions from the person|Re-check|Shown)\s*:", s, re.I):
+            break
+        if on:
+            out.append(s)
+        elif s.lower().startswith("question as understood") and ":" in s:
+            out.append(s.split(":", 1)[1].strip())
+            on = True
+    return " ".join(" ".join(out).split())
 
 
 def _estimate_line(note: str) -> str:
@@ -960,6 +1004,11 @@ class Session:
                    "elapsed": round(time.time() - t_rw, 1), "cost": (usage or {}).get("cost", 0.0)})
         rewrite = (text or "").strip()
         rewrite = re.sub(r"^###.*?###\s*", "", rewrite, flags=re.S).strip()
+        # the head (2026-10-17): the reply's first two lines are the report's title and lead, for the page's export; a lead
+        # with a number the report does not carry is dropped (the title carries none worth guarding)
+        run.title, run.lead, rewrite = split_head(rewrite)
+        if run.lead and rep.guard_rewrite(run.lead, report_text):
+            run.lead = ""
         check2 = rep.guard_rewrite(rewrite, report_text)
         run.rewrite = rewrite + (f"\n\n> {check2}" if check2 else "")
         run.turns.append(Turn(kind="rewrite", note=run.note, text=run.rewrite, usage=dict(usage or {})))

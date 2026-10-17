@@ -219,7 +219,12 @@ After `REPORT`:
    up to three corrections. The report gains a *Figures* section citing the cell and discloses when
    the requested figures could not be drawn.
 2. **Plain-language version.** The `Rewriter` role produces a version for a non-technical reader.
-   Both versions are kept.
+   Both versions are kept. The same reply opens with the report's **head** - a title that says what
+   was found and a lead of a sentence or two - which the PDF export puts at the top of the page
+   above the question as the Analyst understood it (its own statement of what it answered, so a
+   follow-up reads whole without the thread), what data the report stands on (the source, the
+   window, the files), and the day, mode and reproduction verdict, so a report can be handed to
+   someone who has never seen BambooAI or the data. The browser offers the title as the file's name.
 3. **Reproduction check.** The successful cells are assembled in execution order, through the last
    cited cell or the run's last figure cell, and rerun against the original data in a fresh kernel.
    Earlier cells are retained so their imports, variables and changes to the data are available.

@@ -36,7 +36,7 @@ class FakeModels:
         state.setdefault("images", []).append(bool(isinstance(raw, list) and any(isinstance(p, dict) and p.get("type") == "image_url" and str(p["image_url"].get("url", "")).startswith("data:image/png;base64,") for p in raw)))
         lacm.write_to_log(agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
         if user.startswith("Rewrite the technical report"):
-            return "Plain: B is higher by DIFF."
+            return "TITLE: B is higher than A.\nLEAD: Asked whether B exceeds A, the report finds it does, by DIFF.\n\nPlain: B is higher by DIFF."
         if messages[0]["content"].startswith("You are drawing the figures"):
             fs = state.get("figures")
             return fs.pop(0) if isinstance(fs, list) and fs else (fs if isinstance(fs, str) and fs else "NONE")
@@ -72,6 +72,17 @@ types = [e.get("type") for e in events if e.get("type")]
 check("web events: id, the Data tab (no Query tab), live Investigation-tab updates ('plan'), then answer, simplified_answer, code, results, end",
       types[0] == "id" and "query" not in types and "dataframe" in types and "plan" in types
       and all(t in types for t in ("answer", "simplified_answer", "code", "code_exec_results")) and types[-1] == "end", types)
+# the report's head (2026-10-17): a top-level key before the answer - the rewrite's first two lines, the question, what data the
+# report stands on, the mode, the replay's verdict and the day - kept with the chain for the export's top section
+_heads = [e for e in events if "report_head" in e]
+_head = _heads[0]["report_head"] if _heads else {}
+check("the report's head rides before the answer as a top-level key (no tab for it): the title and lead from the rewrite's reply, the question as the analyst understood it (the note's line, not the typed question), the data line, the mode, the replay's verdict, the cells, the day",
+      len(_heads) == 1 and events.index(_heads[0]) < next(i for i, e in enumerate(events) if e.get("type") == "answer") and _head.get("title") == "B is higher than A"
+      and str(_head.get("lead", "")).startswith("Asked whether B exceeds A, the report finds it does, by ") and _head.get("question") == "q" and _head.get("mode") in ("deep", "quick", "adaptive")
+      and _head.get("replay") in ("reproduced", "differed", "failed", "") and isinstance(_head.get("cells"), int) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(_head.get("prepared"))) and isinstance(_head.get("data"), str)
+      and "lineage" not in _head, (_head, [e.get("type") or next(iter(e)) for e in events][:12]))
+check("the plain-language version carries no TITLE or LEAD line - they are the head's", not any(str(e.get("data", "")).startswith("TITLE:") for e in events if e.get("type") == "simplified_answer")
+      and any(str(e.get("data", "")).startswith("Plain: B is higher") for e in events if e.get("type") == "simplified_answer"))
 pane_types = [e.get("type") for e in events if str(e.get("type", "")).startswith("pane_")]
 check("the pane protocol: run_start, a turn_start/turn_end pair per model call (three turns, the figures step, the rewrite - no review outside Adaptive), a cell row per cell, heartbeats, run_end",
       pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 5 and pane_types.count("pane_turn_end") == 5
@@ -437,6 +448,9 @@ check("a prose follow-up replays nothing and re-shows none of the parent's Code/
 idev = next(e for e in events3 if e.get("type") == "id")
 check("the id event's parent carries the browser's own value and type (the map draws edges by strict equality)",
       idev.get("parent_chain_id") == int(run3.id) and isinstance(idev.get("parent_chain_id"), int), idev)
+_h3 = next((e["report_head"] for e in events3 if "report_head" in e), {})
+check("a follow-up's head carries the question as the analyst understood it, not the typed fragment and not the thread's earlier questions (2026-10-17, Palo: the report is the chain's result, not the trajectory)",
+      _h3.get("question") == "q" and "lineage" not in _h3 and _h3.get("replay") == "" and _h3.get("cells") == 0, _h3)
 check("modes: the brain (planning) means deep, auto_explore means adaptive, neither means quick",
       BAMBOO._last_budget.turns == BAMBOO.turns_deep)
 BAMBOO.planning = False; state.update(i=0, script=PROSE); BAMBOO.output_manager.add_user_input("q"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None)
