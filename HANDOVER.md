@@ -452,6 +452,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The DeepSeek seats on V4.1 Flash 1017, on trial (Palo, 2026-10-17, patch 0191).** DeepSeek released V4.1 Flash
+  1017 that day - the same family, size, 1M context and price; better coding, agentic and vision scores; shorter
+  outputs - and upgraded its own API in place: `deepseek-flash`, its only name for the model, serves 1017, with no
+  name left for the September weights. On OpenRouter the update is a slug of its own, `deepseek/deepseek-v4.1-flash-1017`;
+  `deepseek/deepseek-v4.1-flash` stays the September release on some thirty hosts, while its DeepSeek endpoint - first
+  in our routing - most likely serves 1017 since then, so a run could mix the two with nothing to show it. The
+  template's 29 seats (free 10, cost 9, performance 5, max 5) move to the dated slug, which every host serves as 1017;
+  its `model_properties` entry is the old one copied whole - the prices (DeepSeek's peak rates, kept by Palo's
+  decision), the effort words, the DeepSeek-first routing, multimodal - and the old entry stays, for a revert and for
+  configs still naming it. Not the `~deepseek/deepseek-flash-latest` alias: it moves with no change on our side
+  (OpenRouter's documentation advises the concrete slug where results must reproduce), it remaps an unsupported
+  effort to the lowest instead of refusing, and our pricing keys on the exact model string. The dated slug's list of
+  supported parameters was not readable from the sandbox; DeepSeek says the calling method is unchanged, so the
+  five effort words are expected to hold - Palo's trial run on the altitude question is the check, and reverting is
+  the seats back to the plain slug. The README's seat example and `LLM_CONFIG_sample.json` follow once it holds. A
+  self-hosted working folder keeps its own copy of the template (`bambooai init` copies it once); the hosted boxes
+  rebuild each user's seats from the repository's whenever it is newer. No code or test change; the battery could
+  not run here (PyPI unreachable), the pricing preflight's logic run over every tier: every seat priced.
 - **The README's head and overview in a technical register (Palo, 2026-10-17, patch 0189).** Palo's rewrite of the
   opening after reading the 0174 text as a technical reader would ("low tech and baity"): the head says what BambooAI is
   built around - a persistent Python kernel, an explicit analysis protocol, an inspectable computational record - and
