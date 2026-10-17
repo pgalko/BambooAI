@@ -30,7 +30,8 @@
   tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands),
   2.2.2 (2026-10-08: the Claude 5.5 family on the Anthropic adapter, the contract's STEP section, the forced report's
   card, the replay's display options, auxiliary files in DATA, the template's Claude seats - patches 0101-0110;
-  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.4.0 (2026-10-17: the context - the words
+  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.4.1 (2026-10-17: the README's head and
+  overview in a technical register - patch 0189; no code change, image v60 stands), 2.4.0 (2026-10-17: the context - the words
   written beside Intervals.icu data as a file, coded against a codebook, CTX in the kernel, READ CTX, passages cited
   as [C.n], the codebook screen; the Intervals.icu store with incremental loads and the hosted volume per user; the
   load dialogs' one grammar; the rider profile, the custom zone times and every custom field under its code; the

@@ -305,6 +305,8 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-10-17: 2.4.1.** The README's head and overview in a technical register (patch 0189); no code change,
+  executor build v60 stands.
 - **Status 2026-10-17: 2.4.0.** The context (docs/CONTEXT_DESIGN.md): the words written beside Intervals.icu data -
   messages, notes, the plan's prose, calendar entries, custom fields - as a file of the load, coded against a codebook
   by the Coder seat, `CTX` in the kernel, `READ CTX` through the Reader, passages cited as [C.n] and shown as chips,
