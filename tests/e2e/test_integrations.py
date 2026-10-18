@@ -503,7 +503,7 @@ def main():
             pills_c = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
             ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
             check("when the pass ends the one pill reads plain with the pass's line as its tooltip - coded of total, the renderings, the proposal - and its list names the passages, the codes, the line and (the pass proposed a code) the row to the codebook screen; still five pills in the bar",
-                  ctx_pill["label"] == "Context (59 days)" and re.search(r"^Context: \d+ of \d+ coded, \d+ rendered into English, 1 code proposed$", ctx_pill["title"]) is not None
+                  ctx_pill["label"] == "Context (59 days)" and re.search(r"^Context: \d+ of \d+ coded, \d+ tags? left as (?:labels|a label), \d+ rendered into English, 1 code proposed$", ctx_pill["title"]) is not None
                   and len(ctx_pill["rows"]) == 4 and ctx_pill["rows"][1].startswith("Codescontext_codes_") and re.search(r"^\d+ of \d+ coded", ctx_pill["rows"][2]) and ctx_pill["rows"][3] == "CodebookCodebook \u00b7 1 proposal awaits you" and ctx_pill["pills"] == 7, (pills_c, ctx_pill))
             page.evaluate("() => { const r = [...document.querySelectorAll('#contextPill .context-pill-menu .row')][0]; r.click(); }")
             page.wait_for_function("() => { const t = document.querySelector('#content-dataframe, .tab-content.active'); return !!t && /text_en/.test(t.textContent || ''); }", timeout=30000)
@@ -561,9 +561,9 @@ def main():
                 da = ctx[ctx["text"].str.startswith("Benene var tunge")]
                 en = ctx[ctx["text"].str.startswith("Good legs today")]
                 tagrows = ctx[ctx["kind"] == "tag"]
-                check("the coder wrote the language and an English rendering into every Danish passage and left the English ones their own (lang en, text_en empty); a tag the coder did not know is lang en with no code",
+                check("the coder wrote the language and an English rendering into every Danish passage and left the English ones their own (lang en, text_en empty); a tag is a label, never sent to the coder - no language, no rendering (patch 0197)",
                       len(da) and (da["lang"] == "da").all() and (da["text_en"] == "The legs were heavy today, rode shorter than planned.").all()
-                      and len(en) and (en["lang"] == "en").all() and (en["text_en"] == "").all() and len(tagrows) and (tagrows["lang"] == "en").all(), (da[["lang", "text_en"]].head(2).to_dict("records"), en[["lang", "text_en"]].head(1).to_dict("records")))
+                      and len(en) and (en["lang"] == "en").all() and (en["text_en"] == "").all() and len(tagrows) and (tagrows["lang"] == "").all() and (tagrows["text_en"] == "").all(), (da[["lang", "text_en"]].head(2).to_dict("records"), en[["lang", "text_en"]].head(1).to_dict("records"), tagrows[["lang", "text_en"]].head(2).to_dict("records")))
                 codes_path = os.path.join(exec_ds, f"context_codes_{tag_a}.csv")
                 codes = pd.read_csv(codes_path, dtype=str, keep_default_na=False) if os.path.exists(codes_path) else None
                 check("the codes file beside the context file: the design's columns, one row per code with the words it rests on verbatim in the original, the tone, codebook rows and the proposed code's rows marked, the coder and the codebook's version",
@@ -580,8 +580,8 @@ def main():
                       and sum(c.get("uses", 0) for c in book["codes"]) == len(codes), (book_path, None if book is None else [(c["code"], c.get("status"), c.get("uses")) for c in book["codes"] if c.get("status") == "proposed"]))
                 store_path = os.path.join(workdir, "webapp", "storage", USER, "context", apis_data.SUBJECT["id"], "coded.json")
                 store = json.load(open(store_path)) if os.path.exists(store_path) else None
-                check("the coded passages are remembered per subject under storage/<user>/context/<athlete id>/coded.json (the id Intervals reports, not the key's mark) - one entry per answered passage with its rendering and codes - so the next load of this subject codes only what is new",
-                      store is not None and len(store.get("entries", {})) == len(ctx) and any(e.get("text_en", "").startswith("The legs were heavy today") for e in store["entries"].values()), (store_path, None if store is None else len(store.get("entries", {}))))
+                check("the coded passages are remembered per subject under storage/<user>/context/<athlete id>/coded.json (the id Intervals reports, not the key's mark) - one entry per answered passage with its rendering and codes (a tag and a copy are never sent) - so the next load of this subject codes only what is new",
+                      store is not None and len(store.get("entries", {})) == len(ctx[(ctx["kind"] != "tag") & (ctx["copy_of"] == "")]) and any(e.get("text_en", "").startswith("The legs were heavy today") for e in store["entries"].values()), (store_path, None if store is None else len(store.get("entries", {}))))
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
             # the analyst's DATA block: the context file's entry is columns and a count, the map follows, no passage in the prompt
             page.fill("#queryInput", mod.QUESTIONS[0])

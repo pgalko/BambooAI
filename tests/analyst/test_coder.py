@@ -119,7 +119,9 @@ check("validate: a non-English passage without a rendering is counted missing; a
       and v2["rows"][3]["tone"] == "negative" and v2["renderings"]["C.1"] == {"lang": "en", "text_en": ""}, (dict(v2["dropped"]), v2["rows"]))
 check("report_line: the sentence of a pass", coder.report_line({"passages": 212, "coded": 201, "rendered": 180, "proposed": 2, "unanswered": 3, "failed_batches": 1})
       == "201 of 212 coded, 180 rendered into English, 2 codes proposed, 3 not read by the coder, 1 batch failed" and coder.report_line({"passages": 0}) == "nothing to code"
-      and coder.report_line({"passages": 4, "coded": 4}) == "4 of 4 coded")
+      and coder.report_line({"passages": 4, "coded": 4}) == "4 of 4 coded"
+      and coder.report_line({"passages": 9, "coded": 5, "labels": 2, "copies": 1}) == "5 of 9 coded, 2 tags left as labels, 1 copy read as the passage it repeats"
+      and coder.report_line({"passages": 9, "coded": 5, "labels": 1, "copies": 3}) == "5 of 9 coded, 1 tag left as a label, 3 copies read as the passages they repeat")
 
 # ---- the store of coded passages (D1's fallback, 2026-10-14) ----
 from analyst.coded import CodedStore, passage_key

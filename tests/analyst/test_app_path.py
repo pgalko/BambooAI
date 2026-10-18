@@ -669,9 +669,12 @@ try:
                 {"id": "C.4", "kind": "activity_message", "date": "2026-09-04", "author_role": "subject", "private": False, "lang": "", "text": "felt rough", "activity_id": "a2", "activity_date": "2026-09-03", "copy_of": ""}]
     _map_cp = _cmap(pd.DataFrame(_cp_rows))
     check("the map counts the copies (copy_of) and the passages written on a later day than their activity, each in a line of its own; a window with neither has neither line",
-          "  2 passages repeat an earlier passage word for word (copy_of names it): the earlier one's words, not a second writing of them." in _map_cp
+          "  2 passages repeat an earlier passage word for word (copy_of names it): the earlier one's words, not a second writing of them, and coded there only." in _map_cp
           and "  1 passage on an activity was written on a later day than the activity: activity_date is the activity's day, date the day of writing." in _map_cp
           and "word for word" not in _map_st and "later day" not in _map_st, _map_cp)
+    _tg = [{"id": f"C.{i}", "kind": "tag", "date": "2026-09-21", "author_role": "subject", "private": False, "lang": "", "text": t} for i, t in enumerate(["heatsession", "primary", "heatsession"], 1)]
+    check("the map tallies a kind whose every passage is one token with no space - a tag - most first; a kind with one longer text is not tallied (patch 0197)",
+          "tag 3 (heatsession 2, primary 1)." in _cmap(pd.DataFrame(_tg)) and "tag 2." in _map_st, _cmap(pd.DataFrame(_tg)))
     _codes = os.path.join(_auxdir, "context_codes_20260615_to_20261013.csv")
     pd.DataFrame([{"id": "C.1", "code": "fatigue", "tone": "negative", "quote": "legs heavy", "status": "codebook", "coder": "m", "codebook_version": 1},
                   {"id": "C.1", "code": "deviation", "tone": "negative", "quote": "cut it short", "status": "codebook", "coder": "m", "codebook_version": 1},
@@ -859,7 +862,7 @@ try:
                "C.4": {"id": "C.4", "codes": ["illness"], "tone": "negative", "quotes": {"illness": "sick"}, "lang": "en"},
                "C.5": {"id": "C.5", "codes": ["instruction"], "tone": "neutral", "quotes": {"instruction": "stop if the legs go flat"}, "lang": "en"}}
         return "\n".join(json.dumps(out[i]) for i in ids if i in out)
-    _saved_n = _coder.BATCH_PASSAGES; _coder.BATCH_PASSAGES = 4
+    _saved_n = _coder.BATCH_PASSAGES; _coder.BATCH_PASSAGES = 3
     try:
         _bf = B.BambooAI(df=None, df_id=None, user_id="u3", webui=True, auxiliary_datasets=[_ctx3])
         _bf.models.llm_call = _coder_reply
@@ -870,17 +873,20 @@ try:
     _notes3 = pd.read_csv(_ctx3, dtype=str, keep_default_na=False)
     _codes3_path = _ctx3.replace("context_notes_", "context_codes_")
     _codes3 = pd.read_csv(_codes3_path, dtype=str, keep_default_na=False) if os.path.exists(_codes3_path) else None
-    check("the pass: two batches of four and one in parallel, then a second round for the passage no reply answered (that batch failing both times); the report counts the passages, the coded, the uncoded, the rendered, the proposal, the failed batches and the unanswered; the calls on the Coder seat (absent in this config: the Reader's, so the analyst's) under the billing chain",
-          sorted(_prog) == [(1, 2), (2, 2), (3, 3)] and _rep["passages"] == 5 and _rep["coded"] == 4 and _rep["uncoded"] == 1 and _rep["rendered"] == 1 and _rep["proposed"] == 1 and _rep["proposals"] == ["heavy_legs"]
+    check("the pass: the tag set aside as a label (patch 0197), a batch of three and one in parallel, then a second round for the passage no reply answered (that batch failing both times); the report counts the passages, the coded, the uncoded, the rendered, the proposal, the failed batches, the unanswered and the labels; the calls on the Coder seat (absent in this config: the Reader's, so the analyst's) under the billing chain",
+          sorted(_prog) == [(1, 2), (2, 2), (3, 3)] and _rep["passages"] == 5 and _rep["coded"] == 3 and _rep["uncoded"] == 2 and _rep["rendered"] == 1 and _rep["proposed"] == 1 and _rep["proposals"] == ["heavy_legs"]
           and _rep["failed_batches"] == 2 and _rep["unanswered"] == 1 and _rep["batches"] == 3 and _rep["reused"] == 0 and _rep["dropped"] == {"unknown_code": 1} and _rep["codes_path"] == _codes3_path and _rep["codebook_version"] == 1
-          and len(_calls3) == 3 and all(c[0] == "Investigator" and c[1] == "load-1" and c[2].startswith("You are the Coder") for c in _calls3) and sorted(len(c[3]) for c in _calls3) == [1, 1, 4], (_rep, _prog, [(c[0], c[1], c[2], c[3]) for c in _calls3]))
+          and _rep["labels"] == 1 and _rep["copies"] == 0
+          and len(_calls3) == 3 and all(c[0] == "Investigator" and c[1] == "load-1" and c[2].startswith("You are the Coder") for c in _calls3) and sorted(len(c[3]) for c in _calls3) == [1, 1, 3]
+          and not any("C.4" in c[3] for c in _calls3), (_rep, _prog, [(c[0], c[1], c[2], c[3]) for c in _calls3]))
     check("the context file rewritten in place with the language and the renderings - the Danish passage rendered, the English ones lang en and empty, the unanswered one untouched - every other column as it was "
           "(a file from an older executor gains the two later columns, empty: activity_date and copy_of)",
           list(_notes3.columns) == list(pd.DataFrame(_rows3).columns) + ["activity_date", "copy_of"] and _notes3.set_index("id").loc["C.2", ["lang", "text_en"]].tolist() == ["da", "The legs were heavy from the first climb, but it went."]
-          and _notes3.set_index("id").loc["C.1", ["lang", "text_en"]].tolist() == ["en", ""] and _notes3.set_index("id").loc["C.5", ["lang", "text_en"]].tolist() == ["", ""] and _notes3.set_index("id").loc["C.2", "text"].startswith("Benene"), _notes3[["id", "lang", "text_en"]].to_dict("records"))
+          and _notes3.set_index("id").loc["C.1", ["lang", "text_en"]].tolist() == ["en", ""] and _notes3.set_index("id").loc["C.5", ["lang", "text_en"]].tolist() == ["", ""] and _notes3.set_index("id").loc["C.2", "text"].startswith("Benene")
+          and _notes3.set_index("id").loc["C.4", ["lang", "text_en"]].tolist() == ["", ""], _notes3[["id", "lang", "text_en"]].to_dict("records"))
     check("the codes file beside it: the design's columns, the rows that passed the checks (the unknown code dropped), the proposal's row marked, the coder and the version on every row",
           _codes3 is not None and list(_codes3.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version"]
-          and [(r["id"], r["code"], r["status"]) for r in _codes3.to_dict("records")] == [("C.1", "sleep", "codebook"), ("C.1", "fatigue", "codebook"), ("C.2", "fatigue", "codebook"), ("C.2", "heavy_legs", "proposed"), ("C.3", "instruction", "codebook"), ("C.4", "illness", "codebook")]
+          and [(r["id"], r["code"], r["status"]) for r in _codes3.to_dict("records")] == [("C.1", "sleep", "codebook"), ("C.1", "fatigue", "codebook"), ("C.2", "fatigue", "codebook"), ("C.2", "heavy_legs", "proposed"), ("C.3", "instruction", "codebook")]
           and (_codes3["coder"] == "fake/model").all() and (_codes3["codebook_version"] == "1").all() and _codes3.iloc[2]["quote"] == "Benene var tunge", None if _codes3 is None else _codes3.to_dict("records"))
     _book3 = _cb.load(_bf._user_storage())
     check("the user's codebook under storage/<user>/context: seeded by the pass, the proposal stored as proposed with the coder as its proposer and an example, the load's uses recorded",
@@ -888,26 +894,43 @@ try:
           and next(c for c in _book3["codes"] if c["code"] == "heavy_legs")["proposed_by"] == "fake/model" and next(c for c in _book3["codes"] if c["code"] == "fatigue")["uses"] == 2, [(c["code"], c.get("uses")) for c in _book3["codes"] if c.get("uses")])
     # the store (D1's fallback): the passages this pass answered are remembered per subject; a second load of the same words codes nothing
     _store3 = _CS(_bf._user_storage(), "k-one").load()
-    check("the coded passages are remembered under storage/<user>/context/<key mark>/coded.json - the four answered ones with their rendering and codes, the unanswered one not",
-          os.path.exists(_store3.path) and len(_store3.entries) == 4 and _store3.entries["activity_message:102"]["text_en"].startswith("The legs were heavy") and [c["code"] for c in _store3.entries["activity_message:102"]["codes"]] == ["fatigue", "heavy_legs"]
-          and "plan_note:105" not in _store3.entries and _store3.entries["tag:104"]["codes"] == [{"code": "illness", "tone": "negative", "quote": "sick", "status": "codebook"}], (_store3.path, sorted(_store3.entries)))
+    check("the coded passages are remembered under storage/<user>/context/<key mark>/coded.json - the three answered ones with their rendering and codes, the unanswered one not, the tag never sent",
+          os.path.exists(_store3.path) and len(_store3.entries) == 3 and _store3.entries["activity_message:102"]["text_en"].startswith("The legs were heavy") and [c["code"] for c in _store3.entries["activity_message:102"]["codes"]] == ["fatigue", "heavy_legs"]
+          and "plan_note:105" not in _store3.entries and "tag:104" not in _store3.entries, (_store3.path, sorted(_store3.entries)))
     pd.DataFrame(_rows3).to_csv(_ctx3, index=False)          # the window loaded again: the same words, the file fresh from the executor
     _bf.auxiliary_datasets = [_ctx3]
     _n_before = len(_calls3); _fails3[0] = 2                 # C.5's batch would answer now
     _rep2 = _bf.code_context(_ctx3, billing_chain_id="load-2", key_mark="k-one")
     _codes3b = pd.read_csv(_codes3_path, dtype=str, keep_default_na=False)
-    check("the second load reuses the four coded passages without a call and codes only the one the store lacks; the files are written as before, the reused rows keeping their coder and version",
-          _rep2["reused"] == 4 and _rep2["coded"] == 5 and len(_calls3) == _n_before + 1 and _calls3[-1][3] == ["C.5"] and _rep2["unanswered"] == 0
-          and [(r["id"], r["code"]) for r in _codes3b.to_dict("records")][-1] == ("C.5", "instruction") and len(_codes3b) == 7 and _rep2["batches"] == 1, (_rep2, _calls3[-1][3]))
+    check("the second load reuses the three coded passages without a call and codes only the one the store lacks; the files are written as before, the reused rows keeping their coder and version",
+          _rep2["reused"] == 3 and _rep2["coded"] == 4 and len(_calls3) == _n_before + 1 and _calls3[-1][3] == ["C.5"] and _rep2["unanswered"] == 0
+          and [(r["id"], r["code"]) for r in _codes3b.to_dict("records")][-1] == ("C.5", "instruction") and len(_codes3b) == 6 and _rep2["batches"] == 1, (_rep2, _calls3[-1][3]))
     _rows3b = [dict(r, text=(r["text"] + " Edited.") if r["id"] == "C.1" else r["text"]) for r in _rows3]
     pd.DataFrame(_rows3b).to_csv(_ctx3, index=False)
     _bf.auxiliary_datasets = [_ctx3]
     _rep3 = _bf.code_context(_ctx3, billing_chain_id="load-3", key_mark="k-one")
-    check("a passage whose text changed is coded again (its key is the kind and the source id, its text hash the guard)", _rep3["reused"] == 4 and _calls3[-1][3] == ["C.1"], (_rep3["reused"], _calls3[-1][3]))
+    check("a passage whose text changed is coded again (its key is the kind and the source id, its text hash the guard)", _rep3["reused"] == 3 and _calls3[-1][3] == ["C.1"], (_rep3["reused"], _calls3[-1][3]))
+    # a copy (copy_of, the executor's mark) is not sent to the coder: it takes the rendering of the passage it repeats (patch 0197)
+    _ctx5 = os.path.join(_ctxdir, "context_notes_20260701_to_20260731.csv")
+    _long = "Pust ind i fire sekunder, hold vejret i syv, pust ud i otte; seks runder med hvile imellem dem alle sammen."
+    pd.DataFrame([dict(_rows3[0], id="C.1", kind="plan_note", text=_long, chars=len(_long), source_id="501"),
+                  dict(_rows3[1], id="C.2", kind="activity_note", text=_long, chars=len(_long), source_id="502", copy_of="C.1")]).to_csv(_ctx5, index=False)
+    _calls5 = []
+    def _coder5(*a, **k):
+        ids = re.findall(r"^\[(C\.\d+)\] ", a[1][-1]["content"], re.M); _calls5.append(ids)
+        return "\n".join(json.dumps({"id": i, "codes": ["recovery"], "tone": "neutral", "quotes": {"recovery": "seks runder"}, "lang": "da", "text_en": "Breathe in for four seconds, hold for seven, out for eight; six rounds with rest between them all."}) for i in ids)
+    _b5 = B.BambooAI(df=None, df_id=None, user_id="u5", webui=True, auxiliary_datasets=[_ctx5])
+    _b5.models.llm_call = _coder5
+    _rep5 = _b5.code_context(_ctx5)
+    _n5 = pd.read_csv(_ctx5, dtype=str, keep_default_na=False).set_index("id")
+    _c5 = pd.read_csv(_ctx5.replace("context_notes_", "context_codes_"), dtype=str, keep_default_na=False)
+    check("a copy is not sent to the coder and carries no codes of its own; it takes the rendering of the passage it repeats; the report counts it",
+          _calls5 == [["C.1"]] and _c5["id"].tolist() == ["C.1"] and _n5.loc["C.2", "text_en"] == _n5.loc["C.1", "text_en"] != "" and _n5.loc["C.2", "lang"] == "da"
+          and _rep5["copies"] == 1 and _rep5["coded"] == 1 and _rep5["unanswered"] == 0, (_calls5, _c5.to_dict("records"), _rep5))
     _bf.auxiliary_datasets = [_ctx3, _codes3_path]            # as the load route does once the pass ends
     _map3 = _bf._context_map()
     check("DATA after the pass: the map's languages and codes line - counts per code, 'of 36 codes used', the uncoded, the proposal; unit_text and the chips read the rendering, the original beside it",
-          "languages en 4, da 1" in _map3 and "codes (the model's reading, one row per code, with the words it rests on): fatigue 2, instruction 2, sleep 1, heavy_legs 1, illness 1 (5 of 36 codes used); 0 passages carry none; proposed: heavy_legs." in _map3
+          "languages en 3, da 1" in _map3 and "codes (the model's reading, one row per code, with the words it rests on): fatigue 2, instruction 2, sleep 1, heavy_legs 1 (4 of 36 codes used); 0 passages carry none; proposed: heavy_legs." in _map3
           and _bf._unit_text("C.2") == "The legs were heavy from the first climb, but it went." and _bf._cited_passages("[C.2]")[0]["original"].startswith("Benene") and "(rendered from da)" in _bf._cited_passages("[C.2]")[0]["where"], _map3)
     _bf._context_coding = {"status": "running"}
     check("while the pass runs behind a load the map says so", "the coding pass is still running behind the load" in _bf._context_map())
@@ -960,7 +983,7 @@ try:
     _view2 = IV._coding_view(IV._coding_states()["job-4"])
     _codes4 = _ctx4.replace("context_notes_", "context_codes_")
     check("when the pass ends: the status view is done with the codes file and the line, the codes file has joined the session's auxiliary files and the instance's (assigned, so its frames are read again), the billing chain charged once",
-          _view2["status"] == "done" and _view2["codes_path"] == _codes4 and _view2["line"] == "3 of 4 coded, 1 not read by the coder, 1 batch failed" and _view2["percent"] == 100
+          _view2["status"] == "done" and _view2["codes_path"] == _codes4 and _view2["line"] == "2 of 4 coded, 1 tag left as a label, 1 not read by the coder, 1 batch failed" and _view2["percent"] == 100
           and _prefs4["auxiliary_datasets"] == [_ath, _ctx4, _codes4] and _bh.auxiliary_datasets == [_ath, _ctx4, _codes4] and len(_charged) == 1 and os.path.exists(_codes4) and len(_calls4) == 2, (_view2, _prefs4, _charged, len(_calls4)))
     check("the store of coded passages is the subject's: under storage/<user>/context/<athlete id>/ as the job's report names the athlete, not under the key's mark (2026-10-14: a coach switches athletes; a regenerated key keeps the store)",
           os.path.exists(os.path.join(os.getcwd(), "storage", "u3", "context", "i77001", "coded.json")) and not os.path.exists(os.path.join(os.getcwd(), "storage", "u3", "context", "k-four", "coded.json")))

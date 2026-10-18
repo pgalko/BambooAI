@@ -196,6 +196,10 @@ def report_line(report: dict) -> str:
     parts = [f"{report.get('coded', 0)} of {n} coded"]
     if report.get("reused"):
         parts.append(f"{report['reused']} already coded by an earlier load")
+    if report.get("labels"):
+        parts.append(f"{report['labels']} tag{'s' if report['labels'] != 1 else ''} left as {'labels' if report['labels'] != 1 else 'a label'}")
+    if report.get("copies"):
+        parts.append(f"{report['copies']} cop{'ies' if report['copies'] != 1 else 'y'} read as the passage{'s' if report['copies'] != 1 else ''} {'they repeat' if report['copies'] != 1 else 'it repeats'}")
     if report.get("rendered"):
         parts.append(f"{report['rendered']} rendered into English")
     if report.get("proposed"):

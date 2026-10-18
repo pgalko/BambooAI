@@ -48,7 +48,7 @@ def code_context(instance, notes_path: str, progress: Optional[Callable[[int, in
     codebook_version, coder, seconds - and `error` when the file could not be read at all."""
     t0 = time.time()
     report = {"passages": 0, "coded": 0, "reused": 0, "uncoded": 0, "rendered": 0, "proposed": 0, "batches": 0, "failed_batches": 0,
-              "unanswered": 0, "dropped": {}, "codes_path": "", "codebook_version": 0, "coder": "", "seconds": 0.0}
+              "unanswered": 0, "labels": 0, "copies": 0, "dropped": {}, "codes_path": "", "codebook_version": 0, "coder": "", "seconds": 0.0}
     notes = instance._context_file(notes_path)
     if notes is None:
         report["error"] = "the context file could not be read"
@@ -70,9 +70,16 @@ def code_context(instance, notes_path: str, progress: Optional[Callable[[int, in
     report["coder"] = str(model or seat)
 
     passages = [{k: ("" if pd.isna(v) else v) for k, v in r.items()} for r in notes.to_dict("records")]
+    # a tag is a label, not a sentence: tallied on the map, never rendered or coded; a copy repeats an earlier passage's
+    # words (copy_of, the executor's mark) and takes that passage's rendering, not codes of its own (2026-10-18)
+    labels = [p for p in passages if str(p.get("kind") or "") == "tag"]
+    copies = [p for p in passages if str(p.get("copy_of") or "").strip() and str(p.get("kind") or "") != "tag"]
+    report["labels"], report["copies"] = len(labels), len(copies)
+    aside = {str(p.get("id")) for p in labels + copies}
+    to_read = [p for p in passages if str(p.get("id")) not in aside]
     # what an earlier load of this subject's data already established (D1's fallback)
     store = CodedStore(storage, key_mark).load() if key_mark else None
-    known, todo = store.lookup(passages) if store else ({}, list(passages))
+    known, todo = store.lookup(to_read) if store else ({}, list(to_read))
     rows, renderings = [], {}
     for uid, e in known.items():
         renderings[uid] = {"lang": e.get("lang", ""), "text_en": e.get("text_en", "")}
@@ -124,6 +131,10 @@ def code_context(instance, notes_path: str, progress: Optional[Callable[[int, in
     # the renderings into the context file; the codes file beside it
     rows.extend(dict(r, coder=report["coder"], codebook_version=report["codebook_version"]) for r in new_rows)
     renderings.update(new_renderings)
+    for p in copies:                                            # a copy reads as the passage it repeats
+        first = renderings.get(str(p.get("copy_of") or "").strip())
+        if first:
+            renderings[str(p.get("id"))] = dict(first)
     for uid, r in renderings.items():
         mask = notes["id"].astype(str) == uid
         notes.loc[mask, "lang"] = r["lang"]
@@ -156,6 +167,6 @@ def code_context(instance, notes_path: str, progress: Optional[Callable[[int, in
     coded_ids = {r["id"] for r in rows}
     report.update({"coded": len(coded_ids), "uncoded": int(len(notes)) - len(coded_ids),
                    "rendered": sum(1 for r in renderings.values() if r["text_en"]), "proposed": len(added),
-                   "proposals": added, "unanswered": int(len(notes)) - len(seen), "dropped": dict(dropped),
+                   "proposals": added, "unanswered": len(to_read) - len(seen), "dropped": dict(dropped),
                    "seconds": round(time.time() - t0, 1)})
     return report

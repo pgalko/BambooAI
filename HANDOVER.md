@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (218/181/31/24/18/49/44/69/13/142/60/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (218/183/31/24/18/49/44/69/13/142/60/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,17 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Tags are labels and copies are read once (2026-10-18, patch 0197).** Read against one rider's year, the coding pass
+  treated a tag as a sentence - rendered and coded: his treatment tag became *according to* or the like in 12 of its 28
+  uses and was coded as a treatment in 3 - and coded each of 223 copies as fresh writing. `code_context` now sets both
+  aside before the store's lookup: a tag (kind `tag`) is never rendered or coded, and a copy (`copy_of`, patch 0196)
+  takes the rendering of the passage it repeats and carries no codes of its own. The report counts `labels` and
+  `copies`, and `report_line` says them (*64 tags left as labels, 223 copies read as the passages they repeat*);
+  `unanswered` counts only the passages sent. The map tallies a kind whose every passage is one token with no space
+  (`single_tokens`), as 0192 does for the calendar's categories, and its *carry none* counts only the passages that were
+  read; the copies line adds *and coded there only*. docs/CONTEXT_DESIGN.md §3.4, §4 F1. Tests: test_app_path.py 183
+  (the scripted pass with its tag set aside; a copy not sent and rendered from its first writing; the tally),
+  test_coder.py 29 (the line), the integrations walk (a tag never sent; the pill's line; the store's entries).
 - **Each passage carries its activity's day, and a copy names what it repeats (2026-10-18, patch 0196; executor image
   v62).** Read in order, one rider's 1,499 passages showed two things the table could not say. A message is dated the
   day it was written, and 92 of the 408 ride messages whose ride's day the file shows were written a day or more after

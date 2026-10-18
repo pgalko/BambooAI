@@ -77,6 +77,18 @@ def leading_tokens(texts) -> Optional[Counter]:
     return tally or None
 
 
+def single_tokens(texts) -> Optional[Counter]:
+    """The tally of texts that are each one token with no space in it (a tag: `heatsession`, `primary`), or None when
+    any text is longer - a label is tallied, a sentence never."""
+    tally = Counter()
+    for t in texts:
+        t = str(t or "").strip()
+        if not t or any(ch.isspace() for ch in t):
+            return None
+        tally[t] += 1
+    return tally or None
+
+
 def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes_path: str = "", codes_path: str = "",
                 codebook_size: int = 0) -> str:
     """The lines of docs/CONTEXT_DESIGN.md §3.4 for the DATA block. `notes` is the context table; `codes` the codes
@@ -94,7 +106,7 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
     for kind, c in kinds.most_common(MAP_KINDS_MAX):
         sub = notes[notes["kind"] == kind]
         rs = Counter(str(r) for r in sub["author_role"].tolist() if str(r).strip())
-        tokens = leading_tokens(sub["text"].tolist()) if "text" in sub.columns else None
+        tokens = (leading_tokens(sub["text"].tolist()) or single_tokens(sub["text"].tolist())) if "text" in sub.columns else None
         if tokens:
             by_kind.append(f"{kind} {c} ({_count_line(tokens, MAP_TOKENS_MAX)})")
         elif kind in ("activity_message", "activity_private_note", "day_note", "plan_note") and len(rs) > 1:
@@ -113,7 +125,7 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
     copies = [c for c in map(_cell, notes["copy_of"].tolist()) if c] if "copy_of" in notes.columns else []
     if copies:
         lines.append(f"  {len(copies)} passage{'s' if len(copies) != 1 else ''} repeat{'s' if len(copies) == 1 else ''} an earlier passage word for word (copy_of names it): "
-                     "the earlier one's words, not a second writing of them.")
+                     "the earlier one's words, not a second writing of them, and coded there only.")
     if "activity_date" in notes.columns:
         later = sum(1 for d, a in zip(notes["date"].tolist(), notes["activity_date"].tolist()) if _cell(a) and _cell(d)[:10] > _cell(a)[:10])
         if later:
@@ -122,7 +134,10 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
     if codes is not None and len(codes) > 0:
         cc = Counter(str(c) for c in codes["code"].tolist() if str(c).strip())
         coded = set(str(i) for i in codes["id"].tolist())
-        uncoded = sum(1 for i in notes["id"].tolist() if str(i) not in coded)
+        # a tag and a copy carry no codes by design (patch 0197): the count is of the passages read and left without one
+        aside = {str(i) for i, k, c in zip(notes["id"].tolist(), notes["kind"].tolist(), notes["copy_of"].tolist() if "copy_of" in notes.columns else [""] * len(notes))
+                 if str(k) == "tag" or _cell(c)}
+        uncoded = sum(1 for i in notes["id"].tolist() if str(i) not in coded and str(i) not in aside)
         proposed = sorted({str(c) for c, s in zip(codes["code"].tolist(), codes["status"].tolist()) if str(s) == "proposed"})
         lines.append(f"  codes (the model's reading, one row per code, with the words it rests on): {_count_line(cc, MAP_CODES_MAX)}"
                      + (f" ({len(cc)} of {codebook_size} codes used)" if codebook_size else f" ({len(cc)} codes used)")

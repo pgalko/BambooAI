@@ -193,6 +193,9 @@ Two lines appear only when the data has them (patch 0196): *N passages repeat an
 written on a later day than the activity: activity_date is the activity's day, date the day of writing*. CTX's
 printed lines and the Reader's places add *the activity of <day>* to such a passage.
 
+A kind whose every passage is one token with no space in it - `tag` - is tallied the same way (patch 0197): *tag 64
+(ihht 28, primary 14, heatsession 13, …)*.
+
 A kind whose every passage opens with an upper-case token - `status`, written by the executor as `CATEGORY: name` -
 is tallied by that token on the kinds line: `status 36 (RACE_A 31, RACE_C 3, SEASON_START 1, …)` (2026-10-18, patch
 0192: both runs of the bio-psycho-social question spent five or six turns finding that a race's priority lived only
@@ -229,7 +232,12 @@ renderings. Built (step 3, 2026-10-14) **behind the load, never in front of it**
 moment the executor's job does — the pills, the Data tab, the DATA block with the map — and the app codes in a
 thread meanwhile: the passages an earlier load of this subject already coded are reused from the store (§12 D1),
 the rest go in batches of twenty, six calls in flight at once, with reasoning off on the Coder seat; a second
-round reads only what the first left unanswered. The context pill carries a spinner and *coding…* while it runs
+round reads only what the first left unanswered. Two kinds of passage are set aside (patch 0197): a tag is a label,
+not a sentence - tallied on the map (*tag 64 (ihht 28, primary 14, heatsession 13, …)*), never rendered or coded (the rendering
+had turned one rider's treatment tag into *according to* or the like in 12 of its 28 uses); and a copy (`copy_of`, §3.1) takes
+the rendering of the passage it repeats and carries no codes of its own, so 69 copies in the rider's own notes no longer
+count as 69 notes by him. The pass's line says so - *64 tags left as labels, 223 copies read as the passages
+they repeat* - and the map's *carry none* counts only passages that were read. The context pill carries a spinner and *coding…* while it runs
 (`/intervals/context_coding/<job id>` says where it is); when it ends the codes file gets a pill of its own and
 the context pill's tooltip the pass's line — *201 of 212 coded, 180 already coded by an earlier load, 43 rendered
 into English, 2 codes proposed*. A question asked meanwhile works on the words as written, and DATA says the
