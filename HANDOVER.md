@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (223/186/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (223/189/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The readings by day, and the stretches of days a code points worse (2026-10-18, patch 0204).** Step 5 of the
+  reading's improvement. Since 0198-0201 each reading carries the days it describes (`about`, a day or a range), but
+  nothing put it on them: the two Sonnet runs of the day matched the words to the numbers by the day of writing, and a
+  stretch of trouble was a scatter of readings. `CTX.days(author=None)` places each reading on its days - its `about`,
+  else its passage's own day (the activity's, for one written later) - one row per day and code: `worse`, `better`,
+  `neutral`, `inferred`, `passages`; a reading with no direction is left out. `CTX.episodes(gap=2, author=None)`: the
+  stretches of two or more days a code points worse, across at most `gap` days without a reading of it, ended by a
+  day whose readings of it point only better or neutral (`code`, `start`, `end`, `days`, `worse_days`, `passages`,
+  `ended`). One implementation in `analyst/context.py` (`_bamboo_ctx_days`, `_bamboo_ctx_episodes`) serves the map
+  and goes to the kernel as source with `CTX`, so a replay has it. The map gains a line counting the stretches by
+  code; the contract's Context section a clause for the two tables (1,003 characters; its cap 1,050, from 900). No
+  model call, nothing coded again, no executor change. Checked against the two answer keys kept outside the
+  repository, the rules fixed first: 9 of the 11 multi-day episodes a careful reader marked in one rider's window are
+  found, and 8 of 9 in the second rider's; in the three missed, the words name the trouble on one day only, or under
+  different codes days apart. On the two riders' years: 49 and 51 stretches of 2 to 9 days, most of them on
+  tiredness, effort or the conditions. Tests: test_app_path.py 189 (a range on each of its days, the activity's day,
+  the undirected left out, one author's; the stretches, the gap, the day that ends one, a day alone; the map's line),
+  test_analyst.py 223 (the section).
 - **There are no tools, said where the reply's form is set; an action written as a tool call is taken (2026-10-18,
   patch 0203).** Two Deep runs on Sonnet 5.5 began five of their 28 analysis turns with a tool call in the model's own
   markup - an invoke tag named SHOW, or a made-up name with the cell after it - and no marker lines, and stopped there

@@ -4,6 +4,7 @@ month, authors by role, languages, the codes with their counts. Never the text; 
 Pure: frames in, text out. The strings here are read by a model (the C5 scanner covers this file)."""
 from __future__ import annotations
 
+import inspect
 import io
 import re
 from collections import Counter
@@ -164,6 +165,10 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
                 more = len(pointed) - MAP_CODES_MAX
                 lines.append(f"  which way the codes point for the person (worse/better/neutral): {shown}" + (f", … ({more} more)" if more > 0 else "")
                              + f"; {inferred} reading{'s' if inferred != 1 else ''} inferred rather than said, {other_days} about other days than their passage's own.")
+                # the stretches of days a code points worse, by code (2026-10-18)
+                eps = _bamboo_ctx_episodes(_bamboo_ctx_days(notes, codes))
+                if len(eps):
+                    lines.append(f"  stretches of two or more days a code points worse (CTX.episodes()): {_count_line(Counter(eps['code'].tolist()), MAP_CODES_MAX)}.")
     elif codes is not None:
         lines.append("  codes: the coding pass produced none for this window.")
     # what is true of this data and nowhere else (the rules of citing, rendering, reading a code and the days apart are the
@@ -232,6 +237,65 @@ def parse_context_scope(arg: str) -> Optional[dict]:
     return {"all": True, "query": rest}
 
 
+# The readings by day, and the stretches of days a code points worse (2026-10-18): one implementation, run by the host
+# for the map and sent to the kernel as source for CTX.days() and CTX.episodes(). Self-contained - the kernel has only
+# what is defined here.
+def _bamboo_ctx_days(notes, codes, author=None):
+    """Each reading on the days it describes - its `about`, a day or a range, else its passage's own day (the
+    activity's, for a passage on an activity of another day): one row per day and code, the readings that point
+    worse, better and neutral, how many of them were inferred, and their passages."""
+    import pandas as _pd
+    cols = ["day", "code", "worse", "better", "neutral", "inferred", "passages"]
+    if notes is None or codes is None or not len(notes) or not len(codes) or "direction" not in codes.columns:
+        return _pd.DataFrame(columns=cols)
+    acts = notes["activity_date"] if "activity_date" in notes.columns else [""] * len(notes)
+    own = {str(i): (str(a or "").strip() or str(d or "").strip())[:10] for i, a, d in zip(notes["id"], acts, notes["date"])}
+    role = dict(zip(notes["id"].astype(str), notes["author_role"].astype(str))) if "author_role" in notes.columns else {}
+    acc = {}
+    for r in codes.to_dict("records"):
+        pid, way = str(r.get("id") or ""), str(r.get("direction") or "").strip().lower()
+        if way not in ("worse", "better", "neutral") or (author and role.get(pid) != author):
+            continue
+        span = (str(r.get("about") or "").strip() or own.get(pid, "")).split("..")
+        try:
+            days = _pd.date_range(span[0], span[-1])
+        except (ValueError, TypeError):
+            continue
+        for day in days:
+            row = acc.setdefault((day, str(r.get("code") or "")), {"worse": 0, "better": 0, "neutral": 0, "inferred": 0, "passages": []})
+            row[way] += 1
+            row["inferred"] += str(r.get("basis") or "").strip() == "inferred"
+            if pid not in row["passages"]:
+                row["passages"].append(pid)
+    rows = [dict(day=d, code=c, **dict(v, passages=" ".join(v["passages"]))) for (d, c), v in sorted(acc.items())]
+    return _pd.DataFrame(rows, columns=cols)
+
+
+def _bamboo_ctx_episodes(days, gap=2):
+    """Stretches of two or more days on which a code points worse: from a day with a worse reading to the next, across
+    at most `gap` days without a reading of the code, ended by a day whose readings of it point only better or neutral.
+    One row per stretch: the code, its first and last day, the days from first to last, the days with a worse reading,
+    their passages, and the day the words said better or neutral, when that came within gap + 1 days of its end."""
+    import pandas as _pd
+    cols = ["code", "start", "end", "days", "worse_days", "passages", "ended"]
+    out = []
+    for code, g in (days.groupby("code", sort=True) if days is not None and len(days) else []):
+        stops = sorted(g.loc[(g["worse"] == 0) & ((g["better"] > 0) | (g["neutral"] > 0)), "day"])
+        run = []
+        for x in g[g["worse"] > 0].sort_values("day").to_dict("records") + [None]:
+            if run and (x is None or (x["day"] - run[-1]["day"]).days - 1 > gap or any(run[-1]["day"] < s < x["day"] for s in stops)):
+                if len(run) >= 2:
+                    end = run[-1]["day"]
+                    ids = list(dict.fromkeys(p for y in run for p in y["passages"].split()))
+                    ended = next((s for s in stops if end < s <= end + _pd.Timedelta(days=gap + 1)), _pd.NaT)
+                    out.append(dict(code=code, start=run[0]["day"], end=end, days=(end - run[0]["day"]).days + 1,
+                                    worse_days=len(run), passages=" ".join(ids), ended=ended))
+                run = []
+            if x is not None:
+                run.append(x)
+    return _pd.DataFrame(out, columns=cols).sort_values(["start", "code"], ignore_index=True) if out else _pd.DataFrame(columns=cols)
+
+
 KERNEL_API_SOURCE = r'''
 import re as _bamboo_ctx_re
 
@@ -259,6 +323,12 @@ class _BambooContext:
         if self._codes is None:
             self._codes = _pd.read_csv(self.codes_path, dtype=str, keep_default_na=False) if self.codes_path else _pd.DataFrame(columns=["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about"])
         return self._codes
+    def days(self, author=None):
+        """The codes on the days they describe: one row per day and code, the readings that point worse, better and neutral, how many were inferred, their passages."""
+        return _bamboo_ctx_days(self.frame(), self.codes(), author)
+    def episodes(self, gap=2, author=None):
+        """Stretches of two or more days a code points worse, across at most `gap` days without a reading of it, until one points better or neutral: code, start, end, days, worse_days, passages, ended."""
+        return _bamboo_ctx_episodes(self.days(author), gap)
     def _shown(self, r):
         en = (r.get("text_en") or "").strip()
         return en if en else (r.get("text") or "")
@@ -330,7 +400,8 @@ def kernel_api_source(notes_path: str, codes_path: str = "") -> str:
     at kernel start and after a rollback, prefixed to the replay script; never a cell of the record."""
     if not notes_path:
         return ""
-    return KERNEL_API_SOURCE.replace("__NOTES__", repr(str(notes_path))).replace("__CODES__", repr(str(codes_path or "")))
+    helpers = inspect.getsource(_bamboo_ctx_days) + "\n\n" + inspect.getsource(_bamboo_ctx_episodes) + "\n"
+    return helpers + KERNEL_API_SOURCE.replace("__NOTES__", repr(str(notes_path))).replace("__CODES__", repr(str(codes_path or "")))
 
 
 def aux_head_for_text_file(path: str, columns: list, rows: int) -> str:

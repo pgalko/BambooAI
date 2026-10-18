@@ -198,7 +198,9 @@ CONTEXT (the words written beside the data; in the kernel as CTX; files context_
 With directions in the codes table (patch 0198) a line says which way the codes point, the most pointed first:
 *which way the codes point for the person (worse/better/neutral): fatigue 18/11/2, …; 4 readings inferred rather
 than said, 9 about other days than their passage's own*. A passage on an activity of another day has that day as its
-own (patch 0201), and its readings on that day are not counted here (patch 0202).
+own (patch 0201), and its readings on that day are not counted here (patch 0202). The line after it counts, by code,
+the stretches `CTX.episodes()` returns (§5, patch 0204): *stretches of two or more days a code points worse
+(CTX.episodes()): fatigue 13, effort 11, conditions 5, …*.
 
 Two lines appear only when the data has them (patch 0196): *N passages repeat an earlier passage word for word
 (copy_of names it): the earlier one's words, not a second writing of them*, and *N passages on an activity were
@@ -333,6 +335,20 @@ from the next load. Nothing is re-coded retroactively (a load's codes carry thei
   passages of one activity; `CTX.between(a, b)`; `CTX.text("C.417")` — one passage with its date, kind, author, the rendering and, when it differs, the original.
   Each returns a DataFrame or a string; the analyst prints what it needs, as with data. The prelude is never a cell
   of the record; the files are mirrored by content, as the documents are.
+- **The readings by day, and the stretches (patch 0204, step 5 of the reading's improvement).** `CTX.days(author=None)`
+  places each reading on the days it describes - its `about`, a day or a range, else its passage's own day (the
+  activity's, for a passage on an activity of another day) - and returns one row per day and code: `worse`,
+  `better`, `neutral` (the readings that point so), `inferred`, `passages`; a reading with no direction is left out.
+  It lines up with the wellness and activity tables by day: the two Sonnet runs of 2026-10-18 had matched the words
+  to the numbers by the day of writing. `CTX.episodes(gap=2, author=None)` returns the stretches of two or more days
+  on which a code points worse, across at most `gap` days without a reading of it, ended by a day whose readings of
+  it point only better or neutral: `code`, `start`, `end`, `days`, `worse_days`, `passages`, and `ended` - the day the
+  words said better or neutral, when that came within `gap` + 1 days of the end. Nothing is coded again and no model
+  is called; one implementation (`_bamboo_ctx_days`, `_bamboo_ctx_episodes` in `analyst/context.py`) serves the map
+  and is sent to the kernel as source with `CTX`, so a replay has it too. The rules were fixed before the two answer
+  keys' episodes were looked at: 9 of the 11 a careful reader marked in one rider's window are found, and 8 of the
+  9 in the second rider's (its key a check only); in the three missed, the words name the trouble on one day only, or
+  under different codes days apart.
 - **The map** rides in DATA (§3.4) under the auxiliary files' description; the files' own heads are cut to the
   columns, since their rows are the text.
 - **`READ CTX <what you look for>`**, `READ CTX 2026-08-01..2026-08-31 <what>`, `READ C.120-160`: the documents'
@@ -341,18 +357,20 @@ from the next load. Nothing is re-coded retroactively (a load's codes carry thei
   the record (the place of a rendered passage ends *(rendered from da)*, the language as the row carries it); `SHOW READ k` re-opens one.
   A READ is a turn, three a run, as for documents.
 - **The contract's Context section**, joined only when the load has a context file (`Session(context=True)`,
-  beside `documents=True`), kept near the Documents section's size (737 characters as built in step 4 and
-  amended by 0155; the Documents section is 578):
+  beside `documents=True`), held under 1,050 characters (737 as built in step 4 and amended by 0155, 875 after the
+  calls' return and the codes' columns joined it, 1,003 with step 5's two tables; the Documents section is 578):
 
   > ## Context
   > The words written beside the data live in the kernel as `CTX`: `CTX.frame()` (the passages, dated, with
-  > author and kind), `CTX.codes()` (the codes on them, with the words they rest on), `CTX.grep('pattern')`,
-  > `CTX.around('2026-08-14', days=3)`, `CTX.on(activity_id)`, `CTX.text('C.417')` - print what you need in a
-  > cell. READ CTX quotes passages under ids like [C.417]; the report cites one as
-  > [C.417] beside [cell 7], as written or in its English rendering, marked *rendered*. A code is a model's
-  > reading of a passage, not the writer's words; the words and the numbers can be days apart. Where the report
-  > explains a number by what was written, it says what that rests on - passages quoted, counts of codes, or
-  > your reading.
+  > author and kind), `CTX.codes()` (the codes on them, with the words they rest on, which way each points
+  > against the person's usual state, said or inferred, and the days it is about), `CTX.days()` (the codes on
+  > the days they are about, counted by direction), `CTX.episodes()` (runs of days a code points worse);
+  > `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)` and `CTX.on(activity_id)` return text to print
+  > (rows with `as_frame=True`), `CTX.text('C.417')` one passage whole. READ CTX quotes passages under ids like
+  > [C.417]; the report cites one as [C.417] beside [cell 7], as written or in its English rendering, marked
+  > *rendered*. A code is a model's reading of a passage, not the writer's words; the words and the numbers can
+  > be days apart. Where the report explains a number by what was written, it says what that rests on -
+  > passages quoted, counts of codes, or your reading.
 
   Step 4's trim took out what did not change what the model does: *a count of codes is a number like any other*
   (a question that asks for counts gets them), *you write in English* (the question and the contract are), and

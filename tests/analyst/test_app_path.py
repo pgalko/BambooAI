@@ -805,6 +805,37 @@ try:
           "[C.1] 2026-09-02 · activity_message · subject · the activity of 2026-09-01: felt rough today" in _ns_a["CTX"].on("a1") and "[C.2] 2026-09-01 · activity_message · coach: easy tomorrow" in _ns_a["CTX"].on("a1")
           and _where_of({"date": "2026-09-02", "kind": "activity_message", "author_role": "subject", "activity_date": "2026-09-01"}) == "2026-09-02 · activity_message · subject · the activity of 2026-09-01"
           and _where_of({"date": "2026-09-01", "kind": "activity_message", "author_role": "coach", "activity_date": "2026-09-01"}) == "2026-09-01 · activity_message · coach", _ns_a["CTX"].on("a1"))
+    # step 5 (2026-10-18): the readings by the days they describe, and the stretches of days a code points worse
+    _dn = [{"id": "C.1", "kind": "activity_message", "date": "2026-09-01", "activity_id": "a1", "activity_date": "2026-09-01", "author_role": "subject", "text": "legs heavy"},
+           {"id": "C.2", "kind": "activity_message", "date": "2026-09-03", "activity_id": "a2", "activity_date": "2026-09-02", "author_role": "subject", "text": "heavy again"},
+           {"id": "C.3", "kind": "day_note", "date": "2026-09-05", "activity_id": "", "activity_date": "", "author_role": "subject", "text": "still heavy"},
+           {"id": "C.4", "kind": "day_note", "date": "2026-09-06", "activity_id": "", "activity_date": "", "author_role": "coach", "text": "good to hear you are fresh"},
+           {"id": "C.5", "kind": "day_note", "date": "2026-09-10", "activity_id": "", "activity_date": "", "author_role": "subject", "text": "unwell since the 8th"},
+           {"id": "C.6", "kind": "day_note", "date": "2026-09-20", "activity_id": "", "activity_date": "", "author_role": "subject", "text": "tired"}]
+    _dc = [("C.1", "fatigue", "worse", "said", ""), ("C.1", "sleep", "neutral", "said", ""), ("C.2", "fatigue", "worse", "said", ""),
+           ("C.3", "fatigue", "worse", "inferred", ""), ("C.4", "fatigue", "better", "said", ""), ("C.5", "illness", "worse", "said", "2026-09-08..2026-09-10"),
+           ("C.6", "fatigue", "worse", "said", ""), ("C.6", "fatigue", "", "said", "")]
+    _ctx_d, _codes_d = os.path.join(_auxdir, "context_notes_20260901_to_20260921.csv"), os.path.join(_auxdir, "context_codes_20260901_to_20260921.csv")
+    pd.DataFrame(_dn).to_csv(_ctx_d, index=False)
+    pd.DataFrame([dict(id=i, code=c, tone="", quote="", status="codebook", coder="m", codebook_version="1", direction=d, basis=b, about=a) for i, c, d, b, a in _dc]).to_csv(_codes_d, index=False)
+    _ns_d = {}
+    exec(__import__("analyst.context", fromlist=["kernel_api_source"]).kernel_api_source(_ctx_d, _codes_d), _ns_d)
+    _days = _ns_d["CTX"].days()
+    _f = _days[_days["code"] == "fatigue"]
+    _eps = _ns_d["CTX"].episodes()
+    check("CTX.days(): each reading on the days it describes - a range on each of its days, no day on the passage's own (the activity's, for one written later), a reading with no direction left out - per day and code, counted by direction, the inferred, the passages; author= keeps one author's",
+          len(_days) == 9 and _f["day"].dt.strftime("%m-%d").tolist() == ["09-01", "09-02", "09-05", "09-06", "09-20"] and _f["worse"].tolist() == [1, 1, 1, 0, 1] and _f["better"].tolist() == [0, 0, 0, 1, 0]
+          and _f["inferred"].tolist() == [0, 0, 1, 0, 0] and _days[_days["code"] == "illness"]["day"].dt.strftime("%m-%d").tolist() == ["09-08", "09-09", "09-10"]
+          and _days[_days["code"] == "sleep"]["neutral"].tolist() == [1] and _f["passages"].tolist() == ["C.1", "C.2", "C.3", "C.4", "C.6"]
+          and _ns_d["CTX"].days(author="coach")["passages"].tolist() == ["C.4"], _days.to_string())
+    check("CTX.episodes(): two or more days a code points worse, across at most gap days without a reading of it - a day pointing better ends it, and is the day it ended; one worse day alone is no stretch; gap=1 splits it",
+          [(r.code, f"{r.start:%m-%d}", f"{r.end:%m-%d}", r.days, r.worse_days, r.passages, "" if pd.isna(r.ended) else f"{r.ended:%m-%d}") for r in _eps.itertuples()]
+          == [("fatigue", "09-01", "09-05", 5, 3, "C.1 C.2 C.3", "09-06"), ("illness", "09-08", "09-10", 3, 3, "C.5", "")]
+          and [(r.code, f"{r.start:%m-%d}", f"{r.end:%m-%d}") for r in _ns_d["CTX"].episodes(gap=1).itertuples()] == [("fatigue", "09-01", "09-02"), ("illness", "09-08", "09-10")]
+          and len(_ns_d["CTX"].episodes(author="coach")) == 0, _eps.to_string())
+    check("the map counts the stretches by code, beside the directions; none without directions",
+          "  stretches of two or more days a code points worse (CTX.episodes()): fatigue 1, illness 1." in _cmap(pd.DataFrame(_dn).assign(private=False, lang=""), pd.read_csv(_codes_d, dtype=str, keep_default_na=False))
+          and "stretches" not in _cmap(pd.DataFrame(_dn).assign(private=False, lang=""), pd.read_csv(_codes_d, dtype=str, keep_default_na=False).assign(direction="")), _cmap(pd.DataFrame(_dn).assign(private=False, lang=""), pd.read_csv(_codes_d, dtype=str, keep_default_na=False)))
     check("unit_text resolves a context passage for the report guard - the English rendering when there is one - and says None for an id the context does not hold",
           _bc._unit_text("C.1") == "legs heavy today, cut it short" and _bc._unit_text("C.9") is None and _bb._unit_text("C.1") is None)
     _bc.models.llm_call = lambda *a, **k: '- [C.1] "legs heavy today"\n- [C.2] "take tomorrow easy"\n- [C.1] "legs light"\nSUMMARY: Heavy legs, an easy day asked [C.1][C.2].'
