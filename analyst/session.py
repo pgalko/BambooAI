@@ -475,18 +475,25 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     whole reply then cost a turn each time). The same action written twice runs once; a bare marker, or one with an
     unfinished action under it, carries none. The note and the step are the last written before the action taken. The
     step's marker is ###STEP###; ###THINKING###, the marker until 0104, is read the same way (2026-10-08: a section named
-    THINKING, filled before the action, is the pattern the Claude 5.5 classifiers decline as reasoning extraction)."""
+    THINKING, filled before the action, is the pattern the Claude 5.5 classifiers decline as reasoning extraction).
+    A reply with no valid action that writes one as a tool call, in the model's own markup, is read from the call on as the
+    action block (2026-10-18: Sonnet 5.5, though there are no tools, began about one turn in five with a call - and stopped,
+    or wrote the code after it, or filled the marker lines after it with filler)."""
+    thinking, note, action = _parse_marked(text)
+    call = _TOOL_CALL_RE.search(text or "") if action.verb == "invalid" and action.arg != "empty reply" else None
+    if call:
+        th, nt, act = _parse_marked(text[:call.start()] + "###ACTION###\n" + _untagged(text[call.start():]))
+        if act.verb != "invalid":
+            return th, nt, Action(act.verb, act.arg, act.more, tool_call=True)
+    return thinking, note, action
+
+
+def _parse_marked(text: str) -> tuple[str, str, Action]:
+    """parse_turn by the marker lines alone."""
     text = text or ""
     if not text.strip():
         return "", "", Action("invalid", "empty reply")
     marks = [m.start() for m in re.finditer(r"###ACTION###", text)]
-    call = None if marks else _TOOL_CALL_RE.search(text)
-    if call:
-        # the action written as a tool call, in the model's own markup, with no marker lines (2026-10-18: Sonnet 5.5 began
-        # three turns of a Deep run so and stopped, though there are no tools): from the call on, read as the action block
-        th, nt, act = parse_turn(text[:call.start()] + "###ACTION###\n" + _untagged(text[call.start():]))
-        if act.verb != "invalid":
-            return th, nt, Action(act.verb, act.arg, act.more, tool_call=True)
     if not marks:
         m_note = _NOTE_RE.search(text)
         note = clean_note(m_note.group(1).strip()) if m_note else ""
@@ -575,18 +582,40 @@ _ACTION_WORD_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPOR
 _ACTION_WORD_ANY_CASE_RE = re.compile(r"^\s*(cell|show|names|recall|search|read|ask|report)\b[ \t]*(.*)$", re.I)
 _TOOL_CALL_RE = re.compile(r"<(?:invoke|function_calls)\b")                # a tool call, in the markup models are trained on
 _INVOKE_RE = re.compile(r"<invoke\s+name\s*=\s*[\"']([^\"']*)[\"']\s*>(.*?)</invoke>", re.S)
+_TAG_LINE_RE = re.compile(r"^[ \t]*</?(?:invoke|parameter|function_calls|code)\b[^>\n]*>[ \t]*(?:\n|\Z)", re.M)
+
+
+def _compiles(code: str) -> bool:
+    """Whether the text is Python the kernel can run: compiled, never executed."""
+    try:
+        compile(code, "<reply>", "exec")
+        return True
+    except Exception:                                    # noqa: BLE001 - SyntaxError, and the odd ValueError
+        return False
 
 
 def _untagged(text: str) -> str:
-    """A tool call's text as an action block: a call named for an action is that action, its contents the argument (SHOW
-    and 2: SHOW 2); any other call is its contents; the parameter and wrapper tags go."""
+    """A tool call's text as an action block: code passed as the call's argument is a cell; a call named for an action
+    is that action, its contents the argument (SHOW and 2: SHOW 2); any other call is its contents; the parameter and
+    wrapper tags go."""
     def one(m):
         name, body = m.group(1).strip().upper(), m.group(2).strip()
+        if (name == "CELL" or not _ACTION_WORD_RE.fullmatch(name)) and body and "```" not in body and _compiles(body):
+            return "\n```python\n" + body + "\n```\n"
         if not _ACTION_WORD_RE.fullmatch(name):
             return "\n" + body + "\n"
         return "\n" + name + (" " if "\n" not in body else "\n") + body + "\n"
     text = re.sub(r"<parameter\b[^>]*>|</parameter>|</?function_calls>", "", text)
     return re.sub(r"</?invoke\b[^>]*>", "", _INVOKE_RE.sub(one, text))
+
+
+def _cell_code(code: str) -> str:
+    """A cell's code as it runs: without the lines that are a stray tag and nothing else, when they are all that keeps it
+    from compiling (2026-10-18: a `</code>` and a `</parameter>` line, each failing its turn); otherwise as written."""
+    if _compiles(code):
+        return code
+    bare = _TAG_LINE_RE.sub("", code).rstrip()
+    return bare if bare != code.rstrip() and _compiles(bare) else code
 
 
 def _actions_in(body: str):
@@ -609,7 +638,7 @@ def _actions_in(body: str):
                 break
             lang, code = ln.strip()[3:].strip().lower(), "\n".join(lines[i + 1:j]).rstrip()
             if lang in ("", "python", "py", "python3") and code.strip():
-                acts.append(Action("cell", code))
+                acts.append(Action("cell", _cell_code(code)))
             i, first = j + 1, False
             continue
         m = _ACTION_WORD_RE.match(ln) or (_ACTION_WORD_ANY_CASE_RE.match(ln) if first else None)

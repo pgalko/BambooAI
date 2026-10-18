@@ -174,6 +174,26 @@ w.paneTurnEnd({turn:'figures', kind:'figures', thinking:'', note:'', code:'fig.s
 w.paneCell({cell_no:12, ok:true, peek:'', elapsed:0.3, chars:0, figs:2});
 check('the figures cell row: In [12] with 2 fig', Array.from(pane2.querySelectorAll('.sp-row')).pop().querySelector('.t').textContent.includes('2 fig'));
 
+// 7. a reply with a tool call in it (2026-10-18): nothing of the call streams into the step, and the finished card is the
+// turn the session read - a cell, not a lost turn - with the step it read, or none
+w.paneRunStart({mode:'Deep', of:15, dollars:1.5});
+w.paneTurnStart({turn:3, of:15, seat:'Analyst', model:'m'});
+w.paneToken('\n<invoke name="python">\n<parameter name="code">\nprint(1)\n');
+const tc = Array.from(pane2.querySelectorAll('.sp-turn')).pop();
+const tcLive = tc.querySelector('.sp-think').textContent;
+w.paneToken('</parameter>\n</invoke>\n');
+w.paneTurnEnd({turn:3, kind:'cell', thinking:'', note:'', code:'print(1)', elapsed:1, cost:0.001});
+check('a cell written as a tool call: nothing of the call in the live step; the card ends as a cell, with no step and the code in its detail, not lost',
+      !tcLive.includes('invoke') && !tcLive.includes('print(1)') && tc.querySelector('summary .kind').textContent === 'cell' && !tc.classList.contains('lost')
+      && !tc.querySelector('.sp-think') && tc.querySelector('summary .peek').textContent === 'print(1)' && tc.querySelector('.sp-detail pre code').textContent.includes('print(1)'), tc.innerHTML.slice(0, 300));
+w.paneTurnStart({turn:4, of:15, seat:'Analyst', model:'m'});
+w.paneToken('###STEP###\nI print the table.\n<invoke name="x">\n</invoke>\n```python\nprint(2)\n```\n###STEP###\nThe step it read.\n###NOTE###\n- Names: df\n###ACTION###\n```python\nprint(2)\n```');
+const tc2 = Array.from(pane2.querySelectorAll('.sp-turn')).pop();
+const tc2Live = tc2.querySelector('.sp-think').textContent;
+w.paneTurnEnd({turn:4, kind:'cell', thinking:'The step it read.', note:'- Names: df', code:'print(2)', elapsed:1, cost:0.001});
+check('a call before the turn format: the live step stops where the call begins; the finished card shows the step the session read',
+      tc2Live.startsWith('I print the table.') && !tc2Live.includes('invoke') && tc2.querySelector('.sp-think').textContent === 'The step it read.', [tc2Live, tc2.querySelector('.sp-think') && tc2.querySelector('.sp-think').textContent]);
+
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 // a run of 239.6 s reads "4 min 0 s", not "3 min 60 s" (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneRunEnd({status:'answered', turns:15, of:15, cells:11, failed:2, cost:0.1, seconds:239.6, replay_status:'', replay_line:'', plots:0, files:[]});

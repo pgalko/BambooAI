@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (223/189/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (224/189/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 51/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,22 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The tool-call fallback completed, and the pane shows the turn it ran (2026-10-18, patch 0205).** The next Deep
+  run on Sonnet 5.5 had 0203's sentence in its contract and still slipped in 4 of its 14 analysis turns, and 0203's
+  fallback caught none of the three it lost: the code passed as the call's argument, without a fence (the turn was also
+  told it "read like the report" - its `#` comments read as headings); a call with the code after it and the three
+  marker lines filled with the word "placeholder" (the fallback looked only at replies without marker lines); a stray
+  `</code>` line inside a cell, then a corrected copy (the broken first copy ran and failed; a `</parameter>` line had
+  failed the first cell of a run that morning too). Now a reply with no valid action and a tool call in it is read from
+  the call on (`parse_turn` over `_parse_marked`); code passed as a call's argument is the cell when it compiles
+  (`_compiles`: compiled, never run); and a cell that fails to compile only because of lines that are a stray tag and
+  nothing else runs without them (`_cell_code`), so a corrected copy is the same action. The pane: a live card's step
+  stops where a tool call begins, and a card whose reply had one ends with the step the session read - a recovered
+  turn is a cell card, not a lost one, with no raw call in it. Replayed on the 511 analyst replies of the logs at hand
+  (424 of them DeepSeek's): the four broken turns run (three cells from calls, one corrected copy) and nothing else
+  changes. The contract's sentence stays: it did not lower the rate, and it costs nothing. Tests: test_analyst.py 224
+  (the three shapes; a tag line in code that compiles stays; prose in a call is no action), test_pane.js 51 (the live
+  step without the call; the finished card a cell with the step the session read).
 - **The readings by day, and the stretches of days a code points worse (2026-10-18, patch 0204).** Step 5 of the
   reading's improvement. Since 0198-0201 each reading carries the days it describes (`about`, a day or a range), but
   nothing put it on them: the two Sonnet runs of the day matched the words to the numbers by the day of writing, and a

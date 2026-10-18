@@ -230,6 +230,7 @@
     let liveCard = null;           // the open turn card, while streaming
     let liveRaw = '';              // its content tokens so far
     let noteSeen = false;          // the reply reached its structured part
+    const TOOL_CALL = /<(?:invoke|function_calls)\b/;     // a tool call in a model's own markup (analyst/session.py, 2026-10-18)
 
     function pane() { return (typeof liveTargets === 'function') ? liveTargets().stream : document.getElementById('streamOutput'); }
     function ensure() {
@@ -304,6 +305,8 @@
         const cut = liveRaw.indexOf('###NOTE###');
         let visible = cut >= 0 ? liveRaw.slice(0, cut) : liveRaw;
         visible = visible.replace(/^\s*###(?:STEP|THINKING)###\s*/, '');      // the step's marker (THINKING until 0104)
+        const call = visible.search(TOOL_CALL);
+        if (call >= 0) visible = visible.slice(0, call);     // a tool call and its code are no step
         const think = liveCard.querySelector('.sp-think');
         if (think) think.innerHTML = esc(visible) + '<span class="cursor"></span>';
         const peek = liveCard.querySelector('summary .peek');
@@ -326,6 +329,10 @@
         const card = liveCard; liveCard = null;
         card.classList.remove('live');
         if (t.turn === -1) { card.classList.add('lost'); card.removeAttribute('open'); return; }
+        // a reply with a tool call in it: its step is the one the session read, not the stream (the call and its code)
+        if (TOOL_CALL.test(liveRaw)) {
+            const th = card.querySelector('.sp-think'); if (th) th.textContent = t.thinking || '';
+        }
         const kind = card.querySelector('summary .kind'); if (kind) kind.textContent = kindLabel(t.kind);
         const peek = card.querySelector('summary .peek');
         if (peek) peek.textContent = t.peek || stepSentence(t.thinking, 120) || firstCodeLine(t.code);

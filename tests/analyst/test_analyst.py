@@ -341,6 +341,20 @@ check("a run: the cell written as a tool call runs as cell 1, and the next promp
       and TOOL_CALL_TAKEN in _trc_p[1][1] and not re.search(r"</?(invoke|parameter|function_calls)\b", _trc_p[1][1] + TOOL_CALL_TAKEN + contract(False, 8))
       and "## Format\n\nThere are no tools: every reply is plain text with these three sections" in _trc_p[0][0],
       ([t.kind for t in _trc.turns], _trc_p[1][1][-300:]))
+# the fallback completed (2026-10-18, the next Sonnet 5.5 run): code passed as the call's argument, a call before marker lines
+# filled with filler, and a stray tag line inside a cell followed by a corrected copy
+_tc8 = parse_turn('\n<invoke name="python">\n<parameter name="code">\nx = 1\n# the total\nprint(x)\n</parameter>\n</invoke>\n')
+_tc9 = parse_turn('\n<invoke name="python">\n```python\nprint(3)\n```\n###STEP###\nplaceholder\n###NOTE###\nplaceholder\n###ACTION###\nplaceholder')
+_tc10 = parse_turn("###STEP###\ns\n###NOTE###\nn\n###ACTION###\n```python\na = 1\nprint(a)\n</code>\n```\n\nThe block above has a stray tag; the corrected one:\n\n```python\na = 1\nprint(a)\n```")
+_tc11 = parse_turn("###NOTE###\nn\n###ACTION###\n```python\ns = '''\n</code>\n'''\nprint(s)\n```")
+_tc12 = parse_turn("###NOTE###\nn\n###ACTION###\n```python\nprint(1\n</code>\n```")
+_tc13 = parse_turn('<invoke name="x">\n<parameter name="text">I will look at the table next.</parameter>\n</invoke>')
+check("parse_turn: code passed as a call's argument is the cell; a call before marker lines filled with filler gives its cell, the filler no note; a cell broken only by a stray tag line runs without it (its corrected copy the same action); a tag line in code that compiles stays, and one in code broken anyway is left; prose in a call is no action",
+      (_tc8[2].verb, _tc8[2].arg, _tc8[2].tool_call) == ("cell", "x = 1\n# the total\nprint(x)", True)
+      and (_tc9[2].verb, _tc9[2].arg, _tc9[2].tool_call, _tc9[1]) == ("cell", "print(3)", True, "")
+      and (_tc10[2].verb, _tc10[2].arg, _tc10[2].more, _tc10[2].tool_call) == ("cell", "a = 1\nprint(a)", (), False)
+      and _tc11[2].arg == "s = '''\n</code>\n'''\nprint(s)" and _tc12[2].arg == "print(1\n</code>" and _tc13[2].verb == "invalid",
+      [_tc8[2], _tc9, _tc10[2], _tc11[2], _tc12[2], _tc13[2]])
 
 # REPORT with nothing under it (2026-10-11, from a deepseek-v4.1-flash run log: "this turn = REPORT", the word written and the
 # reply ended; the empty text went through as the answer and the reader saw the figures section alone): not a report - the
