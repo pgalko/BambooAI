@@ -553,6 +553,13 @@ def _reads_like_report(text: str) -> bool:
     return "```" not in t and bool(re.search(r"^#{1,3} \S", t, re.M) or re.search(r"\[cell \d+\]", t))
 
 
+def _unmarked_report(text: str) -> str:
+    """The report in a reply that wrote it without its marker lines: from its first heading on, any step or note before
+    it left out; the whole reply when it has no heading."""
+    m = re.search(r"^#{1,3} \S", text or "", re.M)
+    return (text[m.start():] if m else text or "").strip()
+
+
 REPORT_EMPTY = "REPORT with nothing under it"
 _ACTION_WORD_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPORT)\b[ \t]*(.*)$")          # as the contract writes them
 _ACTION_WORD_ANY_CASE_RE = re.compile(r"^\s*(cell|show|names|recall|search|read|ask|report)\b[ \t]*(.*)$", re.I)
@@ -823,13 +830,18 @@ class Session:
                     break
             self.emit({"type": "turn_start", "run": run.id, "turn": turn_no, "of": budget.turns})
             t0 = time.time()
-            effort, lost_at = attempt_effort(self._last_turn(budget, turn_no, spent), lost_at), ""
+            report_turn = self._last_turn(budget, turn_no, spent)
+            effort, lost_at = attempt_effort(report_turn, lost_at), ""
             text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, extra), **({"image": self._image} if self._image else {}),
                                    **({"effort": effort} if effort else {}))
             usage = dict(usage or {})
             usage["elapsed"] = round(time.time() - t0, 1)
             spent += float(usage.get("cost", 0.0) or 0.0)
             thinking, note, action = parse_turn(text)
+            if report_turn and action.arg == "no ###ACTION### block" and _reads_like_report(text) and not usage.get("truncated"):
+                # the report turn's report written without its marker lines is the report: no turn is left to ask again,
+                # and asking had the report written twice (2026-10-18, a Sonnet 5.5 run)
+                action = Action("report", _unmarked_report(text))
             note = note or run.note
             extra = ""
             turn = Turn(kind=action.verb, note=note, thinking=thinking, usage=usage)

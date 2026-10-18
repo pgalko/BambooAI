@@ -247,29 +247,57 @@ check("ceiling: the forced report is a turn with a card - turn_start then turn_e
       ("turn_start", 6) in _t4 and ("turn_end", 6) in _t4 and _t4.index(("turn_start", 6)) < _t4.index(("turn_end", 6)), _t4)
 
 # the budget exhausted without a report (2026-10-08): the forced call has a card too - a turn_start before the stream,
-# numbered as its turn_end is - and a reply shaped like the report but without the marker lines is told what was missing
+# numbered as its turn_end is - and a reply shaped like the report but without the marker lines, before the report turn,
+# is told what was missing
 ex_prompts, ex_events = [], []
 def exhausted_llm(system, user, **h):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     ex_prompts.append(user)
-    if len(ex_prompts) == 1:
+    if len(ex_prompts) in (1, 3):
         return "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nprint('RESULT: x, 5 units: +1 (95% CI 0 to 2), up')\n```", {"cost": 0.001}
     if len(ex_prompts) == 2:   # the report written without the scaffold: a lead paragraph, a bare REPORT line, headings
         return "The data do not identify a stable correction.\n\nREPORT\n\n# Title\n\n## Summary\nNothing [cell 1].", {"cost": 0.001}
     return "## Summary\n\nTaken whole at the forced call [cell 1].", {"cost": 0.001}
 kex = PersistentKernel(df=df); nbex = Notebook("tex")
 try:
-    rex = Session(kex, nbex, exhausted_llm, data_description="d", emit=ex_events.append).run("q", budget=Budget(turns=2, dollars=1.0, review_every=0))
+    rex = Session(kex, nbex, exhausted_llm, data_description="d", emit=ex_events.append).run("q", budget=Budget(turns=3, dollars=1.0, review_every=0))
 finally:
     kex.cleanup()
 _tex = [(e["type"], e.get("turn"), e.get("kind")) for e in ex_events if e["type"] in ("turn_start", "turn_end")]
 check("a report-shaped reply with no ###ACTION### block loses the turn and is told so precisely - not 'no valid action'",
       "Your last reply read like the report but had no ###ACTION### block, so it was not taken as one; nothing ran. A report is: ###ACTION### on its own line, REPORT on the next, then the report." in ex_prompts[2]
       and "no valid action" not in ex_prompts[2] and rex.turns[1].kind == "error", (ex_prompts[2][-400:], [t.kind for t in rex.turns]))
-check("the budget exhausted: the forced report call is turn 3 of 2 with a turn_start before its turn_end, and its text is the report",
-      ("turn_start", 3, None) in _tex and ("turn_end", 3, "report") in _tex and _tex.index(("turn_start", 3, None)) < _tex.index(("turn_end", 3, "report"))
-      and len(ex_prompts) == 3 and "Write REPORT now." in ex_prompts[2] and rex.report.startswith("## Summary") and rex.status == "answered", (_tex, rex.report[:80]))
+check("the budget exhausted: the forced report call is turn 4 of 3 with a turn_start before its turn_end, and its text is the report",
+      ("turn_start", 4, None) in _tex and ("turn_end", 4, "report") in _tex and _tex.index(("turn_start", 4, None)) < _tex.index(("turn_end", 4, "report"))
+      and len(ex_prompts) == 4 and "Write REPORT now." in ex_prompts[3] and rex.report.startswith("## Summary") and rex.status == "answered", (_tex, rex.report[:80]))
+# on the report turn itself (2026-10-18, a Sonnet 5.5 run wrote the report there without its marker lines and the forced
+# call had it written again): a reply shaped like the report is the report, from its first heading; a reply cut at the
+# length limit is not, and the forced call asks for it
+def _report_turn_run(cut, name):
+    prompts = []
+    def llm(system, user, **h):
+        if user.startswith("Rewrite"): return "plain", {"cost": 0}
+        if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+        prompts.append(user)
+        if len(prompts) == 1:
+            return "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nprint('RESULT: x, 5 units: +1 (95% CI 0 to 2), up')\n```", {"cost": 0.001}
+        if len(prompts) == 2:
+            return ("###STEP###\nThe budget is spent; this turn writes the report.\n###NOTE###\n" + NOTE + "\n\n# Title\n\n## Summary\nUp by 1 [cell 1].",
+                    {"cost": 0.001, "truncated": cut})
+        return "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Summary\n\nFrom the forced call [cell 1].", {"cost": 0.001}
+    kk = PersistentKernel(df=df)
+    try:
+        rr = Session(kk, Notebook(name), llm, data_description="d").run("q", budget=Budget(turns=2, dollars=1.0, review_every=0))
+    finally:
+        kk.cleanup()
+    return rr, prompts
+_rt, _rt_p = _report_turn_run(False, "trt")
+_rc, _rc_p = _report_turn_run(True, "trc")
+check("the report turn: a reply shaped like the report without its marker lines is the report, from its first heading - no second call; cut at the length limit it is not, and the forced call writes it",
+      len(_rt_p) == 2 and _rt.status == "answered" and _rt.report.startswith("# Title\n\n## Summary\nUp by 1 [cell 1].") and "###" not in _rt.report.split("> ")[0]
+      and [t.kind for t in _rt.turns][:2] == ["cell", "report"]
+      and len(_rc_p) == 3 and _rc.report.startswith("## Summary\n\nFrom the forced call"), (len(_rt_p), _rt.report[:120], len(_rc_p), _rc.report[:80]))
 _chat = parse_turn("I think the next step should be a within-athlete fit, let me set that up.")
 check("a chatty reply with no headings, citations or fence is not report-shaped: it still reads 'no valid action'",
       _chat[2].verb == "invalid" and not __import__("analyst.session", fromlist=["_reads_like_report"])._reads_like_report("I think the next step should be a within-athlete fit."))

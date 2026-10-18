@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (220/185/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (221/186/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **On the report turn a report-shaped reply is the report; the map counts readings truly about other days
+  (2026-10-18, patch 0202).** A Deep run on Sonnet 5.5 (performance tier) wrote its report on the report turn without
+  the `###ACTION###` and REPORT lines; it was not taken, and the forced call had the report written again ($0.10 of the
+  run's $1.00). There is no turn left to ask again: on the report turn a reply that reads like the report
+  (`_reads_like_report`) and was not cut at the length limit is the report, from its first heading
+  (`_unmarked_report`; a step or note before it left out). Before the report turn such a reply is still told what was
+  missing. The same run's analyst used the directions well - the codes by direction over the window, each of his
+  messages read with its codes marked, the lenses' disagreements quoted - and windowed the readings by the day of
+  writing, not their days; its report turn ran at medium (0199: 40,500 prompt tokens, 5,500 out, $0.13). The map's line
+  had counted every reading with a day written out as about other days - 433 on the rider's year, where since 0201 a
+  reading on a passage about an earlier activity carries that day, its passage's own: 52 were about other days. Tests:
+  test_analyst.py 221 (the report turn's report taken from its first heading; cut, it is not, and the forced call
+  writes it; before the report turn, still told), test_app_path.py 186 (the map's count).
 - **A reading on a passage about an earlier activity takes the activity's day (2026-10-18, patch 0201).** Under 0200's
   instructions the coder put the activity's day on 57% of the readings of passages written after their activity, down
   from 77% under 0198's (63% of the state readings, from 85%): 44 passages lost it and 5 gained it, so the instructions'

@@ -154,7 +154,12 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
             pointed = sorted(((c, k) for c, k in dirs.items() if k["worse"] or k["better"]), key=lambda x: -(x[1]["worse"] + x[1]["better"]))
             if pointed:
                 inferred = sum(1 for b in codes["basis"].tolist() if _cell(b) == "inferred") if "basis" in codes.columns else 0
-                other_days = sum(1 for a in codes["about"].tolist() if _cell(a)) if "about" in codes.columns else 0
+                # a passage on an activity of another day has that day as its own: its readings carry it (patch 0201), and
+                # only a reading of other days than that counts here (2026-10-18: the line had counted 433, 52 of them so)
+                acts = notes["activity_date"].tolist() if "activity_date" in notes.columns else [""] * len(notes)
+                own = {str(i): _cell(a) or _cell(d) for i, a, d in zip(notes["id"].tolist(), acts, notes["date"].tolist())}
+                other_days = (sum(1 for i, a in zip(codes["id"].tolist(), codes["about"].tolist()) if _cell(a) and _cell(a) != own.get(str(i), ""))
+                              if "about" in codes.columns else 0)
                 shown = ", ".join(f"{c} {k['worse']}/{k['better']}/{k['neutral']}" for c, k in pointed[:MAP_CODES_MAX])
                 more = len(pointed) - MAP_CODES_MAX
                 lines.append(f"  which way the codes point for the person (worse/better/neutral): {shown}" + (f", … ({more} more)" if more > 0 else "")

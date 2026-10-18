@@ -684,6 +684,11 @@ try:
           "  2 passages repeat an earlier passage word for word (copy_of names it): the earlier one's words, not a second writing of them, and coded there only." in _map_cp
           and "  1 passage on an activity was written on a later day than the activity: activity_date is the activity's day, date the day of writing." in _map_cp
           and "word for word" not in _map_st and "later day" not in _map_st, _map_cp)
+    _cp_codes = pd.DataFrame([{"id": "C.4", "code": "fatigue", "tone": "negative", "quote": "felt rough", "status": "codebook", "coder": "m", "codebook_version": "1", "direction": "worse", "basis": "said", "about": "2026-09-03"},
+                              {"id": "C.4", "code": "sleep", "tone": "negative", "quote": "rough", "status": "codebook", "coder": "m", "codebook_version": "1", "direction": "worse", "basis": "said", "about": "2026-09-04"},
+                              {"id": "C.1", "code": "fatigue", "tone": "neutral", "quote": "aaa", "status": "codebook", "coder": "m", "codebook_version": "1", "direction": "worse", "basis": "said", "about": "2026-08-30"}])
+    check("the map's count of readings about other days than their passage's own: a passage on an earlier activity has the activity's day as its own, its readings on that day not counted (2026-10-18)",
+          "; 0 readings inferred rather than said, 2 about other days than their passage's own." in _cmap(pd.DataFrame(_cp_rows), _cp_codes), _cmap(pd.DataFrame(_cp_rows), _cp_codes))
     _tg = [{"id": f"C.{i}", "kind": "tag", "date": "2026-09-21", "author_role": "subject", "private": False, "lang": "", "text": t} for i, t in enumerate(["heatsession", "primary", "heatsession"], 1)]
     check("the map tallies a kind whose every passage is one token with no space - a tag - most first; a kind with one longer text is not tallied (patch 0197)",
           "tag 3 (heatsession 2, primary 1)." in _cmap(pd.DataFrame(_tg)) and "tag 2." in _map_st, _cmap(pd.DataFrame(_tg)))

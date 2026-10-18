@@ -197,7 +197,8 @@ CONTEXT (the words written beside the data; in the kernel as CTX; files context_
 
 With directions in the codes table (patch 0198) a line says which way the codes point, the most pointed first:
 *which way the codes point for the person (worse/better/neutral): fatigue 18/11/2, …; 4 readings inferred rather
-than said, 9 about other days than their passage's own*.
+than said, 9 about other days than their passage's own*. A passage on an activity of another day has that day as its
+own (patch 0201), and its readings on that day are not counted here (patch 0202).
 
 Two lines appear only when the data has them (patch 0196): *N passages repeat an earlier passage word for word
 (copy_of names it): the earlier one's words, not a second writing of them*, and *N passages on an activity were
