@@ -143,6 +143,22 @@ check("a message by a member who is not the coach is 'other' with the name kept;
       by["4/activity_message"]["author_role"] == "other" and by["4/activity_message"]["author_name"] == "Staff" and by["2/activity_private_note"]["private"] is True and by["2/activity_private_note"]["author_role"] == "coach", (by.get("4/activity_message"), by.get("2/activity_private_note")))
 check("text_en and lang are empty before the coding pass; chars is the length of the text; private is a boolean",
       all(r["text_en"] == "" and r["lang"] == "" and r["chars"] == len(r["text"]) and isinstance(r["private"], bool) for r in rows))
+# the activity's own day on every passage that hangs on an activity (2026-10-18: one message in seven was written a day or
+# more after its activity, and "today" in it is the activity's day); none on a passage that hangs on no activity
+check("activity_date: the activity's day on its messages (one written at 01:30 the next day keeps the activity's day), its note, tags, tick and custom field, and on the plan it fulfilled; "
+      "empty on the calendar's own tags, the status entries, the notes and the wellness passages",
+      m1["activity_date"] == "2026-09-01" and m1["date"] == "2026-09-02" and by["a1/activity_note"]["activity_date"] == "2026-09-01" and by["a1#easy/tag"]["activity_date"] == "2026-09-01"
+      and by["a1#tick/coach_tick"]["activity_date"] == "2026-09-01" and by["a1#HowISlept/custom_field"]["activity_date"] == "2026-09-01" and by["11/plan_note"]["activity_date"] == "2026-09-01"
+      and by["a2#tick/coach_tick"]["activity_date"] == "2026-09-02"
+      and all(r["activity_date"] == "" for r in rows if not r["activity_id"]), [(r["id"], r["kind"], r["activity_id"], r["activity_date"]) for r in rows])
+_cp = [{"id": f"C.{i}", "text": t} for i, t in enumerate(["Recovery protocol: breathe in for four, hold for seven, out for eight; six rounds, rest between them.",
+                                                         "Top", "Top",
+                                                         "Recovery protocol:  breathe in for four, hold for seven, out for eight;\nsix rounds, rest between them.",
+                                                         "Recovery protocol: breathe in for four, hold for seven, out for eight; six rounds, rest between them.",
+                                                         "A different long passage that happens to be written only once in this window."], 1)]
+E.mark_copies(_cp)
+check("mark_copies: a text of COPY_MIN_CHARS or more that repeats an earlier passage word for word (whitespace aside) carries that passage's id in copy_of; the first writing, a short reply said twice and a text written once carry none",
+      [r.get("copy_of", "") for r in _cp] == ["", "", "", "C.1", "C.1", ""] and E.COPY_MIN_CHARS == 80 and all(r.get("copy_of", "") == "" for r in rows), [r.get("copy_of") for r in _cp])
 
 # the failure states of F1
 s2 = FakeSession(fail={"/athlete/0/events", "/chats/7"})
@@ -291,7 +307,7 @@ check("the summary carries the settings in force that day: max_hr_setting, pm_ft
       summ.iloc[0]["max_hr_setting"] == 190 and summ.iloc[0]["pm_ftp_watts"] == 280 and summ.iloc[0]["ftp_watts"] == 300 and summ.iloc[0]["power_zones"] == "55|75|90" and summ.iloc[0]["hr_zones"] == "140|155" and "pace_zones" not in summ.columns, summ.to_dict())
 check("save_aux_dataset names the two files by their kinds and the window", os.path.basename(E.save_aux_dataset(prof, "rider", "u", "2026-06-15", "2026-10-13")) == "rider_profile_20260615_to_20261013.csv"
       and os.path.basename(E.save_aux_dataset(zt, "zones", "u", "2026-06-15", "2026-10-13")) == "custom_zone_times_20260615_to_20261013.csv")
-check("the executor's build stamp is v61 (the profile's wellness scales)", "v61" in E.EXECUTOR_BUILD and "wellness scales" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
+check("the executor's build stamp is v62 (the context: the activity's day on its passages, copies marked)", "v62" in E.EXECUTOR_BUILD and "repeats an earlier passage" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
 
 # ---- every custom field under its code (2026-10-16, patch 0183): the account's definitions decode the files' columns ----
 IF = E.field_definitions(REC["custom_items"], "INTERVAL_FIELD")

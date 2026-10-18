@@ -12,7 +12,7 @@ from typing import Optional
 import pandas as pd
 
 CONTEXT_COLUMNS = ["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id",
-                   "author_name", "author_role", "private", "lang", "text", "text_en", "chars"]
+                   "author_name", "author_role", "private", "lang", "text", "text_en", "chars", "activity_date", "copy_of"]
 CODES_COLUMNS = ["id", "code", "tone", "quote", "status", "coder", "codebook_version"]
 MAP_KINDS_MAX = 12
 MAP_CODES_MAX = 12
@@ -42,6 +42,13 @@ def read_context(text: str) -> pd.DataFrame:
 
 def read_codes(text: str) -> pd.DataFrame:
     return read_frame(text, CODES_COLUMNS)
+
+
+def _cell(v) -> str:
+    """A cell as text: '' for an empty one (None, NaN, blank) - a frame built without a column has NaN there."""
+    if v is None or (isinstance(v, float) and v != v):
+        return ""
+    return str(v).strip()
 
 
 def _month(d: str) -> str:
@@ -103,6 +110,15 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
              f"  authors: {', '.join(f'{r} {v}' for r, v in roles.most_common())}" + (f"; private entries {private}" if private else "")
              + f"; by month {', '.join(f'{m} {months[m]}' for m in month_order)}"
              + (f"; languages {', '.join(f'{k} {v}' for k, v in langs.most_common())}" if langs else "") + "."]
+    copies = [c for c in map(_cell, notes["copy_of"].tolist()) if c] if "copy_of" in notes.columns else []
+    if copies:
+        lines.append(f"  {len(copies)} passage{'s' if len(copies) != 1 else ''} repeat{'s' if len(copies) == 1 else ''} an earlier passage word for word (copy_of names it): "
+                     "the earlier one's words, not a second writing of them.")
+    if "activity_date" in notes.columns:
+        later = sum(1 for d, a in zip(notes["date"].tolist(), notes["activity_date"].tolist()) if _cell(a) and _cell(d)[:10] > _cell(a)[:10])
+        if later:
+            lines.append(f"  {later} passage{'s' if later != 1 else ''} on an activity {'were' if later != 1 else 'was'} written on a later day than the activity: "
+                         "activity_date is the activity's day, date the day of writing.")
     if codes is not None and len(codes) > 0:
         cc = Counter(str(c) for c in codes["code"].tolist() if str(c).strip())
         coded = set(str(i) for i in codes["id"].tolist())
@@ -129,6 +145,9 @@ def where_of(row) -> str:
     name = str(row.get("author_name") or "").strip()
     who = role + (f" {name}" if name and role != "subject" else "")
     place = " · ".join(x for x in (day, kind, who) if x)
+    aday = _cell(row.get("activity_date"))[:10]
+    if aday and aday != day:
+        place += f" · the activity of {aday}"
     lang = str(row.get("lang") or "").strip()
     if str(row.get("text_en") or "").strip() and lang and lang != "en":
         place += f" (rendered from {lang})"
@@ -189,12 +208,14 @@ class _BambooContext:
         n = self.frame()
         return "CTX: %d passages%s%s" % (len(n), (" from %s to %s" % (n["date"].min(), n["date"].max())) if len(n) else "", (", codes in CTX.codes()" if self.codes_path else ""))
     def frame(self):
-        """The context table: one row per passage (id, kind, date, time, end_date, activity_id, event_id, author_role, private, lang, text, text_en)."""
+        """The context table: one row per passage (id, kind, date, time, end_date, activity_id, activity_date - the activity's own day - event_id, author_role, private, lang, text, text_en, copy_of - the passage whose words it repeats)."""
         import pandas as _pd
         if self._notes is None:
             self._notes = _pd.read_csv(self.notes_path, dtype=str, keep_default_na=False)
             if "date" in self._notes.columns:
                 self._notes["day"] = _pd.to_datetime(self._notes["date"], errors="coerce")
+            if "private" in self._notes.columns:
+                self._notes["private"] = self._notes["private"].str.strip().str.lower().isin(["true", "1"])
         return self._notes
     def codes(self):
         """The codes table: one row per code on a passage (id, code, tone, quote, status), empty before the coding pass."""
@@ -210,6 +231,9 @@ class _BambooContext:
         if r.get("author_name") and who != "subject":
             who += " " + r["author_name"]
         head = " · ".join(x for x in ((r.get("date") or "")[:10], r.get("kind") or "", who) if x)
+        aday = (r.get("activity_date") or "")[:10]
+        if aday and aday != (r.get("date") or "")[:10]:
+            head += " · the activity of %s" % aday
         tail = (" (rendered from %s)" % r["lang"]) if (r.get("text_en") or "").strip() and r.get("lang") and r.get("lang") != "en" else ""
         return "[%s] %s%s: %s" % (r.get("id"), head, tail, self._shown(r).replace("\n", " / "))
     def _lines(self, sub, as_frame, limit):

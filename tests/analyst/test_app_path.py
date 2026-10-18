@@ -663,6 +663,15 @@ try:
     check("the map tallies a kind whose every passage opens with an upper-case token - the calendar's category, as written - most first, at most six and the rest counted; a kind of prose is not tallied, its occasional capital included",
           "status 8 (RACE_A 3, RACE_C 1, SEASON_START 1, SICK 1, HOLIDAY 1, TARGET 1); activity_message 2 (subject 1, coach 1); tag 2." in _map_st
           and "status 9 (RACE_A 3, RACE_C 1, SEASON_START 1, SICK 1, HOLIDAY 1, TARGET 1, … (1 more))" in _cmap(pd.DataFrame(_st + [dict(_st[0], id="C.99", text="INJURED: knee")])), _map_st)
+    _cp_rows = [{"id": "C.1", "kind": "plan_note", "date": "2026-09-01", "author_role": "coach", "private": False, "lang": "", "text": "a" * 90, "activity_id": "", "activity_date": "", "copy_of": ""},
+                {"id": "C.2", "kind": "activity_note", "date": "2026-09-01", "author_role": "subject", "private": False, "lang": "", "text": "a" * 90, "activity_id": "a1", "activity_date": "2026-09-01", "copy_of": "C.1"},
+                {"id": "C.3", "kind": "activity_note", "date": "2026-09-03", "author_role": "subject", "private": False, "lang": "", "text": "a" * 90, "activity_id": "a2", "activity_date": "2026-09-03", "copy_of": "C.1"},
+                {"id": "C.4", "kind": "activity_message", "date": "2026-09-04", "author_role": "subject", "private": False, "lang": "", "text": "felt rough", "activity_id": "a2", "activity_date": "2026-09-03", "copy_of": ""}]
+    _map_cp = _cmap(pd.DataFrame(_cp_rows))
+    check("the map counts the copies (copy_of) and the passages written on a later day than their activity, each in a line of its own; a window with neither has neither line",
+          "  2 passages repeat an earlier passage word for word (copy_of names it): the earlier one's words, not a second writing of them." in _map_cp
+          and "  1 passage on an activity was written on a later day than the activity: activity_date is the activity's day, date the day of writing." in _map_cp
+          and "word for word" not in _map_st and "later day" not in _map_st, _map_cp)
     _codes = os.path.join(_auxdir, "context_codes_20260615_to_20261013.csv")
     pd.DataFrame([{"id": "C.1", "code": "fatigue", "tone": "negative", "quote": "legs heavy", "status": "codebook", "coder": "m", "codebook_version": 1},
                   {"id": "C.1", "code": "deviation", "tone": "negative", "quote": "cut it short", "status": "codebook", "coder": "m", "codebook_version": 1},
@@ -762,6 +771,19 @@ try:
           and "C.1" in _CTX.around("2026-09-02", days=1) and "C.3" not in _CTX.around("2026-09-02", days=1) and "C.3" in _CTX.between("2026-10-01", "2026-10-31") and "C.4" in _CTX.between("2026-10-01", "2026-10-31")
           and "C.1" in _CTX.on("a1") and "C.2" in _CTX.on("a1") and "C.3" not in _CTX.on("a1") and "legs heavy today, cut it short" in _CTX.text("C.1") and "4 passages" in repr(_CTX)
           and _CTX.grep("legs", as_frame=True).shape[0] == 1, (_CTX.grep("legs"), repr(_CTX)))
+    check("CTX.frame()'s private is true or false, not the file's text (2026-10-18: a run summed the text column and lost a turn)",
+          _CTX.frame()["private"].tolist() == [False, False, False, True] and _CTX.frame()["private"].dtype == bool, _CTX.frame()["private"].tolist())
+    # the activity's day where a passage is written later than its activity (patch 0196): in CTX's printed lines and in where_of (the Reader's and the chips' place)
+    _ns_a = {}
+    _ctx_a = os.path.join(_auxdir, "context_notes_20260901_to_20260930.csv")
+    pd.DataFrame([{"id": "C.1", "kind": "activity_message", "date": "2026-09-02", "time": "01:30", "activity_id": "a1", "activity_date": "2026-09-01", "author_role": "subject", "private": "False", "lang": "", "text": "felt rough today", "text_en": ""},
+                  {"id": "C.2", "kind": "activity_message", "date": "2026-09-01", "time": "18:00", "activity_id": "a1", "activity_date": "2026-09-01", "author_role": "coach", "private": "False", "lang": "", "text": "easy tomorrow", "text_en": ""}]).to_csv(_ctx_a, index=False)
+    exec(__import__("analyst.context", fromlist=["kernel_api_source"]).kernel_api_source(_ctx_a), _ns_a)
+    from analyst.context import where_of as _where_of
+    check("a passage written on a later day than its activity says the activity's day where it is printed (CTX's lines, where_of); one written that day does not",
+          "[C.1] 2026-09-02 · activity_message · subject · the activity of 2026-09-01: felt rough today" in _ns_a["CTX"].on("a1") and "[C.2] 2026-09-01 · activity_message · coach: easy tomorrow" in _ns_a["CTX"].on("a1")
+          and _where_of({"date": "2026-09-02", "kind": "activity_message", "author_role": "subject", "activity_date": "2026-09-01"}) == "2026-09-02 · activity_message · subject · the activity of 2026-09-01"
+          and _where_of({"date": "2026-09-01", "kind": "activity_message", "author_role": "coach", "activity_date": "2026-09-01"}) == "2026-09-01 · activity_message · coach", _ns_a["CTX"].on("a1"))
     check("unit_text resolves a context passage for the report guard - the English rendering when there is one - and says None for an id the context does not hold",
           _bc._unit_text("C.1") == "legs heavy today, cut it short" and _bc._unit_text("C.9") is None and _bb._unit_text("C.1") is None)
     _bc.models.llm_call = lambda *a, **k: '- [C.1] "legs heavy today"\n- [C.2] "take tomorrow easy"\n- [C.1] "legs light"\nSUMMARY: Heavy legs, an easy day asked [C.1][C.2].'
@@ -852,8 +874,9 @@ try:
           sorted(_prog) == [(1, 2), (2, 2), (3, 3)] and _rep["passages"] == 5 and _rep["coded"] == 4 and _rep["uncoded"] == 1 and _rep["rendered"] == 1 and _rep["proposed"] == 1 and _rep["proposals"] == ["heavy_legs"]
           and _rep["failed_batches"] == 2 and _rep["unanswered"] == 1 and _rep["batches"] == 3 and _rep["reused"] == 0 and _rep["dropped"] == {"unknown_code": 1} and _rep["codes_path"] == _codes3_path and _rep["codebook_version"] == 1
           and len(_calls3) == 3 and all(c[0] == "Investigator" and c[1] == "load-1" and c[2].startswith("You are the Coder") for c in _calls3) and sorted(len(c[3]) for c in _calls3) == [1, 1, 4], (_rep, _prog, [(c[0], c[1], c[2], c[3]) for c in _calls3]))
-    check("the context file rewritten in place with the language and the renderings - the Danish passage rendered, the English ones lang en and empty, the unanswered one untouched - every other column as it was",
-          list(_notes3.columns) == list(pd.DataFrame(_rows3).columns) and _notes3.set_index("id").loc["C.2", ["lang", "text_en"]].tolist() == ["da", "The legs were heavy from the first climb, but it went."]
+    check("the context file rewritten in place with the language and the renderings - the Danish passage rendered, the English ones lang en and empty, the unanswered one untouched - every other column as it was "
+          "(a file from an older executor gains the two later columns, empty: activity_date and copy_of)",
+          list(_notes3.columns) == list(pd.DataFrame(_rows3).columns) + ["activity_date", "copy_of"] and _notes3.set_index("id").loc["C.2", ["lang", "text_en"]].tolist() == ["da", "The legs were heavy from the first climb, but it went."]
           and _notes3.set_index("id").loc["C.1", ["lang", "text_en"]].tolist() == ["en", ""] and _notes3.set_index("id").loc["C.5", ["lang", "text_en"]].tolist() == ["", ""] and _notes3.set_index("id").loc["C.2", "text"].startswith("Benene"), _notes3[["id", "lang", "text_en"]].to_dict("records"))
     check("the codes file beside it: the design's columns, the rows that passed the checks (the unknown code dropped), the proposal's row marked, the coder and the version on every row",
           _codes3 is not None and list(_codes3.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version"]

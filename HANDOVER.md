@@ -42,7 +42,7 @@
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **2.4.0 ships executor image v60** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file; 0176: a failed script's output; 0182-0183, 0185: the rider profile, the custom zone times, every custom field under its code, the profile's units) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch; `volumes { enabled = true }` is in both boxes' client configuration since 2026-10-17). **The next ship carries executor image v61** (patch 0195: the profile's wellness scales) - rebuild and roll out; the jobs need nothing.
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **2.4.0 ships executor image v60** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file; 0176: a failed script's output; 0182-0183, 0185: the rider profile, the custom zone times, every custom field under its code, the profile's units) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch; `volumes { enabled = true }` is in both boxes' client configuration since 2026-10-17). **The next ship carries executor image v62** (patches 0195: the profile's wellness scales; 0196: the context's activity day and copies) - rebuild and roll out; the jobs need nothing.
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (218/178/31/24/18/49/44/69/13/142/58/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (218/181/31/24/18/49/44/69/13/142/60/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,20 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Each passage carries its activity's day, and a copy names what it repeats (2026-10-18, patch 0196; executor image
+  v62).** Read in order, one rider's 1,499 passages showed two things the table could not say. A message is dated the
+  day it was written, and 92 of the 408 ride messages whose ride's day the file shows were written a day or more after
+  the ride; "today" in one can mean the ride's day. And 223 passages (15%) repeated an earlier text word for word - the
+  coach's workout descriptions carried into the activity as the rider's notes, plan notes used again - and were coded as
+  fresh writing. `fetch_context_rows` writes `activity_date` (the activity's day, in its own time) on every passage that
+  hangs on an activity, and `mark_copies` writes `copy_of` - the earlier passage's id - on a text of at least
+  `COPY_MIN_CHARS` (80) that repeats it, whitespace aside; a short reply said twice is not a copy. The map adds a line
+  for each when the data has them; CTX's printed lines and `where_of` name *the activity of <day>* when it is not the
+  day of writing; `CTX.frame()` gives `private` as true or false (the 18 October run summed the file's text and lost a
+  turn). A context file from an older executor gains the two columns, empty, when the coding pass writes it back.
+  `EXECUTOR_BUILD` v62. docs/CONTEXT_DESIGN.md §3.1, §3.4. Tests: test_context.py 60 (the activity's day on each kind;
+  the copies; the stamp), test_app_path.py 181 (the map's lines, the printed day, private), test_documents_app.py 44
+  (the stamp), the integrations walk.
 - **The profile says which end of the wellness scales is good (2026-10-18, patch 0195; executor image v61).** Nothing told
   the analyst which way the 1-4 wellness scales run: the 18 October run of the bio-psycho-social question assumed a higher
   sleep quality was better sleep (it is worse) and said so as an assumption; the 17 October run declined to read the

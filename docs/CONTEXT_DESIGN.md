@@ -103,6 +103,8 @@ One row per passage, in date order, ids given in that order and stable for the l
 | `text` | the passage as written, plain text: HTML stripped, whitespace normalised, a plan's structured step lines removed (they are in the planned workouts table, §3.1a; the prose stays) |
 | `text_en` | the English rendering, written by the coder at load; equal to `text` when `lang` is `en`; empty before the coding pass |
 | `chars` | the length of `text` |
+| `activity_date` | the day of the activity the passage hangs on (`activity_id`), in the activity's own time; empty when it hangs on none (2026-10-18, patch 0196: one message in seven was written a day or more after its activity, and "today" in it is the activity's day, not `date`) |
+| `copy_of` | the id of the earlier passage whose text this one repeats word for word (whitespace aside), for a text of at least 80 characters (`COPY_MIN_CHARS`); empty for a first writing (patch 0196: 16% of one live window were copies - a workout description carried into the activity, a plan note used again - read as the subject's own words) |
 
 What becomes a passage: a message of type `TEXT` or `NOTE` not deleted; an activity `description` that is not
 empty and not only a workout structure; a wellness `comments`; a `NOTE` event (its name and description joined);
@@ -185,6 +187,11 @@ CONTEXT (the words written beside the data; in the kernel as CTX; files context_
   effort 22, sleep 14, illness 9, deviation 8, … (23 of 36 codes used); 11 passages carry none; 2 codes proposed.
   A plan_note is dated the day it was planned for, not the day it was written.
 ```
+
+Two lines appear only when the data has them (patch 0196): *N passages repeat an earlier passage word for word
+(copy_of names it): the earlier one's words, not a second writing of them*, and *N passages on an activity were
+written on a later day than the activity: activity_date is the activity's day, date the day of writing*. CTX's
+printed lines and the Reader's places add *the activity of <day>* to such a passage.
 
 A kind whose every passage opens with an upper-case token - `status`, written by the executor as `CATEGORY: name` -
 is tallied by that token on the kinds line: `status 36 (RACE_A 31, RACE_C 3, SEASON_START 1, …)` (2026-10-18, patch

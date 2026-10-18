@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-18 v61 (the profile: the wellness scales the account tracks, and which end of them is the good one)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-18 v62 (the context: the day of the activity a passage hangs on, and a text that repeats an earlier passage marked)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -2409,7 +2409,12 @@ CONTEXT_STATUS_CATEGORIES = ('SICK', 'INJURED', 'HOLIDAY', 'RACE_A', 'RACE_B', '
 CONTEXT_KIND_ORDER = ('status', 'day_note', 'plan_note', 'activity_note', 'activity_message', 'activity_private_note',
                       'wellness_note', 'custom_field', 'coach_tick', 'tag')
 CONTEXT_COLUMNS = ['id', 'kind', 'date', 'time', 'end_date', 'activity_id', 'event_id', 'source_id', 'author_id',
-                   'author_name', 'author_role', 'private', 'lang', 'text', 'text_en', 'chars']
+                   'author_name', 'author_role', 'private', 'lang', 'text', 'text_en', 'chars', 'activity_date', 'copy_of']
+# a passage on an activity carries the activity's own day beside the day it was written (2026-10-18: one message in seven
+# was written a day or more after the activity it is about, and "today" in it is the activity's day); a text of at least
+# COPY_MIN_CHARS that repeats an earlier passage word for word carries that passage's id (a workout description copied
+# into the activity, a plan note used again) - the words are the earlier passage's, not a second writing of them
+COPY_MIN_CHARS = 80
 _HTML_TAG_RE = re.compile(r'<[^>]+>')
 # a planned workout's structured step lines ("-10m 220w", "2x -10s CZSS sprint", "-3h40m CZEE", "10m 60%"): a
 # line that begins with an optional repeat and a duration or distance; the structure is in workout_doc. A bare
@@ -2550,6 +2555,7 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
     tz_name = athlete.get('timezone') or None
     ticks = {t.get('id'): t.get('text') for t in (athlete.get('coach_ticks') or []) if isinstance(t, dict) and t.get('id') is not None}
     custom = _custom_text_fields(athlete.get('custom_items') or [])
+    act_days = {str(a.get('id') or ''): _local_day_time(a.get('start_date_local'))[0] for a in activities or [] if isinstance(a, dict)}
 
     def progress(msg):
         if job_id and job_id in intervals_jobs:
@@ -2562,6 +2568,8 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
         row = {k: '' for k in CONTEXT_COLUMNS}
         row.update({'kind': kind, 'date': date[:10], 'text': text, 'chars': len(text), 'private': False})
         row.update(extra)
+        if row.get('activity_id') and not row.get('activity_date'):
+            row['activity_date'] = act_days.get(str(row['activity_id']), '')
         rows.append(row)
 
     def role_of(author_id, coach_ids):
@@ -2702,11 +2710,27 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
     rows.sort(key=lambda r: (r['date'], r.get('time') or '', order.get(r['kind'], 99), str(r.get('source_id'))))
     for n, r in enumerate(rows, 1):
         r['id'] = f"C.{n}"
+    mark_copies(rows)
     kinds = {}
     for r in rows:
         kinds[r['kind']] = kinds.get(r['kind'], 0) + 1
     return rows, {'passages': len(rows), 'kinds': kinds, 'calls': calls, 'messages_reused': reused, 'failed': failed,
                   'activities_with_chat': len(with_chat), 'subject_id': subject_id, 'coach_ids': sorted(coach_ids), 'chat_roles': roles_seen}
+
+
+def mark_copies(rows, min_chars=COPY_MIN_CHARS):
+    """Mark each passage whose text (whitespace normalised, at least min_chars long) repeats an earlier passage's word
+    for word with that passage's id in copy_of; the first writing keeps copy_of empty. Rows in their final order."""
+    first = {}
+    for r in rows:
+        t = re.sub(r'\s+', ' ', str(r.get('text') or '')).strip()
+        if len(t) < min_chars:
+            continue
+        if t in first:
+            r['copy_of'] = first[t]
+        else:
+            first[t] = r['id']
+    return rows
 
 
 def context_frame(rows):
