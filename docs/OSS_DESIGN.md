@@ -305,6 +305,12 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-10-18: 2.4.2.** The context's reading: each code with which way it points against the person's usual
+  state, said or inferred, and the day it describes; a tag a label and a copy read once; each passage with its
+  activity's day; earlier passages beside each batch; the calendar's categories on the map; the profile's custom sets
+  and which end of the wellness scales is good; the report turn at medium effort; an action written as a tool call
+  taken - patches 0191-0206. Reading version 4: the first load of each subject re-reads its passages once. Executor
+  build v62 (0195, 0196): the image is rebuilt with this ship.
 - **Status 2026-10-17: 2.4.1.** The README's head and overview in a technical register (patch 0189); no code change,
   executor build v60 stands.
 - **Status 2026-10-17: 2.4.0.** The context (docs/CONTEXT_DESIGN.md): the words written beside Intervals.icu data -

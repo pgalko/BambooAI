@@ -30,7 +30,13 @@
   tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands),
   2.2.2 (2026-10-08: the Claude 5.5 family on the Anthropic adapter, the contract's STEP section, the forced report's
   card, the replay's display options, auxiliary files in DATA, the template's Claude seats - patches 0101-0110;
-  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.4.1 (2026-10-17: the README's head and
+  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.4.2 (2026-10-18: the context's reading -
+  each code with which way it points against the person's usual state, said or inferred, and the day it describes;
+  a tag a label and a copy read once; each passage with its activity's day; earlier passages beside each batch; the
+  map tallying the calendar's categories; the profile's custom sets and which end of the wellness scales is good; the
+  report turn at medium effort; an action written as a tool call taken; the DeepSeek seats on V4.1 Flash 1017 -
+  patches 0191-0206; reading version 4: the first load of each subject re-reads its passages once; executor image
+  v62), 2.4.1 (2026-10-17: the README's head and
   overview in a technical register - patch 0189; no code change, image v60 stands), 2.4.0 (2026-10-17: the context - the words
   written beside Intervals.icu data as a file, coded against a codebook, CTX in the kernel, READ CTX, passages cited
   as [C.n], the codebook screen; the Intervals.icu store with incremental loads and the hosted volume per user; the
