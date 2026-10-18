@@ -5,6 +5,7 @@ Pure: frames in, text out. The strings here are read by a model (the C5 scanner 
 from __future__ import annotations
 
 import io
+import re
 from collections import Counter
 from typing import Optional
 
@@ -15,6 +16,12 @@ CONTEXT_COLUMNS = ["id", "kind", "date", "time", "end_date", "activity_id", "eve
 CODES_COLUMNS = ["id", "code", "tone", "quote", "status", "coder", "codebook_version"]
 MAP_KINDS_MAX = 12
 MAP_CODES_MAX = 12
+MAP_TOKENS_MAX = 6
+# A passage kind whose every text opens with an upper-case token - the calendar's own category, written by the
+# executor as `CATEGORY: name` - is tallied by that token on the map (2026-10-18): both runs of the bio-psycho-social
+# question spent five or six turns finding that a race's priority lived only in `status` passages, which the map had
+# counted as "status 36" and no more. The tokens are the data's own; nothing here names one.
+_LEADING_TOKEN_RE = re.compile(r"^\s*([A-Z][A-Z0-9_]{1,40})(?=:|\s|$)")
 
 
 def read_frame(text: str, columns: list) -> pd.DataFrame:
@@ -51,6 +58,18 @@ def _count_line(counter: Counter, limit: int, total: Optional[int] = None) -> st
     return shown + (f", … ({more} more)" if more > 0 else "")
 
 
+def leading_tokens(texts) -> Optional[Counter]:
+    """The tally of the upper-case token every text opens with (`RACE_A: …`, `SICK`), or None when any text opens
+    otherwise - then the kind is prose, and a tally of its occasional capitals would mislead."""
+    tally = Counter()
+    for t in texts:
+        m = _LEADING_TOKEN_RE.match(str(t or ""))
+        if not m:
+            return None
+        tally[m.group(1)] += 1
+    return tally or None
+
+
 def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes_path: str = "", codes_path: str = "",
                 codebook_size: int = 0) -> str:
     """The lines of docs/CONTEXT_DESIGN.md §3.4 for the DATA block. `notes` is the context table; `codes` the codes
@@ -68,7 +87,10 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
     for kind, c in kinds.most_common(MAP_KINDS_MAX):
         sub = notes[notes["kind"] == kind]
         rs = Counter(str(r) for r in sub["author_role"].tolist() if str(r).strip())
-        if kind in ("activity_message", "activity_private_note", "day_note", "plan_note") and len(rs) > 1:
+        tokens = leading_tokens(sub["text"].tolist()) if "text" in sub.columns else None
+        if tokens:
+            by_kind.append(f"{kind} {c} ({_count_line(tokens, MAP_TOKENS_MAX)})")
+        elif kind in ("activity_message", "activity_private_note", "day_note", "plan_note") and len(rs) > 1:
             by_kind.append(f"{kind} {c} ({', '.join(f'{r} {v}' for r, v in rs.most_common())})")
         else:
             by_kind.append(f"{kind} {c}")

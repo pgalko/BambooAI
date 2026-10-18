@@ -186,6 +186,11 @@ CONTEXT (the words written beside the data; in the kernel as CTX; files context_
   A plan_note is dated the day it was planned for, not the day it was written.
 ```
 
+A kind whose every passage opens with an upper-case token - `status`, written by the executor as `CATEGORY: name` -
+is tallied by that token on the kinds line: `status 36 (RACE_A 31, RACE_C 3, SEASON_START 1, …)` (2026-10-18, patch
+0192: both runs of the bio-psycho-social question spent five or six turns finding that a race's priority lived only
+in those passages). The tokens are the data's own; a kind of prose is never tallied.
+
 Ten lines at most; the rest is reached by `CTX` and READ. The closing line says what is true of this data and
 nowhere else; the rules — how a passage is cited and quoted, a code as a reading, the words and the numbers days
 apart — are the contract's Context section, once (step 4 removed them from here, where they had been repeated). The data record a routine keeps gains `aux_kinds`

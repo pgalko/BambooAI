@@ -648,8 +648,21 @@ try:
     check("DATA with a context file: its entry is the path, the columns and the row count - no passage text in the head - and the map follows: the span, the passages by kind with authors, the roles, private entries, the months, the closing sentence",
           f"Path: {_ctx}" in _desc3 and "Columns: id, kind, date, time, end_date, activity_id" in _desc3 and "Rows: 4 (the rows are passages: read them with CTX" in _desc3
           and "legs heavy today" not in _desc3 and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in _desc3
-          and "2026-09-01 to 2026-10-09: 4 passages — activity_message 2 (subject 1, coach 1); status 1; day_note 1." in _desc3
+          and "2026-09-01 to 2026-10-09: 4 passages — activity_message 2 (subject 1, coach 1); status 1 (SICK 1); day_note 1." in _desc3
           and "authors: subject 2, coach 2; private entries 1; by month Sep 2, Oct 2." in _desc3 and "A plan_note is dated the day it was planned for, not the day it was written." in _desc3 and "A passage is cited as" not in _desc3 and "KEN" in _desc3, _desc3[-1200:])
+    # a kind whose every passage opens with an upper-case token is tallied by it (2026-10-18: a race's priority lived only in
+    # `status` passages the map had counted as "status 36"); a kind of prose with the odd capital at the start is not
+    from analyst.context import context_map as _cmap
+    _st = [{"id": f"C.{i}", "kind": k, "date": "2026-09-21", "author_role": r, "private": False, "lang": "", "text": t}
+           for i, (k, r, t) in enumerate([("status", "coach", "RACE_A: Worlds ITT"), ("status", "coach", "RACE_A: Worlds RR"), ("status", "subject", "RACE_A: EM TT"),
+                                          ("status", "subject", "RACE_C: Cup"), ("status", "coach", "SEASON_START: 2026"), ("status", "subject", "SICK"),
+                                          ("status", "subject", "HOLIDAY: Spain\nback on the 9th"), ("status", "coach", "TARGET: CTL 80"),
+                                          ("activity_message", "subject", "OK legs fine"), ("activity_message", "coach", "legs heavy"),
+                                          ("tag", "subject", "VO2"), ("tag", "subject", "heat session")], 1)]
+    _map_st = _cmap(pd.DataFrame(_st))
+    check("the map tallies a kind whose every passage opens with an upper-case token - the calendar's category, as written - most first, at most six and the rest counted; a kind of prose is not tallied, its occasional capital included",
+          "status 8 (RACE_A 3, RACE_C 1, SEASON_START 1, SICK 1, HOLIDAY 1, TARGET 1); activity_message 2 (subject 1, coach 1); tag 2." in _map_st
+          and "status 9 (RACE_A 3, RACE_C 1, SEASON_START 1, SICK 1, HOLIDAY 1, TARGET 1, … (1 more))" in _cmap(pd.DataFrame(_st + [dict(_st[0], id="C.99", text="INJURED: knee")])), _map_st)
     _codes = os.path.join(_auxdir, "context_codes_20260615_to_20261013.csv")
     pd.DataFrame([{"id": "C.1", "code": "fatigue", "tone": "negative", "quote": "legs heavy", "status": "codebook", "coder": "m", "codebook_version": 1},
                   {"id": "C.1", "code": "deviation", "tone": "negative", "quote": "cut it short", "status": "codebook", "coder": "m", "codebook_version": 1},
