@@ -3,6 +3,7 @@ loader writes beside the data - the settings the data is read against, one row p
 block. Nothing here names a setting: the line is assembled from the file's own rows (DESIGN_CHECKLIST C5), so an
 account whose record holds other keys, or no custom items, reads as it is."""
 import io
+import re
 from typing import Optional
 
 import pandas as pd
@@ -25,6 +26,24 @@ def read_profile(text: str) -> pd.DataFrame:
         if c not in df.columns:
             df[c] = ""
     return df
+
+
+def _sets(cz: pd.DataFrame) -> list:
+    """The custom zone sets as the line names them, in the file's order: the set's code (the zone times file's set_code),
+    its name when it says more than the code, and the stream it is cut on - `TymeWearVE on tidal_volume_min` (2026-10-18:
+    with the sets only counted, two runs had to guess which one was the ventilatory set, and one guessed the breathing
+    rate's)."""
+    codes = cz["key"].astype(str).str.split(":").str[0].tolist()
+    out, seen = [], set()
+    for code, unit, note in zip(codes, cz["unit"].astype(str), cz["note"].astype(str)):
+        if code in seen:
+            continue
+        seen.add(code)
+        m = re.search(r"set '([^']*)'", note)
+        name = m.group(1) if m else ""
+        same = re.sub(r"\W", "", name).lower() == re.sub(r"\W", "", code).lower()
+        out.append(code + (f" '{name}'" if name and not same else "") + (f" on {unit}" if unit else ""))
+    return out
 
 
 def _pairs(rows: pd.DataFrame) -> str:
@@ -51,8 +70,8 @@ def profile_line(df: Optional[pd.DataFrame]) -> str:
         counts.append(f"{n_zone} zone rows with their bounds")
     cz = df[df["section"] == "custom_zone"]
     if len(cz):
-        sets = cz["key"].astype(str).str.split(":").str[0].nunique()
-        counts.append(f"{len(cz)} custom zone rows in {sets} set{'s' if sets != 1 else ''}")
+        sets = _sets(cz)
+        counts.append(f"{len(cz)} custom zone rows in {len(sets)} set{'s' if len(sets) != 1 else ''} ({'; '.join(sets)})")
     n_cf = int((df["section"] == "custom_field").sum())
     if n_cf:
         counts.append(f"{n_cf} custom field definitions - the codes other files' columns carry, with their options")

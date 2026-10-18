@@ -69,8 +69,11 @@ letters gain `R`. Executor image v58.
 The profile's DATA entry is not a head of five rows of a settings file: the path, the columns, the row count with
 what a row is, and a **Settings** line assembled from the file's own rows by `analyst/profile.py` — the subject's
 measurements and each sport group's thresholds as `key value unit` (the model's estimates stay in the file), then
-what else the file holds, counted: *also in the file: 22 zone rows with their bounds, 3 custom zone rows in 2 sets,
-2 custom field definitions - the codes other files' columns carry, with their options*. When the file has
+what else the file holds, counted: *also in the file: 22 zone rows with their bounds, 3 custom zone rows in 2 sets
+(Breath 'Breathing' on respiration; Cad 'Cadence' on cadence), 2 custom field definitions - the codes other files'
+columns carry, with their options*. The sets are named by their code - the zone times file's `set_code` - with the
+stream each is cut on, and the name only when it says more than the code (2026-10-18, patch 0194: with the sets only
+counted, two runs of a words question had to guess which was the ventilatory set; one took the breathing rate's). When the file has
 `custom_zone` rows the line ends with the rule about them (patch 0184, Palo: a coach's own zones come from testing
 and are the ones meant): *the custom zone sets are the account's own, set by hand rather than the platform's
 defaults, and take precedence over the standard zones when reading intensity - time in them is in the custom zone

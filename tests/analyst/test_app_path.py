@@ -713,7 +713,7 @@ try:
     _descr = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ath, _rider])._dataset_description()
     check("DATA with the rider profile: the entry is the path, the columns, the count with what a row is, and the Settings line from the rows - the measurements, each sport group's thresholds (the model's estimates left in the file), the rest counted; no head of rows",
           f"Path: {_rider}\nColumns: section, sport_types, key, value, unit, low, high, note\nRows: 10 (one row per setting: section, key, value, unit, the bounds for a zone, a note; read the file with pandas)\nSettings: weight 71.5 kg, age 26 years; "
-          "Ride|VirtualRide: ftp 300 W, lthr 170 bpm; Run: threshold_pace 3.5 m/s; also in the file: 2 zone rows with their bounds, 1 custom zone rows in 1 set, 1 custom field definitions - the codes other files' columns carry, with their options" in _descr
+          "Ride|VirtualRide: ftp 300 W, lthr 170 bpm; Run: threshold_pace 3.5 m/s; also in the file: 2 zone rows with their bounds, 1 custom zone rows in 1 set (Breath 'Breathing' on respiration), 1 custom field definitions - the codes other files' columns carry, with their options" in _descr
           and "model_cp" not in _descr and "Head:\nsection" not in _descr and "KEN" in _descr, _descr[-1100:])
     from analyst import profile as _pm
     check("profile_line: '' for an empty or missing frame; read_profile of a header alone is an empty frame with the columns", _pm.profile_line(None) == "" and _pm.profile_line(_pm.read_profile("")) == ""
@@ -724,6 +724,15 @@ try:
     check("the Settings line ends with the custom-sets rule when the file has custom_zone rows - the sets are the account's own and take precedence over the standard zones, their times in the zone times file - and carries nothing of it without them",
           _pm.profile_line(_pf).endswith("; " + _pm.CUSTOM_SETS_RULE) and "take precedence over the standard zones when reading intensity" in _descr
           and "precedence" not in _pm.profile_line(_pf[_pf["section"] != "custom_zone"]) and "custom zone rows" not in _pm.profile_line(_pf[_pf["section"] != "custom_zone"]), _pm.profile_line(_pf))
+    # the sets named (2026-10-18): with the sets only counted, two runs of a words question guessed which set was the
+    # ventilatory one - each by its code, as the zone times file's set_code has it, with the stream it is cut on, in the file's
+    # order; the name only when it says more than the code
+    _sets_pf = _pm.read_profile(pd.DataFrame([{"section": "custom_zone", "sport_types": "Ride", "key": f"{c}:{z}", "value": z, "unit": u, "low": 0, "high": 1,
+                                                 "note": f"set '{n}' · defined as it stands on 2026-01-29 · time in it per activity is in the custom zone times file"}
+                                                for c, n, u, zs in [("Powerzones", "Power zones", "watts", ["Rec", "EE"]), ("TymeWearVE", "TymeWear VE", "tidal_volume_min", ["VT1VE", "VT2VE"]),
+                                                                    ("TymeWearBreathingrate", "Tyme Wear - Breathing rate", "respiration", ["BRf"]), ("Lbl", "Labels for laps", "", ["x"])] for z in zs]).to_csv(index=False))
+    check("the Settings line names the custom sets: code, the stream it is cut on, the name only when it says more than the code (spaces, case and punctuation aside), in the file's order",
+          "6 custom zone rows in 4 sets (Powerzones on watts; TymeWearVE on tidal_volume_min; TymeWearBreathingrate on respiration; Lbl 'Labels for laps'); " in _pm.profile_line(_sets_pf), _pm.profile_line(_sets_pf))
     from analyst.routines import LOADER_FILES_MAX as _lfm
     _tpl = open(os.path.join(ROOT, "web_app", "templates", "index.html"), encoding="utf-8").read().replace("\r\n", "\n")
     _core = open(os.path.join(ROOT, "web_app", "static", "js", "core.js"), encoding="utf-8").read()
