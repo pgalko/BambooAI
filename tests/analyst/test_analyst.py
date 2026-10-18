@@ -302,6 +302,46 @@ _chat = parse_turn("I think the next step should be a within-athlete fit, let me
 check("a chatty reply with no headings, citations or fence is not report-shaped: it still reads 'no valid action'",
       _chat[2].verb == "invalid" and not __import__("analyst.session", fromlist=["_reads_like_report"])._reads_like_report("I think the next step should be a within-athlete fit."))
 
+# an action written as a tool call, in the model's own markup, with no marker lines (2026-10-18: Sonnet 5.5 began three
+# turns of a Deep run so and stopped; there are no tools): read from the call on as the action block
+from analyst.session import TOOL_CALL_TAKEN
+_tc1 = parse_turn('\n<invoke name="SHOW">\n2\n</invoke>\n</invoke>')
+_tc2 = parse_turn('\n<invoke name="x">\n</invoke>\n```python\nprint(1)\n```')
+_tc3 = parse_turn('<invoke name="cell_placeholder">\n</invoke>\n```python\na = 1\n```\n\nWait - that was a tool call. Let me redo it.\n\n###STEP###\n...')
+_tc4 = parse_turn('<function_calls>\n<invoke name="search">\n<parameter name="query">median split</parameter>\n</invoke>\n</function_calls>')
+_tc5 = parse_turn('<invoke name="x">\n</invoke>\n```python\nprint(1)\n')
+_tc6 = parse_turn('<invoke name="x">\n</invoke>\nI will look at the table next.')
+_tc7 = parse_turn('\n<invoke name="cell">\n</invoke>\n```\n\nThe turn itself.\n\n###STEP###\ns\n###NOTE###\nn\n###ACTION###\n```python\nprint(2)\n```')
+check("parse_turn: an action written as a tool call with no marker lines is read from the call on - a call named for an action is that action (SHOW 2), any other gives way to the block after it, parameters and wrappers go; an unclosed block or no action is lost as before; with the marker lines present they rule",
+      (_tc1[2].verb, _tc1[2].arg, _tc1[2].tool_call, _tc1[0], _tc1[1]) == ("show", "2", True, "", "")
+      and (_tc2[2].verb, _tc2[2].arg, _tc2[2].tool_call) == ("cell", "print(1)", True)
+      and (_tc3[2].verb, _tc3[2].arg, _tc3[2].more) == ("cell", "a = 1", ())
+      and (_tc4[2].verb, _tc4[2].arg) == ("search", "median split")
+      and (_tc5[2].verb, _tc5[2].arg) == (_tc6[2].verb, _tc6[2].arg) == ("invalid", "no ###ACTION### block")
+      and (_tc7[2].verb, _tc7[2].arg, _tc7[2].tool_call, _tc7[1]) == ("cell", "print(2)", False, "n"),
+      [_tc1, _tc2[2], _tc3[2], _tc4[2], _tc5[2], _tc6[2], _tc7])
+def _tool_call_run():
+    prompts = []
+    def llm(system, user, **h):
+        if user.startswith("Rewrite"): return "plain", {"cost": 0}
+        if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+        prompts.append((system, user))
+        if len(prompts) == 1:
+            return "\n<invoke name=\"x\">\n</invoke>\n```python\nprint('RESULT: x, 5 units: +1 (95% CI 0 to 2), up')\n```", {"cost": 0.001}
+        return "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Summary\n\nUp by 1 [cell 1].", {"cost": 0.001}
+    kk = PersistentKernel(df=df)
+    try:
+        rr = Session(kk, Notebook("ttc"), llm, data_description="d").run("q", budget=Budget(turns=3, dollars=1.0, review_every=0))
+    finally:
+        kk.cleanup()
+    return rr, prompts
+_trc, _trc_p = _tool_call_run()
+check("a run: the cell written as a tool call runs as cell 1, and the next prompt says so without naming any markup; the contract says there are no tools where it sets the reply's form, and carries no markup either",
+      [t.kind for t in _trc.turns][:2] == ["cell", "report"] and _trc.turns[0].cell_no == 1 and _trc.status == "answered"
+      and TOOL_CALL_TAKEN in _trc_p[1][1] and not re.search(r"</?(invoke|parameter|function_calls)\b", _trc_p[1][1] + TOOL_CALL_TAKEN + contract(False, 8))
+      and "## Format\n\nThere are no tools: every reply is plain text with these three sections" in _trc_p[0][0],
+      ([t.kind for t in _trc.turns], _trc_p[1][1][-300:]))
+
 # REPORT with nothing under it (2026-10-11, from a deepseek-v4.1-flash run log: "this turn = REPORT", the word written and the
 # reply ended; the empty text went through as the answer and the reader saw the figures section alone): not a report - the
 # turn is told what a report is, and the next reply's report is taken whole
@@ -1418,7 +1458,7 @@ bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\
 check("contract: one page - under 9,000 without documents (2026-10-06: Results with RESULT(...), DS with save, the comparison, the budget as a limit), neutral", len(c) < 9000 and not bad, (len(c), bad))
 check("contract: DS.save(frame, name) saves a dataset for the person - CSV by default, json/parquet/xlsx/txt by the name, a string as text - listed in the Dataset cache under Generated",
       "`DS.save(frame,\n\"name\")` saves a dataset for the person as CSV - `\"name.json\"`, `\"name.parquet\"`, `\"name.xlsx\"` or\n`\"name.txt\"` in that format, and a string as a text file: it appears in their Dataset cache under\nGenerated." in c)
-check("contract: a reply with more than one action runs the first and the rest does not - said in Format", "A reply with more than one action runs\nthe first; the rest does not run." in c)
+check("contract: a reply with more than one action runs the first and the rest does not - said in Format", "A reply\nwith more than one action runs the first; the rest does not run." in c)
 check("contract (Adaptive): a TEST's outcome is recorded with test='after turn 16', and the test is open until it is recorded",
       "`RESULT(..., test=\"after turn 16\")`" in contract(False, 8) and "until such a line is recorded the test is open" in contract(False, 8))
 check("contract: the format is a literal template of one turn - three marker lines, each once - and the actions are a table with one row per form",

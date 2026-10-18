@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (221/186/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (223/186/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,25 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **There are no tools, said where the reply's form is set; an action written as a tool call is taken (2026-10-18,
+  patch 0203).** Two Deep runs on Sonnet 5.5 began five of their 28 analysis turns with a tool call in the model's own
+  markup - an invoke tag named SHOW, or a made-up name with the cell after it - and no marker lines, and stopped there
+  as if waiting for a tool's answer; four of those turns were lost (the fifth corrected itself in the same reply). In
+  the second run they cost $0.23 of $1.00, and the last was the run's final cell. The analyst has no tools: the request
+  carries none, and every action is text the session carries out. The contract said so, but in the kernel paragraph
+  ("there is no tool interface"). None of the 424 DeepSeek replies in the logs slipped, nor the 41 Sonnet replies before
+  these runs, whose system prompts differ only by the Reviews section and one clause. The same slip is reported for a
+  tools-less Sonnet harness (github.com/agntn/harnesses/issues/127). Now the Format section opens "There are no tools:
+  every reply is plain text with these three sections, in this order, each once" - the clause moved, not added, and
+  "exactly" dropped (the file is 8,998 characters). A reply with no `###ACTION###` block that carries a tool call is
+  read from the call on as the action block (`_untagged`: a call named for an action is that action, its contents the
+  argument; any other gives way to what follows it; parameter and wrapper tags go). The next prompt says the action was
+  taken from a tool call and asks for the turn format as plain text; it names no markup, since literal
+  tool-call tags in a prompt can act as a template for more (github.com/anthropics/claude-code/issues/70241). An
+  unclosed block, or a call with nothing to run after it, is lost as before, and the contract still calls such a reply
+  a lost turn: the leniency is not offered. Replayed on the 496 analyst replies of every log at hand, the four lost turns
+  come back (three cells, one SHOW) and nothing else changes. Tests: test_analyst.py 223 (the forms; a run where the
+  cell written as a tool call runs as cell 1 and the next prompt says so; no markup in the contract or that line).
 - **On the report turn a report-shaped reply is the report; the map counts readings truly about other days
   (2026-10-18, patch 0202).** A Deep run on Sonnet 5.5 (performance tier) wrote its report on the report turn without
   the `###ACTION###` and REPORT lines; it was not taken, and the forced call had the report written again ($0.10 of the

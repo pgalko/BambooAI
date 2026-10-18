@@ -86,6 +86,8 @@ FIGURE_ASKED_LINE = ("THE FIGURE THE PERSON ASKS ABOUT is attached to this messa
                      "its cells (SHOW n re-opens the cell that drew it; what it plotted is in the kernel when this chain's cells are). "
                      "Read the picture for what it shows; compute from the data for any number you state.")
 LAST_TURNS_LINE = "The budget is nearly gone: write REPORT with what you have, and say what was not established."
+TOOL_CALL_TAKEN = ("(Your last reply wrote its action as a tool call, and the action was taken from it. There are no tools: "
+                   "reply in the turn format, as plain text.)")     # names no markup (2026-10-18)
 # the report turn's effort (2026-10-18): the analysis is done and every number is in view - the report is writing. At the
 # seat's xhigh a Claude 5.5 analyst thought through its whole 32,000-token allowance on the report turn and sent nothing,
 # and the re-ask, the same call again, did the same. Medium, high for a model without it; a seat set lower stays lower
@@ -430,6 +432,7 @@ class Action:
     verb: str          # cell | show | names | recall | search | read | ask | report | invalid
     arg: str = ""      # code, cell number, query, question or the report text
     more: tuple = ()   # the further actions a reply carried after this one, which did not run (2026-10-03)
+    tool_call: bool = False    # read from a tool call the reply wrote in place of its marker lines (2026-10-18)
 
 
 def _draws_figure(code: str) -> bool:
@@ -477,6 +480,13 @@ def parse_turn(text: str) -> tuple[str, str, Action]:
     if not text.strip():
         return "", "", Action("invalid", "empty reply")
     marks = [m.start() for m in re.finditer(r"###ACTION###", text)]
+    call = None if marks else _TOOL_CALL_RE.search(text)
+    if call:
+        # the action written as a tool call, in the model's own markup, with no marker lines (2026-10-18: Sonnet 5.5 began
+        # three turns of a Deep run so and stopped, though there are no tools): from the call on, read as the action block
+        th, nt, act = parse_turn(text[:call.start()] + "###ACTION###\n" + _untagged(text[call.start():]))
+        if act.verb != "invalid":
+            return th, nt, Action(act.verb, act.arg, act.more, tool_call=True)
     if not marks:
         m_note = _NOTE_RE.search(text)
         note = clean_note(m_note.group(1).strip()) if m_note else ""
@@ -563,6 +573,20 @@ def _unmarked_report(text: str) -> str:
 REPORT_EMPTY = "REPORT with nothing under it"
 _ACTION_WORD_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPORT)\b[ \t]*(.*)$")          # as the contract writes them
 _ACTION_WORD_ANY_CASE_RE = re.compile(r"^\s*(cell|show|names|recall|search|read|ask|report)\b[ \t]*(.*)$", re.I)
+_TOOL_CALL_RE = re.compile(r"<(?:invoke|function_calls)\b")                # a tool call, in the markup models are trained on
+_INVOKE_RE = re.compile(r"<invoke\s+name\s*=\s*[\"']([^\"']*)[\"']\s*>(.*?)</invoke>", re.S)
+
+
+def _untagged(text: str) -> str:
+    """A tool call's text as an action block: a call named for an action is that action, its contents the argument (SHOW
+    and 2: SHOW 2); any other call is its contents; the parameter and wrapper tags go."""
+    def one(m):
+        name, body = m.group(1).strip().upper(), m.group(2).strip()
+        if not _ACTION_WORD_RE.fullmatch(name):
+            return "\n" + body + "\n"
+        return "\n" + name + (" " if "\n" not in body else "\n") + body + "\n"
+    text = re.sub(r"<parameter\b[^>]*>|</parameter>|</?function_calls>", "", text)
+    return re.sub(r"</?invoke\b[^>]*>", "", _INVOKE_RE.sub(one, text))
 
 
 def _actions_in(body: str):
@@ -847,6 +871,9 @@ class Session:
             turn = Turn(kind=action.verb, note=note, thinking=thinking, usage=usage)
             held = (f"(Your reply held {len(action.more) + 1} actions - {action.verb.upper()} then "
                     f"{', '.join(v.upper() for v in action.more)}; only the first ran. A reply carries one action.)") if action.more and action.verb != "report" else ""
+            if action.tool_call:                       # the reply's form, said with what it held (2026-10-18)
+                logger.warning("Analyst turn %d: the action came as a tool call, without the marker lines; taken (%s)", turn_no, action.verb)
+                held = (held + "\n" if held else "") + TOOL_CALL_TAKEN
             self.emit({"type": "turn_end", "run": run.id, "turn": turn_no, "kind": action.verb,
                        "thinking": thinking, "note": note, "code": action.arg if action.verb == "cell" else "",
                        "elapsed": usage.get("elapsed"), "cost": usage.get("cost", 0.0),
