@@ -236,7 +236,8 @@ class Scenario:
 
     def coder(self, user):
         """The coder over a batch (docs/CONTEXT_DESIGN.md §6): one JSON line per passage, by a lexicon over the fake
-        calendar's words - the codes with their verbatim quotes, the tone, the language, an English rendering of
+        calendar's words - the codes with their verbatim quotes and the way the tone points (the reading's format 2,
+        patch 0198), the tone, the language, an English rendering of
         every Danish or Norwegian line, one proposal (coach_flag) the seed lacks; a passage the lexicon does not know
         gets no code. The platform's checks do the rest."""
         out = []
@@ -247,7 +248,8 @@ class Scenario:
                 out.append(json.dumps({"id": uid, "codes": [], "tone": "neutral", "lang": "en"}))
                 continue
             _, lang, tone, codes, text_en, proposals = hit
-            item = {"id": uid, "codes": [c for c, _ in codes], "tone": tone, "quotes": {c: q for c, q in codes}, "lang": lang}
+            way = "worse" if tone == "negative" else "better" if tone == "positive" else "neutral"
+            item = {"id": uid, "codes": [{"code": c, "quote": q, "direction": way, "basis": "said", "about": ""} for c, q in codes], "tone": tone, "lang": lang}
             if text_en:
                 item["text_en"] = text_en
             if proposals:

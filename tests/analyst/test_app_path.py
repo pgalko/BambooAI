@@ -684,7 +684,8 @@ try:
     _desc4 = _bd._dataset_description()
     check("DATA with the codes file too: the codes line - counts per code, codes used, passages without a code, the proposed ones named; the codes file's head is columns and count as well",
           "codes (the model's reading, one row per code, with the words it rests on): fatigue 1, deviation 1, instruction 1, unwell_span 1 (4 of 36 codes used); 1 passage carries none; proposed: unwell_span." in _desc4
-          and f"Path: {_codes}\nColumns: id, code, tone, quote, status, coder, codebook_version\nRows: 4" in _desc4 and "legs heavy" not in _desc4, _desc4[-900:])
+          and f"Path: {_codes}\nColumns: id, code, tone, quote, status, coder, codebook_version, direction, basis, about\nRows: 4" in _desc4 and "legs heavy" not in _desc4
+          and "which way the codes point" not in _desc4, _desc4[-900:])
     _empty = os.path.join(_auxdir, "context_notes_20260101_to_20260131.csv")
     pd.DataFrame(columns=["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id", "author_name", "author_role", "private", "lang", "text", "text_en", "chars"]).to_csv(_empty, index=False)
     _desc5 = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_empty])._dataset_description()
@@ -852,11 +853,12 @@ try:
         user = msgs[-1]["content"]
         ids = re.findall(r"^\[(C\.\d+)\] ", user, re.M)
         with _lock3:
-            _calls3.append((k.get("agent"), k.get("chain_id"), msgs[0]["content"][:20], ids))
+            _calls3.append((k.get("agent"), k.get("chain_id"), msgs[0]["content"][:20], ids, user))
             if "C.5" in ids and _fails3[0] < 2:
                 _fails3[0] += 1
                 return "not json at all"                   # the batch with C.5 fails in both rounds: its passage stays uncoded and the report counts it
-        out = {"C.1": {"id": "C.1", "codes": ["sleep", "fatigue"], "tone": "negative", "quotes": {"sleep": "slept badly", "fatigue": "legs flat all day"}, "lang": "en"},
+        out = {"C.1": {"id": "C.1", "codes": [{"code": "sleep", "quote": "slept badly", "direction": "worse", "basis": "said", "about": "2026-08-01..2026-08-02"},
+                                             {"code": "fatigue", "quote": "legs flat all day", "direction": "worse", "basis": "said", "about": ""}], "tone": "negative", "lang": "en"},
                "C.2": {"id": "C.2", "codes": ["fatigue", "heavy legs"], "tone": "mixed", "quotes": {"fatigue": "Benene var tunge", "heavy legs": "tunge"}, "lang": "da", "text_en": "The legs were heavy from the first climb, but it went.", "propose": [{"code": "heavy legs", "definition": "the legs feel heavy"}]},
                "C.3": {"id": "C.3", "codes": ["instruction", "nonsense"], "tone": "neutral", "quotes": {"instruction": "Keep the next two days easy", "nonsense": "Keep"}, "lang": "en"},
                "C.4": {"id": "C.4", "codes": ["illness"], "tone": "negative", "quotes": {"illness": "sick"}, "lang": "en"},
@@ -884,8 +886,10 @@ try:
           list(_notes3.columns) == list(pd.DataFrame(_rows3).columns) + ["activity_date", "copy_of"] and _notes3.set_index("id").loc["C.2", ["lang", "text_en"]].tolist() == ["da", "The legs were heavy from the first climb, but it went."]
           and _notes3.set_index("id").loc["C.1", ["lang", "text_en"]].tolist() == ["en", ""] and _notes3.set_index("id").loc["C.5", ["lang", "text_en"]].tolist() == ["", ""] and _notes3.set_index("id").loc["C.2", "text"].startswith("Benene")
           and _notes3.set_index("id").loc["C.4", ["lang", "text_en"]].tolist() == ["", ""], _notes3[["id", "lang", "text_en"]].to_dict("records"))
-    check("the codes file beside it: the design's columns, the rows that passed the checks (the unknown code dropped), the proposal's row marked, the coder and the version on every row",
-          _codes3 is not None and list(_codes3.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version"]
+    check("the codes file beside it: the design's columns, the rows that passed the checks (the unknown code dropped), the proposal's row marked, the coder and the version on every row; "
+          "a code read in the format of patch 0198 carries its direction, basis and days, one read in the older format none",
+          _codes3 is not None and list(_codes3.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about"]
+          and _codes3.iloc[0][["direction", "basis", "about"]].tolist() == ["worse", "said", "2026-08-01..2026-08-02"] and _codes3.iloc[2][["direction", "basis", "about"]].tolist() == ["", "", ""]
           and [(r["id"], r["code"], r["status"]) for r in _codes3.to_dict("records")] == [("C.1", "sleep", "codebook"), ("C.1", "fatigue", "codebook"), ("C.2", "fatigue", "codebook"), ("C.2", "heavy_legs", "proposed"), ("C.3", "instruction", "codebook")]
           and (_codes3["coder"] == "fake/model").all() and (_codes3["codebook_version"] == "1").all() and _codes3.iloc[2]["quote"] == "Benene var tunge", None if _codes3 is None else _codes3.to_dict("records"))
     _book3 = _cb.load(_bf._user_storage())
@@ -893,10 +897,16 @@ try:
           os.path.exists(os.path.join(os.getcwd(), "storage", "u3", "context", "codebook.json")) and len(_book3["codes"]) == 37 and next(c for c in _book3["codes"] if c["code"] == "heavy_legs")["status"] == "proposed"
           and next(c for c in _book3["codes"] if c["code"] == "heavy_legs")["proposed_by"] == "fake/model" and next(c for c in _book3["codes"] if c["code"] == "fatigue")["uses"] == 2, [(c["code"], c.get("uses")) for c in _book3["codes"] if c.get("uses")])
     # the store (D1's fallback): the passages this pass answered are remembered per subject; a second load of the same words codes nothing
+    _retry = [c for c in _calls3 if c[3] == ["C.5"]]
+    check("each batch carries the passages before it for reference (patch 0198): the second round's lone passage comes with the three read before it - the tag left out - each on a line of its own",
+          _retry and all("EARLIER PASSAGES (3; for reference, not to code):\nC.1 · 2026-08-02 · day_note · subject: slept badly, legs flat all day\nC.2 · " in c[4]
+                         and "\nC.3 · 2026-08-03 · activity_message · coach Kim: Keep the next two days easy.\n\nPASSAGES (1;" in c[4] and "C.4 ·" not in c[4] for c in _retry)
+          and all("EARLIER PASSAGES" not in c[4] for c in _calls3 if "C.1" in c[3]), [c[4][:400] for c in _retry])
     _store3 = _CS(_bf._user_storage(), "k-one").load()
     check("the coded passages are remembered under storage/<user>/context/<key mark>/coded.json - the three answered ones with their rendering and codes, the unanswered one not, the tag never sent",
           os.path.exists(_store3.path) and len(_store3.entries) == 3 and _store3.entries["activity_message:102"]["text_en"].startswith("The legs were heavy") and [c["code"] for c in _store3.entries["activity_message:102"]["codes"]] == ["fatigue", "heavy_legs"]
-          and "plan_note:105" not in _store3.entries and "tag:104" not in _store3.entries, (_store3.path, sorted(_store3.entries)))
+          and "plan_note:105" not in _store3.entries and "tag:104" not in _store3.entries
+          and all(e.get("reading") == 2 for e in _store3.entries.values()) and _store3.entries["day_note:101"]["codes"][0]["about"] == "2026-08-01..2026-08-02", (_store3.path, sorted(_store3.entries)))
     pd.DataFrame(_rows3).to_csv(_ctx3, index=False)          # the window loaded again: the same words, the file fresh from the executor
     _bf.auxiliary_datasets = [_ctx3]
     _n_before = len(_calls3); _fails3[0] = 2                 # C.5's batch would answer now
@@ -931,6 +941,7 @@ try:
     _map3 = _bf._context_map()
     check("DATA after the pass: the map's languages and codes line - counts per code, 'of 36 codes used', the uncoded, the proposal; unit_text and the chips read the rendering, the original beside it",
           "languages en 3, da 1" in _map3 and "codes (the model's reading, one row per code, with the words it rests on): fatigue 2, instruction 2, sleep 1, heavy_legs 1 (4 of 36 codes used); 0 passages carry none; proposed: heavy_legs." in _map3
+          and "  which way the codes point for the person (worse/better/neutral): sleep 1/0/0, fatigue 1/0/0; 0 readings inferred rather than said, 1 about other days than their passage's own." in _map3
           and _bf._unit_text("C.2") == "The legs were heavy from the first climb, but it went." and _bf._cited_passages("[C.2]")[0]["original"].startswith("Benene") and "(rendered from da)" in _bf._cited_passages("[C.2]")[0]["where"], _map3)
     _bf._context_coding = {"status": "running"}
     check("while the pass runs behind a load the map says so", "the coding pass is still running behind the load" in _bf._context_map())

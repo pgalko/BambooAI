@@ -117,6 +117,42 @@ check("validate: a non-English passage without a rendering is counted missing; a
       v2["dropped"]["rendering_missing"] == 1 and v2["dropped"]["rendering_length"] == 1 and v2["renderings"]["C.5"] == {"lang": "no", "text_en": ""}
       and [(r["id"], r["code"], r["status"]) for r in v2["rows"]] == [("C.2", "fatigue", "codebook"), ("C.5", "instruction", "codebook"), ("C.4", "old_proposal", "proposed"), ("C.1", "sleep", "codebook")]
       and v2["rows"][3]["tone"] == "negative" and v2["renderings"]["C.1"] == {"lang": "en", "text_en": ""}, (dict(v2["dropped"]), v2["rows"]))
+# ---- the reading's format 2 (patch 0198): each code with its direction, basis and days; earlier passages for reference ----
+check("the system says the reading: earlier passages for reference only, and for each code its quote, which way it points (a denial points better), said or inferred, and the days it is about - the activity's day for a passage on one; the reply's codes are objects",
+      "for reference only" in system and "do not code them" in system and "worse, better or neutral" in system and "denies a problem points better for it" in system
+      and "said or inferred" in system and "the activity's day unless it says otherwise" in system and '"codes": [{"code": "...", "quote": "...", "direction": "worse", "basis": "said", "about": ""}]' in system
+      and coder.READING_VERSION == 2, system[:300])
+_pa = [dict(passages[0], id="C.7", date="2026-08-01", activity_id="", activity_date=""), {"id": "C.8", "date": "2026-08-01", "kind": "activity_message", "author_role": "coach", "author_name": "Kim", "text": "Easy tomorrow. " * 40},
+       dict(passages[1], id="C.9", activity_date="2026-08-02")]
+_sy, _us = coder.coder_messages("fatigue: tired", [_pa[2]], earlier=_pa[:2])
+check("the messages with earlier passages: each on a line of its own, without brackets, the day, kind and author, cut at EARLIER_PASSAGE_CHARS; then the passage to code, its head naming the activity's day when it is another",
+      "EARLIER PASSAGES (2; for reference, not to code):\nC.7 · 2026-08-01 · day_note · subject: slept badly, legs flat all day\nC.8 · 2026-08-01 · activity_message · coach Kim: Easy tomorrow." in _us
+      and _us.split("\nC.8 ")[1].split("\n")[0].endswith(" …") and len(_us.split("\nC.8 ")[1].split("\n")[0]) < coder.EARLIER_PASSAGE_CHARS + 80
+      and "PASSAGES (1; id, day, kind, author):\n[C.9] 2026-08-03 · activity_message · subject · the activity of 2026-08-02\nBenene" in _us
+      and _us.index("EARLIER PASSAGES") < _us.index("PASSAGES (1;") and _us.count("[C.") == 1, _us)
+_all = [{"id": f"C.{i}", "date": d, "text": t} for i, (d, t) in enumerate([("2026-07-01", "long ago"), ("2026-08-01", "a"), ("2026-08-02", "b" * 900), ("2026-08-03", "c"), ("2026-08-03", "d"), ("2026-08-04", "e")], 1)]
+check("earlier_for: the passages before the batch's first one, oldest first - at most EARLIER_PASSAGES, within EARLIER_DAYS of it, at most EARLIER_CHARS in all (each counted at most EARLIER_PASSAGE_CHARS); none for the first passage or an unknown one",
+      [p["id"] for p in coder.earlier_for(_all, [_all[4]])] == ["C.2", "C.3", "C.4"] and [p["id"] for p in coder.earlier_for(_all, [_all[4]], max_n=2)] == ["C.3", "C.4"]
+      and [p["id"] for p in coder.earlier_for(_all, [_all[5]], max_chars=401)] == ["C.4", "C.5"] and [p["id"] for p in coder.earlier_for(_all, [_all[5]], max_chars=403)] == ["C.2", "C.3", "C.4", "C.5"] and coder.earlier_for(_all, [_all[0]]) == [] and coder.earlier_for(_all, [{"id": "C.99"}]) == []
+      and coder.earlier_for(_all, []) == [], [p["id"] for p in coder.earlier_for(_all, [_all[4]])])
+check("about_days: a day or a range as written, a reversed range put right, the passage's own day as empty; a value that is not a day, or outside 60 days before and 30 after the passage's own, is refused",
+      coder.about_days("2026-08-01", "2026-08-03") == ("2026-08-01", True) and coder.about_days("2026-08-01..2026-08-02", "2026-08-03") == ("2026-08-01..2026-08-02", True)
+      and coder.about_days("2026-08-02..2026-08-01", "2026-08-03") == ("2026-08-01..2026-08-02", True) and coder.about_days("2026-08-03", "2026-08-03") == ("", True) and coder.about_days("", "2026-08-03") == ("", True)
+      and coder.about_days("yesterday", "2026-08-03") == ("", False) and coder.about_days("2026-01-01", "2026-08-03") == ("", False) and coder.about_days("2026-10-01", "2026-08-03") == ("", False)
+      and coder.about_days("2026-8-1", "2026-08-03") == ("", False))
+v3 = coder.validate([{"id": "C.1", "codes": [{"code": "sleep", "quote": "slept badly", "direction": "worse", "basis": "said", "about": "2026-08-01..2026-08-02"},
+                                             {"code": "fatigue", "quote": "legs flat all day", "direction": "Better", "basis": "INFERRED", "about": "2026-08-02"}], "tone": "negative", "lang": "en"},
+                     {"id": "C.2", "codes": [{"code": "fatigue", "quote": "Benene var tunge", "direction": "awful", "basis": "guessed", "about": "last week"}], "tone": "mixed", "lang": "da", "text_en": "The legs were heavy from the first climb, but it went."},
+                     {"id": "C.3", "codes": ["instruction"], "quotes": {"instruction": "Keep the next two days easy"}, "tone": "neutral", "lang": "en"}],
+                    passages, {"fatigue", "sleep", "instruction"}, set())
+r3 = {(r["id"], r["code"]): r for r in v3["rows"]}
+check("validate, the reading's format 2: each code's direction, basis and days kept (case aside, a passage's own day emptied); a direction, a basis or days that are not one of theirs left empty and counted, the code kept; "
+      "a code given by name with its quote in quotes (format 1) still read, with none of the three",
+      (r3[("C.1", "sleep")]["direction"], r3[("C.1", "sleep")]["basis"], r3[("C.1", "sleep")]["about"]) == ("worse", "said", "2026-08-01..2026-08-02")
+      and (r3[("C.1", "fatigue")]["direction"], r3[("C.1", "fatigue")]["basis"], r3[("C.1", "fatigue")]["about"]) == ("better", "inferred", "")
+      and (r3[("C.2", "fatigue")]["direction"], r3[("C.2", "fatigue")]["basis"], r3[("C.2", "fatigue")]["about"]) == ("", "", "") and r3[("C.2", "fatigue")]["quote"] == "Benene var tunge"
+      and v3["dropped"] == {"direction": 1, "basis": 1, "about": 1}
+      and (r3[("C.3", "instruction")]["direction"], r3[("C.3", "instruction")]["basis"], r3[("C.3", "instruction")]["about"]) == ("", "", ""), (v3["rows"], dict(v3["dropped"])))
 check("report_line: the sentence of a pass", coder.report_line({"passages": 212, "coded": 201, "rendered": 180, "proposed": 2, "unanswered": 3, "failed_batches": 1})
       == "201 of 212 coded, 180 rendered into English, 2 codes proposed, 3 not read by the coder, 1 batch failed" and coder.report_line({"passages": 0}) == "nothing to code"
       and coder.report_line({"passages": 4, "coded": 4}) == "4 of 4 coded"
@@ -141,6 +177,15 @@ st2 = CodedStore(tmp2, "k-one").load()
 known, todo = st2.lookup([dict(ps[0]), dict(ps[1], id="C.9"), dict(ps[2]), dict(ps[0], id="C.4", text="slept badly, then well")])
 check("a reload reads the file back; lookup knows a passage by key and text hash whatever its id this load, and sends a changed text and the unknown tag to the coder",
       set(known) == {"C.1", "C.9"} and known["C.9"]["text_en"] == "The legs were heavy" and [p["id"] for p in todo] == ["C.3", "C.4"], (sorted(known), [p["id"] for p in todo]))
+st3 = CodedStore(tmp2, "k-three").load()
+st3.remember(ps[:2], [dict(rows[0], direction="worse", basis="said", about="2026-08-01"), rows[1]], rend, "m/x", 1, reading=2)
+st3.save()
+st3b = CodedStore(tmp2, "k-three").load()
+k3, t3 = st3b.lookup(ps[:2], reading=2)
+kold, told = st2.lookup([dict(ps[0]), dict(ps[1], id="C.9")], reading=2)
+check("the reading's format (patch 0198): remember keeps each code's direction, basis and days and marks the entry with the format; lookup under format 2 knows those entries and sends an entry read under format 1 (no mark) to the coder again",
+      st3b.entries["day_note:11"]["reading"] == 2 and st3b.entries["day_note:11"]["codes"] == [{"code": "sleep", "tone": "negative", "quote": "slept badly", "status": "codebook", "direction": "worse", "basis": "said", "about": "2026-08-01"}]
+      and set(k3) == {"C.1", "C.2"} and t3 == [] and kold == {} and [p["id"] for p in told] == ["C.1", "C.9"], (st3b.entries, sorted(k3), [p["id"] for p in told]))
 check("another key mark is another store", CodedStore(tmp2, "k-two").load().entries == {} and os.path.dirname(CodedStore(tmp2, "k-two").path).endswith(os.path.join("context", "k-two")))
 big = CodedStore(tmp2, "k-big")
 big.entries = {f"day_note:{i}": {"hash": "h", "date": f"2026-{1 + i % 12:02d}-{1 + i % 28:02d}", "codes": []} for i in range(7000)}

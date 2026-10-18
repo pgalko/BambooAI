@@ -158,6 +158,13 @@ One row per code on a passage:
 | `status` | `codebook` or `proposed` |
 | `coder` | the model string |
 | `codebook_version` | the codebook's version at coding |
+| `direction` | which way the code points for the person the records are about: `worse`, `better` or `neutral` - a passage that denies a problem points `better` for it (patch 0198; empty for a code read before it) |
+| `basis` | `said` - the passage states it - or `inferred` - a careful reader concludes it from the passage and the ones before it |
+| `about` | the days the reading describes when they are not the passage's own: `YYYY-MM-DD` or `YYYY-MM-DD..YYYY-MM-DD`; empty for the passage's own day |
+
+Read against one rider's whole year (2026-10-18), the table without the last three counted 23 of 118 `fatigue` codes on
+sentences that say he was not tired, put a bad night and a good one under the same `sleep`, and dated a reading
+about the last few days to the day it was written.
 
 A passage with no code has no row; the map counts the uncoded. The table is written by the app after the load
 (§4) and uploaded beside the context file (`/file_utils/upload_aux_dataset`), so the kernel, the cache and a
@@ -187,6 +194,10 @@ CONTEXT (the words written beside the data; in the kernel as CTX; files context_
   effort 22, sleep 14, illness 9, deviation 8, … (23 of 36 codes used); 11 passages carry none; 2 codes proposed.
   A plan_note is dated the day it was planned for, not the day it was written.
 ```
+
+With directions in the codes table (patch 0198) a line says which way the codes point, the most pointed first:
+*which way the codes point for the person (worse/better/neutral): fatigue 18/11/2, …; 4 readings inferred rather
+than said, 9 about other days than their passage's own*.
 
 Two lines appear only when the data has them (patch 0196): *N passages repeat an earlier passage word for word
 (copy_of names it): the earlier one's words, not a second writing of them*, and *N passages on an activity were
@@ -386,16 +397,26 @@ same machinery:
 - **The coder** — one call per batch at load time, the `Coder` seat (the Reader's when absent), reasoning off
   where the model allows it (the seat's effort now rides on the non-streaming path too — it had not, and a
   reasoning model thought at its default depth on every READ, promotion and coding call). The prompt
-  describes the work and the format only: *here is a vocabulary of codes with definitions; for each passage,
-  return the codes that apply, the tone, and for each code the words it rests on, verbatim; a passage may take no
-  code; if a passage needs a code the vocabulary lacks, propose one with a definition, once.* The codebook, the
-  passages (id, kind, author role, date, text) ride as data. The reply is JSON lines, one per passage:
-  `{"id": "C.12", "codes": ["fatigue", "sleep"], "tone": "negative", "quotes": {"fatigue": "…", "sleep": "…"},
-  "lang": "da", "text_en": "…", "propose": [{"code": "…", "definition": "…"}]}`. Validation is mechanical: codes in
-  the codebook or proposed with a definition, quotes verbatim in the passage as written (whitespace-normalised),
-  one tone, a `text_en` present for every passage whose `lang` is not `en` (its length within a factor of the
-  original's; a rendering cannot be checked for meaning — it is marked as the model's wherever it is shown). The scanner
-  covers the template; the codebook is data.
+  describes the work and the format only: *here is a vocabulary of codes with definitions; a few earlier passages
+  for reference, not to code; for each numbered passage, the codes that apply and, for each, the words it rests on,
+  verbatim, which way it points for the person (worse, better, neutral - a denial points better), said or
+  inferred, and the days it is about when they are not the passage's own (a passage on an activity is about the
+  activity's day unless it says otherwise); the tone; a passage may take no code; if a passage needs a code the
+  vocabulary lacks, propose one with a definition, once.* The codebook, the passages (id, kind, author role, date,
+  the activity's day when it is another, text) ride as data; so do the earlier passages (`earlier_for`: the eight
+  before the batch's first at most, within fourteen days of it, 2,400 characters in all, each cut at 400; labels
+  and copies left out), so a passage that refers back - again, still, the same story, *it* - reads by what it
+  refers to while batches still run in parallel. The reply is JSON lines, one per numbered passage:
+  `{"id": "C.12", "codes": [{"code": "…", "quote": "…", "direction": "worse", "basis": "said", "about": ""}],
+  "tone": "negative", "lang": "da", "text_en": "…", "propose": [{"code": "…", "definition": "…"}]}` (patch 0198,
+  reading format 2; a reply in the first format - codes by name, quotes beside - is still read, with no direction,
+  basis or days). Validation is mechanical: codes in the codebook or proposed with a definition, quotes verbatim in
+  the passage as written (whitespace-normalised), one tone, a direction of three, a basis of two, days that are a day
+  or a range within 60 days before and 30 after the passage's own (a value outside them is emptied and counted, the
+  code kept), a `text_en` present for every passage whose `lang` is not `en` (its length within a factor of the
+  original's; a rendering cannot be checked for meaning — it is marked as the model's wherever it is shown). The
+  store of coded passages marks each entry with the reading format (`READING_VERSION`) and reads an older entry
+  again, once. The scanner covers the template; the codebook is data.
 - **The Reader** — READ CTX, unchanged.
 - **The analyst** — unchanged; the Context section when present.
 - **The reviewer** — a sixth lens, present only with context (`reviewer(context=True)` in `analyst/session.py`

@@ -1,34 +1,58 @@
 """The coder (docs/CONTEXT_DESIGN.md §6): at load, every passage of the context is read once by a model on the
-Coder seat - the codes from the codebook that apply, a tone, for each code the words it rests on (verbatim, as
-written), the language, and an English rendering of every passage not written in English. Pure: the batches, the
-messages, the parse of the reply, the mechanical validation. The template here is read by a model (the C5
-scanner covers this file); the codebook and the passages ride as data."""
+Coder seat - the codes from the codebook that apply and, for each, the words it rests on (verbatim, as written),
+which way it points for the person (worse, better, neutral), whether it was said or inferred, and the days it is
+about; a tone, the language, and an English rendering of every passage not written in English. A few earlier
+passages ride with each batch, for reference. Pure: the batches, the messages, the parse of the reply, the
+mechanical validation. The template here is read by a model (the C5 scanner covers this file); the codebook and the
+passages ride as data."""
 from __future__ import annotations
 
 import json
 import re
 from collections import Counter
-from typing import Dict, List, Tuple
+from datetime import date, timedelta
+from typing import Dict, List, Optional, Tuple
 
 BATCH_PASSAGES = 20            # one call reads twenty passages (2026-10-14: forty with renderings was a 16k reply, cut at the cap)
 BATCH_CHARS = 8000             # or fewer, when they are long: the reply carries a rendering of each
 TONES = ("positive", "negative", "neutral", "mixed")
+DIRECTIONS = ("worse", "better", "neutral")
+BASES = ("said", "inferred")
 MIN_QUOTE_CHARS = 2
+# the reading's format: 2 since 2026-10-18 (each code with its direction, basis and days; earlier passages for
+# reference). The store of coded passages reads an entry again when it was read under an older format.
+READING_VERSION = 2
+# the passages before a batch that ride with it, for reference (a passage that refers back reads by them): at most
+# this many, of at most this many characters each and in all, written in the days before the batch's first passage
+EARLIER_PASSAGES = 8
+EARLIER_PASSAGE_CHARS = 400
+EARLIER_CHARS = 2400
+EARLIER_DAYS = 14
+# a reading's days within this span of the passage's own day: a wider one is refused as a misreading
+ABOUT_DAYS_BEFORE = 60
+ABOUT_DAYS_AFTER = 30
 
 CODER_SYSTEM = (
     "You are the Coder. You are given a vocabulary of codes, each with a one-line definition, and numbered passages: "
     "dated notes and messages written beside a set of records by the person the records are about and by those who "
-    "work with them. For each passage, return the codes from the vocabulary that apply, the passage's tone, and for "
-    "each code the words it rests on, quoted exactly from the passage as written. A passage may take no code. If a "
-    "passage needs a code the vocabulary lacks, propose one - a short English name in snake_case and a one-line "
-    "English definition - once in the reply, and use it. Every passage not written in English gets a faithful, "
-    "complete English rendering in text_en; an English passage gets none.\n\n"
-    "Reply with one JSON object per line, one line per passage, in the passages' order, and nothing else:\n"
-    '{"id": "C.12", "codes": ["fatigue", "sleep"], "tone": "negative", "quotes": {"fatigue": "...", "sleep": "..."}, '
-    '"lang": "da", "text_en": "...", "propose": [{"code": "...", "definition": "..."}]}\n'
-    "- codes: names from the vocabulary, or proposed in this reply; [] when none applies\n"
+    "work with them, in date order. A few earlier passages come first, for reference only: read them to understand "
+    "what a passage refers back to, and do not code them. For each numbered passage, return the codes from the "
+    "vocabulary that apply and, for each code: the words it rests on, quoted exactly from the passage as written; "
+    "which way it points for the person the records are about - worse, better or neutral (a passage that denies a "
+    "problem points better for it); whether the passage says it or a careful reader would conclude it from the "
+    "passage and the ones before it - said or inferred; and the days it is about, when they are not the passage's own "
+    "day - a passage on an activity is about the activity's day unless it says otherwise. Return the passage's tone. "
+    "A passage may take no code. If a passage needs a code the vocabulary lacks, propose one - a short English name "
+    "in snake_case and a one-line English definition - once in the reply, and use it. Every passage not written in "
+    "English gets a faithful, complete English rendering in text_en; an English passage gets none.\n\n"
+    "Reply with one JSON object per line, one line per numbered passage, in the passages' order, and nothing else:\n"
+    '{"id": "C.12", "codes": [{"code": "...", "quote": "...", "direction": "worse", "basis": "said", "about": ""}], '
+    '"tone": "negative", "lang": "da", "text_en": "...", "propose": [{"code": "...", "definition": "..."}]}\n'
+    "- codes: one object per code that applies, [] when none does; code: a name from the vocabulary, or proposed in "
+    "this reply; quote: a contiguous stretch of the passage as written - the original words, never the rendering\n"
+    "- direction: worse, better or neutral; basis: said or inferred; about: YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD, "
+    "or \"\" for the passage's own day\n"
     "- tone: one of positive, negative, neutral, mixed\n"
-    "- quotes: for every code, a contiguous stretch of the passage as written - the original words, never the rendering\n"
     "- lang: the passage's language as a two-letter code\n"
     "- text_en: the English rendering when lang is not en; leave it out for English\n"
     "- propose: only when a passage needs a code the vocabulary lacks; leave it out otherwise\n"
@@ -59,17 +83,64 @@ def batches(passages: List[dict], max_n: int = None, max_chars: int = None) -> L
     return out
 
 
-def coder_messages(vocabulary: str, passages: List[dict]) -> Tuple[str, str]:
-    """The system text and the user text of one call: the vocabulary, then each passage under its id with its day,
-    kind and author."""
-    lines = ["VOCABULARY (code: definition):", vocabulary.strip() or "(none)", "", f"PASSAGES ({len(passages)}; id, day, kind, author):"]
+def _head(p: dict) -> str:
+    """A passage's day, kind and author (a coach's name, not the subject's), and the activity's day when the passage
+    hangs on an activity of another day."""
+    who = str(p.get("author_role") or "")
+    name = str(p.get("author_name") or "").strip()
+    if name and who != "subject":
+        who += f" {name}"
+    day = str(p.get("date") or "")[:10]
+    head = " · ".join(x for x in (day, str(p.get("kind") or ""), who) if x)
+    aday = str(p.get("activity_date") or "")[:10]
+    if aday and aday != day:
+        head += f" · the activity of {aday}"
+    return head
+
+
+def earlier_for(passages: List[dict], batch: List[dict], max_n: int = None, max_chars: int = None, days: int = None) -> List[dict]:
+    """The passages before a batch's first one, in `passages`' order (the context's), that ride with the batch for
+    reference: at most max_n, at most max_chars in all (each counted at most EARLIER_PASSAGE_CHARS), written within
+    `days` of the first one. The caller leaves out what is not to be read (labels, copies)."""
+    max_n = max_n or EARLIER_PASSAGES
+    max_chars = max_chars or EARLIER_CHARS
+    days = days or EARLIER_DAYS
+    if not batch:
+        return []
+    ids = [str(p.get("id")) for p in passages]
+    first = str(batch[0].get("id"))
+    if first not in ids:
+        return []
+    d0 = _day(batch[0].get("date"))
+    out, chars = [], 0
+    for p in reversed(passages[:ids.index(first)]):
+        d = _day(p.get("date"))
+        if d0 and d and (d0 - d).days > days:
+            break
+        n = min(len(str(p.get("text") or "")), EARLIER_PASSAGE_CHARS)
+        if len(out) >= max_n or (out and chars + n > max_chars):
+            break
+        out.append(p)
+        chars += n
+    return list(reversed(out))
+
+
+def coder_messages(vocabulary: str, passages: List[dict], earlier: Optional[List[dict]] = None) -> Tuple[str, str]:
+    """The system text and the user text of one call: the vocabulary; the earlier passages for reference, each on a
+    line of its own and cut at EARLIER_PASSAGE_CHARS; then each passage to code under its id with its day, kind and
+    author (and the activity's day when it is another)."""
+    lines = ["VOCABULARY (code: definition):", vocabulary.strip() or "(none)", ""]
+    if earlier:
+        lines.append(f"EARLIER PASSAGES ({len(earlier)}; for reference, not to code):")
+        for p in earlier:
+            t = " ".join(str(p.get("text") or "").split())
+            if len(t) > EARLIER_PASSAGE_CHARS:
+                t = t[:EARLIER_PASSAGE_CHARS].rstrip() + " …"
+            lines.append(f"{p.get('id')} · {_head(p)}: {t}")
+        lines.append("")
+    lines.append(f"PASSAGES ({len(passages)}; id, day, kind, author):")
     for p in passages:
-        who = str(p.get("author_role") or "")
-        name = str(p.get("author_name") or "").strip()
-        if name and who != "subject":
-            who += f" {name}"
-        head = " · ".join(x for x in (str(p.get("date") or "")[:10], str(p.get("kind") or ""), who) if x)
-        lines.append(f"[{p.get('id')}] {head}")
+        lines.append(f"[{p.get('id')}] {_head(p)}")
         lines.append(str(p.get("text") or "").strip())
         lines.append("")
     return CODER_SYSTEM, "\n".join(lines).rstrip() + "\n"
@@ -106,6 +177,35 @@ def parse_reply(text: str) -> Tuple[List[dict], bool]:
     return items, cut_off
 
 
+def _day(value) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(value or "")[:10])
+    except ValueError:
+        return None
+
+
+def about_days(value, own_day) -> Tuple[str, bool]:
+    """A reading's days as the codes file keeps them: 'YYYY-MM-DD' or 'YYYY-MM-DD..YYYY-MM-DD', '' for the passage's own
+    day. Returns (the days, ok) - not ok for a value that is not a day or a range of days, or that falls outside
+    ABOUT_DAYS_BEFORE / ABOUT_DAYS_AFTER of the passage's own day."""
+    s = str(value or "").strip()
+    if not s:
+        return "", True
+    a, _, b = s.partition("..")
+    a, b = a.strip(), b.strip()
+    da, db = _day(a), _day(b or a)
+    if da is None or db is None or len(a) != 10 or (b and len(b) != 10):
+        return "", False
+    if db < da:
+        da, db = db, da
+    own = _day(own_day)
+    if own is not None and (da < own - timedelta(days=ABOUT_DAYS_BEFORE) or db > own + timedelta(days=ABOUT_DAYS_AFTER)):
+        return "", False
+    if own is not None and da == db == own:
+        return "", True
+    return (da.isoformat() if da == db else f"{da.isoformat()}..{db.isoformat()}"), True
+
+
 def _lang(value) -> str:
     s = str(value or "").strip().lower()
     return s if re.fullmatch(r"[a-z]{2}", s) else ""
@@ -114,10 +214,13 @@ def _lang(value) -> str:
 def validate(items: List[dict], passages: List[dict], book_codes: set, proposed_codes: set = frozenset()) -> dict:
     """Mechanical checks of a reply against the passages it read (§6): every code in the book or proposed with a
     definition in this reply; every quote verbatim in the passage as written (whitespace normalised); one tone of
-    four; a rendering for every passage not in English, its length within a factor of the original's. Returns
-    {rows, renderings, proposals, dropped, seen} - rows for the codes table (id, code, tone, quote, status),
-    renderings {id: {lang, text_en}}, proposals [{code, definition, example}], dropped a Counter of what was
-    refused, seen the ids the reply answered."""
+    four; for each code a direction of three, a basis of two and days within reach of the passage's own (a value
+    outside them is left empty and counted, the code kept); a rendering for every passage not in English, its length
+    within a factor of the original's. A code given by name with its quote in `quotes` (the format before
+    READING_VERSION 2) is read too, with no direction, basis or days. Returns {rows, renderings, proposals, dropped,
+    seen} - rows for the codes table (id, code, tone, quote, status, direction, basis, about), renderings {id: {lang,
+    text_en}}, proposals [{code, definition, example}], dropped a Counter of what was refused, seen the ids the
+    reply answered."""
     from analyst.codebook import normalise_code
     by_id = {str(p.get("id")): p for p in passages}
     rows: List[dict] = []
@@ -171,20 +274,35 @@ def validate(items: List[dict], passages: List[dict], book_codes: set, proposed_
         quotes = item.get("quotes") if isinstance(item.get("quotes"), dict) else {}
         norm_original = _norm(original)
         for raw in item.get("codes") or []:
-            code = normalise_code(raw)
+            reading = raw if isinstance(raw, dict) else {"code": raw}
+            name = reading.get("code")
+            code = normalise_code(name)
             if not code:
                 continue
             if code not in book_codes and code not in proposed_codes and code not in proposed_now:
                 dropped["unknown_code"] += 1
                 continue
-            q = _norm(str(quotes.get(raw) or quotes.get(code) or "")).strip('"')
+            q = _norm(str(reading.get("quote") or quotes.get(name) or quotes.get(code) or "")).strip('"')
             if len(q) < MIN_QUOTE_CHARS or q not in norm_original:
                 dropped["quote"] += 1
                 continue
             if any(r["id"] == uid and r["code"] == code for r in rows):
                 continue
+            direction = basis = about = ""
+            if isinstance(raw, dict):
+                direction = str(reading.get("direction") or "").strip().lower()
+                if direction not in DIRECTIONS:
+                    dropped["direction"] += 1
+                    direction = ""
+                basis = str(reading.get("basis") or "").strip().lower()
+                if basis not in BASES:
+                    dropped["basis"] += 1
+                    basis = ""
+                about, ok = about_days(reading.get("about"), p.get("date"))
+                if not ok:
+                    dropped["about"] += 1
             status = "proposed" if (code in proposed_now or code in proposed_codes) else "codebook"
-            rows.append({"id": uid, "code": code, "tone": tone, "quote": q, "status": status})
+            rows.append({"id": uid, "code": code, "tone": tone, "quote": q, "status": status, "direction": direction, "basis": basis, "about": about})
     return {"rows": rows, "renderings": renderings, "proposals": proposals, "dropped": dropped, "seen": seen}
 
 

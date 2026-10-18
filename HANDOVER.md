@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (218/183/31/24/18/49/44/69/13/142/60/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (218/184/31/24/18/49/44/69/13/142/60/42/35/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,27 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Each code says which way it points, whether it was said or inferred, and the days it is about; earlier passages
+  ride with each batch (2026-10-18, patch 0198).** The rider's whole year, read in order and set against his wellness
+  scales (the answer key, kept outside the repo), showed the codes losing what a reader keeps: 23 of 118 `fatigue`
+  codes sat on sentences saying he was *not* tired; the 11 `sleep` codes put seven bad nights and two good ones under
+  one name, the passage's tone the only direction (negative on one of the seven); about one written passage in five
+  refers back to an earlier day (again, still, the same story), and the coder read each alone; readings about the last
+  couple of days, or a day described two days later, were dated to the day of writing. The coder's reading format 2
+  (`READING_VERSION`): each code an object with its `quote`, `direction` (worse, better, neutral - a denial points
+  better), `basis` (said or inferred) and `about` (a day or a range, empty for the passage's own); the passage's head
+  names the activity's day when it is another (patch 0196); `earlier_for` hands each batch the passages before it for
+  reference - eight at most, fourteen days, 2,400 characters, labels and copies out - so batches still run in
+  parallel. `validate` keeps a code whose direction, basis or days are not one of theirs, empties the field and
+  counts it; a format-1 reply is still read. The codes table gains the three columns; the store marks entries with
+  the format and reads an older one again, once (the first load after this patch re-reads a subject's passages).
+  The map adds a line - which way the codes point, most pointed first, the inferred readings and those about other
+  days - and the contract's CTX.codes() says what the columns hold (its section 871 characters, the limit raised
+  to 900 with the reason in the test). The stack's coder answers in the new format. docs/CONTEXT_DESIGN.md §3.2,
+  §3.4, §6. Tests: test_coder.py 35 (the prompt; the messages with earlier passages and the activity's day;
+  earlier_for; about_days; the new fields validated; the store's format), test_app_path.py 184 (the scripted pass in
+  both formats; the earlier passages on the retry; the codes file's columns; the map's line), test_analyst.py 218
+  (the contract; the scanner over the new prompt), the integrations walk (the columns and directions).
 - **Tags are labels and copies are read once (2026-10-18, patch 0197).** Read against one rider's year, the coding pass
   treated a tag as a sentence - rendered and coded: his treatment tag became *according to* or the like in 12 of its 28
   uses and was coded as a treatment in 3 - and coded each of 223 copies as fresh writing. `code_context` now sets both

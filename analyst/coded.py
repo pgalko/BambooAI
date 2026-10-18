@@ -1,8 +1,8 @@
 """The coded passages a user's loads have already read (docs/CONTEXT_DESIGN.md §12 D1, the fallback taken on
 2026-10-14): per user and per key mark - one subject's data - under storage/<user>/context/<key mark>/coded.json.
 A load codes only the passages the store has not seen; a passage is known by its kind and source id, and re-coded
-when its text changed. The codebook version each entry was coded under rides with it, so old labels stay
-comparable. Pure: a dict in a file, bounded."""
+when its text changed or it was read under an older reading format (the coder's READING_VERSION). The codebook
+version each entry was coded under rides with it, so old labels stay comparable. Pure: a dict in a file, bounded."""
 from __future__ import annotations
 
 import hashlib
@@ -53,24 +53,30 @@ class CodedStore:
         os.replace(tmp, self.path)
         return self.path
 
-    def lookup(self, passages: List[dict]) -> Tuple[Dict[str, dict], List[dict]]:
+    def lookup(self, passages: List[dict], reading: int = 1) -> Tuple[Dict[str, dict], List[dict]]:
         """(known: passage id -> the stored entry, todo: the passages to code) - a passage is known when the store
-        holds its key with the same text hash."""
+        holds its key with the same text hash, read under the reading format `reading` or a later one (an entry from
+        before the format was recorded is format 1)."""
         known, todo = {}, []
         for p in passages:
             e = self.entries.get(passage_key(p))
-            if e and e.get("hash") == _hash(p.get("text")):
+            if e and e.get("hash") == _hash(p.get("text")) and int(e.get("reading", 1) or 1) >= int(reading):
                 known[str(p.get("id"))] = e
             else:
                 todo.append(p)
         return known, todo
 
-    def remember(self, passages: List[dict], rows: List[dict], renderings: Dict[str, dict], coder: str, version: int) -> int:
-        """Store what a pass established for the passages it answered: the rendering and the codes (an answered
-        passage with no code is stored with none, so it is not asked again). Returns the count stored."""
+    def remember(self, passages: List[dict], rows: List[dict], renderings: Dict[str, dict], coder: str, version: int, reading: int = 1) -> int:
+        """Store what a pass established for the passages it answered: the rendering and the codes with their
+        direction, basis and days (an answered passage with no code is stored with none, so it is not asked again),
+        under the reading format `reading`. Returns the count stored."""
         by_id: Dict[str, List[dict]] = {}
         for r in rows:
-            by_id.setdefault(str(r["id"]), []).append({"code": r["code"], "tone": r["tone"], "quote": r["quote"], "status": r["status"]})
+            c = {"code": r["code"], "tone": r["tone"], "quote": r["quote"], "status": r["status"]}
+            for k in ("direction", "basis", "about"):
+                if r.get(k):
+                    c[k] = r[k]
+            by_id.setdefault(str(r["id"]), []).append(c)
         n = 0
         for p in passages:
             uid = str(p.get("id"))
@@ -79,6 +85,8 @@ class CodedStore:
             r = renderings[uid]
             self.entries[passage_key(p)] = {"hash": _hash(p.get("text")), "date": str(p.get("date") or "")[:10], "lang": r.get("lang", ""),
                                             "text_en": r.get("text_en", ""), "codes": by_id.get(uid, []), "coder": coder, "codebook_version": int(version)}
+            if int(reading) > 1:
+                self.entries[passage_key(p)]["reading"] = int(reading)
             n += 1
         return n
 

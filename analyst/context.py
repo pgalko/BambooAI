@@ -13,7 +13,7 @@ import pandas as pd
 
 CONTEXT_COLUMNS = ["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id",
                    "author_name", "author_role", "private", "lang", "text", "text_en", "chars", "activity_date", "copy_of"]
-CODES_COLUMNS = ["id", "code", "tone", "quote", "status", "coder", "codebook_version"]
+CODES_COLUMNS = ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about"]
 MAP_KINDS_MAX = 12
 MAP_CODES_MAX = 12
 MAP_TOKENS_MAX = 6
@@ -143,6 +143,22 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
                      + (f" ({len(cc)} of {codebook_size} codes used)" if codebook_size else f" ({len(cc)} codes used)")
                      + f"; {uncoded} passage{'s' if uncoded != 1 else ''} carr{'y' if uncoded != 1 else 'ies'} none"
                      + (f"; proposed: {', '.join(proposed)}" if proposed else "") + ".")
+        # which way each code points for the person, when the reading says (patch 0198): the codes that point at all,
+        # most pointed first, with the readings inferred rather than said and those about other days than their passage's
+        if "direction" in codes.columns:
+            dirs = {}
+            for c, d in zip(codes["code"].tolist(), codes["direction"].tolist()):
+                d = _cell(d)
+                if d in ("worse", "better", "neutral"):
+                    dirs.setdefault(str(c), Counter())[d] += 1
+            pointed = sorted(((c, k) for c, k in dirs.items() if k["worse"] or k["better"]), key=lambda x: -(x[1]["worse"] + x[1]["better"]))
+            if pointed:
+                inferred = sum(1 for b in codes["basis"].tolist() if _cell(b) == "inferred") if "basis" in codes.columns else 0
+                other_days = sum(1 for a in codes["about"].tolist() if _cell(a)) if "about" in codes.columns else 0
+                shown = ", ".join(f"{c} {k['worse']}/{k['better']}/{k['neutral']}" for c, k in pointed[:MAP_CODES_MAX])
+                more = len(pointed) - MAP_CODES_MAX
+                lines.append(f"  which way the codes point for the person (worse/better/neutral): {shown}" + (f", … ({more} more)" if more > 0 else "")
+                             + f"; {inferred} reading{'s' if inferred != 1 else ''} inferred rather than said, {other_days} about other days than their passage's own.")
     elif codes is not None:
         lines.append("  codes: the coding pass produced none for this window.")
     # what is true of this data and nowhere else (the rules of citing, rendering, reading a code and the days apart are the
@@ -233,10 +249,10 @@ class _BambooContext:
                 self._notes["private"] = self._notes["private"].str.strip().str.lower().isin(["true", "1"])
         return self._notes
     def codes(self):
-        """The codes table: one row per code on a passage (id, code, tone, quote, status), empty before the coding pass."""
+        """The codes table: one row per code on a passage (id, code, tone, quote, status, direction - worse, better or neutral for the person -, basis - said or inferred -, about - the days the reading describes, empty for the passage's own), empty before the coding pass."""
         import pandas as _pd
         if self._codes is None:
-            self._codes = _pd.read_csv(self.codes_path, dtype=str, keep_default_na=False) if self.codes_path else _pd.DataFrame(columns=["id", "code", "tone", "quote", "status", "coder", "codebook_version"])
+            self._codes = _pd.read_csv(self.codes_path, dtype=str, keep_default_na=False) if self.codes_path else _pd.DataFrame(columns=["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about"])
         return self._codes
     def _shown(self, r):
         en = (r.get("text_en") or "").strip()

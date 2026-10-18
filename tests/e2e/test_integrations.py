@@ -566,8 +566,9 @@ def main():
                       and len(en) and (en["lang"] == "en").all() and (en["text_en"] == "").all() and len(tagrows) and (tagrows["lang"] == "").all() and (tagrows["text_en"] == "").all(), (da[["lang", "text_en"]].head(2).to_dict("records"), en[["lang", "text_en"]].head(1).to_dict("records"), tagrows[["lang", "text_en"]].head(2).to_dict("records")))
                 codes_path = os.path.join(exec_ds, f"context_codes_{tag_a}.csv")
                 codes = pd.read_csv(codes_path, dtype=str, keep_default_na=False) if os.path.exists(codes_path) else None
-                check("the codes file beside the context file: the design's columns, one row per code with the words it rests on verbatim in the original, the tone, codebook rows and the proposed code's rows marked, the coder and the codebook's version",
-                      codes is not None and list(codes.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version"] and len(codes) > 20
+                check("the codes file beside the context file: the design's columns, one row per code with the words it rests on verbatim in the original, the tone, codebook rows and the proposed code's rows marked, the coder and the codebook's version, and each code's direction and basis (patch 0198)",
+                      codes is not None and list(codes.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about"] and len(codes) > 20
+                      and set(codes["direction"]) <= {"worse", "better", "neutral"} and (codes[codes["code"] == "fatigue"]["direction"] == "worse").all() and (codes["basis"] == "said").all()
                       and all(q in ctx.set_index("id").loc[i, "text"] for i, q in zip(codes["id"], codes["quote"]))
                       and set(codes["status"]) == {"codebook", "proposed"} and (codes[codes["code"] == "coach_flag"]["status"] == "proposed").all() and len(codes[codes["code"] == "coach_flag"]) >= 1
                       and set(codes["tone"]) <= {"positive", "negative", "neutral", "mixed"} and (codes["codebook_version"] == "1").all() and (codes["coder"] != "").all()

@@ -29,9 +29,10 @@ def codes_path_for(notes_path: str) -> str:
     return notes_path.replace("context_notes_", "context_codes_")
 
 
-def _call(instance, seat, chain_id, vocabulary, batch):
-    """One batch through the Coder seat: (items, cut). A failed call is an empty reply."""
-    system, user = coder.coder_messages(vocabulary, batch)
+def _call(instance, seat, chain_id, vocabulary, batch, earlier=None):
+    """One batch through the Coder seat, with the passages before it for reference: (items, cut). A failed call is an
+    empty reply."""
+    system, user = coder.coder_messages(vocabulary, batch, earlier)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     try:
         reply = instance.models.llm_call(instance.log_and_call_manager, messages, agent=seat, chain_id=chain_id) or ""
@@ -79,13 +80,14 @@ def code_context(instance, notes_path: str, progress: Optional[Callable[[int, in
     to_read = [p for p in passages if str(p.get("id")) not in aside]
     # what an earlier load of this subject's data already established (D1's fallback)
     store = CodedStore(storage, key_mark).load() if key_mark else None
-    known, todo = store.lookup(to_read) if store else ({}, list(to_read))
+    known, todo = store.lookup(to_read, reading=coder.READING_VERSION) if store else ({}, list(to_read))
     rows, renderings = [], {}
     for uid, e in known.items():
         renderings[uid] = {"lang": e.get("lang", ""), "text_en": e.get("text_en", "")}
         for c in e.get("codes") or []:
             rows.append({"id": uid, "code": c["code"], "tone": c.get("tone", "neutral"), "quote": c.get("quote", ""), "status": c.get("status", "codebook"),
-                         "coder": e.get("coder", ""), "codebook_version": e.get("codebook_version", report["codebook_version"])})
+                         "coder": e.get("coder", ""), "codebook_version": e.get("codebook_version", report["codebook_version"]),
+                         "direction": c.get("direction", ""), "basis": c.get("basis", ""), "about": c.get("about", "")})
     report["reused"] = len(known)
 
     proposals, dropped, seen = [], Counter(), set(known)
@@ -97,7 +99,7 @@ def code_context(instance, notes_path: str, progress: Optional[Callable[[int, in
         if not group_list:
             return
         with ThreadPoolExecutor(max_workers=min(PARALLEL, len(group_list))) as pool:
-            replies = list(pool.map(lambda b: _call(instance, seat, chain_id, vocabulary, b), group_list))
+            replies = list(pool.map(lambda b: _call(instance, seat, chain_id, vocabulary, b, coder.earlier_for(to_read, b)), group_list))
         for batch, (items, cut) in zip(group_list, replies):
             done_batches[0] += 1
             if progress:
@@ -159,7 +161,7 @@ def code_context(instance, notes_path: str, progress: Optional[Callable[[int, in
         logger.warning("the codebook could not be saved: %s", exc)
     if store is not None:
         try:
-            store.remember(todo, new_rows, new_renderings, report["coder"], report["codebook_version"])
+            store.remember(todo, new_rows, new_renderings, report["coder"], report["codebook_version"], reading=coder.READING_VERSION)
             store.save()
         except OSError as exc:
             logger.warning("the coded passages could not be saved: %s", exc)
