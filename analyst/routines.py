@@ -757,8 +757,8 @@ def dtype_family(dtype: str) -> str:
 
 # how a cached load is cut to the window a run asks for (2026-10-11): the frame by its date column; each auxiliary file
 # by the column the loader keyed it on, or by the rides kept when it has none; a file with neither is taken whole and said.
-# The context file by its day and the codes file by the passages the cut context keeps (2026-10-16: the codes file has
-# no date - taken whole, a code count over CTX.codes() would have been the cached load's)
+# The context file by its day and the codes file by the passages the cut context keeps (2026-10-16: taken whole, a code
+# count over CTX.codes() would have been the cached load's); a code goes with its passage, whatever its `day` (0206)
 CUT_RULES = {"summary": ("date", "start_date_local"), "wellness": ("date", "date"), "intervals": ("ids", "activity_id"), "plan": ("date", "date"),
              "context": ("date", "date"), "codes": ("passages", "id"),
              "rider": ("whole", ""), "zones": ("date", "start_date_local")}    # the profile is the load's settings, taken as it is; the zone times are per activity (2026-10-16)

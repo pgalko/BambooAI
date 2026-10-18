@@ -701,8 +701,18 @@ try:
     _desc4 = _bd._dataset_description()
     check("DATA with the codes file too: the codes line - counts per code, codes used, passages without a code, the proposed ones named; the codes file's head is columns and count as well",
           "codes (the model's reading, one row per code, with the words it rests on): fatigue 1, deviation 1, instruction 1, unwell_span 1 (4 of 36 codes used); 1 passage carries none; proposed: unwell_span." in _desc4
-          and f"Path: {_codes}\nColumns: id, code, tone, quote, status, coder, codebook_version, direction, basis, about\nRows: 4" in _desc4 and "legs heavy" not in _desc4
+          and f"Path: {_codes}\nColumns: id, code, tone, quote, status, coder, codebook_version, direction, basis, about, day\nRows: 4" in _desc4 and "legs heavy" not in _desc4
           and "which way the codes point" not in _desc4, _desc4[-900:])
+    # patch 0206: a codes file written before it has no `day` - the run's first read fills it and writes the file back, so
+    # the kernel's CTX.codes() and a read by path have what DATA shows; a second read writes nothing
+    _codes_disk = pd.read_csv(_codes, dtype=str, keep_default_na=False)
+    _puts = []; _put0 = _bd._put_aux_file
+    _bd._put_aux_file = lambda p, t: _puts.append(p) or _put0(p, t)
+    _bd._context_cache = None
+    _bd._context_frames()
+    del _bd._put_aux_file
+    check("a codes file written before patch 0206 gains `day` on a run's first read - each reading's passage's own day here, none saying another - and is written back; read again, nothing is written",
+          _codes_disk["day"].tolist() == ["2026-09-01", "2026-09-01", "2026-09-01", "2026-10-05"] and list(_codes_disk.columns)[-1] == "day" and _puts == [], (_codes_disk.to_dict("records"), _puts))
     _empty = os.path.join(_auxdir, "context_notes_20260101_to_20260131.csv")
     pd.DataFrame(columns=["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id", "author_name", "author_role", "private", "lang", "text", "text_en", "chars"]).to_csv(_empty, index=False)
     _desc5 = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_empty])._dataset_description()
@@ -787,8 +797,8 @@ try:
     _ns = {}
     exec(_pre, _ns)
     _CTX = _ns["CTX"]
-    check("CTX in a kernel: frame() with a day column, codes(), grep by pattern/kind/author, around a day, between two days, on an activity, text(ref) - printed as text, not frames, unless asked",
-          len(_CTX.frame()) == 4 and "day" in _CTX.frame().columns and len(_CTX.codes()) == 4 and "C.1" in _CTX.grep("legs") and "C.2" not in _CTX.grep("legs") and "C.2" in _CTX.grep("easy", author="coach")
+    check("CTX in a kernel: frame() (no day of its own: `day` is the codes', the day a reading describes - patch 0206), codes() with `day`, grep by pattern/kind/author, around a day, between two days, on an activity, text(ref) - printed as text, not frames, unless asked",
+          len(_CTX.frame()) == 4 and "day" not in _CTX.frame().columns and len(_CTX.codes()) == 4 and _CTX.codes()["day"].tolist() == ["2026-09-01", "2026-09-01", "2026-09-01", "2026-10-05"] and "C.1" in _CTX.grep("legs") and "C.2" not in _CTX.grep("legs") and "C.2" in _CTX.grep("easy", author="coach")
           and "C.1" in _CTX.around("2026-09-02", days=1) and "C.3" not in _CTX.around("2026-09-02", days=1) and "C.3" in _CTX.between("2026-10-01", "2026-10-31") and "C.4" in _CTX.between("2026-10-01", "2026-10-31")
           and "C.1" in _CTX.on("a1") and "C.2" in _CTX.on("a1") and "C.3" not in _CTX.on("a1") and "legs heavy today, cut it short" in _CTX.text("C.1") and "4 passages" in repr(_CTX)
           and _CTX.grep("legs", as_frame=True).shape[0] == 1, (_CTX.grep("legs"), repr(_CTX)))
@@ -805,37 +815,32 @@ try:
           "[C.1] 2026-09-02 · activity_message · subject · the activity of 2026-09-01: felt rough today" in _ns_a["CTX"].on("a1") and "[C.2] 2026-09-01 · activity_message · coach: easy tomorrow" in _ns_a["CTX"].on("a1")
           and _where_of({"date": "2026-09-02", "kind": "activity_message", "author_role": "subject", "activity_date": "2026-09-01"}) == "2026-09-02 · activity_message · subject · the activity of 2026-09-01"
           and _where_of({"date": "2026-09-01", "kind": "activity_message", "author_role": "coach", "activity_date": "2026-09-01"}) == "2026-09-01 · activity_message · coach", _ns_a["CTX"].on("a1"))
-    # step 5 (2026-10-18): the readings by the days they describe, and the stretches of days a code points worse
+    # patch 0206 (2026-10-18): the day each reading describes, in the codes table the analyst reads - CTX.days() and
+    # CTX.episodes() (0204) were never called in three runs; both models matched the words to the numbers by their own
+    # reckoning of a passage's day
     _dn = [{"id": "C.1", "kind": "activity_message", "date": "2026-09-01", "activity_id": "a1", "activity_date": "2026-09-01", "author_role": "subject", "text": "legs heavy"},
            {"id": "C.2", "kind": "activity_message", "date": "2026-09-03", "activity_id": "a2", "activity_date": "2026-09-02", "author_role": "subject", "text": "heavy again"},
            {"id": "C.3", "kind": "day_note", "date": "2026-09-05", "activity_id": "", "activity_date": "", "author_role": "subject", "text": "still heavy"},
-           {"id": "C.4", "kind": "day_note", "date": "2026-09-06", "activity_id": "", "activity_date": "", "author_role": "coach", "text": "good to hear you are fresh"},
-           {"id": "C.5", "kind": "day_note", "date": "2026-09-10", "activity_id": "", "activity_date": "", "author_role": "subject", "text": "unwell since the 8th"},
-           {"id": "C.6", "kind": "day_note", "date": "2026-09-20", "activity_id": "", "activity_date": "", "author_role": "subject", "text": "tired"}]
-    _dc = [("C.1", "fatigue", "worse", "said", ""), ("C.1", "sleep", "neutral", "said", ""), ("C.2", "fatigue", "worse", "said", ""),
-           ("C.3", "fatigue", "worse", "inferred", ""), ("C.4", "fatigue", "better", "said", ""), ("C.5", "illness", "worse", "said", "2026-09-08..2026-09-10"),
-           ("C.6", "fatigue", "worse", "said", ""), ("C.6", "fatigue", "", "said", "")]
+           {"id": "C.5", "kind": "day_note", "date": "2026-09-10", "activity_id": "", "activity_date": "", "author_role": "subject", "text": "unwell since the 8th, better tomorrow"}]
+    _dc = [("C.1", "fatigue", ""), ("C.2", "fatigue", ""), ("C.3", "fatigue", "2026-09-04"), ("C.5", "illness", "2026-09-08..2026-09-10"),
+           ("C.5", "illness", "next week"), ("C.9", "fatigue", "")]
     _ctx_d, _codes_d = os.path.join(_auxdir, "context_notes_20260901_to_20260921.csv"), os.path.join(_auxdir, "context_codes_20260901_to_20260921.csv")
     pd.DataFrame(_dn).to_csv(_ctx_d, index=False)
-    pd.DataFrame([dict(id=i, code=c, tone="", quote="", status="codebook", coder="m", codebook_version="1", direction=d, basis=b, about=a) for i, c, d, b, a in _dc]).to_csv(_codes_d, index=False)
+    _codes_df = pd.DataFrame([dict(id=i, code=c, tone="", quote="", status="codebook", coder="m", codebook_version="1", direction="worse", basis="said", about=a) for i, c, a in _dc])
+    from analyst.context import reading_days as _rdays
+    _rd = _rdays(_codes_df, pd.DataFrame(_dn))
+    check("reading_days: the day each reading describes - its about, the first day of a range, else its passage's own (the activity's, for one written later); a value that is not a day takes the passage's own; a passage the context lacks has none",
+          _rd == ["2026-09-01", "2026-09-02", "2026-09-04", "2026-09-08", "2026-09-10", ""] and _rdays(_codes_df.iloc[:0], pd.DataFrame(_dn)) == []
+          and _rdays(_codes_df.drop(columns=["about"]), pd.DataFrame(_dn))[:3] == ["2026-09-01", "2026-09-02", "2026-09-05"], _rd)
+    _codes_df.assign(day=_rd).to_csv(_codes_d, index=False)
     _ns_d = {}
     exec(__import__("analyst.context", fromlist=["kernel_api_source"]).kernel_api_source(_ctx_d, _codes_d), _ns_d)
-    _days = _ns_d["CTX"].days()
-    _f = _days[_days["code"] == "fatigue"]
-    _eps = _ns_d["CTX"].episodes()
-    check("CTX.days(): each reading on the days it describes - a range on each of its days, no day on the passage's own (the activity's, for one written later), a reading with no direction left out - per day and code, counted by direction, the inferred, the passages; author= keeps one author's",
-          len(_days) == 9 and _f["day"].dt.strftime("%m-%d").tolist() == ["09-01", "09-02", "09-05", "09-06", "09-20"] and _f["worse"].tolist() == [1, 1, 1, 0, 1] and _f["better"].tolist() == [0, 0, 0, 1, 0]
-          and _f["inferred"].tolist() == [0, 0, 1, 0, 0] and _days[_days["code"] == "illness"]["day"].dt.strftime("%m-%d").tolist() == ["09-08", "09-09", "09-10"]
-          and _days[_days["code"] == "sleep"]["neutral"].tolist() == [1] and _f["passages"].tolist() == ["C.1", "C.2", "C.3", "C.4", "C.6"]
-          and _ns_d["CTX"].days(author="coach")["passages"].tolist() == ["C.4"], _days.to_string())
-    check("CTX.episodes(): two or more days a code points worse, across at most gap days without a reading of it - a day pointing better ends it, and is the day it ended; one worse day alone is no stretch; gap=1 splits it",
-          [(r.code, f"{r.start:%m-%d}", f"{r.end:%m-%d}", r.days, r.worse_days, r.passages, "" if pd.isna(r.ended) else f"{r.ended:%m-%d}") for r in _eps.itertuples()]
-          == [("fatigue", "09-01", "09-05", 5, 3, "C.1 C.2 C.3", "09-06"), ("illness", "09-08", "09-10", 3, 3, "C.5", "")]
-          and [(r.code, f"{r.start:%m-%d}", f"{r.end:%m-%d}") for r in _ns_d["CTX"].episodes(gap=1).itertuples()] == [("fatigue", "09-01", "09-02"), ("illness", "09-08", "09-10")]
-          and len(_ns_d["CTX"].episodes(author="coach")) == 0, _eps.to_string())
-    check("the map counts the stretches by code, beside the directions; none without directions",
-          "  stretches of two or more days a code points worse (CTX.episodes()): fatigue 1, illness 1." in _cmap(pd.DataFrame(_dn).assign(private=False, lang=""), pd.read_csv(_codes_d, dtype=str, keep_default_na=False))
-          and "stretches" not in _cmap(pd.DataFrame(_dn).assign(private=False, lang=""), pd.read_csv(_codes_d, dtype=str, keep_default_na=False).assign(direction="")), _cmap(pd.DataFrame(_dn).assign(private=False, lang=""), pd.read_csv(_codes_d, dtype=str, keep_default_na=False)))
+    check("CTX.codes() carries the file's `day`; CTX has no tables by day (CTX.days() and CTX.episodes() are gone) and the kernel source defines nothing beside CTX's class; an empty codes table has the column too",
+          _ns_d["CTX"].codes()["day"].tolist() == _rd and not hasattr(_ns_d["CTX"], "days") and not hasattr(_ns_d["CTX"], "episodes")
+          and "_bamboo_ctx_days" not in _ns_d and "_bamboo_ctx_episodes" not in _ns_d
+          and "day" in _ns_d["_BambooContext"](_ctx_d, "").codes().columns, _ns_d["CTX"].codes().to_dict("records"))
+    _map_d = _cmap(pd.DataFrame(_dn).assign(private=False, lang=""), pd.read_csv(_codes_d, dtype=str, keep_default_na=False))
+    check("the map: the directions' line as before, no line of stretches", "which way the codes point for the person (worse/better/neutral): fatigue 4/0/0, illness 2/0/0;" in _map_d and "stretches" not in _map_d, _map_d)
     check("unit_text resolves a context passage for the report guard - the English rendering when there is one - and says None for an id the context does not hold",
           _bc._unit_text("C.1") == "legs heavy today, cut it short" and _bc._unit_text("C.9") is None and _bb._unit_text("C.1") is None)
     _bc.models.llm_call = lambda *a, **k: '- [C.1] "legs heavy today"\n- [C.2] "take tomorrow easy"\n- [C.1] "legs light"\nSUMMARY: Heavy legs, an easy day asked [C.1][C.2].'
@@ -935,8 +940,9 @@ try:
           and _notes3.set_index("id").loc["C.1", ["lang", "text_en"]].tolist() == ["en", ""] and _notes3.set_index("id").loc["C.5", ["lang", "text_en"]].tolist() == ["", ""] and _notes3.set_index("id").loc["C.2", "text"].startswith("Benene")
           and _notes3.set_index("id").loc["C.4", ["lang", "text_en"]].tolist() == ["", ""], _notes3[["id", "lang", "text_en"]].to_dict("records"))
     check("the codes file beside it: the design's columns, the rows that passed the checks (the unknown code dropped), the proposal's row marked, the coder and the version on every row; "
-          "a code read in the format of patch 0198 carries its direction, basis and days, one read in the older format none",
-          _codes3 is not None and list(_codes3.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about"]
+          "a code read in the format of patch 0198 carries its direction, basis and days, one read in the older format none; every row its `day` (patch 0206) - a range's first day, else the passage's own",
+          _codes3 is not None and list(_codes3.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about", "day"]
+          and _codes3["day"].tolist() == ["2026-08-01", "2026-08-02", "2026-08-03", "2026-08-03", "2026-08-03"]
           and _codes3.iloc[0][["direction", "basis", "about"]].tolist() == ["worse", "said", "2026-08-01..2026-08-02"] and _codes3.iloc[2][["direction", "basis", "about"]].tolist() == ["", "", ""]
           and [(r["id"], r["code"], r["status"]) for r in _codes3.to_dict("records")] == [("C.1", "sleep", "codebook"), ("C.1", "fatigue", "codebook"), ("C.2", "fatigue", "codebook"), ("C.2", "heavy_legs", "proposed"), ("C.3", "instruction", "codebook")]
           and (_codes3["coder"] == "fake/model").all() and (_codes3["codebook_version"] == "1").all() and _codes3.iloc[2]["quote"] == "Benene var tunge", None if _codes3 is None else _codes3.to_dict("records"))

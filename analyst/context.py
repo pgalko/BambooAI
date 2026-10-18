@@ -4,7 +4,6 @@ month, authors by role, languages, the codes with their counts. Never the text; 
 Pure: frames in, text out. The strings here are read by a model (the C5 scanner covers this file)."""
 from __future__ import annotations
 
-import inspect
 import io
 import re
 from collections import Counter
@@ -14,7 +13,7 @@ import pandas as pd
 
 CONTEXT_COLUMNS = ["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id",
                    "author_name", "author_role", "private", "lang", "text", "text_en", "chars", "activity_date", "copy_of"]
-CODES_COLUMNS = ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about"]
+CODES_COLUMNS = ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about", "day"]
 MAP_KINDS_MAX = 12
 MAP_CODES_MAX = 12
 MAP_TOKENS_MAX = 6
@@ -57,6 +56,32 @@ def _month(d: str) -> str:
         return pd.Timestamp(str(d)[:10]).strftime("%b")
     except Exception:                                   # noqa: BLE001
         return "?"
+
+
+def _own_days(notes: Optional[pd.DataFrame]) -> dict:
+    """Each passage's own day by id: its activity's, for a passage on an activity, else the day it was written."""
+    if notes is None or not len(notes):
+        return {}
+    acts = notes["activity_date"].tolist() if "activity_date" in notes.columns else [""] * len(notes)
+    return {str(i): (_cell(a) or _cell(d))[:10] for i, a, d in zip(notes["id"].tolist(), acts, notes["date"].tolist())}
+
+
+_DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def reading_days(codes: Optional[pd.DataFrame], notes: Optional[pd.DataFrame]) -> list:
+    """The codes file's `day` (patch 0206): the day each reading describes - its `about`, the first day of a range,
+    else its passage's own day; '' for a passage the context does not hold. The analyst matched the words to the
+    numbers by its own reckoning of a passage's day and never by `about`; the day it needs is now in the table it reads."""
+    if codes is None or not len(codes):
+        return []
+    own = _own_days(notes)
+    abouts = codes["about"].tolist() if "about" in codes.columns else [""] * len(codes)
+    days = []
+    for i, a in zip(codes["id"].tolist(), abouts):
+        first = _cell(a).partition("..")[0].strip()
+        days.append(first if _DAY_RE.match(first) else own.get(str(i), ""))
+    return days
 
 
 def _count_line(counter: Counter, limit: int, total: Optional[int] = None) -> str:
@@ -157,18 +182,13 @@ def context_map(notes: pd.DataFrame, codes: Optional[pd.DataFrame] = None, notes
                 inferred = sum(1 for b in codes["basis"].tolist() if _cell(b) == "inferred") if "basis" in codes.columns else 0
                 # a passage on an activity of another day has that day as its own: its readings carry it (patch 0201), and
                 # only a reading of other days than that counts here (2026-10-18: the line had counted 433, 52 of them so)
-                acts = notes["activity_date"].tolist() if "activity_date" in notes.columns else [""] * len(notes)
-                own = {str(i): _cell(a) or _cell(d) for i, a, d in zip(notes["id"].tolist(), acts, notes["date"].tolist())}
+                own = _own_days(notes)
                 other_days = (sum(1 for i, a in zip(codes["id"].tolist(), codes["about"].tolist()) if _cell(a) and _cell(a) != own.get(str(i), ""))
                               if "about" in codes.columns else 0)
                 shown = ", ".join(f"{c} {k['worse']}/{k['better']}/{k['neutral']}" for c, k in pointed[:MAP_CODES_MAX])
                 more = len(pointed) - MAP_CODES_MAX
                 lines.append(f"  which way the codes point for the person (worse/better/neutral): {shown}" + (f", … ({more} more)" if more > 0 else "")
                              + f"; {inferred} reading{'s' if inferred != 1 else ''} inferred rather than said, {other_days} about other days than their passage's own.")
-                # the stretches of days a code points worse, by code (2026-10-18)
-                eps = _bamboo_ctx_episodes(_bamboo_ctx_days(notes, codes))
-                if len(eps):
-                    lines.append(f"  stretches of two or more days a code points worse (CTX.episodes()): {_count_line(Counter(eps['code'].tolist()), MAP_CODES_MAX)}.")
     elif codes is not None:
         lines.append("  codes: the coding pass produced none for this window.")
     # what is true of this data and nowhere else (the rules of citing, rendering, reading a code and the days apart are the
@@ -237,65 +257,6 @@ def parse_context_scope(arg: str) -> Optional[dict]:
     return {"all": True, "query": rest}
 
 
-# The readings by day, and the stretches of days a code points worse (2026-10-18): one implementation, run by the host
-# for the map and sent to the kernel as source for CTX.days() and CTX.episodes(). Self-contained - the kernel has only
-# what is defined here.
-def _bamboo_ctx_days(notes, codes, author=None):
-    """Each reading on the days it describes - its `about`, a day or a range, else its passage's own day (the
-    activity's, for a passage on an activity of another day): one row per day and code, the readings that point
-    worse, better and neutral, how many of them were inferred, and their passages."""
-    import pandas as _pd
-    cols = ["day", "code", "worse", "better", "neutral", "inferred", "passages"]
-    if notes is None or codes is None or not len(notes) or not len(codes) or "direction" not in codes.columns:
-        return _pd.DataFrame(columns=cols)
-    acts = notes["activity_date"] if "activity_date" in notes.columns else [""] * len(notes)
-    own = {str(i): (str(a or "").strip() or str(d or "").strip())[:10] for i, a, d in zip(notes["id"], acts, notes["date"])}
-    role = dict(zip(notes["id"].astype(str), notes["author_role"].astype(str))) if "author_role" in notes.columns else {}
-    acc = {}
-    for r in codes.to_dict("records"):
-        pid, way = str(r.get("id") or ""), str(r.get("direction") or "").strip().lower()
-        if way not in ("worse", "better", "neutral") or (author and role.get(pid) != author):
-            continue
-        span = (str(r.get("about") or "").strip() or own.get(pid, "")).split("..")
-        try:
-            days = _pd.date_range(span[0], span[-1])
-        except (ValueError, TypeError):
-            continue
-        for day in days:
-            row = acc.setdefault((day, str(r.get("code") or "")), {"worse": 0, "better": 0, "neutral": 0, "inferred": 0, "passages": []})
-            row[way] += 1
-            row["inferred"] += str(r.get("basis") or "").strip() == "inferred"
-            if pid not in row["passages"]:
-                row["passages"].append(pid)
-    rows = [dict(day=d, code=c, **dict(v, passages=" ".join(v["passages"]))) for (d, c), v in sorted(acc.items())]
-    return _pd.DataFrame(rows, columns=cols)
-
-
-def _bamboo_ctx_episodes(days, gap=2):
-    """Stretches of two or more days on which a code points worse: from a day with a worse reading to the next, across
-    at most `gap` days without a reading of the code, ended by a day whose readings of it point only better or neutral.
-    One row per stretch: the code, its first and last day, the days from first to last, the days with a worse reading,
-    their passages, and the day the words said better or neutral, when that came within gap + 1 days of its end."""
-    import pandas as _pd
-    cols = ["code", "start", "end", "days", "worse_days", "passages", "ended"]
-    out = []
-    for code, g in (days.groupby("code", sort=True) if days is not None and len(days) else []):
-        stops = sorted(g.loc[(g["worse"] == 0) & ((g["better"] > 0) | (g["neutral"] > 0)), "day"])
-        run = []
-        for x in g[g["worse"] > 0].sort_values("day").to_dict("records") + [None]:
-            if run and (x is None or (x["day"] - run[-1]["day"]).days - 1 > gap or any(run[-1]["day"] < s < x["day"] for s in stops)):
-                if len(run) >= 2:
-                    end = run[-1]["day"]
-                    ids = list(dict.fromkeys(p for y in run for p in y["passages"].split()))
-                    ended = next((s for s in stops if end < s <= end + _pd.Timedelta(days=gap + 1)), _pd.NaT)
-                    out.append(dict(code=code, start=run[0]["day"], end=end, days=(end - run[0]["day"]).days + 1,
-                                    worse_days=len(run), passages=" ".join(ids), ended=ended))
-                run = []
-            if x is not None:
-                run.append(x)
-    return _pd.DataFrame(out, columns=cols).sort_values(["start", "code"], ignore_index=True) if out else _pd.DataFrame(columns=cols)
-
-
 KERNEL_API_SOURCE = r'''
 import re as _bamboo_ctx_re
 
@@ -312,23 +273,18 @@ class _BambooContext:
         import pandas as _pd
         if self._notes is None:
             self._notes = _pd.read_csv(self.notes_path, dtype=str, keep_default_na=False)
-            if "date" in self._notes.columns:
-                self._notes["day"] = _pd.to_datetime(self._notes["date"], errors="coerce")
             if "private" in self._notes.columns:
                 self._notes["private"] = self._notes["private"].str.strip().str.lower().isin(["true", "1"])
         return self._notes
     def codes(self):
-        """The codes table: one row per code on a passage (id, code, tone, quote, status, direction - worse, better or neutral for the person -, basis - said or inferred -, about - the days the reading describes, empty for the passage's own), empty before the coding pass."""
+        """The codes table: one row per code on a passage (id, code, tone, quote, status, direction - worse, better or neutral for the person -, basis - said or inferred -, about - the days the reading describes, empty for the passage's own -, day - the day it describes: about's first day, else its passage's own), empty before the coding pass."""
         import pandas as _pd
         if self._codes is None:
-            self._codes = _pd.read_csv(self.codes_path, dtype=str, keep_default_na=False) if self.codes_path else _pd.DataFrame(columns=["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about"])
+            self._codes = _pd.read_csv(self.codes_path, dtype=str, keep_default_na=False) if self.codes_path else _pd.DataFrame(columns=["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about", "day"])
         return self._codes
-    def days(self, author=None):
-        """The codes on the days they describe: one row per day and code, the readings that point worse, better and neutral, how many were inferred, their passages."""
-        return _bamboo_ctx_days(self.frame(), self.codes(), author)
-    def episodes(self, gap=2, author=None):
-        """Stretches of two or more days a code points worse, across at most `gap` days without a reading of it, until one points better or neutral: code, start, end, days, worse_days, passages, ended."""
-        return _bamboo_ctx_episodes(self.days(author), gap)
+    def _dates(self, n):
+        import pandas as _pd
+        return _pd.to_datetime(n["date"], errors="coerce")
     def _shown(self, r):
         en = (r.get("text_en") or "").strip()
         return en if en else (r.get("text") or "")
@@ -365,13 +321,15 @@ class _BambooContext:
         import pandas as _pd
         n = self.frame()
         d = _pd.to_datetime(date)
-        sub = n[(n["day"] >= d - _pd.Timedelta(days=days)) & (n["day"] <= d + _pd.Timedelta(days=days))] if len(n) else n
+        t = self._dates(n)
+        sub = n[(t >= d - _pd.Timedelta(days=days)) & (t <= d + _pd.Timedelta(days=days))] if len(n) else n
         return self._lines(self._filter(sub, kind, author), as_frame, limit)
     def between(self, a, b, kind=None, author=None, as_frame=False, limit=200):
         """The passages from day a to day b inclusive."""
         import pandas as _pd
         n = self.frame()
-        sub = n[(n["day"] >= _pd.to_datetime(a)) & (n["day"] <= _pd.to_datetime(b))] if len(n) else n
+        t = self._dates(n)
+        sub = n[(t >= _pd.to_datetime(a)) & (t <= _pd.to_datetime(b))] if len(n) else n
         return self._lines(self._filter(sub, kind, author), as_frame, limit)
     def on(self, activity_id, as_frame=False, limit=60):
         """The passages of one activity: its messages, note, tags, tick, the plan it fulfilled."""
@@ -400,8 +358,7 @@ def kernel_api_source(notes_path: str, codes_path: str = "") -> str:
     at kernel start and after a rollback, prefixed to the replay script; never a cell of the record."""
     if not notes_path:
         return ""
-    helpers = inspect.getsource(_bamboo_ctx_days) + "\n\n" + inspect.getsource(_bamboo_ctx_episodes) + "\n"
-    return helpers + KERNEL_API_SOURCE.replace("__NOTES__", repr(str(notes_path))).replace("__CODES__", repr(str(codes_path or "")))
+    return KERNEL_API_SOURCE.replace("__NOTES__", repr(str(notes_path))).replace("__CODES__", repr(str(codes_path or "")))
 
 
 def aux_head_for_text_file(path: str, columns: list, rows: int) -> str:

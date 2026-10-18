@@ -421,6 +421,14 @@ class BambooAI:
             return cached[1], cached[2]
         notes = self._context_file(notes_path) if notes_path else None
         codes = self._context_file(codes_path) if codes_path else None
+        if notes is not None and codes is not None and len(codes):
+            # a codes file written before patch 0206 has no `day`: it is filled and the file written back, so the
+            # kernel's CTX.codes() and a read by path have what DATA shows; a file the pass wrote is left as it is
+            days = context_mod.reading_days(codes, notes)
+            if days != codes["day"].tolist():
+                filled = codes.assign(day=days)
+                if self._put_aux_file(codes_path, filled.to_csv(index=False)):
+                    codes = filled
         self._context_cache = (key, notes, codes)
         return notes, codes
 

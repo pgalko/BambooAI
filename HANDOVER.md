@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (224/189/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 51/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (224/190/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 51/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,23 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The day each reading describes, in the codes; the two tables by day out (2026-10-18, patch 0206).** 0204's
+  `CTX.days()` and `CTX.episodes()` were never called: three runs, on Sonnet and DeepSeek. Over the nine runs with the
+  context in DATA the analysts called `CTX.frame()` and `CTX.codes()` about 160 times and every other call 7: they
+  write their own pandas over the two tables, and both models dated a code by their own reckoning of its passage's day
+  (Sonnet built the column itself, from the activity's day; DeepSeek took the day of writing, and a day read as its
+  worst by 5 readings, 2 of them about it). Now the codes file carries `day`: a reading's `about`, the first day of a
+  range, else its passage's own day (the activity's, else the day of writing) - `reading_days` in
+  `analyst/context.py`, written by the coding pass. A codes file written before 0206 gains it on a run's first read
+  (`_context_frames`) and is written back, so `CTX.codes()` and a read by path - one of the runs read the file by path -
+  have what DATA shows. The contract's Context section names `day` in `CTX.codes()` and says to match a code to the
+  numbers by it, not by its passage's date (941 characters; its cap 1,000, from 1,050). Out: `_bamboo_ctx_days`,
+  `_bamboo_ctx_episodes`, the two methods, the source they sent to the kernel, the map's line of stretches, and the
+  frame's own `day` (the day of writing, undocumented, used by `around` and `between`): a join of the two frames has
+  one `day`, the codes'. No model call, nothing coded again, no executor change. On the second rider's codes every
+  row has a day, 265 of 2,095 another than the day of writing, and the worst days by `day` are the ones `CTX.days()`
+  gave. Tests: test_app_path.py 190 (`reading_days`; the pass writes it; an older file filled once and written back;
+  CTX's codes with it, no tables, a frame without one; the map without the line), test_analyst.py 224 (the section).
 - **The tool-call fallback completed, and the pane shows the turn it ran (2026-10-18, patch 0205).** The next Deep
   run on Sonnet 5.5 had 0203's sentence in its contract and still slipped in 4 of its 14 analysis turns, and 0203's
   fallback caught none of the three it lost: the code passed as the call's argument, without a fence (the turn was also
@@ -485,7 +502,8 @@
   different codes days apart. On the two riders' years: 49 and 51 stretches of 2 to 9 days, most of them on
   tiredness, effort or the conditions. Tests: test_app_path.py 189 (a range on each of its days, the activity's day,
   the undirected left out, one author's; the stretches, the gap, the day that ends one, a day alone; the map's line),
-  test_analyst.py 223 (the section).
+  test_analyst.py 223 (the section). Both tables went in 0206, never called; the day they put a reading on is the
+  codes' `day`.
 - **There are no tools, said where the reply's form is set; an action written as a tool call is taken (2026-10-18,
   patch 0203).** Two Deep runs on Sonnet 5.5 began five of their 28 analysis turns with a tool call in the model's own
   markup - an invoke tag named SHOW, or a made-up name with the cell after it - and no marker lines, and stopped there

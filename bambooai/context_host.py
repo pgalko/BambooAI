@@ -144,6 +144,7 @@ def code_context(instance, notes_path: str, progress: Optional[Callable[[int, in
     order = {str(p.get("id")): i for i, p in enumerate(passages)}
     rows.sort(key=lambda r: order.get(str(r["id"]), 0))
     codes_df = pd.DataFrame(rows, columns=context_mod.CODES_COLUMNS)
+    codes_df["day"] = context_mod.reading_days(codes_df, notes)          # the day each reading describes (patch 0206)
     codes_path = codes_path_for(notes_path)
     if not instance._put_aux_file(notes_path, notes.to_csv(index=False)):
         report["error"] = "the context file with its renderings could not be written back"

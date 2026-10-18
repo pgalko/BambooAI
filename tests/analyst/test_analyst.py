@@ -1511,17 +1511,18 @@ sb_ = Session(None, Notebook("sb"), lambda s, u, **h: ("", {}), data_description
 cc1_ = " ".join(cc_.split())
 cd_ = open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()
 check("the context's section (step 4's trim, 2026-10-14; 0155 put the two frames' descriptions back - without them the analyst read the codes file by path and never glanced at the codes on a words question): "
-      "CTX, the two frames said to be what they are, the two tables by day, the four calls, READ CTX, the [C.417] citation, the rendered marker, a code as a reading, the words and the numbers days apart, "
-      "say what rests on what - under 1,050 characters (the Documents section is 578; 900 until step 5, 2026-10-18, when CTX.days() and CTX.episodes() joined it: two runs had "
+      "CTX, the two frames said to be what they are, a code's day, the four calls, READ CTX, the [C.417] citation, the rendered marker, a code as a reading, the words and the numbers days apart - matched by a code's day, "
+      "say what rests on what - under 1,000 characters (the Documents section is 578; 1,050 while CTX.days() and CTX.episodes() were in it, 0204-0205, never called in three runs - "
+      "patch 0206 put the day each code describes in the codes and the sentence to match by it in their place; 900 until step 5, 2026-10-18: two runs had "
       "matched the words to the numbers by the day of writing; 760 until 2026-10-18, when the calls' return - text to print, rows "
       "with as_frame=True - joined it: both runs of a words question lost two turns treating grep's text as records; 800 until patch 0198, when the codes' direction, "
       "basis and days joined CTX.codes()'s description: a run counted codes on denials as the state denied); what did not change what the model does is out (counts are numbers, English); "
       "joined only with context, after Documents when both are, with the READ CTX row",
-      len(cc_) < 1050 and all(x in cc1_ for x in ("`CTX.frame()` (the passages, dated, with author and kind), `CTX.codes()` (the codes on them, with the words they rest on, which way each points against the person's usual state, said or inferred, and the days it is about), `CTX.days()` (the codes on the days they are about, counted by direction), `CTX.episodes()` (runs of days a code points worse); `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)` and `CTX.on(activity_id)` return text to print (rows with `as_frame=True`), `CTX.text('C.417')` one passage whole.",
+      len(cc_) < 1000 and all(x in cc1_ for x in ("`CTX.frame()` (the passages, dated, with author and kind), `CTX.codes()` (the codes on them, with the words they rest on, which way each points against the person's usual state, said or inferred, and `day`, the day it describes); `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)` and `CTX.on(activity_id)` return text to print (rows with `as_frame=True`), `CTX.text('C.417')` one passage whole.",
                                                                               "READ CTX quotes passages under ids like [C.417]; the report cites one as [C.417] beside [cell 7], as written or in its English rendering, marked *rendered*.",
-                                                                              "A code is a model's reading of a passage, not the writer's words; the words and the numbers can be days apart.",
+                                                                              "A code is a model's reading of a passage, not the writer's words; the words and the numbers can be days apart: match a code to them by its `day`, not its passage's date.",
                                                                               "Where the report explains a number by what was written, it says what that rests on - passages quoted, counts of codes, or your reading."))
-      and not any(x in cc1_ for x in ("a number like any other", "English.", "mapped in DATA"))
+      and not any(x in cc1_ for x in ("a number like any other", "English.", "mapped in DATA", "CTX.days()", "CTX.episodes()"))
       and sc_.system == contract(False, context=True) and "## Context" in sc_.system and "## Documents" not in sc_.system and "`READ CTX <what>`" in sc_.system and "`READ D1 <what>`" not in sc_.system
       and sb_.system == contract(True, context=True) and sb_.system.index("## Documents") < sb_.system.index("## Context") < sb_.system.index("## Format")
       and "## Context" not in sn.system and "READ CTX" not in sd.system, (len(cc_), len(cd_), sc_.system[-700:]))
