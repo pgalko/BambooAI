@@ -1398,9 +1398,10 @@ cc1_ = " ".join(cc_.split())
 cd_ = open(os.path.join(ROOT, "analyst", "contract_documents.md")).read()
 check("the context's section (step 4's trim, 2026-10-14; 0155 put the two frames' descriptions back - without them the analyst read the codes file by path and never glanced at the codes on a words question): "
       "CTX, the two frames said to be what they are, the four calls, READ CTX, the [C.417] citation, the rendered marker, a code as a reading, the words and the numbers days apart, "
-      "say what rests on what - under 760 characters (the Documents section is 578); what did not change what the model does is out (counts are numbers, English); "
+      "say what rests on what - under 800 characters (the Documents section is 578; 760 until 2026-10-18, when the calls' return - text to print, rows "
+      "with as_frame=True - joined it: both runs of a words question lost two turns treating grep's text as records); what did not change what the model does is out (counts are numbers, English); "
       "joined only with context, after Documents when both are, with the READ CTX row",
-      len(cc_) < 760 and all(x in cc1_ for x in ("`CTX.frame()` (the passages, dated, with author and kind), `CTX.codes()` (the codes on them, with the words they rest on), `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)`, `CTX.on(activity_id)`, `CTX.text('C.417')` - print what you need in a cell.",
+      len(cc_) < 800 and all(x in cc1_ for x in ("`CTX.frame()` (the passages, dated, with author and kind), `CTX.codes()` (the codes on them, with the words they rest on), `CTX.grep('pattern')`, `CTX.around('2026-08-14', days=3)` and `CTX.on(activity_id)` return text to print (rows with `as_frame=True`), `CTX.text('C.417')` one passage whole.",
                                                                               "READ CTX quotes passages under ids like [C.417]; the report cites one as [C.417] beside [cell 7], as written or in its English rendering, marked *rendered*.",
                                                                               "A code is a model's reading of a passage, not the writer's words; the words and the numbers can be days apart.",
                                                                               "Where the report explains a number by what was written, it says what that rests on - passages quoted, counts of codes, or your reading."))

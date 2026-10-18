@@ -452,6 +452,14 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The contract says what the CTX calls return (2026-10-18, patch 0193).** Both runs of the bio-psycho-social
+  question lost two turns to `CTX.grep`: one wrote `for h in CTX.grep(...): h.get('id')`, the other `.head()` on it, and
+  each spent the next turn printing the type. The calls return the passages as text to print (`_lines`), or the rows with
+  `as_frame=True` - which the contract's Context section never said. Its sentence now reads *`CTX.grep('pattern')`,
+  `CTX.around('2026-08-14', days=3)` and `CTX.on(activity_id)` return text to print (rows with `as_frame=True`),
+  `CTX.text('C.417')` one passage whole*; *print what you need in a cell* folds into *text to print*. The section is 775
+  characters; its limit moves from 760 to 800 for this one fact, recorded in the test. README's CTX sentence says the same.
+  Tests: test_analyst.py 218 (the pinned sentence, the limit).
 - **The context map tallies the calendar's categories (2026-10-18, patch 0192).** Two runs of the bio-psycho-social
   question (Palo, on Flash 1017; the assessment of 2026-10-18) each spent five or six of their 24 turns finding *his
   last A-race*: the race's priority lives only in `status` passages, written by the executor as `CATEGORY: name`

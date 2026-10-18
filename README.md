@@ -607,8 +607,8 @@ the structure.
 The Analyst sees a map of the words in its data description - the span, the passages by kind and
 month, the authors, the languages, the codes with their counts - never the text. In the kernel the
 words are `CTX`: `CTX.frame()` and `CTX.codes()` are the two tables, `CTX.grep(pattern)`,
-`CTX.around(date, days=3)`, `CTX.between(a, b)` and `CTX.on(activity_id)` find passages, `CTX.text(ref)`
-reads one whole. `READ CTX what` puts a question to the `Reader` over the passages, as over documents.
+`CTX.around(date, days=3)`, `CTX.between(a, b)` and `CTX.on(activity_id)` find passages (as text to
+print; `as_frame=True` returns the rows), `CTX.text(ref)` reads one whole. `READ CTX what` puts a question to the `Reader` over the passages, as over documents.
 The report cites a passage as `[C.417]`, quoted verbatim and marked *rendered* when it was translated;
 a count of codes is reported as the model's reading, not as what was said.
 
