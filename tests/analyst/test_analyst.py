@@ -911,6 +911,38 @@ check("a request the provider declined: the next prompt names it and its categor
       "Your last reply did not arrive: the provider declined the request before any text (reasoning_extraction). Nothing ran; reply again." in dc_prompts[1]
       and "no valid action" not in dc_prompts[1] and rdc.turns[0].kind == "error" and rdc.status == "answered", (dc_prompts[1][-300:], [t.kind for t in rdc.turns]))
 
+# the effort of the report turn and of a second attempt (2026-10-18: at the seat's xhigh a Claude 5.5 analyst thought through
+# its whole allowance on the report turn and sent nothing, and the re-ask, the same call again, did the same)
+from analyst.session import attempt_effort, REPORT_EFFORT
+check("attempt_effort: the report turn asks for medium, else high; the call after a lost reply asks for the levels under the one it was asked at, nearest first, that one last; both - the lower; neither - the seat's own",
+      attempt_effort(True) == ("medium", "high") == REPORT_EFFORT and attempt_effort(False, "xhigh") == ("high", "medium", "low", "minimal", "none", "xhigh")
+      and attempt_effort(True, "medium") == ("low", "minimal", "none", "medium") and attempt_effort(True, "xhigh") == REPORT_EFFORT
+      and attempt_effort(False) is None and attempt_effort(False, "none") is None and attempt_effort(False, "?") is None)
+ef_asks = []
+def effort_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+    ef_asks.append(h.get("effort"))
+    return [("", {"cost": 0.01, "truncated": True, "effort": "xhigh"}),                     # turn 1: thought away its allowance
+            (act6("CELL\n```python\nprint('n', len(df))\n```"), {"cost": 0.01, "effort": "high"}),
+            ("", {"cost": 0.01, "truncated": True, "effort": "medium"}),                    # turn 3, the report turn: lost too
+            (act6("REPORT\n## r\n\nThe rows [cell 1]."), {"cost": 0.01, "effort": "low"})][min(len(ef_asks) - 1, 3)]
+hf_asks = []
+def halt_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+    hf_asks.append(h.get("effort"))
+    return (act6("CELL\n```python\nraise ValueError('no')\n```") if len(hf_asks) <= 2 else act6("REPORT\n## r\n\nNothing stood.")), {"cost": 0.01}
+kef = PersistentKernel(df=df); nbef = Notebook("tef")
+try:
+    ref = Session(kef, nbef, effort_llm, data_description="d").run("q", budget=Budget(turns=3, dollars=1.0, review_every=0))
+    rhf = Session(kef, Notebook("thf"), halt_llm, data_description="d").run("q", budget=Budget(turns=6, dollars=1.0, review_every=0, max_failures=2))
+finally:
+    kef.cleanup()
+check("the effort asked turn by turn: the seat's own; after the lost reply, the levels under xhigh; the report turn medium; the forced report after its lost reply, the levels under medium - and the report stands; the report forced by failed cells asks for medium",
+      ef_asks == [None, attempt_effort(False, "xhigh"), REPORT_EFFORT, attempt_effort(True, "medium")] and ref.status == "answered" and "The rows" in ref.report
+      and hf_asks == [None, None, REPORT_EFFORT] and "Nothing stood" in rhf.report, (ef_asks, ref.status, hf_asks))
+
 # DS.save (2026-10-06): a dataset for the person lands in the generated-datasets folder the kernel was given, with one
 # printed line; the replayed script's stub does the same into the folder the route passes
 _gtmp = tempfile.mkdtemp(); _gdir = os.path.join(_gtmp, "datasets", "u1", "generated")

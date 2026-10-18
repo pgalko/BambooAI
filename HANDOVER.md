@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (218/184/31/24/18/49/44/69/13/142/60/42/35/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (220/185/31/27/18/49/44/69/13/142/60/42/35/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,22 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The report turn asks for less effort, and so does a second attempt (2026-10-18, patch 0199).** A Sonnet 5.5 run of
+  the bio-psycho-social question (the performance tier: Analyst at xhigh, 32,000 tokens) lost its report. On the last
+  turn - every cell whole in view, 61,500 prompt tokens - the model thought through its whole allowance and sent nothing,
+  and the forced report after it, the same call with a line added, did the same: $0.87 and no report. The prompt is the
+  report view's (2026-09-10; the DeepSeek runs of the same question see 38-45k); what failed is the thinking, which a
+  Claude 5.5 effort word does not bound (the figures request met it on 2026-10-11). The report turn now asks for
+  `REPORT_EFFORT` - medium, high for a model that does not declare medium - and the call after a reply that came back
+  empty or cut at the length limit asks for the levels under the one that reply was asked at, nearest first
+  (`attempt_effort`; when both hold, the lower). The model layer takes words in order of preference, the first the model
+  declares and never above the seat's own (`_effective_effort`'s `declared`; a seat set lower, the free tier's low,
+  stays lower), and the stream records the word each call was asked at (`seat_effort` in the call's meta, returned by
+  `_llm` in the usage as `effort`). The cost tier's report turn moves from xhigh to medium too. Tests: test_analyst.py
+  220 (attempt_effort; a scripted run - a lost turn at xhigh, the next asking for less, the report turn medium, the
+  forced report after its lost reply low; the report forced by failed cells medium), test_vllm_adapter.py 27 (the
+  preference against each vocabulary; the analyst's levels pinned to the model layer's; the streamed request and its
+  record), test_app_path.py 185 (`_llm` hands the effort over and reports it).
 - **Each code says which way it points, whether it was said or inferred, and the days it is about; earlier passages
   ride with each batch (2026-10-18, patch 0198).** The rider's whole year, read in order and set against his wellness
   scales (the answer key, kept outside the repo), showed the codes losing what a reader keeps: 23 of 118 `fatigue`

@@ -86,6 +86,11 @@ FIGURE_ASKED_LINE = ("THE FIGURE THE PERSON ASKS ABOUT is attached to this messa
                      "its cells (SHOW n re-opens the cell that drew it; what it plotted is in the kernel when this chain's cells are). "
                      "Read the picture for what it shows; compute from the data for any number you state.")
 LAST_TURNS_LINE = "The budget is nearly gone: write REPORT with what you have, and say what was not established."
+# the report turn's effort (2026-10-18): the analysis is done and every number is in view - the report is writing. At the
+# seat's xhigh a Claude 5.5 analyst thought through its whole 32,000-token allowance on the report turn and sent nothing,
+# and the re-ask, the same call again, did the same. Medium, high for a model without it; a seat set lower stays lower
+REPORT_EFFORT = ("medium", "high")
+EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 SHOW_VIEW_CHARS = 40_000     # a SHOW of several cells at once rides whole up to this; beyond it the middle goes, as for a digest
                              # (2026-10-03: an 87,000-character view of several cells was sent whole to a 64k-token server)
 SHOWN_RUNS_CHARS = 60_000    # the runs SHOW RUN re-opened stay in the prompt for the rest of the run, whole, while together they fit
@@ -448,6 +453,18 @@ def view_digest(text: str, how_to_see_all: str, cap: int = DIGEST_VIEW_CHARS) ->
     return head.rstrip() + f"\n... [{omitted} characters omitted from the middle for length; {how_to_see_all}] ...\n" + tail.lstrip()
 
 
+def attempt_effort(report: bool, lost_at: str = "") -> Optional[tuple]:
+    """The effort a call asks for, as words in order of preference: the model layer takes the first the model accepts and
+    never goes above the seat's own. The report turn asks for REPORT_EFFORT; the call after a reply that came back empty
+    or cut at the length limit asks for the levels under the one that reply was asked at, nearest first (2026-10-18); when
+    both hold, the lower. Neither: None - the seat's own."""
+    asks = [REPORT_EFFORT] if report else []
+    if lost_at in EFFORT_LEVELS[1:]:
+        i = EFFORT_LEVELS.index(lost_at)
+        asks.append(EFFORT_LEVELS[i - 1::-1] + (lost_at,))
+    return min(asks, key=lambda a: EFFORT_LEVELS.index(a[0])) if asks else None
+
+
 def parse_turn(text: str) -> tuple[str, str, Action]:
     """(thinking, note, action). A reply carries one action. Every action in every ###ACTION### block is found; the first
     runs, and any different ones after it are recorded in `more` so the next prompt can say they did not run (2026-10-05:
@@ -671,12 +688,16 @@ class Session:
             parts.append(view_digest(texts[k][0], "the notebook keeps it whole", cap=SHOW_VIEW_CHARS))
         return "\n".join(parts)
 
+    @staticmethod
+    def _last_turn(budget: Budget, turn_no: int, spent: float) -> bool:
+        """The report turn: the last turn itself (2026-10-06: at one turn left the model reported a turn early, every run,
+        and Deep had 14 working turns of 15), never the first - even a tiny budget gets one cell - or the turn that finds
+        nine tenths of the dollars spent. The forced report after the loop is the safety net if the model does not report."""
+        return (budget.turns - turn_no <= 0 and turn_no > 1) or spent >= 0.9 * budget.dollars
+
     def _user_prompt(self, run: Run, budget: Budget, turn_no: int, spent: float, extra: str = "",
                      everything: bool = False, tail: str = "") -> str:
-        left = budget.turns - turn_no
-        # the last turn itself (2026-10-06: at left <= 1 the model reported a turn early, every run, and Deep had 14 working
-        # turns of 15); the forced report after the loop is the safety net if the model does not report here
-        last = (left <= 0 and turn_no > 1) or spent >= 0.9 * budget.dollars      # never on the first turn: even a tiny budget gets one cell
+        last = self._last_turn(budget, turn_no, spent)
         # the report turn sees everything (2026-09-10): once the session forces the report there is no turn left to
         # SHOW a cell, and a result the report cannot see does not exist for the reader
         everything = everything or last
@@ -786,6 +807,7 @@ class Session:
                                                       # of the analysis, as a picture beside the prompt (2026-10-13)
         self._save()
         spent, extra, failures = 0.0, "", 0
+        lost_at = ""                                   # the effort a reply that came back empty or cut short was asked at
         self.system = contract(self.documents, budget.review_every, context=self.context)    # the Reviews section only when a reviewer runs
         final_turn, final_extra, forced_by_review = budget.turns, LAST_TURNS_LINE + "\nWrite REPORT now.", False
         tools.run_prelude(self.kernel, self.kernel_prelude)        # the document objects, when the thread has documents
@@ -801,7 +823,9 @@ class Session:
                     break
             self.emit({"type": "turn_start", "run": run.id, "turn": turn_no, "of": budget.turns})
             t0 = time.time()
-            text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, extra), **({"image": self._image} if self._image else {}))
+            effort, lost_at = attempt_effort(self._last_turn(budget, turn_no, spent), lost_at), ""
+            text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, extra), **({"image": self._image} if self._image else {}),
+                                   **({"effort": effort} if effort else {}))
             usage = dict(usage or {})
             usage["elapsed"] = round(time.time() - t0, 1)
             spent += float(usage.get("cost", 0.0) or 0.0)
@@ -853,7 +877,8 @@ class Session:
                                 "Write REPORT now with what stands: what was established before the failures, what the failing "
                                 "step was meant to add, and what remains unestablished.")
                         self.emit({"type": "turn_start", "run": run.id, "turn": turn_no + 1, "of": budget.turns})   # a card for the report (2026-10-08)
-                        text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, halt + "\n\n" + extra, everything=True))
+                        text, usage = self.llm(self.system, self._user_prompt(run, budget, turn_no, spent, halt + "\n\n" + extra, everything=True),
+                                               effort=REPORT_EFFORT)
                         spent += float((usage or {}).get("cost", 0.0) or 0.0)
                         _, note, action = parse_turn(text)
                         body = action.arg if action.verb == "report" else (text or "")
@@ -955,9 +980,11 @@ class Session:
                     logger.warning("Analyst turn %d: the model returned an empty reply (%s completion tokens billed) - re-asking",
                                    turn_no, usage.get("completion_tokens", "?"))
                     turn.stdout = "Your last reply arrived empty - no text reached the workspace. Reply again, in the turn format."
+                    lost_at = usage.get("effort") or ""
                 elif (usage or {}).get("truncated"):
                     logger.warning("Analyst turn %d: the reply was cut at the length limit before a valid action (%s)", turn_no, action.arg)
                     turn.stdout = "Your last reply was cut off at the length limit before it reached an action; nothing ran."
+                    lost_at = usage.get("effort") or ""
                 elif action.arg == REPORT_EMPTY:
                     # the word without the report (2026-10-11): say what a report is, so the next reply carries it
                     logger.warning("Analyst turn %d: REPORT with nothing under it", turn_no)
@@ -991,7 +1018,8 @@ class Session:
             final_extra = extra + "\n\n" + final_extra      # what the last turn produced rides with the ask: a failure's traceback, a lost reply's note
         self.emit({"type": "turn_start", "run": run.id, "turn": report_turn, "of": budget.turns})
         text, usage = self.llm(self.system, self._user_prompt(run, budget, final_turn, spent, final_extra, everything=True,
-                                                              tail=REPORT_NOW if forced_by_review else ""))
+                                                              tail=REPORT_NOW if forced_by_review else ""),
+                               effort=attempt_effort(True, lost_at))
         spent += float((usage or {}).get("cost", 0.0) or 0.0)
         _, note, action = parse_turn(text)
         body = action.arg if action.verb == "report" else (text or "")

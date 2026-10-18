@@ -180,7 +180,8 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Promoter' if 'Promoter' in agents else self._seat()
 
-    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, image: str = None, **hints):
+    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, image: str = None,
+             effort=None, **hints):
         """The model call the session uses: the app's model layer (streaming,
         telemetry, retries), returning (text, {'cost': delta}). A self-review
         turn (review=True) runs on the Reviewer seat; its cost is accounted to
@@ -190,7 +191,11 @@ class BambooAI:
         `image` (a PNG, base64) rides with the user message as an image part in
         the OpenAI form - the OpenAI-compatible adapters pass it through, the
         Anthropic and Gemini adapters convert it (2026-10-13: the plot's Ask AI
-        had sent the picture since v1 and the analyst never received it)."""
+        had sent the picture since v1 and the analyst never received it).
+        `effort` lowers the seat's effort for this call - a word, or words in
+        order of preference, the first the model accepts (the analyst's report
+        turn and its second attempts, 2026-10-18); the usage says the effort the
+        call was asked at."""
         if self.kill_signal or self._stop_event.is_set():
             raise ExecutionInterrupted("stopped by the user")
         before = self._chain_cost()
@@ -198,7 +203,7 @@ class BambooAI:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
         text = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, messages,
                                agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite else (self._figures_seat() if figures else self._seat()))), chain_id=self.chain_id,
-                               reasoning_models=self.reasoning_models)
+                               reasoning_models=self.reasoning_models, **({"reasoning_effort": effort} if effort else {}))
         if isinstance(text, tuple):
             text = text[0]
         # whether the reply was cut at the seat's max_tokens (the model layer records it per request; 2026-10-06: a turn
@@ -209,7 +214,7 @@ class BambooAI:
         # a request the provider's classifier declined before any text (2026-10-08: the Claude 5.5 family's stop_reason
         # "refusal"; the adapter records the category so the session can say what happened rather than "no valid action")
         return text or "", {"cost": max(0.0, self._chain_cost() - before), "truncated": bool(meta.get("truncated")),
-                            "declined": meta.get("declined") or ""}
+                            "declined": meta.get("declined") or "", "effort": meta.get("seat_effort") or ""}
 
     def _chain_cost(self):
         ts = self.log_and_call_manager.token_summary

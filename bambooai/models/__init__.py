@@ -27,11 +27,19 @@ _EFFORT_RANK = {"none": 0, "minimal": 1, "low": 2, "medium": 3,
 _warned_missing_effort = set()
 
 
-def _effective_effort(configured, requested, agent=None):
+def _effective_effort(configured, requested, agent=None, declared=None):
     """The seat's configured effort, unless the caller asked for a
     recognised LOWER word (honoured and logged - the rescue rung). A
-    missing config value degrades to medium with a one-time warning;
-    the shipped template never omits it (completeness-pinned)."""
+    caller may name words in order of preference: the first the model
+    declares (`declared`, its reasoning_efforts; any, when it declares
+    none) is the one asked for (2026-10-18: the analyst's report turn
+    asks for medium, else high). A missing config value degrades to
+    medium with a one-time warning; the shipped template never omits it
+    (completeness-pinned)."""
+    if isinstance(requested, (list, tuple)):
+        words = [str(w).strip().lower() for w in requested if w]
+        fit = [w for w in words if not declared or w in declared]
+        requested = (fit or words or [None])[0]
     if configured not in _EFFORT_RANK:
         if agent and agent not in _warned_missing_effort:
             _warned_missing_effort.add(agent)
@@ -228,7 +236,8 @@ class ModelManager:
         # the seat's reasoning effort, resolved as the streaming path resolves it (2026-10-14: this path had sent none,
         # so a reasoning model reasoned at its default depth - the coder spent its whole 16k budget thinking and
         # returned nothing, three calls running; the Reader and the Promoter were paying the same tax unseen)
-        reasoning_effort = _effective_effort(self.get_agent_reasoning_effort(agent), reasoning_effort, agent)
+        reasoning_effort = _effective_effort(self.get_agent_reasoning_effort(agent), reasoning_effort, agent,
+                                             (self.get_model_properties().get(model) or {}).get('reasoning_efforts'))
 
         # Clear the cache side channel before dispatch. Doing this per provider
         # leaks the previous call's counts into the next one when the provider
@@ -327,7 +336,8 @@ class ModelManager:
 
         model, provider, max_tokens, temperature, response_format, api_type = self._init(agent)
         reasoning_effort = _effective_effort(
-            self.get_agent_reasoning_effort(agent), reasoning_effort, agent)
+            self.get_agent_reasoning_effort(agent), reasoning_effort, agent,
+            (self.get_model_properties().get(model) or {}).get('reasoning_efforts'))
 
         prompt_cache.reset()   # see the note in llm_call
 
@@ -450,6 +460,9 @@ class ModelManager:
                     except Exception:                           # noqa: BLE001
                         pass
                     time.sleep(delay)
+            # the effort this call was asked at, after the law, for the caller: a second attempt after a reply cut short
+            # asks for less (2026-10-18). Recorded after the call - the adapters reset the channel when they start
+            prompt_cache.record_meta(seat_effort=reasoning_effort)
 
             if tools:
                 (content_received, tool_response, local_llm_messages,

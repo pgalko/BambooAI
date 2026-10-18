@@ -63,6 +63,18 @@ B.ModelManager = FakeModels
 df = pd.DataFrame({"arm": np.tile(["A", "B"], 100), "x": np.random.default_rng(1).normal(size=200)}); df.loc[df.arm == "B", "x"] += 0.5
 BAMBOO = B.BambooAI(df=df, df_id="d1", user_id="u1", webui=True, exploratory=True, planning=True)
 check("the instance builds with the old constructor arguments and no seats", BAMBOO._seat() == "Investigator" and BAMBOO.store is not None)
+# the effort a call asks for (2026-10-18): _llm hands it to the model layer as reasoning_effort, and the usage says what the call was asked at
+from bambooai.models import prompt_cache as _pc
+_seen = []
+def _stream_probe(prompts, lacm, om, messages, agent=None, chain_id=None, reasoning_models=None, **kw):
+    _seen.append(kw); _pc.reset(); _pc.record_meta(seat_effort="medium"); return "ok"
+_orig_stream, BAMBOO.llm_stream = BAMBOO.llm_stream, _stream_probe
+try:
+    _t1, _u1 = BAMBOO._llm("s", "u", effort=("medium", "high")); _t2, _u2 = BAMBOO._llm("s", "u")
+finally:
+    BAMBOO.llm_stream = _orig_stream
+check("_llm: an effort rides to the model layer as reasoning_effort, and none when none is asked; the usage says the effort the call was asked at",
+      _seen[0].get("reasoning_effort") == ("medium", "high") and "reasoning_effort" not in _seen[1] and _u1.get("effort") == "medium", (_seen, _u1))
 
 BAMBOO.output_manager.add_user_input("Is B higher than A?")
 BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None)

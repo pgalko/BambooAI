@@ -258,6 +258,29 @@ check("ModelManager.llm_call: the Coder seat's 'none' and the Reader's 'high' re
       _coder_req["extra_body"].get("reasoning") == {"effort": "none"} and _reader_req["extra_body"].get("reasoning") == {"effort": "high"} and _lowered["extra_body"].get("reasoning") == {"effort": "low"},
       (_coder_req.get("extra_body"), _reader_req.get("extra_body"), _lowered.get("extra_body")))
 
+# words in order of preference (2026-10-18, the analyst's report turn and its second attempts): the first the model
+# declares, never above the seat's own; the stream records the effort the call was asked at, for the caller
+from bambooai.models import _effective_effort, _EFFORT_RANK, prompt_cache as _pc
+from analyst.session import EFFORT_LEVELS
+_ds, _glm, _cl = ["none", "low", "medium", "high", "xhigh"], ["low", "high", "max"], ["low", "medium", "high", "xhigh", "max"]
+check("_effective_effort: of words in order of preference, the first the model declares - medium on a model with it, high on one without, the first when it declares none; never above the seat's own; one word as before",
+      _effective_effort("xhigh", ("medium", "high"), "A", _ds) == "medium" and _effective_effort("max", ("medium", "high"), "A", _glm) == "high"
+      and _effective_effort("xhigh", ("medium", "high"), "A", None) == "medium" and _effective_effort("low", ("medium", "high"), "A", _ds) == "low"
+      and _effective_effort("xhigh", ("high", "medium", "low", "minimal", "none", "xhigh"), "A", _cl) == "high"
+      and _effective_effort("medium", ("low", "minimal", "none", "medium"), "A", _cl) == "low" and _effective_effort("high", "low", "A", _glm) == "low")
+check("the analyst's effort levels are the model layer's, in its order", EFFORT_LEVELS == tuple(sorted(_EFFORT_RANK, key=_EFFORT_RANK.get)), EFFORT_LEVELS)
+_mm.config["agent_configs"].append({"agent": "Analyst", "details": {"model": "deepseek/deepseek-v4.1-flash", "provider": "openrouter", "reasoning_effort": "xhigh", "max_tokens": 16000, "temperature": 0}})
+class _Pane(Pane):
+    def display_tool_info(self, *a, **k): pass
+FakeClient.calls.clear(); FakeClient.script[:] = [chunk(content="x", finish="stop")]
+_mm.llm_stream(Prompts(), _LACM(), _Pane(), [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], agent="Analyst", chain_id="c",
+               reasoning_models=["deepseek/deepseek-v4.1-flash"], reasoning_effort=("medium", "high"))
+_streamed, _meta = FakeClient.calls[-1], _pc.last_meta()
+_mm.llm_call(_LACM(), [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], agent="Analyst", chain_id="c", reasoning_effort=("medium", "high"))
+check("ModelManager: words in order of preference reach the request as the first the model declares, on the stream and the plain call; the stream records the effort it was asked at",
+      _streamed["extra_body"].get("reasoning") == {"effort": "medium"} and _meta.get("seat_effort") == "medium" and FakeClient.calls[-1]["extra_body"].get("reasoning") == {"effort": "medium"},
+      (_streamed.get("extra_body"), _meta, FakeClient.calls[-1].get("extra_body")))
+
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")
 sys.exit(1 if n_fail else 0)
