@@ -121,10 +121,10 @@ check("validate: a non-English passage without a rendering is counted missing; a
 check("the system says the reading: earlier passages for reference only, and for each code its quote, which way it points against the person's usual state, said or inferred, and the days it is about - the activity's day for a passage on one, a night the morning it ends, a code once for each day; the reply's codes are objects",
       "for reference only" in system and "do not code them" in system and "worse, better or neutral" in system
       and "against their usual state - worse while a problem is there, even as it eases, better when it is gone or things are better than usual, neutral otherwise" in system
-      and "said or inferred" in system and "the activity's day unless it says otherwise, and a night belongs to the morning it ends" in system
+      and "said or inferred" in system and "when they are not the passage's own day (for a passage on an activity, the activity's day); a night belongs to the morning it ends" in system
       and "A code that applies to different days - a passage comparing one day with another - is given once for each." in system and "one for each day it applies to" in system
       and "denies a problem" not in system and '"codes": [{"code": "...", "quote": "...", "direction": "worse", "basis": "said", "about": ""}]' in system
-      and coder.READING_VERSION == 3, system[:300])
+      and coder.READING_VERSION == 4, system[:300])
 _pa = [dict(passages[0], id="C.7", date="2026-08-01", activity_id="", activity_date=""), {"id": "C.8", "date": "2026-08-01", "kind": "activity_message", "author_role": "coach", "author_name": "Kim", "text": "Easy tomorrow. " * 40},
        dict(passages[1], id="C.9", activity_date="2026-08-02")]
 _sy, _us = coder.coder_messages("fatigue: tired", [_pa[2]], earlier=_pa[:2])
@@ -163,6 +163,16 @@ v4 = coder.validate([{"id": "C.1", "codes": [{"code": "fatigue", "quote": "legs 
                     passages, {"fatigue"}, set())
 check("validate: a code once for each day it is about - a second day kept as a reading of its own, a second reading of the same days dropped (the passage's own day written either way)",
       [(r["code"], r["direction"], r["about"]) for r in v4["rows"]] == [("fatigue", "worse", ""), ("fatigue", "worse", "2026-08-01")] and not v4["dropped"], (v4["rows"], dict(v4["dropped"])))
+_late = [dict(passages[1], activity_date="2026-08-02"), dict(passages[2], activity_date="2026-08-03")]
+v5 = coder.validate([{"id": "C.2", "codes": [{"code": "fatigue", "quote": "Benene var tunge", "direction": "worse", "basis": "said", "about": ""},
+                                             {"code": "fatigue", "quote": "men det gik", "direction": "better", "basis": "said", "about": "2026-08-03"},
+                                             {"code": "fatigue", "quote": "tunge", "direction": "worse", "basis": "said", "about": "2026-08-02"},
+                                             {"code": "sleep", "quote": "tunge", "direction": "worse", "basis": "said", "about": "last week"}], "tone": "mixed", "lang": "da", "text_en": "The legs were heavy from the first climb, but it went."},
+                     {"id": "C.3", "codes": ["instruction"], "quotes": {"instruction": "Keep the next two days easy"}, "tone": "neutral", "lang": "en"}],
+                    _late, {"fatigue", "sleep", "instruction"}, set())
+check("validate: a passage on an activity of another day has that day as its own - a reading with no day, or a day not one, takes it, written out; the day of writing, given, is kept as a day of its own; on a passage of its activity's day nothing changes",
+      [(r["id"], r["code"], r["direction"], r["about"]) for r in v5["rows"]] == [("C.2", "fatigue", "worse", "2026-08-02"), ("C.2", "fatigue", "better", "2026-08-03"), ("C.2", "sleep", "worse", "2026-08-02"), ("C.3", "instruction", "", "")]
+      and v5["dropped"] == {"about": 1}, (v5["rows"], dict(v5["dropped"])))
 check("report_line: the sentence of a pass", coder.report_line({"passages": 212, "coded": 201, "rendered": 180, "proposed": 2, "unanswered": 3, "failed_batches": 1})
       == "201 of 212 coded, 180 rendered into English, 2 codes proposed, 3 not read by the coder, 1 batch failed" and coder.report_line({"passages": 0}) == "nothing to code"
       and coder.report_line({"passages": 4, "coded": 4}) == "4 of 4 coded"

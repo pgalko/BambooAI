@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (220/185/31/27/18/49/44/69/13/142/60/42/36/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (220/185/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **A reading on a passage about an earlier activity takes the activity's day (2026-10-18, patch 0201).** Under 0200's
+  instructions the coder put the activity's day on 57% of the readings of passages written after their activity, down
+  from 77% under 0198's (63% of the state readings, from 85%): 44 passages lost it and 5 gained it, so the instructions'
+  added sentences on days, not chance. Copying a day the passage's head already shows is a mechanical step, so the
+  checker takes it: a passage on an activity of another day has that day as its own, and a reading with no day - or a
+  day that is not one - takes it, written out, so the file's empty `about` stays the day of writing; the model writes a
+  day only when it is another (the day of writing included). The instructions say the passage's own day is the
+  activity's, for a passage on one. `READING_VERSION` 4. On the 0200 reading the 216 key items it shares with the 20
+  October window score 131 of 145 (0198: 125; the codes before: 86). The answer key's K173 was corrected, logged in its
+  README: the bad night was the one before the ride ("even though" he had slept badly), not after. Tests:
+  test_coder.py 37 (the instructions; a reading with no day, a day that is not one, the activity's day given and the
+  day of writing given, on a passage of an earlier activity), test_app_path.py 185 (the store's entries under reading 4).
 - **Direction against the usual state, a code for each day, a night by its morning (2026-10-18, patch 0200).** Scored
   against the rider's answer key, the 0198 reading passed 127 of 145 readings on the items its window shared with the
   key (80 before). Three gaps stood out. A comparison with an earlier day ("not as tired as yesterday") gave today's

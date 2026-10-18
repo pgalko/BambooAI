@@ -21,8 +21,9 @@ BASES = ("said", "inferred")
 MIN_QUOTE_CHARS = 2
 # the reading: 2 since 2026-10-18 (each code with its direction, basis and days; earlier passages for reference), 3 the
 # same day (direction against the person's usual state; a code once for each day it is about; a night the morning it
-# ends). The store of coded passages reads an entry again when it was read under an older one.
-READING_VERSION = 3
+# ends), 4 the same day (a passage on an activity of another day has that day as its own: a reading with no day of its
+# own takes it). The store of coded passages reads an entry again when it was read under an older one.
+READING_VERSION = 4
 # the passages before a batch that ride with it, for reference (a passage that refers back reads by them): at most
 # this many, of at most this many characters each and in all, written in the days before the batch's first passage
 EARLIER_PASSAGES = 8
@@ -41,11 +42,10 @@ CODER_SYSTEM = (
     "vocabulary that apply and, for each code: the words it rests on, quoted exactly from the passage as written; "
     "which way it points for the person the records are about, against their usual state - worse while a problem is "
     "there, even as it eases, better when it is gone or things are better than usual, neutral otherwise; whether the "
-    "passage says it or a careful reader would conclude it from the "
-    "passage and the ones before it - said or inferred; and the days it is about, when they are not the passage's own "
-    "day - a passage on an activity is about the activity's day unless it says otherwise, and a night belongs to the "
-    "morning it ends. A code that applies to different days - a passage comparing one day with another - is given "
-    "once for each. Return the passage's tone. "
+    "passage says it or a careful reader would conclude it from the passage and the ones before it - said or "
+    "inferred; and the days it is about, when they are not the passage's own day (for a passage on an activity, the "
+    "activity's day); a night belongs to the morning it ends. A code that applies to different days - a passage "
+    "comparing one day with another - is given once for each. Return the passage's tone. "
     "A passage may take no code. If a passage needs a code the vocabulary lacks, propose one - a short English name "
     "in snake_case and a one-line English definition - once in the reply, and use it. Every passage not written in "
     "English gets a faithful, complete English rendering in text_en; an English passage gets none.\n\n"
@@ -53,8 +53,8 @@ CODER_SYSTEM = (
     '{"id": "C.12", "codes": [{"code": "...", "quote": "...", "direction": "worse", "basis": "said", "about": ""}], '
     '"tone": "negative", "lang": "da", "text_en": "...", "propose": [{"code": "...", "definition": "..."}]}\n'
     "- codes: one object per code that applies - one for each day it applies to -, [] when none does; code: a name "
-    "from the vocabulary, or proposed in "
-    "this reply; quote: a contiguous stretch of the passage as written - the original words, never the rendering\n"
+    "from the vocabulary, or proposed in this reply; quote: a contiguous stretch of the passage as written - the "
+    "original words, never the rendering\n"
     "- direction: worse, better or neutral; basis: said or inferred; about: YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD, "
     "or \"\" for the passage's own day\n"
     "- tone: one of positive, negative, neutral, mixed\n"
@@ -219,9 +219,10 @@ def _lang(value) -> str:
 def validate(items: List[dict], passages: List[dict], book_codes: set, proposed_codes: set = frozenset()) -> dict:
     """Mechanical checks of a reply against the passages it read (§6): every code in the book or proposed with a
     definition in this reply; every quote verbatim in the passage as written (whitespace normalised); one tone of
-    four; for each code a direction of three, a basis of two and days within reach of the passage's own (a value
-    outside them is left empty and counted, the code kept), a code once for each day it is about; a rendering for every passage not in English, its length
-    within a factor of the original's. A code given by name with its quote in `quotes` (the format before
+    four; for each code a direction of three, a basis of two and days within reach of the passage's own - its
+    activity's, when it hangs on one - (a value outside them is left empty and counted, the code kept), a code once for
+    each day it is about; a rendering for every passage not in English, its length within a factor of the original's.
+    A code given by name with its quote in `quotes` (the format before
     READING_VERSION 2) is read too, with no direction, basis or days. Returns {rows, renderings, proposals, dropped,
     seen} - rows for the codes table (id, code, tone, quote, status, direction, basis, about), renderings {id: {lang,
     text_en}}, proposals [{code, definition, example}], dropped a Counter of what was refused, seen the ids the
@@ -291,7 +292,13 @@ def validate(items: List[dict], passages: List[dict], book_codes: set, proposed_
             if len(q) < MIN_QUOTE_CHARS or q not in norm_original:
                 dropped["quote"] += 1
                 continue
-            about, ok = about_days(reading.get("about"), p.get("date")) if isinstance(raw, dict) else ("", True)
+            # a passage on an activity of another day has that day as its own: a reading with no day takes it, written
+            # out, so the file's empty `about` stays the day of writing (2026-10-18: the model had copied the activity's
+            # day into 77% of such readings, then 57% once the instructions said more about days)
+            own = str(p.get("activity_date") or p.get("date") or "")[:10]
+            about, ok = about_days(reading.get("about"), own) if isinstance(raw, dict) else ("", True)
+            if not about and own != str(p.get("date") or "")[:10]:
+                about = own
             if any(r["id"] == uid and r["code"] == code and r["about"] == about for r in rows):
                 continue                      # a code once for each day it is about (2026-10-18)
             if not ok:
