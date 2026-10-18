@@ -118,10 +118,13 @@ check("validate: a non-English passage without a rendering is counted missing; a
       and [(r["id"], r["code"], r["status"]) for r in v2["rows"]] == [("C.2", "fatigue", "codebook"), ("C.5", "instruction", "codebook"), ("C.4", "old_proposal", "proposed"), ("C.1", "sleep", "codebook")]
       and v2["rows"][3]["tone"] == "negative" and v2["renderings"]["C.1"] == {"lang": "en", "text_en": ""}, (dict(v2["dropped"]), v2["rows"]))
 # ---- the reading's format 2 (patch 0198): each code with its direction, basis and days; earlier passages for reference ----
-check("the system says the reading: earlier passages for reference only, and for each code its quote, which way it points (a denial points better), said or inferred, and the days it is about - the activity's day for a passage on one; the reply's codes are objects",
-      "for reference only" in system and "do not code them" in system and "worse, better or neutral" in system and "denies a problem points better for it" in system
-      and "said or inferred" in system and "the activity's day unless it says otherwise" in system and '"codes": [{"code": "...", "quote": "...", "direction": "worse", "basis": "said", "about": ""}]' in system
-      and coder.READING_VERSION == 2, system[:300])
+check("the system says the reading: earlier passages for reference only, and for each code its quote, which way it points against the person's usual state, said or inferred, and the days it is about - the activity's day for a passage on one, a night the morning it ends, a code once for each day; the reply's codes are objects",
+      "for reference only" in system and "do not code them" in system and "worse, better or neutral" in system
+      and "against their usual state - worse while a problem is there, even as it eases, better when it is gone or things are better than usual, neutral otherwise" in system
+      and "said or inferred" in system and "the activity's day unless it says otherwise, and a night belongs to the morning it ends" in system
+      and "A code that applies to different days - a passage comparing one day with another - is given once for each." in system and "one for each day it applies to" in system
+      and "denies a problem" not in system and '"codes": [{"code": "...", "quote": "...", "direction": "worse", "basis": "said", "about": ""}]' in system
+      and coder.READING_VERSION == 3, system[:300])
 _pa = [dict(passages[0], id="C.7", date="2026-08-01", activity_id="", activity_date=""), {"id": "C.8", "date": "2026-08-01", "kind": "activity_message", "author_role": "coach", "author_name": "Kim", "text": "Easy tomorrow. " * 40},
        dict(passages[1], id="C.9", activity_date="2026-08-02")]
 _sy, _us = coder.coder_messages("fatigue: tired", [_pa[2]], earlier=_pa[:2])
@@ -153,6 +156,13 @@ check("validate, the reading's format 2: each code's direction, basis and days k
       and (r3[("C.2", "fatigue")]["direction"], r3[("C.2", "fatigue")]["basis"], r3[("C.2", "fatigue")]["about"]) == ("", "", "") and r3[("C.2", "fatigue")]["quote"] == "Benene var tunge"
       and v3["dropped"] == {"direction": 1, "basis": 1, "about": 1}
       and (r3[("C.3", "instruction")]["direction"], r3[("C.3", "instruction")]["basis"], r3[("C.3", "instruction")]["about"]) == ("", "", ""), (v3["rows"], dict(v3["dropped"])))
+v4 = coder.validate([{"id": "C.1", "codes": [{"code": "fatigue", "quote": "legs flat all day", "direction": "worse", "basis": "said", "about": ""},
+                                             {"code": "fatigue", "quote": "slept badly", "direction": "worse", "basis": "said", "about": "2026-08-01"},
+                                             {"code": "fatigue", "quote": "legs flat", "direction": "better", "basis": "said", "about": "2026-08-02"},
+                                             {"code": "fatigue", "quote": "flat all day", "direction": "better", "basis": "said", "about": "2026-08-01"}], "tone": "negative", "lang": "en"}],
+                    passages, {"fatigue"}, set())
+check("validate: a code once for each day it is about - a second day kept as a reading of its own, a second reading of the same days dropped (the passage's own day written either way)",
+      [(r["code"], r["direction"], r["about"]) for r in v4["rows"]] == [("fatigue", "worse", ""), ("fatigue", "worse", "2026-08-01")] and not v4["dropped"], (v4["rows"], dict(v4["dropped"])))
 check("report_line: the sentence of a pass", coder.report_line({"passages": 212, "coded": 201, "rendered": 180, "proposed": 2, "unanswered": 3, "failed_batches": 1})
       == "201 of 212 coded, 180 rendered into English, 2 codes proposed, 3 not read by the coder, 1 batch failed" and coder.report_line({"passages": 0}) == "nothing to code"
       and coder.report_line({"passages": 4, "coded": 4}) == "4 of 4 coded"

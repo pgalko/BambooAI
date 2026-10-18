@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (220/185/31/27/18/49/44/69/13/142/60/42/35/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (220/185/31/27/18/49/44/69/13/142/60/42/36/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,21 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Direction against the usual state, a code for each day, a night by its morning (2026-10-18, patch 0200).** Scored
+  against the rider's answer key, the 0198 reading passed 127 of 145 readings on the items its window shared with the
+  key (80 before). Three gaps stood out. A comparison with an earlier day ("not as tired as yesterday") gave today's
+  reading only: the instructions asked for one reading per code, and `validate` kept the first of a code in a passage.
+  Nothing said what a direction is measured against, so a recorded sickness score of 2 read better after a 4 and worse
+  on eight other days. And a night was dated by its evening, while his sleep score sits on the morning it ends. The
+  coder's instructions now read direction against the person's usual state - worse while a problem is there, even as
+  it eases; better when it is gone or things are better than usual; neutral otherwise (the denial rule falls under
+  it) - give a code once for each day it applies to, and date a night by the morning it ends; `validate` keeps a code
+  once per day (`about`), not once per passage. `READING_VERSION` 3: the first load re-reads every passage, once. The
+  contract's `CTX.codes()` says what direction is measured against. The answer key, outside the repo, was revised to
+  the same rule before the test: six items that expected better for a problem that had only eased (two now worse,
+  four the code either way); the 0198 reading scores 125 of 145 against it. docs/CONTEXT_DESIGN.md §3.2, §6. Tests:
+  test_coder.py 36 (the instructions; a code on two days kept, a second reading of the same days dropped),
+  test_analyst.py 220 (the contract), test_app_path.py 185 (the store's entries under reading 3).
 - **The report turn asks for less effort, and so does a second attempt (2026-10-18, patch 0199).** A Sonnet 5.5 run of
   the bio-psycho-social question (the performance tier: Analyst at xhigh, 32,000 tokens) lost its report. On the last
   turn - every cell whole in view, 61,500 prompt tokens - the model thought through its whole allowance and sent nothing,

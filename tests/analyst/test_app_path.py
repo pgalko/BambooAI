@@ -918,7 +918,7 @@ try:
     check("the coded passages are remembered under storage/<user>/context/<key mark>/coded.json - the three answered ones with their rendering and codes, the unanswered one not, the tag never sent",
           os.path.exists(_store3.path) and len(_store3.entries) == 3 and _store3.entries["activity_message:102"]["text_en"].startswith("The legs were heavy") and [c["code"] for c in _store3.entries["activity_message:102"]["codes"]] == ["fatigue", "heavy_legs"]
           and "plan_note:105" not in _store3.entries and "tag:104" not in _store3.entries
-          and all(e.get("reading") == 2 for e in _store3.entries.values()) and _store3.entries["day_note:101"]["codes"][0]["about"] == "2026-08-01..2026-08-02", (_store3.path, sorted(_store3.entries)))
+          and all(e.get("reading") == 3 for e in _store3.entries.values()) and _store3.entries["day_note:101"]["codes"][0]["about"] == "2026-08-01..2026-08-02", (_store3.path, sorted(_store3.entries)))
     pd.DataFrame(_rows3).to_csv(_ctx3, index=False)          # the window loaded again: the same words, the file fresh from the executor
     _bf.auxiliary_datasets = [_ctx3]
     _n_before = len(_calls3); _fails3[0] = 2                 # C.5's batch would answer now

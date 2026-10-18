@@ -158,9 +158,9 @@ One row per code on a passage:
 | `status` | `codebook` or `proposed` |
 | `coder` | the model string |
 | `codebook_version` | the codebook's version at coding |
-| `direction` | which way the code points for the person the records are about: `worse`, `better` or `neutral` - a passage that denies a problem points `better` for it (patch 0198; empty for a code read before it) |
+| `direction` | which way the code points for the person the records are about, against their usual state: `worse` while a problem is there, even as it eases; `better` when it is gone or things are better than usual; `neutral` otherwise (patch 0198, against the usual state since 0200; empty for a code read before 0198) |
 | `basis` | `said` - the passage states it - or `inferred` - a careful reader concludes it from the passage and the ones before it |
-| `about` | the days the reading describes when they are not the passage's own: `YYYY-MM-DD` or `YYYY-MM-DD..YYYY-MM-DD`; empty for the passage's own day |
+| `about` | the days the reading describes when they are not the passage's own: `YYYY-MM-DD` or `YYYY-MM-DD..YYYY-MM-DD`; empty for the passage's own day. A night is the day of the morning it ends; a code that applies to different days - a passage comparing one day with another - has a row for each (patch 0200) |
 
 Read against one rider's whole year (2026-10-18), the table without the last three counted 23 of 118 `fatigue` codes on
 sentences that say he was not tired, put a bad night and a good one under the same `sleep`, and dated a reading
@@ -399,9 +399,11 @@ same machinery:
   reasoning model thought at its default depth on every READ, promotion and coding call). The prompt
   describes the work and the format only: *here is a vocabulary of codes with definitions; a few earlier passages
   for reference, not to code; for each numbered passage, the codes that apply and, for each, the words it rests on,
-  verbatim, which way it points for the person (worse, better, neutral - a denial points better), said or
-  inferred, and the days it is about when they are not the passage's own (a passage on an activity is about the
-  activity's day unless it says otherwise); the tone; a passage may take no code; if a passage needs a code the
+  verbatim, which way it points for the person against their usual state (worse while a problem is there, even as
+  it eases, better when it is gone or things are better than usual, neutral otherwise), said or inferred, and the
+  days it is about when they are not the passage's own (a passage on an activity is about the activity's day unless
+  it says otherwise, a night belongs to the morning it ends, and a code that applies to different days is given once
+  for each); the tone; a passage may take no code; if a passage needs a code the
   vocabulary lacks, propose one with a definition, once.* The codebook, the passages (id, kind, author role, date,
   the activity's day when it is another, text) ride as data; so do the earlier passages (`earlier_for`: the eight
   before the batch's first at most, within fourteen days of it, 2,400 characters in all, each cut at 400; labels
@@ -409,11 +411,11 @@ same machinery:
   refers to while batches still run in parallel. The reply is JSON lines, one per numbered passage:
   `{"id": "C.12", "codes": [{"code": "…", "quote": "…", "direction": "worse", "basis": "said", "about": ""}],
   "tone": "negative", "lang": "da", "text_en": "…", "propose": [{"code": "…", "definition": "…"}]}` (patch 0198,
-  reading format 2; a reply in the first format - codes by name, quotes beside - is still read, with no direction,
-  basis or days). Validation is mechanical: codes in the codebook or proposed with a definition, quotes verbatim in
+  reading format 2; 3 since patch 0200, the same shape read against the usual state; a reply in the first format -
+  codes by name, quotes beside - is still read, with no direction, basis or days). Validation is mechanical: codes in the codebook or proposed with a definition, quotes verbatim in
   the passage as written (whitespace-normalised), one tone, a direction of three, a basis of two, days that are a day
   or a range within 60 days before and 30 after the passage's own (a value outside them is emptied and counted, the
-  code kept), a `text_en` present for every passage whose `lang` is not `en` (its length within a factor of the
+  code kept), a code once for each day it is about, a `text_en` present for every passage whose `lang` is not `en` (its length within a factor of the
   original's; a rendering cannot be checked for meaning — it is marked as the model's wherever it is shown). The
   store of coded passages marks each entry with the reading format (`READING_VERSION`) and reads an older entry
   again, once. The scanner covers the template; the codebook is data.
