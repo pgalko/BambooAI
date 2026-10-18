@@ -109,7 +109,7 @@ def activity(day: date, today: date = None) -> dict:
 
 # ---- the words beside the data (docs/CONTEXT_DESIGN.md) ----
 SUBJECT = {"id": "i0", "name": "The subject", "timezone": HOME_TZ, "status": "ACTIVE", "icu_coach": False,
-           "coach_ticks": [{"id": 4, "text": "Good"}], "icu_wellness_keys": ["weight", "restingHR", "comments", "Sickness"],
+           "coach_ticks": [{"id": 4, "text": "Good"}], "icu_wellness_keys": ["weight", "restingHR", "soreness", "comments", "Sickness", "sleepQuality"],
            # the record as the live one is shaped (the rider profile, 2026-10-16): the identifying fields the whitelist leaves out,
            # the measurements, the settings per sport group linking the custom zone sets, and the custom items of every kind
            "email": "subject@example.test", "firstname": "The", "lastname": "Subject", "strava_id": "424242", "icu_api_key": "not-a-real-key",

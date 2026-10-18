@@ -42,7 +42,7 @@
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **2.4.0 ships executor image v60** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file; 0176: a failed script's output; 0182-0183, 0185: the rider profile, the custom zone times, every custom field under its code, the profile's units) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch; `volumes { enabled = true }` is in both boxes' client configuration since 2026-10-17).
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **2.4.0 ships executor image v60** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file; 0176: a failed script's output; 0182-0183, 0185: the rider profile, the custom zone times, every custom field under its code, the profile's units) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch; `volumes { enabled = true }` is in both boxes' client configuration since 2026-10-17). **The next ship carries executor image v61** (patch 0195: the profile's wellness scales) - rebuild and roll out; the jobs need nothing.
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in
@@ -70,7 +70,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (218/177/31/24/18/49/44/69/13/142/57/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (218/178/31/24/18/49/44/69/13/142/58/42/29/15/1/1 Python; 49/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -452,6 +452,23 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The profile says which end of the wellness scales is good (2026-10-18, patch 0195; executor image v61).** Nothing told
+  the analyst which way the 1-4 wellness scales run: the 18 October run of the bio-psycho-social question assumed a higher
+  sleep quality was better sleep (it is worse) and said so as an assumption; the 17 October run declined to read the
+  scales at all. By the platform's convention a bigger number is worse on every subjective scale - the developer turned
+  sleep quality, mood and motivation round in October 2020 *so a bigger number is worse*, to match soreness, fatigue
+  and stress (the Intervals.icu forum, threads 1504 and 19416), and the live account's probe agrees (stress at 1 on 113
+  of 116 days, injury on 101, motivation on all). `profile_frame` writes a `scale` row for each subjective scale the
+  account's form tracks - `icu_wellness_keys` filtered by `_WELLNESS_SCALE_KEYS`, in the form's order, once each - with
+  the range `1-4` and the direction in the note (`_WELLNESS_SCALE_NOTE`); an account that tracks none has none, so the
+  profile of a bare record is as it was. The labels changed with the 2020 turn, so the rows carry the direction, not
+  the labels. `profile_line` puts them after the sport groups from the rows' own range and note (`_scales`): *soreness,
+  fatigue, stress, mood, motivation, injury, sleepQuality 1-4 (the wellness file's subjective scales, by the platform's
+  convention: a bigger number is worse, 1 the good end)*. The stack's subject tracks two scales now. `EXECUTOR_BUILD`
+  v61. docs/RIDER_PROFILE_DESIGN.md §2 and §4, docs/INTERVALS_CONTEXT_INVENTORY.md (the labels question answered),
+  README. Tests: test_context.py 58 (the rows, their order and note; the stamp), test_app_path.py 178 (the line's part,
+  shared and per row), test_store.py 42 (the real loader's six sections), test_documents_app.py 44 (the stamp), the
+  integrations walk (the six sections, the scales on the Settings line).
 - **The Settings line names the custom sets (2026-10-18, patch 0194).** The question asked for time in *his custom power
   and ventilatory zones*; the line counted *61 custom zone rows in 7 sets* and named none, so both runs found the sets by
   guessing - the 18 October one matched `Breathing` for the ventilatory set and recorded two RESULT lines of zeros before

@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-16 v60 (the profile: height in metres, no zero sweet spot, a zone set carries the day it was defined)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-18 v61 (the profile: the wellness scales the account tracks, and which end of them is the good one)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -2728,6 +2728,13 @@ _PROFILE_SPORT_KEYS = (('ftp', 'W'), ('indoor_ftp', 'W'), ('lthr', 'bpm'), ('max
                        ('sweet_spot_min', '%FTP'), ('sweet_spot_max', '%FTP'))
 _PROFILE_MODEL_KEYS = (('criticalPower', 'model_cp', 'W'), ('wPrime', 'model_w_prime', 'J'), ('pMax', 'model_p_max', 'W'), ('ftp', 'model_ftp', 'W'))
 _FIELD_ITEM_FILES = {'INTERVAL_FIELD': 'the intervals file', 'INPUT_FIELD': 'the wellness file', 'ACTIVITY_FIELD': 'the summary file'}
+# The platform's subjective wellness scales (2026-10-18): 1 to 4, a bigger number worse - the developer turned sleep quality,
+# mood and motivation round in October 2020 "so a bigger number is worse", to match soreness, fatigue and stress (the
+# Intervals.icu forum, threads 1504 and 19416), and our probe of the live account agrees (stress at 1 on 113 of 116 days,
+# injury on 101, motivation on all). The labels changed with that turn, so a row carries the direction, not the labels.
+# Nothing told the analyst which end was good: a run read sleep quality the wrong way round, another refused to read it.
+_WELLNESS_SCALE_KEYS = ('sleepQuality', 'soreness', 'fatigue', 'stress', 'mood', 'motivation', 'injury')
+_WELLNESS_SCALE_NOTE = "the wellness file's subjective scales, by the platform's convention: a bigger number is worse, 1 the good end"
 
 
 def _num(value):
@@ -2832,8 +2839,9 @@ def _custom_items_of(athlete, item_type):
 def profile_frame(athlete, today=None):
     """The profile as a long-form table (PROFILE_COLUMNS): the subject's measurements (section `subject`), the thresholds
     per sport group (`sport`), the standard zones with their bounds (`zone`), the custom zone sets (`custom_zone`, one
-    row per zone, keyed `set:zone`) and the custom fields' meanings (`custom_field`, keyed by the code the values ride
-    under in the other files). Nothing identifying: the date of birth becomes an age."""
+    row per zone, keyed `set:zone`), the custom fields' meanings (`custom_field`, keyed by the code the values ride
+    under in the other files) and the subjective wellness scales the account tracks, with the end that is good (`scale`).
+    Nothing identifying: the date of birth becomes an age."""
     a = athlete if isinstance(athlete, dict) else {}
     rows = []
     weight = _num(a.get('icu_weight')) if _num(a.get('icu_weight')) is not None else _num(a.get('weight'))
@@ -2856,6 +2864,11 @@ def profile_frame(athlete, today=None):
     for key in ('sex', 'timezone'):
         if a.get(key) not in (None, ''):
             rows.append({'section': 'subject', 'key': key, 'value': str(a[key]), 'unit': '', 'note': ''})
+    # the subjective wellness scales the account tracks (its form's `icu_wellness_keys`), with the platform's direction -
+    # an account that tracks none has no row (2026-10-18)
+    tracked = [str(k) for k in (a.get('icu_wellness_keys') or []) if str(k) in _WELLNESS_SCALE_KEYS]
+    scale_rows = [{'section': 'scale', 'key': k, 'value': '1-4', 'unit': '', 'low': 1, 'high': 4, 'note': _WELLNESS_SCALE_NOTE}
+                  for k in dict.fromkeys(tracked)]
     zones_by_id = {str(it.get('id')): it for it in _custom_items_of(a, 'ZONES')}
     fields_by_id = {str(it.get('id')): it for it in _custom_items_of(a, 'INTERVAL_FIELD') + _custom_items_of(a, 'INPUT_FIELD') + _custom_items_of(a, 'ACTIVITY_FIELD')}
     set_sports, field_sports = {}, {}
@@ -2910,6 +2923,7 @@ def profile_frame(athlete, today=None):
         pairs = option_pairs(c.get('options')) if ftype == 'select' else []
         note = f"{ftype or 'field'} · '{it.get('name') or code}'" + (f" · options: {_option_text(pairs)}" if pairs else '') + f" · on {_FIELD_ITEM_FILES.get(it.get('type'), 'the data')} under this code"
         rows.append({'section': 'custom_field', 'sport_types': '|'.join(field_sports.get(fid, [])), 'key': str(code), 'value': str(it.get('type')), 'unit': str(c.get('units') or ''), 'note': note})
+    rows += scale_rows                                          # after the custom fields: the file's sections keep their order
     # every column filled before the frame is built: a column of numbers and blanks stays as written (NaN would make
     # the numbers floats - 0.0 for a bound of 0)
     return pd.DataFrame([{c: (r[c] if r.get(c) is not None else '') for c in PROFILE_COLUMNS} for r in rows], columns=PROFILE_COLUMNS)

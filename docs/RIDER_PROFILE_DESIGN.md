@@ -27,6 +27,7 @@ setting: `section, sport_types, key, value, unit, low, high, note`. The sections
 | `zone` | `hr_zone_n` (bpm), `power_zone_n` (%FTP), `pace_zone_n` (% of the threshold pace) — the upper bound as the value | the bound before (0 first), the bound; 999 → high blank | the zone's name; the first row of each kind states the convention; a power row adds the watts at the group's FTP |
 | `custom_zone` | one per zone of every `ZONES` item: key `set:zone`, value the zone's name, unit the stream | the zone's start, end | the set, the day it was last defined (`updated`; 0185 — a ride before that day was analysed under another definition, which the zone times file's per-ride bounds show), its description, where the times are |
 | `custom_field` | one per `INPUT_FIELD`, `ACTIVITY_FIELD`, `INTERVAL_FIELD` with a code: key the code, value the item kind, unit the item's units | | type · name · the options as `1 Recovery \| 2 Endurance` (or bare texts) · which file carries it |
+| `scale` | one per subjective wellness scale the account's form tracks (`icu_wellness_keys`: `sleepQuality`, `soreness`, `fatigue`, `stress`, `mood`, `motivation`, `injury`), in the form's order: key the field, value `1-4` | 1, 4 | the platform's convention: a bigger number is worse, 1 the good end (2026-10-18, patch 0195) |
 
 Every column is filled before the frame is built, so a column of numbers and blanks stays as written. Charts and
 items without a code make no row. Nothing identifying is in the file; the test writes a record with an e-mail, a
@@ -78,7 +79,13 @@ counted, two runs of a words question had to guess which was the ventilatory set
 and are the ones meant): *the custom zone sets are the account's own, set by hand rather than the platform's
 defaults, and take precedence over the standard zones when reading intensity - time in them is in the custom zone
 times file, the standard zones' times in the summary file*; an account without custom sets reads nothing of it.
-No word of the rest is a prompt constant (DESIGN_CHECKLIST C5; `analyst/profile.py` is in the scanner's list). The entry is exempt from the heads'
+After the sport groups the line carries the scales the account tracks, with the range and the direction their rows
+share: *soreness, fatigue, …, sleepQuality 1-4 (the wellness file's subjective scales, by the platform's convention: a
+bigger number is worse, 1 the good end)* (2026-10-18, patch 0195: nothing had said which end was good; one run of a
+words question read sleep quality the wrong way round, another refused to read the scales at all). The direction is
+the developer's: in October 2020 sleep quality, mood and motivation were turned round *so a bigger number is worse*,
+to match soreness, fatigue and stress (the Intervals.icu forum, threads 1504 and 19416); the labels changed with the
+turn, so the rows carry the direction and not the labels. No word of the rest is a prompt constant (DESIGN_CHECKLIST C5; `analyst/profile.py` is in the scanner's list). The entry is exempt from the heads'
 budget like the context's. The zone times file is described like any other (its head). The file is read once per
 load (`_profile_frame`, by path), from the executor in api mode.
 

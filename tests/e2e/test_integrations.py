@@ -531,10 +531,11 @@ def main():
             zones_f = pd.read_csv(zones_path, dtype=str, keep_default_na=False) if os.path.exists(zones_path) else None
             rides_a = sum(1 for i in range(60) if apis_data.is_ride(a_start + timedelta(days=i)))
             prof_text = open(rider_path, encoding="utf-8").read() if os.path.exists(rider_path) else ""
-            check("the rider profile loads by default beside the others: its pill without a window and the custom zones pill with it; the profile file's five sections from the fake record (the subject's measurements, the ride and run groups' thresholds, the zones with bounds, "
-                  "the two custom zone sets, the two custom fields with their options) and nothing identifying in it; the zone times file one row per ride and custom zone, named from the definitions",
+            check("the rider profile loads by default beside the others: its pill without a window and the custom zones pill with it; the profile file's six sections from the fake record (the subject's measurements, the ride and run groups' thresholds, the zones with bounds, "
+                  "the two custom zone sets, the two custom fields with their options, the two scales its form tracks) and nothing identifying in it; the zone times file one row per ride and custom zone, named from the definitions",
                   any(p == "Auxiliary (Rider profile)" for p in pills_c) and any(p == "Auxiliary (Custom zones (59 days))" for p in pills_c)
-                  and prof_f is not None and list(dict.fromkeys(prof_f.section)) == ["subject", "sport", "zone", "custom_zone", "custom_field"]
+                  and prof_f is not None and list(dict.fromkeys(prof_f.section)) == ["subject", "sport", "zone", "custom_zone", "custom_field", "scale"]
+                  and prof_f[prof_f.section == "scale"].key.tolist() == ["soreness", "sleepQuality"]
                   and prof_f[(prof_f.section == "sport") & (prof_f.key == "ftp")].value.tolist() == ["280"] and prof_f[(prof_f.section == "sport") & (prof_f.key == "threshold_pace")].sport_types.tolist() == ["Run"]
                   and prof_f[(prof_f.section == "zone") & (prof_f.key == "power_zone_6")].high.tolist() == [""] and prof_f[prof_f.section == "custom_zone"].key.tolist() == ["Breath:low", "Breath:high", "Cad:grind"]
                   and "options: 1 Recovery | 2 Endurance | 3 Tempo" in prof_f[(prof_f.section == "custom_field") & (prof_f.key == "Lbl")].note.iloc[0]
@@ -599,6 +600,7 @@ def main():
             check("DATA with the rider profile: its entry is the columns, the count with what a row is, and the Settings line from the file's rows - the measurements, the ride and run groups' thresholds, the rest counted; the zone times file described as any other",
                   re.search(rf"Path: datasets/{USER}/{_kf('stack-key')}/rider_profile_{tag_a}\.csv\s+Columns: section, sport_types, key, value, unit, low, high, note\s+Rows: \d+ \(one row per setting: section, key, value, unit, the bounds for a zone, a note; read the file with pandas\)", prompt1) is not None
                   and re.search(r"Settings: weight 71\.0 kg, height 1\.78 m, resting_hr 47 bpm, age \d+ years, sex M, timezone [\w/]+; Ride\|VirtualRide: ftp 280 W, indoor_ftp 270 W, lthr 168 bpm, max_hr 188 bpm; Run: lthr 160 bpm, max_hr 182 bpm, threshold_pace 3\.4 m/s; "
+                            r"soreness, sleepQuality 1-4 \(the wellness file's subjective scales, by the platform's convention: a bigger number is worse, 1 the good end\); "
                             r"also in the file: 22 zone rows with their bounds, 3 custom zone rows in 2 sets \(Breath 'Breathing' on respiration; Cad 'Cadence' on cadence\), 2 custom field definitions - the codes other files' columns carry, with their options; "
                             r"the custom zone sets are the account's own, set by hand rather than the platform's defaults, and take precedence over the standard zones when reading intensity", prompt1) is not None
                   and "model_cp" not in prompt1 and re.search(rf"custom_zone_times_{tag_a}\.csv\s+Head:", prompt1) is not None, prompt1[prompt1.find("rider_profile_"):prompt1.find("rider_profile_") + 900] if "rider_profile_" in prompt1 else prompt1[-800:])

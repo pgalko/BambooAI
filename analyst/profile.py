@@ -10,8 +10,8 @@ import pandas as pd
 
 PROFILE_COLUMNS = ["section", "sport_types", "key", "value", "unit", "low", "high", "note"]
 # the sections, in the file's order: the subject's measurements, the thresholds per sport group, the standard zones, the
-# custom zone sets, the custom fields' meanings
-SECTIONS = ("subject", "sport", "zone", "custom_zone", "custom_field")
+# custom zone sets, the custom fields' meanings, the subjective scales the account tracks with the end that is good
+SECTIONS = ("subject", "sport", "zone", "custom_zone", "custom_field", "scale")
 # what a custom zone set is, for the line - said only when the file has custom_zone rows: the sets are the account's own
 # (set by hand, from testing), not the platform's defaults, and they are the ones meant when intensity is read
 CUSTOM_SETS_RULE = ("the custom zone sets are the account's own, set by hand rather than the platform's defaults, and take precedence "
@@ -50,10 +50,21 @@ def _pairs(rows: pd.DataFrame) -> str:
     return ", ".join(f"{r['key']} {r['value']}" + (f" {r['unit']}" if str(r["unit"]) else "") for _, r in rows.iterrows() if str(r["value"]) != "")
 
 
+def _scales(sc: pd.DataFrame) -> str:
+    """The scale rows as one part of the line: the keys, then the range and the note they share - `soreness, sleepQuality
+    1-4 (the wellness file's subjective scales: a bigger number is worse, 1 the good end ...)`; each row whole when they
+    differ (2026-10-18: nothing had said which end of a scale was good, and a run read one the wrong way round)."""
+    values, notes = set(sc["value"].astype(str)), set(sc["note"].astype(str))
+    if len(values) == 1 and len(notes) == 1:
+        note = notes.pop()
+        return f"{', '.join(sc['key'].astype(str))} {values.pop()}" + (f" ({note})" if note else "")
+    return ", ".join(f"{r['key']} {r['value']}" + (f" ({r['note']})" if str(r["note"]) else "") for _, r in sc.iterrows())
+
+
 def profile_line(df: Optional[pd.DataFrame]) -> str:
     """One line for DATA from the file's rows: the subject's measurements and each sport group's thresholds as `key value
-    unit` (the model's estimates, keyed model_*, stay in the file), then what else the file holds, counted. '' for a
-    file without rows."""
+    unit` (the model's estimates, keyed model_*, stay in the file), the scales the account tracks with the end that is
+    good, then what else the file holds, counted. '' for a file without rows."""
     if df is None or not len(df):
         return ""
     parts = []
@@ -64,6 +75,9 @@ def profile_line(df: Optional[pd.DataFrame]) -> str:
         shown = rows[~rows["key"].astype(str).str.startswith("model_")]
         if len(shown):
             parts.append(f"{types or 'every sport'}: {_pairs(shown)}")
+    sc = df[df["section"] == "scale"]
+    if len(sc):
+        parts.append(_scales(sc))
     counts = []
     n_zone = int((df["section"] == "zone").sum())
     if n_zone:

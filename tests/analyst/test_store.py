@@ -332,11 +332,12 @@ prof = pd.read_csv(rider_path, dtype=str, keep_default_na=False) if rider_path e
 zt = pd.read_csv(zones_path, dtype=str, keep_default_na=False) if zones_path else None
 rides = sum(1 for d in D.days_in(sr, er) if D.is_ride(d))
 ptxt = open(rider_path, encoding="utf-8").read() if rider_path else ""
-check("a load with the rider profile: the record fetched once for the context and the profile; the profile and the zone times after the plan; the profile's five sections from the record, nothing identifying in it; one zone-time row per ride and custom zone, named from the definitions; the summary's settings columns",
+check("a load with the rider profile: the record fetched once for the context and the profile; the profile and the zone times after the plan; the profile's six sections from the record (the scales its form tracks last, 2026-10-18), nothing identifying in it; one zone-time row per ride and custom zone, named from the definitions; the summary's settings columns",
       jr["status"] == "completed" and SESSION.calls.count("/athlete/0") == 1 and rr["aux_datasets"][-2:] == [rider_path, zones_path] and rr.get("profile_note") == ""
-      and prof is not None and list(prof.columns) == E.PROFILE_COLUMNS and list(dict.fromkeys(prof.section)) == ["subject", "sport", "zone", "custom_zone", "custom_field"]
+      and prof is not None and list(prof.columns) == E.PROFILE_COLUMNS and list(dict.fromkeys(prof.section)) == ["subject", "sport", "zone", "custom_zone", "custom_field", "scale"]
       and prof[(prof.section == "sport") & (prof.key == "ftp")].value.tolist() == ["280"] and prof[(prof.section == "subject") & (prof.key == "weight")].value.tolist() == ["71.0"]
       and prof[prof.section == "custom_zone"].key.tolist() == ["Breath:low", "Breath:high", "Cad:grind"] and set(prof[prof.section == "custom_field"].key) == {"Sickness", "Lbl"}
+      and prof[prof.section == "scale"].key.tolist() == ["soreness", "sleepQuality"] and set(prof[prof.section == "scale"].value) == {"1-4"}
       and all(s not in ptxt for s in ("subject@example.test", "not-a-real-key", "424242", "1998-05-20", "Subject"))
       and zt is not None and len(zt) == 3 * rides and rides > 0 and set(zt.zone_name) == {"Low", "High", "Grind"} and set(zt.stream) == {"respiration", "cadence"}
       and {"max_hr_setting", "pm_ftp_watts", "power_zones", "hr_zones"} <= set(pd.read_csv(next(p_ for p_ in rr["aux_datasets"] if "activity_summary_" in p_), nrows=1).columns),

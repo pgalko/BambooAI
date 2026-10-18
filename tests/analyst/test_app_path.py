@@ -733,6 +733,15 @@ try:
                                                                     ("TymeWearBreathingrate", "Tyme Wear - Breathing rate", "respiration", ["BRf"]), ("Lbl", "Labels for laps", "", ["x"])] for z in zs]).to_csv(index=False))
     check("the Settings line names the custom sets: code, the stream it is cut on, the name only when it says more than the code (spaces, case and punctuation aside), in the file's order",
           "6 custom zone rows in 4 sets (Powerzones on watts; TymeWearVE on tidal_volume_min; TymeWearBreathingrate on respiration; Lbl 'Labels for laps'); " in _pm.profile_line(_sets_pf), _pm.profile_line(_sets_pf))
+    # the scales (2026-10-18): the subjective scales the account's form tracks, with the end that is good - nothing had said which,
+    # and a run read sleep quality the wrong way round; rendered from the rows, one shared range and note, each row whole when they differ
+    _sc_rows = [{"section": "subject", "sport_types": "", "key": "weight", "value": 70, "unit": "kg", "low": "", "high": "", "note": ""}] + [
+        {"section": "scale", "sport_types": "", "key": k, "value": "1-4", "unit": "", "low": 1, "high": 4, "note": "N"} for k in ("soreness", "sleepQuality")]
+    _sc_line = _pm.profile_line(_pm.read_profile(pd.DataFrame(_sc_rows).to_csv(index=False)))
+    _sc_mixed = _pm.profile_line(_pm.read_profile(pd.DataFrame(_sc_rows[:2] + [dict(_sc_rows[2], value="0-10", note="M")]).to_csv(index=False)))
+    check("the Settings line carries the scales after the sport groups: the keys with the range and note they share, each row whole when they differ, nothing without scale rows",
+          _sc_line == "weight 70 kg; soreness, sleepQuality 1-4 (N)" and _sc_mixed == "weight 70 kg; soreness 1-4 (N), sleepQuality 0-10 (M)"
+          and "1-4" not in _pm.profile_line(_pm.read_profile(pd.DataFrame(_sc_rows[:1]).to_csv(index=False))), (_sc_line, _sc_mixed))
     from analyst.routines import LOADER_FILES_MAX as _lfm
     _tpl = open(os.path.join(ROOT, "web_app", "templates", "index.html"), encoding="utf-8").read().replace("\r\n", "\n")
     _core = open(os.path.join(ROOT, "web_app", "static", "js", "core.js"), encoding="utf-8").read()

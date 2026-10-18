@@ -222,6 +222,7 @@ check("the executor reads an auxiliary file whole (for the map and the coding pa
 # custom items of every kind, and the identifying fields the whitelist must leave behind
 REC = {"id": "i1", "email": "x@y.z", "firstname": "A", "lastname": "B", "strava_id": "987654", "icu_api_key": "SECRET", "bio": "about me", "city": "Somewhere",
        "height": 1.80, "height_units": "CM", "weight": 70.0, "icu_weight": 71.5, "icu_resting_hr": 48, "icu_date_of_birth": "2000-03-15", "sex": "M", "timezone": "Europe/Copenhagen",
+       "icu_wellness_keys": ["weight", "sleepQuality", "comments", "soreness", "Sickness", "hrv", "motivation", "soreness"],
        "sportSettings": [{"types": ["Ride", "VirtualRide"], "ftp": 300, "indoor_ftp": 290, "lthr": 170, "max_hr": 190, "hr_zones": [140, 155, 165, 175, 190], "hr_zone_names": ["Z1", "Z2", "Z3", "Z4", "Z5"],
                           "power_zones": [55, 75, 90, 105, 120, 999], "power_zone_names": ["Recovery", "Endurance", "Tempo", "Threshold", "VO2max", "Anaerobic"], "pace_zones": None, "threshold_pace": None,
                           "w_prime": None, "p_max": None, "sweet_spot_min": 0, "sweet_spot_max": 0, "mmp_model": {"type": "FFT_CURVES", "criticalPower": 295, "wPrime": 20000, "pMax": 1100, "ftp": 298}, "custom_zones_ids": [501, 502], "custom_field_ids": [], "activity_field_ids": []},
@@ -265,6 +266,9 @@ check("the custom field rows: keyed by code with the item's kind as the value, t
       and keyed[("custom_field", "", "Br")]["unit"] == "bpm" and keyed[("custom_field", "", "Br")]["note"] == "numeric · 'Breaths' · on the intervals file under this code"
       and keyed[("custom_field", "", "Sickness")]["note"] == "select · 'Sickness' · options: None | Mild | Severe · on the wellness file under this code"
       and keyed[("custom_field", "", "HowISlept")]["note"] == "text · 'How I slept' · on the summary file under this code" and len(rows_of("custom_field")) == 4 and "HRV" not in ptext, rows_of("custom_field").to_string())
+check("the scale rows (2026-10-18): one per subjective wellness scale the account's form tracks (icu_wellness_keys), in its order, once each - the custom field, the comment and the measured keys none - with the range 1-4 and the platform's direction in the note; after the custom fields",
+      list(rows_of("scale")["key"]) == ["sleepQuality", "soreness", "motivation"] and set(rows_of("scale")["value"]) == {"1-4"} and set(rows_of("scale")["low"]) == {1} and set(rows_of("scale")["high"]) == {4}
+      and set(rows_of("scale")["note"]) == {E._WELLNESS_SCALE_NOTE} and "a bigger number is worse, 1 the good end" in E._WELLNESS_SCALE_NOTE and list(prof["section"])[-3:] == ["scale"] * 3, rows_of("scale").to_string())
 check("an account without custom items or sport settings: the subject rows alone; an empty record: an empty table with the columns",
       list(E.profile_frame({"icu_weight": 60, "sex": "F"})["key"]) == ["weight", "sex"] and len(E.profile_frame({})) == 0 and list(E.profile_frame(None).columns) == E.PROFILE_COLUMNS)
 ZACTS = [{"id": "a1", "start_date_local": "2026-09-01T07:00:00", "type": "Ride", "custom_zones": [{"code": "Breath", "zones": [{"id": "low", "start": 10, "end": 25, "secs": 1200}, {"id": "high", "start": 25, "end": 60, "secs": 300}]},
@@ -287,7 +291,7 @@ check("the summary carries the settings in force that day: max_hr_setting, pm_ft
       summ.iloc[0]["max_hr_setting"] == 190 and summ.iloc[0]["pm_ftp_watts"] == 280 and summ.iloc[0]["ftp_watts"] == 300 and summ.iloc[0]["power_zones"] == "55|75|90" and summ.iloc[0]["hr_zones"] == "140|155" and "pace_zones" not in summ.columns, summ.to_dict())
 check("save_aux_dataset names the two files by their kinds and the window", os.path.basename(E.save_aux_dataset(prof, "rider", "u", "2026-06-15", "2026-10-13")) == "rider_profile_20260615_to_20261013.csv"
       and os.path.basename(E.save_aux_dataset(zt, "zones", "u", "2026-06-15", "2026-10-13")) == "custom_zone_times_20260615_to_20261013.csv")
-check("the executor's build stamp is v60 (the profile's units and dates)", "v60" in E.EXECUTOR_BUILD and "metres" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
+check("the executor's build stamp is v61 (the profile's wellness scales)", "v61" in E.EXECUTOR_BUILD and "wellness scales" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
 
 # ---- every custom field under its code (2026-10-16, patch 0183): the account's definitions decode the files' columns ----
 IF = E.field_definitions(REC["custom_items"], "INTERVAL_FIELD")

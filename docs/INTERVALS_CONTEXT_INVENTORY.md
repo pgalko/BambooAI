@@ -75,7 +75,10 @@ One call per window (we make it). On each `Wellness` (41 fields; `id` is the day
 - **Words:** `comments` (string) — the one free-text field per day.
 - **Ordinal, athlete-entered, 1–4 scales:** `sleepQuality`, `soreness`, `fatigue`, `stress`, `mood`, `motivation`,
   `injury` (ints). **1 is the good end** on every scale (the probe's distributions: stress 113 of 116 days at 1,
-  injury 101 at 1, motivation all 1, fatigue mostly 1–2 for a racing athlete); confirm the labels on the form once.
+  injury 101 at 1, motivation all 1, fatigue mostly 1–2 for a racing athlete). Confirmed (2026-10-18): the developer
+  turned sleep quality, mood and motivation round in October 2020 *so a bigger number is worse*, to match soreness,
+  fatigue and stress (forum threads 1504 and 19416); the labels changed with the turn. The rider profile carries the
+  direction for each scale the form tracks (patch 0195).
 - **Measured or derived:** `sleepSecs`, `sleepScore`, `avgSleepingHR`, `restingHR`, `hrv`, `hrvSDNN`, `readiness`,
   `baevskySI`, `spO2`, `systolic`/`diastolic`, `respiration`, `weight`, `bodyFat`, `abdomen`, `hydration`,
   `hydrationVolume`, `bloodGlucose`, `lactate`, `vo2max`, `kcalConsumed`, `steps`; `ctl`, `atl`, `rampRate`,
