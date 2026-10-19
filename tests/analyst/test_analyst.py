@@ -1223,11 +1223,16 @@ check("review: the second review's input - what the first review checked (its Ch
       and u2.index("--- cell 1 (you asked to see it again) ---") < u2.index("--- cell 4 (a result recorded since the last review) ---"), u2[-2500:])
 rv_turns = [t for t in r9.turns if t.kind == "review"]
 check("review: the review turn records the cells it was handed, its Checked lines and its Re-check; the card's lines carry them",
-      rv_turns[0].shown == [2, 1] and rv_turns[0].checked == [{"cell": 2, "text": "computes the mean difference B vs A for 20 subjects; matches its line", "ok": True}, {"cell": 1, "text": "the same, step 1; matches its line", "ok": True}]
+      rv_turns[0].shown == [2, 1] and rv_turns[0].checked == [{"cell": 2, "text": "computes the mean difference B vs A for 20 subjects; matches its line", "ok": True, "partly": False}, {"cell": 1, "text": "the same, step 1; matches its line", "ok": True, "partly": False}]
       and rv_turns[0].recheck == [1] and rv_turns[1].shown == [1, 4, 3] and "- Checked: cell 2 - computes the mean difference" in rv_turns[0].note
       and "- Re-check: cell 1" in rv_turns[0].note and "- Shown: cell 2, cell 1" in rv_turns[0].note, (rv_turns[0].shown, rv_turns[0].checked, rv_turns[0].recheck, rv_turns[1].shown, rv_turns[0].note))
 check("review: the analyst's REVIEW block carries the TEST's status - open until a RESULT recorded with it",
       "- Status: open - no RESULT line tagged (test after turn 2) yet" in an_prompts[2][0], an_prompts[2][0][-400:])
+# 2026-10-19: on the turn after a review the analyst had been handed the review's lines as YOUR NOTE (the review turn's note is
+# the review, and Run.note took the newest note of any turn), beside the REVIEW block - its own note lost, the review read twice
+check("after a review, YOUR NOTE is the analyst's note as it last wrote it, not the review's lines; the review is in the prompt once, under REVIEW; the run's note never is a review",
+      all(f"YOUR NOTE (as you last wrote it):\n{NOTE5}" in u and u.count("- The question requires: B against A with an interval.") == 1 for u, _ in an_prompts[2:])
+      and all("The question requires" not in (r9.note or "") for _ in [0]) and r9.note == NOTE5, [u[u.find("YOUR NOTE"):u.find("YOUR NOTE") + 160] for u, _ in an_prompts[2:4]])
 # a tagged RESULT answers the test: the status says so, in the analyst's block and in the reviewer's input
 tg_prompts, tg_rv = [], []
 def tagged_llm(system, user, **h):
@@ -1329,14 +1334,32 @@ check("parse_review: a stray marker after a complete review does not lose it (20
 prs2 = parse_review("###REVIEW###\n- Verdict: pending\n###REVIEW###\n- The question requires: X\n- Established: y\n- Most consequential problem: none\n- Verdict: NARROW only y")
 check("parse_review: with several markers, the review is the text after the last one that carries a verdict", prs2 and prs2["verdict"] == "NARROW" and prs2["requires"] == "X", prs2)
 check("reviewer prompt: checking is the reviewer's own work - it does not ask the analyst to verify or re-open cells", "do not ask the analyst to\nverify or re-open cells - ask it for analysis" in REVIEWER)
-from analyst.session import checked_ok, disputed_cells, Run as _Run, Turn as _Turn
+from analyst.session import checked_ok, checked_verdict, disputed_cells, disputed_mark, Run as _Run, Turn as _Turn
 check("checked_ok: 'matches its line' is fine, 'does not match' is not, a line with both ('matches ..., but does not cover ...') stays fine",
       checked_ok("computes the difference; matches its line") and not checked_ok("labelled within-athlete; no athlete term: pooled. Does not match.")
       and checked_ok("matches its line, but does not cover the surface difference"))
+# 2026-10-19: a review wrote "those two lines match. The disagreement line does not: ..." and every line of the cell was marked,
+# the two it accepted included - the test had looked for the word "matches" alone. The word is read by its stem, and a line
+# that says both is a finding on one of the cell's lines, not all
+_cv = {"those two lines match, including the unplanned numerator. The third line does not fully: it is set seconds over set seconds": "partly",
+       "Spearman +0.49, n=65; those two lines match. The disagreement line does not: the bootstrap resamples only the flagged days": "partly",
+       "sums time and the flag, means the rating; matches those printed figures; does not: the flag sum is not distinct days": "partly",
+       "weekly minutes and share; matches the printed shares; does not report coverage against ride time": "ok",
+       "the counts and the tone table match the print. It does not support the claim that 13 passages touch the theme": "ok",
+       "the line says pooled; the code does not pool": "no", "matched its line": "ok", "the lines are matching": "ok",
+       "not matching its line": "no", "doesn't match": "no", "do not match the code": "no", "": "ok"}
+check("checked_verdict: match/matched/matching read alike; 'does not' with a match elsewhere is partly (elliptical 'does not:' and 'does not fully:' included); "
+      "'does not <something else>' beside a match is fine; 'does not' with no match anywhere is no",
+      all(checked_verdict(t) == v for t, v in _cv.items()) and not checked_ok(next(iter(_cv))), {t[:40]: checked_verdict(t) for t, v in _cv.items() if checked_verdict(t) != v})
 _rd = _Run(id="rd2", question="q", parent=None)
 _rd.turns = [_Turn(kind="review", text="after turn 2", checked=[{"cell": 4, "text": "does not match", "ok": False}]),
              _Turn(kind="review", text="after turn 4", checked=[{"cell": 4, "text": "refit; matches its line", "ok": True}])]
 check("disputed_cells: the latest review's word on a cell stands - a later 'matches' clears an earlier 'does not'", disputed_cells(_rd) == {}, disputed_cells(_rd))
+_rd.turns.append(_Turn(kind="review", text="after turn 6", checked=[{"cell": 4, "text": "two lines match; the third does not:", "ok": False, "partly": True}, {"cell": 5, "text": "does not match", "ok": False}]))
+check("disputed_cells carries whether the finding was on one line of the cell; the ledger's mark says so (a line of this cell), and the whole-cell mark reads as before; a record without the field (an older run) is whole",
+      disputed_cells(_rd) == {4: {"review": "after turn 6", "partly": True}, 5: {"review": "after turn 6", "partly": False}}
+      and disputed_mark(disputed_cells(_rd)[4]) == "(the review after turn 6 found a line of this cell does not describe its code) "
+      and disputed_mark(disputed_cells(_rd)[5]) == "(the review after turn 6 found this line does not describe its code) ", disputed_cells(_rd))
 
 from analyst.session import result_lines, Run as _Run, Turn as _Turn
 _rc = _Run(id="rc", question="q", parent=None)

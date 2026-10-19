@@ -798,12 +798,29 @@ try:
     exec(_pre, _ns)
     _CTX = _ns["CTX"]
     check("CTX in a kernel: frame() (no day of its own: `day` is the codes', the day a reading describes - patch 0206), codes() with `day`, grep by pattern/kind/author, around a day, between two days, on an activity, text(ref) - printed as text, not frames, unless asked",
-          len(_CTX.frame()) == 4 and "day" not in _CTX.frame().columns and len(_CTX.codes()) == 4 and _CTX.codes()["day"].tolist() == ["2026-09-01", "2026-09-01", "2026-09-01", "2026-10-05"] and "C.1" in _CTX.grep("legs") and "C.2" not in _CTX.grep("legs") and "C.2" in _CTX.grep("easy", author="coach")
+          len(_CTX.frame()) == 4 and "day" not in _CTX.frame().columns and len(_CTX.codes()) == 4 and _CTX.codes()["day"].dt.strftime("%Y-%m-%d").tolist() == ["2026-09-01", "2026-09-01", "2026-09-01", "2026-10-05"] and "C.1" in _CTX.grep("legs") and "C.2" not in _CTX.grep("legs") and "C.2" in _CTX.grep("easy", author="coach")
           and "C.1" in _CTX.around("2026-09-02", days=1) and "C.3" not in _CTX.around("2026-09-02", days=1) and "C.3" in _CTX.between("2026-10-01", "2026-10-31") and "C.4" in _CTX.between("2026-10-01", "2026-10-31")
           and "C.1" in _CTX.on("a1") and "C.2" in _CTX.on("a1") and "C.3" not in _CTX.on("a1") and "legs heavy today, cut it short" in _CTX.text("C.1") and "4 passages" in repr(_CTX)
           and _CTX.grep("legs", as_frame=True).shape[0] == 1, (_CTX.grep("legs"), repr(_CTX)))
     check("CTX.frame()'s private is true or false, not the file's text (2026-10-18: a run summed the text column and lost a turn)",
           _CTX.frame()["private"].tolist() == [False, False, False, True] and _CTX.frame()["private"].dtype == bool, _CTX.frame()["private"].tolist())
+    # 2026-10-19: the two tables come typed, as pandas reads any file - a run had lost six turns to dates read as text (a
+    # comparison with a Timestamp failed) and blanks that were "" rather than missing (copy_of.isna() kept nothing)
+    _fr, _cd = _CTX.frame(), _CTX.codes()
+    _ws, _rd_ = pd.Timestamp("2026-09-01"), pd.Timestamp("2026-10-06")
+    check("CTX.frame() typed: date, end_date and activity_date are datetimes (NaT where blank), a blank in any other column is missing (copy_of.isna() is true of every passage that is no copy, activity_id of one on no activity), "
+          "chars a number, the text columns text with '' where there is nothing; a window taken by comparing date with Timestamps; the English rendering kept beside the original",
+          str(_fr["date"].dtype).startswith("datetime64") and str(_fr["end_date"].dtype).startswith("datetime64") and str(_fr["activity_date"].dtype).startswith("datetime64")
+          and _fr["end_date"].isna().tolist() == [True, True, False, True] and _fr["copy_of"].isna().all() and _fr["activity_id"].isna().tolist() == [False, False, True, True]
+          and _fr["chars"].tolist() == [30, 18, 10, 16] and (_fr["text_en"] == "").all() and _fr["text"].tolist()[0] == "legs heavy today, cut it short"
+          and len(_fr[(_fr["date"] >= _ws) & (_fr["date"] <= _rd_)]) == 3 and _fr[_fr["copy_of"].isna()].shape[0] == 4, _fr.dtypes.to_dict())
+    check("CTX.codes() typed: day a datetime, about missing where the reading is the passage's own, quote text; a window by day; the columns an older file lacks are there, missing",
+          str(_cd["day"].dtype).startswith("datetime64") and _cd["about"].isna().all() and _cd["direction"].isna().all() and (_cd["quote"] != "").all()
+          and len(_cd[(_cd["day"] >= _ws) & (_cd["day"] <= _rd_)]) == 4 and list(_cd.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about", "day"], _cd.dtypes.to_dict())
+    check("the printing calls read the passages as written and are unchanged; rows asked for with as_frame=True are the typed frame's; repr says the span as written",
+          _CTX.grep("legs") == "[C.1] 2026-09-01 · activity_message · subject: legs heavy today, cut it short" and str(_CTX.grep("legs", as_frame=True)["date"].dtype).startswith("datetime64")
+          and _CTX.around("2026-09-02", days=1, as_frame=True)["id"].tolist() == ["C.1", "C.2"] and _CTX.on("a1", as_frame=True)["copy_of"].isna().all()
+          and repr(_CTX) == "CTX: 4 passages from 2026-09-01 to 2026-10-09, codes in CTX.codes()", (_CTX.grep("legs"), repr(_CTX)))
     # the activity's day where a passage is written later than its activity (patch 0196): in CTX's printed lines and in where_of (the Reader's and the chips' place)
     _ns_a = {}
     _ctx_a = os.path.join(_auxdir, "context_notes_20260901_to_20260930.csv")
@@ -835,10 +852,10 @@ try:
     _codes_df.assign(day=_rd).to_csv(_codes_d, index=False)
     _ns_d = {}
     exec(__import__("analyst.context", fromlist=["kernel_api_source"]).kernel_api_source(_ctx_d, _codes_d), _ns_d)
-    check("CTX.codes() carries the file's `day`; CTX has no tables by day (CTX.days() and CTX.episodes() are gone) and the kernel source defines nothing beside CTX's class; an empty codes table has the column too",
-          _ns_d["CTX"].codes()["day"].tolist() == _rd and not hasattr(_ns_d["CTX"], "days") and not hasattr(_ns_d["CTX"], "episodes")
+    check("CTX.codes() carries the file's `day` (a datetime, NaT where the file has none); CTX has no tables by day (CTX.days() and CTX.episodes() are gone) and the kernel source defines nothing beside CTX's class; an empty codes table has the column too",
+          [("" if pd.isna(x) else x.strftime("%Y-%m-%d")) for x in _ns_d["CTX"].codes()["day"]] == _rd and not hasattr(_ns_d["CTX"], "days") and not hasattr(_ns_d["CTX"], "episodes")
           and "_bamboo_ctx_days" not in _ns_d and "_bamboo_ctx_episodes" not in _ns_d
-          and "day" in _ns_d["_BambooContext"](_ctx_d, "").codes().columns, _ns_d["CTX"].codes().to_dict("records"))
+          and "day" in _ns_d["_BambooContext"](_ctx_d, "").codes().columns and len(_ns_d["_BambooContext"](_ctx_d, "").codes()) == 0, _ns_d["CTX"].codes().to_dict("records"))
     _map_d = _cmap(pd.DataFrame(_dn).assign(private=False, lang=""), pd.read_csv(_codes_d, dtype=str, keep_default_na=False))
     check("the map: the directions' line as before, no line of stretches", "which way the codes point for the person (worse/better/neutral): fatigue 4/0/0, illness 2/0/0;" in _map_d and "stretches" not in _map_d, _map_d)
     check("unit_text resolves a context passage for the report guard - the English rendering when there is one - and says None for an id the context does not hold",

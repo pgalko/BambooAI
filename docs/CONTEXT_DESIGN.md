@@ -329,7 +329,14 @@ from the next load. Nothing is re-coded retroactively (a load's codes carry thei
 ## 5. In the kernel and in the prompt
 
 - **`CTX`** is built by the prelude, like the document objects, from the two files: `CTX.frame()` — the context
-  table as a DataFrame; `CTX.codes()` — the codes table, with `day`, the day each reading describes; `CTX.grep(pattern, kind=None, author=None)` — rows whose
+  table as a DataFrame; `CTX.codes()` — the codes table, with `day`, the day each reading describes. Both come
+  typed, as pandas reads any file (patch 0208): `date`, `end_date`, `activity_date` and `day` as datetimes, a blank
+  as missing (NaN) in every column but the text ones (`text`, `text_en`, `quote`, which keep `''`), `chars` a number,
+  `private` a boolean; a column of the design a file from an older executor lacks is there, missing. Before 0208 the
+  two tables were text throughout with `''` for a blank, and an Adaptive run of 2026-10-19 lost six of its twenty-four
+  turns to it: a comparison of `date` with a Timestamp failed, and `copy_of.isna()` kept no passage, so the cells
+  built on it printed nan and the words lens never reached the report. The calls that print passages read the
+  table as written, so their lines are unchanged; `as_frame=True` returns the typed rows; `CTX.grep(pattern, kind=None, author=None)` — rows whose
   English rendering matches (`original=True` for the text as written); `CTX.around(date, days=3, kind=None)` — the passages within the window; `CTX.on(activity_id)` — the
   passages of one activity; `CTX.between(a, b)`; `CTX.text("C.417")` — one passage with its date, kind, author, the rendering and, when it differs, the original.
   Each returns a DataFrame or a string; the analyst prints what it needs, as with data. The prelude is never a cell

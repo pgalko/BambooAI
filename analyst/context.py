@@ -261,26 +261,60 @@ KERNEL_API_SOURCE = r'''
 import re as _bamboo_ctx_re
 
 class _BambooContext:
-    """The words written beside the data, as an object in the kernel (docs/CONTEXT_DESIGN.md §5)."""
+    """The words written beside the data, as an object in the kernel (docs/CONTEXT_DESIGN.md §5). The two tables come
+    typed, as pandas reads any file (2026-10-19: a run lost six turns to dates read as text and blanks that were ""
+    rather than missing); the passages as written are kept apart for the calls that print them."""
+    _NOTES_COLUMNS = ["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id", "author_name", "author_role", "private", "lang", "text", "text_en", "chars", "activity_date", "copy_of"]
+    _CODES_COLUMNS = ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about", "day"]
     def __init__(self, notes_path, codes_path):
         self.notes_path, self.codes_path = notes_path, codes_path
-        self._notes = self._codes = None
+        self._notes = self._codes = self._text = None
     def __repr__(self):
-        n = self.frame()
+        n = self._written()
         return "CTX: %d passages%s%s" % (len(n), (" from %s to %s" % (n["date"].min(), n["date"].max())) if len(n) else "", (", codes in CTX.codes()" if self.codes_path else ""))
-    def frame(self):
-        """The context table: one row per passage (id, kind, date, time, end_date, activity_id, activity_date - the activity's own day - event_id, author_role, private, lang, text, text_en, copy_of - the passage whose words it repeats)."""
+    def _written(self):
+        """The context table as written: every cell text, a blank "" - what the printing calls read. A column of the design a file from an older executor lacks is there, blank."""
         import pandas as _pd
+        if self._text is None:
+            raw = _pd.read_csv(self.notes_path, dtype=str, keep_default_na=False)
+            for col in self._NOTES_COLUMNS:
+                if col not in raw.columns:
+                    raw[col] = ""
+            self._text = raw
+        return self._text
+    @staticmethod
+    def _typed(df, dates=(), text=(), numbers=()):
+        """A table read as text, typed: the date columns as datetimes (NaT for a blank), the number columns as numbers, every other column with a blank as missing (NaN) - the text columns kept whole, "" where there is nothing."""
+        import numpy as _np, pandas as _pd
+        df = df.copy()
+        for col in df.columns:
+            blank = df[col].astype(str).str.strip() == ""
+            if col in text:
+                continue
+            if col in dates:
+                df[col] = _pd.to_datetime(df[col].where(~blank, None), errors="coerce")
+            elif col in numbers:
+                df[col] = _pd.to_numeric(df[col].where(~blank, None), errors="coerce")
+            else:
+                df[col] = df[col].where(~blank, _np.nan)
+        return df
+    def frame(self):
+        """The context table, typed: one row per passage (id, kind, date, time, end_date, activity_id, activity_date - the activity's own day - event_id, author_role, private, lang, text, text_en, copy_of - the passage whose words it repeats); date, end_date and activity_date are datetimes, private is a boolean, a blank is missing (NaN), the text columns stay text."""
         if self._notes is None:
-            self._notes = _pd.read_csv(self.notes_path, dtype=str, keep_default_na=False)
-            if "private" in self._notes.columns:
-                self._notes["private"] = self._notes["private"].str.strip().str.lower().isin(["true", "1"])
+            n = self._typed(self._written(), dates=("date", "end_date", "activity_date"), text=("text", "text_en"), numbers=("chars",))
+            if "private" in n.columns:
+                n["private"] = n["private"].astype(str).str.strip().str.lower().isin(["true", "1"])
+            self._notes = n
         return self._notes
     def codes(self):
-        """The codes table: one row per code on a passage (id, code, tone, quote, status, direction - worse, better or neutral for the person -, basis - said or inferred -, about - the days the reading describes, empty for the passage's own -, day - the day it describes: about's first day, else its passage's own), empty before the coding pass."""
+        """The codes table, typed: one row per code on a passage (id, code, tone, quote, status, direction - worse, better or neutral for the person -, basis - said or inferred -, about - the days the reading describes, missing for the passage's own -, day - the day it describes, a datetime: about's first day, else its passage's own), empty before the coding pass."""
         import pandas as _pd
         if self._codes is None:
-            self._codes = _pd.read_csv(self.codes_path, dtype=str, keep_default_na=False) if self.codes_path else _pd.DataFrame(columns=["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about", "day"])
+            raw = _pd.read_csv(self.codes_path, dtype=str, keep_default_na=False) if self.codes_path else _pd.DataFrame(columns=self._CODES_COLUMNS)
+            for col in self._CODES_COLUMNS:
+                if col not in raw.columns:
+                    raw[col] = ""
+            self._codes = self._typed(raw, dates=("day",), text=("quote",))
         return self._codes
     def _dates(self, n):
         import pandas as _pd
@@ -300,7 +334,7 @@ class _BambooContext:
         return "[%s] %s%s: %s" % (r.get("id"), head, tail, self._shown(r).replace("\n", " / "))
     def _lines(self, sub, as_frame, limit):
         if as_frame:
-            return sub
+            return self.frame().loc[sub.index]
         rows = [self._fmt(r) for r in sub.to_dict("records")[:limit]]
         more = len(sub) - limit
         return ("\n".join(rows) if rows else "(no passages)") + (("\n(%d more; raise limit or narrow)" % more) if more > 0 else "")
@@ -312,14 +346,14 @@ class _BambooContext:
         return sub
     def grep(self, pattern, kind=None, author=None, original=False, as_frame=False, limit=40, flags=_bamboo_ctx_re.I):
         """The passages whose English rendering (or, with original=True, the text as written) matches the pattern."""
-        n = self.frame()
+        n = self._written()
         col = n["text"] if original else n.apply(self._shown, axis=1) if len(n) else n["text"]
         hit = n[col.str.contains(pattern, flags=flags, regex=True, na=False)] if len(n) else n
         return self._lines(self._filter(hit, kind, author), as_frame, limit)
     def around(self, date, days=3, kind=None, author=None, as_frame=False, limit=60):
         """The passages within `days` of a date (the words lead or lag the numbers: a window, not a day)."""
         import pandas as _pd
-        n = self.frame()
+        n = self._written()
         d = _pd.to_datetime(date)
         t = self._dates(n)
         sub = n[(t >= d - _pd.Timedelta(days=days)) & (t <= d + _pd.Timedelta(days=days))] if len(n) else n
@@ -327,18 +361,18 @@ class _BambooContext:
     def between(self, a, b, kind=None, author=None, as_frame=False, limit=200):
         """The passages from day a to day b inclusive."""
         import pandas as _pd
-        n = self.frame()
+        n = self._written()
         t = self._dates(n)
         sub = n[(t >= _pd.to_datetime(a)) & (t <= _pd.to_datetime(b))] if len(n) else n
         return self._lines(self._filter(sub, kind, author), as_frame, limit)
     def on(self, activity_id, as_frame=False, limit=60):
         """The passages of one activity: its messages, note, tags, tick, the plan it fulfilled."""
-        n = self.frame()
+        n = self._written()
         sub = n[n["activity_id"].astype(str) == str(activity_id)] if len(n) else n
         return self._lines(sub, as_frame, limit)
     def text(self, ref):
         """One passage whole, with its date, kind and author, the rendering and - when it differs - the original."""
-        n = self.frame()
+        n = self._written()
         key = str(ref) if str(ref).startswith("C.") else "C.%s" % ref
         sub = n[n["id"] == key]
         if not len(sub):

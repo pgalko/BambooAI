@@ -76,7 +76,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (224/190/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 51/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (227/193/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 51/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -458,6 +458,26 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Three findings of an independent review of an Adaptive run (2026-10-19, patch 0208).** The run: the bio-psycho-social
+  question, 24 turns, DeepSeek Flash as the analyst and Grok as the reviewer. (1) After each review the analyst was
+  handed the review's lines as YOUR NOTE, beside the REVIEW block, and lost its own note: the review turn's note is the
+  review (the pane's card and the REVIEW block read it there), and `Run.note` took the newest note of any turn - since
+  2026-10-05, so every Adaptive run. Now `Run.note` skips review turns. (2) `CTX.frame()` and `CTX.codes()` were text
+  throughout, `""` for a blank: turn 8 compared `date` with a Timestamp and failed; cells 18 and 19 filtered with
+  `copy_of.isna()`, kept nothing and printed nan; turns 21-23 thrashed on that; the words lens never reached the
+  report - six of twenty-four turns. The four recent runs compare `date` with `<=` and `>=` over eighty times and never
+  treat it as text. Now both tables come typed, as pandas reads any file (`_typed` in the kernel class): the date
+  columns and `day` as datetimes, a blank as NaN in every column but the text ones, `chars` a number; the calls that
+  print passages read the table as written (`_written`), so their lines are unchanged, and `as_frame=True` returns the
+  typed rows; a column of the design an older file lacks is there, missing. The host's reading of the files (the map,
+  the coding pass, the Reader) is as before. (3) `checked_ok` looked for the word "matches": a review wrote "those two
+  lines match. The disagreement line does not: ..." and every RESULT line of the cell was marked as not describing its
+  code, the two it accepted included. Now `checked_verdict` reads the word by its stem - "ok", "no", or "partly" when
+  the line says both (the elliptical "does not:" and "does not fully:" count as a negated match; "does not <something
+  else>" beside a match does not) - and a partly-disputed cell's ledger lines say "a line of this cell does not
+  describe its code", the report's CHECK "of whose RESULT lines ... one does not"; the record carries `partly`, and an
+  older record without it reads as whole. Tests: test_analyst.py 227 (the note after a review; the verdicts; the
+  marks), test_app_path.py 193 (the typed frames, the printing calls unchanged, an older file's columns).
 - **The day each reading describes, in the codes; the two tables by day out (2026-10-18, patch 0206).** 0204's
   `CTX.days()` and `CTX.episodes()` were never called: three runs, on Sonnet and DeepSeek. Over the nine runs with the
   context in DATA the analysts called `CTX.frame()` and `CTX.codes()` about 160 times and every other call 7: they

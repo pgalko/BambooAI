@@ -278,18 +278,40 @@ def parse_review(text: str) -> Optional[dict]:
     return rv
 
 
+_MATCH_RE = re.compile(r"\bmatch(?:es|ed|ing)?\b", re.I)
+# "does not match", "do not match", "doesn't match", "does not fully match", "not matching", and the brief's elliptical
+# "does not:" or "does not." (2026-10-19: "those two lines match. The disagreement line does not: ..." had been read as a
+# verdict on every line of the cell, since the test looked for the word "matches" alone)
+_NO_MATCH_RE = re.compile(r"\b(?:(?:does|do|did)\s*n(?:o|')t|not)(?:\s+(?:fully|quite|entirely|all|always|yet))?\s*(?::|\.|;|$|match(?:es|ed|ing)?\b|describe\b)", re.I | re.M)
+_NOT_RE = re.compile(r"\b(?:does|do|did)\s*n(?:o|')t\b", re.I)
+
+
+def checked_verdict(text: str) -> str:
+    """A reviewer's Checked line read as a verdict on the cell's RESULT lines (the brief's form: "matches its line | does
+    not: how"): "ok" - the line says they match and no line does not; "no" - it says a line does not match, or says
+    "does not" and never that anything matches; "partly" - it says both, so some of the cell's lines match and one does
+    not. The word is read by its stem, in any form."""
+    t = text or ""
+    negated = bool(_NO_MATCH_RE.search(t))
+    positive = len(_MATCH_RE.findall(t)) > len(re.findall(r"\bmatch(?:es|ed|ing)?\b", " ".join(_NO_MATCH_RE.findall(t)), re.I))
+    if positive and negated:
+        return "partly"
+    if positive:
+        return "ok"
+    return "no" if (negated or _NOT_RE.search(t)) else "ok"
+
+
 def checked_ok(text: str) -> bool:
-    """A reviewer's Checked line read as a verdict on the cell: it does not describe its code when the line says "does not"
-    and never says "matches" (the brief's form: "matches its line | does not: how")."""
-    t = (text or "").lower()
-    return not ("does not" in t and "matches" not in t)
+    """True when the Checked line finds every RESULT line of the cell describes its code."""
+    return checked_verdict(text) == "ok"
 
 
-def disputed_cells(run) -> Dict[int, str]:
-    """Cells an earlier review found not to describe their code - cell -> the review's label - from the Checked lines on
-    the review turns (the latest review's word on a cell stands). A line of such a cell is marked in the ledger, and a
-    report that cites the cell is flagged (2026-10-06: a review had caught a typed line and the report quoted it anyway)."""
-    out: Dict[int, str] = {}
+def disputed_cells(run) -> Dict[int, dict]:
+    """Cells an earlier review found not to describe their code - cell -> {"review": the review's label, "partly": whether
+    the finding was on one of the cell's lines, not all} - from the Checked lines on the review turns (the latest review's
+    word on a cell stands). A line of such a cell is marked in the ledger, and a report that cites the cell is flagged
+    (2026-10-06: a review had caught a typed line and the report quoted it anyway)."""
+    out: Dict[int, dict] = {}
     for x in run.turns:
         if x.kind == "review":
             for rec in x.checked or []:
@@ -297,8 +319,14 @@ def disputed_cells(run) -> Dict[int, str]:
                 if rec.get("ok", True):
                     out.pop(c, None)
                 else:
-                    out[c] = x.text
+                    out[c] = {"review": x.text, "partly": bool(rec.get("partly"))}
     return out
+
+
+def disputed_mark(d: dict) -> str:
+    """The ledger's mark on a RESULT line of a disputed cell."""
+    return (f"(the review {d['review']} found a line of this cell does not describe its code) " if d.get("partly")
+            else f"(the review {d['review']} found this line does not describe its code) ")
 
 
 def cited_cells(text: str) -> List[int]:
@@ -358,7 +386,7 @@ def result_lines(run, omit=()) -> List[str]:
                 corrected.setdefault(int(n), c)
     disputed = disputed_cells(run)
     return [f"- [cell {c}] " + (f"(corrected by cell {corrected[c]}) " if c in corrected else "")
-            + (f"(the review {disputed[c]} found this line does not describe its code) " if c in disputed else "") + r["text"]
+            + (disputed_mark(disputed[c]) if c in disputed else "") + r["text"]
             for c, r in rows if c not in omit]      # omit: cells whose output is in view whole, so the line is not shown twice
 
 
@@ -1128,7 +1156,8 @@ class Session:
         check_u = rep.guard_units(missing)
         disputed = disputed_cells(run)
         quoted = [c for c in cited_cells(report_text) if c in disputed]
-        check_d = ("CHECK: this report cites " + ", ".join(f"cell {c}, whose RESULT line the review {disputed[c]} found does not describe its code" for c in quoted)
+        check_d = ("CHECK: this report cites " + ", ".join((f"cell {c}, of whose RESULT lines the review {disputed[c]['review']} found one does not describe its code" if disputed[c]["partly"]
+                                                           else f"cell {c}, whose RESULT line the review {disputed[c]['review']} found does not describe its code") for c in quoted)
                    + ". Treat what it quotes from there as unverified.") if quoted else ""
         run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, figures_note) if x)
         # the plain-language rewrite by the same analyst
@@ -1494,7 +1523,7 @@ class Session:
             logger.warning("review %s: no verdict in the reply - not used", label)
             return None, cost
         turn = Turn(kind="review", note=rv["lines"], thinking=verdict, text=label, usage=usage, shown=list(sent),
-                    checked=[{"cell": c, "text": t, "ok": checked_ok(t)} for c, t in rv["checked"]], recheck=list(rv["recheck"]))
+                    checked=[{"cell": c, "text": t, "ok": checked_ok(t), "partly": checked_verdict(t) == "partly"} for c, t in rv["checked"]], recheck=list(rv["recheck"]))
         if report is None and rv["verdict"] == "REPORT" and not rv["binding"]:
             missing = [c for c in rv["cited"] if c not in rv["checked_cells"]]
             turn.stdout = "not binding: " + ("the reviewer cites no cell" if not rv["cited"] else

@@ -143,8 +143,11 @@ class Run:
 
     @property
     def note(self) -> str:
+        """The analyst's note as it last wrote it. A review turn's note is the review's lines (the pane's card and the
+        REVIEW block read it there), never the analyst's: skipped (2026-10-19: after each review the analyst had been
+        handed the review as YOUR NOTE, beside the REVIEW block, and lost its own)."""
         for t in reversed(self.turns):
-            if t.note:
+            if t.note and t.kind != "review":
                 return t.note
         return ""
 
