@@ -477,7 +477,10 @@
   else>" beside a match does not) - and a partly-disputed cell's ledger lines say "a line of this cell does not
   describe its code", the report's CHECK "of whose RESULT lines ... one does not"; the record carries `partly`, and an
   older record without it reads as whole. Tests: test_analyst.py 227 (the note after a review; the verdicts; the
-  marks), test_app_path.py 193 (the typed frames, the printing calls unchanged, an older file's columns).
+  marks), test_app_path.py 193 (the typed frames, the printing calls unchanged, an older file's columns). Found by
+  the walk the same day and fixed in the fixture: the coach's calendar note fell on every 23rd day, and on some
+  dates that day sat in the silent fortnight, so the second load had no proposal among the new days to confirm;
+  one note is anchored forty days ago (`apis_data.events`), in the new days on every date.
 - **The day each reading describes, in the codes; the two tables by day out (2026-10-18, patch 0206).** 0204's
   `CTX.days()` and `CTX.episodes()` were never called: three runs, on Sonnet and DeepSeek. Over the nine runs with the
   context in DATA the analysts called `CTX.frame()` and `CTX.codes()` about 160 times and every other call 7: they

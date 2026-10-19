@@ -199,7 +199,10 @@ def events(oldest: str, newest: str, today: date = None):
             out.append({"id": 810000 + o % 100000, "category": "SICK", "start_date_local": start, "end_date_local": (d + timedelta(days=3)).strftime("%Y-%m-%dT00:00:00"), "name": "Cold", "created_by_id": SUBJECT["id"]})
         if o % 50 == 25:
             out.append({"id": 820000 + o % 100000, "category": "RACE_B", "start_date_local": start, "end_date_local": nxt, "name": "Club race", "description": "<p><strong>Distance: </strong>60km</p><p>Rolling course</p>", "created_by_id": SUBJECT["id"]})
-        if o % 23 == 0:
+        # every 23rd day, and forty days ago whatever the date: the walk's second load codes the days after its first window
+        # (the last 41, where no chat or ride is written) and expects the coach's proposal among them; the 23rd days alone
+        # fell in the silent fortnight on some dates (2026-10-19: the walk failed on the calendar, not the code)
+        if o % 23 == 0 or days_ago(d, today) == 40:
             out.append({"id": 830000 + o % 100000, "category": "NOTE", "start_date_local": start, "end_date_local": nxt, "name": "Watch motivation", "description": "", "created_by_id": COACH_ID, "hide_from_athlete": True})
     return out
 
