@@ -184,12 +184,15 @@
             const rep = r.replay_status === 'reproduced' ? 'ok' : (r.replay_status ? 'warn' : '');
             const links = ['Answer', 'Simplified', 'Investigation'].concat(r.plots ? ['Plots (' + r.plots + ')'] : []).map(l =>
                 '<a href="#" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'' + l.split(' ')[0] + '\');return false;">' + l + ' →</a>').join('');
+            // the code map's way in (2026-10-20): a button, not a link (the four links are counted), for an answered chain that ran code
+            const codemap = r.status === 'answered' && r.cells > 0 && r.chain_id
+                ? '<button class="sp-codemap" data-chain="' + esc(r.chain_id) + '" onclick="if(typeof CodeMapUI!==\'undefined\')CodeMapUI.open(this.dataset.chain)">Code map →</button>' : '';
             return '<div class="sp-done"><div class="title">' + (r.status === 'asked' ? 'The analyst has a question for you' : (r.status === 'stopped' ? 'Run stopped' : 'Run complete')) + '</div>' +
                 '<div class="grid"><span>Turns <b>' + esc(r.turns) + (r.of ? ' of ' + esc(r.of) : '') + '</b></span>' +
                 '<span>Cells <b>' + esc(r.cells || 0) + '</b>' + (r.failed ? ' (' + esc(r.failed) + ' failed)' : '') + '</span>' +
                 '<span>Cost <b>' + fmtCost(r.cost) + '</b></span><span>Time <b>' + esc(fmtSecs(r.seconds)) + '</b></span></div>' +
                 (r.replay_line ? '<div class="rep ' + rep + '">' + (rep === 'ok' ? '✓ ' : '') + esc(r.replay_line) + '</div>' : '') +
-                (r.status === 'answered' ? '<div class="links">' + links + '</div>' : '') + '</div>';   // the dataset pills ride once, under the REPLAY row (2026-10-06)
+                (r.status === 'answered' ? '<div class="links">' + links + codemap + '</div>' : '') + '</div>';   // the dataset pills ride once, under the REPLAY row (2026-10-06)
         },
         routineEnd(r) {
             // the closing card of a routine's run (S4): what came out, the verdict, the tabs

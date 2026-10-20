@@ -458,6 +458,34 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The code map's modal and its two ways in (2026-10-20, patch 0213; M4 of the build).** `web_app/static/js/code-map.js`
+  (on codebook.js's pattern: pure builders as `window.__codeMapBuild`, a modal made on first use, delegated clicks,
+  `window.CodeMapUI = {initialize, open, close, onChain}`), its rules under `#codeMapModal` in dialogs.css, five
+  tokens added to both themes (`--chip-lookup-border`, `--chip-lookup-bg`, `--chip-fail-bg`, `--row-select-bg`,
+  `--edge-color`). The modal sits past the rail and the top bar like the thread map drawer, so the chain navigator
+  stays usable: the map follows it (`onChain` at the end of `updateNavigationButtons`), and opening another chain
+  from inside the map moves the app there (`navigateToChainId`), a chain the navigator does not hold being read
+  straight from the route and named "an earlier chain". Header: the chain's number as the navigator numbers it, its
+  path (each earlier chain a link), how the map was built, the facts, the title, the question; Steps | Recipe diagram;
+  the legend. Steps: the inputs as rotated lanes (used in blue with the columns, loaded, struck when never read; a
+  chain lane opens that chain), one row per cell with its STEP sentence, chips and lane dots, what came out as
+  chips by status (recorded - decision 2, replaced, came out empty, a cited printout, the figures), failed
+  attempts and review bands; a selection fades the rows outside its recipe. Recipe diagram: dagre (the page's
+  global, 0.8.5) with a hidden root above the inputs so they sit on the top row, edges from dagre's points as one
+  SVG string (centre to centre under the harness's stand-in, which gives none), boxes by kind, the result box;
+  the picker lists every result, printout and figure. Panel: the summary (how to read it, the data used with its
+  columns, Worth checking as buttons, the counts), a result's recipe (the number, "recorded", the line that the
+  map shows how it was made, not whether it is right - decision 2 -, Made from, the items with sizes and glossed
+  steps, the settings with typed ones marked, the choices, Rests on cells, Open in the notebook -> paneOpenCell), a
+  printout's and a figure's, a step's. States: loading, error, running, unfinished, unreachable, no code.
+  Ways in: the closing card's "Code map →" button (a button, so the four links stay four; the chain id rides in
+  the saved markup) and the eye on a chain's box in the Thread map drawer (A2: shown on the hovered box and the
+  open chain's; it moves the app to the chain, closes the drawer, opens the map). Not built: the Code tab entry
+  (decision 4: two ways in). Tests: test_code_map.js 48 (every builder on the prototype's views turned into ids,
+  the layout, the module on the mini DOM with a scripted route: open, select, switch, the navigator moving, a
+  chain outside the navigator, Open in the notebook, the states), test_pane.js 51, test_shell.js 71,
+  test_css_refs/test_js_refs green, the stack walk 112 (the card's button opens the map on the real chain with the
+  kernel's sizes; a recipe; the diagram; the drawer's eye). Rendered in both themes against 03_VISUALS.md.
 - **The code map built at a chain's end, and its route (2026-10-20, patch 0212; M3 of the build).** `Session._finish`
   builds the map after the replay, before the run is answered (`codemap.build`; a failure is `{"error": ...}` on the
   run, never raised), from the inputs the host offers through `Session(map_inputs=...)`: `BambooAI._map_inputs` gives

@@ -303,6 +303,25 @@ window.WorkflowGraph = (function () {
             chainSpan.textContent = 'Chain: ' + nd.chainId;
             div.appendChild(chainSpan);
 
+            // the code map's way in (2026-10-20): an eye on the hovered box and on the open chain's; the app moves to
+            // the chain, the drawer closes, the map opens
+            if (resp && resp.chain_id) {
+                var eye = document.createElement('button');
+                eye.className = 'wf-node-map';
+                eye.type = 'button';
+                eye.title = 'Code map: how this chain got its numbers';
+                eye.setAttribute('aria-label', 'Code map of chain ' + (idx + 1));
+                eye.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path></svg>';
+                eye.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    if (typeof navigateToChainId === 'function' && idx !== currentResponseIndex) navigateToChainId(resp.chain_id);
+                    var drawer = document.getElementById('workflowMapModal');
+                    if (drawer) drawer.style.display = 'none';
+                    if (window.CodeMapUI && typeof window.CodeMapUI.open === 'function') window.CodeMapUI.open(resp.chain_id);
+                });
+                div.appendChild(eye);
+            }
+
             // ── Hover ──
             div.addEventListener('mouseenter', function () {
                 var ancestors = getAncestorPath(idx, responses, chainIndex);

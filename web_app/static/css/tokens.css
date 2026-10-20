@@ -190,12 +190,22 @@
     --chip-model-border: rgba(80, 250, 123, 0.4);
     --chip-fail-border: rgba(255, 107, 107, 0.5);
     --chip-kernel-border: rgba(209, 189, 152, 0.45);
+    --chip-lookup-border: rgba(30, 144, 255, 0.55);     /* the code map (2026-10-20): data inputs in the look-up blue */
+    --chip-lookup-bg: rgba(30, 144, 255, 0.07);
+    --chip-fail-bg: rgba(255, 107, 107, 0.05);
+    --row-select-bg: rgba(255, 255, 255, 0.04);          /* a selected row or box */
+    --edge-color: rgba(255, 255, 255, 0.3);              /* a diagram's arrows */
 }
 [data-theme="light"] {
     --shadow-dialog: 0 20px 60px rgba(0, 0, 0, 0.18);
     --scrim: rgba(0, 0, 0, 0.35);
     --c-kernel: #a67c2e;                     /* light: the kernel's sand must not collapse onto the model's green (--yaml-key is green in light) */
     --chip-kernel-border: rgba(166, 124, 46, 0.45);
+    --chip-lookup-border: rgba(0, 100, 255, 0.45);
+    --chip-lookup-bg: rgba(0, 100, 255, 0.05);
+    --chip-fail-bg: #fff6f6;
+    --row-select-bg: #f6f8fb;
+    --edge-color: #b4b4b4;
 }
 
 /* ---- variables that other stylesheets referenced without anyone defining them (2026-09-08) ----

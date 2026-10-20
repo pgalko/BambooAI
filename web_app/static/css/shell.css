@@ -262,6 +262,12 @@
 #workflowMapModal .wf-node--fork .wf-node-chain { color: var(--c-lookup); }
 #workflowMapModal .wf-node--synthesis { border-color: var(--chip-kernel-border); }
 #workflowMapModal .wf-node--synthesis .wf-node-chain { color: var(--c-kernel); }
+/* the code map's eye (2026-10-20): on the chain-id line, shown on the hovered box and the open chain's */
+#workflowMapModal .wf-node-map { position: absolute; right: 6px; bottom: 5px; width: 20px; height: 18px; border: none; border-radius: 4px; background: none; color: var(--text-quaternary); display: grid; place-items: center; padding: 0; cursor: pointer; opacity: 0; }
+#workflowMapModal .wf-node:hover .wf-node-map, #workflowMapModal .wf-node--active .wf-node-map, #workflowMapModal .wf-node-map:focus-visible { opacity: 1; }
+#workflowMapModal .wf-node-map svg { width: 13px; height: 13px; }
+#workflowMapModal .wf-node-map:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+#workflowMapModal .wf-node--active .wf-node-map { color: var(--c-model); }
 #workflowMapModal .wf-path-active .wf-node:not(.wf-node--ancestor):not(.wf-node--active) { opacity: .45; }
 #workflowMapModal .wf-path-active .wf-edge:not(.wf-edge--highlighted) { opacity: .35; }
 #workflowMapModal .wf-empty { padding: 30px 0; text-align: center; font-size: var(--fs-meta); color: var(--text-quaternary); }

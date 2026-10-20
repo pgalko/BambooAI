@@ -857,3 +857,184 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 .cb-status { font-size: var(--fs-small); padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; }
 .cb-status.confirmed { color: var(--c-model); border-color: var(--chip-model-border); }
 .cb-status.proposed { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
+
+/* ---- the code map (2026-10-20, code-map.js; docs/CODEMAP_DESIGN.md): a chain's steps with its inputs as lanes, the recipe
+   diagram, and the panel. Past the rail and the top bar, like the thread map drawer, so the chain navigator stays usable. ---- */
+#codeMapModal { display: none; position: fixed; left: 46px; top: 40px; right: 0; bottom: 0; background: var(--scrim); z-index: 1001; padding: 14px 24px 24px; box-sizing: border-box; align-items: stretch; justify-content: center; }
+#codeMapModal .ui-dlg.cm-dlg { width: 100%; max-width: 1392px; height: 100%; max-height: none; margin: 0 auto; background: var(--bg-primary); overflow: hidden; }
+#codeMapModal .cm-head { align-items: flex-start; flex-wrap: wrap; gap: 10px 24px; padding: 13px 18px 12px; background: var(--bg-primary); }
+#codeMapModal .cm-head-l { flex: 1 1 560px; min-width: 0; }
+#codeMapModal .cm-head-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+#codeMapModal .cm-head-line .title { font-size: var(--fs-title); font-weight: 600; color: var(--text-primary); }
+#codeMapModal .cm-chain-no { font-family: var(--font-mono); font-size: var(--fs-meta); font-weight: 600; color: var(--c-kernel); }
+#codeMapModal .cm-path { display: inline-flex; align-items: baseline; gap: 2px; font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-path .k { margin-right: 3px; }
+#codeMapModal .cm-path a, #codeMapModal .cm-path b, #codeMapModal .cm-path .cm-chain-earlier { font-family: var(--font-mono); font-size: var(--fs-meta); padding: 0 2px; }
+#codeMapModal .cm-path b { color: var(--c-kernel); font-weight: 600; }
+#codeMapModal .cm-path .arr { color: var(--text-quaternary); }
+#codeMapModal .cm-built { font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-title { margin-top: 7px; font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); }
+#codeMapModal .cm-question { margin-top: 3px; font-size: var(--fs-meta); line-height: 1.45; color: var(--text-tertiary); }
+#codeMapModal .cm-head-r { display: flex; flex-direction: column; align-items: flex-end; gap: 9px; }
+#codeMapModal .cm-head-tools { display: flex; align-items: center; gap: 10px; }
+#codeMapModal .cm-switch { display: flex; border: 1px solid var(--border-color); border-radius: var(--r-2); overflow: hidden; }
+#codeMapModal .cm-switch button { border: 0; padding: 4px 12px; font-size: var(--fs-meta); font-family: var(--font-ui); cursor: pointer; background: transparent; color: var(--text-tertiary); }
+#codeMapModal .cm-switch button[aria-pressed="true"] { background: var(--bg-tertiary); color: var(--text-primary); }
+#codeMapModal .cm-switch button:disabled { opacity: .4; cursor: default; }
+#codeMapModal .cm-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 14px; font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-legend span { display: inline-flex; align-items: center; gap: 6px; }
+#codeMapModal .cm-lg { display: block; width: 10px; height: 10px; border-radius: 3px; border: 1px solid var(--border-color); box-sizing: border-box; }
+#codeMapModal .cm-lg-read { width: 9px; height: 9px; border-radius: 50%; border: 0; background: var(--c-lookup); }
+#codeMapModal .cm-lg-via { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--c-lookup); }
+#codeMapModal .cm-lg-recorded { border-color: var(--chip-model-border); }
+#codeMapModal .cm-lg-empty { border-color: var(--chip-fail-border); }
+#codeMapModal .cm-lg-printed { border-style: dashed; border-color: var(--text-tertiary); }
+#codeMapModal .cm-lg-in { width: 12px; height: 9px; border-color: var(--chip-lookup-border); }
+#codeMapModal .cm-lg-table { width: 12px; height: 9px; border-color: var(--chip-kernel-border); }
+#codeMapModal .cm-lg-estimate { width: 12px; height: 9px; border: 2px solid var(--c-kernel); }
+#codeMapModal .cm-lg-result { width: 12px; height: 9px; border: 2px solid var(--chip-model-border); }
+/* the body: the map on the left, the panel on the right */
+#codeMapModal .cm-body { display: flex; align-items: stretch; padding: 0; overflow: hidden; }
+#codeMapModal .cm-map { flex: 1 1 640px; min-width: 0; overflow: auto; position: relative; }
+#codeMapModal .cm-panel { flex: 0 0 320px; min-width: 300px; overflow: auto; border-left: 1px solid var(--border-color); background: var(--bg-secondary); }
+#codeMapModal .cm-state, #codeMapModal .cm-nocode { padding: 28px 24px; max-width: 620px; font-size: var(--fs-body); line-height: 1.55; color: var(--text-secondary); }
+#codeMapModal .cm-state-error, #codeMapModal .cm-state-unreachable { color: var(--c-fail); }
+/* the Steps grid */
+#codeMapModal .cm-steps-head { position: sticky; top: 0; z-index: 2; display: grid; align-items: end; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); }
+#codeMapModal .cm-col-h { padding: 0 6px 10px 14px; font-size: var(--fs-small); letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); }
+#codeMapModal .cm-col-h.what { padding: 0 12px 10px 16px; } #codeMapModal .cm-col-h.out { padding: 0 14px 10px 6px; }
+#codeMapModal .cm-lanes { display: flex; height: 150px; align-items: stretch; }
+#codeMapModal .cm-lane { width: 34px; flex: 0 0 34px; box-sizing: border-box; border: 0; border-left: 1px solid var(--border-color); background: none; display: flex; justify-content: center; padding: 8px 0 10px; font-family: var(--font-ui); text-align: left; color: var(--text-tertiary); }
+#codeMapModal .cm-lane.chain { background: var(--chip-lookup-bg); cursor: pointer; }
+#codeMapModal .cm-lane .rot { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; flex-direction: column; gap: 1px; white-space: nowrap; }
+#codeMapModal .cm-lane .name { font-size: var(--fs-small); font-weight: 600; line-height: 14px; color: var(--text-quaternary); }
+#codeMapModal .cm-lane.used .name { color: var(--c-lookup); }
+#codeMapModal .cm-lane.loaded .name { color: var(--text-tertiary); }
+#codeMapModal .cm-lane.unused .name { text-decoration: line-through; }
+#codeMapModal .cm-lane.chain .name { text-decoration: underline; text-underline-offset: 2px; }
+#codeMapModal .cm-lane .sub { font-size: 10px; line-height: 13px; color: var(--text-tertiary); }
+#codeMapModal .cm-lane.dim, #codeMapModal .cm-dot-cell.dim { opacity: .3; }
+#codeMapModal .cm-lane.hi { outline: 2px solid var(--c-lookup); outline-offset: -2px; }
+#codeMapModal .cm-nolane { width: 112px; box-sizing: border-box; border-left: 1px solid var(--border-color); }
+#codeMapModal .cm-nolane.head { padding: 0 10px 10px; display: flex; align-items: flex-end; font-size: var(--fs-small); line-height: 1.4; color: var(--text-tertiary); }
+#codeMapModal .cm-row { border-bottom: 1px solid var(--border-color); }
+#codeMapModal .cm-row.step, #codeMapModal .cm-row.failed { display: grid; }
+#codeMapModal .cm-row.faded { opacity: .4; }
+#codeMapModal .cm-row.marked { background: var(--row-select-bg); }
+#codeMapModal .cm-row.failed { background: var(--chip-fail-bg); }
+#codeMapModal .cm-row.band { padding: 8px 14px; background: var(--bg-secondary); font-size: var(--fs-meta); line-height: 1.45; color: var(--text-secondary); }
+#codeMapModal .cm-row.band .k, #codeMapModal .cm-h, #codeMapModal .cm-kicker span, #codeMapModal .cm-diag-head .k { font-size: var(--fs-small); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); }
+#codeMapModal .cm-cell { padding: 10px 6px 10px 14px; }
+#codeMapModal .cm-cell-no { border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font-family: var(--font-mono); font-size: var(--fs-meta); font-weight: 600; color: var(--c-kernel); white-space: nowrap; }
+#codeMapModal .cm-cell-no.fail { color: var(--c-fail); cursor: default; }
+#codeMapModal .cm-cell .sub { margin-top: 2px; font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-dots { display: flex; align-items: stretch; }
+#codeMapModal .cm-dot-cell { width: 34px; flex: 0 0 34px; box-sizing: border-box; border-left: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; }
+#codeMapModal .cm-dot { display: block; border-radius: 50%; }
+#codeMapModal .cm-dot.read { width: 9px; height: 9px; background: var(--c-lookup); }
+#codeMapModal .cm-dot.via { width: 6px; height: 6px; border: 1.5px solid var(--c-lookup); opacity: .75; }
+#codeMapModal .cm-what { padding: 8px 12px 9px 16px; min-width: 0; }
+#codeMapModal .cm-purpose { display: block; width: 100%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font-family: var(--font-ui); font-size: 12.5px; line-height: 1.45; color: var(--text-primary); }
+#codeMapModal .cm-purpose span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#codeMapModal .cm-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 5px; }
+#codeMapModal .cm-chip { font-size: var(--fs-small); line-height: 16px; padding: 0 6px; border-radius: var(--r-1); border: 1px solid var(--border-color); color: var(--text-secondary); white-space: nowrap; }
+#codeMapModal .cm-chip.method { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
+#codeMapModal .cm-chip.result { border-color: var(--chip-model-border); color: var(--c-model); }
+#codeMapModal .cm-out { padding: 9px 14px 10px 6px; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+#codeMapModal .cm-res { display: block; width: 100%; box-sizing: border-box; text-align: left; cursor: pointer; padding: 3px 8px; border-radius: var(--r-2); border: 1px solid var(--chip-model-border); background: transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-ui); font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-res .est { font-family: var(--font-mono); font-size: var(--fs-meta); font-weight: 600; color: var(--text-primary); }
+#codeMapModal .cm-res .iv { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-res.on { border-width: 2px; padding: 2px 7px; background: var(--accent-bg); }
+#codeMapModal .cm-res.replaced { border-color: var(--border-color); }
+#codeMapModal .cm-res.replaced .est { color: var(--text-tertiary); text-decoration: line-through; }
+#codeMapModal .cm-res.empty { border-color: var(--chip-fail-border); }
+#codeMapModal .cm-res.empty .est { color: var(--c-fail); }
+#codeMapModal .cm-res.empty.on { background: var(--chip-fail-bg); }
+#codeMapModal .cm-res.printed, #codeMapModal .cm-res.figure { border-color: var(--text-tertiary); border-style: dashed; }
+#codeMapModal .cm-res.figure { border-style: solid; border-color: var(--border-color); }
+#codeMapModal .cm-res.printed .est, #codeMapModal .cm-res.figure .est { color: var(--text-secondary); font-weight: 600; }
+#codeMapModal .cm-res.printed.on, #codeMapModal .cm-res.figure.on, #codeMapModal .cm-res.replaced.on { background: var(--row-select-bg); }
+#codeMapModal .cm-note { font-size: var(--fs-small); line-height: 1.4; color: var(--text-tertiary); }
+#codeMapModal .cm-failed-text { grid-column: span 2; padding: 8px 14px 8px 16px; font-size: var(--fs-meta); line-height: 1.45; color: var(--text-tertiary); }
+#codeMapModal .cm-failed-text .k { color: var(--c-fail); }
+#codeMapModal .cm-failed-text .err { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--c-fail); }
+/* the recipe diagram */
+#codeMapModal .cm-diag-head { position: sticky; left: 0; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); }
+#codeMapModal .cm-diag-head select { max-width: 560px; padding: 4px 8px; border-radius: var(--r-2); border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: var(--fs-meta); }
+#codeMapModal .cm-diag-head .hint { font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-diag-wrap { padding: 28px 24px 32px; }
+#codeMapModal .cm-diag { position: relative; margin: 0 auto; }
+#codeMapModal .cm-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+#codeMapModal .cm-edges path { fill: none; stroke: var(--edge-color); stroke-width: 1.5; }
+#codeMapModal .cm-edges marker path { fill: var(--edge-color); stroke: none; }
+#codeMapModal .cm-node { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 6px 10px; border-radius: 8px; text-align: left; cursor: pointer; overflow: hidden; border: 1px solid var(--chip-kernel-border); background: var(--bg-primary); font-family: var(--font-ui); color: var(--text-primary); }
+#codeMapModal .cm-node .label { display: block; font-size: var(--fs-meta); font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+#codeMapModal .cm-node .names { display: block; font-family: var(--font-mono); font-size: var(--fs-small); color: var(--c-kernel); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#codeMapModal .cm-node .step { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--fs-small); line-height: 1.35; color: var(--text-secondary); }
+#codeMapModal .cm-node .sub { display: block; font-size: 10.5px; color: var(--text-tertiary); }
+#codeMapModal .cm-node.in { border-color: var(--chip-lookup-border); }
+#codeMapModal .cm-node.in .label { color: var(--c-lookup); }
+#codeMapModal .cm-node.in.chain { background: var(--chip-lookup-bg); }
+#codeMapModal .cm-node.estimate { border: 2px solid var(--c-kernel); }
+#codeMapModal .cm-node.result { border: 2px solid var(--chip-model-border); background: var(--accent-bg); }
+#codeMapModal .cm-node.result .label { font-family: var(--font-mono); font-size: 15px; }
+#codeMapModal .cm-node.result .names { font-family: var(--font-ui); color: var(--c-model); }
+#codeMapModal .cm-node:hover { border-color: var(--text-tertiary); }
+/* the panel */
+#codeMapModal .cm-pane { padding: 14px 18px 20px; display: flex; flex-direction: column; gap: 16px; font-size: var(--fs-meta); }
+#codeMapModal .cm-kicker { display: flex; align-items: center; justify-content: space-between; }
+#codeMapModal .cm-kicker .x { width: 22px; height: 22px; border: 0; background: none; cursor: pointer; font-size: 16px; line-height: 1; color: var(--text-tertiary); border-radius: var(--r-2); }
+#codeMapModal .cm-kicker .x:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+#codeMapModal .cm-p { margin-top: 8px; font-size: var(--fs-meta); line-height: 1.55; color: var(--text-secondary); }
+#codeMapModal .cm-h + .cm-p, #codeMapModal .cm-h + .cm-chips-row, #codeMapModal .cm-h + .cm-checks, #codeMapModal .cm-h + .cm-counts, #codeMapModal .cm-h + .cm-items, #codeMapModal .cm-h + .cm-builds, #codeMapModal .cm-h + .cm-names { margin-top: 8px; }
+#codeMapModal .cm-used { margin-top: 4px; font-size: var(--fs-meta); line-height: 1.45; color: var(--text-secondary); }
+#codeMapModal .cm-used .in, #codeMapModal .cm-in { color: var(--c-lookup); }
+#codeMapModal .cm-chips-row { display: flex; flex-wrap: wrap; gap: 6px; }
+#codeMapModal .cm-chips-row .cm-in { font-size: var(--fs-small); line-height: 16px; padding: 0 7px; border-radius: var(--r-1); border: 1px solid var(--chip-lookup-border); }
+#codeMapModal .cm-chips-row .cm-in a { color: inherit; }
+#codeMapModal .cm-checks { display: flex; flex-direction: column; gap: 6px; }
+#codeMapModal .cm-check { display: flex; gap: 8px; align-items: flex-start; width: 100%; box-sizing: border-box; text-align: left; cursor: pointer; padding: 7px 9px; border-radius: var(--r-2); border: 1px solid var(--border-color); background: var(--bg-primary); font-family: var(--font-ui); font-size: var(--fs-meta); line-height: 1.45; color: var(--text-secondary); }
+#codeMapModal .cm-check:not([data-act]) { cursor: default; }
+#codeMapModal .cm-check i { display: block; flex: 0 0 8px; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--text-tertiary); }
+#codeMapModal .cm-check.input i, #codeMapModal .cm-check.chain i, #codeMapModal .cm-check.cites i { background: var(--c-lookup); }
+#codeMapModal .cm-check.typed i, #codeMapModal .cm-check.pattern i { background: var(--c-kernel); }
+#codeMapModal .cm-check.nan i { background: var(--c-fail); }
+#codeMapModal .cm-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
+#codeMapModal .cm-counts b { display: block; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+#codeMapModal .cm-counts span { font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-big { font-family: var(--font-mono); font-size: 22px; font-weight: 600; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-primary); }
+#codeMapModal .cm-big.printed { font-size: var(--fs-meta); }
+#codeMapModal .cm-big.fig, #codeMapModal .cm-big.cell { font-size: 16px; }
+#codeMapModal .cm-big.cell { color: var(--c-kernel); }
+#codeMapModal .cm-big.empty { color: var(--c-fail); }
+#codeMapModal .cm-big.replaced { color: var(--text-tertiary); text-decoration: line-through; }
+#codeMapModal .cm-iv { margin-top: 2px; font-size: var(--fs-meta); color: var(--text-secondary); }
+#codeMapModal .cm-status { display: inline-block; margin-top: 8px; font-size: var(--fs-small); line-height: 16px; padding: 0 7px; border-radius: var(--r-1); border: 1px solid var(--border-color); color: var(--text-secondary); }
+#codeMapModal .cm-status.recorded { border-color: var(--chip-model-border); color: var(--c-model); }
+#codeMapModal .cm-status.empty { border-color: var(--chip-fail-border); color: var(--c-fail); }
+#codeMapModal .cm-status.replaced, #codeMapModal .cm-status.printed, #codeMapModal .cm-status.figure { color: var(--text-tertiary); }
+#codeMapModal .cm-hownot { margin-top: 8px; font-size: var(--fs-small); line-height: 1.4; color: var(--text-quaternary); }
+#codeMapModal .cm-items { display: flex; flex-direction: column; gap: 13px; }
+#codeMapModal .cm-item { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; }
+#codeMapModal .cm-item .n { font-size: var(--fs-small); line-height: 18px; text-align: right; color: var(--text-tertiary); }
+#codeMapModal .cm-item .n.arrow { color: var(--c-model); font-size: var(--fs-meta); }
+#codeMapModal .cm-item-label { display: block; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font-family: var(--font-ui); font-size: 12.5px; font-weight: 600; line-height: 1.4; color: var(--text-primary); }
+#codeMapModal .cm-item-label.static { cursor: default; }
+#codeMapModal .cm-item-label:not(.static):hover { text-decoration: underline; }
+#codeMapModal .cm-names { font-family: var(--font-mono); font-size: var(--fs-small); line-height: 1.5; color: var(--c-kernel); overflow-wrap: anywhere; }
+#codeMapModal .cm-step-text { margin-top: 2px; font-size: var(--fs-meta); line-height: 1.45; color: var(--text-secondary); }
+#codeMapModal .cm-gloss { font-size: var(--fs-small); font-style: italic; line-height: 1.4; color: var(--text-tertiary); }
+#codeMapModal .cm-final { font-family: var(--font-mono); font-size: var(--fs-meta); line-height: 18px; font-weight: 600; color: var(--c-model); }
+#codeMapModal .cm-param { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 7px; }
+#codeMapModal .cm-param .v { font-size: var(--fs-meta); color: var(--text-primary); }
+#codeMapModal .cm-param .w { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-typed { font-size: var(--fs-small); line-height: 16px; padding: 0 6px; border-radius: var(--r-1); border: 1px solid var(--chip-kernel-border); color: var(--c-kernel); }
+#codeMapModal .cm-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border-color); font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-builds { display: flex; flex-direction: column; gap: 11px; }
+#codeMapModal .cm-take { display: block; width: 100%; margin-top: 6px; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font-family: var(--font-ui); font-size: var(--fs-meta); line-height: 1.45; color: var(--text-secondary); }
+#codeMapModal .cm-take.chain { color: var(--c-lookup); }
+#codeMapModal .cm-take.empty { color: var(--c-fail); } #codeMapModal .cm-take.replaced { color: var(--text-tertiary); text-decoration: line-through; }
+#codeMapModal .cm-take:disabled { cursor: default; color: var(--text-tertiary); }
+#codeMapModal .cm-take:not(:disabled):hover { text-decoration: underline; }
+#codeMapModal .cm-chain { color: var(--c-lookup); text-decoration: underline; text-underline-offset: 2px; }
+#codeMapModal .cm-chain-earlier { color: var(--text-tertiary); }

@@ -315,6 +315,11 @@ function continueAppInitialization() {
         window.CodebookUI.initialize();
     }
 
+    // The code map (docs/CODEMAP_DESIGN.md): the modal behind the closing card's button and the thread map's eye
+    if (typeof window.CodeMapUI !== 'undefined' && typeof window.CodeMapUI.initialize === 'function') {
+        window.CodeMapUI.initialize();
+    }
+
     // Initialize Labels Manager
     if (typeof window.LabelsManager !== 'undefined' && typeof window.LabelsManager.initialize === 'function') {
         window.LabelsManager.initialize();

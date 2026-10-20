@@ -162,6 +162,34 @@ def main():
             plots_link = page.evaluate("() => { const l = [...document.querySelectorAll('.sp-done a, .sp-done .link')].map(e => e.textContent).find(t => /Plots \\(\\d+\\)/.test(t)); return l || (document.querySelector('.sp-done') || {}).textContent || ''; }")
             check("the replay captured both figures: the matplotlib PNG and the plotly JSON (the closing card says Plots (2))", "Plots (2)" in plots_link, plots_link[:120])
 
+            # the code map (2026-10-20, M4): the closing card's button opens the modal on this chain, built at its end; a result's
+            # recipe; the diagram; the thread map's eye opens it too
+            check("the closing card carries the Code map button with this chain's id", page.evaluate("() => { const b = document.querySelector('.sp-done .sp-codemap'); return b && b.dataset.chain === String(responses[currentResponseIndex].chain_id); }"))
+            page.click(".sp-done .sp-codemap")
+            page.wait_for_selector("#codeMapModal .cm-row.step", timeout=15000)
+            cm_head = page.evaluate("() => ({ chain: document.querySelector('#codeMapModal .cm-chain-no').textContent, built: document.querySelector('#codeMapModal .cm-built').textContent, rows: document.querySelectorAll('#codeMapModal .cm-row.step').length, failed: document.querySelectorAll('#codeMapModal .cm-row.failed').length, lanes: [...document.querySelectorAll('#codeMapModal .cm-lane .name')].map(e => e.textContent), results: document.querySelectorAll('#codeMapModal .cm-res.recorded').length })")
+            check("the code map opens on chain 1, built when the chain ended: its cells and the rolled-back attempt as rows, the dataset's lane, a recorded result",
+                  cm_head["chain"] == "chain 1" and cm_head["built"].startswith("built when the chain ended") and cm_head["rows"] >= 3 and cm_head["failed"] == 1 and cm_head["lanes"] == ["field_trial.csv"] and cm_head["results"] >= 1, cm_head)
+            page.click("#codeMapModal .cm-res.recorded")
+            page.wait_for_selector("#codeMapModal .cm-pane.result", timeout=5000)
+            cm_panel = page.evaluate("() => ({ kicker: document.querySelector('#codeMapModal .cm-kicker span').textContent, est: document.querySelector('#codeMapModal .cm-big').textContent, items: document.querySelectorAll('#codeMapModal .cm-item:not(.final)').length, sizes: [...document.querySelectorAll('#codeMapModal .cm-item .cm-names')].map(e => e.textContent), status: document.querySelector('#codeMapModal .cm-status').textContent })")
+            check("a result's recipe: the number, its boxes in order with the kernel's sizes, the status 'recorded'",
+                  cm_panel["kicker"].startswith("How this number was made · cell ") and cm_panel["est"].startswith("+0.") and cm_panel["items"] >= 2 and any("rows" in x or "values" in x or "a number" in x for x in cm_panel["sizes"]) and cm_panel["status"] == "recorded", cm_panel)
+            page.click("#codeMapModal .cm-switch button[data-view='diagram']")
+            page.wait_for_selector("#codeMapModal .cm-diag .cm-node.result", timeout=5000)
+            cm_diag = page.evaluate("() => ({ nodes: document.querySelectorAll('#codeMapModal .cm-node').length, edges: document.querySelectorAll('#codeMapModal .cm-edges path').length, top: Math.min(...[...document.querySelectorAll('#codeMapModal .cm-node.in')].map(n => parseInt(n.style.top, 10))), result: document.querySelector('#codeMapModal .cm-node.result .names').textContent })")
+            check("the recipe diagram: the input on the top row, boxes and edges laid out by dagre, the result at the bottom", cm_diag["nodes"] >= 3 and cm_diag["edges"] >= 2 and cm_diag["top"] == 0 and cm_diag["result"].startswith("RESULT · cell "), cm_diag)
+            page.click("#codeMapModal .cm-head button.x")
+            page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
+            page.evaluate("showWorkflowMap()")
+            page.wait_for_selector("#workflowMapModal .wf-node .wf-node-map", timeout=5000)
+            page.hover("#workflowMapModal .wf-node")
+            page.click("#workflowMapModal .wf-node .wf-node-map")
+            page.wait_for_selector("#codeMapModal .cm-row.step", timeout=15000)
+            check("the thread map's eye opens the chain's code map and closes the drawer", page.evaluate("() => document.getElementById('workflowMapModal').style.display === 'none' && document.getElementById('codeMapModal').style.display === 'flex'"))
+            page.click("#codeMapModal .cm-head button.x")
+            page.wait_for_timeout(200)
+
             # the Code tab (2026-10-11, routines S10): the script is read or taken away - Copy and Download; Edit and run is retired
             page.evaluate("activateTab('code')")
             page.wait_for_timeout(300)
