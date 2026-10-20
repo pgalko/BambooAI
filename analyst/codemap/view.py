@@ -20,18 +20,66 @@ def tidy_purpose(text):
     return t[:1].upper() + t[1:] if t else t
 
 
-def short_label(label, n=58):
+def label_parts(label):
+    """A label's comma parts, its notes in front dropped: (test after turn 5), (corrects cell 14, label only)."""
     s = label
-    while re.match(r"^\([^()]*\)\s*", s):               # notes in front: (test after turn 5), (corrects cell 14, label only)
+    while re.match(r"^\([^()]*\)\s*", s):
         s = re.sub(r"^\([^()]*\)\s*", "", s, count=1)
-    parts = [p.strip() for p in s.split(",")]
-    s = parts[0]
-    for p in parts[1:]:                                  # "yield" alone does not tell two results apart
+    return [p.strip() for p in s.split(",")]
+
+
+def cut_label(s, n=58):
+    """Cut at a word, unless that leaves nothing of the last part (a long word-run after the comma)."""
+    if len(s) <= n:
+        return s
+    at_word = s[:n - 1].rsplit(" ", 1)[0]
+    return (at_word if len(at_word) >= n - 16 and not at_word.endswith(",") else s[:n - 1].rstrip()) + "…"
+
+
+def short_parts(label):
+    """How many of a label's parts its short form keeps: enough for three words ("yield" alone does not tell two
+    results apart)."""
+    parts = label_parts(label)
+    k, s = 1, parts[0]
+    for p in parts[1:]:
         if len(s.split()) >= 3:
             break
         s += ", " + p
-    s = s or label
-    return s if len(s) <= n else s[:n - 1].rsplit(" ", 1)[0] + "…"
+        k += 1
+    return k
+
+
+def short_label(label, n=58):
+    parts = label_parts(label)
+    s = ", ".join(parts[:short_parts(label)]) or label
+    return cut_label(s, n)
+
+
+def distinct_shorts(results):
+    """Results of a chain that share a short label get the parts of their own labels that tell them apart, then the
+    cell when nothing does (2026-10-20: four "mean age, survivors vs non-survivors, <who>" results read as one in the
+    picker; the parts after the first three words are what differ)."""
+    groups = defaultdict(list)
+    for rid, r in results.items():
+        if r.get("kind", "result") == "result":
+            groups[r["short"]].append(rid)
+    for ids in groups.values():
+        if len(ids) < 2:
+            continue
+        parts = {rid: label_parts(results[rid]["label"]) for rid in ids}
+        base = {rid: short_parts(results[rid]["label"]) for rid in ids}
+        extra, cand = 0, {}
+        while True:
+            extra += 1
+            cand = {rid: cut_label(", ".join(parts[rid][:base[rid] + extra])) for rid in ids}
+            if len(set(cand.values())) == len(ids) or all(base[rid] + extra >= len(parts[rid]) for rid in ids):
+                break
+        seen = defaultdict(list)
+        for rid in ids:
+            seen[cand[rid]].append(rid)
+        for text, same in seen.items():
+            for rid in same:
+                results[rid]["short"] = text if len(same) == 1 else f"{text} (cell {results[rid]['cell']})"
 
 
 def input_name(label):
@@ -521,6 +569,7 @@ def steps_view(m, chain_id, events=(), mode="", titles=None):
                                 short=(r["line"] if len(r["line"]) <= 58 else r["line"][:57].rstrip() + "…") if printed else short_label(r["label"]),
                                 estimate=r["estimate"], interval=(r["interval"] or "").replace("+", ""), unit=r["unit_dir"], status=r["status"],
                                 corrected_by=r.get("corrected_by"), test=r.get("test"), line=r["line"], lines=r.get("lines", []))
+    distinct_shorts(results)
     used_by = {}
     for c in m["cells"]:
         for f in c["reads_from"]:

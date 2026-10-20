@@ -312,7 +312,8 @@
             const x = view.results[k];
             if (!x) return k;
             if (x.kind === 'printed') return fill(WORDS.pickPrinted, { n: x.cell, short: x.short });
-            return (x.estimate || '—') + ' · ' + x.short + (x.status === 'corrected' ? ' (replaced)' : (x.status === 'not computed' ? ' (empty)' : ''));
+            return (x.estimate || '—') + ' · ' + x.short + (x.status === 'corrected' ? ' (replaced)' : (x.status === 'not computed' ? ' (empty)' : ''))
+                + (/\(cell \d+\)$/.test(x.short) ? '' : ' · cell ' + x.cell);        // the short label names the cell itself when that is what tells it apart
         },
         diagram(view, ctx, key) {
             const keys = Object.keys(view.diagrams || {});

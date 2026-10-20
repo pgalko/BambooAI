@@ -458,6 +458,15 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The code map: results that share a short label are told apart (2026-10-20, patch 0215).** Palo's first real chain
+  (survivors' ages) recorded four "mean age, survivors vs non-survivors, <who>" results - 714 with a recorded age,
+  adults of 10 and over, bounds over all 891 treating the missing as extremes, standardised to the sex mix - and the
+  picker and the chips showed the same words for all four, because a short label keeps a label's comma parts only
+  until it has three words. `view.distinct_shorts`: results of a chain whose short labels collide gain the parts of
+  their own labels that tell them apart, then the cell when nothing does (two identical lines in different cells);
+  `cut_label` cuts inside a long word-run rather than back to the comma (so "direct-standardised to the…" survives);
+  the picker names each result's cell. The golden comparison leaves out the short labels the prototype left
+  colliding (`drop_colliding_shorts`). Tests: test_code_map.py 81 (the rule), test_code_map.js 51 (the picker).
 - **The code map: the card's button, the full-width modal, hardening and the design doc (2026-10-20, patch 0214; M5 of
   the build).** Palo's two comments on 0213: the closing card's way in is a button of its own under the links
   (`ui-btn sm primary` with the eye; the four links stay four), and the modal spans the screen past the rail, 24 px

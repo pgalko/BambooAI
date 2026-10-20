@@ -53,6 +53,19 @@ def comparable(view):
     return as_numbers(v)
 
 
+def drop_colliding_shorts(got, want):
+    """The port tells results that share a short label apart (view.distinct_shorts, 2026-10-20); the prototype left them
+    identical. Where the prototype's view has such a collision, the short labels concerned are left out of the comparison."""
+    from collections import Counter
+    counts = Counter(r.get("short") for r in (want.get("results") or {}).values() if r.get("kind", "result") == "result")
+    for rid, r in (want.get("results") or {}).items():
+        if counts[r.get("short")] > 1:
+            r.pop("short", None)
+            if rid in (got.get("results") or {}):
+                got["results"][rid].pop("short", None)
+    return got, want
+
+
 def first_difference(a, b, path="view"):
     """Where two JSON trees first differ, for the report."""
     if type(a) != type(b):

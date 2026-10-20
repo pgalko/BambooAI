@@ -105,7 +105,7 @@ check('a cell that did not parse: its row says so in the "what came out" column'
 const dg = el(b.diagram(TRIAL, c1, 'r1'));
 check('diagram: the picker lists every result and figure with its label, the chosen one selected; the hint',
   dg.querySelectorAll('#cmDiagPick option').map(o => o.getAttribute('value')).join() === Object.keys(TRIAL.diagrams).join() && dg.querySelector('option[value="r1"]').hasAttribute('selected')
-  && dg.querySelector('option[value="r1"]').textContent === '+0.57 · ' + TRIAL.results.r1.short && dg.querySelector('option[value="fig3.1"]').textContent.startsWith('Figure 1 of 2, cell 3 · ')
+  && dg.querySelector('option[value="r1"]').textContent === '+0.57 · ' + TRIAL.results.r1.short + ' · cell 2' && dg.querySelector('option[value="fig3.1"]').textContent.startsWith('Figure 1 of 2, cell 3 · ')
   && dg.querySelector('.cm-diag-head .hint').textContent.startsWith('Read it top to bottom'), dg.querySelector('.cm-diag-head').innerHTML);
 const nodes = dg.querySelectorAll('.cm-node');
 check('diagram: one positioned box per node - the input in blue, tables and estimates with their names and first steps, the result with the number and "RESULT · cell n" - and one SVG path per edge with the arrow marker',

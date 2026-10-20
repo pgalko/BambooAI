@@ -38,8 +38,9 @@ def load(path):
 # ---- golden parity: the view the port builds against the prototype's, chain by chain -------------------------------
 from analyst import codemap  # noqa: E402
 from analyst.codemap import objects as O  # noqa: E402
+from analyst.codemap import view as VW  # noqa: E402
 
-from _codemap_golden import comparable, first_difference, with_ids, strip_lines, norm_map, MAPS  # noqa: E402
+from _codemap_golden import comparable, first_difference, with_ids, strip_lines, norm_map, drop_colliding_shorts, MAPS  # noqa: E402
 
 PRIMARY = {"trial": "field_trial.csv", "trial2": "field_trial.csv", "sim1": "field_trial.csv"}
 
@@ -91,8 +92,7 @@ for mode in ("recorded", "noline"):
     for name in ("trial", "trial2", "sim1", "t1", "t2", "t3", "t4", "t5"):
         try:
             cm, doc = build_fixture(name, mode)
-            got = comparable(cm["view"])
-            want = comparable(expected[name])
+            got, want = drop_colliding_shorts(comparable(cm["view"]), comparable(expected[name]))
             diff = first_difference(got, want)
             check(f"golden ({mode}): {name} - the view matches the prototype's", not diff and "error" not in cm, diff or cm.get("error"))
             if name in MAPS:
@@ -323,6 +323,21 @@ def rule_follow_up():
           == [("cites", "1", 1, "the report also cites {chain:1}'s cell 1"), ("chain", "1", None, "rests on {chain:1}: plot_means (cell 1)")], v["checks"])
 
 
+def rule_shorts():
+    code = ("a = df['yield_t_ha'].mean()\nRESULT(f\"mean yield, regime B vs A, all 720 plots with recorded yield: {a:.2f} t/ha\")\n"
+            "b = df[df['season'] > 1]['yield_t_ha'].mean()\nRESULT(f\"mean yield, regime B vs A, seasons 2 and 3 only (n=480): {b:.2f} t/ha\")\n"
+            "c = df['yield_t_ha'].median()\nRESULT(f\"mean yield, regime B vs A, standardised to the soil mix of the recorded plots: {c:.2f} t/ha\")\n"
+            "RESULT(f\"mean yield, regime B vs A, all 720 plots with recorded yield: {a:.2f} t/ha\")\n")
+    recs = [rec("mean yield, regime B vs A, all 720 plots with recorded yield: 4.87 t/ha", 2), rec("mean yield, regime B vs A, seasons 2 and 3 only (n=480): 4.91 t/ha", 4),
+            rec("mean yield, regime B vs A, standardised to the soil mix of the recorded plots: 4.80 t/ha", 6), rec("mean yield, regime B vs A, all 720 plots with recorded yield: 4.87 t/ha", 7)]
+    v = codemap.build_record(record([cell(1, code, recs)]))["view"]
+    shorts = [v["results"][k]["short"] for k in ("r1", "r2", "r3", "r4")]
+    check("rule: results sharing a short label are told apart by the parts of their own labels, then by the cell; a long word-run is cut inside, not back to the comma",
+          shorts == ["mean yield, regime B vs A, all 720 plots with recorded… (cell 1)", "mean yield, regime B vs A, seasons 2 and 3 only (n=480)",
+                     "mean yield, regime B vs A, standardised to the soil mix…", "mean yield, regime B vs A, all 720 plots with recorded… (cell 1)"]
+          and len(set(shorts)) == 3 and VW.short_label("yield, regime B vs A within soil type, plot means") == "yield, regime B vs A within soil type", shorts)
+
+
 def rule_document():
     ins = [dict(kind="primary", label="primary dataset", name="field_trial.csv", columns=COLS, detail="720 rows x 7 columns"), dict(kind="document", label="D1", name="field_notes.md")]
     code = "print(D1.grep('wet season', context=1))\n"
@@ -340,7 +355,7 @@ for name, fn in [("a RESULT in a loop", rule_loop), ("a RESULT inside a helper",
                  ("tuple aliasing in a helper", rule_alias), ("a string join", rule_string_join), ("a typed date", rule_typed_date), ("nan", rule_nan),
                  ("corrects", rule_corrects), ("a cited printout", rule_cited_printout), ("several figures", rule_several_figures),
                  ("a cell that does not parse", rule_unparsed), ("a chain with no cells", rule_no_cells), ("a follow-up", rule_follow_up),
-                 ("a document", rule_document)]:
+                 ("a document", rule_document), ("short labels", rule_shorts)]:
     rule(name, fn)
 
 # ---- the build at a chain's end: from the Run, never raising -------------------------------------------------------
