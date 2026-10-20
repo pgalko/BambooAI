@@ -126,6 +126,9 @@ run1 = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
 check("the run id IS the chain id the browser was told", any(e.get("type") == "id" and str(e.get("chain_id")) == run1.id for e in events) or True)
 check("report stored with the replay line; the rewrite by the same 'model', headed by the report's title (2026-10-17); status answered",
       run1.status == "answered" and "Replay reproduced" in run1.report and run1.rewrite.startswith("# B exceeds A\n\nPlain:") and run1.title == "B exceeds A", run1.report[-160:])
+check("the run keeps the mode it was asked in, as the host labels it, and each committed cell the registry entries it made (the code map's record, 2026-10-20); the thread file carries both",
+      run1.mode in ("Quick", "Deep", "Adaptive") and any(t.registry for t in run1.cells())
+      and json.load(open(os.path.join(work, "storage", "u1", "threads", "1001.json")))["runs"][run1.id]["mode"] == run1.mode, (run1.mode, [t.registry for t in run1.cells()]))
 answer_ev = next(e for e in events if e.get("type") == "answer")
 check("the answer event carries the report (with its replay line) and the code event carries the assembled script",
       "Replay" in answer_ev["data"] and "# --- cell 1 ---" in next(e for e in events if e.get("type") == "code")["data"])

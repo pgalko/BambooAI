@@ -114,7 +114,8 @@ class Turn:
     stdout: str = ""                # CELL/SHOW/NAMES/RECALL/SEARCH/READ: what came back
     error: str = ""                 # CELL: traceback, if the cell failed
     figures: List[dict] = field(default_factory=list)   # CELL: plot payloads returned by the kernel
-    results: List[dict] = field(default_factory=list)   # CELL: the RESULT(...) records the kernel kept (text, typed, test, corrects)
+    results: List[dict] = field(default_factory=list)   # CELL: the RESULT(...) records the kernel kept (text, typed, test, corrects, line)
+    registry: dict = field(default_factory=dict)   # CELL: the kernel's {name: {type, desc}} for the names this cell made or changed (the code map, 2026-10-20)
     cell_no: Optional[int] = None   # CELL: its number along the path (only committed cells get one)
     text: str = ""                  # ask/report/rewrite: the analyst's text
     usage: dict = field(default_factory=dict)            # tokens, cost, elapsed for the model call
@@ -140,6 +141,8 @@ class Run:
     status: str = "running"         # running | answered | asked | stopped | failed
     created: float = field(default_factory=_now)
     data: dict = field(default_factory=dict)   # what the run ran on (df_id, name, source, columns, rows, aux): a routine made from it later needs it (2026-10-10)
+    mode: str = ""                  # the budget preset the run was asked in: Quick, Deep or Adaptive (2026-10-20, the code map's header)
+    code_map: dict = field(default_factory=dict)   # the code map built when the chain ended (analyst/codemap; 2026-10-20), or {"error": ...}
 
     @property
     def note(self) -> str:

@@ -1207,7 +1207,7 @@ class BambooAI:
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
                           replay_runner=self._run_replay)
         try:
-            run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record, image=figure)
+            run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record, image=figure, mode=self._mode_label)
         except ExecutionInterrupted:
             self.output_manager.display_system_messages("Stopped.", chain_id=self.chain_id)
             run = self.notebook.runs.get(str(self.chain_id))

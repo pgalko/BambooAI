@@ -706,7 +706,7 @@ FIGS = [act6("CELL\n```python\nm = df['x'].mean()\nprint('mean', round(m, 3))\n`
         act6("CELL\n```python\nprint('no figure here')\n```"),
         act6("REPORT\n## r\n\nThe mean [cell 1].")]
 FIG_STEP = ["```python\n" + FIG_CELL + "\nraise ValueError('bad trace')\n```\nCAPTION: the mean",                      # fails: comes back with its error
-            "Here it is.\n```python\n" + FIG_CELL + "\nfig2 = go.Figure(go.Bar(x=[2], y=[m])); fig2.update_layout(title='again'); fig2.show()\nprint('drawn')\n```\n**CAPTION 1:** the mean with its interval"]
+            "Here it is.\n```python\n" + FIG_CELL + "\nfig2 = go.Figure(go.Bar(x=[2], y=[m])); fig2.update_layout(title='again'); fig2.show()\nRESULT('drawn mean', float(m), None, None)\nprint('drawn')\n```\n**CAPTION 1:** the mean with its interval"]
 fig_i = {"n": 0, "f": 0}; fig_prompts = []; fig_events = []
 def fig_llm(system, user, **h):
     fig_prompts.append((system, user))
@@ -721,7 +721,7 @@ if "plotly" in _stubs.FAKE:                  # the kernel's worker imports plotl
     os.environ["PYTHONPATH"] = os.path.join(ROOT, "tools", "stack", "fakepkgs") + (os.pathsep + _pp if _pp else "")
 kf = PersistentKernel(df=df); nbf = Notebook("tf")
 try:
-    rf = Session(kf, nbf, fig_llm, data_description="d", emit=fig_events.append, kernel_factory=lambda: PersistentKernel(df=df)).run("q", budget=Budget(turns=8, dollars=1.0))
+    rf = Session(kf, nbf, fig_llm, data_description="d", emit=fig_events.append, kernel_factory=lambda: PersistentKernel(df=df)).run("q", budget=Budget(turns=8, dollars=1.0), mode="Deep")
 finally:
     kf.cleanup()
     if _pp is None: os.environ.pop("PYTHONPATH", None)
@@ -735,7 +735,7 @@ check("figures: a cell that draws during the analysis is not run - no cell numbe
 step_turns = [x for x in rf.turns if x.step == "figures"]
 check("figures: the step after the report - its first cell failed and is on the record with its error and no number; the corrected cell committed as cell 3 with the two Plotly figures it showed",
       len(step_turns) == 2 and step_turns[0].error and step_turns[0].cell_no is None and step_turns[1].cell_no == 3 and not step_turns[1].error
-      and step_turns[1].figures == [{"plotly": True, "title": f"the mean, {df['x'].mean():.2f}"}, {"plotly": True, "title": "again"}] and step_turns[1].stdout.strip() == "drawn"
+      and step_turns[1].figures == [{"plotly": True, "title": f"the mean, {df['x'].mean():.2f}"}, {"plotly": True, "title": "again"}] and step_turns[1].stdout.strip().endswith("drawn")
       and "FIGURES:" not in step_turns[1].stdout, [(x.cell_no, x.error[-80:], x.figures, x.stdout) for x in step_turns])
 check("figures: the failed cell came back with its error, the attempt counted, the traceback's line in the analyst's own code (line 5, not the wrap's)",
       len(step_prompts) == 2 and "YOUR LAST CELL FAILED" in step_prompts[1] and f"attempt 1 of {FIGURES_ATTEMPTS}" in step_prompts[1] and "ValueError: bad trace" in step_prompts[1]
@@ -753,6 +753,25 @@ check("figures: each attempt is a quiet card - 'figures' with its attempt number
 check("figures: the replay ran the figures cell and reproduced the report; the step's turns round-trip through JSON with their step",
       rf.replay_status == "reproduced" and "# --- cell 3 ---" in rf.replay_script and "fig.show()" in rf.replay_script
       and Notebook.from_dict(json.loads(json.dumps(nbf.to_dict()))).runs[rf.id].turns[-2].step == "figures", (rf.replay_status, rf.replay_script[-300:]))
+# the record for the code map (2026-10-20): each committed cell keeps the registry entries it made or changed, a RESULT record
+# its cell line (the figures cell's counted from the analyst's own code, not the wrap's), the run its mode; an older record
+# without these loads with their defaults
+_c1, _c2, _c3 = rf.cells()[0], rf.cells()[1], step_turns[1]
+check("record: a committed cell keeps the kernel's registry entries for the names it made - type and description (a numpy number shows its type: the registry's text is what the analyst reads through NAMES and is not changed) - "
+      "and nothing for a cell that bound no name; the figures cell keeps its figures' names; a name unchanged by a later cell is not kept again",
+      set(_c1.registry) == {"m"} and _c1.registry["m"]["type"] == "float64" and _c2.registry == {} and set(_c3.registry) == {"fig", "fig2"} and "m" not in _c3.registry
+      and _c3.registry["fig"]["type"] == "Figure", (_c1.registry, _c2.registry, sorted(_c3.registry)))
+check("record: the figures cell's RESULT record carries its line in the analyst's own code - line 6 of the cell, not line 13 of the wrapped one; a failed cell keeps no registry; the run keeps the mode it was asked in; no map yet",
+      [r.get("line") for r in _c3.results] == [6] and step_turns[0].registry == {} and rf.mode == "Deep" and rf.code_map == {}, (_c3.results, rf.mode))
+_old = json.loads(json.dumps(nbf.to_dict()))
+for _r in _old["runs"].values():
+    _r.pop("mode", None); _r.pop("code_map", None)
+    for _t in _r["turns"]:
+        _t.pop("registry", None)
+        for _k in _t.get("results") or []: _k.pop("line", None)
+_nb_old = Notebook.from_dict(_old)
+check("record: a thread file from before the code map loads - no registry on its turns, no line on its records, no mode and no map on its runs - with the defaults",
+      _nb_old.runs[rf.id].turns[0].registry == {} and _nb_old.runs[rf.id].mode == "" and _nb_old.runs[rf.id].code_map == {} and "line" not in (_nb_old.runs[rf.id].cells()[0].results or [{}])[0] if _nb_old.runs[rf.id].cells()[0].results else True)
 check("figures: a run whose step answers NONE has no Figures section and no figures turn; a cell count excludes the step's cells only by their step mark",
       "## Figures" not in rr.report and not [x for x in rr.turns if x.step] and len([x for x in rf.turns if x.kind == "cell" and not x.step]) == 3, rr.report[-200:])
 # every other outcome of the figures request (2026-10-11, from a run whose request spent 16,000 reasoning tokens and sent nothing,

@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-18 v62 (the context: the day of the activity a passage hangs on, and a text that repeats an earlier passage marked)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-20 v63 (RESULT records the cell line it was called from, for the code map)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 

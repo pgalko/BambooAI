@@ -277,8 +277,16 @@ def RESULT(what, estimate, low=None, high=None, unit="", direction="", test=None
     if typed:
         text += " - typed: the numbers were written into the call, not computed"
     print("RESULT: " + text)
+    line = None
+    try:                                   # the cell's own line the call ran from, through any helper (2026-10-20, the code map)
+        fr = sys._getframe(1)
+        while fr is not None and not (fr.f_code.co_filename == "<string>" and fr.f_code.co_name == "<module>"):
+            fr = fr.f_back
+        line = fr.f_lineno if fr is not None else None
+    except Exception:
+        pass
     G.setdefault("_RESULTS", []).append({"text": text, "typed": bool(typed), "test": test,
-                                         "corrects": list(corrects) if isinstance(corrects, (list, tuple, set)) else corrects})
+                                         "corrects": list(corrects) if isinstance(corrects, (list, tuple, set)) else corrects, "line": line})
     return estimate
 
 

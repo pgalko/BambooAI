@@ -61,6 +61,11 @@ try:
     check("executor: RESULT(...) prints the line and the route returns the kernel's records, the typed one marked (2026-10-06)",
           "RESULT: a, 10 rows: +4.50 (95% CI +3.50 to +5.50) units, up" in (out7.get("stdout") or "") and len(out7.get("results") or []) == 2
           and out7["results"][0]["typed"] is False and out7["results"][1]["typed"] is True and "typed" in out7["results"][1]["text"], out7)
+    # the code map (2026-10-20): each record carries the cell line its call ran from - the call's own line at the top level, the
+    # line of the call to a helper when RESULT ran inside it, and the body's line inside a loop
+    out8 = (c.post("/kernel/execute", json={"session_id": sid, "code": "def helper(v):\n    RESULT('inside', v, v - 1, v + 1, 'u')\n    return v\n\nhelper(2.0)\nfor k in range(2):\n    RESULT('loop %d' % k, float(k), None, None)\nRESULT('top', 1.0, 0.0, 2.0, 'u')"}).get_json() or {})
+    check("executor: a RESULT record carries the cell line of the top-level statement its call ran from - through a helper, inside a loop, at the top level",
+          [r.get("line") for r in (out8.get("results") or [])] == [5, 7, 7, 8], out8.get("results"))
 finally:
     c.post("/kernel/stop", json={"session_id": sid})
 

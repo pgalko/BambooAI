@@ -115,6 +115,25 @@ FIGURES_WRAP_TAIL = ("\nif _bamboo_go is not None:\n    _bamboo_go.Figure.show =
 FIGURES_WRAP_LINES = FIGURES_WRAP_HEAD.count("\n")     # a traceback's line numbers back in the analyst's own code
 
 
+def unwrap_lines(records: list) -> list:
+    """The RESULT records of the figures cell with their lines in the analyst's own code (the wrap's head is subtracted,
+    as unwrap_error does for a traceback); a record without a line, or with one inside the head, keeps none."""
+    out = []
+    for r in records or []:
+        r = dict(r)
+        ln = r.get("line")
+        r["line"] = (ln - FIGURES_WRAP_LINES) if isinstance(ln, int) and ln > FIGURES_WRAP_LINES else None
+        out.append(r)
+    return out
+
+
+def registry_delta(before: dict, after: dict) -> dict:
+    """The registry entries a cell made or changed: the names whose description after the cell differs from before
+    (a name re-bound to the same description is not kept again). The map takes a name's description at cell n from its
+    latest entry at or before n."""
+    return {n: e for n, e in (after or {}).items() if (before or {}).get(n) != e}
+
+
 def unwrap_error(err: str) -> str:
     """A figures cell's traceback with its line numbers counted from the analyst's code, not the wrap's head."""
     return re.sub(r'(File "<string>", line )(\d+)', lambda m: m.group(1) + str(max(1, int(m.group(2)) - FIGURES_WRAP_LINES)), err or "")
@@ -886,8 +905,9 @@ class Session:
         return run
 
     def run(self, question: str, parent: Optional[str] = None, budget: Budget = Budget(),
-            run_id: Optional[str] = None, data: Optional[dict] = None, image: Optional[str] = None) -> Run:
+            run_id: Optional[str] = None, data: Optional[dict] = None, image: Optional[str] = None, mode: str = "") -> Run:
         run = self.nb.new_run(question, parent, run_id=run_id)
+        run.mode = mode or ""                         # the preset the run was asked in, for the code map's header (2026-10-20)
         if data:
             run.data = dict(data)                     # what this run runs on, on the record from the start: the computation
                                                       # path (notebook.computed_cells) is drawn from it during the run (2026-10-12)
@@ -947,11 +967,13 @@ class Session:
                 turn.code = action.arg
                 t_cell = time.time()
                 self.emit({"type": "cell_start", "run": run.id, "turn": turn_no})   # the executor is busy from here (2026-09-08)
+                before = tools.namespace(self.kernel)
                 out, err, figs, recs = tools.run_cell(self.kernel, action.arg)
                 turn.elapsed = round(time.time() - t_cell, 1)
                 turn.stdout, turn.error, turn.figures, turn.results = out, err, figs, recs
                 if not err:
                     turn.cell_no = self.nb.next_cell_no(run.id)
+                    turn.registry = registry_delta(before, tools.namespace(self.kernel))   # what the cell made or changed (the code map, 2026-10-20)
                     failures = 0
                 else:
                     failures += 1
@@ -1251,6 +1273,7 @@ class Session:
             turn = Turn(kind="cell", note=run.note, code=code, usage=dict(usage), step="figures")
             t_cell = time.time()
             self.emit({"type": "cell_start", "run": run.id, "turn": "figures"})
+            before = tools.namespace(self.kernel)
             try:
                 out, err, figs, recs = tools.run_cell(self.kernel, FIGURES_WRAP_HEAD + code.rstrip("\n") + FIGURES_WRAP_TAIL)
                 lost = False
@@ -1267,8 +1290,10 @@ class Session:
                     except ValueError:
                         titles = []
                     out = "\n".join(ln for ln in lines if not ln.strip().startswith(FIGURES_MARK))
-            turn.stdout, turn.error, turn.results = out, unwrap_error(err), recs
+            turn.stdout, turn.error, turn.results = out, unwrap_error(err), unwrap_lines(recs)
             err = turn.error
+            if not err:
+                turn.registry = registry_delta(before, tools.namespace(self.kernel))
             # the kernel's saved plots, then the Plotly figures shown; a rolled-back cell drew nothing that counts
             turn.figures = [] if err else list(figs or []) + [{"plotly": True, "title": t} for t in titles]
             if err:

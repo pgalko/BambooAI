@@ -76,7 +76,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (227/193/31/27/18/49/44/69/13/142/60/42/37/15/1/1 Python; 51/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (230/194/31/27/18/49/44/69/14/142/60/42/37/15/1/1 Python; 51/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -458,6 +458,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The record for the code map (2026-10-20, patch 0210; M1 of the code map's build, docs/CODEMAP_DESIGN.md to come
+  with M5).** What the map needs that the record did not keep. `Turn.registry`: the kernel's `{name: {type, desc}}`
+  entries for the names a committed cell made or changed (`tools.namespace` read before and after the cell,
+  `registry_delta`; a name re-bound to the same description is not kept again, a failed cell keeps none); the figures
+  cell keeps its figures' names. Each RESULT record carries `line`, the cell line of the top-level statement its call
+  ran from - through a helper, the line of the call to it; inside a loop, the body's line - in both kernels
+  (`EXECUTOR_BUILD` v63); the figures cell's lines are counted from the analyst's own code (`unwrap_lines`, as
+  `unwrap_error` does). `Run.mode` (Quick, Deep, Adaptive: the host's label, passed to `Session.run`) for the map's
+  header, and `Run.code_map` for the map itself, empty until M3. Nothing of this reaches a prompt; the registry's
+  text is unchanged (the analyst reads it through NAMES). A thread file from before loads with the defaults. Tests:
+  test_executor_kernel.py 14 (the line through the executor: a helper, a loop, the top level), test_analyst.py 230
+  (the registry per cell, the figures cell's line and names, the mode, an older file), test_app_path.py 194 (the host
+  passes the mode; the thread file carries it and the registry).
 - **Three findings of an independent review of an Adaptive run (2026-10-19, patch 0208).** The run: the bio-psycho-social
   question, 24 turns, DeepSeek Flash as the analyst and Grok as the reviewer. (1) After each review the analyst was
   handed the review's lines as YOUR NOTE, beside the REVIEW block, and lost its own note: the review turn's note is the
