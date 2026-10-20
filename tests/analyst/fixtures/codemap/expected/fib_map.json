@@ -1,0 +1,214 @@
+{
+ "chain": 1,
+ "question": "Plot the Fibonacci sequence.",
+ "inputs": [],
+ "cells": [
+  {
+   "cell": 1,
+   "turn": null,
+   "kind": "analysis",
+   "role": "carries",
+   "cited": true,
+   "why": "Build the first 20 Fibonacci numbers, so the figure can draw them.",
+   "purpose": "Build the first 20 Fibonacci numbers, so the figure can draw them.",
+   "verbs": [
+    "compute"
+   ],
+   "objects": [
+    "fib@1",
+    "seq@1"
+   ],
+   "results": [],
+   "printout": "p1",
+   "reads_from": [],
+   "lines": 5,
+   "printed": [],
+   "direct_inputs": [],
+   "inputs": [],
+   "taken": [],
+   "via": []
+  },
+  {
+   "cell": 2,
+   "turn": null,
+   "kind": "figures",
+   "role": "figures",
+   "cited": true,
+   "why": "Figures: the first 20 Fibonacci numbers, by position",
+   "purpose": "Figures: the first 20 Fibonacci numbers, by position",
+   "verbs": [
+    "draw"
+   ],
+   "objects": [],
+   "results": [],
+   "printout": null,
+   "reads_from": [
+    1
+   ],
+   "lines": 4,
+   "printed": [],
+   "direct_inputs": [],
+   "inputs": [],
+   "taken": [],
+   "via": []
+  }
+ ],
+ "objects": [
+  {
+   "id": "fib@1",
+   "name": "fib",
+   "names": [
+    "fib"
+   ],
+   "cell": 1,
+   "stmts": [
+    "c1.s1",
+    "c1.s2"
+   ],
+   "parents": [],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "compute",
+     "text": "built in a loop"
+    }
+   ],
+   "choices": [],
+   "order": 1,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "list[int] len=20",
+   "kind": "table",
+   "value": "[0, 1]",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "compute",
+     "text": "built in a loop"
+    }
+   ]
+  },
+  {
+   "id": "seq@1",
+   "name": "seq",
+   "names": [
+    "seq"
+   ],
+   "cell": 1,
+   "stmts": [
+    "c1.s3"
+   ],
+   "parents": [
+    "fib@1"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "compute",
+     "text": "make a table from fib"
+    }
+   ],
+   "choices": [],
+   "order": 2,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "Series len=20 name=fibonacci dtype=int64",
+   "kind": "table",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "compute",
+     "text": "make a table from fib"
+    }
+   ]
+  },
+  {
+   "id": "fig@2",
+   "name": "fig",
+   "names": [
+    "fig"
+   ],
+   "cell": 2,
+   "stmts": [
+    "c2.s2",
+    "c2.s3"
+   ],
+   "parents": [
+    "seq@1"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "draw",
+     "text": "Scatter"
+    },
+    {
+     "verb": "draw",
+     "text": "Figure"
+    },
+    {
+     "verb": "draw",
+     "text": "update_layout"
+    }
+   ],
+   "choices": [],
+   "order": 3,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "drawn": true,
+   "shape": "Figure",
+   "kind": "figure",
+   "typed": false,
+   "steps": []
+  }
+ ],
+ "results": [
+  {
+   "id": "p1",
+   "kind": "printed",
+   "cell": 1,
+   "stmt": "c1.s4",
+   "stmts": [
+    "c1.s4"
+   ],
+   "label": "printed in cell 1",
+   "line": "15     610",
+   "lines": [
+    "15     610",
+    "16     987",
+    "17    1597"
+   ],
+   "corrects": null,
+   "test": null,
+   "typed": false,
+   "status": "printed",
+   "cells": [
+    1
+   ],
+   "sources": [],
+   "choices": [],
+   "methods": [],
+   "objects": [
+    "fib@1",
+    "seq@1"
+   ],
+   "direct": [
+    "seq@1"
+   ],
+   "direct_inputs": [],
+   "params": [],
+   "estimate": "",
+   "interval": "",
+   "unit_dir": ""
+  }
+ ],
+ "choices": [],
+ "failed": [],
+ "functions": {},
+ "params": {
+  "fib": "[0, 1]"
+ }
+}

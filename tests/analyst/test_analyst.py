@@ -1601,8 +1601,12 @@ check("a run with context calls the reviewer on the six-lens brief (reviewer(Tru
 import re as _re_p
 _pp = open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8").read()
 _listed = set(_re_p.findall(r'"([^"]+)"', _re_p.search(r"^analyst = \[(.*?)\]", _pp, _re_p.M).group(1)))
-_present = {f for f in os.listdir(os.path.join(ROOT, "analyst")) if not f.endswith(".py") and f != "__pycache__" and not f.startswith(".")}
+_present = {f for f in os.listdir(os.path.join(ROOT, "analyst")) if not f.endswith(".py") and f != "__pycache__" and not f.startswith(".")
+            and not os.path.isdir(os.path.join(ROOT, "analyst", f))}        # a subpackage (codemap) is listed under packages
 check("packaging: every non-Python file of analyst/ is listed in pyproject's package-data, and nothing listed is missing", _listed == _present, (sorted(_listed ^ _present)))
+_pkgs = set(_re_p.findall(r'"([^"]+)"', _re_p.search(r"^packages = \[(.*?)\]", _pp, _re_p.M | _re_p.S).group(1)))
+_subs = {"analyst." + f for f in os.listdir(os.path.join(ROOT, "analyst")) if os.path.isdir(os.path.join(ROOT, "analyst", f)) and f != "__pycache__"}
+check("packaging: every subpackage of analyst/ is listed in pyproject's packages", _subs <= _pkgs, sorted(_subs - _pkgs))
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

@@ -1,0 +1,742 @@
+{
+ "chain": 1,
+ "question": "Does regime B raise yield over regime A once soil type is taken into account?",
+ "inputs": [
+  {
+   "label": "primary dataset",
+   "kind": "primary",
+   "detail": "field_trial.csv, 720 rows x 6 columns",
+   "columns": 6,
+   "used_columns": [
+    "plot_id",
+    "regime",
+    "soil",
+    "yield_t_ha"
+   ],
+   "all_columns": [
+    "plot_id",
+    "regime",
+    "soil",
+    "season",
+    "rainfall_mm",
+    "yield_t_ha"
+   ],
+   "cells": [
+    2
+   ],
+   "loaded": [
+    2
+   ],
+   "through": null,
+   "used": true,
+   "status": "used"
+  }
+ ],
+ "cells": [
+  {
+   "cell": 1,
+   "turn": 1,
+   "kind": "analysis",
+   "role": "printed",
+   "cited": false,
+   "why": "The question is a between-regime contrast, and 'once soil type is taken into account' says the soil mix differs by regime. First: shape, dtypes, the crosstab of regime by soil, and raw yield by regime.",
+   "purpose": "First: shape, dtypes, the crosstab of regime by soil, and raw yield by regime.",
+   "verbs": [],
+   "objects": [],
+   "results": [],
+   "printout": null,
+   "reads_from": [],
+   "lines": 6,
+   "printed": [
+    "count values",
+    "cross-tabulate",
+    "group by regime",
+    "aggregate"
+   ],
+   "direct_inputs": [
+    "primary dataset"
+   ],
+   "inputs": [],
+   "taken": [],
+   "via": []
+  },
+  {
+   "cell": 2,
+   "turn": 4,
+   "kind": "analysis",
+   "role": "results",
+   "cited": true,
+   "why": "KeyError: the column is yield_t_ha, not yield. Same cell, correct name, and I add the adjusted difference with a bootstrap over plots so the interval is at the right unit.",
+   "purpose": "Same cell, correct name, and I add the adjusted difference with a bootstrap over plots so the interval is at the right unit.",
+   "verbs": [
+    "summarise",
+    "call",
+    "resample",
+    "filter",
+    "record",
+    "save"
+   ],
+   "objects": [
+    "plot_means@2",
+    "tab@2",
+    "est@2",
+    "boots@2",
+    "lo, hi@2"
+   ],
+   "results": [
+    "r1"
+   ],
+   "printout": null,
+   "reads_from": [],
+   "lines": 28,
+   "printed": [
+    "sum"
+   ],
+   "direct_inputs": [
+    "primary dataset"
+   ],
+   "inputs": [
+    "primary dataset"
+   ],
+   "taken": [],
+   "via": []
+  },
+  {
+   "cell": 3,
+   "turn": null,
+   "kind": "figures",
+   "role": "figures",
+   "cited": false,
+   "why": "Figures: plot-level yield by regime within each soil type | mean plot yield by regime",
+   "purpose": "Figures: plot-level yield by regime within each soil type | mean plot yield by regime",
+   "verbs": [
+    "draw",
+    "summarise",
+    "filter"
+   ],
+   "objects": [
+    "means@3"
+   ],
+   "results": [],
+   "printout": null,
+   "reads_from": [
+    2
+   ],
+   "lines": 15,
+   "printed": [],
+   "direct_inputs": [],
+   "inputs": [],
+   "taken": [],
+   "via": []
+  }
+ ],
+ "objects": [
+  {
+   "id": "plot_means@2",
+   "name": "plot_means",
+   "names": [
+    "plot_means"
+   ],
+   "cell": 2,
+   "stmts": [
+    "c2.s1"
+   ],
+   "parents": [],
+   "inputs": [
+    "primary dataset"
+   ],
+   "ops": [
+    {
+     "verb": "summarise",
+     "text": "group by plot_id, regime, soil"
+    },
+    {
+     "verb": "summarise",
+     "text": "mean"
+    }
+   ],
+   "choices": [],
+   "order": 1,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "DataFrame 120x4 cols=plot_id,regime,soil,yield_t_ha",
+   "kind": "table",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "summarise",
+     "text": "group by plot_id, regime, soil"
+    }
+   ]
+  },
+  {
+   "id": "tab@2",
+   "name": "tab",
+   "names": [
+    "tab"
+   ],
+   "cell": 2,
+   "stmts": [
+    "c2.s2"
+   ],
+   "parents": [
+    "plot_means@2"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "summarise",
+     "text": "group by soil, regime"
+    },
+    {
+     "verb": "summarise",
+     "text": "aggregate"
+    },
+    {
+     "verb": "derive",
+     "text": "round"
+    }
+   ],
+   "choices": [],
+   "order": 2,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "DataFrame 9x2 cols=mean,count",
+   "kind": "table",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "summarise",
+     "text": "group by soil, regime"
+    },
+    {
+     "verb": "tidy",
+     "text": "tidy types"
+    }
+   ]
+  },
+  {
+   "id": "adj_diff@2",
+   "name": "adj_diff",
+   "names": [
+    "adj_diff"
+   ],
+   "cell": 2,
+   "stmts": [
+    "c2.s4"
+   ],
+   "parents": [],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "define",
+     "text": "adj_diff(): group, filter; can resample"
+    }
+   ],
+   "choices": [],
+   "order": 3,
+   "function": "adj_diff",
+   "via": {},
+   "taken": [],
+   "shape": "function adj_diff(pm, a='A', b='B', rng=None) -> float64",
+   "kind": "function",
+   "typed": false,
+   "steps": []
+  },
+  {
+   "id": "rng@2",
+   "name": "rng",
+   "names": [
+    "rng"
+   ],
+   "cell": 2,
+   "stmts": [
+    "c2.s5"
+   ],
+   "parents": [],
+   "inputs": [],
+   "ops": [],
+   "choices": [
+    {
+     "kind": "seed",
+     "text": "random seed 7",
+     "line": 19,
+     "cell": 2
+    }
+   ],
+   "order": 4,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "Generator",
+   "kind": "helper",
+   "typed": false,
+   "steps": []
+  },
+  {
+   "id": "est@2",
+   "name": "est",
+   "names": [
+    "est"
+   ],
+   "cell": 2,
+   "stmts": [
+    "c2.s6"
+   ],
+   "parents": [
+    "adj_diff@2",
+    "plot_means@2"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "call",
+     "text": "adj_diff",
+     "fn": "adj_diff",
+     "seeded": false,
+     "args": [],
+     "argmap": {
+      "pm": "plot_means"
+     }
+    }
+   ],
+   "choices": [],
+   "order": 5,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "float64",
+   "kind": "estimate",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "helper",
+     "text": "adj_diff(): group by soil; keep rows where regime = a; keep rows where regime = b; mean; the arithmetic is not traced"
+    }
+   ]
+  },
+  {
+   "id": "boots@2",
+   "name": "boots",
+   "names": [
+    "boots"
+   ],
+   "cell": 2,
+   "stmts": [
+    "c2.s7"
+   ],
+   "parents": [
+    "adj_diff@2",
+    "plot_means@2",
+    "rng@2"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "call",
+     "text": "adj_diff",
+     "fn": "adj_diff",
+     "seeded": true,
+     "args": [],
+     "argmap": {
+      "pm": "plot_means",
+      "rng": "rng"
+     }
+    },
+    {
+     "verb": "resample",
+     "text": "bootstrap, 500 resamples"
+    }
+   ],
+   "choices": [
+    {
+     "kind": "resamples",
+     "text": "500 resamples",
+     "line": 21,
+     "cell": 2
+    }
+   ],
+   "order": 6,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "ndarray shape=(500,) dtype=float64",
+   "kind": "estimate",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "helper",
+     "text": "adj_diff(): group by soil; keep rows where regime = a; keep rows where regime = b; mean; re-draws the rows of plot_means with replacement; the arithmetic is not traced"
+    },
+    {
+     "verb": "resample",
+     "text": "bootstrap, 500 resamples"
+    }
+   ]
+  },
+  {
+   "id": "lo, hi@2",
+   "name": "lo, hi",
+   "names": [
+    "lo",
+    "hi"
+   ],
+   "cell": 2,
+   "stmts": [
+    "c2.s8"
+   ],
+   "parents": [
+    "boots@2"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "summarise",
+     "text": "percentile"
+    }
+   ],
+   "choices": [],
+   "order": 7,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "float64",
+   "kind": "estimate",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "summarise",
+     "text": "percentile"
+    }
+   ]
+  },
+  {
+   "id": "raw@2",
+   "name": "raw",
+   "names": [
+    "raw"
+   ],
+   "cell": 2,
+   "stmts": [
+    "c2.s9"
+   ],
+   "parents": [
+    "plot_means@2"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = 'B'",
+     "on": "plot_means"
+    },
+    {
+     "verb": "summarise",
+     "text": "mean"
+    },
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = 'A'",
+     "on": "plot_means"
+    },
+    {
+     "verb": "summarise",
+     "text": "mean"
+    }
+   ],
+   "choices": [],
+   "order": 8,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "float64",
+   "kind": "value",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = 'B'"
+    },
+    {
+     "verb": "summarise",
+     "text": "mean"
+    },
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = 'A'"
+    }
+   ]
+  },
+  {
+   "id": "fig, axes@3",
+   "name": "fig, axes",
+   "names": [
+    "fig",
+    "axes"
+   ],
+   "cell": 3,
+   "stmts": [
+    "c3.s1",
+    "c3.s2",
+    "c3.s3",
+    "c3.s4"
+   ],
+   "parents": [
+    "plot_means@2"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "draw",
+     "text": "subplots"
+    },
+    {
+     "verb": "summarise",
+     "text": "group by soil"
+    },
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = r",
+     "on": "g"
+    }
+   ],
+   "choices": [],
+   "order": 9,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "drawn": true,
+   "shape": "ndarray shape=(3,) dtype=object",
+   "kind": "figure",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "summarise",
+     "text": "group by soil"
+    },
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = r"
+    }
+   ]
+  },
+  {
+   "id": "means@3",
+   "name": "means",
+   "names": [
+    "means"
+   ],
+   "cell": 3,
+   "stmts": [
+    "c3.s7"
+   ],
+   "parents": [
+    "plot_means@2"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "summarise",
+     "text": "group by regime"
+    },
+    {
+     "verb": "summarise",
+     "text": "mean"
+    }
+   ],
+   "choices": [],
+   "order": 10,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "Series len=3 name=yield_t_ha dtype=float64",
+   "kind": "table",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "summarise",
+     "text": "group by regime"
+    }
+   ]
+  },
+  {
+   "id": "pfig@3",
+   "name": "pfig",
+   "names": [
+    "pfig"
+   ],
+   "cell": 3,
+   "stmts": [
+    "c3.s8",
+    "c3.s9"
+   ],
+   "parents": [
+    "means@3"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "draw",
+     "text": "Bar"
+    },
+    {
+     "verb": "draw",
+     "text": "Figure"
+    },
+    {
+     "verb": "draw",
+     "text": "update_layout"
+    }
+   ],
+   "choices": [],
+   "order": 11,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "drawn": true,
+   "shape": "Figure",
+   "kind": "figure",
+   "typed": false,
+   "steps": []
+  }
+ ],
+ "results": [
+  {
+   "id": "r1",
+   "kind": "result",
+   "cell": 2,
+   "stmt": "c2.s13",
+   "stmts": [
+    "c2.s13"
+   ],
+   "label": "yield, regime B vs A within soil type, plot means",
+   "line": "yield, regime B vs A within soil type, plot means: +0.57 (95% CI +0.38 to +0.76) t/ha, B higher",
+   "corrects": null,
+   "test": null,
+   "typed": false,
+   "status": "recorded",
+   "cells": [
+    2
+   ],
+   "sources": [
+    {
+     "kind": "primary",
+     "label": "primary dataset"
+    }
+   ],
+   "choices": [
+    {
+     "kind": "seed",
+     "text": "random seed 7",
+     "line": 19,
+     "cell": 2
+    },
+    {
+     "kind": "resamples",
+     "text": "500 resamples",
+     "line": 21,
+     "cell": 2
+    }
+   ],
+   "methods": [
+    "adj_diff"
+   ],
+   "objects": [
+    "plot_means@2",
+    "adj_diff@2",
+    "rng@2",
+    "est@2",
+    "boots@2",
+    "lo, hi@2"
+   ],
+   "direct": [
+    "est@2",
+    "lo, hi@2"
+   ],
+   "direct_inputs": [],
+   "params": [],
+   "estimate": "+0.57",
+   "interval": "+0.38 to +0.76",
+   "unit_dir": "t/ha, B higher"
+  }
+ ],
+ "choices": [
+  {
+   "kind": "seed",
+   "text": "random seed 7",
+   "line": 19,
+   "cell": 2,
+   "results": [
+    "r1"
+   ]
+  },
+  {
+   "kind": "resamples",
+   "text": "500 resamples",
+   "line": 21,
+   "cell": 2,
+   "results": [
+    "r1"
+   ]
+  }
+ ],
+ "failed": [
+  {
+   "step": "Plot-level means first, then the within-soil table.",
+   "code": "# Yield by regime within soil (plot-level means first)\nplot_means = df.groupby(['plot_id', 'regime', 'soil'], as_index=False)['yield'].mean()\nprint(plot_means.groupby(['soil', 'regime'])['yield'].mean().round(3).to_string())",
+   "turn": 3,
+   "after_cell": 1,
+   "error": "KeyError: 'Column not found: yield'"
+  }
+ ],
+ "functions": {
+  "adj_diff": {
+   "label": "group, filter; can resample",
+   "choices": [],
+   "produces": "table",
+   "resamples": false,
+   "can_resample": true,
+   "params": [
+    "pm",
+    "a",
+    "b",
+    "rng"
+   ],
+   "guard": [
+    "rng"
+   ],
+   "own": [
+    {
+     "verb": "summarise",
+     "text": "group by soil",
+     "guarded": false
+    },
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = a",
+     "guarded": false
+    },
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = b",
+     "guarded": false
+    },
+    {
+     "verb": "resample",
+     "text": "resample rows with replacement",
+     "guarded": true,
+     "param": "pm"
+    },
+    {
+     "verb": "summarise",
+     "text": "mean",
+     "guarded": false
+    }
+   ],
+   "untraced": true
+  }
+ },
+ "params": {}
+}

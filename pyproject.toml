@@ -71,7 +71,7 @@ Repository = "https://github.com/pgalko/BambooAI"
 
 [tool.setuptools]
 py-modules = ["logger_config"]
-packages = ["bambooai", "bambooai.db", "bambooai.messages", "bambooai.models", "analyst", "delve",
+packages = ["bambooai", "bambooai.db", "bambooai.messages", "bambooai.models", "analyst", "analyst.codemap", "delve",
             "web_app", "web_app.auth", "web_app.integrations", "orchestration", "bambooai_executor_image"]
 
 [tool.setuptools.package-dir]

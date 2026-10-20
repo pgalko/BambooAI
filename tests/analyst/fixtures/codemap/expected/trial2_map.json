@@ -1,0 +1,412 @@
+{
+ "chain": 2,
+ "question": "And how does regime C compare with A on the same footing?",
+ "inputs": [
+  {
+   "label": "from chain 1",
+   "kind": "chain",
+   "chain": 1,
+   "detail": "",
+   "columns": 0,
+   "used_columns": [],
+   "names": [
+    "adj_diff",
+    "plot_means"
+   ],
+   "from_cells": [
+    2
+   ],
+   "cells": [
+    4
+   ],
+   "loaded": [
+    4
+   ],
+   "used": true,
+   "status": "used"
+  },
+  {
+   "label": "primary dataset",
+   "kind": "primary",
+   "detail": "field_trial.csv, 720 rows x 6 columns",
+   "columns": 6,
+   "used_columns": [],
+   "all_columns": [
+    "plot_id",
+    "regime",
+    "soil",
+    "season",
+    "rainfall_mm",
+    "yield_t_ha"
+   ],
+   "cells": [],
+   "loaded": [],
+   "through": 1,
+   "used": true,
+   "status": "used through chain 1"
+  }
+ ],
+ "cells": [
+  {
+   "cell": 4,
+   "turn": 1,
+   "kind": "analysis",
+   "role": "evidence",
+   "cited": true,
+   "why": "The B comparison's plot means and function are still in the kernel; C in place of B, a fresh bootstrap, same footing.",
+   "purpose": "The B comparison's plot means and function are still in the kernel; C in place of B, a fresh bootstrap, same footing.",
+   "verbs": [
+    "call",
+    "resample",
+    "summarise"
+   ],
+   "objects": [
+    "est_c@4",
+    "boots_c@4",
+    "lo_c, hi_c@4"
+   ],
+   "results": [],
+   "printout": "p4",
+   "reads_from": [],
+   "lines": 6,
+   "printed": [
+    "sum"
+   ],
+   "direct_inputs": [
+    "from chain 1"
+   ],
+   "inputs": [
+    "from chain 1"
+   ],
+   "taken": [
+    {
+     "chain": 1,
+     "names": [
+      "adj_diff",
+      "plot_means"
+     ],
+     "cells": [
+      2
+     ]
+    }
+   ],
+   "via": [
+    "primary dataset"
+   ]
+  }
+ ],
+ "objects": [
+  {
+   "id": "est_c@4",
+   "name": "est_c",
+   "names": [
+    "est_c"
+   ],
+   "cell": 4,
+   "stmts": [
+    "c4.s1"
+   ],
+   "parents": [],
+   "inputs": [
+    "from chain 1"
+   ],
+   "ops": [
+    {
+     "verb": "call",
+     "text": "adj_diff",
+     "fn": "adj_diff",
+     "seeded": false,
+     "args": [],
+     "argmap": {
+      "pm": "plot_means",
+      "a": null,
+      "b": null
+     }
+    }
+   ],
+   "choices": [],
+   "order": 1,
+   "function": null,
+   "via": {
+    "primary dataset": 1
+   },
+   "taken": [
+    "adj_diff",
+    "plot_means"
+   ],
+   "shape": "float64",
+   "kind": "estimate",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "helper",
+     "text": "adj_diff(): group by soil; keep rows where regime = a; keep rows where regime = b; mean; the arithmetic is not traced"
+    }
+   ]
+  },
+  {
+   "id": "rng_c@4",
+   "name": "rng_c",
+   "names": [
+    "rng_c"
+   ],
+   "cell": 4,
+   "stmts": [
+    "c4.s2"
+   ],
+   "parents": [],
+   "inputs": [],
+   "ops": [],
+   "choices": [
+    {
+     "kind": "seed",
+     "text": "random seed 11",
+     "line": 3,
+     "cell": 4
+    }
+   ],
+   "order": 2,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "Generator",
+   "kind": "helper",
+   "typed": false,
+   "steps": []
+  },
+  {
+   "id": "boots_c@4",
+   "name": "boots_c",
+   "names": [
+    "boots_c"
+   ],
+   "cell": 4,
+   "stmts": [
+    "c4.s3"
+   ],
+   "parents": [
+    "rng_c@4"
+   ],
+   "inputs": [
+    "from chain 1"
+   ],
+   "ops": [
+    {
+     "verb": "call",
+     "text": "adj_diff",
+     "fn": "adj_diff",
+     "seeded": true,
+     "args": [],
+     "argmap": {
+      "pm": "plot_means",
+      "a": null,
+      "b": null,
+      "rng": "rng_c"
+     }
+    },
+    {
+     "verb": "resample",
+     "text": "bootstrap, 500 resamples"
+    }
+   ],
+   "choices": [
+    {
+     "kind": "resamples",
+     "text": "500 resamples",
+     "line": 4,
+     "cell": 4
+    }
+   ],
+   "order": 3,
+   "function": null,
+   "via": {
+    "primary dataset": 1
+   },
+   "taken": [
+    "adj_diff",
+    "plot_means"
+   ],
+   "shape": "ndarray shape=(500,) dtype=float64",
+   "kind": "estimate",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "helper",
+     "text": "adj_diff(): group by soil; keep rows where regime = a; keep rows where regime = b; mean; re-draws the rows of plot_means with replacement; the arithmetic is not traced"
+    },
+    {
+     "verb": "resample",
+     "text": "bootstrap, 500 resamples"
+    }
+   ]
+  },
+  {
+   "id": "lo_c, hi_c@4",
+   "name": "lo_c, hi_c",
+   "names": [
+    "lo_c",
+    "hi_c"
+   ],
+   "cell": 4,
+   "stmts": [
+    "c4.s4"
+   ],
+   "parents": [
+    "boots_c@4"
+   ],
+   "inputs": [],
+   "ops": [
+    {
+     "verb": "summarise",
+     "text": "percentile"
+    }
+   ],
+   "choices": [],
+   "order": 4,
+   "function": null,
+   "via": {},
+   "taken": [],
+   "shape": "float64",
+   "kind": "estimate",
+   "typed": false,
+   "steps": [
+    {
+     "verb": "summarise",
+     "text": "percentile"
+    }
+   ]
+  }
+ ],
+ "results": [
+  {
+   "id": "p4",
+   "kind": "printed",
+   "cell": 4,
+   "stmt": "c4.s5",
+   "stmts": [
+    "c4.s5"
+   ],
+   "label": "printed in cell 4",
+   "line": "ADJ_DIFF_C=0.208 CI_LO_C=0.040 CI_HI_C=0.354 N_PLOTS_C=40",
+   "lines": [
+    "ADJ_DIFF_C=0.208 CI_LO_C=0.040 CI_HI_C=0.354 N_PLOTS_C=40"
+   ],
+   "corrects": null,
+   "test": null,
+   "typed": false,
+   "status": "printed",
+   "cells": [
+    4
+   ],
+   "sources": [
+    {
+     "kind": "chain1",
+     "label": "from chain 1"
+    }
+   ],
+   "choices": [
+    {
+     "kind": "seed",
+     "text": "random seed 11",
+     "line": 3,
+     "cell": 4
+    },
+    {
+     "kind": "resamples",
+     "text": "500 resamples",
+     "line": 4,
+     "cell": 4
+    }
+   ],
+   "methods": [
+    "adj_diff"
+   ],
+   "objects": [
+    "est_c@4",
+    "rng_c@4",
+    "boots_c@4",
+    "lo_c, hi_c@4"
+   ],
+   "direct": [
+    "est_c@4",
+    "lo_c, hi_c@4"
+   ],
+   "direct_inputs": [
+    "from chain 1"
+   ],
+   "params": [],
+   "estimate": "",
+   "interval": "",
+   "unit_dir": ""
+  }
+ ],
+ "choices": [
+  {
+   "kind": "seed",
+   "text": "random seed 11",
+   "line": 3,
+   "cell": 4,
+   "results": [
+    "p4"
+   ]
+  },
+  {
+   "kind": "resamples",
+   "text": "500 resamples",
+   "line": 4,
+   "cell": 4,
+   "results": [
+    "p4"
+   ]
+  }
+ ],
+ "failed": [],
+ "functions": {
+  "adj_diff": {
+   "label": "group, filter; can resample",
+   "choices": [],
+   "produces": "table",
+   "resamples": false,
+   "can_resample": true,
+   "params": [
+    "pm",
+    "a",
+    "b",
+    "rng"
+   ],
+   "guard": [
+    "rng"
+   ],
+   "own": [
+    {
+     "verb": "summarise",
+     "text": "group by soil",
+     "guarded": false
+    },
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = a",
+     "guarded": false
+    },
+    {
+     "verb": "filter",
+     "text": "keep rows where regime = b",
+     "guarded": false
+    },
+    {
+     "verb": "resample",
+     "text": "resample rows with replacement",
+     "guarded": true,
+     "param": "pm"
+    },
+    {
+     "verb": "summarise",
+     "text": "mean",
+     "guarded": false
+    }
+   ],
+   "untraced": true
+  }
+ },
+ "params": {}
+}

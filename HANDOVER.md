@@ -458,6 +458,27 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The code map's extractor (2026-10-20, patch 0211; M2 of the build).** `analyst/codemap/`: the design package's
+  prototype ported behind two calls, `build(nb, run, inputs, context)` at a chain's end (M3 wires it in) and
+  `build_record(record)` from a ChainRecord; nothing in it calls a model or reaches a prompt, and `build` never
+  raises (a failure is `{"error": ...}` on the run). `record.py` draws the ChainRecord from the Run and its thread
+  (cells with their registry and RESULT records, failed attempts, reviews, the path, the earlier chains' exports);
+  `extract.py` parses the cells (statements, reads and writes, lineage, verbs, helpers, RESULT lines paired to their
+  calls by the record's `line`, by order and fixed words for an older run); `objects.py` the objects, their kinds
+  and plain steps (typed values by a small AST evaluator, not exec); `view.py` the rows, lanes, recipes, diagram
+  nodes and edges, checks and self-checks; `words.py` every phrase a reader sees (the app's file names pinned to
+  `intervalsAuxDisplayName` by a test); `vocab.py` the verb tables. Chains are named by id and the token
+  `{chain:<id>}` (the client numbers them); documents are inputs like CTX. Departures from the prototype, each from
+  a rule test: an input a RESULT or print statement reads itself counts as read (the prototype said "offered, never
+  read"); a value read off a dataset with no table in between still names the dataset (so a conversion is not "not
+  traced"); a helper of the chain's own wins over a vocabulary name (`diff()`); inside a helper a parameter named
+  `rng` and a generator it makes are generators, `rng.choice(x, n)` re-draws `x` (so a helper's re-draw follows its
+  parameter through `ga, gb = g[...], g[...]`; at the top level the bootstrap step adds ", re-drawing the rows of x").
+  Tests: test_code_map.py 57 (golden parity with the package's fixtures under `tests/analyst/fixtures/codemap/` -
+  the field trial and its follow-up, the planted-flaw chain, the five-chain thread - in both pairing modes, view and
+  intermediate map; one synthetic cell per rule of blueprint 4.2-4.7; the build from a Run, a follow-up's exports,
+  the error entry; the names table). The coach chain is run from the package locally, never committed; the package
+  itself stays outside the repository.
 - **The record for the code map (2026-10-20, patch 0210; M1 of the code map's build, docs/CODEMAP_DESIGN.md to come
   with M5).** What the map needs that the record did not keep. `Turn.registry`: the kernel's `{name: {type, desc}}`
   entries for the names a committed cell made or changed (`tools.namespace` read before and after the cell,

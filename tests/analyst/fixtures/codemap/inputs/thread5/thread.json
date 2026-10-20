@@ -1,0 +1,150 @@
+[
+ {
+  "chain": 1,
+  "chain_id": 1792458026,
+  "question": "Plot Fibonacci sequence",
+  "parent": null,
+  "path": [
+   1
+  ],
+  "first_cell": 1,
+  "cells": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "failed": [],
+  "turns": 4,
+  "searches": 0,
+  "reviews": 1,
+  "cites": [
+   1,
+   2,
+   3
+  ],
+  "cites_fig": []
+ },
+ {
+  "chain": 2,
+  "chain_id": 1792458299,
+  "question": "Can you raise the terms to 55 and represent the sequence in a bar plot",
+  "parent": 1,
+  "path": [
+   1,
+   2
+  ],
+  "first_cell": 5,
+  "cells": [
+   5,
+   6,
+   7
+  ],
+  "failed": [],
+  "turns": 3,
+  "searches": 0,
+  "reviews": 1,
+  "cites": [
+   5,
+   6
+  ],
+  "cites_fig": []
+ },
+ {
+  "chain": 3,
+  "chain_id": 1792458968,
+  "question": "Plot Lorenz attractor in 2d using 5 different initial conditions distinguished in different colors",
+  "parent": 1,
+  "path": [
+   1,
+   3
+  ],
+  "first_cell": 5,
+  "cells": [
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13
+  ],
+  "failed": [
+   7
+  ],
+  "turns": 13,
+  "searches": 0,
+  "reviews": 2,
+  "cites": [
+   6,
+   9,
+   10,
+   11,
+   12
+  ],
+  "cites_fig": []
+ },
+ {
+  "chain": 4,
+  "chain_id": 1792459637,
+  "question": "Nice, now do it in 3D",
+  "parent": 3,
+  "path": [
+   1,
+   3,
+   4
+  ],
+  "first_cell": 14,
+  "cells": [
+   14,
+   15,
+   16,
+   17,
+   18,
+   19,
+   20
+  ],
+  "failed": [
+   1,
+   5,
+   7
+  ],
+  "turns": 10,
+  "searches": 0,
+  "reviews": 0,
+  "cites": [
+   5,
+   6,
+   12,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19
+  ],
+  "cites_fig": []
+ },
+ {
+  "chain": 5,
+  "chain_id": 1792459957,
+  "question": "Who was Fibonacci ?",
+  "parent": 1,
+  "path": [
+   1,
+   5
+  ],
+  "first_cell": 5,
+  "cells": [],
+  "failed": [],
+  "turns": 2,
+  "searches": 1,
+  "reviews": 0,
+  "cites": [
+   1
+  ],
+  "cites_fig": []
+ }
+]

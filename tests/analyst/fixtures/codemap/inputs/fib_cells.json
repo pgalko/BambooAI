@@ -1,0 +1,53 @@
+{
+ "question": "Plot the Fibonacci sequence.",
+ "inputs": [],
+ "cells": [
+  {
+   "cell": 1,
+   "turn": null,
+   "step": "Build the first 20 Fibonacci numbers, so the figure can draw them.",
+   "code": "fib = [0, 1]\nwhile len(fib) < 20:\n    fib.append(fib[-1] + fib[-2])\nseq = pd.Series(fib, name='fibonacci')\nprint(seq.tail().to_string())",
+   "output": "15     610\n16     987\n17    1597\n18    2584\n19    4181\n",
+   "kind": "analysis",
+   "registry": {
+    "fib": {
+     "type": "list",
+     "desc": "list[int] len=20"
+    },
+    "seq": {
+     "type": "Series",
+     "desc": "Series len=20 name=fibonacci dtype=int64"
+    }
+   },
+   "figures": 0,
+   "results": []
+  },
+  {
+   "cell": 2,
+   "turn": null,
+   "step": "Figures: the first 20 Fibonacci numbers, by position",
+   "code": "import plotly.graph_objects as go\nfig = go.Figure(go.Scatter(x=seq.index, y=seq.values, mode='lines+markers'))\nfig.update_layout(title='The first 20 Fibonacci numbers', xaxis_title='n', yaxis_title='F(n)')\nfig.show()",
+   "output": "",
+   "kind": "figures",
+   "registry": {
+    "fig": {
+     "type": "Figure",
+     "desc": "Figure"
+    }
+   },
+   "figures": 0,
+   "results": []
+  }
+ ],
+ "failed": [],
+ "report": "# The Fibonacci sequence to F(19) = 4181\n\nThe first 20 numbers [cell 1], drawn in [fig 2].",
+ "events": [],
+ "chain": 1,
+ "path": [
+  1
+ ],
+ "path_cells": {
+  "1": 1,
+  "2": 1
+ }
+}

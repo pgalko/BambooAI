@@ -1,0 +1,151 @@
+{
+ "chain": 1,
+ "question": "Does regime B raise yield over regime A once soil type is taken into account?",
+ "inputs": [
+  {
+   "kind": "primary",
+   "label": "primary dataset",
+   "detail": "field_trial.csv, 720 rows x 6 columns",
+   "columns": [
+    "plot_id",
+    "regime",
+    "soil",
+    "season",
+    "rainfall_mm",
+    "yield_t_ha"
+   ]
+  }
+ ],
+ "cells": [
+  {
+   "cell": 1,
+   "turn": 1,
+   "step": "The question is a between-regime contrast, and 'once soil type is taken into account' says the soil mix differs by regime. First: shape, dtypes, the crosstab of regime by soil, and raw yield by regime.",
+   "code": "# Shape, dtypes, the soil mix by regime, and raw yield by regime\nprint(df.shape)\nprint(df.dtypes.to_string())\nprint(df['regime'].value_counts().to_dict())\nprint(pd.crosstab(df['regime'], df['soil']).to_string())\nprint(df.groupby('regime')['yield_t_ha'].agg(['mean', 'std', 'count']).round(3).to_string())",
+   "output": "(720, 6)\nplot_id          int64\nregime             str\nsoil               str\nseason           int64\nrainfall_mm    float64\nyield_t_ha     float64\n{'A': 240, 'B': 240, 'C': 240}\nsoil    clay  loam  sand\nregime                  \nA        144    48    48\nB         30   132    78\nC         96    60    84\n        mean   std  count\nregime                   \nA      4.503 0.728    240\nB      5.381 0.788    240\nC      4.714 0.745    240\n",
+   "kind": "analysis",
+   "registry": {},
+   "figures": 0,
+   "results": []
+  },
+  {
+   "cell": 2,
+   "turn": 4,
+   "step": "KeyError: the column is yield_t_ha, not yield. Same cell, correct name, and I add the adjusted difference with a bootstrap over plots so the interval is at the right unit.",
+   "code": "# Plot-level means (one row per plot), then B minus A within each soil type,\n# weighted by the number of plots compared; uncertainty by bootstrap over PLOTS, not rows\nplot_means = df.groupby(['plot_id', 'regime', 'soil'], as_index=False)['yield_t_ha'].mean()\ntab = plot_means.groupby(['soil', 'regime'])['yield_t_ha'].agg(['mean', 'count']).round(3)\nprint(tab.reset_index().to_string(index=False))\n\ndef adj_diff(pm, a='A', b='B', rng=None):\n    total, weight = 0.0, 0\n    for soil, g in pm.groupby('soil'):\n        ga, gb = g[g.regime == a]['yield_t_ha'], g[g.regime == b]['yield_t_ha']\n        if rng is not None:\n            ga = ga.sample(len(ga), replace=True, random_state=rng)\n            gb = gb.sample(len(gb), replace=True, random_state=rng)\n        n = min(len(ga), len(gb))\n        if n:\n            total += n * (gb.mean() - ga.mean()); weight += n\n    return total / weight\n\nrng = np.random.default_rng(7)\nest = adj_diff(plot_means)\nboots = np.array([adj_diff(plot_means, rng=rng) for _ in range(500)])\nlo, hi = np.percentile(boots, [2.5, 97.5])\nraw = plot_means[plot_means.regime == 'B']['yield_t_ha'].mean() - plot_means[plot_means.regime == 'A']['yield_t_ha'].mean()\nprint(f\"RAW_DIFF={raw:.3f}\")\nprint(f\"ADJ_DIFF={est:.3f} CI_LO={lo:.3f} CI_HI={hi:.3f}\")\nprint(f\"N_PLOTS_A={int((plot_means.regime == 'A').sum())} N_PLOTS_B={int((plot_means.regime == 'B').sum())}\")\nRESULT('yield, regime B vs A within soil type, plot means', est, lo, hi, 't/ha', 'B higher')\nDS.save(plot_means, 'plot_means')",
+   "output": "soil regime  mean  count\nclay      A 4.355     24\nclay      B 4.933      5\nclay      C 4.597     16\nloam      A 5.335      8\nloam      B 5.872     22\nloam      C 5.535     10\nsand      A 4.114      8\nsand      B 4.723     13\nsand      C 4.262     14\nRAW_DIFF=0.879\nADJ_DIFF=0.575 CI_LO=0.375 CI_HI=0.765\nN_PLOTS_A=40 N_PLOTS_B=40\nRESULT: yield, regime B vs A within soil type, plot means: +0.57 (95% CI +0.38 to +0.76) t/ha, B higher\nDATASET: plot_means.csv - 120 rows x 4 columns, in the Dataset cache under Generated\n",
+   "kind": "analysis",
+   "registry": {
+    "plot_means": {
+     "type": "DataFrame",
+     "desc": "DataFrame 120x4 cols=plot_id,regime,soil,yield_t_ha"
+    },
+    "tab": {
+     "type": "DataFrame",
+     "desc": "DataFrame 9x2 cols=mean,count"
+    },
+    "adj_diff": {
+     "type": "function",
+     "desc": "function adj_diff(pm, a='A', b='B', rng=None) -> float64"
+    },
+    "rng": {
+     "type": "Generator",
+     "desc": "Generator"
+    },
+    "est": {
+     "type": "float64",
+     "desc": "float64"
+    },
+    "boots": {
+     "type": "ndarray",
+     "desc": "ndarray shape=(500,) dtype=float64"
+    },
+    "lo": {
+     "type": "float64",
+     "desc": "float64"
+    },
+    "hi": {
+     "type": "float64",
+     "desc": "float64"
+    },
+    "raw": {
+     "type": "float64",
+     "desc": "float64"
+    }
+   },
+   "figures": 0,
+   "results": [
+    {
+     "text": "yield, regime B vs A within soil type, plot means: +0.57 (95% CI +0.38 to +0.76) t/ha, B higher",
+     "typed": false,
+     "test": null,
+     "corrects": null,
+     "line": 27
+    }
+   ]
+  },
+  {
+   "cell": 3,
+   "turn": null,
+   "step": "Figures: plot-level yield by regime within each soil type | mean plot yield by regime",
+   "code": "# Plot-level yield by regime within each soil type\nfig, axes = plt.subplots(1, 3, figsize=(10, 3.4), sharey=True)\nfor ax, (soil, g) in zip(axes, plot_means.groupby('soil')):\n    ax.boxplot([g[g.regime == r]['yield_t_ha'].values for r in ['A', 'B', 'C']], tick_labels=['A', 'B', 'C'])\n    ax.set_title(f'soil: {soil}'); ax.set_xlabel('regime')\naxes[0].set_ylabel('yield (t/ha), plot mean over the seasons')\nfig.tight_layout()\nplt.show()\n# the same contrast as a plotly figure, the way the contract asks for figures (fig.show())\nimport plotly.graph_objects as go\nmeans = plot_means.groupby('regime')['yield_t_ha'].mean()\npfig = go.Figure(data=[go.Bar(x=list(means.index), y=list(means.values))])\npfig.update_layout(title='mean plot yield by regime (t/ha)')\npfig.show()\nprint('figure drawn: yield by regime within soil')",
+   "output": "figure drawn: yield by regime within soil\n",
+   "kind": "figures",
+   "registry": {
+    "fig": {
+     "type": "Figure",
+     "desc": "Figure"
+    },
+    "axes": {
+     "type": "ndarray",
+     "desc": "ndarray shape=(3,) dtype=object"
+    },
+    "ax": {
+     "type": "Axes",
+     "desc": "Axes"
+    },
+    "soil": {
+     "type": "str_",
+     "desc": "str_"
+    },
+    "g": {
+     "type": "DataFrame",
+     "desc": "DataFrame 35x4 cols=plot_id,regime,soil,yield_t_ha"
+    },
+    "means": {
+     "type": "Series",
+     "desc": "Series len=3 name=yield_t_ha dtype=float64"
+    },
+    "pfig": {
+     "type": "Figure",
+     "desc": "Figure"
+    }
+   },
+   "figures": 1,
+   "captions": [
+    "plot-level yield by regime within each soil type",
+    "mean plot yield by regime"
+   ],
+   "results": []
+  }
+ ],
+ "failed": [
+  {
+   "step": "Plot-level means first, then the within-soil table.",
+   "code": "# Yield by regime within soil (plot-level means first)\nplot_means = df.groupby(['plot_id', 'regime', 'soil'], as_index=False)['yield'].mean()\nprint(plot_means.groupby(['soil', 'regime'])['yield'].mean().round(3).to_string())",
+   "turn": 3,
+   "after_cell": 1,
+   "error": "KeyError: 'Column not found: yield'"
+  }
+ ],
+ "report": "Within the same soil type, regime B out-yielded regime A by about 0.57 t/ha per plot, and the interval does not include zero. The raw gap of 0.88 t/ha overstates it: B was sown on more loam, the most productive soil, and that accounts for part of the raw difference.\n\n## The estimate\nPlot-mean yield, regime B minus regime A within soil type, weighted by plots compared: **0.575 t/ha** (95% bootstrap interval 0.375 to 0.765), over 40 A plots and 40 B plots, each averaged over its seasons [cell 2]. It is a within-soil association; the trial did not randomise regime to plot, so it is not a causal effect of the regime alone.\n\n## Conditions\nSoil type held fixed by stratification; the plot is the unit (seasons within a plot are repeated measures); rainfall is not held fixed.\n\nThe means behind the estimate [cell 2]:\n\n| soil | regime | mean yield (t/ha) | plots |\n|---|---|---|---|\n| clay | A | 4.355 | 24 |\n| clay | B | 4.933 | 5 |\n| clay | C | 4.597 | 16 |\n| loam | A | 5.335 | 8 |\n| loam | B | 5.872 | 22 |\n| loam | C | 5.535 | 10 |\n| sand | A | 4.114 | 8 |\n| sand | B | 4.723 | 13 |\n| sand | C | 4.262 | 14 |\n\n## How it was established\nCell 1 showed the soil mix differs by regime. Cell 2 computed plot means, the within-soil B minus A difference weighted by plots compared, and a 500-draw bootstrap resampling plots within each soil and regime.\n\n## Limitations\n- What the data cannot support: regime was not randomised, so any plot-level factor that differs by regime and is not soil remains in the estimate.\n- How much the answer moves under other choices: the raw contrast is 0.88 t/ha; the soil-adjusted one is 0.57 t/ha, so the adjustment matters at the first decimal.\n- Not certain was computed as stated: nothing; every number above is printed in cell 2.\n\n## Next steps\n1. Add rainfall as a covariate and re-estimate the within-soil difference.\n2. Check the difference season by season.\n3. Compare regime C on the same footing.",
+ "events": [],
+ "path": [
+  1
+ ],
+ "path_cells": {
+  "1": 1,
+  "2": 1,
+  "3": 1
+ }
+}

@@ -100,7 +100,7 @@ def main():
                            capture_output=True, text=True, cwd=work).stdout           # not from the checkout's directory
     site = next((l.split("SITE=", 1)[1].strip() for l in probe.splitlines() if "SITE=" in l), "")
     check("the installed copy is the virtualenv's, not the checkout", site.startswith(venv), site)
-    for f in ("web_app/templates/index.html", "web_app/static/js/workspace-gate.js", "web_app/LLM_CONFIG_template.json", "analyst/contract.md", "analyst/contract_context.md", "analyst/codebook_seed.json", "bambooai/messages/default_prompts.yaml", "delve/kernel.py"):
+    for f in ("web_app/templates/index.html", "web_app/static/js/workspace-gate.js", "web_app/LLM_CONFIG_template.json", "analyst/contract.md", "analyst/contract_context.md", "analyst/codebook_seed.json", "analyst/codemap/__init__.py", "analyst/codemap/view.py", "bambooai/messages/default_prompts.yaml", "delve/kernel.py"):
         check(f"installed: {f}", os.path.exists(os.path.join(site, f)))
     env = dict(os.environ, PYTHONPATH=STACK)
     PRE = "import sandbox; sandbox.install(); "              # only packages that are not installed are faked; nothing on a full install
