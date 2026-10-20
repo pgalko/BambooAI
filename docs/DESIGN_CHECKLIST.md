@@ -65,6 +65,7 @@ is not earning its place.
 - [ ] F4. Artifacts render as they land: cells and note → Investigation tab; figures → Plots; reports → Answer / Simplified; script + status → Code; the tree → workflow map.
 - [ ] F5. Storage keeps its shape — `threads/` (the tree), `favourites/` (a saved path, self-contained), `replays/` (a path rehydrated on another dataset, filed under its favourite), the pack, datasets, cleanup sparing favourites — with fewer things inside each file. Old threads and favourites convert once.
 - [ ] F6. The infographic reads the technical report (shape unchanged).
+- [ ] F7. The code map (`docs/CODEMAP_DESIGN.md`) is built mechanically when a chain ends, from the committed cells and the kernel's record — no model call, nothing of it in any prompt; where it cannot tell, it says so; a map failure is recorded on the run, never raised; it never changes the top bar; it is opt-in (the closing card's button, the thread map's eye).
 
 ## G. Acceptance
 

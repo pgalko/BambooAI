@@ -480,6 +480,15 @@ def main():
             unlocked = page.evaluate("() => ({ locked: document.body.classList.contains('composer-locked'), placeholder: document.getElementById('queryInput').placeholder, pos: document.getElementById('chainPosition').textContent, pill: getComputedStyle(document.getElementById('rankButton')).display })")
             check("loading a favourite leaves the run view: the composer is back with its own placeholder, the chains' navigation and the Save pill return",
                   not unlocked["locked"] and "open the analysis" not in unlocked["placeholder"] and "chain" in unlocked["pos"] and unlocked["pill"] != "none", unlocked)
+            # the code map from a restored chain (2026-10-20, M5): the card saved as HTML carries the chain id, so its button still opens the map
+            restored_btn = page.evaluate("() => { const b = document.querySelector('#streamOutput .sp-done .sp-codemap'); return b ? b.dataset.chain : null; }")
+            check("a restored favourite's closing card keeps its Code map button with the chain's id", restored_btn and restored_btn == str(page.evaluate("() => responses[currentResponseIndex].chain_id")), restored_btn)
+            page.click("#streamOutput .sp-done .sp-codemap")
+            page.wait_for_selector("#codeMapModal .cm-row.step", timeout=15000)
+            check("... and it opens that chain's map, built when the chain ended", page.evaluate("() => document.querySelector('#codeMapModal .cm-built').textContent").startswith("built when the chain ended"))
+            page.keyboard.press("Escape")
+            page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
+            check("Escape closes the map", True)
             # run 2 with the other regime, compared with run 1 (the run before, the dialog's default now)
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)

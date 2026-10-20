@@ -229,6 +229,17 @@ plain-language version's numbers against the technical report. Unmatched numbers
 the reader rather than silently changed. These checks help expose discrepancies, but an analysis
 can reproduce and still use an unsuitable method or draw an unsupported conclusion.
 
+4. **Code map.** When a chain ends, BambooAI builds a map of how it got from its data to its numbers,
+   read mechanically from the committed cells and the kernel's record - no model is asked, so the
+   same chain always gives the same map, and nothing of it reaches a prompt. **Code map** on the
+   closing card (or the eye on a chain's box in the thread map) opens it: one row per cell with the
+   inputs it read, what came out (the RESULT lines by status, the figures), and for each number its
+   recipe - the data it rests on, the tables and values the code made in order, the settings typed
+   into the code, the choices (seeds, thresholds, resample counts) - with a short list worth
+   checking (an input never read, a value typed into the code that every result rests on, a result
+   that came out empty or was replaced). The map shows how a number was made, not whether it is
+   right. `docs/CODEMAP_DESIGN.md` has the design.
+
 ### Modes and budgets
 
 Each mode sets a turn budget and a dollar budget the Analyst can see. The budgets are set per
@@ -756,7 +767,7 @@ to PyPI (`.github/workflows/release.yml`).
 Design notes: `docs/DESIGN_CHECKLIST.md` (what every change must keep true),
 `docs/OSS_DESIGN.md` (the decisions behind this edition), `docs/ROUTINES_DESIGN.md`,
 `docs/CONTEXT_DESIGN.md` and `docs/INCREMENTAL_LOADS_DESIGN.md` (routines, the words, the store),
-`HANDOVER.md` (the state of the code).
+`docs/CODEMAP_DESIGN.md` (the code map), `HANDOVER.md` (the state of the code).
 
 ## Contributing
 

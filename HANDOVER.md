@@ -458,6 +458,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The code map: the card's button, the full-width modal, hardening and the design doc (2026-10-20, patch 0214; M5 of
+  the build).** Palo's two comments on 0213: the closing card's way in is a button of its own under the links
+  (`ui-btn sm primary` with the eye; the four links stay four), and the modal spans the screen past the rail, 24 px
+  from either edge like the bottom, the panel at 360 px. Hardening: Escape closes the map wherever the focus sits,
+  the focus lands on the close and returns to the opener, the dialog carries its role and label, each lane dot says
+  in words what it marks, a lane's highlight clears at the next click, a fresh opening starts at Steps. A ten-chain
+  thread's last map is served in a few milliseconds stored and in tens of milliseconds built now with its nine
+  ancestors (test_code_map.py); the thread file grows by a map's size per chain (20-70 KB for a real chain, 3 KB
+  for a one-cell one). `docs/CODEMAP_DESIGN.md` (new): the vocabulary, the architecture, the record, the rules in
+  short, what is stored and the route, the modal, the tests, the known limits, the decisions taken, the departures
+  from the prototype; the README's "Reports and checks" gains the map; the design checklist F7. Tests:
+  test_code_map.js 51 (the dialog's role, Escape, the dots' words, the card's button), test_code_map.py 80 (the
+  ten-chain thread), the stack walk 115 (a restored favourite's card opens its map; Escape).
 - **The code map's modal and its two ways in (2026-10-20, patch 0213; M4 of the build).** `web_app/static/js/code-map.js`
   (on codebook.js's pattern: pure builders as `window.__codeMapBuild`, a modal made on first use, delegated clicks,
   `window.CodeMapUI = {initialize, open, close, onChain}`), its rules under `#codeMapModal` in dialogs.css, five

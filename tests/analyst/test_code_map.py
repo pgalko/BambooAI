@@ -591,6 +591,35 @@ CMR._CACHE.clear()
 j = wc.get("/code_map/4001/5001").get_json()
 check("route: the live instance's notebook is read when it holds the thread", j["built"] == "now" and j["map"]["question"] == "changed in the live instance", j.get("map", {}).get("question"))
 
+# ---- long threads (M5): a ten-chain thread, each chain taking a name from the one before, opens in well under a second,
+# stored or built now with every ancestor built first ------------------------------------------------------------
+import time  # noqa: E402
+nb_l = Notebook("4010")
+prev = None
+for k in range(1, 11):
+    rk = nb_l.new_run(f"Step {k}?", parent=prev, run_id=str(6000 + k))
+    code = (f"v{k} = df['yield_t_ha'].mean() + {k}\n" if k == 1 else f"v{k} = v{k - 1} * 1.01\n") + f"RESULT(f\"value {k}: {{v{k}:.2f}} t/ha\")\n"
+    rk.turns = [Turn(kind="cell", thinking=f"Step {k}.", code=code, stdout=f"RESULT: value {k}: {4.8 + k:.2f} t/ha\n", cell_no=k,
+                     results=[dict(text=f"value {k}: {4.8 + k:.2f} t/ha", typed=False, test=None, corrects=None, line=2)], registry={f"v{k}": {"type": "float64", "desc": "float64"}}),
+                Turn(kind="report", text="done")]
+    rk.report = f"## Step {k}\nThe value is {4.8 + k:.2f} [cell {k}].\n"; rk.status = "answered"; rk.mode = "Quick"; rk.data = dict(DATA)
+    prev = rk.id
+for k in range(1, 11):                                   # as _finish does, each at its end with its ancestors' exports stored
+    r_ = nb_l.runs[str(6000 + k)]
+    r_.code_map = codemap.build(nb_l, r_, inputs=R.inputs_from_data(r_))
+rstore.save(nb_l)
+bytes_l = os.path.getsize(os.path.join(work, "storage", "u1", "threads", "4010.json"))
+t0 = time.perf_counter(); j = wc.get("/code_map/4010/6010").get_json(); dt_stored = time.perf_counter() - t0
+check("a ten-chain thread: the last chain's stored map is served in well under a second, naming the chain before it on its lane",
+      j.get("built") == "end" and dt_stored < 1.0 and j["map"]["inputs"][0]["name"] == "From {chain:6009}" and len(j["map"]["path"]) == 10, (dt_stored, {k_: v for k_, v in j.items() if k_ != "map"}))
+for r_ in nb_l.runs.values():
+    r_.code_map = {}
+rstore.save(nb_l)
+CMR._CACHE.clear()
+t0 = time.perf_counter(); j = wc.get("/code_map/4010/6010").get_json(); dt_now = time.perf_counter() - t0
+check("the same thread without any stored map: the last chain built now, its nine ancestors first, in under a second; the thread file with ten maps stays small",
+      j.get("built") == "now" and dt_now < 1.0 and j["map"]["inputs"][0]["name"] == "From {chain:6009}" and bytes_l < 400_000, (dt_now, bytes_l, {k_: v for k_, v in j.items() if k_ != "map"}))
+
 os.chdir("/"); shutil.rmtree(work, ignore_errors=True)
 
 n_fail = sum(1 for _, ok in results if not ok)

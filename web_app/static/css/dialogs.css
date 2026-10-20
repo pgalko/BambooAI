@@ -861,7 +861,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 /* ---- the code map (2026-10-20, code-map.js; docs/CODEMAP_DESIGN.md): a chain's steps with its inputs as lanes, the recipe
    diagram, and the panel. Past the rail and the top bar, like the thread map drawer, so the chain navigator stays usable. ---- */
 #codeMapModal { display: none; position: fixed; left: 46px; top: 40px; right: 0; bottom: 0; background: var(--scrim); z-index: 1001; padding: 14px 24px 24px; box-sizing: border-box; align-items: stretch; justify-content: center; }
-#codeMapModal .ui-dlg.cm-dlg { width: 100%; max-width: 1392px; height: 100%; max-height: none; margin: 0 auto; background: var(--bg-primary); overflow: hidden; }
+#codeMapModal .ui-dlg.cm-dlg { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; background: var(--bg-primary); overflow: hidden; }
 #codeMapModal .cm-head { align-items: flex-start; flex-wrap: wrap; gap: 10px 24px; padding: 13px 18px 12px; background: var(--bg-primary); }
 #codeMapModal .cm-head-l { flex: 1 1 560px; min-width: 0; }
 #codeMapModal .cm-head-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
@@ -896,7 +896,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 /* the body: the map on the left, the panel on the right */
 #codeMapModal .cm-body { display: flex; align-items: stretch; padding: 0; overflow: hidden; }
 #codeMapModal .cm-map { flex: 1 1 640px; min-width: 0; overflow: auto; position: relative; }
-#codeMapModal .cm-panel { flex: 0 0 320px; min-width: 300px; overflow: auto; border-left: 1px solid var(--border-color); background: var(--bg-secondary); }
+#codeMapModal .cm-panel { flex: 0 0 360px; min-width: 300px; overflow: auto; border-left: 1px solid var(--border-color); background: var(--bg-secondary); }
 #codeMapModal .cm-state, #codeMapModal .cm-nocode { padding: 28px 24px; max-width: 620px; font-size: var(--fs-body); line-height: 1.55; color: var(--text-secondary); }
 #codeMapModal .cm-state-error, #codeMapModal .cm-state-unreachable { color: var(--c-fail); }
 /* the Steps grid */

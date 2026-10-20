@@ -66,6 +66,7 @@
         lane: { loaded: 'loaded, not used', unused: 'not used', chainTip: 'What {chain} made and this chain reuses: {names}. Opens {chain}\'s map.', uses: 'Uses: ', notUsed: 'Not used: ', through: ', used through {chain}' },
         diagramNode: { given: 'data the chain was given', madeBy: 'what {chain} made', result: 'RESULT · cell {n}', printed: 'PRINTED · cell {n}', figure: 'FIGURE · cell {n}', opens: ': opens {chain}\'s map' },
         rowSub: { turn: 'turn {n}', afterReport: 'after report', cell: 'Cell {n}', fig: 'Fig {n}', turnFailed: 'Turn {n}', failed: 'Failed' },
+        dot: { read: 'reads {name} here', via: 'uses {name} through an earlier step' },
         band: { review: 'Review after turn {n} · {v}', final: 'Review of the report · {v}', report: 'Turn {n} · report' },
         replacedBy: 'replaced by cell {n} · ',
         printedChip: 'printed', printedTip: 'Printed in cell {n}, and the report cites it. Click to see how it was made.',
@@ -165,7 +166,7 @@
     // ------------------------------------------------------------ builders (pure: return HTML; tests read them)
     const build = {
         shell() {
-            return '<div class="ui-dlg cm-dlg">' +
+            return '<div class="ui-dlg cm-dlg" role="dialog" aria-modal="true" aria-label="Code map">' +
                 '<div class="ui-dlg-h cm-head"></div>' +
                 '<div class="ui-dlg-b cm-body"><div class="cm-map"></div><div class="cm-panel"></div></div></div>';
         },
@@ -222,12 +223,14 @@
                 ((i.used_columns || []).length ? '. ' + WORDS.lane.uses + i.used_columns.join(', ') : '') + ((i.unused_columns || []).length ? '. ' + WORDS.lane.notUsed + i.unused_columns.join(', ') : '');
             return '<div class="' + cls + '" title="' + esc(tip) + '" data-lane="' + esc(i.id) + '"><span class="rot"><span class="name">' + esc(i.name) + '</span><span class="sub">' + esc(plain(sub, ctx)) + '</span></span></div>';
         },
-        dots(view, marks, laneOn) {
+        dots(view, marks, laneOn, ctx) {
             const ins = view.inputs || [];
             if (!ins.length) return '<div class="cm-nolane"></div>';
             return ins.map((i, k) => {
                 const m = marks ? marks[k] : '';
-                return '<div class="cm-dot-cell' + (laneOn[k] ? '' : ' dim') + '">' + (m === 'read' ? '<i class="cm-dot read"></i>' : (m === 'via' ? '<i class="cm-dot via"></i>' : '')) + '</div>';
+                const name = ctx ? plain(i.name, ctx) : i.name;
+                const words = m === 'read' ? fill(WORDS.dot.read, { name }) : (m === 'via' ? fill(WORDS.dot.via, { name }) : '');
+                return '<div class="cm-dot-cell' + (laneOn[k] ? '' : ' dim') + '"' + (words ? ' title="' + esc(words) + '"' : '') + '>' + (m === 'read' ? '<i class="cm-dot read"></i>' : (m === 'via' ? '<i class="cm-dot via"></i>' : '')) + '</div>';
             }).join('');
         },
         resultChip(x, on, ctx) {
@@ -276,7 +279,7 @@
                 return '<div class="cm-row step' + (inFocus ? '' : ' faded') + (marked ? ' marked' : '') + '" style="grid-template-columns: ' + cols + '" data-cell="' + esc(r.cell) + '">' +
                     '<div class="cm-cell"><button class="cm-cell-no" data-act="pick-s" data-cell="' + esc(r.cell) + '" aria-label="' + (r.figures ? 'Figures cell ' : 'Cell ') + esc(r.cell) + '">' + esc(fill(r.figures ? WORDS.rowSub.fig : WORDS.rowSub.cell, { n: r.cell })) + '</button>' +
                     '<div class="sub">' + esc(r.figures ? WORDS.rowSub.afterReport : (r.turn ? fill(WORDS.rowSub.turn, { n: r.turn }) : '')) + '</div></div>' +
-                    '<div class="cm-dots">' + build.dots(view, r.lanes, laneOn) + '</div>' +
+                    '<div class="cm-dots">' + build.dots(view, r.lanes, laneOn, ctx) + '</div>' +
                     '<div class="cm-what"><button class="cm-purpose" data-act="pick-s" data-cell="' + esc(r.cell) + '" title="' + esc(r.purpose) + '"><span>' + esc(r.purpose) + '</span></button><div class="cm-chips">' + build.chips(r) + '</div></div>' +
                     '<div class="cm-out">' + resHtml.join('') + (note ? '<span class="cm-note">' + esc(note) + '</span>' : '') + '</div></div>';
             }
@@ -467,7 +470,7 @@
 
     // ------------------------------------------------------------ state and the server
     const st = { open: false, threadId: null, chainId: null, view: 'steps', sel: null, diag: null, data: null, built: 'end', state: '', pending: null, laneHi: null, seq: 0 };
-    let modal = null;
+    let modal = null, opener = null;
 
     function fetchJson(url) {
         const f = (window.authService && window.authService.fetch) ? window.authService.fetch.bind(window.authService) : fetch;
@@ -486,6 +489,7 @@
         document.body.appendChild(modal);
         modal.addEventListener('click', onClick);
         modal.addEventListener('change', e => { if (e.target && e.target.matches && e.target.matches('[data-act="pick-diag"]')) pickDiag(e.target.value); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.open) { e.stopPropagation(); close(); } });   // wherever the focus sits
         return modal;
     }
     function parts() {
@@ -498,6 +502,7 @@
         const b = t.closest ? t.closest('[data-act]') : null;
         if (!b || b.hasAttribute('disabled')) return;
         const act = b.getAttribute('data-act');
+        if (act !== 'lane') st.laneHi = null;
         if (act === 'close') { close(); return; }
         if (b.tagName === 'A') e.preventDefault();
         if (act === 'view') setView(b.getAttribute('data-view'));
@@ -577,12 +582,20 @@
         let id = chainId;
         if (!id && typeof responses !== 'undefined' && typeof currentResponseIndex !== 'undefined' && responses[currentResponseIndex]) id = responses[currentResponseIndex].chain_id;
         if (!id) return;
+        opener = (typeof document !== 'undefined' && document.activeElement && document.activeElement !== document.body) ? document.activeElement : null;
         st.open = true; m.style.display = 'flex';
         st.view = (opts && opts.view === 'diagram') ? 'diagram' : 'steps';     // a fresh opening starts at the Steps view; moving between chains keeps the view
         st.pending = opts && opts.cell ? { t: 's', id: parseInt(opts.cell, 10) } : null;
         load(id);
+        const x = m.querySelector('.cm-head button.x');
+        if (x && typeof x.focus === 'function') x.focus();                   // keyboard users land in the dialog; Escape closes it
     }
-    function close() { st.open = false; if (modal) modal.style.display = 'none'; }
+    function close() {
+        st.open = false;
+        if (modal) modal.style.display = 'none';
+        if (opener && typeof opener.focus === 'function') { try { opener.focus(); } catch (e) { /* gone */ } }
+        opener = null;
+    }
     // the chain navigator moved (ui-controls.js updateNavigationButtons): the open map follows it
     function onChain(chainId) {
         if (!st.open || !chainId || String(chainId) === String(st.chainId)) return;
