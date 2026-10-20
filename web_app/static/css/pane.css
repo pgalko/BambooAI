@@ -75,8 +75,8 @@
 #streamOutput .sp-done .rep.warn { color: var(--yaml-key); }
 #streamOutput .sp-done .links { margin-top: 8px; }
 #streamOutput .sp-done .links a { color: var(--accent-color); text-decoration: none; margin-right: 14px; }
-#streamOutput .sp-done .sp-actions { margin-top: 10px; }   /* the code map's way in (2026-10-20): a button of its own */
-#streamOutput .sp-done .sp-actions .sp-codemap { height: 26px; font-size: 12px; font-family: Arial, sans-serif; }
+#streamOutput .sp-done .links .sp-codemap { display: inline-block; padding: 1px 7px; border: 1px solid var(--chip-model-border); border-radius: 4px; background: none; font: inherit; color: var(--accent-color); cursor: pointer; vertical-align: baseline; }   /* the code map's way in (2026-10-20): on the links line, a slight border */
+#streamOutput .sp-done .links .sp-codemap:hover { background: var(--accent-bg-hover); }
 #streamOutput .sp-done .sp-pills { padding: 6px 0 0; }
 #streamOutput .sp-sys { padding: 4px 10px; margin-left: 10px; font-family: Arial, sans-serif; font-size: 12px; color: var(--text-quaternary); border-left: 2px solid var(--text-quaternary); }
 #streamOutput .sp-sys.error { color: var(--error-color); border-left-color: var(--error-color); }

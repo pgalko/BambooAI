@@ -377,7 +377,7 @@ def build_map(doc):
             for nm in s_.get("taken", []):
                 taken[e_names[nm]["chain_id"]].add(nm)
         out_cells.append(dict(cell=n, turn=c.get("turn"), kind=c.get("kind"), role=role, cited=n in cited or n in cited_fig, why=c.get("step", ""),
-                              purpose=step_sentence(c.get("step", ""), 140) if c.get("kind") != "figures" else c.get("step", ""),
+                              purpose=step_sentence(c.get("step", ""), 320) if c.get("kind") != "figures" else c.get("step", ""),   # 320 (2026-10-21): the row has the room
                               verbs=sorted(set(verbs), key=verbs.index), objects=[oid for oid, o in objects.items() if o["cell"] == n and o["kind"] in ("table", "estimate")],
                               results=res, printout=printout, reads_from=reads_from, lines=len(c["code"].splitlines()), printed=printed[:6], direct_inputs=sorted(direct_inputs),
                               inputs=sorted({i for o in objects.values() if o["cell"] == n for i in o["inputs"]}),

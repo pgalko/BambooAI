@@ -28,7 +28,7 @@ def label_parts(label):
     return [p.strip() for p in s.split(",")]
 
 
-def cut_label(s, n=58):
+def cut_label(s, n=96):
     """Cut at a word, unless that leaves nothing of the last part (a long word-run after the comma)."""
     if len(s) <= n:
         return s
@@ -49,7 +49,7 @@ def short_parts(label):
     return k
 
 
-def short_label(label, n=58):
+def short_label(label, n=96):     # 96 (2026-10-21): the chips wrap, so more of a label shows
     parts = label_parts(label)
     s = ", ".join(parts[:short_parts(label)]) or label
     return cut_label(s, n)
@@ -472,7 +472,7 @@ def diagram(items, result, objs, head):
                     edges.append((hp, it["id"]))
         first = [s["text"] for s in it["steps"]][:2]
         nodes.append(dict(id=it["id"], kind=it["kind"], label=it["label"], names=it["names"], cell=it["cell"],
-                          step=" · ".join(first)[:120]))
+                          step=" · ".join(first)[:200]))     # 200 (2026-10-21): the box shows three lines, the tooltip the rest
     if result is not None:
         nodes.append(dict(id="result", kind="result", label=result["label"], names="", cell=result["cell"], step=""))
         # what the result reads directly, through helpers and plain values to the boxes behind them

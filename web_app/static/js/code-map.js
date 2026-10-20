@@ -121,7 +121,7 @@
     const chainOfInput = i => (i && i.kind === 'chain') ? String(i.chain) : null;
 
     // ------------------------------------------------------------ the recipe diagram's layout (blueprint 8.8): dagre, inputs on top
-    const SIZE = { input: [168, 46], result: [224, 54], box: [224, 72] };
+    const SIZE = { input: [190, 46], result: [264, 56], box: [264, 90] };   // wider boxes, three lines of a step (2026-10-21)
     function sizeOf(n) { return SIZE[n.kind === 'input' ? 'input' : (n.kind === 'result' ? 'result' : 'box')]; }
     // one column, in the order given: without a layout library, or when it fails
     function column(diag) {
@@ -208,7 +208,7 @@
         },
         // ---- the Steps view
         lanesWidth(view) { const n = (view.inputs || []).length; return n ? n * 34 : 112; },
-        cols(view) { return '70px ' + build.lanesWidth(view) + 'px minmax(0, 1fr) 270px'; },
+        cols(view) { return '70px ' + build.lanesWidth(view) + 'px minmax(0, 1fr) 460px'; },
         laneHead(i, ctx, dim) {
             const used = i.status === 'used' || i.status === 'via';
             const sub = used ? i.cols : (i.status === 'loaded' ? WORDS.lane.loaded : WORDS.lane.unused);
@@ -238,13 +238,13 @@
             const cls = 'cm-res ' + (s === 'printed' ? 'printed' : (s === 'not computed' ? 'empty' : (s === 'corrected' ? 'replaced' : 'recorded'))) + (on ? ' on' : '');
             const short = s === 'corrected' ? fill(WORDS.replacedBy, { n: x.corrected_by }) + x.short : x.short;
             const tip = s === 'printed' ? fill(WORDS.printedTip, { n: x.cell }) : x.label;
-            return '<button class="' + cls + '" data-act="pick-r" data-id="' + esc(x.id) + '" aria-pressed="' + (on ? 'true' : 'false') + '" title="' + esc(tip) + '">' +
+            return '<button class="' + cls + '" data-act="pick-r" data-id="' + esc(x.id) + '" aria-pressed="' + (on ? 'true' : 'false') + '" title="' + esc(tip) + '"><span class="t">' +
                 '<span class="est">' + esc(s === 'printed' ? WORDS.printedChip : (x.estimate || '—')) + '</span>' + (x.interval && s !== 'printed' ? '<span class="iv"> (' + esc(x.interval) + ')</span>' : '') +
-                ' <span class="short">' + esc(short) + '</span></button>';
+                ' <span class="short">' + esc(short) + '</span></span></button>';
         },
         figureChip(f, on) {
-            return '<button class="cm-res figure' + (on ? ' on' : '') + '" data-act="pick-r" data-id="' + esc(f.id) + '" aria-pressed="' + (on ? 'true' : 'false') + '" title="' + esc((f.caption || build.figName(f)) + WORDS.figureTip) + '">' +
-                '<span class="est">' + esc(f.of > 1 ? fill(WORDS.figureChipN, { n: f.n }) : WORDS.figureChip) + '</span> <span class="short">' + esc(cap(f.caption)) + '</span></button>';
+            return '<button class="cm-res figure' + (on ? ' on' : '') + '" data-act="pick-r" data-id="' + esc(f.id) + '" aria-pressed="' + (on ? 'true' : 'false') + '" title="' + esc((f.caption || build.figName(f)) + WORDS.figureTip) + '"><span class="t">' +
+                '<span class="est">' + esc(f.of > 1 ? fill(WORDS.figureChipN, { n: f.n }) : WORDS.figureChip) + '</span> <span class="short">' + esc(cap(f.caption)) + '</span></span></button>';
         },
         figName(f) { return f.of > 1 ? fill(WORDS.figureOf, { n: f.n, of: f.of }) : WORDS.figureName; },
         figsOf(view, n) { const figs = view.figures || {}; return Object.keys(figs).filter(k => figs[k].cell === n); },
@@ -299,7 +299,7 @@
             const ins = view.inputs || [];
             const laneOn = ins.map(i => !focus.inputs || focus.inputs.indexOf(i.name) >= 0);
             const lanes = ins.length ? ins.map((i, k) => build.laneHead(i, ctx, !laneOn[k])).join('') : '<div class="cm-nolane head">' + WORDS.noLanes + '</div>';
-            const minW = 70 + build.lanesWidth(view) + 340 + 270;
+            const minW = 70 + build.lanesWidth(view) + 340 + 460;
             return '<div class="cm-steps" style="min-width: ' + minW + 'px">' +
                 '<div class="cm-steps-head" style="grid-template-columns: ' + build.cols(view) + '"><div class="cm-col-h">' + WORDS.colStep + '</div><div class="cm-lanes">' + lanes + '</div>' +
                 '<div class="cm-col-h what">' + WORDS.colWhat + '</div><div class="cm-col-h out">' + WORDS.colOut + '</div></div>' +

@@ -333,9 +333,11 @@ def rule_shorts():
     v = codemap.build_record(record([cell(1, code, recs)]))["view"]
     shorts = [v["results"][k]["short"] for k in ("r1", "r2", "r3", "r4")]
     check("rule: results sharing a short label are told apart by the parts of their own labels, then by the cell; a long word-run is cut inside, not back to the comma",
-          shorts == ["mean yield, regime B vs A, all 720 plots with recorded… (cell 1)", "mean yield, regime B vs A, seasons 2 and 3 only (n=480)",
-                     "mean yield, regime B vs A, standardised to the soil mix…", "mean yield, regime B vs A, all 720 plots with recorded… (cell 1)"]
-          and len(set(shorts)) == 3 and VW.short_label("yield, regime B vs A within soil type, plot means") == "yield, regime B vs A within soil type", shorts)
+          shorts == ["mean yield, regime B vs A, all 720 plots with recorded yield (cell 1)", "mean yield, regime B vs A, seasons 2 and 3 only (n=480)",
+                     "mean yield, regime B vs A, standardised to the soil mix of the recorded plots", "mean yield, regime B vs A, all 720 plots with recorded yield (cell 1)"]
+          and len(set(shorts)) == 3 and VW.short_label("yield, regime B vs A within soil type, plot means") == "yield, regime B vs A within soil type"
+          and VW.cut_label("mean age, survivors vs non-survivors, direct-standardised-to-the-sex-mix-of-the-714-recorded-age-passengers", 58) == "mean age, survivors vs non-survivors, direct-standardised…"
+          and VW.cut_label("mean age, survivors vs non-survivors, bounds over all 891 passengers treating 177 missing ages", 58) == "mean age, survivors vs non-survivors, bounds over all…", shorts)
 
 
 def rule_document():
@@ -350,12 +352,33 @@ def rule_document():
     check("rule: a document read but never cited - loaded, with a check", v["inputs"][1]["status"] == "loaded" and "D1 (field_notes.md): loaded in cell 1, never used" in [c["text"] for c in v["checks"]], v["checks"])
 
 
+def rule_room():
+    """The text has room (2026-10-21): a step's sentence to 320 characters, a box's step to 200, the sentence cut at a word."""
+    long_step = ("Computes the plot means first, then the within-soil difference, then a bootstrap over plots so the interval is at the right unit, "
+                 "and records the adjusted gap with its interval so that the report can state the central estimate and its uncertainty on the scale "
+                 "the question asked for, which is tonnes per hectare across all three seasons of the trial, before the figures cell draws the comparison")
+    code = ("plot_means = df.groupby(['plot_id', 'regime', 'soil'], as_index=False)['yield_t_ha'].mean()\n"
+            "def adj_diff(pm, a='A', b='B', rng=None):\n    total, weight = 0.0, 0\n    for soil, g in pm.groupby('soil'):\n"
+            "        ga, gb = g[g.regime == a]['yield_t_ha'], g[g.regime == b]['yield_t_ha']\n        if rng is not None:\n"
+            "            ga = ga.sample(len(ga), replace=True, random_state=rng)\n            gb = gb.sample(len(gb), replace=True, random_state=rng)\n"
+            "        n = min(len(ga), len(gb))\n        if n:\n            total += n * (gb.mean() - ga.mean()); weight += n\n    return total / weight\n"
+            "rng = np.random.default_rng(7)\nest = adj_diff(plot_means)\nboots = np.array([adj_diff(plot_means, rng=rng) for _ in range(500)])\n"
+            "lo, hi = np.percentile(boots, [2.5, 97.5])\nRESULT('yield, regime B vs A within soil type, plot means', est, lo, hi, 't/ha', 'B higher')\n")
+    v = codemap.build_record(record([cell(1, code, [rec("yield, regime B vs A within soil type, plot means: +0.57 t/ha", 17)], step=long_step)]))["view"]
+    purpose = v["rows"][0]["purpose"]
+    boxes = [n for n in v["diagrams"]["r1"]["nodes"] if n["kind"] not in ("input", "result")]
+    longest = max(boxes, key=lambda n: len(n["step"]))
+    check("rule: a step's sentence keeps up to 320 characters, cut at a word; a diagram box's step up to 200",
+          180 < len(purpose) <= 321 and purpose.endswith("...") and not purpose[:-3].endswith(" ") and 120 < len(longest["step"]) <= 200,
+          (len(purpose), purpose, [len(b["step"]) for b in boxes]))
+
+
 for name, fn in [("a RESULT in a loop", rule_loop), ("a RESULT inside a helper", rule_helper_line), ("a type conversion", rule_conversion),
                  ("drawing through a helper", rule_draw_helper), ("a title-only read", rule_title_only), ("a bootstrap through a helper", rule_bootstrap_rng),
                  ("tuple aliasing in a helper", rule_alias), ("a string join", rule_string_join), ("a typed date", rule_typed_date), ("nan", rule_nan),
                  ("corrects", rule_corrects), ("a cited printout", rule_cited_printout), ("several figures", rule_several_figures),
                  ("a cell that does not parse", rule_unparsed), ("a chain with no cells", rule_no_cells), ("a follow-up", rule_follow_up),
-                 ("a document", rule_document), ("short labels", rule_shorts)]:
+                 ("a document", rule_document), ("short labels", rule_shorts), ("room for the text", rule_room)]:
     rule(name, fn)
 
 # ---- the build at a chain's end: from the Run, never raising -------------------------------------------------------

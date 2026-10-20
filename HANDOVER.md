@@ -458,6 +458,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The code map: the card's link, the dimmed window, room for the text (2026-10-21, patch 0216).** Palo's three
+  styling comments on 0215. The closing card's way in is back on the links line - "Code map →" in the links' style
+  and size, a `<button class="sp-codemap">` with a slight border so it stands out (the 0214 button under the links
+  was too large). The working window under the map is dimmed by a heavy scrim with a blur (`--scrim-heavy`, both
+  themes; the pills and the rail stay as they are, the modal still sits past them). The text has the room the
+  full-width modal gives it: a step's sentence keeps 320 characters (three lines; was 140, two), a result chip's
+  short label 96 characters wrapping to two lines (was 58, one line cut), the "what came out" column 460 px (was
+  270), the picker 760 px (was 560), a diagram box 264 × 90 with three lines of its first steps (200 characters; was
+  224 × 74, two lines of 120), the panel's step sentence likewise. `codemap.VERSION` is 2: a map stored by 0215 or
+  earlier is rebuilt from the chain's record when the modal asks for it (the route's "built now from the chain's
+  record"), so old chains show the fuller text too. The golden comparison cuts both sides to the prototype's lengths
+  (purpose 120, short 50, box step 120). Tests: test_code_map.py 82 (the room rule), test_code_map.js 52 (the card's
+  markup on the links line, the scrim and the clamps), test_pane.js 51, the stack walk 115, the integrations walk 99.
 - **The code map: results that share a short label are told apart (2026-10-20, patch 0215).** Palo's first real chain
   (survivors' ages) recorded four "mean age, survivors vs non-survivors, <who>" results - 714 with a recorded age,
   adults of 10 and over, bounds over all 891 treating the missing as extremes, standardised to the sex mix - and the

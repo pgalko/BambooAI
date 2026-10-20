@@ -860,7 +860,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 
 /* ---- the code map (2026-10-20, code-map.js; docs/CODEMAP_DESIGN.md): a chain's steps with its inputs as lanes, the recipe
    diagram, and the panel. Past the rail and the top bar, like the thread map drawer, so the chain navigator stays usable. ---- */
-#codeMapModal { display: none; position: fixed; left: 46px; top: 40px; right: 0; bottom: 0; background: var(--scrim); z-index: 1001; padding: 14px 24px 24px; box-sizing: border-box; align-items: stretch; justify-content: center; }
+#codeMapModal { display: none; position: fixed; left: 46px; top: 40px; right: 0; bottom: 0; background: var(--scrim-heavy); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); z-index: 1001; padding: 14px 24px 24px; box-sizing: border-box; align-items: stretch; justify-content: center; }
 #codeMapModal .ui-dlg.cm-dlg { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; background: var(--bg-primary); overflow: hidden; }
 #codeMapModal .cm-head { align-items: flex-start; flex-wrap: wrap; gap: 10px 24px; padding: 13px 18px 12px; background: var(--bg-primary); }
 #codeMapModal .cm-head-l { flex: 1 1 560px; min-width: 0; }
@@ -935,13 +935,14 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-dot.via { width: 6px; height: 6px; border: 1.5px solid var(--c-lookup); opacity: .75; }
 #codeMapModal .cm-what { padding: 8px 12px 9px 16px; min-width: 0; }
 #codeMapModal .cm-purpose { display: block; width: 100%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font-family: var(--font-ui); font-size: 12.5px; line-height: 1.45; color: var(--text-primary); }
-#codeMapModal .cm-purpose span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#codeMapModal .cm-purpose span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 #codeMapModal .cm-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 5px; }
 #codeMapModal .cm-chip { font-size: var(--fs-small); line-height: 16px; padding: 0 6px; border-radius: var(--r-1); border: 1px solid var(--border-color); color: var(--text-secondary); white-space: nowrap; }
 #codeMapModal .cm-chip.method { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
 #codeMapModal .cm-chip.result { border-color: var(--chip-model-border); color: var(--c-model); }
 #codeMapModal .cm-out { padding: 9px 14px 10px 6px; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-#codeMapModal .cm-res { display: block; width: 100%; box-sizing: border-box; text-align: left; cursor: pointer; padding: 3px 8px; border-radius: var(--r-2); border: 1px solid var(--chip-model-border); background: transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-ui); font-size: var(--fs-small); color: var(--text-tertiary); }
+#codeMapModal .cm-res { display: block; width: 100%; box-sizing: border-box; text-align: left; cursor: pointer; padding: 3px 8px; border-radius: var(--r-2); border: 1px solid var(--chip-model-border); background: transparent; font-family: var(--font-ui); font-size: var(--fs-small); line-height: 1.4; color: var(--text-tertiary); }
+#codeMapModal .cm-res .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }   /* a long label wraps once rather than being cut (2026-10-21) */
 #codeMapModal .cm-res .est { font-family: var(--font-mono); font-size: var(--fs-meta); font-weight: 600; color: var(--text-primary); }
 #codeMapModal .cm-res .iv { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-tertiary); }
 #codeMapModal .cm-res.on { border-width: 2px; padding: 2px 7px; background: var(--accent-bg); }
@@ -960,7 +961,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-failed-text .err { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--c-fail); }
 /* the recipe diagram */
 #codeMapModal .cm-diag-head { position: sticky; left: 0; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); }
-#codeMapModal .cm-diag-head select { max-width: 560px; padding: 4px 8px; border-radius: var(--r-2); border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: var(--fs-meta); }
+#codeMapModal .cm-diag-head select { max-width: 760px; padding: 4px 8px; border-radius: var(--r-2); border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: var(--fs-meta); }
 #codeMapModal .cm-diag-head .hint { font-size: var(--fs-small); color: var(--text-tertiary); }
 #codeMapModal .cm-diag-wrap { padding: 28px 24px 32px; }
 #codeMapModal .cm-diag { position: relative; margin: 0 auto; }
@@ -970,7 +971,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-node { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 6px 10px; border-radius: 8px; text-align: left; cursor: pointer; overflow: hidden; border: 1px solid var(--chip-kernel-border); background: var(--bg-primary); font-family: var(--font-ui); color: var(--text-primary); }
 #codeMapModal .cm-node .label { display: block; font-size: var(--fs-meta); font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
 #codeMapModal .cm-node .names { display: block; font-family: var(--font-mono); font-size: var(--fs-small); color: var(--c-kernel); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#codeMapModal .cm-node .step { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--fs-small); line-height: 1.35; color: var(--text-secondary); }
+#codeMapModal .cm-node .step { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--fs-small); line-height: 1.35; color: var(--text-secondary); }
 #codeMapModal .cm-node .sub { display: block; font-size: 10.5px; color: var(--text-tertiary); }
 #codeMapModal .cm-node.in { border-color: var(--chip-lookup-border); }
 #codeMapModal .cm-node.in .label { color: var(--c-lookup); }

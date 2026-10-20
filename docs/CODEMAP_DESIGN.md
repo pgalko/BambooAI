@@ -1,4 +1,4 @@
-# The code map — design v1.0 (2026-10-20)
+# The code map — design v1.1 (2026-10-21)
 
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
@@ -189,15 +189,17 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   with it" or "built now from the chain's record", the facts (mode, turns, cells, failed attempts, reviews, RESULT
   lines), the report's title, the question; Steps | Recipe diagram; ×; the legend of the view shown.
 - **Steps**: one rotated lane per input (used in blue with its columns, loaded, struck when never read; a chain lane
-  opens that chain), one row per cell with "Cell n · turn t", the STEP sentence, verb chips with tooltips, the lane
-  dots, and what came out: result chips by status (recorded, replaced by cell n, came out empty, a cited printout,
-  the figures), or a note (carried forward to N later steps; printed what the report cites; printed only; N figures
+  opens that chain), one row per cell with "Cell n · turn t", the STEP sentence (up to 320 characters, three lines),
+  verb chips with tooltips, the lane dots, and what came out: result chips by status (recorded, replaced by cell n,
+  came out empty, a cited printout, the figures; a chip's label up to 96 characters, wrapping to two lines, the whole
+  label in its tooltip), or a note (carried forward to N later steps; printed what the report cites; printed only; N figures
   drawn after the report; not mapped). Failed attempts on a red tint with their error; review bands; the report
   turn. A selection fades the rows and lanes outside its recipe.
 - **Recipe diagram**: a picker of every result, printout and figure; dagre (the page's global) lays the nodes out,
   with a hidden root above the inputs so they sit on the top row whatever they feed; edges from dagre's points as one
-  SVG string (centre to centre under the harness's stand-in, which gives none); a box opens its step, a "From chain
-  k" input opens that chain, the result opens its recipe. The area scrolls both ways.
+  SVG string (centre to centre under the harness's stand-in, which gives none); a box carries its label, its names
+  and up to three lines of its first steps (200 characters; the rest in its tooltip); a box opens its step, a "From
+  chain k" input opens that chain, the result opens its recipe. The area scrolls both ways.
 - **Panel**: nothing selected — how to read it, the data this chain used with its columns, Worth checking (each a
   button that opens its target), the counts; a result — the number, its interval and unit, the label, its status
   ("recorded"), the line "The map shows how this number was made, not whether it is right", Made from, How it was made
@@ -212,8 +214,11 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
 - **Keyboard and readers**: a dialog with its label; Escape closes; the focus lands on the close and returns to the
   opener; every clickable element is a button or a link with words; every colour-coded state carries text; lane dots
   say what they mark; no text below 11 px.
-- **Ways in**: the closing card's **Code map** button (for an answered chain that ran code; the chain id rides in the
-  saved markup, so a restored card still opens its map) and the eye on a chain's box in the thread map drawer,
+- **Backdrop**: the modal sits past the rail and the top bar, so the dataset pills and the rail stay as they are; the
+  working window under it is dimmed by a heavy scrim (`--scrim-heavy`, both themes) and blurred.
+- **Ways in**: the closing card's **Code map →** button on its links line (the links' style and size with a slight
+  border; for an answered chain that ran code; the chain id rides in the saved markup, so a restored card still
+  opens its map) and the eye on a chain's box in the thread map drawer,
   shown on the hovered box and the open chain's (it moves the app to the chain, closes the drawer, opens the map).
   The map never opens on its own.
 

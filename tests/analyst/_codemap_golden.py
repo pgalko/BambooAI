@@ -43,10 +43,20 @@ def comparable(view):
         for k in LAYOUT:
             d.pop(k, None)
         d["nodes"] = [{k: x for k, x in n.items() if k not in LAYOUT} for n in d["nodes"]]
+        for n in d["nodes"]:
+            if isinstance(n.get("step"), str):
+                n["step"] = n["step"][:120]                   # the port keeps 200 characters of a box's step, the prototype 120
         d["edges"] = [list(e) for e in d["edges"]]
     for r in v.get("rows", []):
         r.pop("mapped", None)
+        if r.get("type") == "step" and not r.get("figures"):
+            r["purpose"] = str(r.get("purpose", ""))[:120]   # the port keeps 320 characters of a step's sentence, the prototype 140
+    for st in v.get("steps", {}).values():
+        if st.get("role") != "figures":
+            st["purpose"] = str(st.get("purpose", ""))[:120]
     for r in v.get("results", {}).values():
+        if r.get("kind", "result") == "result" and isinstance(r.get("short"), str):
+            r["short"] = r["short"][:50]                      # the port keeps 96 characters of a short label, the prototype 58
         r.pop("traced", None)
     for r in v.get("recipes", {}).values():
         r.pop("traced", None)
@@ -145,6 +155,8 @@ def norm_map(m):
     m.pop("unparsed", None); m.pop("unpaired", None)
     for c in m.get("cells", []):
         c.pop("mapped", None)
+        if c.get("kind") != "figures":
+            c["purpose"] = str(c.get("purpose", ""))[:120]   # the port keeps 320 characters of a step's sentence, the prototype 140
     for i in m.get("inputs", []):
         i.pop("loaded", None)        # the port also counts a cell whose print or RESULT read the input itself (the rule test)
         i.pop("name", None)          # the record's own name for a document (decision 7), carried through the map

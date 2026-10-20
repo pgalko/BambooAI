@@ -36,7 +36,7 @@ function asIds(view) {
   Object.values(v.steps || {}).forEach(s => { (s.takes_chain || []).forEach(t => { t.chain = String(t.chain); }); s.inputs = (s.inputs || []).map(tok); });
   Object.values(v.recipes || {}).forEach(r => { r.inputs = (r.inputs || []).map(tok); (r.items || []).forEach(it => { it.inputs = (it.inputs || []).map(tok); }); });
   Object.values(v.diagrams || {}).forEach(d => { d.nodes.forEach(n => { n.id = String(n.id).replace(/^in:From chain (\d+)$/, 'in:chain:$1'); delete n.x; delete n.y; delete n.w; delete n.h; }); d.edges = d.edges.map(e => e.map(x => String(x).replace(/^in:From chain (\d+)$/, 'in:chain:$1'))); delete d.segs; delete d.heads; delete d.w; delete d.h; });
-  delete v.pills; v.version = 1;
+  delete v.pills; v.version = 2;
   return v;
 }
 const TRIAL = asIds(VM.trial), TRIAL2 = asIds(VM.trial2), T4 = asIds(VM.t4), T5 = asIds(VM.t5);
@@ -69,7 +69,7 @@ const st1 = el(b.steps(TRIAL, c1, null, { cells: null, inputs: null, recipe: nul
 const rows = st1.querySelectorAll('.cm-row');
 check('steps: the sticky head with the three column titles and one lane per input, rotated, used in blue with its columns', st1.querySelector('.cm-steps-head .cm-col-h').textContent === 'Step'
   && st1.querySelectorAll('.cm-lanes .cm-lane').length === 1 && st1.querySelector('.cm-lane.used .rot .name').textContent === 'field_trial.csv' && st1.querySelector('.cm-lane .sub').textContent === TRIAL.inputs[0].cols
-  && st1.querySelector('.cm-lane').getAttribute('title').includes('Uses: ') && st1.querySelector('.cm-steps').getAttribute('style') === 'min-width: ' + (70 + 34 + 340 + 270) + 'px', st1.querySelector('.cm-steps-head').outerHTML);
+  && st1.querySelector('.cm-lane').getAttribute('title').includes('Uses: ') && st1.querySelector('.cm-steps').getAttribute('style') === 'min-width: ' + (70 + 34 + 340 + 460) + 'px', st1.querySelector('.cm-steps-head').outerHTML);
 check('steps: the rows in order - cell 1, the rolled-back turn 3, cell 2, the figures cell; a failed row carries the error and the purpose; a step row its label, turn, purpose, chips and lanes',
   rows.map(r => r.className).join('|') === 'cm-row step|cm-row failed|cm-row step|cm-row step' && rows[0].querySelector('.cm-cell-no').textContent === 'Cell 1' && rows[0].querySelector('.cm-cell .sub').textContent === 'turn 1'
   && rows[1].querySelector('.cm-cell-no.fail').textContent === 'Turn 3' && rows[1].querySelector('.cm-failed-text .err').textContent === "KeyError: 'Column not found: yield'" && rows[1].querySelector('.cm-failed-text').textContent.startsWith('Rolled back · ')
@@ -228,7 +228,7 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   // the closing card's button (stream-pane.js): for an answered chain with cells only
   const pane = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'stream-pane.js'), 'utf8');
   check('the closing card carries a Code map button with the chain id in its markup, for an answered chain that ran code, guarded for a page without the module',
-    pane.includes("r.status === 'answered' && r.cells > 0 && r.chain_id") && pane.includes('<div class="sp-actions"><button class="ui-btn sm primary sp-codemap" data-chain="') && pane.includes("if(typeof CodeMapUI!==\\'undefined\\')CodeMapUI.open(this.dataset.chain)"));
+    pane.includes("r.status === 'answered' && r.cells > 0 && r.chain_id") && pane.includes("'<div class=\"links\">' + links + codemap + '</div>'") && pane.includes('<button class="sp-codemap" data-chain="') && pane.includes("if(typeof CodeMapUI!==\\'undefined\\')CodeMapUI.open(this.dataset.chain)"));
   // the modal is a dialog for readers: the role, Escape closes it, the focus lands on the close
   w.CodeMapUI.open('1'); await tick(); await tick();
   check('the dialog carries its role and label; Escape closes it', m.querySelector('.cm-dlg').getAttribute('role') === 'dialog' && m.querySelector('.cm-dlg').getAttribute('aria-label') === 'Code map'
@@ -240,6 +240,12 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   check('the navigator hands the chain on screen to the map (onChain) at the end of updateNavigationButtons', ui.includes('window.CodeMapUI.onChain(responses[currentResponseIndex] && responses[currentResponseIndex].chain_id)'));
   const css = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8');
   check('the styles sit under #codeMapModal in dialogs.css, past the rail and the top bar like the thread map drawer', css.includes('#codeMapModal { display: none; position: fixed; left: 46px; top: 40px; right: 0; bottom: 0;') && css.includes('#codeMapModal .cm-lane .rot { writing-mode: vertical-rl;'));
+  // the working window is dimmed under the map (2026-10-21): a heavy scrim in both themes and a blur; the text has room - three lines of a step, two of a chip, three in a box
+  const tokens = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'tokens.css'), 'utf8');
+  check('the backdrop dims the working window: --scrim-heavy in both themes, with a blur; a step keeps three lines, a chip two, a diagram box three',
+    css.includes('background: var(--scrim-heavy); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);') && (tokens.match(/--scrim-heavy:/g) || []).length === 2
+    && css.includes('#codeMapModal .cm-purpose span { display: -webkit-box; -webkit-line-clamp: 3;') && css.includes('#codeMapModal .cm-res .t { display: -webkit-box; -webkit-line-clamp: 2;')
+    && css.includes('#codeMapModal .cm-node .step { display: -webkit-box; -webkit-line-clamp: 3;') && (TRIAL.diagrams[Object.keys(TRIAL.diagrams)[0]].nodes.every(n => String(n.step || '').length <= 200)));
 
   const failed = results.filter(r => !r[1]);
   results.forEach(r => console.log((r[1] ? '  ok   ' : '  FAIL ') + r[0] + (r[1] ? '' : '  <- ' + String(r[2] == null ? '' : (typeof r[2] === 'string' ? r[2] : JSON.stringify(r[2]))).slice(0, 700))));
