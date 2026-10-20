@@ -83,7 +83,8 @@ def chain_record(nb, run, inputs=None, context=False, earlier=None, registry_sta
     titles = {r.id: (r.question or "") for r in path}
     return dict(chain_id=run.id, question=run.question or "", title=run.title or "", mode=getattr(run, "mode", "") or "",
                 inputs=list(inputs) if inputs is not None else inputs_from_data(run, context),
-                cells=cells, failed=failed, events=events, report=run.report or "",
+                cells=cells, failed=failed, events=events, report=run.report or "", turns=sum(1 for n in nums if n),
                 searches=sum(1 for t in run.turns if t.kind == "search"), reads=sum(1 for t in run.turns if t.kind == "read"),
+                ideas=any(t.kind == "ideas" for t in run.turns),
                 path=path_ids, path_cells=path_cells, titles=titles,
                 registry_start=dict(registry_start or {}), earlier=earlier or dict(names={}, funcs={}))

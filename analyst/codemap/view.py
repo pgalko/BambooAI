@@ -495,7 +495,8 @@ def steps_view(m, chain_id, events=(), mode="", titles=None):
         if used and len(used) < i["columns"] and len(named) <= 18:      # a lane holds a few words: name one or two
             return f"{named} · {len(used)} of {i['columns']}"
         return f"{len(used)} of {i['columns']} columns"
-    vm_inputs = [dict(id=f"i{k}", name=input_name(i["label"]), file=i["label"], kind=i["kind"], chain=i.get("chain"),
+    vm_inputs = [dict(id=f"i{k}", name=(f"{i['label']} ({i['name']})" if i["kind"] == "document" and i.get("name") else input_name(i["label"])),   # a document: the kernel's name, then the file's
+                      file=i["label"], kind=i["kind"], chain=i.get("chain"),
                       through=i.get("through"), names=i.get("names", []), from_cells=i.get("from_cells", []),
                       status=status_of(i), cols=cols_of(i), detail=i.get("detail", ""),
                       used_columns=i.get("used_columns", []),
@@ -761,6 +762,8 @@ def upgrade(vm_chain, m, primary_name):
         st["inputs"] = [("From " + x[len("from "):]) if is_chain_label(x) else (app(x) if "." in x or x == PRIMARY_LABEL else x)
                         for x in st["inputs"]]
     for i in vm_chain["inputs"]:
+        if i.get("kind") == "document":
+            continue                                      # named by the kernel's name and the file's already
         i["name"] = ("From " + chain_ref(i["chain"])) if i.get("kind") == "chain" else app(i["file"])
     for c in vm_chain["checks"]:
         for key, name in W.APP_NAMES:
@@ -796,8 +799,8 @@ def report_title(doc):
 def counts(doc):
     """The header's facts from the record: turns, cells, a figures cell, failed attempts, reviews, RESULT lines."""
     cells = doc.get("cells") or []
-    n_an = max([0] + [c.get("turn") or 0 for c in cells] + [f.get("turn") or 0 for f in doc.get("failed") or []]
-               + [e.get("turn") or 0 for e in doc.get("events") or [] if e.get("type") == "report"])
+    n_an = doc.get("turns") or max([0] + [c.get("turn") or 0 for c in cells] + [f.get("turn") or 0 for f in doc.get("failed") or []]
+                                   + [e.get("turn") or 0 for e in doc.get("events") or [] if e.get("type") == "report"])
     return dict(turns=n_an, cells=sum(1 for c in cells if c.get("kind") != "figures"), figures_cell=any(c.get("kind") == "figures" for c in cells),
                 failed=len(doc.get("failed") or []), reviews=sum(1 for e in doc.get("events") or [] if e.get("type") in ("review", "final")))
 
@@ -813,7 +816,7 @@ def build_view(m, doc, primary_name="primary dataset"):
         k = counts(doc)
         view = dict(id=chain_id, title=report_title(doc), question=doc.get("question"), meta=W.meta_nocode(doc.get("mode") or "", k["turns"], doc.get("searches") or 0),
                     inputs=[], rows=[], results={}, recipes={}, steps={}, checks=cc, diagrams={}, nocode=True,
-                    nocodeText=W.nocode_text(doc.get("searches") or 0, doc.get("reads") or 0) + where)
+                    nocodeText=W.nocode_text(doc.get("searches") or 0, doc.get("reads") or 0, bool(doc.get("ideas"))) + where)
     else:
         events = [e for e in (doc.get("events") or [])]
         v = steps_view(m, chain_id, events=events)

@@ -1,7 +1,7 @@
 """The app path: BambooAI.pd_agent_converse -> analyst Session over a real
 in-process kernel, with a scripted model layer, a web output queue, and the
 notebook tree stored under the user's storage. Run: python3 tests/analyst/test_app_path.py"""
-import os, sys, json, re, tempfile, shutil, logging
+import os, sys, json, re, tempfile, shutil, logging, copy
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.dirname(os.path.abspath(__file__)), ROOT, os.path.join(ROOT, "delve")]
 import _stubs  # noqa: F401
@@ -129,6 +129,27 @@ check("report stored with the replay line; the rewrite by the same 'model', head
 check("the run keeps the mode it was asked in, as the host labels it, and each committed cell the registry entries it made (the code map's record, 2026-10-20); the thread file carries both",
       run1.mode in ("Quick", "Deep", "Adaptive") and any(t.registry for t in run1.cells())
       and json.load(open(os.path.join(work, "storage", "u1", "threads", "1001.json")))["runs"][run1.id]["mode"] == run1.mode, (run1.mode, [t.registry for t in run1.cells()]))
+# the code map (2026-10-20, M3): built by the Session at the chain's end from the inputs the host offered, kept on the run
+from analyst import codemap as _cm
+check("the run carries its code map, at the current version, built from the primary's columns as the host offered them; the thread file carries it",
+      run1.code_map.get("version") == _cm.VERSION and "error" not in run1.code_map and run1.code_map["view"]["chain_id"] == run1.id
+      and run1.code_map["inputs"][0]["columns"] == ["arm", "x"] and run1.code_map["view"]["meta"].startswith(run1.mode + " · ")
+      and json.load(open(os.path.join(work, "storage", "u1", "threads", "1001.json")))["runs"][run1.id]["code_map"]["version"] == _cm.VERSION,
+      {k_: v for k_, v in run1.code_map.items() if k_ != "view"})
+_keep_cols, _keep_manifest, _keep_dp = BAMBOO._aux_columns, B.documents.load_manifest, BAMBOO._documents_prelude
+BAMBOO._aux_columns = lambda paths: {paths[0]: "date, load, notes"}             # the executor's one call for all files; the second file unreadable
+B.documents.load_manifest = lambda d: {"documents": [{"id": "D1", "file": "field_notes.md"}]}
+BAMBOO._documents_prelude = lambda: "D1 = ..."
+try:
+    _run_aux = copy.deepcopy(run1)
+    _run_aux.data = dict(run1.data, aux=["datasets/u1/k1/activity_summary_20260714_to_20261012.csv", "datasets/u1/k1/plot_drainage.csv"])
+    _mi = BAMBOO._map_inputs(_run_aux)
+finally:
+    BAMBOO._aux_columns, B.documents.load_manifest, BAMBOO._documents_prelude = _keep_cols, _keep_manifest, _keep_dp
+check("the host's map inputs: the primary, each auxiliary file labelled without the loader's date suffix with its columns from the executor's one call, the thread's documents as the kernel names them",
+      [(i["kind"], i["label"], i.get("columns"), i.get("name")) for i in _mi]
+      == [("primary", "primary dataset", ["arm", "x"], run1.data.get("name") or run1.data.get("source") or "primary dataset"),
+          ("file", "activity_summary.csv", ["date", "load", "notes"], None), ("file", "plot_drainage.csv", [], None), ("document", "D1", None, "field_notes.md")], _mi)
 answer_ev = next(e for e in events if e.get("type") == "answer")
 check("the answer event carries the report (with its replay line) and the code event carries the assembled script",
       "Replay" in answer_ev["data"] and "# --- cell 1 ---" in next(e for e in events if e.get("type") == "code")["data"])

@@ -739,7 +739,7 @@ class Session:
                  kernel_factory: Optional[Callable[[], object]] = None,
                  replay_runner: Optional[Callable] = None, read: Optional[Callable] = None,
                  unit_text: Optional[Callable[[str], Optional[str]]] = None, kernel_prelude: str = "", documents: bool = False,
-                 context: bool = False):
+                 context: bool = False, map_inputs: Optional[Callable[[Run], list]] = None):
         self.kernel = kernel
         self.nb = notebook
         self.llm = llm            # llm(system, user, **hints) -> (text, usage); hints: review=True on a self-review turn, rewrite=True on the plain-language rewrite
@@ -757,6 +757,8 @@ class Session:
                                                 # start of a run and again after a rollback, never a cell of the record
         self.documents = documents
         self.context = context                  # the load carries the words written beside the data (CTX, READ CTX)
+        self.map_inputs = map_inputs            # map_inputs(run) -> the inputs the chain was offered, for the code map (2026-10-20);
+                                                # None: the map is drawn from run.data alone
         self.system = contract(documents, context=context)      # the documents' and the context's sections and READ rows only when present
 
     # ----- the prompt --------------------------------------------------------
@@ -875,12 +877,13 @@ class Session:
         items = [i for i in items if i][:5]
         return "\n".join(f"{n}. {i}" for n, i in enumerate(items, 1))
 
-    def ideas(self, level: int, parent: Optional[str] = None, run_id: Optional[str] = None, question: str = "") -> Run:
+    def ideas(self, level: int, parent: Optional[str] = None, run_id: Optional[str] = None, question: str = "", mode: str = "") -> Run:
         """Five follow-up questions one step from the thread, at the asked variation level.
         A single model call over the thread's ledger and the data description: no cells,
         no replay, no rewrite. The run is recorded like any other, so the map shows it."""
         level = max(1, min(5, int(level or 3)))
         run = self.nb.new_run(question or f"User requested variations of the enquiry (level {level})", parent, run_id=run_id)
+        run.mode = mode                                       # the host's label (Ideas), for the code map's one line (2026-10-20)
         self._save()
         self.emit({"type": "turn_start", "run": run.id, "turn": 1, "of": 1})
         t0 = time.time()
@@ -1221,6 +1224,14 @@ class Session:
             run.replay_status, run.replay_script = status, script
             run.report += f"\n\n> {line}"
             self.emit({"type": "replay_end", "run": run.id, "status": status, "line": line})
+        # the code map (2026-10-20, analyst/codemap): built once from the record, mechanically, and kept with the run;
+        # nothing of it reaches a prompt, and a failure is recorded on the run, never raised
+        try:
+            from . import codemap
+            run.code_map = codemap.build(self.nb, run, self.map_inputs(run) if self.map_inputs else None, context=self.context)
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("code map for run %s: %s", run.id, exc)
+            run.code_map = {"error": " ".join(str(exc).split())[:300]}
         run.status = "answered"
         self.emit({"type": "report", "run": run.id, "text": run.report})
         self.emit({"type": "rewrite", "run": run.id, "text": run.rewrite})

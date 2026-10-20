@@ -134,4 +134,5 @@ def norm_map(m):
         c.pop("mapped", None)
     for i in m.get("inputs", []):
         i.pop("loaded", None)        # the port also counts a cell whose print or RESULT read the input itself (the rule test)
+        i.pop("name", None)          # the record's own name for a document (decision 7), carried through the map
     return m

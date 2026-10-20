@@ -323,11 +323,24 @@ def rule_follow_up():
           == [("cites", "1", 1, "the report also cites {chain:1}'s cell 1"), ("chain", "1", None, "rests on {chain:1}: plot_means (cell 1)")], v["checks"])
 
 
+def rule_document():
+    ins = [dict(kind="primary", label="primary dataset", name="field_trial.csv", columns=COLS, detail="720 rows x 7 columns"), dict(kind="document", label="D1", name="field_notes.md")]
+    code = "print(D1.grep('wet season', context=1))\n"
+    v = codemap.build_record(record([cell(1, code, [], output="D1.3: The wet season came early\n")], inputs=ins, report="The notes say the wet season came early [D1.3].\n"))["view"]
+    d = v["inputs"][1]
+    check("rule: a document read in a cell (decision 7) - a lane named by the kernel's name and the file's; used when the report cites one of its passages",
+          (d["kind"], d["name"], d["file"], d["status"]) == ("document", "D1 (field_notes.md)", "D1", "used") and v["rows"][0]["lanes"] == ["", "read"]
+          and [c["text"] for c in v["checks"]] == ["field_trial.csv: offered, never read"], (v["inputs"], v["rows"], v["checks"]))
+    v = codemap.build_record(record([cell(1, code, [], output="D1.3: The wet season came early\n")], inputs=ins, report="Nothing to say.\n"))["view"]
+    check("rule: a document read but never cited - loaded, with a check", v["inputs"][1]["status"] == "loaded" and "D1 (field_notes.md): loaded in cell 1, never used" in [c["text"] for c in v["checks"]], v["checks"])
+
+
 for name, fn in [("a RESULT in a loop", rule_loop), ("a RESULT inside a helper", rule_helper_line), ("a type conversion", rule_conversion),
                  ("drawing through a helper", rule_draw_helper), ("a title-only read", rule_title_only), ("a bootstrap through a helper", rule_bootstrap_rng),
                  ("tuple aliasing in a helper", rule_alias), ("a string join", rule_string_join), ("a typed date", rule_typed_date), ("nan", rule_nan),
                  ("corrects", rule_corrects), ("a cited printout", rule_cited_printout), ("several figures", rule_several_figures),
-                 ("a cell that does not parse", rule_unparsed), ("a chain with no cells", rule_no_cells), ("a follow-up", rule_follow_up)]:
+                 ("a cell that does not parse", rule_unparsed), ("a chain with no cells", rule_no_cells), ("a follow-up", rule_follow_up),
+                 ("a document", rule_document)]:
     rule(name, fn)
 
 # ---- the build at a chain's end: from the Run, never raising -------------------------------------------------------
@@ -378,6 +391,207 @@ check("words.APP_NAMES is the top bar's table (intervalsAuxDisplayName, without 
 check("lane_name: a file is named as the top bar names it, the primary by its name, another file without its extension",
       (W.lane_name("activity_summary_20260801_to_20261001.csv", "x"), W.lane_name(W.PRIMARY_LABEL, "field_trial.csv"), W.lane_name("rainfall.csv", "x"))
       == ("Activity Summary", "field_trial.csv", "rainfall"))
+
+# ---- integration: the field-trial scenario on a real kernel through the Session (blueprint 9.3) ------------------------
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+from analyst.codemap import record as R  # noqa: E402
+from analyst.notebook import NotebookStore  # noqa: E402
+from analyst.session import Session, Budget  # noqa: E402
+from kernel import PersistentKernel  # noqa: E402
+
+sys.path.insert(0, os.path.join(ROOT, "tools", "stack"))
+import harness_models as H  # noqa: E402
+from scenarios import field_trial as FT  # noqa: E402
+
+work = tempfile.mkdtemp(prefix="codemap_")
+csv = os.path.join(work, FT.DATASET_NAME)
+df = FT.make_dataset(csv)
+H.load("field_trial")
+
+
+def scenario_llm(system, user, **h):
+    thinking, text = H.SCENARIO.reply(system, user)
+    return text, {"cost": 0.001}
+
+
+SEARCH = ("SOURCED CLAIMS:\n- regime trials across mixed soils report the within-soil contrast at the plot level [1]\n\n"
+          "SOURCES:\n[1] a note - https://example.org\n\nSUMMARY:\nthe plot is the unit")
+DATA = {"df_id": "ft1", "name": FT.DATASET_NAME, "source": "file", "columns": [{"name": c} for c in df.columns], "rows": len(df), "aux": []}
+_pp = os.environ.get("PYTHONPATH")
+if "plotly" in _stubs.FAKE:                  # the kernel's worker imports plotly: the stack's stand-in where the real one is absent
+    os.environ["PYTHONPATH"] = os.path.join(ROOT, "tools", "stack", "fakepkgs") + (os.pathsep + _pp if _pp else "")
+store = NotebookStore(os.path.join(work, "storage"))
+nb_i = Notebook("sim1")
+offered = []
+
+
+def map_inputs(run):                         # the host's callable (7.6): here the record's own reading of run.data
+    out = R.inputs_from_data(run)
+    offered.append(run.id)
+    return out
+
+
+k = PersistentKernel(df=df, generated_dir=os.path.join(work, "generated"))
+try:
+    s = Session(k, nb_i, scenario_llm, store=store, data_description="field_trial.csv: 720 rows x 6 columns",
+                kernel_factory=lambda: PersistentKernel(df=df, generated_dir=os.path.join(work, "generated")),     # the replay's DS.save, out of the repo
+                search=lambda q: SEARCH, map_inputs=map_inputs)
+    i1 = s.run(FT.QUESTIONS[0], budget=Budget(turns=15, dollars=1.5), run_id="1", data=DATA, mode="Deep")      # the fixtures' numbers as ids
+    i2 = s.run(FT.QUESTIONS[1], parent=i1.id, budget=Budget(turns=15, dollars=1.5), run_id="2", data=DATA, mode="Deep")
+finally:
+    k.cleanup()
+    if _pp is None:
+        os.environ.pop("PYTHONPATH", None)
+    else:
+        os.environ["PYTHONPATH"] = _pp
+m1, m2 = i1.code_map, i2.code_map
+check("integration: the first chain is answered with a map at the current version, built from the inputs the host offered once",
+      i1.status == "answered" and m1.get("version") == codemap.VERSION and "error" not in m1 and m1["view"]["chain_id"] == "1" and offered == ["1", "2"]
+      and m1["inputs"][0]["name"] == FT.DATASET_NAME and m1["inputs"][0]["columns"] == list(df.columns), (i1.status, {k_: v for k_, v in m1.items() if k_ != "view"}))
+cells1 = i1.cells()
+check("integration: the committed cells carry the registry, the RESULT records their line",
+      all(isinstance(t.registry, dict) for t in cells1) and any(t.registry for t in cells1)
+      and all(isinstance(r_.get("line"), int) for t in cells1 for r_ in t.results) and any(t.results for t in cells1), [(t.cell_no, sorted(t.registry)[:4], t.results) for t in cells1])
+v1 = m1["view"]
+check("integration: the view has the chain's RESULT lines with their estimates, each with a recipe, and the header's facts",
+      v1["results"] and all(r_["estimate"] for r_ in v1["results"].values() if r_["kind"] == "result") and set(v1["recipes"]) >= set(v1["results"])
+      and v1["meta"].startswith("Deep · ") and "RESULT line" in v1["meta"] and v1["inputs"][0]["status"] == "used" and v1["path"] == ["1"],
+      (v1["meta"], {k_: (r_["estimate"], r_["status"]) for k_, r_ in v1["results"].items()}, v1["inputs"]))
+check("integration: the self-checks found nothing to flag", m1["selfcheck"] == dict(results=[], figures=[], empty=[]), m1["selfcheck"])
+v2 = m2["view"]
+lane2 = [(i["kind"], i["name"], i["status"]) for i in v2["inputs"]]
+check("integration: the follow-up's map takes the first chain's names from its stored exports: a lane for that chain by id, the dataset reached through it or read again",
+      i2.status == "answered" and "error" not in m2 and lane2 and lane2[0] == ("chain", "From {chain:1}", "used") and v2["path"] == ["1", "2"]
+      and any(t["chain"] == "1" for st in v2["steps"].values() for t in st["takes_chain"]) and v2["titles"]["1"] == FT.QUESTIONS[0], (lane2, v2.get("path"), m2.get("error")))
+loaded = store.load("sim1")
+check("integration: the thread file carries both maps as stored",
+      loaded.runs["1"].code_map["view"]["results"] == v1["results"] and loaded.runs["2"].code_map["exports"] == m2["exports"]
+      and json.dumps(loaded.runs["1"].code_map, sort_keys=True) == json.dumps(m1, sort_keys=True))
+# the trial fixtures are this scenario's two chains, run in the real kernel: the live run's views are the prototype's, but for
+# what the fixtures predate (the report row, the primary's name beside its detail) and the first caption, which the
+# fixture cut at its comma
+
+
+def live_comparable(view):
+    v = comparable(view)
+    v["rows"] = [r_ for r_ in v["rows"] if r_.get("type") != "report"]
+    for i in v["inputs"]:
+        i.pop("detail", None)
+    for f in v.get("figures", {}).values():
+        f.pop("caption", None)
+    for r_ in v["rows"]:
+        if r_.get("figures"):
+            r_.pop("cited", None)                       # the fixture's report lost its Figures section, so its figures row is uncited
+            r_.pop("purpose", None)                     # ... and its purpose line carries the cut caption
+            st = v.get("steps", {}).get(str(r_.get("cell")))
+            if st:
+                st.pop("cited", None); st.pop("purpose", None); st.pop("why", None)
+    return v
+
+
+for live_view, name in ((v1, "trial"), (v2, "trial2")):
+    diff_live = first_difference(live_comparable(live_view), live_comparable(expected[name]))
+    check(f"integration: the live run's view is the golden {name} view (the same scenario, run again in the real kernel)", not diff_live, diff_live)
+check("integration: the figures' captions are the report's own lines, whole",
+      [f["caption"] for f in v1["figures"].values()] == ["plot-level yield by regime within each soil type, the estimate's spread", "mean plot yield by regime"], v1["figures"])
+
+# an extractor that raises leaves the chain answered, the failure on the run
+import analyst.codemap as CM  # noqa: E402
+_build = CM.build
+CM.build = lambda *a, **kw: 1 / 0
+nb_x = Notebook("tx")
+x_script = ["###NOTE###\n- Plan: report\n###ACTION###\nCELL\n```python\nprint(df['yield_t_ha'].mean())\n```", "###NOTE###\n- Plan: report\n###ACTION###\nREPORT\n## r\n\nThe mean [cell 1]."]
+x_i = {"n": 0}
+
+
+def x_llm(system, user, **h):
+    if user.startswith("Rewrite"):
+        return "plain", {"cost": 0}
+    i = x_i["n"]; x_i["n"] += 1
+    return x_script[min(i, len(x_script) - 1)], {"cost": 0.001}
+
+
+kx = PersistentKernel(df=df, generated_dir=os.path.join(work, "generated"))
+try:
+    rx = Session(kx, nb_x, x_llm, data_description="d").run("q", budget=Budget(turns=4, dollars=1.0), run_id="2001", data=DATA, mode="Quick")
+finally:
+    kx.cleanup()
+    CM.build = _build
+check("integration: an extractor that raises leaves the chain answered, with the failure recorded on the run",
+      rx.status == "answered" and set(rx.code_map) == {"error"} and "division by zero" in rx.code_map["error"], (rx.status, rx.code_map))
+
+# ---- the route (blueprint 7.4, 9.4): a test app with the app's two names faked ---------------------------------------
+import types  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "web_app"))
+fake_auth = types.ModuleType("auth"); fake_auth.requires_auth = lambda f: f; sys.modules["auth"] = fake_auth
+fake_app = types.ModuleType("app"); fake_app.user_path = lambda root, *p: os.path.join(work, root, "u1", *p); fake_app.bamboo_ai_instances = {}; sys.modules["app"] = fake_app
+import code_map_routes as CMR  # noqa: E402
+from flask import Flask  # noqa: E402
+wapp = Flask("t"); wapp.secret_key = "t"; wapp.register_blueprint(CMR.code_map_bp); wc = wapp.test_client()
+rstore = NotebookStore(os.path.join(work, "storage", "u1"))
+nb_r = Notebook("4001")
+old_run = nb_r.new_run(FT.QUESTIONS[0], run_id="5001")
+old_run.turns = [Turn(kind="cell", thinking="Mean yield first.", code="m = df['yield_t_ha'].mean()\nRESULT(f\"mean yield: {m:.2f} t/ha\")\n", stdout="RESULT: mean yield: 4.87 t/ha\n",
+                      results=[dict(text="mean yield: 4.87 t/ha", typed=False, test=None, corrects=None, line=2)], registry={"m": {"type": "float64", "desc": "float64"}}, cell_no=1),
+                 Turn(kind="report", text="done")]
+old_run.report = "## Mean yield\nThe mean is 4.87 t/ha [cell 1].\n"; old_run.status = "answered"; old_run.mode = "Quick"; old_run.data = dict(DATA)     # no map: an old run
+done_run = nb_r.new_run("And the median?", parent="5001", run_id="5002")
+done_run.turns = [Turn(kind="cell", thinking="Median next.", code="md = df['yield_t_ha'].median()\nRESULT(f\"median yield: {md:.2f} t/ha, mean was {m:.2f}\")\n", stdout="RESULT: median yield: 4.80 t/ha, mean was 4.87\n",
+                       results=[dict(text="median yield: 4.80 t/ha, mean was 4.87", typed=False, test=None, corrects=None, line=2)], registry={"md": {"type": "float64", "desc": "float64"}}, cell_no=2),
+                  Turn(kind="report", text="done")]
+done_run.report = "## Median\n4.80 [cell 2].\n"; done_run.status = "answered"; done_run.mode = "Quick"; done_run.data = dict(DATA)
+done_run.code_map = codemap.build(nb_r, done_run, inputs=R.inputs_from_data(done_run),        # stored at the chain's end, as _finish does,
+                                  ancestors={"5001": codemap.build(nb_r, old_run)["exports"]})   # when the parent still had its exports
+running = nb_r.new_run("Still going", run_id="5003"); running.status = "running"
+stopped = nb_r.new_run("Stopped", run_id="5004"); stopped.status = "stopped"
+broken = nb_r.new_run("Broken map", run_id="5005"); broken.status = "answered"; broken.code_map = {"error": "the extractor fell over"}
+stale = nb_r.new_run("Stale map", run_id="5006"); stale.turns = list(old_run.turns); stale.report = old_run.report; stale.status = "answered"; stale.data = dict(DATA)
+stale.code_map = dict(codemap.build(nb_r, stale, inputs=R.inputs_from_data(stale)), version=codemap.VERSION - 1)
+ideas = nb_r.new_run("What next?", run_id="5007"); ideas.turns = [Turn(kind="ideas", text="1. Q one?\n2. Q two?")]; ideas.status = "answered"; ideas.mode = "Ideas"
+rstore.save(nb_r)
+before_file = open(os.path.join(work, "storage", "u1", "threads", "4001.json"), encoding="utf-8").read()
+r = wc.get("/code_map/4001/5002"); j = r.get_json()
+check("route: a chain with a stored map answers it, built at the chain's end",
+      r.status_code == 200 and j["built"] == "end" and j["chain_id"] == "5002" and j["thread_id"] == "4001" and j["map"]["chain_id"] == "5002" and j["map"]["path"] == ["5001", "5002"]
+      and [i["name"] for i in j["map"]["inputs"]] == ["From {chain:5001}", FT.DATASET_NAME], (r.status_code, {k_: v for k_, v in (j or {}).items() if k_ != "map"}))
+r = wc.get("/code_map/4001/5001"); j = r.get_json()
+check("route: a run without a stored map is built now, from its data record, and not written back",
+      r.status_code == 200 and j["built"] == "now" and j["map"]["results"]["r1"]["estimate"] == "4.87" and j["map"]["version"] == codemap.VERSION
+      and open(os.path.join(work, "storage", "u1", "threads", "4001.json"), encoding="utf-8").read() == before_file
+      and rstore.load("4001").runs["5001"].code_map == {}, (r.status_code, {k_: v for k_, v in (j or {}).items() if k_ != "map"}))
+check("route: the map built now is cached in the process, keyed by storage, thread, chain and version",
+      (os.path.join(work, "storage", "u1"), "4001", "5001", codemap.VERSION) in CMR._CACHE and wc.get("/code_map/4001/5001").get_json()["built"] == "now")
+r = wc.get("/code_map/4001/5006"); j = r.get_json()
+check("route: a stored map of an older version is rebuilt now", r.status_code == 200 and j["built"] == "now" and j["map"]["version"] == codemap.VERSION, j if not j or "map" not in j else j["built"])
+check("route: a running chain and an unfinished one have no map, only their state",
+      (wc.get("/code_map/4001/5003").get_json().get("state"), wc.get("/code_map/4001/5004").get_json().get("state")) == ("running", "unfinished"))
+_cb = CMR.codemap.build
+CMR.codemap.build = lambda *a, **kw: {"version": codemap.VERSION, "error": "the extractor fell over"}
+try:
+    j = wc.get("/code_map/4001/5005").get_json()
+finally:
+    CMR.codemap.build = _cb
+check("route: a stored failure is no map - the chain is built again now; when that fails too, the error is the answer",
+      j.get("error") == "the extractor fell over" and "map" not in j and wc.get("/code_map/4001/5005").get_json().get("built") == "now", j)
+j = wc.get("/code_map/4001/5007").get_json()
+check("route: an ideas chain (answered without _finish) is built now: its one line says it proposed questions, its header its one turn",
+      j.get("built") == "now" and j["map"]["nocode"] is True and j["map"]["nocodeText"] == "No code ran in this chain: it proposed questions to ask next, so there is nothing to map."
+      and j["map"]["meta"] == "Ideas · 1 turn · no code" and j["map"]["rows"] == [], j.get("map", {}).get("meta"))
+check("route: 400 for ids of the wrong shape, 404 for an unknown chain or thread",
+      wc.get("/code_map/4001/no-such").status_code == 400 and wc.get("/code_map/..%2Fx/5001").status_code in (400, 404) and wc.get("/code_map/4001/9999").status_code == 404
+      and wc.get("/code_map/4002/5001").status_code == 404)
+live = types.SimpleNamespace(notebook=nb_r)
+nb_r.runs["5001"].question = "changed in the live instance"
+fake_app.bamboo_ai_instances["s1"] = live
+with wc.session_transaction() as sess:
+    sess["session_id"] = "s1"
+CMR._CACHE.clear()
+j = wc.get("/code_map/4001/5001").get_json()
+check("route: the live instance's notebook is read when it holds the thread", j["built"] == "now" and j["map"]["question"] == "changed in the live instance", j.get("map", {}).get("question"))
+
+os.chdir("/"); shutil.rmtree(work, ignore_errors=True)
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")

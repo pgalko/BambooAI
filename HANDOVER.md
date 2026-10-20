@@ -458,6 +458,27 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The code map built at a chain's end, and its route (2026-10-20, patch 0212; M3 of the build).** `Session._finish`
+  builds the map after the replay, before the run is answered (`codemap.build`; a failure is `{"error": ...}` on the
+  run, never raised), from the inputs the host offers through `Session(map_inputs=...)`: `BambooAI._map_inputs` gives
+  the primary with its columns, each auxiliary file with its columns (`_aux_columns`, one executor call) under the
+  label the extractor matches (`file_label`: the loader's date suffix dropped), the context when the load carries one,
+  and the thread's documents as the kernel names them (`D1`, with the file's name: decision 7). An ideas run keeps
+  the host's label (`mode="Ideas"`). `web_app/code_map_routes.py`, `GET /code_map/<thread_id>/<chain_id>` (registered
+  after the codebook): 400 for ids of the wrong shape, 404 for an unknown chain or thread; for a running chain or one
+  that ended without an answer `{"state": "running" | "unfinished"}`; a stored map at the current version comes back
+  as `built: "end"`; a missing, stale or failed one is built now from the inputs the stored map kept (else from
+  `run.data`), its ancestors without current exports first, root to leaf, cached in the process (64, oldest out, a
+  failure not kept) and never written back (the live session rewrites the thread file after every turn); when that
+  build fails too, `{"error": ...}`. The notebook is the live instance's when it holds the thread, else the thread
+  file. A chain with no cells (an ideas run, a web-search answer) gets its one-line map on demand. Extractor changes
+  with it: a document whose passage the report cites (`[D1.3]`) counts as used, and its lane reads "D1 (file)";
+  the no-code header leaves out "0 web searches". Tests: test_code_map.py 78 (the field-trial scenario on a real
+  kernel through the Session, both chains, their views the golden trial views; the registry and lines on the record;
+  the thread file; an extractor that raises; the route's every answer; the cache; the live notebook), test_app_path.py
+  196 (the host's map on the run and in the thread file; the host's inputs with auxiliary columns and a document),
+  test_analyst.py 231, the stack walk 107 (every chain's map through the real app and executor, the document chain's
+  D1 lane, the route). The stack walk's routines-gallery check now waits for the lit button (a re-render flake).
 - **The code map's extractor (2026-10-20, patch 0211; M2 of the build).** `analyst/codemap/`: the design package's
   prototype ported behind two calls, `build(nb, run, inputs, context)` at a chain's end (M3 wires it in) and
   `build_record(record)` from a ChainRecord; nothing in it calls a model or reaches a prompt, and `build` never

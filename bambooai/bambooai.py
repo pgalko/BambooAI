@@ -890,6 +890,23 @@ class BambooAI:
                 out[path] = lines[lines.index("Columns:") + 1]
         return out
 
+    def _map_inputs(self, run):
+        """The inputs a chain was offered, for its code map (analyst/codemap, 2026-10-20): the primary with its columns,
+        each auxiliary file with its columns (one executor call for them all), the context when the load carries one,
+        and the thread's documents as the kernel names them (D1, D2, ...). Called once, at the chain's end."""
+        from analyst.codemap.record import inputs_from_data
+        out = inputs_from_data(run, context=bool(self._context_prelude()))
+        paths = [i["path"] for i in out if i.get("kind") == "file" and i.get("path")]
+        if paths:
+            cols = self._aux_columns(paths)
+            for i in out:
+                if i.get("kind") == "file" and cols.get(i.get("path")):
+                    i["columns"] = [c.strip() for c in str(cols[i["path"]]).split(",") if c.strip()]
+        if self.thread_id is not None and self._documents_prelude():
+            for d in documents.load_manifest(self._documents_dir()).get("documents") or []:
+                out.append({"kind": "document", "label": str(d.get("id") or ""), "name": str(d.get("file") or "")})
+        return out
+
     @staticmethod
     def _aux_compact(i, path, cols):
         """A file's entry without its rows (the heads' budget is spent): the path, the column names when the describer
@@ -1031,7 +1048,7 @@ class BambooAI:
             self._pane('pane_run_start', mode="Ideas", of=1, dollars=0.1)
         session = Session(None, self.notebook, self._llm, store=self.store, emit=self._emit, recall=None, search=None,
                           data_description=self._data_description())
-        run = session.ideas(int(level), parent=parent, run_id=str(self.chain_id), question=question or "")
+        run = session.ideas(int(level), parent=parent, run_id=str(self.chain_id), question=question or "", mode="Ideas")
         self._pane('pane_run_end', status=run.status, turns=1, of=1, cells=0, failed=0, cost=self._chain_cost(), seconds=0,
                    replay_status='', replay_line='', plots=0, files=[])
         self.output_manager.display_results(chain_id=self.chain_id, answer=run.report, explore=True)
@@ -1205,7 +1222,7 @@ class BambooAI:
                           read=self._read, unit_text=self._unit_text, kernel_prelude=self._kernel_prelude(),
                           documents=bool(self._documents_prelude()), context=bool(self._context_prelude()),
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
-                          replay_runner=self._run_replay)
+                          replay_runner=self._run_replay, map_inputs=self._map_inputs)
         try:
             run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record, image=figure, mode=self._mode_label)
         except ExecutionInterrupted:

@@ -52,6 +52,7 @@ from dataframe_routes import dataframe_bp
 from documents_routes import documents_bp
 from routines_routes import routines_bp
 from codebook_routes import codebook_bp
+from code_map_routes import code_map_bp
 
 # Logs
 from logger_config import setup_logging, get_logger
@@ -233,6 +234,7 @@ app.register_blueprint(dataframe_bp)
 app.register_blueprint(documents_bp)
 app.register_blueprint(routines_bp)
 app.register_blueprint(codebook_bp)
+app.register_blueprint(code_map_bp)
 
 # Initialize authentication
 init_auth(app)

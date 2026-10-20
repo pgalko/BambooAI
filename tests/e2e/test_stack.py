@@ -383,7 +383,11 @@ def main():
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none' && /chain 1 of 4/.test(document.getElementById('chainPosition').textContent)", timeout=15000)
             check("open the analysis: the routine's origin loads from favourites into the main panes", True)
             page.click("#workflowManagerPill")
-            page.wait_for_selector("#workflowManagerModal .workflow-card-routine", timeout=15000)
+            # the gallery re-renders its cards once the chains arrive: wait for the lit button, not for a card (2026-10-20: a flake)
+            try:
+                page.wait_for_function("() => [...document.querySelectorAll('#workflowManagerModal .workflow-card-routine')].some(b => b.className.split(' ').includes('has') && (b.querySelector('.n') || {}).textContent === '1')", timeout=15000)
+            except Exception:                                  # noqa: BLE001 - the check below says what was there
+                pass
             card_btn = page.evaluate("() => [...document.querySelectorAll('#workflowManagerModal .workflow-card-routine')].map(b => [b.className, (b.querySelector('.n') || {}).textContent || ''])")
             check("the favourites' card carries the Routine button, lit with 1", any("has" in c.split() and n == "1" for c, n in card_btn), card_btn)
             page.evaluate("WorkflowModal.close()")
@@ -680,6 +684,20 @@ def main():
                   and all((r["replay_status"] == "reproduced") == any(t_["kind"] == "cell" for t_ in r["turns"]) for r in runs),
                   [(r["status"], r["replay_status"], sum(1 for t_ in r["turns"] if t_["kind"] == "cell")) for r in runs])
             check("the second run's parent is the first", len(runs) >= 2 and runs[1]["parent"] == runs[0]["id"])
+            # the code map (2026-10-20, M3): built at each chain's end by the host, through the executor's columns call
+            with_cells = [r for r in runs if any(t_["kind"] == "cell" and t_.get("cell_no") for t_ in r["turns"])]
+            check("every chain with cells carries its code map, built at its end with no error, its view naming the chain and the primary by its file",
+                  with_cells and all(r["code_map"].get("view") and "error" not in r["code_map"] and r["code_map"]["view"]["chain_id"] == r["id"]
+                                     and r["code_map"]["inputs"][0]["kind"] == "primary" and r["code_map"]["inputs"][0]["name"].endswith(".csv") for r in with_cells),
+                  [(r["id"], {k_: v for k_, v in r["code_map"].items() if k_ != "view"}) for r in with_cells][:2])
+            doc_runs = [r for r in with_cells if r["question"] == mod.DOC_QUESTION]
+            check("the document chain's map lists the document as an input, as the kernel names it, and its cell read it",
+                  doc_runs and any(i.get("kind") == "document" and i.get("label") == "D1" and i.get("name") == mod.DOC_NAME for i in doc_runs[0]["code_map"]["inputs"])
+                  and any(i["kind"] == "document" and i["status"] == "used" for i in doc_runs[0]["code_map"]["view"]["inputs"]),
+                  (doc_runs[0]["code_map"]["inputs"], doc_runs[0]["code_map"]["view"]["inputs"]) if doc_runs else runs)
+            cm_j = page.evaluate("(a) => window.authService.fetch('/code_map/' + a[0] + '/' + a[1]).then(r => r.json())", [nb["thread_id"], runs[0]["id"]])
+            check("the route answers the first chain's map as stored at its end", cm_j.get("built") == "end" and cm_j.get("map", {}).get("chain_id") == runs[0]["id"]
+                  and cm_j["map"]["results"], {k_: v for k_, v in cm_j.items() if k_ != "map"})
             check("the fifth run - the follow-up after the data changed - stands on the first, ran on the other file (its own data record), and its replay script holds its cell alone",
                   runs[4]["parent"] == runs[0]["id"] and runs[4]["data"].get("name") == "no_soil.csv" and runs[4]["data"].get("df_id") not in (None, runs[0]["data"].get("df_id"))
                   and runs[4]["replay_script"].count("# --- cell") == 1 and "adj_diff" not in runs[4]["replay_script"], (runs[4]["data"].get("name"), runs[4]["replay_script"].count("# --- cell")))

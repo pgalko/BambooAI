@@ -463,14 +463,17 @@ def build_map(doc):
                            from_cells=sorted({e_names[x]["cell"] for x in names}),
                            cells=sorted(used_in.get(lab, set())), loaded=sorted(loaded_in.get(lab, set())),
                            used=bool(used_in.get(lab)), status="used" if used_in.get(lab) else ("loaded, not used" if loaded_in.get(lab) else "not used")))
+    cited_docs = set(re.findall(r"\[(D\d+)\.\d+\]", report))    # a document whose passage the report cites was used (2026-10-20)
     for i in doc.get("inputs", []):
         lab = i["label"]
         if lab == CONTEXT_LABEL:
             continue
         cols = i.get("columns") or []
         used_cols = [c for c in cols if c in toks_by_input.get(lab, set())]
+        if i.get("kind") == "document" and lab in cited_docs and loaded_in.get(lab):
+            used_in[lab] |= loaded_in[lab]
         status = "used" if used_in.get(lab) else (status_via(via_used[lab]) if lab in via_used else ("loaded, not used" if loaded_in.get(lab) else "not used"))
-        inputs.append(dict(label=lab, kind=i["kind"], detail=i.get("detail", ""), columns=len(cols), used_columns=used_cols, all_columns=list(cols),
+        inputs.append(dict(label=lab, kind=i["kind"], name=i.get("name") or "", detail=i.get("detail", ""), columns=len(cols), used_columns=used_cols, all_columns=list(cols),
                            cells=sorted(used_in.get(lab, set())), loaded=sorted(loaded_in.get(lab, set())), through=via_used.get(lab) if not used_in.get(lab) else None,
                            used=bool(used_in.get(lab)) or lab in via_used, status=status))
 

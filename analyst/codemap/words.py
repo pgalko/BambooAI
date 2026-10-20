@@ -132,10 +132,14 @@ def meta_line(mode, turns, cells, figures_cell, failed, reviews, n_results) -> s
 
 
 def meta_nocode(mode, turns, searches) -> str:
-    parts = ([mode] if mode else []) + [f"{turns} turn{'s' if turns != 1 else ''}", f"{searches} web search{'es' if searches != 1 else ''}", "no code"]
-    return " · ".join(parts)
+    parts = ([mode] if mode else []) + [f"{turns} turn{'s' if turns != 1 else ''}"]
+    if searches:
+        parts.append(f"{searches} web search{'es' if searches != 1 else ''}")
+    return " · ".join(parts + ["no code"])
 
 
-def nocode_text(searches, reads=0) -> str:
+def nocode_text(searches, reads=0, ideas=False) -> str:
+    if ideas:
+        return "No code ran in this chain: it proposed questions to ask next, so there is nothing to map."
     src = ("a web search" if searches == 1 else f"{searches} web searches") if searches else ("a document read" if reads == 1 else (f"{reads} document reads" if reads else "what it already knew"))
     return f"No code ran in this chain: it answered from {src}, so there is nothing to map."

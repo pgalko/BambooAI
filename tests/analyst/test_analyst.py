@@ -761,8 +761,9 @@ check("record: a committed cell keeps the kernel's registry entries for the name
       "and nothing for a cell that bound no name; the figures cell keeps its figures' names; a name unchanged by a later cell is not kept again",
       set(_c1.registry) == {"m"} and _c1.registry["m"]["type"] == "float64" and _c2.registry == {} and set(_c3.registry) == {"fig", "fig2"} and "m" not in _c3.registry
       and _c3.registry["fig"]["type"] == "Figure", (_c1.registry, _c2.registry, sorted(_c3.registry)))
-check("record: the figures cell's RESULT record carries its line in the analyst's own code - line 6 of the cell, not line 13 of the wrapped one; a failed cell keeps no registry; the run keeps the mode it was asked in; no map yet",
-      [r.get("line") for r in _c3.results] == [6] and step_turns[0].registry == {} and rf.mode == "Deep" and rf.code_map == {}, (_c3.results, rf.mode))
+check("record: the figures cell's RESULT record carries its line in the analyst's own code - line 6 of the cell, not line 13 of the wrapped one; a failed cell keeps no registry; the run keeps the mode it was asked in; the map was built at the end (M3)",
+      [r.get("line") for r in _c3.results] == [6] and step_turns[0].registry == {} and rf.mode == "Deep" and rf.code_map.get("view", {}).get("chain_id") == rf.id and "error" not in rf.code_map,
+      (_c3.results, rf.mode, {k_: v for k_, v in rf.code_map.items() if k_ != "view"}))
 _old = json.loads(json.dumps(nbf.to_dict()))
 for _r in _old["runs"].values():
     _r.pop("mode", None); _r.pop("code_map", None)
