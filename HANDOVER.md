@@ -465,8 +465,9 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
-- **The figure's badges (2026-10-21, patch 0220).** The tile numbers on `docs/images/bambooai_app.jpg` a third of the
-  size and on the rail under the top bar, where they cover nothing. No code change; after 2.5.0, no version change.
+- **The figure's badges (2026-10-21, patches 0220, 0221).** The tile numbers on `docs/images/bambooai_app.jpg` down to
+  a dot (23 px on the 2400 px composite; a 9 px mark as the README shows it, the digit readable at full size) on the
+  rail under the top bar, where they cover nothing. No code change; after 2.5.0, no version change.
 - **The README's figure (2026-10-21, patch 0218).** One 2 × 2 composite (`docs/images/bambooai_app.jpg`, 2400 px,
   numbered tiles) in place of the single screenshot: a run beside its data, the report's figures, the chain's code map,
   the recipe of one of its numbers; a one-line caption under it. No code change.
