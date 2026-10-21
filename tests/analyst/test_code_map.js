@@ -48,15 +48,16 @@ const ctx = { titles: TRIAL2.titles, built: 'end', number: id => 1 + global.resp
 const sh = el(b.shell());
 check('shell: a ui-dlg with the head, the body split into the map and the panel', sh.querySelector('.ui-dlg.cm-dlg .ui-dlg-h.cm-head') && sh.querySelector('.ui-dlg-b.cm-body .cm-map') && sh.querySelector('.cm-body .cm-panel'), sh.innerHTML);
 const hd = el(b.header(TRIAL2, ctx, { view: 'steps', state: '' }));
-check('header: the title, the chain numbered as the navigator numbers it, its path with the earlier chain a link, how the map was built with the facts, the report title, the question, the view switch with Steps pressed, the close, the Steps legend',
+check('header: the title, the chain numbered as the navigator numbers it, its path with the earlier chain a link, the facts (how the map was built rides as data, not words), the report title, the question, the view switch with Steps pressed, the close, the Steps legend',
   hd.querySelector('.cm-head-line .title').textContent === 'Code map' && hd.querySelector('.cm-chain-no').textContent === 'chain 2'
   && hd.querySelector('.cm-path a[data-act="open-chain"][data-chain="1"]').textContent === '1' && hd.querySelector('.cm-path b.cm-path-here').textContent === '2'
-  && hd.querySelector('.cm-built').textContent === 'built when the chain ended, kept with it · ' + TRIAL2.meta && hd.querySelector('.cm-title').textContent === TRIAL2.title
+  && hd.querySelector('.cm-facts').textContent === TRIAL2.meta && hd.querySelector('.cm-facts').getAttribute('data-built') === 'end' && !hd.textContent.includes('built') && hd.querySelector('.cm-title').textContent === TRIAL2.title
   && hd.querySelector('.cm-question').textContent.startsWith('Question: ') && hd.querySelector('.cm-switch button[data-view="steps"]').getAttribute('aria-pressed') === 'true'
   && hd.querySelector('.cm-switch button[data-view="diagram"]').getAttribute('aria-pressed') === 'false' && hd.querySelector('button.x[data-act="close"]')
   && hd.querySelectorAll('.cm-legend span').length === 6 && hd.querySelector('.cm-legend').textContent.includes('result recorded'), hd.innerHTML);
-check('header: built now reads so; the diagram view shows the diagram legend; a chain the navigator does not hold is "an earlier chain"',
-  el(b.header(TRIAL2, Object.assign({}, ctx, { built: 'now' }), { view: 'diagram', state: '' })).querySelector('.cm-built').textContent.startsWith('built now from the chain\'s record · ')
+check('header: a map built now says so only in its data; the diagram view shows the diagram legend; a chain the navigator does not hold is "an earlier chain"',
+  el(b.header(TRIAL2, Object.assign({}, ctx, { built: 'now' }), { view: 'diagram', state: '' })).querySelector('.cm-facts').getAttribute('data-built') === 'now'
+  && el(b.header(TRIAL2, Object.assign({}, ctx, { built: 'now' }), { view: 'diagram', state: '' })).querySelector('.cm-facts').textContent === TRIAL2.meta
   && el(b.header(TRIAL2, ctx, { view: 'diagram', state: '' })).querySelectorAll('.cm-legend span').length === 4
   && el(b.header(TRIAL2, Object.assign({}, ctx, { number: () => 0 }), { view: 'steps', state: '' })).querySelector('.cm-chain-no').textContent === 'an earlier chain');
 check('states: loading, error, running, unfinished, unreachable - one line each', ['loading', 'error', 'running', 'unfinished', 'unreachable'].every(k => el(b.state(k)).querySelector('.cm-state.cm-state-' + k))
@@ -103,10 +104,11 @@ check('a cell that did not parse: its row says so in the "what came out" column'
 
 // the recipe diagram, laid out with the harness's dagre stand-in
 const dg = el(b.diagram(TRIAL, c1, 'r1'));
-check('diagram: the picker lists every result and figure with its label, the chosen one selected; the hint',
-  dg.querySelectorAll('#cmDiagPick option').map(o => o.getAttribute('value')).join() === Object.keys(TRIAL.diagrams).join() && dg.querySelector('option[value="r1"]').hasAttribute('selected')
-  && dg.querySelector('option[value="r1"]').textContent === '+0.57 · ' + TRIAL.results.r1.short + ' · cell 2' && dg.querySelector('option[value="fig3.1"]').textContent.startsWith('Figure 1 of 2, cell 3 · ')
-  && dg.querySelector('.cm-diag-head .hint').textContent.startsWith('Read it top to bottom'), dg.querySelector('.cm-diag-head').innerHTML);
+check('diagram: the picker is a button with the chosen label and a listbox of every result and figure, the chosen one selected, closed; the hint',
+  dg.querySelector('#cmDiagPick[aria-haspopup="listbox"][aria-expanded="false"] .t').textContent === '+0.57 · ' + TRIAL.results.r1.short + ' · cell 2' && !dg.querySelector('.cm-pick').classList.contains('open')
+  && dg.querySelectorAll('.cm-pick-list [role="option"]').map(o => o.getAttribute('data-id')).join() === Object.keys(TRIAL.diagrams).join() && dg.querySelector('[role="option"][data-id="r1"]').getAttribute('aria-selected') === 'true'
+  && dg.querySelectorAll('[role="option"][aria-selected="true"]').length === 1 && dg.querySelector('[role="option"][data-id="r1"]').textContent === '+0.57 · ' + TRIAL.results.r1.short + ' · cell 2'
+  && dg.querySelector('[role="option"][data-id="fig3.1"]').textContent.startsWith('Figure 1 of 2, cell 3 · ') && dg.querySelector('.cm-diag-head .hint').textContent.startsWith('Read it top to bottom'), dg.querySelector('.cm-diag-head').innerHTML);
 const nodes = dg.querySelectorAll('.cm-node');
 check('diagram: one positioned box per node - the input in blue, tables and estimates with their names and first steps, the result with the number and "RESULT · cell n" - and one SVG path per edge with the arrow marker',
   nodes.length === TRIAL.diagrams.r1.nodes.length && nodes.every(n => /^left: \d+px; top: \d+px; width: \d+px; height: \d+px$/.test(n.getAttribute('style')))
@@ -183,10 +185,21 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   check('click a result chip: its recipe in the panel, the other rows faded, the chip pressed', m.querySelector('.cm-panel .cm-kicker span').textContent === 'How this number was made · cell 2'
     && m.querySelectorAll('.cm-row.faded').length === 3 && m.querySelector('.cm-res[data-id="r1"]').getAttribute('aria-pressed') === 'true');
   m.dispatch('click', m.querySelector('.cm-switch button[data-view="diagram"]')); await tick();
-  check('switch to the diagram: the selected result\'s recipe drawn, the picker on it, the panel kept, the legend swapped', m.querySelector('.cm-diag') && m.querySelector('#cmDiagPick option[selected]').getAttribute('value') === 'r1'
+  check('switch to the diagram: the selected result\'s recipe drawn, the picker on it, the panel kept, the legend swapped', m.querySelector('.cm-diag') && m.querySelector('.cm-pick-list [role="option"][aria-selected="true"]').getAttribute('data-id') === 'r1'
     && m.querySelector('.cm-panel .cm-kicker span').textContent === 'How this number was made · cell 2' && m.querySelectorAll('.cm-legend span').length === 4);
-  const pick = m.querySelector('#cmDiagPick'); pick.value = 'fig3.1'; m.dispatch('change', pick); await tick();
-  check('pick a figure in the picker: its diagram and its recipe', m.querySelector('.cm-node.result .names').textContent === 'FIGURE · cell 3' && m.querySelector('.cm-panel .cm-kicker span').textContent === 'How this figure was made · cell 3');
+  // the picker: its button opens the list under it (the chosen option focused), Escape closes the list and not the map, a click elsewhere closes it, an option picks
+  m.dispatch('click', m.querySelector('#cmDiagPick')); await tick();
+  check('the picker\'s button opens its list, expanded for readers', m.querySelector('.cm-pick').classList.contains('open') && m.querySelector('#cmDiagPick').getAttribute('aria-expanded') === 'true');
+  const esc1 = m.dispatch('keydown', m.querySelector('.cm-pick-opt.on'), { key: 'Escape', stopPropagation() { this.stopped = true; } });
+  check('Escape with the list open closes the list, not the map', esc1.stopped && !m.querySelector('.cm-pick').classList.contains('open') && m.style.display === 'flex' && m.querySelector('#cmDiagPick').getAttribute('aria-expanded') === 'false');
+  m.dispatch('keydown', m.querySelector('#cmDiagPick'), { key: 'ArrowDown' });
+  check('ArrowDown on the button opens the list', m.querySelector('.cm-pick').classList.contains('open'));
+  m.dispatch('click', m.querySelector('.cm-diag-head .hint')); await tick();
+  check('a click elsewhere closes the list', !m.querySelector('.cm-pick').classList.contains('open'));
+  m.dispatch('click', m.querySelector('#cmDiagPick')); await tick();
+  m.dispatch('click', m.querySelector('.cm-pick-opt[data-id="fig3.1"]')); await tick();
+  check('pick a figure in the picker: its diagram and its recipe, the list closed on the figure', m.querySelector('.cm-node.result .names').textContent === 'FIGURE · cell 3' && m.querySelector('.cm-panel .cm-kicker span').textContent === 'How this figure was made · cell 3'
+    && !m.querySelector('.cm-pick').classList.contains('open') && m.querySelector('#cmDiagPick .t').textContent.startsWith('Figure 1 of 2, cell 3') && m.querySelector('.cm-pick-opt[data-id="fig3.1"]').getAttribute('aria-selected') === 'true');
   m.dispatch('click', m.querySelector('.cm-node.table[data-act="pick-s"]')); await tick();
   check('click a box: its step in the panel, the diagram stays', m.querySelector('.cm-panel .cm-kicker span').textContent === 'Step' && m.querySelector('.cm-diag'));
   m.dispatch('click', m.querySelector('.cm-switch button[data-view="steps"]')); await tick();
@@ -195,7 +208,7 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   // the navigator moves under the open map: the map follows
   global.currentResponseIndex = 1; global.updateNavigationButtons(); await tick(); await tick();
   check('the navigator moves to chain 2: the map follows (one route call), built now, its path and lanes', calls[calls.length - 1] === '/code_map/1001/2' && m.querySelector('.cm-chain-no').textContent === 'chain 2'
-    && m.querySelector('.cm-built').textContent.startsWith('built now from the chain\'s record') && m.querySelector('.cm-lane.chain .name').textContent === 'From chain 1', calls);
+    && m.querySelector('.cm-facts').getAttribute('data-built') === 'now' && m.querySelector('.cm-lane.chain .name').textContent === 'From chain 1', calls);
   const before = calls.length;
   global.updateNavigationButtons(); await tick();
   check('the navigator settling on the same chain does not reload', calls.length === before);

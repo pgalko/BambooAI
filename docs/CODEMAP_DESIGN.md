@@ -1,4 +1,4 @@
-# The code map — design v1.1 (2026-10-21)
+# The code map — design v1.2 (2026-10-21)
 
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
@@ -185,17 +185,22 @@ hold (not favourited before a reload) is read straight from the route and named 
 the tooltip. One function renders every `{chain:<id>}` token and path step as "chain n" (the navigator's number) or
 "an earlier chain".
 
-- **Header**: "Code map", the chain's number, its path (each earlier chain a link), "built when the chain ended, kept
-  with it" or "built now from the chain's record", the facts (mode, turns, cells, failed attempts, reviews, RESULT
-  lines), the report's title, the question; Steps | Recipe diagram; ×; the legend of the view shown.
+- **Header**: "Code map", the chain's number, its path (each earlier chain a link), the facts (mode, turns, cells,
+  failed attempts, reviews, RESULT lines; whether the map was built at the chain's end or now rides on that span as
+  `data-built`, not in words), the report's title, the question; Steps | Recipe diagram; ×; the legend of the view
+  shown.
 - **Steps**: one rotated lane per input (used in blue with its columns, loaded, struck when never read; a chain lane
-  opens that chain), one row per cell with "Cell n · turn t", the STEP sentence (up to 320 characters, three lines),
+  opens that chain; the lanes head is as tall as the longest name, capped at 136 px with the rest an ellipsis and the
+  whole name in the tooltip), one row per cell with "Cell n · turn t", the STEP sentence (up to 320 characters, three lines),
   verb chips with tooltips, the lane dots, and what came out: result chips by status (recorded, replaced by cell n,
   came out empty, a cited printout, the figures; a chip's label up to 96 characters, wrapping to two lines, the whole
   label in its tooltip), or a note (carried forward to N later steps; printed what the report cites; printed only; N figures
   drawn after the report; not mapped). Failed attempts on a red tint with their error; review bands; the report
   turn. A selection fades the rows and lanes outside its recipe.
-- **Recipe diagram**: a picker of every result, printout and figure; dagre (the page's global) lays the nodes out,
+- **Recipe diagram**: a picker of every result, printout and figure — a button and a listbox of the map's own, so the
+  list always drops below the button (a native select's menu opens wherever the browser puts it) and a long label
+  wraps; arrows, Home and End move, Enter picks, Escape closes the list and not the map, a click elsewhere closes it;
+  dagre (the page's global) lays the nodes out,
   with a hidden root above the inputs so they sit on the top row whatever they feed; edges from dagre's points as one
   SVG string (centre to centre under the harness's stand-in, which gives none); a box carries its label, its names
   and up to three lines of its first steps (200 characters; the rest in its tooltip); a box opens its step, a "From

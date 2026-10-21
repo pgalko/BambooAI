@@ -458,6 +458,17 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The code map: the lanes head, the picker, the header's facts (2026-10-21, patch 0217).** Palo's three styling
+  comments on 0216. The lanes head is as tall as the longest input name (was a fixed 150 px), capped at 136 px with
+  the rest an ellipsis and the whole name in the lane's tooltip. The recipe picker is a button and a listbox of the
+  map's own (`.cm-pick`, `pick-open` / `pick-diag`, `setPick`, `onKey`) instead of a native select: the list always
+  drops below the button, as wide as its longest label up to 760 px with longer ones wrapping, the chosen option
+  ticked and focused; arrows, Home and End move, Enter picks, Escape closes the list and not the map (the keydown is
+  stopped before the document's Escape), a click elsewhere closes it. The header's "built when the chain ended, kept
+  with it ·" / "built now from the chain's record ·" words are gone; the facts span (`.cm-facts`) carries how the
+  map was built as `data-built` (end / now) for tests and support. Tests: test_code_map.js 56 (the picker's markup,
+  opening, Escape, ArrowDown, the click away, the pick; the header), the stack walk 117 (the list's geometry below
+  the button in Chromium, Escape leaving the map open with the focus on the button, the lanes head's height).
 - **The code map: the card's link, the dimmed window, room for the text (2026-10-21, patch 0216).** Palo's three
   styling comments on 0215. The closing card's way in is back on the links line - "Code map →" in the links' style
   and size, a `<button class="sp-codemap">` with a slight border so it stands out (the 0214 button under the links

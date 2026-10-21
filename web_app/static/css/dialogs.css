@@ -903,10 +903,11 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-steps-head { position: sticky; top: 0; z-index: 2; display: grid; align-items: end; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); }
 #codeMapModal .cm-col-h { padding: 0 6px 10px 14px; font-size: var(--fs-small); letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); }
 #codeMapModal .cm-col-h.what { padding: 0 12px 10px 16px; } #codeMapModal .cm-col-h.out { padding: 0 14px 10px 6px; }
-#codeMapModal .cm-lanes { display: flex; height: 150px; align-items: stretch; }
+#codeMapModal .cm-lanes { display: flex; align-items: stretch; }      /* as tall as the longest name, capped below (2026-10-21) */
 #codeMapModal .cm-lane { width: 34px; flex: 0 0 34px; box-sizing: border-box; border: 0; border-left: 1px solid var(--border-color); background: none; display: flex; justify-content: center; padding: 8px 0 10px; font-family: var(--font-ui); text-align: left; color: var(--text-tertiary); }
 #codeMapModal .cm-lane.chain { background: var(--chip-lookup-bg); cursor: pointer; }
-#codeMapModal .cm-lane .rot { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; flex-direction: column; gap: 1px; white-space: nowrap; }
+#codeMapModal .cm-lane .rot { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; flex-direction: column; gap: 1px; white-space: nowrap; max-height: 136px; }
+#codeMapModal .cm-lane .rot > span { max-height: 136px; overflow: hidden; text-overflow: ellipsis; }   /* a long name ends in … (the whole name in the tooltip) */
 #codeMapModal .cm-lane .name { font-size: var(--fs-small); font-weight: 600; line-height: 14px; color: var(--text-quaternary); }
 #codeMapModal .cm-lane.used .name { color: var(--c-lookup); }
 #codeMapModal .cm-lane.loaded .name { color: var(--text-tertiary); }
@@ -961,7 +962,18 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-failed-text .err { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--c-fail); }
 /* the recipe diagram */
 #codeMapModal .cm-diag-head { position: sticky; left: 0; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); }
-#codeMapModal .cm-diag-head select { max-width: 760px; padding: 4px 8px; border-radius: var(--r-2); border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: var(--fs-meta); }
+/* the picker (2026-10-21): a button and a list of its own; the list drops below the button, a long label wraps */
+#codeMapModal .cm-pick { position: relative; flex: 0 1 auto; min-width: 0; max-width: 760px; }
+#codeMapModal .cm-pick-btn { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 760px; box-sizing: border-box; padding: 4px 8px 4px 10px; border-radius: var(--r-2); border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: var(--fs-meta); line-height: 1.4; text-align: left; cursor: pointer; }
+#codeMapModal .cm-pick-btn .t { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#codeMapModal .cm-pick-btn .caret { flex: 0 0 auto; font-size: 10px; color: var(--text-tertiary); }
+#codeMapModal .cm-pick-btn:hover, #codeMapModal .cm-pick.open .cm-pick-btn { border-color: var(--text-tertiary); }
+#codeMapModal .cm-pick-list { display: none; position: absolute; left: 0; top: calc(100% + 4px); z-index: 6; min-width: 100%; width: max-content; max-width: 760px; max-height: min(60vh, 520px); overflow: auto; box-sizing: border-box; padding: 4px; border-radius: var(--r-2); border: 1px solid var(--border-color); background: var(--bg-primary); box-shadow: var(--shadow-dialog); }
+#codeMapModal .cm-pick.open .cm-pick-list { display: block; }
+#codeMapModal .cm-pick-opt { position: relative; display: block; width: 100%; box-sizing: border-box; padding: 5px 10px 5px 26px; border: 0; border-radius: var(--r-1); background: none; text-align: left; white-space: normal; line-height: 1.35; font-family: var(--font-ui); font-size: var(--fs-meta); color: var(--text-primary); cursor: pointer; }
+#codeMapModal .cm-pick-opt:hover, #codeMapModal .cm-pick-opt:focus { background: var(--accent-bg-hover); outline: none; }
+#codeMapModal .cm-pick-opt.on { background: var(--row-select-bg); }
+#codeMapModal .cm-pick-opt.on::before { content: '✓'; position: absolute; left: 9px; top: 5px; color: var(--c-model); }
 #codeMapModal .cm-diag-head .hint { font-size: var(--fs-small); color: var(--text-tertiary); }
 #codeMapModal .cm-diag-wrap { padding: 28px 24px 32px; }
 #codeMapModal .cm-diag { position: relative; margin: 0 auto; }

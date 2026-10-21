@@ -16,8 +16,6 @@
     // ------------------------------------------------------------ the modal's own words (British spelling, as the app)
     const WORDS = {
         title: 'Code map',
-        builtEnd: 'built when the chain ended, kept with it',
-        builtNow: 'built now from the chain\'s record',
         views: [['steps', 'Steps'], ['diagram', 'Recipe diagram']],
         legendSteps: [['read', 'reads the data here'], ['via', 'uses it through an earlier step'], ['recorded', 'result recorded'], ['replaced', 'replaced'], ['empty', 'came out empty'], ['printed', 'cited printout']],
         legendDiagram: [['in', 'data the chain was given'], ['table', 'a table or values the code made'], ['estimate', 'a calculation'], ['result', 'the result']],
@@ -170,7 +168,7 @@
                 '<div class="ui-dlg-h cm-head"></div>' +
                 '<div class="ui-dlg-b cm-body"><div class="cm-map"></div><div class="cm-panel"></div></div></div>';
         },
-        // the header: the title, the chain's number, its path, how the map was built, the facts; the title and question;
+        // the header: the title, the chain's number, its path, the facts; the title and question;
         // on the right the view switch, the close, and the legend of the view shown
         header(view, ctx, st) {
             const n = ctx.chainId ? ctx.number(ctx.chainId) : 0;
@@ -184,15 +182,15 @@
                     : (num ? '<a href="#" class="cm-chain" data-act="open-chain" data-chain="' + esc(id) + '" title="' + esc(t) + '">' + lab + '</a>' : '<span class="cm-chain-earlier" title="' + esc(t) + '">?</span>'))
                     + (i < path.length - 1 ? '<span class="arr">→</span>' : '');
             }).join('') + '</span>' : '';
-            const meta = view && view.meta ? ' · ' + esc(view.meta) : '';
-            const built = view && !st.state ? (ctx.built === 'now' ? WORDS.builtNow : WORDS.builtEnd) + meta : '';
+            // the facts (mode, turns, cells, RESULT lines); how the map was built rides as data, not words (2026-10-21)
+            const facts = view && !st.state && view.meta ? '<span class="cm-facts" data-built="' + esc(ctx.built) + '">' + esc(view.meta) + '</span>' : '';
             const q = view && view.question ? 'Question: ' + cut(view.question, 230) : '';
             const legend = view && !view.nocode && !st.state ? (st.view === 'diagram'
                 ? '<div class="cm-legend">' + WORDS.legendDiagram.map(l => '<span><i class="cm-lg cm-lg-' + l[0] + '"></i>' + esc(l[1]) + '</span>').join('') + '</div>'
                 : '<div class="cm-legend">' + WORDS.legendSteps.map(l => '<span><i class="cm-lg cm-lg-' + l[0] + '"></i>' + esc(l[1]) + '</span>').join('') + '</div>') : '';
             return '<div class="cm-head-l"><div class="cm-head-line"><span class="title">' + WORDS.title + '</span>' +
                 (n ? '<span class="cm-chain-no">chain ' + n + '</span>' : (ctx.chainId ? '<span class="cm-chain-no">' + WORDS.earlier + '</span>' : '')) + pathHtml +
-                (built ? '<span class="cm-built">' + built + '</span>' : '') + '</div>' +
+                facts + '</div>' +
                 (view && view.title ? '<div class="cm-title">' + esc(view.title) + '</div>' : '') +
                 (q ? '<div class="cm-question">' + esc(q) + '</div>' : '') + '</div>' +
                 '<div class="cm-head-r"><div class="cm-head-tools"><div class="cm-switch" role="group" aria-label="View">' +
@@ -345,9 +343,15 @@
             }).join('');
             const svg = '<svg class="cm-edges" width="' + lay.w + '" height="' + lay.h + '" viewBox="0 0 ' + lay.w + ' ' + lay.h + '"><defs><marker id="cm-arrow" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><path d="M0 0 L10 3.5 L0 7 z"/></marker></defs>' +
                 lay.paths.map(p => '<path d="' + p + '" marker-end="url(#cm-arrow)"/>').join('') + '</svg>';
-            return '<div class="cm-diag-head"><label class="k" for="cmDiagPick">' + WORDS.picker + '</label><select id="cmDiagPick" data-act="pick-diag">' +
-                keys.map(k => '<option value="' + esc(k) + '"' + (k === key ? ' selected' : '') + '>' + esc(build.pickerLabel(view, k)) + '</option>').join('') + '</select>' +
-                '<span class="hint">' + WORDS.diagramHint + '</span></div>' +
+            // the picker (2026-10-21): a button and a list of its own, so the list always drops below the button (a native
+            // select's menu opens wherever the browser puts it) and a long label wraps instead of being cut
+            const current = build.pickerLabel(view, key);
+            return '<div class="cm-diag-head"><span class="k" id="cmDiagPickLabel">' + WORDS.picker + '</span><div class="cm-pick">' +
+                '<button type="button" class="cm-pick-btn" id="cmDiagPick" data-act="pick-open" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="cmDiagPickLabel cmDiagPick" title="' + esc(current) + '">' +
+                '<span class="t">' + esc(current) + '</span><span class="caret" aria-hidden="true">▾</span></button>' +
+                '<div class="cm-pick-list" role="listbox" aria-labelledby="cmDiagPickLabel">' +
+                keys.map(k => '<button type="button" role="option" class="cm-pick-opt' + (k === key ? ' on' : '') + '" data-act="pick-diag" data-id="' + esc(k) + '" aria-selected="' + (k === key ? 'true' : 'false') + '" tabindex="-1">' + esc(build.pickerLabel(view, k)) + '</button>').join('') +
+                '</div></div><span class="hint">' + WORDS.diagramHint + '</span></div>' +
                 '<div class="cm-diag-wrap"><div class="cm-diag" style="width: ' + lay.w + 'px; height: ' + lay.h + 'px">' + svg + nodes + '</div></div>';
         },
         // ---- the panel
@@ -489,7 +493,7 @@
         modal.innerHTML = build.shell();
         document.body.appendChild(modal);
         modal.addEventListener('click', onClick);
-        modal.addEventListener('change', e => { if (e.target && e.target.matches && e.target.matches('[data-act="pick-diag"]')) pickDiag(e.target.value); });
+        modal.addEventListener('keydown', onKey);                                                                   // the picker's keys
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.open) { e.stopPropagation(); close(); } });   // wherever the focus sits
         return modal;
     }
@@ -501,18 +505,48 @@
         const t = e.target;
         if (t === modal) { close(); return; }
         const b = t.closest ? t.closest('[data-act]') : null;
+        const act = b ? b.getAttribute('data-act') : '';
+        if (act !== 'pick-open' && act !== 'pick-diag') setPick(null, false);                  // a click anywhere else closes an open picker
         if (!b || b.hasAttribute('disabled')) return;
-        const act = b.getAttribute('data-act');
         if (act !== 'lane') st.laneHi = null;
         if (act === 'close') { close(); return; }
         if (b.tagName === 'A') e.preventDefault();
         if (act === 'view') setView(b.getAttribute('data-view'));
+        else if (act === 'pick-open') { const p = b.closest('.cm-pick'); setPick(p, !p.classList.contains('open')); }
+        else if (act === 'pick-diag') pickDiag(b.getAttribute('data-id'));
         else if (act === 'pick-r') select({ t: 'r', id: b.getAttribute('data-id') });
         else if (act === 'pick-s') select({ t: 's', id: parseInt(b.getAttribute('data-cell'), 10) });
         else if (act === 'clear') select(null);
         else if (act === 'open-chain') openChain(b.getAttribute('data-chain'), b.getAttribute('data-cell'));
         else if (act === 'open-nb') openNotebook(parseInt(b.getAttribute('data-cell'), 10));
         else if (act === 'lane') { st.laneHi = b.getAttribute('data-lane'); select(null); }
+    }
+    // the picker's list: opened under its button, the chosen option focused; closed with the focus back on the button
+    function setPick(pick, open) {
+        const p = pick || (modal && modal.querySelector('.cm-pick.open'));
+        if (!p) return;
+        const btn = p.querySelector('.cm-pick-btn');
+        const opts = Array.prototype.slice.call(p.querySelectorAll('.cm-pick-opt'));
+        const inside = document.activeElement && p.contains && p.contains(document.activeElement);
+        p.classList.toggle('open', !!open);
+        if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) { const on = opts.find(o => o.classList.contains('on')) || opts[0]; if (on) on.focus(); }
+        else if (inside && btn) btn.focus();
+    }
+    function onKey(e) {
+        const p = e.target && e.target.closest ? e.target.closest('.cm-pick') : null;
+        if (!p) return;
+        const open = p.classList.contains('open');
+        const opts = Array.prototype.slice.call(p.querySelectorAll('.cm-pick-opt'));
+        if (e.key === 'Escape') { if (open) { e.stopPropagation(); e.preventDefault(); setPick(p, false); } return; }
+        if (e.key === 'Tab') { setPick(p, false); return; }
+        const step = e.key === 'ArrowDown' ? 1 : (e.key === 'ArrowUp' ? -1 : 0);
+        if (!step && e.key !== 'Home' && e.key !== 'End') return;
+        e.preventDefault();
+        if (!open) { setPick(p, true); return; }
+        const at = opts.indexOf(e.target);
+        const to = e.key === 'Home' ? 0 : (e.key === 'End' ? opts.length - 1 : (at < 0 ? 0 : (at + step + opts.length) % opts.length));
+        if (opts[to]) opts[to].focus();
     }
     function select(sel) {
         st.sel = sel;
