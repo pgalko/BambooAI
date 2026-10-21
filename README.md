@@ -16,7 +16,9 @@ At the end of a run, the relevant analysis is assembled and executed again again
 
 Adaptive runs can additionally use a separate Reviewer model, with its own instructions, to inspect the evidence during the analysis and challenge the method, request another test, narrow a conclusion or end the investigation.
 
-![An Adaptive run: turns and cells on the left, the report's figures on the right](docs/images/bambooai_app.jpg)
+![BambooAI: a run beside its data and the report's figures; the chain's code map and the recipe of one of its numbers](docs/images/bambooai_app.jpg)
+
+*1 · a run: the turns and cells on the left, the data on the right · 2 · the report's figures · 3 · the chain's code map · 4 · the recipe of one of its numbers.*
 
 ## Table of Contents
 

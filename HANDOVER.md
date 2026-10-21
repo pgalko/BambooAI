@@ -458,6 +458,9 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The README's figure (2026-10-21, patch 0218).** One 2 × 2 composite (`docs/images/bambooai_app.jpg`, 2400 px,
+  numbered tiles) in place of the single screenshot: a run beside its data, the report's figures, the chain's code map,
+  the recipe of one of its numbers; a one-line caption under it. No code change.
 - **The code map: the lanes head, the picker, the header's facts (2026-10-21, patch 0217).** Palo's three styling
   comments on 0216. The lanes head is as tall as the longest input name (was a fixed 150 px), capped at 136 px with
   the rest an ellipsis and the whole name in the lane's tooltip. The recipe picker is a button and a listbox of the
