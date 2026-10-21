@@ -30,7 +30,14 @@
   tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands),
   2.2.2 (2026-10-08: the Claude 5.5 family on the Anthropic adapter, the contract's STEP section, the forced report's
   card, the replay's display options, auxiliary files in DATA, the template's Claude seats - patches 0101-0110;
-  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.4.2 (2026-10-18: the context's reading -
+  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.5.0 (2026-10-21: the code map - how a
+  chain got from its data to its numbers, read mechanically from the committed cells and the kernel's record, built at
+  the chain's end and kept with it: the Steps view with the inputs as lanes, the recipe diagram of each number, the
+  panel, the checks worth making; opened from the closing card's link or the eye on a chain's box in the thread map;
+  docs/CODEMAP_DESIGN.md - patches 0210-0217; the record's registry per cell, each RESULT's line and the run's mode;
+  the note surviving a review, CTX's tables typed, a Checked line read by its stem - patch 0208; the README's figure -
+  patch 0218; **executor image v63** (0210: RESULT records the cell line it was called from) - rebuild and roll out;
+  the jobs need nothing), 2.4.2 (2026-10-18: the context's reading -
   each code with which way it points against the person's usual state, said or inferred, and the day it describes;
   a tag a label and a copy read once; each passage with its activity's day; earlier passages beside each batch; the
   map tallying the calendar's categories; the profile's custom sets and which end of the wellness scales is good; the
@@ -48,7 +55,7 @@
   the computation path for a follow-up on other data; the figures step and the plain-language version citing the
   figures; the Code tab; the Plots tab in order and sized to the tab; Ask about a plot with the picture; the Answer
   tab's measure; PR #63 and the Stripe follow-ups - patches 0111-0141; **executor image v52** (patch 0125: each
-  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **2.4.0 ships executor image v60** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file; 0176: a failed script's output; 0182-0183, 0185: the rider profile, the custom zone times, every custom field under its code, the profile's units) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch; `volumes { enabled = true }` is in both boxes' client configuration since 2026-10-17). **The next ship carries executor image v62** (patches 0195: the profile's wellness scales; 0196: the context's activity day and copies) - rebuild and roll out; the jobs need nothing.
+  Intervals load marked with its key, its files in the key's folder) - the boxes rebuild and roll it out with this ship). **2.4.0 ships executor image v60** (patches 0143, 0145: the context fetch, the coaches by the plan; 0161: the Intervals.icu store; 0169: the planned workouts file; 0176: a failed script's output; 0182-0183, 0185: the rider profile, the custom zone times, every custom field under its code, the profile's units) - rebuild and roll out, and re-register the four Nomad jobs (`nomad/jobs/`, patch 0164: a volume per user at `/app/datasets`, so the store outlives a dispatch; `volumes { enabled = true }` is in both boxes' client configuration since 2026-10-17). **2.4.2 shipped executor image v62** (patches 0195, 0196). **2.5.0 ships executor image v63** (patch 0210: RESULT records the cell line it was called from) - rebuild and roll out; the jobs need nothing.
   CI (`ci.yml`) runs the unit battery and the executor image build; the browser suites and the package
   test run locally before a push, by decision (three runner-environment failures taught that).
 - **The open-source edition** (docs/OSS_DESIGN.md, v1.3 of 2026-10-03, decisions D1-D32; the documents design is in

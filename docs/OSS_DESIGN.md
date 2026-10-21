@@ -305,6 +305,12 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-10-21: 2.5.0.** The code map (docs/CODEMAP_DESIGN.md): how a chain got from its data to its numbers,
+  read mechanically from the committed cells and the kernel's record - no model call, nothing of it in a prompt - built
+  at the chain's end and kept with it; the Steps view with the inputs as lanes, the recipe diagram of each number, the
+  panel and the checks worth making; opened from the closing card's link or the thread map's eye - patches 0210-0217.
+  The record's registry per cell, each RESULT's line and the run's mode (0210); the note surviving a review, CTX's
+  tables typed (0208); the README's figure (0218). Executor build v63 (0210): the image is rebuilt with this ship.
 - **Status 2026-10-18: 2.4.2.** The context's reading: each code with which way it points against the person's usual
   state, said or inferred, and the day it describes; a tag a label and a copy read once; each passage with its
   activity's day; earlier passages beside each batch; the calendar's categories on the map; the profile's custom sets
