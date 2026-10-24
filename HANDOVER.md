@@ -465,6 +465,10 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The `[cell n]` chip in the result colour (2026-10-24, patch 0224).** The chip was as faint as the border it sat in,
+  in both themes; now that it is the way into the code map it takes the colour the map's result chips and the card's
+  **Code map →** link already use (`--c-model`, `--chip-model-border`), the shape and size unchanged, the `fig` and
+  document chips as they were. One rule in shell.css; Palo's pick of five renders.
 - **The stack's fake wellness: the Sickness select every twenty-five days (2026-10-24, patch 0223).** The integrations
   walk failed from 2026-10-22: its original window is today-100 to today-41, wellness rows exist only past sixty
   days ago, and the select rode the fifty-day sick cycle - so for about three weeks in every fifty the window's
