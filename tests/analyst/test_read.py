@@ -300,6 +300,12 @@ check("the Investigation tab renders a READ as a step - 'Read the context' or 'R
       "(2026-10-14: READ turns had not been rendered in this view)",
       '<details class="nb-step nb-read" data-units="C.2 C.3 C.1">' in _hc and "Read the context" in _hc and "CTX the legs on the climbs" in _hc and "Keep the next two days easy" in _hc
       and 'class="nb-step nb-read" data-units="D2.3' in _hd and "Read a document" in _hd and _hd.count('class="nb-step nb-read"') == 4, (_hc[:600], _hd.count('nb-read')))
+from analyst.notebook import Run as _Run, Turn as _Turn
+_he = _nbh(_Run(id="e", parent=None, question="q", turns=[_Turn(kind="cell", thinking="t", code="x = 1", stdout="", cell_no=1), _Turn(kind="cell", thinking="t", code="y", stdout="", cell_no=None, error="boom"),
+                                                          _Turn(kind="cell", thinking="t", code="z = 2", stdout="", cell_no=2), _Turn(kind="cell", thinking="t", code="plt.plot()", stdout="", cell_no=None)]))
+check("the Investigation tab's committed cells carry the code map's eye (2026-10-24): a button with the cell number that opens the map at that cell, inline so a saved favourite keeps it; a failed or skipped cell has none",
+      _he.count('class="nb-cell-map"') == 2 and 'data-cell="1"' in _he and 'data-cell="2"' in _he and 'onclick="if(window.CodeMapUI)CodeMapUI.open(null,{cell:1})"' in _he
+      and 'title="This cell in the code map"' in _he, _he.count('class="nb-cell-map"'))
 from analyst.session import contract as _contract2
 both = _contract2(True, context=True)
 check("contract with both: Documents then Context, the READ row for each; the base contract has neither",

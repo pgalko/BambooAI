@@ -465,6 +465,11 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The eye on a notebook cell (2026-10-24, patch 0227).** The loop closed from the notebook's side: each committed cell's
+  header in the Investigation tab carries the thread map's eye (`_MAP_EYE` in analyst/render.py; inline onclick, so a
+  saved favourite's cells keep it, silent on a page without the module), which opens the code map on the Steps view
+  at that cell; a failed or skipped cell has none. Decision 4 amended again (four ways in). test_read.py 70 (the
+  render), the stack walk 120 (the eye opens the map at the cell in Chromium).
 - **The panel's foot buttons as peers, and the light theme's result border (2026-10-24, patch 0226).** *Open in the
   notebook* was the heavy primary button beside the plain *Recipe diagram*; both now wear the chips' green border with
   quiet text, filling green on hover (Palo's pick C of four renders), on the result panel and the step panel alike.

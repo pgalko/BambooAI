@@ -179,6 +179,16 @@ def main():
             page.click("#codeMapModal .cm-zoom-btn[data-dir='fit']")
             page.keyboard.press("Escape")
             page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
+            # the fourth way in (2026-10-24): the eye on a cell in the Investigation tab opens the map on the Steps view at that cell
+            page.evaluate("paneOpenTab('Investigation')")
+            page.wait_for_selector(".briefing-content .nb-cell-map", timeout=5000)
+            eye_cell = page.evaluate("() => document.querySelector('.briefing-content .nb-cell-map').dataset.cell")
+            page.click(".briefing-content .nb-cell-map")
+            page.wait_for_selector("#codeMapModal .cm-pane.step", timeout=15000)
+            cm_eye = page.evaluate("() => ({ open: document.getElementById('codeMapModal').style.display === 'flex', steps: !!document.querySelector('#codeMapModal .cm-steps'), cell: (document.querySelector('#codeMapModal .cm-pane.step .cm-big.cell') || {}).textContent || '' })")
+            check("the eye on a notebook cell opens the map on the Steps view with that cell's row selected", cm_eye["open"] and cm_eye["steps"] and cm_eye["cell"].startswith("Cell " + eye_cell), (eye_cell, cm_eye))
+            page.keyboard.press("Escape")
+            page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
 
             # the code map (2026-10-20, M4): the closing card's button opens the modal on this chain, built at its end; a result's
             # recipe; the diagram; the thread map's eye opens it too

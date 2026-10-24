@@ -72,7 +72,7 @@ chain ends (_finish)                       request
 | the host's inputs | `bambooai/bambooai.py` `_map_inputs`: the primary with its columns, each auxiliary file with its columns (one executor call), the context, the documents |
 | the route | `web_app/code_map_routes.py`, registered after the codebook |
 | the modal | `web_app/static/js/code-map.js`; rules under `#codeMapModal` in `dialogs.css`; tokens in `tokens.css` |
-| the ways in | the closing card and the report's `[cell n]` chips (`stream-pane.js`), the thread map's eye (`workflowGraph.js`); the navigator hook (`ui-controls.js`) |
+| the ways in | the closing card and the report's `[cell n]` chips (`stream-pane.js`), the thread map's eye (`workflowGraph.js`), the eye on a notebook cell (`analyst/render.py`); the navigator hook (`ui-controls.js`) |
 | tests | `tests/analyst/test_code_map.py`, `tests/analyst/test_code_map.js`, the stack walk; fixtures under `tests/analyst/fixtures/codemap/` |
 
 Behaviour was ported from a research prototype (the design package of 2026-10-20), not its structure: the prototype's
@@ -234,7 +234,9 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   the cell's one number, or of several the one the sentence names (a number in the sentence equal to the estimate or
   an end of its interval, the report's rounding allowed for) - and otherwise on the Steps view at the cell's row.
   The chip hands the map the words before it in its block, from the last sentence end. The cell's code is a click
-  further, from the panel's *Open in the notebook*. The map never opens on its own.
+  further, from the panel's *Open in the notebook*. And the eye on each committed cell's header in the Investigation
+  tab (`analyst/render.py`, 2026-10-24), the thread map's glyph, opens the map on the Steps view at that cell - the
+  loop closed from the notebook's side; inline, so a saved favourite's cells keep it. The map never opens on its own.
 
 All of the modal's own words sit in `WORDS` at the top of `code-map.js`; the map's content comes from `words.py`.
 
@@ -271,7 +273,8 @@ every chain style that breaks the extractor goes into the fixtures.
 4. Two ways in: the thread map's eye on each chain box (shown on hover and on the open chain's) and the closing
    card's button; the map never pops up on its own; no Code tab entry. *Amended 2026-10-24: a third way in - a
    `[cell n]` citation in the report opens the map on that cell's number (the cell's code is a click further, from
-   the panel). The map still never opens on its own.*
+   the panel); and a fourth, the eye on a committed cell in the Investigation tab, which opens the Steps view at
+   that cell. The map still never opens on its own.*
 5. The map is opt-in: no checks on the closing card.
 6. The five further checks (an interval with no width, an estimate outside its interval, rows behind each estimate,
    filters that drop most rows, numbers in the report with nothing behind them) are a follow-up.
