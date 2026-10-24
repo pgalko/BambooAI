@@ -305,6 +305,12 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-10-24: 2.5.1.** The code map's ways in and out: a `[cell n]` citation in the report opens the map on
+  that number; the eye on each notebook cell opens it at that cell; the recipe panel offers the other view; *Open in
+  the notebook* lights the lines behind the number in the cell (map version 3). The diagram zooms as the thread map
+  does. The `[cell n]` chip and the panel's buttons in the result colour; the light theme's result border. The
+  README's figure. The stack's fake wellness on a cycle every window holds - patches 0220-0228. No kernel change:
+  executor build v63 stands.
 - **Status 2026-10-21: 2.5.0.** The code map (docs/CODEMAP_DESIGN.md): how a chain got from its data to its numbers,
   read mechanically from the committed cells and the kernel's record - no model call, nothing of it in a prompt - built
   at the chain's end and kept with it; the Steps view with the inputs as lanes, the recipe diagram of each number, the
