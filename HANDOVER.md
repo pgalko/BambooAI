@@ -465,6 +465,12 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The stack's fake wellness: the Sickness select every twenty-five days (2026-10-24, patch 0223).** The integrations
+  walk failed from 2026-10-22: its original window is today-100 to today-41, wellness rows exist only past sixty
+  days ago, and the select rode the fifty-day sick cycle - so for about three weeks in every fifty the window's
+  wellness days carried no `custom_field` kind. Now the select is marked for three days every twenty-five, which
+  every forty-day stretch holds; the calendar's SICK span keeps its fifty-day cycle. Checked for every date of the
+  next four months. test_integrations.py 99, test_store.py 42.
 - **The code map: a citation opens it on its number; the diagram zooms (2026-10-24, patch 0222).** Palo's two asks.
   (1) The third way in: a `[cell n]` chip in the report or its plain-language version opens the map on the Recipe
   diagram at that cell's recorded number (`paneOpenRecipe` in stream-pane.js hands over the cell and the words before

@@ -16,7 +16,7 @@ The words beside the data (docs/CONTEXT_DESIGN.md, 2026-10-13), deterministic in
 carry a chat (the subject writes, in Danish or English by turns; the coach answers on half of them; every eleventh
 day a private NOTE by the coach), every ninth session a description in prose and every thirteenth one that is only
 a workout structure, tags on every fifth, a coach's tick on every sixth; the wellness log has a comment every
-eighth day and the custom select `Sickness` on sick days; the calendar has a planned workout paired with every ride,
+eighth day and the custom select `Sickness` marked Mild for three days every twenty-five; the calendar has a planned workout paired with every ride,
 a note every seventeenth day, a sick span of three days once every fifty, a race (its description HTML) once every
 fifty, and a note the coach hid from the subject every twenty-third day. A fortnight 21 to 34 days ago is silent
 (2026-10-14, context step 5): nothing written at all - no description, tag or tick, nothing in the calendar - so a
@@ -257,8 +257,8 @@ def wellness(oldest: str, newest: str, today: date = None):
         o = d.toordinal()
         if o % 8 == 0:
             row["comments"] = "Dårlig nat, vågnede flere gange." if o % 16 == 0 else "Slept well, fresh this morning."
-        if o % 50 in (10, 11, 12):
-            row["Sickness"] = "Mild"
+        if o % 25 in (10, 11, 12):            # three days every twenty-five (2026-10-24): wellness rows exist only past sixty days ago,
+            row["Sickness"] = "Mild"           # and the walk's window must find the select among them whatever the date
         out.append(row)
     return out
 
