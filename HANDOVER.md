@@ -465,6 +465,12 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The panel's foot buttons as peers, and the light theme's result border (2026-10-24, patch 0226).** *Open in the
+  notebook* was the heavy primary button beside the plain *Recipe diagram*; both now wear the chips' green border with
+  quiet text, filling green on hover (Palo's pick C of four renders), on the result panel and the step panel alike.
+  Underneath, the light theme had no `--chip-model-border` of its own and inherited the dark theme's bright mint at
+  40 %, a pale line on white: it now has the light accent's green at 45 % (`rgba(31, 154, 86, .45)`), which also
+  firms up the map's result chips, the `[cell n]` chip and the card's link in light; dark is unchanged.
 - **The recipe panel offers the other view (2026-10-24, patch 0225).** Palo: a result chip in the Steps view opened its
   recipe in the panel with *Open in the notebook* but no way to the diagram. The panel's foot now carries, beside that
   button, **Recipe diagram** from the Steps view and **Show in the steps** from the diagram (the existing `view`

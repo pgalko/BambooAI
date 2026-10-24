@@ -472,7 +472,7 @@
                 '<div class="cm-foot"><span>' + esc(WORDS.panel.restsOn + ((rec.cells || []).length === 1 ? ' ' : 's ') + (rec.cells || []).join(', ')) + '</span><span class="cm-foot-btns">' +
                 // the other view of the same recipe (2026-10-24): the diagram from the Steps view, the steps from the diagram
                 (view.diagrams && view.diagrams[id] ? '<button class="ui-btn sm" data-act="view" data-view="' + (st.view === 'diagram' ? 'steps' : 'diagram') + '">' + (st.view === 'diagram' ? WORDS.panel.showSteps : WORDS.panel.showDiagram) + '</button>' : '') +
-                '<button class="ui-btn sm primary" data-act="open-nb" data-cell="' + esc(cell) + '">' + WORDS.panel.openNb + '</button></span></div>' +
+                '<button class="ui-btn sm" data-act="open-nb" data-cell="' + esc(cell) + '">' + WORDS.panel.openNb + '</button></span></div>' +
                 sizes + '</div>';
         },
         step(view, ctx, n) {
@@ -499,7 +499,7 @@
                 ((s.printed || []).length || s.printout ? '<div>' + build.h(WORDS.panel.printed) + ((s.printed || []).length ? '<div class="cm-p">' + esc(s.printed.join(' · ')) + '</div>' : '') + (s.printout ? '<button class="cm-take chain" data-act="pick-r" data-id="' + esc(s.printout) + '">' + WORDS.panel.printoutLink + '</button>' : '') + '</div>' : '') +
                 (results ? '<div>' + build.h(WORDS.panel.results) + results + '</div>' : '') +
                 (used.length ? '<div>' + build.h(WORDS.panel.usedBy) + '<div class="cm-p">' + esc('cell' + (used.length === 1 ? ' ' : 's ') + used.join(', ')) + '</div></div>' : '') +
-                '<div class="cm-foot"><span>' + esc(fill(WORDS.panel.lines, { n: s.lines })) + '</span><button class="ui-btn sm primary" data-act="open-nb" data-cell="' + esc(s.cell) + '">' + WORDS.panel.openNb + '</button></div></div>';
+                '<div class="cm-foot"><span>' + esc(fill(WORDS.panel.lines, { n: s.lines })) + '</span><button class="ui-btn sm" data-act="open-nb" data-cell="' + esc(s.cell) + '">' + WORDS.panel.openNb + '</button></div></div>';
         }
     };
 

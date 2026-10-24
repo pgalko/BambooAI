@@ -1052,6 +1052,8 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-typed { font-size: var(--fs-small); line-height: 16px; padding: 0 6px; border-radius: var(--r-1); border: 1px solid var(--chip-kernel-border); color: var(--c-kernel); }
 #codeMapModal .cm-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border-color); font-size: var(--fs-small); color: var(--text-tertiary); }
 #codeMapModal .cm-foot-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+#codeMapModal .cm-foot .ui-btn { border-color: var(--chip-model-border); color: var(--text-secondary); }   /* the foot's actions as peers (2026-10-24): the chips' green border, quiet text */
+#codeMapModal .cm-foot .ui-btn:hover { background: var(--accent-bg-hover); border-color: var(--c-model); color: var(--text-primary); }
 #codeMapModal .cm-builds { display: flex; flex-direction: column; gap: 11px; }
 #codeMapModal .cm-take { display: block; width: 100%; margin-top: 6px; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font-family: var(--font-ui); font-size: var(--fs-meta); line-height: 1.45; color: var(--text-secondary); }
 #codeMapModal .cm-take.chain { color: var(--c-lookup); }

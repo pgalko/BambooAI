@@ -201,6 +201,7 @@
     --shadow-dialog: 0 20px 60px rgba(0, 0, 0, 0.18);
     --scrim: rgba(0, 0, 0, 0.35);
     --c-kernel: #a67c2e;                     /* light: the kernel's sand must not collapse onto the model's green (--yaml-key is green in light) */
+    --chip-model-border: rgba(31, 154, 86, 0.45);     /* light (2026-10-24): the light accent's green; the dark value was a pale mint on white */
     --chip-kernel-border: rgba(166, 124, 46, 0.45);
     --chip-lookup-border: rgba(0, 100, 255, 0.45);
     --chip-lookup-bg: rgba(0, 100, 255, 0.05);
