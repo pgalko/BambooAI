@@ -15,7 +15,7 @@ global.window = { authService: { fetch: async (url) => { calls.push(url); const 
 require(path.join(__dirname, '..', '..', 'tools', 'fixtures', 'dagre_stub.js'));      // window.dagre: the harness's layered stand-in (no edge points)
 const navigated = []; global.navigateToChainId = id => { navigated.push(String(id)); const i = global.responses.findIndex(r => String(r.chain_id) === String(id)); if (i >= 0) { global.currentResponseIndex = i; global.updateNavigationButtons(); } };
 global.updateNavigationButtons = () => { if (window.CodeMapUI) window.CodeMapUI.onChain(global.responses[global.currentResponseIndex] && global.responses[global.currentResponseIndex].chain_id); };
-const opened = []; global.paneOpenCell = n => opened.push(n);
+const opened = []; global.paneOpenCell = (n, hl) => opened.push([n, hl || null]);
 global.currentData = { thread_id: '1001' };
 require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'code-map.js'));
 const w = window; const b = w.__codeMapBuild; const results = []; const check = (n, c, d) => results.push([n, !!c, d]);
@@ -226,9 +226,17 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   m.dispatch('click', m.querySelector('.cm-take.chain[data-act="open-chain"][data-chain="1"][data-cell="2"]') || m.querySelector('.cm-cell-no')); await tick();
   m.dispatch('click', m.querySelector('.cm-take.chain[data-act="open-chain"][data-chain="1"][data-cell="2"]')); await tick(); await tick();
   check('a step\'s "from chain 1, cell 2" link opens chain 1 with cell 2 selected', m.querySelector('.cm-chain-no').textContent === 'chain 1' && m.querySelector('.cm-panel .cm-big.cell').textContent === 'Cell 2 · turn 4', m.querySelector('.cm-panel').innerHTML.slice(0, 200));
-  // Open in the notebook: the modal closes and the notebook scrolls to the cell
+  // Open in the notebook: the modal closes and the notebook scrolls to the cell; from a step, nothing to light
   m.dispatch('click', m.querySelector('.cm-foot button[data-act="open-nb"]')); await tick();
-  check('Open in the notebook: the modal closes, the cell is opened', m.style.display === 'none' && opened[opened.length - 1] === 2, opened);
+  check('Open in the notebook from a step: the modal closes, the cell is opened, no lines handed over', m.style.display === 'none' && opened[opened.length - 1][0] === 2 && opened[opened.length - 1][1] === null, opened);
+  // from a number's recipe, the lines behind it go along (2026-10-24): every statement it rests on per cell, the RESULT's own strong
+  const lit = JSON.parse(JSON.stringify(TRIAL)); lit.recipes.r1.lines = { '1': [[1, 1]], '2': [[3, 3], [7, 17], [27, 27]] }; lit.recipes.r1.own = { '2': [[27, 27]] };
+  answers['/code_map/1001/12'] = route('1001', '12', lit);
+  w.CodeMapUI.open('12'); await tick(); await tick();
+  m.dispatch('click', m.querySelector('.cm-res[data-id="r1"]')); await tick();
+  m.dispatch('click', m.querySelector('.cm-foot button[data-act="open-nb"]')); await tick();
+  check('Open in the notebook from a number: the recipe\'s lines and the RESULT\'s own line go to the notebook with the cell', m.style.display === 'none' && opened[opened.length - 1][0] === 2
+    && JSON.stringify(opened[opened.length - 1][1]) === JSON.stringify({ lines: lit.recipes.r1.lines, own: lit.recipes.r1.own }), opened[opened.length - 1]);
   // the states
   for (const [id, kind, txt] of [['3', 'running', 'The code map is built when this chain ends.'], ['4', 'unfinished', 'No code map: this chain ended without an answer.'], ['5', 'error', 'The code map could not be built for this chain.'], ['9', 'unfinished', 'No code map: this chain ended without an answer.']]) {
     w.CodeMapUI.open(id); await tick(); await tick();

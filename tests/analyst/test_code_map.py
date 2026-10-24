@@ -373,12 +373,24 @@ def rule_room():
           (len(purpose), purpose, [len(b["step"]) for b in boxes]))
 
 
+def rule_lines():
+    """The lines behind a number (2026-10-24): every statement it rests on, per cell, touching spans merged; the RESULT's own line."""
+    c1 = "plot_means = df.groupby(['plot_id', 'regime', 'soil'], as_index=False)['yield_t_ha'].mean()\nprint(plot_means.shape)\nunused = df['season'].max()\n"
+    c2 = ("est = plot_means['yield_t_ha'].mean()\nlo, hi = est - 0.2, est + 0.2\n\nprint('checking')\n"
+          "RESULT('yield, regime B vs A within soil type, plot means', est, lo, hi, 't/ha', 'B higher')\n")
+    v = codemap.build_record(record([cell(1, c1), cell(2, c2, [rec("yield, regime B vs A within soil type, plot means: +0.57 t/ha", 5)])]))["view"]
+    rec_ = v["recipes"]["r1"]
+    check("rule: a recipe carries the lines behind its number - the statements it rests on per cell, the print and the unused value left out, touching spans merged - and the RESULT's own line",
+          rec_["lines"] == {"1": [[1, 1]], "2": [[1, 2], [5, 5]]} and rec_["own"] == {"2": [[5, 5]]} and not v["results"]["r1"].get("lines"),   # a result's `lines` stays a printout's printed lines
+          (rec_.get("lines"), rec_.get("own"), v["results"]["r1"].get("lines")))
+
+
 for name, fn in [("a RESULT in a loop", rule_loop), ("a RESULT inside a helper", rule_helper_line), ("a type conversion", rule_conversion),
                  ("drawing through a helper", rule_draw_helper), ("a title-only read", rule_title_only), ("a bootstrap through a helper", rule_bootstrap_rng),
                  ("tuple aliasing in a helper", rule_alias), ("a string join", rule_string_join), ("a typed date", rule_typed_date), ("nan", rule_nan),
                  ("corrects", rule_corrects), ("a cited printout", rule_cited_printout), ("several figures", rule_several_figures),
                  ("a cell that does not parse", rule_unparsed), ("a chain with no cells", rule_no_cells), ("a follow-up", rule_follow_up),
-                 ("a document", rule_document), ("short labels", rule_shorts), ("room for the text", rule_room)]:
+                 ("a document", rule_document), ("short labels", rule_shorts), ("room for the text", rule_room), ("the lines behind a number", rule_lines)]:
     rule(name, fn)
 
 # ---- the build at a chain's end: from the Run, never raising -------------------------------------------------------

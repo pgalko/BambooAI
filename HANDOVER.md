@@ -465,6 +465,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The lines behind a number, lit in the notebook (2026-10-24, patch 0228).** Palo's idea: *Open in the notebook* from a
+  number's recipe lands on the cell and lights the code that made the number. The map had the two facts already: each
+  RESULT's own statement (the record's `line`) and the statements the number rests on (the result's closure in the
+  extractor). `objects.line_spans` turns statement ids into per-cell `[first, last]` spans, touching ones merged;
+  each map result carries `code_lines` and `own_lines`, each object `code_lines`; the view's recipes carry `lines`
+  and `own` (a figure's from its ancestor objects). `codemap.VERSION` 3 - older maps rebuild on request. The front
+  end: `openNotebook` hands the recipe's lines to `paneOpenCell(n, hl)`, which clears the last lighting and draws one
+  translucent bar per span behind the code (`.nb-hl`, the RESULT's own `.nb-hl.own` strong), positioned from the
+  code block's padding and line height, in every cell of the recipe; a cell opened without a recipe clears them.
+  Tests: test_code_map.py 83 (the spans rule: the print and an unused value left out, touching spans merged, the
+  own line), test_code_map.js 62 (the hand-over from a number and not from a step), test_pane.js 54 (the bars'
+  places; the clearing), the stack walk 121 (in Chromium the own bar sits on the RESULT call, inside the code block).
 - **The eye on a notebook cell (2026-10-24, patch 0227).** The loop closed from the notebook's side: each committed cell's
   header in the Investigation tab carries the thread map's eye (`_MAP_EYE` in analyst/render.py; inline onclick, so a
   saved favourite's cells keep it, silent on a page without the module), which opens the code map on the Steps view

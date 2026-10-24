@@ -458,13 +458,42 @@
         while ((m = ends.exec(tail)) !== null) cut = m.index;
         window.CodeMapUI.open(null, { view: 'diagram', cell: n, near: cut >= 0 ? tail.slice(cut + 1) : tail });
     };
-    window.paneOpenCell = function (n) {
+    // the cell in the Investigation tab; with `hl` (the code map's recipe, 2026-10-24: {lines: {cell: [[from, to], ...]},
+    // own: {cell: [...]}}) the lines behind the number are lit in every cell of the recipe, the RESULT's own statement
+    // strong - bars behind the code, placed by line, so the syntax colouring is untouched; the last lighting is cleared first
+    window.paneOpenCell = function (n, hl) {
         window.paneOpenTab('Investigation');
         setTimeout(() => {
-            const head = Array.from(document.querySelectorAll('.nb-cell-idx')).find(el => (el.textContent || '').replace(/\s/g, '') === 'In[' + n + ']');
+            const cellOf = m => Array.from(document.querySelectorAll('.nb-cell-idx')).find(el => (el.textContent || '').replace(/\s/g, '') === 'In[' + m + ']');
+            document.querySelectorAll('.nb-hl').forEach(b => b.remove());
+            if (hl && hl.lines) Object.keys(hl.lines).forEach(c => paneLightLines(cellOf(c), hl.lines[c], (hl.own || {})[c] || []));
+            const head = cellOf(n);
             if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 150);
     };
+    function paneLightLines(head, spans, own) {
+        const cell = head && head.closest ? head.closest('.nb-cell') : null;
+        const pre = cell && cell.querySelector('pre.nb-code'), code = pre && pre.querySelector('code');
+        if (!pre || !code || typeof getComputedStyle !== 'function') return;
+        const cs = getComputedStyle(code), pt = parseFloat(cs.paddingTop) || 0, pb = parseFloat(cs.paddingBottom) || 0;
+        const count = (code.textContent || '').replace(/\n$/, '').split('\n').length;
+        const lh = parseFloat(cs.lineHeight) || ((code.clientHeight - pt - pb) / Math.max(1, count));
+        if (!(lh > 0)) return;
+        pre.style.position = 'relative';
+        const isOwn = (a, b) => (own || []).some(o => o[0] <= a && b <= o[1]);
+        (spans || []).forEach(([a, b]) => {
+            const bar = document.createElement('div');
+            bar.className = 'nb-hl' + (isOwn(a, b) ? ' own' : '');
+            bar.style.top = (code.offsetTop + pt + (a - 1) * lh) + 'px'; bar.style.height = ((b - a + 1) * lh) + 'px';
+            pre.appendChild(bar);
+        });
+        (own || []).forEach(([a, b]) => {                    // the RESULT's own statement strong, even inside a wider span
+            if ((spans || []).some(([x, y]) => x === a && y === b)) return;
+            const bar = document.createElement('div'); bar.className = 'nb-hl own';
+            bar.style.top = (code.offsetTop + pt + (a - 1) * lh) + 'px'; bar.style.height = ((b - a + 1) * lh) + 'px';
+            pre.appendChild(bar);
+        });
+    }
     // a [C.417] chip: the Investigation tab at the READ whose digest quoted that passage (its step carries the ids it
     // quoted as data-units), opened and scrolled into view
     window.paneOpenPassage = function (ref) {

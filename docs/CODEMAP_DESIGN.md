@@ -1,4 +1,4 @@
-# The code map — design v1.3 (2026-10-24)
+# The code map — design v1.4 (2026-10-24)
 
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
@@ -157,7 +157,8 @@ view (`traced: false`) and is listed in `selfcheck`; nothing blocks the chain.
 
 ## 5. What is stored, and the route
 
-`run.code_map = {version, built, ms, view, exports, selfcheck, inputs}`; on failure `{version, built, error, inputs}`,
+`run.code_map = {version, built, ms, view, exports, selfcheck, inputs}` (version 3 since 2026-10-24: the recipes carry the
+lines behind each number); on failure `{version, built, error, inputs}`,
 and when even the import fails, `{"error": ...}`. `exports` (the names and helpers the chain left in the kernel, for
 later chains) and `inputs` (as the chain ended, with the auxiliary files' columns) let a later rebuild give the same
 map without the host. `view` is one chain's entry of the fixtures' `viewmodel.json`, with chain ids in place of
@@ -214,8 +215,13 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   ("recorded"), the line "The map shows how this number was made, not whether it is right", Made from, How it was made
   in order (each box with its names, cell, size and glossed steps), the settings it depends on (typed ones marked),
   the choices, the word lists, Rests on cells, Open in the notebook and, beside it, the other view of the same recipe
-  (**Recipe diagram** from the Steps view, **Show in the steps** from the diagram; 2026-10-24); a printout and a
-  figure likewise with their own heads; a step — why in the analyst's words, its role, what it uses (inputs, names from earlier cells and chains),
+  (**Recipe diagram** from the Steps view, **Show in the steps** from the diagram; 2026-10-24). *Open in the notebook*
+  from a recipe lights the lines behind the number in the Investigation tab (2026-10-24): each recipe carries `lines`
+  (per cell, the spans of every statement the number rests on - the result's closure, touching spans merged) and
+  `own` (the RESULT's own statement); the notebook draws a translucent bar behind each span, the own one strong,
+  placed by line number so the syntax colouring is untouched, in every cell of the recipe, and clears them when
+  another cell is opened. Where the map could not trace, nothing lights. A printout and a figure likewise with their
+  own heads; a step — why in the analyst's words, its role, what it uses (inputs, names from earlier cells and chains),
   what it made with sizes, the figures it drew, what it printed, the results it recorded, the later steps that use it,
   its lines, Open in the notebook.
 - **States**: loading; "The code map could not be built for this chain."; "The code map is built when this chain

@@ -59,7 +59,7 @@ def comparable(view):
             r["short"] = r["short"][:50]                      # the port keeps 96 characters of a short label, the prototype 58
         r.pop("traced", None)
     for r in v.get("recipes", {}).values():
-        r.pop("traced", None)
+        r.pop("traced", None); r.pop("lines", None); r.pop("own", None)    # the lines behind a number (2026-10-24), which the prototype did not keep
     return as_numbers(v)
 
 
@@ -153,6 +153,10 @@ def norm_map(m):
             if str(t.get("chain")).isdigit():
                 t["chain"] = int(t["chain"])
     m.pop("unparsed", None); m.pop("unpaired", None)
+    for o in m.get("objects", []):
+        o.pop("code_lines", None)    # the object's lines (2026-10-24), which the prototype did not keep
+    for r in m.get("results", []):
+        r.pop("code_lines", None); r.pop("own_lines", None)
     for c in m.get("cells", []):
         c.pop("mapped", None)
         if c.get("kind") != "figures":

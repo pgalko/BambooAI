@@ -691,7 +691,8 @@ def steps_view(m, chain_id, events=(), mode="", titles=None):
             for x in o["inputs"]:
                 if input_name(x) not in ins:
                     ins.append(input_name(x))
-        recipes[r["id"]] = dict(inputs=ins, items=items, params=params, patterns=patterns, choices=ch, cells=r["cells"])
+        recipes[r["id"]] = dict(inputs=ins, items=items, params=params, patterns=patterns, choices=ch, cells=r["cells"],
+                                lines=r.get("code_lines") or {}, own=r.get("own_lines") or {})      # the lines behind the number, for the notebook
 
     checks = []
     for i in vm_inputs:
@@ -783,8 +784,13 @@ def upgrade(vm_chain, m, primary_name):
             ins = list(dict.fromkeys(app(x) for x in o["inputs"] if x != CONTEXT_LABEL))
             label = "figure" if len(fl) == 1 else f"figure {i} of {len(fl)}"
             diagrams[fid] = diagram(items, dict(label=label, cell=cell, direct=sorted(o["parents"]), inputs=ins), objs, head)
+            lines = {}
+            for x in anc:
+                for c_, sp in (objs[x].get("code_lines") or {}).items():
+                    lines.setdefault(c_, []).extend(sp)
             new_recipes[fid] = dict(inputs=list(dict.fromkeys([x for it in items for x in it["inputs"]] + ins)), items=items, params=[],
-                                    patterns=[], choices=[], cells=sorted({it["cell"] for it in items} | {cell}))
+                                    patterns=[], choices=[], cells=sorted({it["cell"] for it in items} | {cell}),
+                                    lines={c_: sorted(sp) for c_, sp in lines.items()}, own=dict(o.get("code_lines") or {}))
             cap = caps[i - 1] if len(caps) == len(fl) else (" | ".join(caps) if len(fl) == 1 else "")
             figures[fid] = dict(id=fid, cell=cell, n=i, of=len(fl), name=o["name"], caption=cap, label=label)
     vm_chain["figures"] = figures

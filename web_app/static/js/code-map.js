@@ -643,11 +643,15 @@
             if (String(st.chainId) !== String(chainId)) load(chainId);     // the hook did not fire (the navigator did not move)
         } else load(chainId);
     }
+    // the cell in the notebook and, when a recipe is open, the lines behind its number lit there (2026-10-24): every
+    // statement the number rests on, in every cell of its recipe, the RESULT's own statement strong
     function openNotebook(cell) {
         const chain = st.chainId;
+        const rec = st.data && st.sel && st.sel.t === 'r' ? st.data.recipes[st.sel.id] : null;
+        const hl = rec && rec.lines && Object.keys(rec.lines).length ? { lines: rec.lines, own: rec.own || {} } : null;
         close();
         if (chain && typeof navigateToChainId === 'function' && (typeof responses !== 'undefined') && (typeof currentResponseIndex !== 'undefined') && responses[currentResponseIndex] && String(responses[currentResponseIndex].chain_id) !== String(chain)) navigateToChainId(chain);
-        if (typeof paneOpenCell === 'function' && cell) paneOpenCell(cell);
+        if (typeof paneOpenCell === 'function' && cell) paneOpenCell(cell, hl);
     }
     function load(chainId) {
         const threadId = threadIdOf(chainId);

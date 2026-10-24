@@ -225,6 +225,21 @@ def main():
             check("the thread map's eye opens the chain's code map and closes the drawer", page.evaluate("() => document.getElementById('workflowMapModal').style.display === 'none' && document.getElementById('codeMapModal').style.display === 'flex'"))
             page.click("#codeMapModal .cm-head button.x")
             page.wait_for_timeout(200)
+            # the lines behind a number (2026-10-24): Open in the notebook from a recipe lights the statements the number rests on
+            # in the Investigation tab, the RESULT's own line strong, placed inside the cell's code block
+            page.click(".sp-done .sp-codemap")
+            page.wait_for_selector("#codeMapModal .cm-res.recorded", timeout=15000)
+            page.click("#codeMapModal .cm-res.recorded")
+            page.wait_for_selector("#codeMapModal .cm-pane.result .cm-foot button[data-act='open-nb']", timeout=5000)
+            lit_cell = page.evaluate("() => document.querySelector('#codeMapModal .cm-pane.result .cm-foot button[data-act=\"open-nb\"]').dataset.cell")
+            page.click("#codeMapModal .cm-pane.result .cm-foot button[data-act='open-nb']")
+            page.wait_for_selector(".briefing-content .nb-hl.own", timeout=5000)
+            lit = page.evaluate("""() => { const own = document.querySelector('.briefing-content .nb-hl.own'); const cell = own.closest('.nb-cell'); const code = cell.querySelector('pre.nb-code code'); const cr = code.getBoundingClientRect(), orr = own.getBoundingClientRect();
+                const text = code.textContent.split('\\n'); const cs = getComputedStyle(code); const lh = parseFloat(cs.lineHeight); const line = Math.round((orr.top - cr.top - parseFloat(cs.paddingTop)) / lh) + 1;
+                return { idx: cell.querySelector('.nb-cell-idx').textContent.replace(/\\s/g, ''), bars: document.querySelectorAll('.briefing-content .nb-hl').length, own: document.querySelectorAll('.briefing-content .nb-hl.own').length,
+                         inside: orr.top >= cr.top - 1 && orr.bottom <= cr.bottom + 1, ownLine: (text[line - 1] || '').trim().slice(0, 7), modal: document.getElementById('codeMapModal').style.display }; }""")
+            check("Open in the notebook from a recipe: the map closes, the number's cell is lit - its own RESULT line strong and on the RESULT call, the other bars on the statements it rests on, all inside the code block",
+                  lit["modal"] == "none" and lit["idx"] == "In[" + lit_cell + "]" and lit["own"] == 1 and lit["bars"] >= 2 and lit["inside"] and lit["ownLine"].startswith("RESULT"), (lit_cell, lit))
 
             # the Code tab (2026-10-11, routines S10): the script is read or taken away - Copy and Download; Edit and run is retired
             page.evaluate("activateTab('code')")

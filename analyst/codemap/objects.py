@@ -320,6 +320,9 @@ def build_map(doc):
         params = [x for x in chain if objects[x]["kind"] == "param"]
         rec = dict(r, objects=chain, direct=sorted(direct), direct_inputs=direct_inputs, params=[dict(name=objects[p]["name"], value=objects[p].get("value"),
                                                                          typed=objects[p]["typed"], cell=objects[p]["cell"]) for p in params])
+        # the lines behind the number (2026-10-24): every statement it rests on, per cell, and the RESULT's own statement
+        rec["code_lines"] = line_spans(by, r["closure"])
+        rec["own_lines"] = line_spans(by, r.get("stmts") or [r["stmt"]])
         rec.pop("ops", None); rec.pop("closure", None)
         # number and interval from the printed line
         m = re.search(r":\s*([+\-−]?[\d.,]+|[+\-]?nan)(?:\s*\(95% CI ([^)]*)\))?\s*(.*)$", r["line"] or "") if r["kind"] == "result" else None
@@ -492,9 +495,29 @@ def build_map(doc):
         o["parents"] = sorted(o["parents"])
         o["inputs"] = sorted(o["inputs"])
         o["taken"] = sorted(o["taken"])
+        o["code_lines"] = line_spans(by, o["stmts"])       # the object's statements, per cell (the notebook lights them)
     return dict(chain=doc.get("chain_id") or doc.get("chain"), question=doc.get("question"), inputs=inputs, cells=out_cells, objects=list(objects.values()),
                 results=results, choices=choices, failed=doc.get("failed", []), functions=funcs, params={k: fmt_value(v) for k, v in known.items()},
                 unparsed=list(base["unparsed"]), unpaired=base["unpaired"])
+
+
+def line_spans(by, sids):
+    """The statements' lines, per cell: {cell: [[first, last], ...]} with touching spans merged, cells as strings (JSON)."""
+    per = defaultdict(list)
+    for sid in sids:
+        st = by.get(sid)
+        if st and isinstance(st.get("line"), int):
+            per[str(st["cell"])].append([st["line"], st.get("end") or st["line"]])
+    out = {}
+    for cell, spans in per.items():
+        merged = []
+        for a, b in sorted(spans):
+            if merged and a <= merged[-1][1] + 1:
+                merged[-1][1] = max(merged[-1][1], b)
+            else:
+                merged.append([a, b])
+        out[cell] = merged
+    return out
 
 
 def current_at(objects, name, stmt):

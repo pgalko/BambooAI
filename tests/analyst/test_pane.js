@@ -202,6 +202,21 @@ check('a [cell n] chip opens the map on the diagram at that cell, with the words
       opened.length === 1 && opened[0][0] === null && opened[0][1].view === 'diagram' && opened[0][1].cell === 2 && opened[0][1].near.includes('2.3 years younger (95% CI −4.5 to −0.1)'), opened);
 delete w.CodeMapUI;
 
+// Open in the notebook with the lines behind a number (2026-10-24): bars behind the code, per span, the RESULT's own strong; the last lighting cleared
+const nbTab = doc.createElement('div'); nbTab.className = 'tab'; nbTab.textContent = 'Investigation'; nbTab.click = () => {}; doc.body.appendChild(nbTab);
+const nb = doc.createElement('div'); nb.innerHTML = '<div class="briefing-content"><div class="nb-cell"><div class="nb-cell-head"><span class="nb-cell-idx">In&nbsp;[1]</span></div><pre class="nb-code"><code class="language-python">a = 1\nb = 2</code></pre></div>'
+  + '<div class="nb-cell"><div class="nb-cell-head"><span class="nb-cell-idx">In&nbsp;[2]</span></div><pre class="nb-code"><code class="language-python">x = 1\ny = 2\nz = 3\nRESULT(z)</code></pre></div></div>'; doc.body.appendChild(nb);
+global.getComputedStyle = () => ({ paddingTop: '16px', paddingBottom: '16px', lineHeight: '20px' });
+nb.querySelectorAll('pre code').forEach(c => { c.offsetTop = 0; c.clientHeight = 112; }); nb.querySelectorAll('.nb-cell-idx').forEach(h => { h.scrollIntoView = () => {}; });
+const timers = []; const realTimeout = global.setTimeout; global.setTimeout = (fn) => { timers.push(fn); return 0; };
+w.paneOpenCell(2, { lines: { '1': [[1, 1]], '2': [[1, 2], [4, 4]] }, own: { '2': [[4, 4]] } }); timers.splice(0).forEach(fn => fn());
+const bars = nb.querySelectorAll('.nb-hl');
+check('Open in the notebook with a recipe: one bar per span in each cell of the recipe, placed by line below the code\'s top padding, the RESULT\'s own line marked',
+      bars.length === 3 && bars.map(b => b.className).join('|') === 'nb-hl|nb-hl|nb-hl own' && bars[1].style.top === '16px' && bars[1].style.height === '40px' && bars[2].style.top === '76px' && bars[2].style.height === '20px', bars.map(b => [b.className, b.style.top, b.style.height]));
+w.paneOpenCell(1); timers.splice(0).forEach(fn => fn());
+check('opening a cell without a recipe clears the last lighting', nb.querySelectorAll('.nb-hl').length === 0);
+global.setTimeout = realTimeout;
+
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 // a run of 239.6 s reads "4 min 0 s", not "3 min 60 s" (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneRunEnd({status:'answered', turns:15, of:15, cells:11, failed:2, cost:0.1, seconds:239.6, replay_status:'', replay_line:'', plots:0, files:[]});
