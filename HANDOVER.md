@@ -465,6 +465,10 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The recipe panel offers the other view (2026-10-24, patch 0225).** Palo: a result chip in the Steps view opened its
+  recipe in the panel with *Open in the notebook* but no way to the diagram. The panel's foot now carries, beside that
+  button, **Recipe diagram** from the Steps view and **Show in the steps** from the diagram (the existing `view`
+  action; the selection carries), for every result, printout or figure that has a diagram. test_code_map.js 61.
 - **The `[cell n]` chip in the result colour (2026-10-24, patch 0224).** The chip was as faint as the border it sat in,
   in both themes; now that it is the way into the code map it takes the colour the map's result chips and the card's
   **Code map →** link already use (`--c-model`, `--chip-model-border`), the shape and size unchanged, the `fig` and

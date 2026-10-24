@@ -213,8 +213,9 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   button that opens its target), the counts; a result — the number, its interval and unit, the label, its status
   ("recorded"), the line "The map shows how this number was made, not whether it is right", Made from, How it was made
   in order (each box with its names, cell, size and glossed steps), the settings it depends on (typed ones marked),
-  the choices, the word lists, Rests on cells, Open in the notebook; a printout and a figure likewise with their own
-  heads; a step — why in the analyst's words, its role, what it uses (inputs, names from earlier cells and chains),
+  the choices, the word lists, Rests on cells, Open in the notebook and, beside it, the other view of the same recipe
+  (**Recipe diagram** from the Steps view, **Show in the steps** from the diagram; 2026-10-24); a printout and a
+  figure likewise with their own heads; a step — why in the analyst's words, its role, what it uses (inputs, names from earlier cells and chains),
   what it made with sizes, the figures it drew, what it printed, the results it recorded, the later steps that use it,
   its lines, Open in the notebook.
 - **States**: loading; "The code map could not be built for this chain."; "The code map is built when this chain

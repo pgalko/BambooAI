@@ -184,6 +184,13 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   m.dispatch('click', m.querySelector('.cm-res[data-id="r1"]')); await tick();
   check('click a result chip: its recipe in the panel, the other rows faded, the chip pressed', m.querySelector('.cm-panel .cm-kicker span').textContent === 'How this number was made · cell 2'
     && m.querySelectorAll('.cm-row.faded').length === 3 && m.querySelector('.cm-res[data-id="r1"]').getAttribute('aria-pressed') === 'true');
+  // the recipe panel offers the other view of the same recipe (2026-10-24): the diagram from the Steps view, the steps from the diagram
+  const toDiag = m.querySelector('.cm-panel .cm-foot-btns button[data-act="view"][data-view="diagram"]');
+  check('a result\'s panel in the Steps view carries a Recipe diagram button beside Open in the notebook', toDiag && toDiag.textContent === 'Recipe diagram' && m.querySelector('.cm-panel .cm-foot-btns button[data-act="open-nb"]'));
+  m.dispatch('click', toDiag); await tick();
+  check('it opens the diagram of that result, the panel kept; there the button reads Show in the steps', m.querySelector('.cm-diag') && m.querySelector('.cm-pick-list [role="option"][aria-selected="true"]').getAttribute('data-id') === 'r1'
+    && m.querySelector('.cm-panel .cm-kicker span').textContent === 'How this number was made · cell 2' && m.querySelector('.cm-panel .cm-foot-btns button[data-act="view"][data-view="steps"]').textContent === 'Show in the steps');
+  m.dispatch('click', m.querySelector('.cm-switch button[data-view="steps"]')); await tick();
   m.dispatch('click', m.querySelector('.cm-switch button[data-view="diagram"]')); await tick();
   check('switch to the diagram: the selected result\'s recipe drawn, the picker on it, the panel kept, the legend swapped', m.querySelector('.cm-diag') && m.querySelector('.cm-pick-list [role="option"][aria-selected="true"]').getAttribute('data-id') === 'r1'
     && m.querySelector('.cm-panel .cm-kicker span').textContent === 'How this number was made · cell 2' && m.querySelectorAll('.cm-legend span').length === 4);

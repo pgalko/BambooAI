@@ -53,6 +53,7 @@
                  madeFrom: 'Made from', nothingOutside: 'Nothing from outside: every value is made in the code.', inOrder: 'How it was made, in order',
                  copy: 'a copy, or a value read off it', params: 'Window and settings it depends on', typed: 'typed into the code, not read from the data',
                  choices: 'Choices written into the code', patterns: 'Word lists that decide what counts', restsOn: 'Rests on cell', openNb: 'Open in the notebook',
+                 showDiagram: 'Recipe diagram', showSteps: 'Show in the steps',
                  printedLabel: 'Printed in cell {n}, and the report cites it. It is not recorded as a RESULT line.',
                  figureLabel: 'Drawn after the report. The recipe is the data drawn; numbers written on the figure are left out.',
                  why: 'Why, in the analyst\'s words', uses: 'Uses', builds: 'Tables and numbers it made', figs: 'Figures it drew', printed: 'Printed',
@@ -468,7 +469,10 @@
                 (params.length ? '<div>' + build.h(WORDS.panel.params) + params.map(p => '<div class="cm-param"><span class="v">' + esc(p.value) + '</span><span class="w">' + esc(p.name) + ' · cell ' + esc(p.cell) + '</span>' + (p.typed ? '<span class="cm-typed">' + WORDS.panel.typed + '</span>' : '') + '</div>').join('') + '</div>' : '') +
                 ((rec.choices || []).length ? '<div>' + build.h(WORDS.panel.choices) + '<div class="cm-chips-row">' + rec.choices.map(c => '<span class="cm-chip">' + esc(c.text) + '</span>').join('') + '</div></div>' : '') +
                 ((rec.patterns || []).length ? '<div>' + build.h(WORDS.panel.patterns) + '<div class="cm-names">' + esc(rec.patterns.map(p => p.name + ' (cell ' + p.cell + ')').join(', ')) + '</div></div>' : '') +
-                '<div class="cm-foot"><span>' + esc(WORDS.panel.restsOn + ((rec.cells || []).length === 1 ? ' ' : 's ') + (rec.cells || []).join(', ')) + '</span><button class="ui-btn sm primary" data-act="open-nb" data-cell="' + esc(cell) + '">' + WORDS.panel.openNb + '</button></div>' +
+                '<div class="cm-foot"><span>' + esc(WORDS.panel.restsOn + ((rec.cells || []).length === 1 ? ' ' : 's ') + (rec.cells || []).join(', ')) + '</span><span class="cm-foot-btns">' +
+                // the other view of the same recipe (2026-10-24): the diagram from the Steps view, the steps from the diagram
+                (view.diagrams && view.diagrams[id] ? '<button class="ui-btn sm" data-act="view" data-view="' + (st.view === 'diagram' ? 'steps' : 'diagram') + '">' + (st.view === 'diagram' ? WORDS.panel.showSteps : WORDS.panel.showDiagram) + '</button>' : '') +
+                '<button class="ui-btn sm primary" data-act="open-nb" data-cell="' + esc(cell) + '">' + WORDS.panel.openNb + '</button></span></div>' +
                 sizes + '</div>';
         },
         step(view, ctx, n) {
