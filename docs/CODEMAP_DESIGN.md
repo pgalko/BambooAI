@@ -1,4 +1,4 @@
-# The code map — design v1.2 (2026-10-21)
+# The code map — design v1.3 (2026-10-24)
 
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
@@ -72,7 +72,7 @@ chain ends (_finish)                       request
 | the host's inputs | `bambooai/bambooai.py` `_map_inputs`: the primary with its columns, each auxiliary file with its columns (one executor call), the context, the documents |
 | the route | `web_app/code_map_routes.py`, registered after the codebook |
 | the modal | `web_app/static/js/code-map.js`; rules under `#codeMapModal` in `dialogs.css`; tokens in `tokens.css` |
-| the ways in | the closing card (`stream-pane.js`), the thread map's eye (`workflowGraph.js`); the navigator hook (`ui-controls.js`) |
+| the ways in | the closing card and the report's `[cell n]` chips (`stream-pane.js`), the thread map's eye (`workflowGraph.js`); the navigator hook (`ui-controls.js`) |
 | tests | `tests/analyst/test_code_map.py`, `tests/analyst/test_code_map.js`, the stack walk; fixtures under `tests/analyst/fixtures/codemap/` |
 
 Behaviour was ported from a research prototype (the design package of 2026-10-20), not its structure: the prototype's
@@ -204,7 +204,11 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   with a hidden root above the inputs so they sit on the top row whatever they feed; edges from dagre's points as one
   SVG string (centre to centre under the harness's stand-in, which gives none); a box carries its label, its names
   and up to three lines of its first steps (200 characters; the rest in its tooltip); a box opens its step, a "From
-  chain k" input opens that chain, the result opens its recipe. The area scrolls both ways.
+  chain k" input opens that chain, the result opens its recipe. The area scrolls both ways. **Zoom** (2026-10-24),
+  as the thread map has it: out, the level, in, fit, at the diagram head's end; Ctrl/Cmd and the wheel; 30 %–200 %
+  in steps of 15 %. A diagram shown for the first time is fitted to the frame (never enlarged past 100 %); a reader's
+  zoom stays while the same diagram is on screen; the frame takes the scaled size, so the area scrolls no further
+  than the drawing.
 - **Panel**: nothing selected — how to read it, the data this chain used with its columns, Worth checking (each a
   button that opens its target), the counts; a result — the number, its interval and unit, the label, its status
   ("recorded"), the line "The map shows how this number was made, not whether it is right", Made from, How it was made
@@ -223,9 +227,13 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   working window under it is dimmed by a heavy scrim (`--scrim-heavy`, both themes) and blurred.
 - **Ways in**: the closing card's **Code map →** button on its links line (the links' style and size with a slight
   border; for an answered chain that ran code; the chain id rides in the saved markup, so a restored card still
-  opens its map) and the eye on a chain's box in the thread map drawer,
-  shown on the hovered box and the open chain's (it moves the app to the chain, closes the drawer, opens the map).
-  The map never opens on its own.
+  opens its map); the eye on a chain's box in the thread map drawer, shown on the hovered box and the open chain's
+  (it moves the app to the chain, closes the drawer, opens the map); and a `[cell n]` citation in the report or its
+  plain-language version (2026-10-24): the chip opens the map on the Recipe diagram at that cell's recorded number -
+  the cell's one number, or of several the one the sentence names (a number in the sentence equal to the estimate or
+  an end of its interval, the report's rounding allowed for) - and otherwise on the Steps view at the cell's row.
+  The chip hands the map the words before it in its block, from the last sentence end. The cell's code is a click
+  further, from the panel's *Open in the notebook*. The map never opens on its own.
 
 All of the modal's own words sit in `WORDS` at the top of `code-map.js`; the map's content comes from `words.py`.
 
@@ -260,7 +268,9 @@ every chain style that breaks the extractor goes into the fixtures.
 2. "Recorded" instead of "stands", and the line "The map shows how this number was made, not whether it is right".
 3. The run's mode on the header (`Run.mode`).
 4. Two ways in: the thread map's eye on each chain box (shown on hover and on the open chain's) and the closing
-   card's button; the map never pops up on its own; no Code tab entry.
+   card's button; the map never pops up on its own; no Code tab entry. *Amended 2026-10-24: a third way in - a
+   `[cell n]` citation in the report opens the map on that cell's number (the cell's code is a click further, from
+   the panel). The map still never opens on its own.*
 5. The map is opt-in: no checks on the closing card.
 6. The five further checks (an interval with no width, an estimate outside its interval, rows behind each estimate,
    filters that drop most rows, numbers in the report with nothing behind them) are a follow-up.

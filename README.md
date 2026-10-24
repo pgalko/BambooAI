@@ -234,7 +234,8 @@ can reproduce and still use an unsuitable method or draw an unsupported conclusi
 4. **Code map.** When a chain ends, BambooAI builds a map of how it got from its data to its numbers,
    read mechanically from the committed cells and the kernel's record - no model is asked, so the
    same chain always gives the same map, and nothing of it reaches a prompt. **Code map** on the
-   closing card (or the eye on a chain's box in the thread map) opens it: one row per cell with the
+   closing card (or the eye on a chain's box in the thread map) opens it, and a `[cell n]` citation in
+   the report opens it on that number's recipe: one row per cell with the
    inputs it read, what came out (the RESULT lines by status, the figures), and for each number its
    recipe - the data it rests on, the tables and values the code made in order, the settings typed
    into the code, the choices (seeds, thresholds, resample counts) - with a short list worth

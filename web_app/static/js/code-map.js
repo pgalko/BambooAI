@@ -32,6 +32,7 @@
         howNot: 'The map shows how this number was made, not whether it is right.',
         howToRead: 'Each row is one step of the analysis, one cell of code, in the order it ran. The columns on the left are the data this chain was given; a dot means the step used it. Click a result to see how it was made, or a step to see what it built.',
         diagramHint: 'Read it top to bottom: the data the chain was given, the tables and values the code made from it, then the number or figure. Click a box to see its step.',
+        zoom: { group: 'Zoom', out: 'Zoom out', in: 'Zoom in', fit: 'Fit to the frame' },
         noDiagram: 'Nothing to draw: this chain recorded no RESULT line and drew no figure, so no number has a recipe. ',
         noDiagramPrinted: 'Its answer is only printed, in cell {n}; the Steps view shows that step.',
         noDiagramSteps: 'The Steps view shows what each step did.',
@@ -87,6 +88,32 @@
         return s.length > 64 ? s.slice(0, 63).replace(/\s+\S*$/, '') + '…' : s;
     }
     function cut(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s; }
+
+    // ------------------------------------------------------------ a [cell n] citation in the report (the third way in, 2026-10-24)
+    // The cell's one recorded number opens its recipe; of several, the one the sentence names (a number in the sentence
+    // equals the estimate or an end of its interval, allowing for the report's rounding); otherwise the Steps view at
+    // the cell's row, its chips a click away.
+    function numbersIn(s) {
+        const out = [];
+        String(s || '').replace(/\[(?:cell|fig)\s*\d+\]/g, ' ').replace(/[\u2212\u2013]/g, '-').replace(/(?<![\w.])[+-]?\d[\d,]*(?:\.\d+)?(?![\w])/g, m => { out.push(m.replace(/,/g, '')); return m; });
+        return out;
+    }
+    function sameNumber(said, exact) {
+        const a = Math.abs(parseFloat(said)), b = Math.abs(parseFloat(exact));
+        if (isNaN(a) || isNaN(b)) return false;
+        const dec = (said.split('.')[1] || '').length;
+        return a === b || Math.abs(Math.round(b * Math.pow(10, dec)) / Math.pow(10, dec) - a) < 1e-9;
+    }
+    function citeTarget(view, cell, near) {
+        const rs = Object.keys(view.results || {}).map(k => view.results[k]).filter(r => r.kind === 'result' && r.cell === cell && view.diagrams && view.diagrams[r.id]);
+        if (rs.length === 1) return { sel: { t: 'r', id: rs[0].id }, view: 'diagram' };
+        if (rs.length > 1) {
+            const said = numbersIn(near);
+            const hit = rs.filter(r => numbersIn((r.estimate || '') + ' ' + (r.interval || '')).some(x => said.some(n => sameNumber(n, x))));
+            if (hit.length === 1) return { sel: { t: 'r', id: hit[0].id }, view: 'diagram' };
+        }
+        return { sel: { t: 's', id: cell }, view: 'steps' };
+    }
 
     // ------------------------------------------------------------ chain references (blueprint 8.6): the navigator numbers chains
     function chainNumber(id) {
@@ -313,7 +340,8 @@
             return (x.estimate || '—') + ' · ' + x.short + (x.status === 'corrected' ? ' (replaced)' : (x.status === 'not computed' ? ' (empty)' : ''))
                 + (/\(cell \d+\)$/.test(x.short) ? '' : ' · cell ' + x.cell);        // the short label names the cell itself when that is what tells it apart
         },
-        diagram(view, ctx, key) {
+        diagram(view, ctx, key, z) {
+            z = z || 1;
             const keys = Object.keys(view.diagrams || {});
             if (!keys.length) {
                 const printedAt = (view.rows || []).filter(r => r.type === 'step' && r.role === 'evidence').map(r => r.cell);
@@ -351,8 +379,17 @@
                 '<span class="t">' + esc(current) + '</span><span class="caret" aria-hidden="true">▾</span></button>' +
                 '<div class="cm-pick-list" role="listbox" aria-labelledby="cmDiagPickLabel">' +
                 keys.map(k => '<button type="button" role="option" class="cm-pick-opt' + (k === key ? ' on' : '') + '" data-act="pick-diag" data-id="' + esc(k) + '" aria-selected="' + (k === key ? 'true' : 'false') + '" tabindex="-1">' + esc(build.pickerLabel(view, k)) + '</button>').join('') +
-                '</div></div><span class="hint">' + WORDS.diagramHint + '</span></div>' +
-                '<div class="cm-diag-wrap"><div class="cm-diag" style="width: ' + lay.w + 'px; height: ' + lay.h + 'px">' + svg + nodes + '</div></div>';
+                '</div></div><span class="hint">' + WORDS.diagramHint + '</span>' + build.zoomControls(z) + '</div>' +
+                '<div class="cm-diag-wrap"><div class="cm-diag-frame" style="width: ' + Math.round(lay.w * z) + 'px; height: ' + Math.round(lay.h * z) + 'px">' +
+                '<div class="cm-diag" style="width: ' + lay.w + 'px; height: ' + lay.h + 'px; transform: scale(' + z + ')">' + svg + nodes + '</div></div></div>';
+        },
+        // the zoom (2026-10-24), as the thread map has it: out, the level, in, fit; Ctrl/Cmd and the wheel as well
+        zoomControls(z) {
+            const ic = { out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+                         in: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+                         fit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 5 5 0 0 0-4 2"/><polyline points="3 3 3 7 7 7"/></svg>' };
+            const btn = (dir, dis) => '<button type="button" class="cm-zoom-btn' + (dir === 'fit' ? ' fit' : '') + '" data-act="zoom" data-dir="' + dir + '" title="' + WORDS.zoom[dir] + '" aria-label="' + WORDS.zoom[dir] + '"' + (dis ? ' disabled' : '') + '>' + ic[dir] + '</button>';
+            return '<div class="cm-zoom" role="group" aria-label="' + WORDS.zoom.group + '">' + btn('out', z <= ZOOM.min) + '<span class="cm-zoom-level">' + Math.round(z * 100) + '%</span>' + btn('in', z >= ZOOM.max) + btn('fit', false) + '</div>';
         },
         // ---- the panel
         h(t) { return '<div class="cm-h">' + esc(t) + '</div>'; },
@@ -474,7 +511,9 @@
     }
 
     // ------------------------------------------------------------ state and the server
-    const st = { open: false, threadId: null, chainId: null, view: 'steps', sel: null, diag: null, data: null, built: 'end', state: '', pending: null, laneHi: null, seq: 0 };
+    const st = { open: false, threadId: null, chainId: null, view: 'steps', sel: null, diag: null, data: null, built: 'end', state: '', pending: null, laneHi: null, seq: 0,
+                 zoom: { key: null, z: 1, fit: 1 } };                               // the drawing's scale, per diagram: fitted when it first shows, then as the reader left it
+    const ZOOM = { min: 0.3, max: 2, step: 0.15 };                                   // the thread map's numbers
     let modal = null, opener = null;
 
     function fetchJson(url) {
@@ -494,6 +533,9 @@
         document.body.appendChild(modal);
         modal.addEventListener('click', onClick);
         modal.addEventListener('keydown', onKey);                                                                   // the picker's keys
+        modal.addEventListener('wheel', e => {                                                                       // Ctrl/Cmd and the wheel zoom the drawing, as on the thread map
+            if ((e.ctrlKey || e.metaKey) && st.view === 'diagram' && e.target && e.target.closest && e.target.closest('.cm-map')) { e.preventDefault(); applyZoom(st.zoom.z + (e.deltaY > 0 ? -ZOOM.step : ZOOM.step)); }
+        }, { passive: false });
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.open) { e.stopPropagation(); close(); } });   // wherever the focus sits
         return modal;
     }
@@ -520,6 +562,31 @@
         else if (act === 'open-chain') openChain(b.getAttribute('data-chain'), b.getAttribute('data-cell'));
         else if (act === 'open-nb') openNotebook(parseInt(b.getAttribute('data-cell'), 10));
         else if (act === 'lane') { st.laneHi = b.getAttribute('data-lane'); select(null); }
+        else if (act === 'zoom') { const d = b.getAttribute('data-dir'); applyZoom(d === 'fit' ? st.zoom.fit : st.zoom.z + (d === 'in' ? ZOOM.step : -ZOOM.step)); }
+    }
+    // the drawing's scale: the frame takes the scaled size so the area scrolls no further than the drawing; the level and
+    // the buttons follow. A diagram shown for the first time is fitted to the frame (never enlarged); a reader's zoom
+    // stays while the same diagram is on screen.
+    function applyZoom(z) {
+        z = Math.max(ZOOM.min, Math.min(ZOOM.max, Math.round(z * 100) / 100));
+        st.zoom.z = z;
+        const map = modal && modal.querySelector('.cm-map');
+        const diag = map && map.querySelector('.cm-diag'), frame = map && map.querySelector('.cm-diag-frame');
+        if (!diag || !frame) return;
+        const w = parseFloat(diag.style.width) || 0, h = parseFloat(diag.style.height) || 0;
+        diag.style.transform = 'scale(' + z + ')';
+        frame.style.width = Math.round(w * z) + 'px'; frame.style.height = Math.round(h * z) + 'px';
+        const lvl = map.querySelector('.cm-zoom-level'); if (lvl) lvl.textContent = Math.round(z * 100) + '%';
+        const out = map.querySelector('.cm-zoom-btn[data-dir="out"]'), inn = map.querySelector('.cm-zoom-btn[data-dir="in"]');
+        if (out) { if (z <= ZOOM.min) out.setAttribute('disabled', ''); else out.removeAttribute('disabled'); }
+        if (inn) { if (z >= ZOOM.max) inn.setAttribute('disabled', ''); else inn.removeAttribute('disabled'); }
+    }
+    function fitZoom(map) {
+        const diag = map && map.querySelector('.cm-diag'), head = map && map.querySelector('.cm-diag-head');
+        const w = diag ? parseFloat(diag.style.width) : 0, h = diag ? parseFloat(diag.style.height) : 0;
+        const aw = (map && map.clientWidth || 0) - 48, ah = (map && map.clientHeight || 0) - ((head && head.offsetHeight) || 0) - 60;
+        if (!(w > 0 && h > 0 && aw > 0 && ah > 0)) return 1;
+        return Math.max(ZOOM.min, Math.min(1, aw / w, ah / h));
     }
     // the picker's list: opened under its button, the chosen option focused; closed with the focus back on the button
     function setPick(pick, open) {
@@ -592,7 +659,11 @@
             if (j.error || !j.map) { st.state = 'error'; render(); return null; }
             st.data = j.map; st.built = j.built || 'end'; st.state = '';
             st.diag = defaultDiag(j.map);
-            if (st.pending) { st.sel = st.pending; st.pending = null; }
+            if (st.pending && st.pending.t === 'cite') {                        // a [cell n] citation: the number it names, or the cell's row
+                const tgt = citeTarget(j.map, st.pending.id, st.pending.near);
+                st.sel = tgt.sel; st.view = tgt.view; if (tgt.sel.t === 'r') st.diag = tgt.sel.id;
+                st.pending = null;
+            } else if (st.pending) { st.sel = st.pending; st.pending = null; }
             render();
             return j.map;
         }).catch(() => { if (seq === st.seq) { st.state = 'unreachable'; render(); } return null; });
@@ -605,7 +676,12 @@
         if (!view) { p.map.innerHTML = build.state(st.state || 'loading'); p.panel.innerHTML = ''; return; }
         if (view.nocode) { p.map.innerHTML = build.nocode(view, ctx); p.panel.innerHTML = build.summary(view, ctx); return; }
         const focus = focusOf(view, st.sel);
-        p.map.innerHTML = st.view === 'diagram' ? build.diagram(view, ctx, st.diag || defaultDiag(view)) : build.steps(view, ctx, st.sel, focus);
+        if (st.view === 'diagram') {
+            const key = st.diag || defaultDiag(view);
+            const same = st.zoom.key === key;
+            p.map.innerHTML = build.diagram(view, ctx, key, same ? st.zoom.z : 1);
+            if (!same) { const fit = fitZoom(p.map); st.zoom = { key, z: fit, fit }; applyZoom(fit); }
+        } else p.map.innerHTML = build.steps(view, ctx, st.sel, focus);
         if (st.laneHi) { const ln = p.map.querySelector('[data-lane="' + st.laneHi + '"]'); if (ln) ln.classList.add('hi'); }
         p.panel.innerHTML = st.sel && st.sel.t === 'r' ? build.result(view, ctx, st.sel.id) : (st.sel && st.sel.t === 's' ? build.step(view, ctx, st.sel.id) : build.summary(view, ctx));
         if (p.panel.scrollTop) p.panel.scrollTop = 0;
@@ -620,7 +696,7 @@
         opener = (typeof document !== 'undefined' && document.activeElement && document.activeElement !== document.body) ? document.activeElement : null;
         st.open = true; m.style.display = 'flex';
         st.view = (opts && opts.view === 'diagram') ? 'diagram' : 'steps';     // a fresh opening starts at the Steps view; moving between chains keeps the view
-        st.pending = opts && opts.cell ? { t: 's', id: parseInt(opts.cell, 10) } : null;
+        st.pending = opts && opts.cell ? (opts.near != null ? { t: 'cite', id: parseInt(opts.cell, 10), near: String(opts.near) } : { t: 's', id: parseInt(opts.cell, 10) }) : null;
         load(id);
         const x = m.querySelector('.cm-head button.x');
         if (x && typeof x.focus === 'function') x.focus();                   // keyboard users land in the dialog; Escape closes it

@@ -976,7 +976,15 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-pick-opt.on::before { content: '✓'; position: absolute; left: 9px; top: 5px; color: var(--c-model); }
 #codeMapModal .cm-diag-head .hint { font-size: var(--fs-small); color: var(--text-tertiary); }
 #codeMapModal .cm-diag-wrap { padding: 28px 24px 32px; }
-#codeMapModal .cm-diag { position: relative; margin: 0 auto; }
+#codeMapModal .cm-diag-frame { position: relative; margin: 0 auto; }                  /* the drawing's scaled size (2026-10-24): the area scrolls no further than it */
+#codeMapModal .cm-diag { position: relative; transform-origin: top left; }
+/* the zoom (2026-10-24), the thread map's look: out, the level, in, fit, at the head's end */
+#codeMapModal .cm-zoom { display: flex; align-items: center; gap: 2px; padding: 2px; margin-left: auto; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); }
+#codeMapModal .cm-zoom-btn { width: 24px; height: 24px; border: none; border-radius: 4px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; padding: 0; }
+#codeMapModal .cm-zoom-btn:hover:not(:disabled) { background: var(--bg-tertiary); color: var(--text-primary); }
+#codeMapModal .cm-zoom-btn:disabled { opacity: .35; cursor: default; }
+#codeMapModal .cm-zoom-btn svg { width: 13px; height: 13px; }
+#codeMapModal .cm-zoom-level { min-width: 34px; text-align: center; font-size: 10px; color: var(--text-quaternary); font-variant-numeric: tabular-nums; }
 #codeMapModal .cm-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 #codeMapModal .cm-edges path { fill: none; stroke: var(--edge-color); stroke-width: 1.5; }
 #codeMapModal .cm-edges marker path { fill: var(--edge-color); stroke: none; }

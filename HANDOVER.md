@@ -465,6 +465,20 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The code map: a citation opens it on its number; the diagram zooms (2026-10-24, patch 0222).** Palo's two asks.
+  (1) The third way in: a `[cell n]` chip in the report or its plain-language version opens the map on the Recipe
+  diagram at that cell's recorded number (`paneOpenRecipe` in stream-pane.js hands over the cell and the words before
+  the chip in its block from the last sentence end; `citeTarget` in code-map.js: the cell's one number, or of several
+  the one the sentence names - a number equal to the estimate or an end of its interval, the report's rounding
+  allowed for - else the Steps view at the cell's row). The chip no longer opens the cell's code; that is a click
+  further from the panel, and the `In [n]` lines in the stream pane still open cells. Decision 4 amended in
+  docs/CODEMAP_DESIGN.md. (2) The zoom, as the thread map has it: out, the level, in, fit at the diagram head's end,
+  Ctrl/Cmd and the wheel, 30-200 % by 15 %; a diagram first shown is fitted to the frame (never enlarged), a reader's
+  zoom stays while the same diagram is on screen (`st.zoom` per diagram key; `applyZoom`, `fitZoom`), and the
+  drawing sits in a frame of its scaled size so the area scrolls no further than it. Tests: test_pane.js 52 (the
+  chip's markup and what it hands over), test_code_map.js 59 (the three outcomes of a citation; the zoom's controls,
+  steps, wheel, fit and persistence), the stack walk 119 (a chip in the Answer opens the map on its number; zoom out
+  scales the drawing and sizes the frame).
 - **The figure's badges (2026-10-21, patches 0220, 0221).** The tile numbers on `docs/images/bambooai_app.jpg` down to
   a dot (23 px on the 2400 px composite; a 9 px mark as the README shows it, the digit readable at full size) on the
   rail under the top bar, where they cover nothing. No code change; after 2.5.0, no version change.

@@ -247,6 +247,40 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   check('the dialog carries its role and label; Escape closes it', m.querySelector('.cm-dlg').getAttribute('role') === 'dialog' && m.querySelector('.cm-dlg').getAttribute('aria-label') === 'Code map'
     && (doc.dispatch('keydown', m, { key: 'Escape' }), m.style.display === 'none'));
   check('a lane dot says in words what it marks', el(b.steps(TRIAL2, ctx, null, { cells: null, inputs: null, recipe: null })).querySelectorAll('.cm-dot-cell').map(d => d.getAttribute('title')).join('|') === 'reads From chain 1 here|uses field_trial.csv through an earlier step');
+  // the third way in (2026-10-24): a [cell n] citation. One recorded number in the cell opens its recipe on the diagram; of
+  // several, the one the sentence names (the report's rounding allowed for); otherwise the Steps view at the cell's row
+  w.CodeMapUI.close();
+  w.CodeMapUI.open('1', { view: 'diagram', cell: 2, near: 'B is 0.6 t/ha higher within soil type' }); await tick(); await tick();
+  check('a citation of a cell with one recorded number: the diagram of that number, its recipe in the panel', m.style.display === 'flex' && m.querySelector('.cm-diag') && m.querySelector('.cm-pick-list [role="option"][aria-selected="true"]').getAttribute('data-id') === 'r1'
+    && m.querySelector('.cm-panel .cm-kicker span').textContent === 'How this number was made · cell 2', m.querySelector('.cm-panel .cm-kicker') && m.querySelector('.cm-panel .cm-kicker').textContent);
+  const two = JSON.parse(JSON.stringify(TRIAL)); two.results.r9 = Object.assign({}, two.results.r1, { id: 'r9', estimate: '+1.23', interval: '0.90 to 1.50', label: 'yield, regime C vs A' }); two.diagrams.r9 = two.diagrams.r1; two.recipes.r9 = two.recipes.r1;
+  answers['/code_map/1001/8'] = route('1001', '8', two);
+  w.CodeMapUI.close(); w.CodeMapUI.open('8', { view: 'diagram', cell: 2, near: 'The within-soil gap is 0.57 t/ha (0.38 to 0.76)' }); await tick(); await tick();
+  const pickedBySentence = m.querySelector('.cm-pick-list [role="option"][aria-selected="true"]').getAttribute('data-id');
+  w.CodeMapUI.close(); w.CodeMapUI.open('8', { view: 'diagram', cell: 2, near: 'Regime C is 1.2 t/ha ahead' }); await tick(); await tick();
+  const pickedRounded = m.querySelector('.cm-pick-list [role="option"][aria-selected="true"]').getAttribute('data-id');
+  w.CodeMapUI.close(); w.CodeMapUI.open('8', { view: 'diagram', cell: 2, near: 'the regimes differ, as the table shows' }); await tick(); await tick();
+  check('a citation of a cell with two recorded numbers: the sentence\'s number picks one (exact, or the report\'s rounding of it); a sentence with no number of theirs lands on the Steps view at the cell\'s row',
+    pickedBySentence === 'r1' && pickedRounded === 'r9' && !m.querySelector('.cm-diag') && m.querySelector('.cm-pane.step .cm-big.cell').textContent === 'Cell 2 · turn 4', [pickedBySentence, pickedRounded, m.querySelector('.cm-panel .cm-kicker') && m.querySelector('.cm-panel .cm-kicker').textContent]);
+  // the zoom (2026-10-24): the thread map's controls at the head's end; in, out, fit; Ctrl and the wheel; the frame takes the scaled size
+  w.CodeMapUI.close(); w.CodeMapUI.open('1', { view: 'diagram' }); await tick(); await tick();
+  m.dispatch('click', m.querySelector('.cm-res[data-id="r1"]')); await tick();
+  m.dispatch('click', m.querySelector('.cm-switch button[data-view="diagram"]')); await tick();
+  const zoomBox = m.querySelector('.cm-diag-head .cm-zoom');
+  const lvl = () => m.querySelector('.cm-zoom-level').textContent, scale = () => m.querySelector('.cm-diag').style.transform;
+  const at100 = zoomBox && lvl() === '100%' && m.querySelector('.cm-zoom-btn[data-dir="out"]') && m.querySelector('.cm-zoom-btn[data-dir="in"]') && m.querySelector('.cm-zoom-btn[data-dir="fit"]') && m.querySelector('.cm-diag-frame');
+  m.dispatch('click', m.querySelector('.cm-zoom-btn[data-dir="in"]'));
+  const in1 = lvl() === '115%' && scale() === 'scale(1.15)';
+  m.dispatch('wheel', m.querySelector('.cm-diag'), { ctrlKey: true, deltaY: 100, preventDefault() {} });
+  const wheelOut = lvl() === '100%';
+  m.dispatch('click', m.querySelector('.cm-zoom-btn[data-dir="out"]')); m.dispatch('click', m.querySelector('.cm-zoom-btn[data-dir="out"]'));
+  const out2 = lvl() === '70%' && scale() === 'scale(0.7)';
+  m.dispatch('click', m.querySelector('.cm-node.table[data-act="pick-s"]')); await tick();
+  const kept = lvl() === '70%';                                                      // the same diagram re-drawn keeps the reader's zoom
+  m.dispatch('click', m.querySelector('.cm-zoom-btn[data-dir="fit"]'));
+  check('the zoom: controls at the head\'s end at 100% (the fit, with no frame to measure here); + to 115%; Ctrl and the wheel back to 100%; − twice to 70%; a click on a box keeps it; fit restores it',
+    at100 && in1 && wheelOut && out2 && kept && lvl() === '100%' && scale() === 'scale(1)', [at100, in1, wheelOut, out2, kept, lvl(), scale()]);
+  w.CodeMapUI.close();
   const graph = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflowGraph.js'), 'utf8');
   check('the thread map drawer: an eye on each chain box that moves the app to the chain, closes the drawer and opens its map', graph.includes("eye.className = 'wf-node-map'") && graph.includes('window.CodeMapUI.open(resp.chain_id)') && graph.includes("drawer.style.display = 'none'"));
   const ui = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'ui-controls.js'), 'utf8');

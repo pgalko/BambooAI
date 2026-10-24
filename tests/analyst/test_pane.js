@@ -35,11 +35,11 @@ check('a READ under way: the pending row names the Reader and its model', pane.q
 w.paneLookup({kind:'read', query:'D1 the wet season', peek:'An early wet season [D1.3].', sources:[], passages:[{id:'D1.3', where:'notes.md §Weather', quote:'rainfall was 40% above'}, {id:'D1.5', where:'notes.md §Weather', quote:'sown a week later'}]});
 check('[D1.3] chip: a document citation with the READ row\'s passage as its hover text, opening the view at the unit; an unknown unit still opens the view',
       w.paneCite('doc', 'D1.3') === '<span class="cite doc" data-unit="D1.3" title="notes.md §Weather — &quot;rainfall was 40% above&quot;" onclick="if(typeof documentsOpenUnit===\'function\')documentsOpenUnit(\'D1.3\')">D1.3</span>'
-      && w.paneCite('doc', 'D1.9').includes('title="open in the Documents view"') && w.paneCite('cell', '7') === '<span class="cite cell" onclick="if(typeof paneOpenCell===\'function\')paneOpenCell(7)">cell 7</span>', w.paneCite('doc', 'D1.3'));
+      && w.paneCite('doc', 'D1.9').includes('title="open in the Documents view"') && w.paneCite('cell', '7') === '<span class="cite cell" title="How this number was made" onclick="if(typeof paneOpenRecipe===\'function\')paneOpenRecipe(this,7)">cell 7</span>', w.paneCite('doc', 'D1.3'));
 check('the read marks the view reads are the same map', w.documentsReadMarks['D1.3'] && w.documentsReadMarks['D1.3'].quote === 'rainfall was 40% above' && !w.documentsReadMarks['D1.9']);
 const cited = w.paneCiteHtml('<p>Rain was 40% above [D1.3] and plots [cell 2] <code>x[D1.3]</code> <a title="[cell 9]">t</a></p>');
 check('paneCiteHtml: chips in the text between tags - a document chip with its passage, a cell chip - and nothing inside a tag is touched',
-      cited.includes('data-unit="D1.3"') && cited.includes('paneOpenCell(2)') && cited.includes('title="[cell 9]"') && cited.split('class="cite').length === 4, cited);
+      cited.includes('data-unit="D1.3"') && cited.includes('paneOpenRecipe(this,2)') && cited.includes('title="[cell 9]"') && cited.split('class="cite').length === 4, cited);
 // a READ over the context (docs/CONTEXT_DESIGN.md S2): the chip's hover carries the passage's day, kind and author with the
 // quote, and the original beneath it when the quote is a rendering; the click lands on the READ in the Investigation tab
 w.paneLookupStart({kind:'read', query:'CTX the legs on the climbs', model:'deepseek/deepseek-v4.1-flash'});
@@ -53,13 +53,13 @@ check('an English passage shows no original line; an unknown passage says how to
       !w.paneCite('ctx', 'C.420').includes('original:') && w.paneCite('ctx', 'C.420').includes('day_note · subject — &quot;slept badly&quot;') && w.paneCite('ctx', 'C.9').includes("title=\"a passage of the context: print(CTX.text('C.9')) in a cell\""), w.paneCite('ctx', 'C.9'));
 const citedCtx = w.paneCiteHtml('<p>Heavy legs [C.417], a document [D1.3], a cell [cell 2] and <code>CTX.text(\'C.417\')</code></p>');
 check('paneCiteHtml: a context chip beside a document chip and a cell chip; C.417 inside the code tag is not a chip',
-      citedCtx.includes('class="cite ctx" data-unit="C.417"') && citedCtx.includes('data-unit="D1.3"') && citedCtx.includes('paneOpenCell(2)') && citedCtx.split('class="cite').length === 4 && citedCtx.includes("<code>CTX.text('C.417')</code>"), citedCtx);
+      citedCtx.includes('class="cite ctx" data-unit="C.417"') && citedCtx.includes('data-unit="D1.3"') && citedCtx.includes('paneOpenRecipe(this,2)') && citedCtx.split('class="cite').length === 4 && citedCtx.includes("<code>CTX.text('C.417')</code>"), citedCtx);
 // a passage named by its bare id (2026-10-14: the first live run wrote "C.39 - written 4 August" and cited cells beside): a chip
 // when the passage is known, left alone otherwise and inside code; the report's cited passages arrive before the answer renders
 w.panePassages({passages:[{id:'C.600', where:'2026-09-01 · day_note · subject', quote:'slept badly, legs flat all day'}, {id:'C.417', where:'overwritten?', quote:'no'}, {id:'D1.5', where:'notes.md §Weather', quote:'sown a week later'}]});
 const bare = w.paneCiteHtml('<p><strong>C.600 - written 2026-09-01</strong> [cell 9]; C.417 again; C.601 unknown. See D1.5 and D1.2.5; <code>CTX.text(\'C.600\')</code> and <pre><code>print(CTX.text(\'C.417\'))</code></pre> end C.600.</p>');
 check('bare ids: C.600 and C.417 (known) and D1.5 (known) become chips, C.601 (unknown) and D1.2.5 do not, nothing inside code or pre; a sentence-ending full stop is allowed; the bracketed [cell 9] still a chip',
-      bare.split('class="cite ctx"').length === 4 && bare.split('class="cite doc"').length === 2 && bare.includes('C.601 unknown') && bare.includes('D1.2.5') && bare.includes("<code>CTX.text('C.600')</code>") && bare.includes("<pre><code>print(CTX.text('C.417'))</code></pre>") && bare.includes('paneOpenCell(9)') && bare.endsWith('>C.600</span>.</p>'), bare);
+      bare.split('class="cite ctx"').length === 4 && bare.split('class="cite doc"').length === 2 && bare.includes('C.601 unknown') && bare.includes('D1.2.5') && bare.includes("<code>CTX.text('C.600')</code>") && bare.includes("<pre><code>print(CTX.text('C.417'))</code></pre>") && bare.includes('paneOpenRecipe(this,9)') && bare.endsWith('>C.600</span>.</p>'), bare);
 check('panePassages fills the hover of a passage no READ returned and keeps the READ\'s verified quote where one exists',
       w.paneCite('ctx', 'C.600').includes('day_note · subject — &quot;slept badly, legs flat all day&quot;') && w.paneCite('ctx', 'C.417').includes('Legs were heavy from the first climb') && !w.paneCite('ctx', 'C.417').includes('overwritten'), w.paneCite('ctx', 'C.417'));
 delete w.documentsReadMarks['C.600']; delete w.documentsReadMarks['D1.5'];
@@ -193,6 +193,14 @@ const tc2Live = tc2.querySelector('.sp-think').textContent;
 w.paneTurnEnd({turn:4, kind:'cell', thinking:'The step it read.', note:'- Names: df', code:'print(2)', elapsed:1, cost:0.001});
 check('a call before the turn format: the live step stops where the call begins; the finished card shows the step the session read',
       tc2Live.startsWith('I print the table.') && !tc2Live.includes('invoke') && tc2.querySelector('.sp-think').textContent === 'The step it read.', [tc2Live, tc2.querySelector('.sp-think') && tc2.querySelector('.sp-think').textContent]);
+
+// a [cell n] chip opens the code map on that number (2026-10-24): the chip hands the map its cell and the sentence it sits in
+const opened = []; w.CodeMapUI = { open: (id, o) => opened.push([id, o]) };
+const para = doc.createElement('p'); para.innerHTML = w.paneCiteHtml('<p>The medians were equal (28 vs 28) [cell 1]. Survivors are on average 2.3 years younger (95% CI −4.5 to −0.1) [cell 2].</p>').replace(/^<p>|<\/p>$/g, '');
+w.paneOpenRecipe(para.querySelectorAll('.cite.cell')[1], 2);
+check('a [cell n] chip opens the map on the diagram at that cell, with the words of its block for the number the sentence names (the whole block where the DOM cannot cut at the chip)',
+      opened.length === 1 && opened[0][0] === null && opened[0][1].view === 'diagram' && opened[0][1].cell === 2 && opened[0][1].near.includes('2.3 years younger (95% CI −4.5 to −0.1)'), opened);
+delete w.CodeMapUI;
 
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 // a run of 239.6 s reads "4 min 0 s", not "3 min 60 s" (2026-10-06)

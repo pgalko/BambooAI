@@ -226,7 +226,10 @@
                                             : "if(typeof paneOpenPassage==='function')paneOpenPassage('" + esc(ref) + "')";
                 return '<span class="cite ' + kind + '" data-unit="' + esc(ref) + '" title="' + esc(title) + '" onclick="' + open + '">' + esc(ref) + '</span>';
             }
-            return '<span class="cite ' + kind + '" onclick="' + (kind === 'fig' ? "if(typeof paneOpenTab==='function')paneOpenTab('Plots')" : "if(typeof paneOpenCell==='function')paneOpenCell(" + esc(ref) + ")") + '">' + kind + ' ' + esc(ref) + '</span>';
+            // [cell n] opens the code map on that number's recipe (2026-10-24, the third way in; the cell's code is a click
+            // further, from the map's panel); the chip hands over itself, so the map can read the sentence it sits in
+            if (kind === 'cell') return '<span class="cite cell" title="How this number was made" onclick="if(typeof paneOpenRecipe===\'function\')paneOpenRecipe(this,' + esc(ref) + ')">cell ' + esc(ref) + '</span>';
+            return '<span class="cite ' + kind + '" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'Plots\')">' + kind + ' ' + esc(ref) + '</span>';
         }
     };
 
@@ -438,6 +441,22 @@
     window.paneOpenTab = function (name) {
         const tab = Array.from(document.querySelectorAll('.tab, .tab-button, [data-tab]')).find(el => (el.textContent || '').trim().toLowerCase().startsWith(name.toLowerCase()));
         if (tab) tab.click();
+    };
+    // a [cell n] chip in the report: the code map on that cell's number. The words before the chip in its block, from
+    // the last sentence end, go along so the map can tell which of the cell's numbers the sentence names; the chain is
+    // the one on screen, as the closing card's link has it
+    window.paneOpenRecipe = function (el, n) {
+        if (!window.CodeMapUI) { window.paneOpenCell(n); return; }                 // a page without the module: the cell, as before
+        let before = '';
+        try {
+            const block = (el.closest && el.closest('p, li, td, th, h1, h2, h3, h4, h5, blockquote, div')) || el.parentNode;
+            if (block && typeof document.createRange === 'function') { const r = document.createRange(); r.setStart(block, 0); r.setEndBefore(el); before = r.toString(); }
+            else if (block) before = String(block.textContent || '');
+        } catch (e) { before = ''; }
+        const tail = before.slice(-300);
+        let cut = -1, m; const ends = /[.!?;]\s+(?=[A-Z0-9(\[\u201c"\u2212-])/g;     // a sentence end: punctuation, space, then a capital, a digit or a bracket
+        while ((m = ends.exec(tail)) !== null) cut = m.index;
+        window.CodeMapUI.open(null, { view: 'diagram', cell: n, near: cut >= 0 ? tail.slice(cut + 1) : tail });
     };
     window.paneOpenCell = function (n) {
         window.paneOpenTab('Investigation');

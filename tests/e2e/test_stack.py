@@ -162,6 +162,24 @@ def main():
             plots_link = page.evaluate("() => { const l = [...document.querySelectorAll('.sp-done a, .sp-done .link')].map(e => e.textContent).find(t => /Plots \\(\\d+\\)/.test(t)); return l || (document.querySelector('.sp-done') || {}).textContent || ''; }")
             check("the replay captured both figures: the matplotlib PNG and the plotly JSON (the closing card says Plots (2))", "Plots (2)" in plots_link, plots_link[:120])
 
+            # the third way in (2026-10-24): a [cell n] chip in the report opens the code map on that cell's number - the diagram
+            # with its recipe in the panel - and Escape closes it; the zoom controls sit at the diagram head's end
+            page.evaluate("activateTab('answer')")
+            page.wait_for_selector("#content-answer .cite.cell", timeout=5000)
+            cite_cell = page.evaluate("() => { const c = document.querySelector('#content-answer .cite.cell'); return c ? c.textContent : ''; }")
+            page.click("#content-answer .cite.cell")
+            page.wait_for_selector("#codeMapModal .cm-diag .cm-node.result, #codeMapModal .cm-pane.step", timeout=15000)
+            cm_cite = page.evaluate("() => ({ open: document.getElementById('codeMapModal').style.display === 'flex', diagram: !!document.querySelector('#codeMapModal .cm-diag'), kicker: (document.querySelector('#codeMapModal .cm-panel .cm-kicker span') || {}).textContent || '', zoom: (document.querySelector('#codeMapModal .cm-zoom-level') || {}).textContent || '' })")
+            check("a [cell n] chip in the report opens the map on that cell's number: the diagram, the recipe in the panel, the zoom at its fit",
+                  cm_cite["open"] and cm_cite["diagram"] and cm_cite["kicker"].startswith("How this number was made · " + cite_cell) and cm_cite["zoom"].endswith("%"), (cite_cell, cm_cite))
+            page.click("#codeMapModal .cm-zoom-btn[data-dir='out']")
+            page.wait_for_timeout(150)
+            cm_zoom = page.evaluate("() => { const d = document.querySelector('#codeMapModal .cm-diag'), f = document.querySelector('#codeMapModal .cm-diag-frame'); const z = parseFloat((d.style.transform.match(/scale\\(([\\d.]+)\\)/) || [])[1]); return { level: document.querySelector('#codeMapModal .cm-zoom-level').textContent, z, frameOk: Math.abs(parseFloat(f.style.width) - Math.round(parseFloat(d.style.width) * z)) <= 1 }; }")
+            check("zoom out: the drawing scaled a step down, the level saying so, the frame sized to the drawing", cm_zoom["z"] < 1 and cm_zoom["level"] == str(round(cm_zoom["z"] * 100)) + "%" and cm_zoom["frameOk"], cm_zoom)
+            page.click("#codeMapModal .cm-zoom-btn[data-dir='fit']")
+            page.keyboard.press("Escape")
+            page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
+
             # the code map (2026-10-20, M4): the closing card's button opens the modal on this chain, built at its end; a result's
             # recipe; the diagram; the thread map's eye opens it too
             check("the closing card carries the Code map button with this chain's id", page.evaluate("() => { const b = document.querySelector('.sp-done .sp-codemap'); return b && b.dataset.chain === String(responses[currentResponseIndex].chain_id); }"))
