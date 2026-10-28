@@ -148,7 +148,7 @@ sb = r3.get("sandbox") or {}
 check("executor: /kernel/start reports the box as the kernel sees it - user, root or not, capabilities, seccomp, container, mounts, the metadata address",
       all(k in sb for k in ("uid", "user", "root", "caps", "notable_caps", "seccomp", "container", "mounts", "metadata", "docker_socket")) and isinstance(sb["mounts"], list), sb)
 hb = (c.get("/health").get_json() or {})
-check("executor: /health carries the same facts beside the build", (hb.get("sandbox") or {}).get("uid") == sb.get("uid") and "v64" in str(hb.get("build")), (hb.get("build"), hb.get("sandbox")))
+check("executor: /health carries the same facts beside the build", (hb.get("sandbox") or {}).get("uid") == sb.get("uid") and "v65" in str(hb.get("build")), (hb.get("build"), hb.get("sandbox")))
 
 
 def _run(code):
@@ -204,6 +204,25 @@ try:
           o.get("reaches") == [] and not o.get("error"), o)
     o = _run("x = 1 / 0")
     check("executor: a failed cell carries no reach records of its own, and the next cell starts clean", o.get("reaches") == [] and "ZeroDivisionError" in (o.get("error") or ""), o)
+    # a library scanning the import path for package metadata lists every folder on sys.path - in the image that is /app,
+    # the executor's own folder, which is one of the box's places (2026-10-28: "listed /app" on every cell of a statsmodels
+    # run); the cell's own listing of such a folder is still a reach, and a folder named in the code only as the head of a
+    # longer path is not a choice of that folder
+    _pk = os.path.join(os.path.expanduser("~"), ".reach_test_pkgs")
+    os.makedirs(os.path.join(_pk, "sub"), exist_ok=True)
+    with open(os.path.join(_pk, "sub", "f.txt"), "w") as fh:
+        fh.write("hello")
+    o0 = _run(f"import sys as _s\n_s.path.append({_pk!r})\nprint('added')")
+    o = _run("import warnings\nwarnings.simplefilter('ignore')\nimport pkg_resources\nprint(len(list(pkg_resources.working_set)) >= 0)")
+    o2 = _run(f"print(len(os.listdir({_pk!r})) >= 0)")
+    names = [x.get("name") for x in (o2.get("registry") or {}).get("namespace") or []]
+    check("executor: the record's own state never shows in the registry the analyst reads (v64 had listed _REACHES and _IN_CELL beside the cell's names)",
+          o0.get("reaches") == [] and "_REACHES" not in names and "_IN_CELL" not in names and "popen" in names, names)   # _returns is an older stray, not this record's
+    o3 = _run(f"import pkg_resources\npkg_resources.working_set = pkg_resources.WorkingSet()\nprint(open({(_pk + '/sub/f.txt')!r}).read())")
+    check("executor: a library's scan of a folder on the import path is not a reach; the cell's own listing of it is; a file under it read by the cell is recorded without the library's scan of the folder above",
+          o.get("reaches") == [] and not o.get("error")
+          and [(x.get("path"), x.get("op"), x.get("via")) for x in o2.get("reaches") or []] == [(_pk, "list", "code")]
+          and [(x.get("path"), x.get("op"), x.get("via")) for x in o3.get("reaches") or []] == [(_pk + "/sub/f.txt", "read", "code")], (o, o2.get("reaches"), o3.get("reaches")))
 finally:
     c.post("/kernel/stop", json={"session_id": sid3})
     _srv.shutdown()

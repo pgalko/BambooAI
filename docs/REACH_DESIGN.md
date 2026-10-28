@@ -45,7 +45,8 @@ once per process and records only while a cell runs (`G["_IN_CELL"]`):
 | `os.environ` | a name the cell read; `*` when it walked the whole environment | `{"kind": "env", "name", "line"}` |
 | `os.system`, `os.popen`, `subprocess.Popen` | a program the cell started, past the blacklist's spelling (`from os import popen`) | `{"kind": "process", "command", "via", "line"}` |
 
-"The data" is the dataset the kernel loaded, the person's own datasets folder (the auxiliary files live there), the
+A library's listing of a folder on the import path (its scan for package metadata, which in the image lists `/app`)
+is not a reach; the cell's own listing of such a folder is. "The data" is the dataset the kernel loaded, the person's own datasets folder (the auxiliary files live there), the
 generated folder, the plots folder, temp, `/dev`, python's own trees (`/usr`, `sys.prefix`, site-packages), the
 matplotlib and user caches. What libraries read on a box as a matter of course (`/etc/localtime`, `/etc/ssl`,
 `/etc/fonts`, `/etc/mime.types`, the font scan's `fc-list`, cgroup files under `/proc` and `/sys`) is not a reach.

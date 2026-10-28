@@ -33,8 +33,8 @@
   `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.6.0 (2026-10-28: the reach record - what
   each cell touched outside the data, recorded by the kernel, marked asked for or not, reported on the closing card,
   the pane, the notebook and the code map; the tally per model; a refused cell as its own state; the metadata address
-  refused; the blacklist's `os.exec`/`os.spawn` families and f-string text fixed - patches 0230-0232; **executor image
-  v64** - rebuild and roll out), 2.5.1 (2026-10-24: the code map's ways
+  refused; the blacklist's `os.exec`/`os.spawn` families and f-string text fixed - patches 0230-0232, two faults of the
+  first live run fixed in 0234; **executor image v65** - rebuild and roll out), 2.5.1 (2026-10-24: the code map's ways
   in and out - a `[cell n]` citation in the report opens the map on that number, the eye on each notebook cell opens
   it at that cell, the recipe panel offers the other view, and *Open in the notebook* lights the lines behind the
   number in the cell; the diagram zooms as the thread map does; the `[cell n]` chip and the panel's buttons in the
@@ -93,7 +93,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/31/142/60/42/37/15/88/1/1 Python; 58/7/40/71/24/71/14/25/4/14/67 JS; 1,492 on 2026-10-28); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/142/60/42/37/15/88/1/1 Python; 58/7/40/71/24/71/14/25/4/14/67 JS; 1,494 on 2026-10-28); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -475,6 +475,17 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Two faults of v64, from the first live run on the Mac (2026-10-28, patch 0234; executor image v65).** (1) Every
+  cell of a statsmodels run carried the tag *listed /app*: a library scanning the import path for package metadata
+  lists every folder on `sys.path`, and in the image that is `/app`, the executor's own folder, one of the box's places.
+  A library's listing of a folder on the import path is no longer a reach; the cell's own listing of such a folder
+  still is. With it, a folder named in the code only as the head of a longer path (`/app/datasets/u/x.csv`) no longer
+  counts as the cell's choice of that folder (`_path_in_code`: the path must stand alone). (2) The record's two state
+  names, `_REACHES` and `_IN_CELL`, had shown in the registry the analyst reads each turn (the namespace summary skips
+  `__` names and the `_INTERNAL` set, not every `_` name) - their shape, not their content, but rule 3 says nothing
+  of the record enters a prompt. Both are in `_INTERNAL` now. `_returns` is an older stray of the same kind, left as
+  it was. Tests: test_executor_kernel.py 33 (the import-path scan, the cell's own listing, the file under it, the
+  registry), the build stamp checks v65.
 - **The reach tally, the walk's chain and the design (2026-10-28, patch 0232).** `tools/reaches_report.py` reads every
   thread under `storage/<user>/threads` and the run logs under `logs/<user>/` and prints the record per model: runs,
   cells, fetched and sent (asked for / not), files, environment names, programs, refused cells, the hosts not asked

@@ -425,6 +425,12 @@ def _in_code(*texts):
     return any(t and len(t) >= 3 and t in code for t in texts)
 
 
+def _path_in_code(*paths):
+    """A folder written in the cell's code as a path of its own: not followed by more path or a word character."""
+    code = G.get("_CURRENT_CODE") or ""
+    return any(t and len(t) >= 3 and re.search(re.escape(t) + r"(?![\w/])", code) for t in paths)
+
+
 def _reach_add(rec, key):
     """Keep one record per key in the cell, merged; past the cap, one count."""
     if not G.get("_IN_CELL"):
@@ -455,10 +461,14 @@ def _reach_file(path, op, raw=None):
     if _under(p, _REACH_ROOTS):
         return
     own, line = _cell_frames()
-    parents = [p] + [p[:i] for i in range(len(p) - 1, 1, -1) if p[i] == "/" and p[:i].count("/") >= 2]
-    chosen = own or _in_code(str(raw) if raw is not None else "", *parents)
+    parents = [p[:i] for i in range(len(p) - 1, 1, -1) if p[i] == "/" and p[:i].count("/") >= 2]
+    # the cell chose the path when its own frame made the call, or the path - or a folder above it - is written in its
+    # code as a path of its own (a folder named only as the head of a longer path is not a choice of the folder, 2026-10-28)
+    chosen = own or _path_in_code(str(raw) if raw is not None else "", p, *parents)
     if p.startswith(("/proc", "/sys")) and not chosen:
         return
+    if op == "list" and not chosen and any(p == os.path.realpath(x or ".") for x in sys.path):
+        return                                     # a library scanning the import path for package metadata (2026-10-28: "listed /app" on every cell)
     if not (chosen or op == "write" or (_under(p, _SENSITIVE) and not p.startswith(_NOISE)) or any(seg.startswith(".") for seg in p.split("/"))):
         return
     _reach_add({"kind": "file", "path": p, "op": op, "line": line, "via": "code" if chosen else "library"}, ("file", p, op))
@@ -772,6 +782,7 @@ _INTERNAL = {
     "matplotlib", "plt", "_mpl_figure", "pd", "np", "df", "DS", "RESULT", "_RESULTS", "_CURRENT_CODE", "_generated_dir", "_DATASETS",
     "_real_savefig", "_saved_plots", "_plot_counter", "_analysis_dir",
     "_patched_show", "_patched_savefig", "redirect_stdout",
+    "_REACHES", "_IN_CELL",                       # the reach record's state: never in the registry the analyst reads (2026-10-28)
 }
 
 
