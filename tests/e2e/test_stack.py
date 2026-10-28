@@ -759,6 +759,49 @@ def main():
             check("Ask AI about plot 1: a new chain with the question, its prompt naming the figure attached, and the analyst's model given the picture (the scripted analyst's report says it was in view)",
                   "QUESTION:\nWhat does the taller bar mean?" in p7["user"] and "THE FIGURE THE PERSON ASKS ABOUT is attached" in p7["user"] and "[a picture was attached to this message" in p7["user"]
                   and "The figure attached to the question was in view." in ans7, (p7["user"][:300], ans7[:300]))
+            # the reach report (2026-10-28): a chain whose first cell the executor refuses (the blacklist) and whose second
+            # fetches from the fake integrations service, which the question does not name - the pane's rows, the closing
+            # card, the Investigation tab, the code map and the record
+            page.fill("#queryInput", mod.REACH_QUESTION)
+            page.click("#submitQuery")
+            wait_text(page, "#chainPosition", "chain 8 of 8", 60000)
+            wait_run_end(page, 8)
+            page.wait_for_timeout(500)
+            rows8 = page.evaluate("""() => { const rows = [...document.querySelectorAll('#streamOutput .sp-row')]; return {
+                restricted: rows.filter(r => r.classList.contains('restricted')).map(r => ({ out: r.querySelector('.out').textContent, t: r.querySelector('.t').textContent, fail: r.classList.contains('fail'), glyph: r.firstElementChild.textContent })),
+                reach: rows.filter(r => r.querySelector('.reach')).map(r => ({ cell: r.dataset.cell, text: r.querySelector('.reach').textContent, unasked: r.querySelector('.reach').classList.contains('unasked'), title: r.querySelector('.reach').getAttribute('title') })),
+                failed: rows.filter(r => r.classList.contains('fail')).length }; }""")
+            check("the pane: the refused cell is its own row - ⊘, 'not run: restricted operation (subprocess)', 'not run' - not a failed row; the fetch cell carries its tag in the kernel's colour, the service's address and the bytes, 'not asked for' in the hover",
+                  len(rows8["restricted"]) == 1 and rows8["restricted"][0]["out"] == "not run: restricted operation (subprocess)" and rows8["restricted"][0]["t"] == "not run" and not rows8["restricted"][0]["fail"] and rows8["restricted"][0]["glyph"] == "⊘"
+                  and len(rows8["reach"]) == 1 and rows8["reach"][0]["unasked"] and rows8["reach"][0]["text"].startswith("↓") and "127.0.0.1:" in rows8["reach"][0]["text"] and rows8["reach"][0]["title"].endswith("not asked for")
+                  and rows8["failed"] == 0, rows8)
+            card8 = page.evaluate("""() => { const d = [...document.querySelectorAll('#streamOutput .sp-done')].pop(); const r = d.querySelector('.reaches'); return r ? { h: r.querySelector('.h').textContent, grid: d.querySelector('.grid').textContent,
+                lines: [...r.querySelectorAll('.r')].map(x => ({ c: x.querySelector('.c').textContent, what: x.querySelector('.what').textContent, tag: x.querySelector('.tag').textContent, unasked: x.classList.contains('unasked') })),
+                sandbox: (r.querySelector('.sandbox') || {}).textContent || '' } : null; }""")
+            check("the closing card: '1 reach outside the data (1 not asked for) · 1 cell not run', the fetch line with its cell and 'not asked for', the refused attempt, the Cells count saying 1 not run, and the sandbox line naming the box (no container: the stack's executor is a local process)",
+                  card8 and card8["h"] == "1 reach outside the data (1 not asked for) · 1 cell not run" and "(1 not run)" in card8["grid"] and len(card8["lines"]) == 2
+                  and card8["lines"][0]["c"].startswith("cell ") and card8["lines"][0]["what"].startswith("fetched ") and "127.0.0.1:" in card8["lines"][0]["what"] and card8["lines"][0]["tag"] == "not asked for" and card8["lines"][0]["unasked"]
+                  and card8["lines"][1]["c"].startswith("attempt after cell ") and card8["lines"][1]["what"] == "not run: restricted operation (subprocess)" and card8["lines"][1]["tag"] == "refused"
+                  and card8["sandbox"].startswith("Sandbox: ") and "no container seen" in card8["sandbox"] and "metadata address" in card8["sandbox"], card8)
+            nb8 = page.evaluate("() => { activateTab('plan'); const c = document.getElementById('content-plan'); return { restricted: c.querySelectorAll('.nb-cell--restricted').length, failed: c.querySelectorAll('.nb-cell--failed').length, notrun: (c.querySelector('.nb-out--restricted') || {}).textContent || '', reach: [...c.querySelectorAll('.nb-reach')].map(x => [x.className, x.textContent]) }; }")
+            check("the Investigation tab: the refused cell marked restricted with its 'Not run' line, no failed cell, the fetch cell's tag in its header",
+                  nb8["restricted"] == 1 and nb8["failed"] == 0 and nb8["notrun"].startswith("Not run") and "subprocess" in nb8["notrun"] and len(nb8["reach"]) == 1 and nb8["reach"][0][0] == "nb-reach unasked" and "127.0.0.1" in nb8["reach"][0][1], nb8)
+            page.click("#streamOutput .sp-done:last-of-type .sp-codemap")
+            page.wait_for_function("() => { const m = document.getElementById('codeMapModal'); return !!m && getComputedStyle(m).display !== 'none' && m.querySelectorAll('.cm-row').length > 0; }", timeout=20000)
+            map8 = page.evaluate("""() => { const m = document.getElementById('codeMapModal'); return {
+                meta: (m.querySelector('.cm-facts') || m).textContent.includes('1 cell not run'),
+                restricted: [...m.querySelectorAll('.cm-row.restricted')].map(r => r.querySelector('.cm-restricted-text').textContent),
+                failedRows: m.querySelectorAll('.cm-row.failed').length,
+                chip: [...m.querySelectorAll('.cm-reach-chip')].map(c => [c.className, c.textContent]),
+                section: [...m.querySelectorAll('.cm-check.reach')].map(c => [c.className, c.textContent, c.getAttribute('data-act'), c.getAttribute('data-cell')]),
+                heads: [...m.querySelectorAll('.cm-panel .cm-h')].map(h => h.textContent) }; }""")
+            check("the code map: the meta line says 1 cell not run; the refused attempt is its own row (not a failed row); the fetch step carries the reach chip; the summary's section lists the reach (a button to its step) and the refused attempt before 'Worth checking'",
+                  map8["meta"] and len(map8["restricted"]) == 1 and map8["restricted"][0].startswith("Not run · restricted operation (subprocess)") and map8["failedRows"] == 0
+                  and len(map8["chip"]) == 1 and map8["chip"][0][0] == "cm-chip cm-reach-chip" and "127.0.0.1" in map8["chip"][0][1]
+                  and len(map8["section"]) == 2 and map8["section"][0][0] == "cm-check reach unasked" and "not asked for" in map8["section"][0][1] and map8["section"][0][2] == "pick-s" and map8["section"][0][3]
+                  and "refused" in map8["section"][1][1] and map8["heads"].index("Reaches outside the data") < map8["heads"].index("Worth checking"), map8)
+            page.evaluate("CodeMapUI.close()")
+            page.wait_for_timeout(300)
             errs = page.evaluate("window.__stackErrors || []")
             # what landed on disk, in the app's own layout under the stack's web app working directory
             wa = os.path.join(workdir, "webapp")
@@ -767,8 +810,8 @@ def main():
             nb = json.load(open(threads[0])) if threads else {"runs": {}}
             runs = list(nb["runs"].values())
             # the document chain's one cell (the grep) replays like any other
-            check("the thread holds seven runs, all answered; every chain with cells reproduced",
-                  len(runs) == 7 and all(r["status"] == "answered" for r in runs)
+            check("the thread holds eight runs, all answered; every chain with cells reproduced",
+                  len(runs) == 8 and all(r["status"] == "answered" for r in runs)
                   and all((r["replay_status"] == "reproduced") == any(t_["kind"] == "cell" for t_ in r["turns"]) for r in runs),
                   [(r["status"], r["replay_status"], sum(1 for t_ in r["turns"] if t_["kind"] == "cell")) for r in runs])
             check("the second run's parent is the first", len(runs) >= 2 and runs[1]["parent"] == runs[0]["id"])
@@ -792,6 +835,13 @@ def main():
             check("the sixth run - the follow-up with the same file uploaded again - stands on the first under a new frame id, and its replay script holds chain 1's cells with its own",
                   runs[5]["parent"] == runs[0]["id"] and runs[5]["data"].get("name") == "field_trial.csv" and runs[5]["data"].get("df_id") != runs[0]["data"].get("df_id")
                   and runs[5]["replay_script"].count("# --- cell") >= 4 and "adj_diff" in runs[5]["replay_script"], (runs[5]["data"].get("name"), runs[5]["replay_script"].count("# --- cell")))
+            r8 = runs[7]
+            t8 = [t_ for t_ in r8["turns"] if t_["kind"] == "cell"]
+            check("the record: the eighth run's refused cell carries the restricted word and no cell number, its fetch cell the reach marked not asked for with the bytes and the line, the run its sandbox, and its map the report",
+                  len(t8) == 2 and t8[0]["refused"] == "subprocess" and t8[0]["cell_no"] is None and t8[0]["reaches"] == [] and t8[1]["refused"] == "" and len(t8[1]["reaches"]) == 1
+                  and t8[1]["reaches"][0]["kind"] == "net" and t8[1]["reaches"][0]["asked"] is False and t8[1]["reaches"][0]["in"] > 0 and t8[1]["reaches"][0]["line"] == 2
+                  and r8["sandbox"].get("uid") is not None and r8["code_map"]["view"]["reaches"]["counts"] == {"lines": 1, "unasked": 1, "asked": 0, "blocked": 0, "refused": 1, "net": 1},
+                  ([(t_.get("refused"), t_.get("cell_no"), t_.get("reaches")) for t_ in t8], r8.get("sandbox"), (r8.get("code_map") or {}).get("view", {}).get("reaches")))
             favs = glob.glob(os.path.join(wa, "storage", USER, "favourites", "*", "*.json"))
             check("Save wrote the favourites (one file per chain of the thread)", len(favs) == 4, favs)
             pack = os.path.join(wa, "memory", USER, "memory_pack.yaml")

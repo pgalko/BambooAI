@@ -1662,6 +1662,18 @@ check("reach: a run without the record says so", reach.summary(Run(id="x", paren
 nbr2 = Notebook.from_dict(json.loads(json.dumps(nbr.to_dict())))
 check("reach: the record survives the store's round trip", [t.reaches for t in nbr2.runs[rr.id].turns] == [t.reaches for t in rr.turns] and nbr2.runs[rr.id].sandbox == rr.sandbox
       and [t.refused for t in nbr2.runs[rr.id].turns] == [t.refused for t in rr.turns], [t.reaches for t in nbr2.runs[rr.id].turns])
+# the tally (tools/reaches_report.py): the thread store and the run logs of a root folder, per model, the lines not asked for
+import subprocess  # noqa: E402
+_troot = tempfile.mkdtemp(prefix="bamboo_tally_")
+NotebookStore(os.path.join(_troot, "storage", "u1")).save(nbr)
+os.makedirs(os.path.join(_troot, "logs", "u1"))
+json.dump([{"agent": "Investigator", "chain_id": rr.id, "model": "vendor/model-x", "cost": 0.01}, {"agent": "Rewriter", "chain_id": rr.id, "model": "vendor/small", "cost": 0.001}],
+          open(os.path.join(_troot, "logs", "u1", "bambooai_run_log.json"), "w"))
+_tally = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "reaches_report.py"), "--root", _troot, "--all"], capture_output=True, text=True, timeout=120)
+check("the tally: runs, cells, reaches and refusals counted; the analyst's model from the run logs (not the rewriter's); the line not asked for with its cell and question; the refused word; the sandbox line",
+      _tally.returncode == 0 and "runs 1 · cells 2 · reaches 2 (100.0 % of cells) · not asked for 1 · refused 1" in _tally.stdout
+      and "vendor/model-x" in _tally.stdout and "vendor/small" not in _tally.stdout and "read /etc/hostname" in _tally.stdout and "question: \"Fetch the file from 127.0.0.1" in _tally.stdout
+      and "refused (the blacklist)\n  subprocess 1" in _tally.stdout and "sandbox, every run: " in _tally.stdout and "metadata address" in _tally.stdout, (_tally.stdout[-1500:], _tally.stderr[-800:]))
 check("reach: asked_for reads the host, its domain, the file's name and the environment name in the questions - a substring, nothing cleverer",
       reach.asked_for({"kind": "net", "host": "api.github.com"}, ["pull it from github.com please"]) is True
       and reach.asked_for({"kind": "net", "host": "api.github.com"}, ["fetch it from GitHub"]) is False

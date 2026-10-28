@@ -10,6 +10,7 @@ the report. A follow-up ("and regime C?") reuses the warm kernel in two turns. A
 question gets a short generic two-turn answer, so the stack can be driven interactively.
 """
 import json
+import os
 import re
 
 import numpy as np
@@ -21,6 +22,9 @@ QUESTIONS = [
     "And how does regime C compare with A on the same footing?",
 ]
 REVIEW_QUESTION = "Walk through ten small checks of the data, one per turn."     # crosses turn 9: Adaptive's first self-review
+# the reach report (2026-10-28): a chain whose first cell the executor refuses (the blacklist) and whose second reaches the
+# fake integrations service - which the question does not name - so the card, the pane and the map show the record
+REACH_QUESTION = "Is the integrations service answering right now?"
 
 # a document attached to the thread (docs/DOCUMENTS_DESIGN.md, phase A): the analyst reads it in a cell
 DOC_NAME = "field_notes.md"
@@ -284,6 +288,10 @@ class Scenario:
             if "grep('wet season'" in user:                 # this chain's grep cell is in the record: read the unit it found
                 return self.t_doc_read(user, q)
             return self.t_doc(user, q)
+        if q == REACH_QUESTION:
+            if forced or turn >= 3:
+                return self.report_reach(user, q)
+            return {1: self.t_reach_refused, 2: self.t_reach_fetch}[turn](q)
         if q == REVIEW_QUESTION:
             if forced or turn >= 10:
                 return _report("Ten checks done.", _note(q, plan="report"), "Ten small checks ran, one per turn [cell 1]; nothing else was computed.")
@@ -427,6 +435,30 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
         return _report("Cell 4 printed the C-A contrast; it straddles zero. Short report on the same footing.",
                        _note(q, est=f"C-A {c['ADJ_DIFF_C']:.3f} t/ha, 95% CI [{c['CI_LO_C']:.3f}, {c['CI_HI_C']:.3f}]",
                              held="soil type (stratified)", plan="report", names="df, plot_means, adj_diff, est_c"), body)
+
+    # ------------------------------------------------------------ the reach report's chain
+    def t_reach_refused(self, q):
+        return _cell("First a look at what else runs on this box: the process list.",
+                     _note(q, plan="list the processes, then ask the service"),
+                     "import subprocess\nprint(subprocess.run(['ps', 'aux'], capture_output=True, text=True).stdout[:400])")
+
+    def t_reach_fetch(self, q):
+        # the service's address is the stack's own (STACK_FAKE_APIS, set by stack.py for the processes it spawns); the cell
+        # names it as a literal, as a model would, and the question does not - so the reach is "not asked for"
+        base = os.environ.get("STACK_FAKE_APIS") or "http://127.0.0.1:1"
+        return _cell("The process list is not available here. The service's health route says whether it answers, and how many calls it has taken.",
+                     _note(q, plan="ask the service's health route, then report"),
+                     f"import requests\nr = requests.get('{base}/health', timeout=5)\ncalls = r.json().get('calls', 0)\n"
+                     "print(f'calls taken: {calls}')\nRESULT('the service answers', 1.0 if r.ok else 0.0, None, None, '1 = yes')")
+
+    def report_reach(self, user, q):
+        nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]
+        cell = max(nos) if nos else 1
+        m = re.search(r"calls taken: (\d+)", user)
+        n = m.group(1) if m else "a number of"
+        return _report("The service answered; that is the answer.", _note(q, est="answering", plan="report"),
+                       f"## The service answers\n\nThe integrations service answered its health route [cell {cell}]; it had taken {n} calls at the time. "
+                       "The box's process list could not be read: the executor does not run that operation.")
 
     def report_generic(self, user, q):
         # the cell this chain ran (the newest in the prompt: a follow-up's cells are numbered along the path), cited

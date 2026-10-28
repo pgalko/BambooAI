@@ -471,6 +471,17 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The reach tally, the walk's chain and the design (2026-10-28, patch 0232).** `tools/reaches_report.py` reads every
+  thread under `storage/<user>/threads` and the run logs under `logs/<user>/` and prints the record per model: runs,
+  cells, fetched and sent (asked for / not), files, environment names, programs, refused cells, the hosts not asked
+  for; the lines not asked for with their cell and question; the refused words; the sandbox line (`--days N`, `--all`,
+  `--root DIR`; nothing is sent anywhere). The stack's scripted analyst has a chain for the record (`REACH_QUESTION`):
+  a cell the executor refuses (`import subprocess`), then a fetch from the fake integrations service, which the
+  question does not name, then the report; the e2e walk runs it as chain 8 and checks the pane's rows, the closing
+  card, the Investigation tab, the code map and the stored record on the real local executor (126 checks).
+  `docs/REACH_DESIGN.md` v1.0 (the rules, what is recorded and where, what is not seen, the decisions); the code map's
+  design v1.5 (the record's new fields, decision 5 amended); the README's item 5. Tests: test_analyst.py 242 (the
+  tally), the stack walk 126, the integrations walk.
 - **The reach report shown (2026-10-28, patch 0231).** Where the record surfaces, as Palo approved in the mockups. The
   stream pane: a cell that reached outside the data carries one tag after its peek (`↓ 1.3 MB from host`, `↑ 42 KB to
   host:port`, `read /etc/passwd`, `env HOME`, `ran echo`, or `n reaches outside the data`), plain when the question named

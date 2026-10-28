@@ -1,4 +1,4 @@
-# The code map — design v1.4 (2026-10-24)
+# The code map — design v1.5 (2026-10-28)
 
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
@@ -92,7 +92,11 @@ ids and tokens. The golden fixtures pin the prototype's output; the departures a
 - `cells[]`: each committed cell with its `turn`, `kind` (analysis or figures), `step` (the STEP text; for the
   figures cell "Figures: " + its captions), `code`, `output`, `registry`, `results` (the kernel's records, with
   `line`), `figures`, `captions`;
-- `failed[]`: each failed attempt with its turn, the cell before it, its purpose and its error line;
+  Since 2026-10-28 each cell also carries `reaches[]`, the kernel's record of what it touched outside the data
+  (docs/REACH_DESIGN.md), each record marked `asked`;
+- `failed[]`: each failed attempt with its turn, the cell before it, its purpose and its error line; a cell the
+  executor refused before it ran rides here with `refused` (the restricted word) and is shown as its own state;
+- `sandbox`: the box the cells ran on, as the kernel saw itself (2026-10-28);
 - `events[]`: the reviews (turn, verdict, the most consequential problem), the review of the report, the report turn;
 - `path`, `path_cells`, `titles`: the chain's path root first, which chain each cell number belongs to, the question
   of every chain the view names;
@@ -281,7 +285,10 @@ every chain style that breaks the extractor goes into the fixtures.
    `[cell n]` citation in the report opens the map on that cell's number (the cell's code is a click further, from
    the panel); and a fourth, the eye on a committed cell in the Investigation tab, which opens the Steps view at
    that cell. The map still never opens on its own.*
-5. The map is opt-in: no checks on the closing card.
+5. The map is opt-in: no checks on the closing card. *Amended 2026-10-28: the reach report (docs/REACH_DESIGN.md)
+   is on the closing card - a security matter, not a map check - and the map's summary panel carries the same lines
+   under "Reaches outside the data", each a button to its step; a step row carries the cell's reach chip and a
+   refused attempt is its own row.*
 6. The five further checks (an interval with no width, an estimate outside its interval, rows behind each estimate,
    filters that drop most rows, numbers in the report with nothing behind them) are a follow-up.
 7. Documents are inputs, mapped like CTX.

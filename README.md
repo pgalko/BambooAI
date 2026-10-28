@@ -243,6 +243,17 @@ can reproduce and still use an unsuitable method or draw an unsupported conclusi
    that came out empty or was replaced). The map shows how a number was made, not whether it is
    right. `docs/CODEMAP_DESIGN.md` has the design.
 
+5. **Reach report.** The kernel records what each cell touched outside the data: the hosts it
+   connected to and the bytes each way, the files it opened outside the data, the environment names
+   it read, the programs it started - and whether the question asked for it (the host, the file or
+   the name appears in the question). The closing card lists the reaches with their cells, the
+   cells the executor refused (the restricted-module list; a refused cell is shown as not run,
+   not as a failure), and the box the cells ran on in one line; the same tags sit on the cell rows,
+   in the Investigation tab and in the code map. `tools/reaches_report.py` tallies the record over
+   the stored threads per model. Nothing of it reaches a prompt; it observes and reports, it does
+   not prevent (the one address the kernel refuses is the cloud instance metadata service).
+   `docs/REACH_DESIGN.md` has the design.
+
 ### Modes and budgets
 
 Each mode sets a turn budget and a dollar budget the Analyst can see. The budgets are set per
@@ -770,7 +781,8 @@ to PyPI (`.github/workflows/release.yml`).
 Design notes: `docs/DESIGN_CHECKLIST.md` (what every change must keep true),
 `docs/OSS_DESIGN.md` (the decisions behind this edition), `docs/ROUTINES_DESIGN.md`,
 `docs/CONTEXT_DESIGN.md` and `docs/INCREMENTAL_LOADS_DESIGN.md` (routines, the words, the store),
-`docs/CODEMAP_DESIGN.md` (the code map), `HANDOVER.md` (the state of the code).
+`docs/CODEMAP_DESIGN.md` (the code map), `docs/REACH_DESIGN.md` (the reach record), `HANDOVER.md`
+(the state of the code).
 
 ## Contributing
 
