@@ -471,6 +471,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The reach report shown (2026-10-28, patch 0231).** Where the record surfaces, as Palo approved in the mockups. The
+  stream pane: a cell that reached outside the data carries one tag after its peek (`↓ 1.3 MB from host`, `↑ 42 KB to
+  host:port`, `read /etc/passwd`, `env HOME`, `ran echo`, or `n reaches outside the data`), plain when the question named
+  the host or the file, the kernel's sand when not; a cell the executor refused is its own row - `⊘ In [–] not run:
+  restricted operation (socket)` - neither red nor counted as failed. The closing card: under the replay line, `n
+  reaches outside the data (k not asked for) · m cells not run`, one line per reach with its cell and its tag (*the
+  question named it* / *not asked for* / *refused*), the refused attempts, and the box in one line (`Sandbox: appuser
+  (not root); in docker; no notable capabilities; seccomp filter; metadata address refused; 1 mount: /app/datasets`);
+  a run that reached nothing says so in one faint line with the sandbox as its hover; an executor that predates the
+  record shows nothing. The Cells count says `(1 failed, 1 not run)`. The Investigation tab: the same tag in a cell's
+  header, and a refused cell as `In [–]` with a *Not run* line instead of a red error fold. The code map: the record
+  carries each cell's reaches and a refused attempt's word and the run's sandbox; a step row carries the tag among
+  its chips; a refused attempt is its own row (`Turn 3 · Not run · restricted operation (socket) · purpose`) in the
+  kernel's colour; the summary panel gets *Reaches outside the data* between the data and *Worth checking*, each
+  line a button opening its step, the sandbox as a note; the meta line says `1 cell not run` and the counts leave a
+  refused cell out of the failed attempts. `analyst/reach.py` words everything once (`chip`, `line`, `summary`,
+  `summary_of_record`, `sandbox_line`); nothing of it enters a prompt. Tests: test_pane.js 58, test_code_map.js 67,
+  test_code_map.py 88, test_read.py 72, test_app_path.py 197; renders in both themes checked.
 - **The reach record: what a cell touched outside the data (2026-10-28, patch 0230; executor image v64).** Palo, after
   Cohere's note on an open-weight model that reaches out unasked: the platform claims transparency but caught nothing of
   the kind. Observation first, prevention later: the kernel's worker wraps the doors a cell can leave through - sockets

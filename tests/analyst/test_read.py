@@ -306,6 +306,19 @@ _he = _nbh(_Run(id="e", parent=None, question="q", turns=[_Turn(kind="cell", thi
 check("the Investigation tab's committed cells carry the code map's eye (2026-10-24): a button with the cell number that opens the map at that cell, inline so a saved favourite keeps it; a failed or skipped cell has none",
       _he.count('class="nb-cell-map"') == 2 and 'data-cell="1"' in _he and 'data-cell="2"' in _he and 'onclick="if(window.CodeMapUI)CodeMapUI.open(null,{cell:1})"' in _he
       and 'title="This cell in the code map"' in _he, _he.count('class="nb-cell-map"'))
+# the reach record in the Investigation tab (2026-10-28): a cell the executor refused is its own state, not red, with "Not run"
+# and the restricted word; a cell that reached outside the data carries the tag in its header, the kernel's colour unless asked for
+_hr = _nbh(_Run(id="r", parent=None, question="q", turns=[
+    _Turn(kind="cell", thinking="t", code="import requests\nr = requests.get('http://203.0.113.9:8080/x')", stdout="200", cell_no=1,
+          reaches=[{"kind": "net", "host": "203.0.113.9", "ip": "", "port": 8080, "out": 150, "in": 21000, "n": 1, "line": 2, "tls": False, "blocked": False, "failed": "", "asked": False}]),
+    _Turn(kind="cell", thinking="t", code="import subprocess", stdout="", cell_no=None, error="Security notice: code contains restricted module (subprocess) and was not executed.", refused="subprocess"),
+    _Turn(kind="cell", thinking="t", code="print(open('/etc/hostname').read())", stdout="box", cell_no=2, reaches=[{"kind": "file", "path": "/etc/hostname", "op": "read", "via": "code", "line": 1, "asked": True}])]))
+check("the Investigation tab: a refused cell is marked restricted - In [–], 'not run' in the meta, a 'Not run' line with the restricted word, no error fold, no eye - and keeps its code",
+      _hr.count('nb-cell--restricted') == 1 and 'nb-cell--failed' not in _hr and 'nb-out--error' not in _hr and '<span class="nb-out-label">Not run</span><span class="nb-out-peek">restricted operation (subprocess): the executor does not run it</span>' in _hr
+      and _hr.count('class="nb-cell-map"') == 2 and 'import subprocess' in _hr and '1 lines · not run' in _hr, _hr[:1200])
+check("the Investigation tab: a cell's reaches as one tag in its header, the kernel's colour when the question did not ask for it, plain when it did, the lines as hover",
+      '<span class="nb-reach unasked" title="fetched 21.0 KB from 203.0.113.9:8080, sent 150 B · not asked for">↓ 21.0 KB from 203.0.113.9:8080</span>' in _hr
+      and '<span class="nb-reach" title="read /etc/hostname · the question named it">read /etc/hostname</span>' in _hr and _hr.count('nb-reach') == 2, _hr)
 from analyst.session import contract as _contract2
 both = _contract2(True, context=True)
 check("contract with both: Documents then Context, the READ row for each; the base contract has neither",

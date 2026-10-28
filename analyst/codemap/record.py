@@ -60,10 +60,14 @@ def chain_record(nb, run, inputs=None, context=False, earlier=None, registry_sta
             cells.append(dict(cell=t.cell_no, turn=None if figures else num, kind="figures" if figures else "analysis",
                               step=("Figures: " + " | ".join(caps)) if figures else (t.thinking or ""), code=t.code or "", output=t.stdout or "",
                               registry=dict(getattr(t, "registry", {}) or {}), results=[dict(k) for k in (t.results or [])],
-                              figures=len(t.figures or []), captions=caps))
+                              figures=len(t.figures or []), captions=caps,
+                              reaches=[dict(r) for r in (getattr(t, "reaches", None) or [])]))     # what the cell touched outside the data (2026-10-28)
             last_cell = t.cell_no
         elif t.kind == "cell" and t.error:
-            failed.append(dict(turn=num, after_cell=last_cell, step=purpose_of(t), error=tools.exception_line(t.error)))
+            # a cell the executor refused before it ran rides with the failed attempts, with its restricted word: the view shows
+            # it as its own state, not a failure of the code (2026-10-28)
+            failed.append(dict(turn=num, after_cell=last_cell, step=purpose_of(t), error=tools.exception_line(t.error),
+                               refused=str(getattr(t, "refused", "") or "")))
         elif t.kind == "review":
             m = _VERDICT_RE.search(t.thinking or "")
             p = _PROBLEM_RE.search(t.note or "")
@@ -87,4 +91,5 @@ def chain_record(nb, run, inputs=None, context=False, earlier=None, registry_sta
                 searches=sum(1 for t in run.turns if t.kind == "search"), reads=sum(1 for t in run.turns if t.kind == "read"),
                 ideas=any(t.kind == "ideas" for t in run.turns),
                 path=path_ids, path_cells=path_cells, titles=titles,
-                registry_start=dict(registry_start or {}), earlier=earlier or dict(names={}, funcs={}))
+                registry_start=dict(registry_start or {}), earlier=earlier or dict(names={}, funcs={}),
+                sandbox=dict(getattr(run, "sandbox", None) or {}))              # the box the cells ran on, for the reach report (2026-10-28)

@@ -385,12 +385,47 @@ def rule_lines():
           (rec_.get("lines"), rec_.get("own"), v["results"]["r1"].get("lines")))
 
 
+def rule_reaches():
+    """The reach report in the map (2026-10-28): a step row carries the cell's tag, a refused attempt is its own row, the
+    summary's section lists each reach with its cell and tag, the meta line counts the cells not run."""
+    c1 = "import requests\nraw = requests.get('http://203.0.113.9:8080/trial.csv').content\nprint(len(raw))\n"
+    c2 = "m = df['yield_t_ha'].mean()\nRESULT('mean yield', m, m - 0.1, m + 0.1, 't/ha')\n"
+    cells = [cell(1, c1, []), cell(2, c2, [rec("mean yield: 4.87 t/ha", 2)])]
+    cells[0]["reaches"] = [dict(kind="net", host="203.0.113.9", ip="", port=8080, out=160, in_=0, n=1, line=2, tls=False, blocked=False, failed="", asked=False)]
+    cells[0]["reaches"][0]["in"] = 21000; cells[0]["reaches"][0].pop("in_")
+    cells[1]["reaches"] = [dict(kind="file", path="/etc/hostname", op="read", via="code", line=1, asked=True)]
+    failed = [dict(turn=2, after_cell=1, step="This turn lists the processes.", error="Security notice: code contains restricted module (subprocess) and was not executed.", refused="subprocess")]
+    doc = record(cells, failed=failed)
+    doc["sandbox"] = dict(uid=1000, user="appuser", root=False, notable_caps=[], seccomp="filter", container="docker", mounts=["/app/datasets (ext4, rw)"], docker_socket=False, metadata="refused")
+    v = codemap.build_record(doc)["view"]
+    rows = v["rows"]
+    step1 = next(r for r in rows if r.get("type") == "step" and r["cell"] == 1)
+    step2 = next(r for r in rows if r.get("type") == "step" and r["cell"] == 2)
+    att = next(r for r in rows if r.get("type") == "failed")
+    check("rule: a step row carries the cell's reach tag - the one reach in a few words, not asked for in the kernel's colour, asked for plain",
+          step1.get("reach") == {"text": "↓ 21.0 KB from 203.0.113.9:8080", "tag": "unasked", "title": "fetched 21.0 KB from 203.0.113.9:8080, sent 160 B · not asked for"}
+          and step2.get("reach") == {"text": "read /etc/hostname", "tag": "asked", "title": "read /etc/hostname · the question named it"}, (step1.get("reach"), step2.get("reach")))
+    check("rule: a refused attempt is a row of its own kind after the cell it followed, with the restricted word", att.get("refused") == "subprocess" and att.get("after_cell") == 1
+          and rows.index(att) == rows.index(step1) + 1, (att, [r.get("type") for r in rows]))
+    rp = v.get("reaches") or {}
+    check("rule: the summary's section lists each reach with its cell and tag, the refused attempt, the counts and the box in one line",
+          [(x["where"], x["kind"], x["tag"], x["text"]) for x in rp.get("lines", [])] == [("cell 1", "net", "unasked", "fetched 21.0 KB from 203.0.113.9:8080, sent 160 B"), ("cell 2", "file", "asked", "read /etc/hostname")]
+          and rp.get("refused") == [{"where": "attempt after cell 1", "word": "subprocess", "text": "not run: restricted operation (subprocess)"}]
+          and rp.get("counts", {}).get("unasked") == 1 and rp.get("recorded") is True
+          and rp.get("sandbox") == "appuser (not root); in docker; no notable capabilities; seccomp filter; metadata address refused; 1 mount: /app/datasets", rp)
+    check("rule: the meta line counts a refused cell as not run, not as a failed attempt", "1 cell not run" in v["meta"] and "failed attempt" not in v["meta"], v["meta"])
+    plain = codemap.build_record(record([cell(2, c2, [rec("mean yield: 4.87 t/ha", 2)])]))["view"]
+    check("rule: a chain whose record has no reaches and no box carries no tags and says the report was not recorded",
+          not any(r.get("reach") for r in plain["rows"]) and plain["reaches"]["recorded"] is False and plain["reaches"]["lines"] == [], plain.get("reaches"))
+
+
 for name, fn in [("a RESULT in a loop", rule_loop), ("a RESULT inside a helper", rule_helper_line), ("a type conversion", rule_conversion),
                  ("drawing through a helper", rule_draw_helper), ("a title-only read", rule_title_only), ("a bootstrap through a helper", rule_bootstrap_rng),
                  ("tuple aliasing in a helper", rule_alias), ("a string join", rule_string_join), ("a typed date", rule_typed_date), ("nan", rule_nan),
                  ("corrects", rule_corrects), ("a cited printout", rule_cited_printout), ("several figures", rule_several_figures),
                  ("a cell that does not parse", rule_unparsed), ("a chain with no cells", rule_no_cells), ("a follow-up", rule_follow_up),
-                 ("a document", rule_document), ("short labels", rule_shorts), ("room for the text", rule_room), ("the lines behind a number", rule_lines)]:
+                 ("a document", rule_document), ("short labels", rule_shorts), ("room for the text", rule_room), ("the lines behind a number", rule_lines),
+                 ("the reach report", rule_reaches)]:
     rule(name, fn)
 
 # ---- the build at a chain's end: from the Run, never raising -------------------------------------------------------

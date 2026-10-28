@@ -37,6 +37,9 @@
         noDiagramPrinted: 'Its answer is only printed, in cell {n}; the Steps view shows that step.',
         noDiagramSteps: 'The Steps view shows what each step did.',
         rolledBack: 'Rolled back',
+        notRun: 'Not run', restricted: 'restricted operation ({w})',                 // a cell the executor refused before it ran (2026-10-28)
+        reaches: { h: 'Reaches outside the data', none: 'None: no cell reached outside the data.', notRecorded: 'Not recorded: the executor that ran this chain predates the record.',
+                   asked: 'the question named it', unasked: 'not asked for', blocked: 'refused by the kernel', refused: 'refused', sandbox: 'Sandbox: ', attempt: 'attempt' },
         reportBand: 'The report is written here. The figures cell, the plain-language rewrite and a final review follow.',
         role: { carries: 'Carries data forward', results: 'Records results', evidence: 'Printed what the report cites', printed: 'Printed only: not used later or cited by the report', figures: 'Draws the figures' },
         note: { figures: '{n} figure{s} drawn after the report', evidence: 'Printed what the report cites', carries: 'Carried forward to {n} later step{s}', printed: 'Printed only: not used later or cited by the report' },
@@ -306,8 +309,15 @@
                     '<div class="cm-cell"><button class="cm-cell-no" data-act="pick-s" data-cell="' + esc(r.cell) + '" aria-label="' + (r.figures ? 'Figures cell ' : 'Cell ') + esc(r.cell) + '">' + esc(fill(r.figures ? WORDS.rowSub.fig : WORDS.rowSub.cell, { n: r.cell })) + '</button>' +
                     '<div class="sub">' + esc(r.figures ? WORDS.rowSub.afterReport : (r.turn ? fill(WORDS.rowSub.turn, { n: r.turn }) : '')) + '</div></div>' +
                     '<div class="cm-dots">' + build.dots(view, r.lanes, laneOn, ctx) + '</div>' +
-                    '<div class="cm-what"><button class="cm-purpose" data-act="pick-s" data-cell="' + esc(r.cell) + '" title="' + esc(r.purpose) + '"><span>' + esc(r.purpose) + '</span></button><div class="cm-chips">' + build.chips(r) + '</div></div>' +
+                    '<div class="cm-what"><button class="cm-purpose" data-act="pick-s" data-cell="' + esc(r.cell) + '" title="' + esc(r.purpose) + '"><span>' + esc(r.purpose) + '</span></button><div class="cm-chips">' + build.chips(r) + build.reachChip(r) + '</div></div>' +
                     '<div class="cm-out">' + resHtml.join('') + (note ? '<span class="cm-note">' + esc(note) + '</span>' : '') + '</div></div>';
+            }
+            if (r.type === 'failed' && r.refused) {
+                // a cell the executor refused before it ran (2026-10-28): its own state in the kernel's colour, not a failure of the code
+                return '<div class="cm-row restricted' + (focus.cells ? ' faded' : '') + '" style="grid-template-columns: ' + cols + '">' +
+                    '<div class="cm-cell"><span class="cm-cell-no">' + esc(r.turn ? fill(WORDS.rowSub.turnFailed, { n: r.turn }) : WORDS.notRun) + '</span></div>' +
+                    '<div class="cm-dots">' + build.dots(view, null, laneOn) + '</div>' +
+                    '<div class="cm-restricted-text"><span class="k">' + WORDS.notRun + ' · ' + esc(fill(WORDS.restricted, { w: r.refused })) + '</span>' + (r.purpose ? ' · <span>' + esc(r.purpose) + '</span>' : '') + '</div></div>';
             }
             if (r.type === 'failed') {
                 return '<div class="cm-row failed' + (focus.cells ? ' faded' : '') + '" style="grid-template-columns: ' + cols + '">' +
@@ -397,13 +407,33 @@
         stepsList(steps) {
             return (steps && steps.length ? steps : [{ text: WORDS.panel.copy }]).map(s => '<div class="cm-step-text">' + esc(s.text) + '</div>' + (s.gloss ? '<div class="cm-gloss">' + esc(s.gloss) + '</div>' : '')).join('');
         },
+        reachChip(r) {
+            // what the cell touched outside the data, as one chip among the step's (2026-10-28): the kernel's colour unless the question asked for it
+            const x = r.reach;
+            if (!x || !x.text) return '';
+            return '<span class="cm-chip cm-reach-chip' + (x.tag === 'asked' ? ' asked' : '') + '" title="' + esc(x.title || '') + '">' + esc(x.text) + '</span>';
+        },
+        reaches(view) {
+            // the summary's section (2026-10-28): one line per reach with its cell and tag, the refused attempts, the box in one line;
+            // a chain that reached nothing says so; a record from before the executor kept one says that
+            const x = view.reaches;
+            if (!x) return '';
+            const lines = (x.lines || []).map(l => {
+                const cell = /^cell (\d+)$/.exec(l.where || '');
+                const un = l.tag === 'unasked' || l.tag === 'blocked';
+                return '<button class="cm-check reach' + (un ? ' unasked' : '') + '"' + (cell ? ' data-act="pick-s" data-cell="' + esc(cell[1]) + '"' : '') + '><i></i><span><span class="cell">' + esc(l.where) + '</span> ' +
+                    esc(l.text) + (l.tag && WORDS.reaches[l.tag] ? ' · ' + WORDS.reaches[l.tag] : '') + '</span></button>';
+            }).concat((x.refused || []).map(l => '<button class="cm-check reach"><i></i><span><span class="cell">' + esc(l.where) + '</span> ' + esc(l.text) + ' · ' + WORDS.reaches.refused + '</span></button>')).join('');
+            const body = lines ? '<div class="cm-checks">' + lines + '</div>' : '<div class="cm-p">' + (x.recorded ? WORDS.reaches.none : WORDS.reaches.notRecorded) + '</div>';
+            return '<div>' + build.h(WORDS.reaches.h) + body + (x.sandbox ? '<div class="cm-note">' + WORDS.reaches.sandbox + esc(x.sandbox) + '</div>' : '') + '</div>';
+        },
         summary(view, ctx) {
             const ins = view.inputs || [];
             const used = ins.filter(i => i.status === 'used' || i.status === 'via');
             const usedNames = used.map(i => plain(i.name, ctx) + (i.status === 'via' ? ' (' + fill(WORDS.panel.usedThrough, { chain: chainWords(i.through, ctx) }) + ')' : ''));
             let n = { recorded: 0, replaced: 0, empty: 0 };
             Object.keys(view.results || {}).forEach(k => { const x = view.results[k]; if (x.kind === 'printed') return; if (x.status === 'corrected') n.replaced++; else if (x.status === 'not computed') n.empty++; else n.recorded++; });
-            const nSteps = (view.rows || []).filter(r => r.type === 'step').length, nFailed = (view.rows || []).filter(r => r.type === 'failed').length;
+            const nSteps = (view.rows || []).filter(r => r.type === 'step').length, nFailed = (view.rows || []).filter(r => r.type === 'failed' && !r.refused).length;   // a refused cell is not a failed attempt (2026-10-28)
             const usedLine = view.nocode ? WORDS.panel.noCodeData : (ins.length ? usedNames.length + ' of ' + ins.length + ': ' + usedNames.join(', ') + '.' : WORDS.panel.noData);
             const cols = view.nocode ? '' : used.map(i => {
                 let t;
@@ -431,6 +461,7 @@
             return '<div class="cm-pane summary">' +
                 (view.nocode ? '' : '<div>' + build.h(WORDS.panel.summaryHow) + '<div class="cm-p">' + WORDS.howToRead + '</div></div>') +
                 '<div>' + build.h(WORDS.panel.summaryData) + '<div class="cm-p">' + esc(usedLine) + '</div>' + cols + '</div>' +
+                (view.nocode ? '' : build.reaches(view)) +
                 '<div>' + build.h(WORDS.panel.summaryChecks) + (checks ? '<div class="cm-checks">' + checks + '</div>' : '<div class="cm-p">' + WORDS.panel.nothingFlagged + '</div>') + '</div>' +
                 (view.nocode ? '' : '<div>' + build.h(WORDS.panel.summaryNumbers) + '<div class="cm-counts">' + counts.map(c => '<div><b>' + esc(c[0]) + '</b><span>' + esc(c[1]) + '</span></div>').join('') + '</div></div>') +
                 '</div>';

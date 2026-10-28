@@ -107,6 +107,10 @@ cellev = [e for e in events if e.get("type") == "pane_cell"]
 check("cell rows carry the number, the first output line and the size", cellev[0]["ok"] and cellev[0]["cell_no"] == 1 and cellev[0]["peek"].startswith("means") and cellev[0]["chars"] > 0)
 rend = [e for e in events if e.get("type") == "pane_run_end"][0]
 check("run_end carries turns, cells, cost, the replay line and the plots count", rend["cells"] == 2 and rend["replay_status"] == "reproduced" and "Replay" in rend["replay_line"] and rend["turns"] == 3)
+check("the reach report rides the pane events (2026-10-28): each cell row says whether the executor refused it and carries its reach tag (none here); run_end carries the refused count and the "
+      "report - recorded by the kernel, no reaches, the box in one line",
+      all(e.get("refused") == "" and e.get("reach") == {} for e in cellev) and rend.get("refused") == 0 and isinstance(rend.get("reaches"), dict) and rend["reaches"]["recorded"] is True
+      and rend["reaches"]["lines"] == [] and rend["reaches"]["refused"] == [] and rend["reaches"]["counts"]["lines"] == 0 and "metadata address" in rend["reaches"]["sandbox"], (cellev[0], rend.get("reaches")))
 plan = [e for e in events if e.get("type") == "plan"][-1]["data"]
 check("the Investigation tab is a notebook: one HTML block, cells with collapsed outputs, no blank line inside it",
       plan.startswith('<div class="nb">') and plan.count('<details class="nb-out"') == 2 and "\n\n" not in plan and 'language-python' in plan)

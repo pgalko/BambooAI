@@ -76,6 +76,9 @@
 .briefing-content .nb-cell-idx { color: var(--accent-color); white-space: nowrap; }
 .briefing-content .nb-cell--failed .nb-cell-idx { color: var(--error-color); }
 .briefing-content .nb-cell--skipped .nb-cell-idx { color: var(--text-quaternary); }     /* a cell not run: a figure cell during the analysis (2026-10-11) */
+.briefing-content .nb-cell--restricted .nb-cell-idx { color: var(--c-kernel); }         /* a cell the executor refused before it ran (2026-10-28): its own state, not a failure */
+.briefing-content .nb-reach { margin-left: 8px; font-size: 10.5px; line-height: 15px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }   /* what the cell touched outside the data (2026-10-28) */
+.briefing-content .nb-reach.unasked { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
 .briefing-content .nb-cell-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Courier New', Courier, monospace; }
 .briefing-content .nb-cell-meta { color: var(--text-quaternary); white-space: nowrap; margin-left: auto; }
 /* the code map's eye on a cell (2026-10-24), the thread map's glyph: quiet until hovered */
@@ -117,6 +120,8 @@
 .briefing-content details[open] > summary .nb-chevron { transform: rotate(90deg); }
 .briefing-content .nb-out-label { color: var(--accent-color); white-space: nowrap; }
 .briefing-content .nb-out--error .nb-out-label { color: var(--error-color); }
+.briefing-content .nb-out--restricted { display: flex; gap: 8px; align-items: baseline; padding: 6px 10px; font-size: 12px; color: var(--text-tertiary); font-style: italic; }
+.briefing-content .nb-out--restricted .nb-out-label { color: var(--c-kernel); font-style: normal; }
 .briefing-content .nb-out-peek { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Courier New', Courier, monospace; color: var(--text-tertiary); }
 .briefing-content details.nb-out summary:hover, .briefing-content details.nb-step summary:hover { color: var(--text-primary); }
 .briefing-content pre.nb-out-body {

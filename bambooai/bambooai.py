@@ -24,6 +24,7 @@ from bambooai import synthesis_infographic
 from analyst import Session, Budget, Notebook, NotebookStore
 from analyst import context as context_mod
 from analyst import profile as profile_mod
+from analyst import reach as reach_mod
 from analyst.replay import rehydrate
 from logger_config import get_logger
 
@@ -1094,15 +1095,18 @@ class BambooAI:
         elif kind == "cell_start":
             self._pane('pane_cell_start', turn=ev.get("turn"))
         elif kind == "cell":
-            ok = not ev.get('error')
-            skipped = ok and ev.get('cell_no') is None          # a cell the session did not run: a figure cell during the analysis (2026-10-11)
+            refused = str(ev.get('refused') or '')                # the executor refused the cell before it ran: its own state, not a failure (2026-10-28)
+            ok = not ev.get('error') or bool(refused)
+            skipped = ok and ev.get('cell_no') is None and not refused   # a cell the session did not run: a figure cell during the analysis (2026-10-11)
             out = (ev.get('stdout') or '').strip()
-            peek = ('not run: figures are drawn after the report' if skipped else next((ln.strip() for ln in out.splitlines() if ln.strip()), '')) if ok else ''
+            peek = (f'not run: restricted operation ({refused})' if refused else
+                    ('not run: figures are drawn after the report' if skipped else next((ln.strip() for ln in out.splitlines() if ln.strip()), ''))) if ok else ''
             from analyst.tools import exception_line
             t = next((x for x in reversed(run.turns) if x.kind == kind), None)
-            self._pane('pane_cell', cell_no=ev.get('cell_no'), ok=ok, skipped=skipped, peek=peek[:160], elapsed=(None if skipped else (t.elapsed if t else None)),
+            self._pane('pane_cell', cell_no=ev.get('cell_no'), ok=ok, skipped=skipped, refused=refused, peek=peek[:160], elapsed=(None if skipped or refused else (t.elapsed if t else None)),
                        chars=len(ev.get('stdout') or ''), figs=len(ev.get('figures') or []),
-                       error_line=exception_line(ev.get('error') or '')[:220] if not ok else '')
+                       error_line=exception_line(ev.get('error') or '')[:220] if not ok else '',
+                       reach=reach_mod.chip(ev.get('reaches') or []))          # the row's tag when the cell reached outside the data
             self._tab('plan', self._notebook_view(run))
         elif kind == "lookup_start":
             # a READ or SEARCH is under way: the pane shows a pending row until the digest replaces it (2026-10-03,
@@ -1268,10 +1272,12 @@ class BambooAI:
         if run.report and '> Replay' in run.report:
             replay_line = run.report.rsplit('> ', 1)[-1].strip().splitlines()[0]
         self._pane('pane_run_end', status=run.status, turns=len([t for t in run.turns if t.kind not in ('rewrite', 'review') and not getattr(t, 'step', '')]),
-                   cells_of=budget.turns, cells=len(run.cells()), failed=sum(1 for t in run.turns if t.kind == 'cell' and t.error),
+                   cells_of=budget.turns, cells=len(run.cells()), failed=sum(1 for t in run.turns if t.kind == 'cell' and t.error and not getattr(t, 'refused', '')),
+                   refused=sum(1 for t in run.turns if t.kind == 'cell' and getattr(t, 'refused', '')),     # not run, not failed (2026-10-28)
                    cost=round(self._chain_cost(), 3),
                    seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns), 1),
-                   replay_status=run.replay_status or '', replay_line=replay_line, plots=len(rep.get('plots') or []), files=files)
+                   replay_status=run.replay_status or '', replay_line=replay_line, plots=len(rep.get('plots') or []), files=files,
+                   reaches=reach_mod.summary(run))                 # the reach report: what the cells touched outside the data (2026-10-28)
         if run.status == "asked":
             asked = next((t.text for t in reversed(run.turns) if t.kind == "ask"), "")
             self.output_manager.display_results(chain_id=self.chain_id, answer=asked, plan=self._notebook_view(run))

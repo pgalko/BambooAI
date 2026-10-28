@@ -217,6 +217,34 @@ w.paneOpenCell(1); timers.splice(0).forEach(fn => fn());
 check('opening a cell without a recipe clears the last lighting', nb.querySelectorAll('.nb-hl').length === 0);
 global.setTimeout = realTimeout;
 
+// the reach report (2026-10-28): a cell that reached outside the data carries a tag after its peek, the kernel's colour unless
+// the question asked for it; a cell the executor refused is its own row, neither ran nor failed; the closing card lists the
+// reaches with their cells and tags, the refused cells, and the box in one line; a run that reached nothing says so quietly
+w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:1, of:15, seat:'Analyst', model:'m'}); w.paneTurnEnd({turn:1, kind:'cell', thinking:'t', note:'', code:'import requests', elapsed:1, cost:0.001});
+w.paneCell({cell_no:15, ok:true, peek:'downloaded 1258291 bytes', elapsed:0.9, chars:30, figs:0, reach:{text:'↓ 1.3 MB from data.example.org', tag:'asked', title:'fetched 1.3 MB from data.example.org:443, sent 812 B over TLS · the question named it'}});
+w.paneCell({cell_no:16, ok:true, peek:'posted summary table', elapsed:0.8, chars:212, figs:0, reach:{text:'↑ 42.0 KB to 203.0.113.9:8080', tag:'unasked', title:'sent 42.0 KB to 203.0.113.9:8080 · not asked for'}});
+w.paneCell({cell_no:null, ok:false, refused:'subprocess', peek:'', elapsed:null, chars:0, figs:0, error_line:'Security notice: code contains restricted module (subprocess) and was not executed.', reach:{}});
+const r15 = pane2.querySelector('.sp-row[data-cell="15"]'), r16 = pane2.querySelector('.sp-row[data-cell="16"]'), rr = pane2.querySelector('.sp-row.restricted');
+check('reach tags: an asked-for reach plain, a reach not asked for in the kernel\'s colour, both with the full line as hover', r15 && r15.querySelector('.reach') && !r15.querySelector('.reach').classList.contains('unasked') && r15.querySelector('.reach').textContent === '↓ 1.3 MB from data.example.org'
+      && r16 && r16.querySelector('.reach.unasked') && r16.querySelector('.reach.unasked').getAttribute('title').endsWith('not asked for'), r15 && r15.innerHTML);
+check('a refused cell: its own row - ⊘, In [–], "not run: restricted operation (subprocess)", "not run" - not red, not clickable', rr && !rr.classList.contains('fail') && rr.textContent.includes('⊘') && /In.\[(&ndash;|–)\]/.test(rr.querySelector('.in').textContent)
+      && rr.querySelector('.out').textContent === 'not run: restricted operation (subprocess)' && rr.querySelector('.t').textContent === 'not run' && !rr.hasAttribute('onclick') && !rr.querySelector('.reach'), rr && rr.outerHTML);
+w.paneRunEnd({status:'answered', turns:3, of:15, cells:2, failed:0, refused:1, cost:0.01, seconds:5, replay_status:'', replay_line:'', plots:0, files:[], chain_id:'1',
+              reaches:{lines:[{where:'cell 15', kind:'net', text:'fetched 1.3 MB from data.example.org:443, sent 812 B over TLS', tag:'asked'}, {where:'cell 16', kind:'net', text:'sent 42.0 KB to 203.0.113.9:8080', tag:'unasked'}],
+                       refused:[{where:'attempt after cell 16', word:'subprocess', text:'not run: restricted operation (subprocess)'}],
+                       counts:{lines:2, unasked:1, asked:1, blocked:0, refused:1, net:2}, sandbox:'appuser (not root); in docker; no notable capabilities; seccomp filter; metadata address refused; 1 mount: /app/datasets', recorded:true}});
+const done = Array.from(pane2.querySelectorAll('.sp-done')).pop(), rep = done.querySelector('.reaches');
+check('the closing card\'s report: the heading with the counts, one line per reach with its cell and tag, the refused attempt, the sandbox line; the Cells count says 1 not run', rep && rep.querySelector('.h').textContent === '2 reaches outside the data (1 not asked for) · 1 cell not run'
+      && rep.querySelectorAll('.r').length === 3 && rep.querySelectorAll('.r')[0].querySelector('.c').textContent === 'cell 15' && rep.querySelectorAll('.r')[0].querySelector('.tag').textContent === 'the question named it'
+      && rep.querySelectorAll('.r')[1].classList.contains('unasked') && rep.querySelectorAll('.r')[1].querySelector('.tag').textContent === 'not asked for'
+      && rep.querySelectorAll('.r')[2].querySelector('.what').textContent === 'not run: restricted operation (subprocess)' && rep.querySelectorAll('.r')[2].querySelector('.tag').textContent === 'refused'
+      && rep.querySelector('.sandbox').textContent.startsWith('Sandbox: appuser (not root)') && done.querySelector('.grid').textContent.includes('(1 not run)') && done.innerHTML.indexOf('class="reaches"') < done.innerHTML.indexOf('class="links"'), rep && rep.outerHTML);
+w.paneRunStart({mode:'Quick', of:5, dollars:1});
+w.paneRunEnd({status:'answered', turns:2, of:5, cells:1, failed:0, refused:0, cost:0.01, seconds:5, replay_status:'', replay_line:'', plots:0, files:[], chain_id:'2', reaches:{lines:[], refused:[], counts:{lines:0, unasked:0, asked:0, blocked:0, refused:0, net:0}, sandbox:'appuser (not root)', recorded:true}});
+const quietRep = Array.from(pane2.querySelectorAll('.sp-done')).pop().querySelector('.reaches');
+check('a run that reached nothing: one quiet line with the sandbox as its hover; a run from an executor without the record shows nothing', quietRep && quietRep.classList.contains('quiet') && quietRep.textContent === 'No reaches outside the data' && quietRep.getAttribute('title').startsWith('Sandbox: appuser')
+      && (w.paneRunStart({mode:'Quick', of:5, dollars:1}), w.paneRunEnd({status:'answered', turns:2, of:5, cells:1, failed:0, cost:0.01, seconds:5, replay_status:'', replay_line:'', plots:0, files:[], chain_id:'3', reaches:{lines:[], refused:[], counts:{lines:0, refused:0}, sandbox:'', recorded:false}}), !Array.from(pane2.querySelectorAll('.sp-done')).pop().querySelector('.reaches')), quietRep && quietRep.outerHTML);
+
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 // a run of 239.6 s reads "4 min 0 s", not "3 min 60 s" (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneRunEnd({status:'answered', turns:15, of:15, cells:11, failed:2, cost:0.1, seconds:239.6, replay_status:'', replay_line:'', plots:0, files:[]});

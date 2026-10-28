@@ -126,6 +126,36 @@ check('diagram of a printout: the chain input "From chain 1" opens that chain; t
   && dg2.querySelector('.cm-node.result .names').textContent === 'PRINTED · cell 4', dg2.innerHTML.slice(0, 400));
 check('a chain with no recipe to draw: the one line, naming the printed cell', el(b.diagram(Object.assign({}, TRIAL2, { diagrams: {} }), ctx, null)).querySelector('.cm-nocode').textContent === 'Nothing to draw: this chain recorded no RESULT line and drew no figure, so no number has a recipe. Its answer is only printed, in cell 4; the Steps view shows that step.');
 
+// the reach report (2026-10-28): a step row's chip for what the cell touched outside the data; a refused attempt as its own row;
+// the summary's section before "Worth checking", each line opening its step; a chain that reached nothing; a record without one
+const reachRow = Object.assign({}, TRIAL.rows[0], { reach: { text: '↑ 42.0 KB to 203.0.113.9:8080', tag: 'unasked', title: 'sent 42.0 KB to 203.0.113.9:8080 · not asked for' } });
+const askedRow = Object.assign({}, TRIAL.rows[0], { reach: { text: '↓ 1.3 MB from data.example.org', tag: 'asked', title: 'fetched 1.3 MB from data.example.org:443 · the question named it' } });
+const rr1 = el(b.row(TRIAL, reachRow, c1, null, { cells: null, inputs: null, recipe: null })), rr2 = el(b.row(TRIAL, askedRow, c1, null, { cells: null, inputs: null, recipe: null }));
+check('a step row carries the reach chip after its other chips: the kernel\'s colour when not asked for, plain when the question named it, the full line as hover',
+  rr1.querySelectorAll('.cm-chips .cm-chip').pop().className === 'cm-chip cm-reach-chip' && rr1.querySelector('.cm-reach-chip').textContent === '↑ 42.0 KB to 203.0.113.9:8080' && rr1.querySelector('.cm-reach-chip').getAttribute('title').endsWith('not asked for')
+  && rr2.querySelector('.cm-reach-chip').className === 'cm-chip cm-reach-chip asked' && !el(b.row(TRIAL, TRIAL.rows[0], c1, null, { cells: null, inputs: null, recipe: null })).querySelector('.cm-reach-chip'), rr1.querySelector('.cm-chips').innerHTML);
+const refusedRow = { type: 'failed', turn: 3, after_cell: 1, purpose: 'Lists the processes on the box', error: 'Security notice: code contains restricted module (subprocess) and was not executed.', refused: 'subprocess' };
+const rr3 = el(b.row(TRIAL, refusedRow, c1, null, { cells: null, inputs: null, recipe: null }));
+check('a refused attempt: a row of its own kind - "Turn 3" in the kernel\'s colour, "Not run · restricted operation (subprocess)" and the purpose - not the failed row\'s red',
+  rr3.querySelector('.cm-row').className === 'cm-row restricted' && rr3.querySelector('.cm-cell-no').textContent === 'Turn 3' && !rr3.querySelector('.cm-cell-no.fail') && !rr3.querySelector('.cm-failed-text')
+  && rr3.querySelector('.cm-restricted-text .k').textContent === 'Not run · restricted operation (subprocess)' && rr3.querySelector('.cm-restricted-text').textContent.endsWith('Lists the processes on the box'), rr3.innerHTML);
+const withReaches = Object.assign({}, TRIAL, { reaches: { lines: [{ where: 'cell 1', kind: 'net', text: 'fetched 1.3 MB from data.example.org:443, sent 812 B over TLS', tag: 'asked' }, { where: 'cell 2', kind: 'file', text: 'read /etc/passwd', tag: 'unasked' }],
+  refused: [{ where: 'attempt after cell 2', word: 'subprocess', text: 'not run: restricted operation (subprocess)' }], counts: { lines: 2, unasked: 1, asked: 1, blocked: 0, refused: 1, net: 1 }, sandbox: 'appuser (not root); in docker; seccomp filter', recorded: true } });
+const smr = el(b.summary(withReaches, c1));
+check('the summary\'s section sits between the data and the checks: one line per reach with its cell (a button opening the step) and its tag, the refused attempt, the sandbox line',
+  smr.querySelectorAll('.cm-h').map(h => h.textContent).join('|') === 'How to read it|Data this chain used|Reaches outside the data|Worth checking|In numbers'
+  && smr.querySelectorAll('.cm-check.reach').length === 3 && smr.querySelectorAll('.cm-check.reach')[0].getAttribute('data-act') === 'pick-s' && smr.querySelectorAll('.cm-check.reach')[0].getAttribute('data-cell') === '1'
+  && smr.querySelectorAll('.cm-check.reach')[0].textContent === 'cell 1 fetched 1.3 MB from data.example.org:443, sent 812 B over TLS · the question named it' && !smr.querySelectorAll('.cm-check.reach')[0].classList.contains('unasked')
+  && smr.querySelectorAll('.cm-check.reach')[1].className === 'cm-check reach unasked' && smr.querySelectorAll('.cm-check.reach')[1].textContent === 'cell 2 read /etc/passwd · not asked for'
+  && smr.querySelectorAll('.cm-check.reach')[2].textContent === 'attempt after cell 2 not run: restricted operation (subprocess) · refused' && !smr.querySelectorAll('.cm-check.reach')[2].hasAttribute('data-act')
+  && smr.querySelectorAll('.cm-note').some(n => n.textContent === 'Sandbox: appuser (not root); in docker; seccomp filter'), smr.innerHTML);
+const smq = el(b.summary(Object.assign({}, TRIAL, { reaches: { lines: [], refused: [], counts: { lines: 0, refused: 0 }, sandbox: 's', recorded: true } }), c1));
+const smn = el(b.summary(Object.assign({}, TRIAL, { reaches: { lines: [], refused: [], counts: { lines: 0, refused: 0 }, sandbox: '', recorded: false } }), c1));
+check('a chain that reached nothing says so under the heading; a record from before the executor kept one says it was not recorded; a view without the field has no section',
+  smq.textContent.includes('None: no cell reached outside the data.') && smn.textContent.includes('Not recorded: the executor that ran this chain predates the record.')
+  && !el(b.summary(TRIAL, c1)).textContent.includes('Reaches outside the data'), smq.innerHTML);
+check('a refused attempt is not counted among the failed attempts', el(b.summary(Object.assign({}, TRIAL, { rows: TRIAL.rows.concat([refusedRow]) }), c1)).querySelectorAll('.cm-counts div').map(d => d.textContent).includes('1failed attempts'));
+
 // the panel: the summary, a result, a printout, a figure, a step
 const sm = el(b.summary(TRIAL, c1));
 check('panel, nothing selected: how to read it, the data used with the columns, nothing flagged, the six counts',

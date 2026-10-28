@@ -10,6 +10,7 @@ import re
 from collections import defaultdict
 
 from . import words as W
+from .. import reach as RE
 from .words import CONTEXT_LABEL, MADE_IN_CODE, PRIMARY_LABEL, UNTRACED, chain_ref, gloss_of, is_chain_label, lane_name
 
 
@@ -647,7 +648,7 @@ def steps_view(m, chain_id, events=(), mode="", titles=None):
     extra = list(events)
     for f in m.get("failed", []):
         extra.append(dict(type="failed", turn=f.get("turn"), after_cell=f.get("after_cell"), purpose=re.sub(r"^This turn ", "", f.get("step", "")).rstrip("."),
-                          error=f.get("error", "")))
+                          error=f.get("error", ""), refused=f.get("refused", "") or ""))      # refused: not run, its own state (2026-10-28)
     ordered = []
     first_cell = rows[0]["cell"] if rows else None
     for e in extra:                                      # failed before this chain's first cell (after its path's last)
@@ -857,7 +858,8 @@ def counts(doc):
     n_an = doc.get("turns") or max([0] + [c.get("turn") or 0 for c in cells] + [f.get("turn") or 0 for f in doc.get("failed") or []]
                                    + [e.get("turn") or 0 for e in doc.get("events") or [] if e.get("type") == "report"])
     return dict(turns=n_an, cells=sum(1 for c in cells if c.get("kind") != "figures"), figures_cell=any(c.get("kind") == "figures" for c in cells),
-                failed=len(doc.get("failed") or []), reviews=sum(1 for e in doc.get("events") or [] if e.get("type") in ("review", "final")))
+                failed=sum(1 for f in doc.get("failed") or [] if not f.get("refused")), refused=sum(1 for f in doc.get("failed") or [] if f.get("refused")),
+                reviews=sum(1 for e in doc.get("events") or [] if e.get("type") in ("review", "final")))
 
 
 def build_view(m, doc, primary_name="primary dataset"):
@@ -880,8 +882,14 @@ def build_view(m, doc, primary_name="primary dataset"):
         v["checks"] = cites_checks(doc, own) + v["checks"]
         k = counts(doc)
         n_res = sum(1 for r in m["results"] if r.get("kind", "result") == "result")
-        v["meta"] = W.meta_line(doc.get("mode") or "", k["turns"], k["cells"], k["figures_cell"], k["failed"], k["reviews"], n_res)
+        v["meta"] = W.meta_line(doc.get("mode") or "", k["turns"], k["cells"], k["figures_cell"], k["failed"], k["reviews"], n_res, refused=k["refused"])
         v["title"] = report_title(doc)
+        # the reach report (2026-10-28): each step row's tag for what the cell touched outside the data, and the summary's section
+        by_cell = {c.get("cell"): c.get("reaches") or [] for c in doc["cells"]}
+        for row in v["rows"]:
+            if row.get("type") == "step" and by_cell.get(row.get("cell")):
+                row["reach"] = RE.chip(by_cell[row["cell"]])
+        v["reaches"] = RE.summary_of_record(doc)
         view = v
     view.update(path=path, pathTitles={c: titles.get(c, "") for c in path}, chain_id=chain_id,
                 titles={c: titles.get(c, "") for c in sorted(set(path) | {str(x) for x in referenced_chains(view)})})

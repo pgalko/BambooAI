@@ -61,22 +61,27 @@ _MAP_EYE = ('<button type="button" class="nb-cell-map" data-cell="{n}" title="Th
 
 
 def _cell_html(turn: Turn, index: int) -> str:
-    failed = bool(turn.error)
-    skipped = not failed and not turn.cell_no          # a cell the session did not run: a figure cell during the analysis (2026-10-11)
-    idx = f"In&nbsp;[{turn.cell_no}]" if turn.cell_no else ("In&nbsp;[&ndash;]" if skipped else "In&nbsp;[&times;]")
+    refused = str(getattr(turn, "refused", "") or "")  # a cell the executor refused before it ran (2026-10-28): its own state, not a failure of the code
+    failed = bool(turn.error) and not refused
+    skipped = not failed and not refused and not turn.cell_no   # a cell the session did not run: a figure cell during the analysis (2026-10-11)
+    idx = f"In&nbsp;[{turn.cell_no}]" if turn.cell_no else ("In&nbsp;[&ndash;]" if skipped or refused else "In&nbsp;[&times;]")
     title = _first_line(turn.code)
     lines = len((turn.code or "").splitlines())
-    parts = [f'<div class="nb-cell{" nb-cell--failed" if failed else ""}{" nb-cell--skipped" if skipped else ""}">']
+    reach = _reach_html(getattr(turn, "reaches", None) or [])
+    parts = [f'<div class="nb-cell{" nb-cell--failed" if failed else ""}{" nb-cell--skipped" if skipped else ""}{" nb-cell--restricted" if refused else ""}">']
     parts.append(f'<div class="nb-cell-head"><span class="nb-cell-idx">{idx}</span>'
                  f'<span class="nb-cell-title">{title}</span>'
-                 f'<span class="nb-cell-meta">{lines} lines{" · failed, rolled back" if failed else ""}{" · not run" if skipped else ""}'
+                 f'<span class="nb-cell-meta">{lines} lines{" · failed, rolled back" if failed else ""}{" · not run" if skipped or refused else ""}'
                  f'{" · figures step" if getattr(turn, "step", "") == "figures" else ""}'
-                 f'{" · " + str(len(turn.figures)) + " fig" if turn.figures else ""}</span>'
+                 f'{" · " + str(len(turn.figures)) + " fig" if turn.figures else ""}</span>' + reach
                  + (_MAP_EYE.format(n=turn.cell_no) if turn.cell_no else "") + '</div>')
     if turn.thinking:
         parts.append(f'<div class="nb-think">{html.escape(turn.thinking.strip()[:1200])}</div>')
     parts.append(f'<pre class="nb-code"><code class="language-python">{_pre(turn.code, 12000)}</code></pre>')
-    if failed:
+    if refused:
+        parts.append(f'<div class="nb-out nb-out--restricted"><span class="nb-out-label">Not run</span>'
+                     f'<span class="nb-out-peek">restricted operation ({html.escape(refused, quote=False)}): the executor does not run it</span></div>')
+    elif failed:
         from .tools import condense_error, exception_line
         tail = condense_error(turn.error, max_chars=2400, hint_lines=14)
         last = html.escape(exception_line(turn.error)[:140], quote=False)
@@ -93,6 +98,17 @@ def _cell_html(turn: Turn, index: int) -> str:
                      f'<pre class="nb-out-body">{_pre(out) if out.strip() else "(no output)"}</pre></details>')
     parts.append("</div>")
     return "".join(parts)
+
+
+def _reach_html(reaches) -> str:
+    """The cell's reaches outside the data as one tag in its header (2026-10-28), in the kernel's colour unless the
+    question asked for them; the hover lists them."""
+    from . import reach as R
+    x = R.chip(reaches)
+    if not x:
+        return ""
+    return (f'<span class="nb-reach{"" if x["tag"] == "asked" else " unasked"}" title="{html.escape(x["title"])}">'
+            f'{html.escape(x["text"], quote=False)}</span>')
 
 
 def _step_html(turn: Turn, index: int) -> str:

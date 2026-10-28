@@ -120,11 +120,13 @@ def check_patterns(names) -> str:
 
 
 # the header's facts and the one line of a chain that ran no code
-def meta_line(mode, turns, cells, figures_cell, failed, reviews, n_results) -> str:
+def meta_line(mode, turns, cells, figures_cell, failed, reviews, n_results, refused=0) -> str:
     parts = ([mode] if mode else []) + [f"{turns} turn{'s' if turns != 1 else ''}",
                                         f"{cells} cell{'s' if cells != 1 else ''}" + (" and a figures cell" if figures_cell else "")]
     if failed:
         parts.append(f"{failed} failed attempt{'s' if failed != 1 else ''}")
+    if refused:
+        parts.append(f"{refused} cell{'s' if refused != 1 else ''} not run")           # refused by the executor (2026-10-28)
     if reviews:
         parts.append(f"{reviews} review{'s' if reviews != 1 else ''}")
     parts.append(f"{n_results} RESULT line{'s' if n_results != 1 else ''}" if n_results else "no RESULT line")

@@ -15,13 +15,13 @@
 //   text (token)     -> paneToken        content tokens of the live turn
 //   thought (token)  -> paneThought      reasoning-channel tokens of the live turn
 //   pane_turn_end    -> paneTurnEnd      {turn, kind, peek, elapsed, cost, thinking, note, code}
-//   pane_cell        -> paneCell         {cell_no, ok, peek, elapsed, chars, figs, error_line}
+//   pane_cell        -> paneCell         {cell_no, ok, skipped, refused, peek, elapsed, chars, figs, error_line, reach:{text,tag,title}}
 //   pane_lookup_start -> paneLookupStart {kind, query, model}          a READ or SEARCH under way: a pending row, replaced by the lookup row
 //   pane_lookup      -> paneLookup       {kind, query, peek, sources:[{title,url,host}], passages:[{id,where,quote,original}]}
 //   pane_passages    -> panePassages     {passages:[{id,where,quote,original}]}   the report's cited passages, for the chips' hover
 //   pane_heartbeat   -> paneHeartbeat    {turn, of, spent, dollars, estimate, mode}
 //   pane_datasets    -> paneDatasets     {files:[{path,name,rows,size}]}
-//   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, cost, seconds, replay_status, replay_line, plots}
+//   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, reaches:{lines, refused, counts, sandbox, recorded}}
 //   system_message   -> paneSystem(text) ; error -> paneSystem(text, 'error')
 
 (function () {
@@ -136,15 +136,19 @@
             return h;
         },
         cell(c) {
-            const ok = !!c.ok;
+            // a cell the executor refused before it ran (2026-10-28): its own state, in the kernel's colour - neither ran nor failed
+            const refused = !!c.refused;
+            const ok = !!c.ok && !refused;
             // a cell the session did not run (2026-10-11: a figure cell during the analysis - figures come after the report)
             const skipped = ok && !!c.skipped;
-            const badge = skipped ? 'In&nbsp;[&ndash;]' : (ok ? 'In&nbsp;[' + esc(c.cell_no) + ']' : 'In&nbsp;[&times;]');
+            const badge = skipped || refused ? 'In&nbsp;[&ndash;]' : (ok ? 'In&nbsp;[' + esc(c.cell_no) + ']' : 'In&nbsp;[&times;]');
             const meta = [c.elapsed != null ? fmtSecs(c.elapsed) : '', ok && !skipped && c.chars != null ? Number(c.chars).toLocaleString() + ' chars' : '',
-                          ok && c.figs ? c.figs + ' fig' : '', !ok ? 'rolled back' : '', skipped ? 'not run' : ''].filter(Boolean).join(' · ');
-            return '<div class="sp-row' + (ok ? '' : ' fail') + (skipped ? ' skipped' : '') + '"' + (ok && c.cell_no ? ' data-cell="' + esc(c.cell_no) + '" title="open on the Investigation tab" onclick="if(typeof paneOpenCell===\'function\')paneOpenCell(' + esc(c.cell_no) + ')"' : '') + '>' +
-                '<span>' + (skipped ? '–' : (ok ? '✓' : '✗')) + '</span><span class="in">' + badge + '</span>' +
-                '<span class="out">' + esc(ok ? (c.peek || '(no output)') : (c.error_line || 'failed')) + '</span>' +
+                          ok && c.figs ? c.figs + ' fig' : '', !ok && !refused ? 'rolled back' : '', skipped || refused ? 'not run' : ''].filter(Boolean).join(' · ');
+            // what the cell touched outside the data, as one tag after the peek (2026-10-28); the kernel's colour when the question did not ask for it
+            const reach = c.reach && c.reach.text ? '<span class="reach' + (c.reach.tag === 'asked' ? '' : ' unasked') + '" title="' + esc(c.reach.title || '') + '">' + esc(c.reach.text) + '</span>' : '';
+            return '<div class="sp-row' + (ok || refused ? '' : ' fail') + (skipped ? ' skipped' : '') + (refused ? ' restricted' : '') + '"' + (ok && c.cell_no ? ' data-cell="' + esc(c.cell_no) + '" title="open on the Investigation tab" onclick="if(typeof paneOpenCell===\'function\')paneOpenCell(' + esc(c.cell_no) + ')"' : '') + '>' +
+                '<span>' + (skipped ? '–' : (refused ? '⊘' : (ok ? '✓' : '✗'))) + '</span><span class="in">' + badge + '</span>' +
+                '<span class="out">' + esc(refused ? ('not run: restricted operation (' + c.refused + ')') : (ok ? (c.peek || '(no output)') : (c.error_line || 'failed'))) + '</span>' + reach +
                 '<span class="t">' + esc(meta) + '</span></div>';
         },
         lookupStart(l) {
@@ -189,12 +193,29 @@
             // restored card still opens its map
             const codemap = r.status === 'answered' && r.cells > 0 && r.chain_id
                 ? '<button class="sp-codemap" data-chain="' + esc(r.chain_id) + '" title="How this chain got from its data to its numbers" onclick="if(typeof CodeMapUI!==\'undefined\')CodeMapUI.open(this.dataset.chain)">Code map →</button>' : '';
+            const cellsNote = [r.failed ? esc(r.failed) + ' failed' : '', r.refused ? esc(r.refused) + ' not run' : ''].filter(Boolean).join(', ');
             return '<div class="sp-done"><div class="title">' + (r.status === 'asked' ? 'The analyst has a question for you' : (r.status === 'stopped' ? 'Run stopped' : 'Run complete')) + '</div>' +
                 '<div class="grid"><span>Turns <b>' + esc(r.turns) + (r.of ? ' of ' + esc(r.of) : '') + '</b></span>' +
-                '<span>Cells <b>' + esc(r.cells || 0) + '</b>' + (r.failed ? ' (' + esc(r.failed) + ' failed)' : '') + '</span>' +
+                '<span>Cells <b>' + esc(r.cells || 0) + '</b>' + (cellsNote ? ' (' + cellsNote + ')' : '') + '</span>' +
                 '<span>Cost <b>' + fmtCost(r.cost) + '</b></span><span>Time <b>' + esc(fmtSecs(r.seconds)) + '</b></span></div>' +
                 (r.replay_line ? '<div class="rep ' + rep + '">' + (rep === 'ok' ? '✓ ' : '') + esc(r.replay_line) + '</div>' : '') +
+                build.reaches(r.reaches) +
                 (r.status === 'answered' ? '<div class="links">' + links + codemap + '</div>' : '') + '</div>';   // the dataset pills ride once, under the REPLAY row (2026-10-06)
+        },
+        reaches(x) {
+            // the reach report on the closing card (2026-10-28): what the cells touched outside the data, one line each with
+            // its cell and whether the question asked for it; the cells the executor refused; the box in one line. A run
+            // that reached nothing says so in one faint line; an executor that predates the record says nothing
+            if (!x || !x.recorded && !(x.counts && (x.counts.lines || x.counts.refused))) return '';
+            const n = (x.counts || {}).lines || 0, nr = (x.counts || {}).refused || 0, nu = (x.counts || {}).unasked || 0, nb = (x.counts || {}).blocked || 0;
+            if (!n && !nr) return '<div class="reaches quiet"' + (x.sandbox ? ' title="Sandbox: ' + esc(x.sandbox) + '"' : '') + '><span class="h">No reaches outside the data</span></div>';
+            const head = [n ? n + ' reach' + (n === 1 ? '' : 'es') + ' outside the data' + (nu || nb ? ' (' + [nu ? nu + ' not asked for' : '', nb ? nb + ' refused' : ''].filter(Boolean).join(', ') + ')' : '') : '',
+                          nr ? nr + ' cell' + (nr === 1 ? '' : 's') + ' not run' : ''].filter(Boolean).join(' · ');
+            const tagText = { asked: 'the question named it', unasked: 'not asked for', blocked: 'refused' };
+            const lines = (x.lines || []).map(l => '<div class="r' + (l.tag === 'unasked' || l.tag === 'blocked' ? ' unasked' : '') + '"><span class="c">' + esc(l.where) + '</span><span class="what">' + esc(l.text) + '</span>' +
+                (l.tag && tagText[l.tag] ? '<span class="tag">' + tagText[l.tag] + '</span>' : '') + '</div>').join('');
+            const refused = (x.refused || []).map(l => '<div class="r"><span class="c">' + esc(l.where) + '</span><span class="what">' + esc(l.text) + '</span><span class="tag">refused</span></div>').join('');
+            return '<div class="reaches"><div class="h">' + head + '</div>' + lines + refused + (x.sandbox ? '<div class="sandbox">Sandbox: ' + esc(x.sandbox) + '</div>' : '') + '</div>';
         },
         routineEnd(r) {
             // the closing card of a routine's run (S4): what came out, the verdict, the tabs

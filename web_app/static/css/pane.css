@@ -53,6 +53,11 @@
 #streamOutput .sp-row.fail .in, #streamOutput .sp-row.fail .out { color: var(--error-color); }
 #streamOutput .sp-row.skipped { border-left-color: var(--text-quaternary); }                   /* a cell not run: a figure cell during the analysis (2026-10-11) */
 #streamOutput .sp-row.skipped .in, #streamOutput .sp-row.skipped .out { color: var(--text-quaternary); }
+#streamOutput .sp-row.restricted { border-left-color: var(--c-kernel); }                    /* a cell the executor refused before it ran (2026-10-28): its own state, neither ran nor failed */
+#streamOutput .sp-row.restricted .in { color: var(--c-kernel); }
+#streamOutput .sp-row.restricted .out { color: var(--text-tertiary); font-style: italic; }
+#streamOutput .sp-row .reach { flex-shrink: 0; font-family: Arial, sans-serif; font-size: 10.5px; line-height: 15px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; max-width: 46%; overflow: hidden; text-overflow: ellipsis; }   /* what the cell touched outside the data (2026-10-28) */
+#streamOutput .sp-row .reach.unasked { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
 #streamOutput .sp-row.tool { border-left-color: var(--accent-replay); }
 #streamOutput .sp-row.tool .in { color: var(--accent-replay); }
 #streamOutput .sp-row:hover { background: var(--bg-tertiary); }
@@ -73,6 +78,18 @@
 #streamOutput .sp-done .rep { color: var(--text-secondary); }
 #streamOutput .sp-done .rep.ok { color: var(--accent-color); }
 #streamOutput .sp-done .rep.warn { color: var(--yaml-key); }
+/* the reach report on the closing card (2026-10-28): one line per reach with its cell and tag, the refused cells, the box in one line */
+#streamOutput .sp-done .reaches { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color); font-size: 12px; }
+#streamOutput .sp-done .reaches.quiet { color: var(--text-quaternary); font-size: 11px; }
+#streamOutput .sp-done .reaches .h { color: var(--text-secondary); margin-bottom: 3px; }
+#streamOutput .sp-done .reaches.quiet .h { color: inherit; margin: 0; }
+#streamOutput .sp-done .reaches .r { display: flex; gap: 8px; align-items: baseline; color: var(--text-tertiary); padding: 1px 0; }
+#streamOutput .sp-done .reaches .r .c { font-family: 'Courier New', Courier, monospace; color: var(--c-kernel); white-space: nowrap; }
+#streamOutput .sp-done .reaches .r .what { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#streamOutput .sp-done .reaches .r .tag { font-size: 10.5px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; }
+#streamOutput .sp-done .reaches .r.unasked .tag { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
+#streamOutput .sp-done .reaches .r.unasked .what { color: var(--text-secondary); }
+#streamOutput .sp-done .reaches .sandbox { margin-top: 4px; color: var(--text-quaternary); font-size: 11px; }
 #streamOutput .sp-done .links { margin-top: 8px; }
 #streamOutput .sp-done .links a { color: var(--accent-color); text-decoration: none; margin-right: 14px; }
 #streamOutput .sp-done .links .sp-codemap { display: inline-block; padding: 1px 7px; border: 1px solid var(--chip-model-border); border-radius: 4px; background: none; font: inherit; color: var(--accent-color); cursor: pointer; vertical-align: baseline; }   /* the code map's way in (2026-10-20): on the links line, a slight border */

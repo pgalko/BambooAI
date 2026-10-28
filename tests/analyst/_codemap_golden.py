@@ -5,7 +5,8 @@ import re
 import json  # noqa: F401
 
 LAYOUT = {"x", "y", "w", "h", "segs", "heads"}
-BUILT_DIFFERENTLY = {"id", "meta", "title", "pathTitles", "version", "chain_id", "titles", "sizes", "mapped", "traced", "pills", "built"}
+BUILT_DIFFERENTLY = {"id", "meta", "title", "pathTitles", "version", "chain_id", "titles", "sizes", "mapped", "traced", "pills", "built",
+                     "reaches"}                           # the reach report (2026-10-28): from the kernel's record, which the prototype did not have
 
 
 def as_numbers(obj):
@@ -48,7 +49,7 @@ def comparable(view):
                 n["step"] = n["step"][:120]                   # the port keeps 200 characters of a box's step, the prototype 120
         d["edges"] = [list(e) for e in d["edges"]]
     for r in v.get("rows", []):
-        r.pop("mapped", None)
+        r.pop("mapped", None); r.pop("reach", None); r.pop("refused", None)      # the reach report's row fields (2026-10-28)
         if r.get("type") == "step" and not r.get("figures"):
             r["purpose"] = str(r.get("purpose", ""))[:120]   # the port keeps 320 characters of a step's sentence, the prototype 140
     for st in v.get("steps", {}).values():
