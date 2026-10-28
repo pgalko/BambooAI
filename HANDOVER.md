@@ -34,7 +34,7 @@
   each cell touched outside the data, recorded by the kernel, marked asked for or not, reported on the closing card,
   the pane, the notebook and the code map; the tally per model; a refused cell as its own state; the metadata address
   refused; the blacklist's `os.exec`/`os.spawn` families and f-string text fixed - patches 0230-0232, two faults of the
-  first live run fixed in 0234; **executor image v65** - rebuild and roll out), 2.5.1 (2026-10-24: the code map's ways
+  first live run fixed in 0234 and two from the public CI in 0235; **executor image v66** - rebuild and roll out), 2.5.1 (2026-10-24: the code map's ways
   in and out - a `[cell n]` citation in the report opens the map on that number, the eye on each notebook cell opens
   it at that cell, the recipe panel offers the other view, and *Open in the notebook* lights the lines behind the
   number in the cell; the diagram zooms as the thread map does; the `[cell n]` chip and the panel's buttons in the
@@ -93,7 +93,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/142/60/42/37/15/88/1/1 Python; 58/7/40/71/24/71/14/25/4/14/67 JS; 1,494 on 2026-10-28); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/142/60/42/37/15/88/1/1 Python; 58/7/40/71/24/71/14/25/4/14/67 JS; 1,494 on 2026-10-28; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
@@ -475,6 +475,15 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Two faults from the public CI (2026-10-28, patch 0235; executor image v66).** The battery's first run on the
+  runner (Ubuntu, Python 3.12, a fresh environment) failed two of the executor suite's new checks. (1) On the runner
+  `localhost` resolves to `::1` first; the server listens on `127.0.0.1`; the first address is refused and the second
+  answers - and the refusal had stuck on the record (`failed`, and `ip` the address that failed). Now a failure stands
+  only until an address answers, and `ip` is the address that did. The same shape waits on any box without an IPv6
+  route for every dual-stack host, so `reach.line` also lets bytes exchanged outrank a first attempt's refusal (a
+  v65 record reads right). (2) The 0234 check had imported `pkg_resources` inside a cell to stand for a library's scan
+  of the import path; the runner's environment has no setuptools. The check now carries a stand-in library of its
+  own file under temp. Tests: test_executor_kernel.py 33, test_analyst.py 242, the stamp checks v66.
 - **Two faults of v64, from the first live run on the Mac (2026-10-28, patch 0234; executor image v65).** (1) Every
   cell of a statsmodels run carried the tag *listed /app*: a library scanning the import path for package metadata
   lists every folder on `sys.path`, and in the image that is `/app`, the executor's own folder, one of the box's places.

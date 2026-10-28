@@ -311,7 +311,8 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   the record on the closing card, the pane's rows, the Investigation tab and the code map; the tally script per
   model; the cloud instance metadata address refused by the kernel; two blacklist faults fixed (the `os.exec` and
   `os.spawn` families, the text of f-strings) - patches 0230-0232; a library's scan of the import path and the record's
-  state names out of the registry - patch 0234. **Executor build v65**: the image is rebuilt with this ship.
+  state names out of the registry - patch 0234; a first address refused not marking a connection that then answered -
+  patch 0235. **Executor build v66**: the image is rebuilt with this ship.
 - **Status 2026-10-24: 2.5.1.** The code map's ways in and out: a `[cell n]` citation in the report opens the map on
   that number; the eye on each notebook cell opens it at that cell; the recipe panel offers the other view; *Open in
   the notebook* lights the lines behind the number in the cell (map version 3). The diagram zooms as the thread map

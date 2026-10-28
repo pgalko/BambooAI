@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-28 v65 (the kernel records what a cell reaches outside the data; sandbox facts on /kernel/start and /health; the metadata address refused; os.exec and os.spawn families matched by the blacklist; text of f-strings not read as code; a library scan of the import path is not a reach)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-28 v66 (the kernel records what a cell reaches outside the data; sandbox facts on /kernel/start and /health; the metadata address refused; os.exec and os.spawn families matched by the blacklist; text of f-strings not read as code; a library scan of the import path is not a reach; a first address refused does not mark a connection that then answered)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 

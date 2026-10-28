@@ -87,7 +87,7 @@ def line(rec: dict) -> str:
         where = f"{host}:{port}" if port is not None else host
         if rec.get("blocked"):
             return f"tried {where}: the instance metadata address, refused by the kernel"
-        if rec.get("failed"):
+        if rec.get("failed") and not (rec.get("in") or rec.get("out")):     # bytes exchanged mean an address answered, whatever the first attempt said
             return f"tried {where}: no connection ({str(rec.get('failed')).split(':')[0]})"
         parts = []
         if rec.get("in"):

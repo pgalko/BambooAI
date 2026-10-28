@@ -148,7 +148,7 @@ sb = r3.get("sandbox") or {}
 check("executor: /kernel/start reports the box as the kernel sees it - user, root or not, capabilities, seccomp, container, mounts, the metadata address",
       all(k in sb for k in ("uid", "user", "root", "caps", "notable_caps", "seccomp", "container", "mounts", "metadata", "docker_socket")) and isinstance(sb["mounts"], list), sb)
 hb = (c.get("/health").get_json() or {})
-check("executor: /health carries the same facts beside the build", (hb.get("sandbox") or {}).get("uid") == sb.get("uid") and "v65" in str(hb.get("build")), (hb.get("build"), hb.get("sandbox")))
+check("executor: /health carries the same facts beside the build", (hb.get("sandbox") or {}).get("uid") == sb.get("uid") and "v66" in str(hb.get("build")), (hb.get("build"), hb.get("sandbox")))
 
 
 def _run(code):
@@ -171,8 +171,11 @@ try:
     o2 = _run(f"print(len(sess.get('http://localhost:{_port}/b').content))")
     n1 = [x for x in o.get("reaches") or [] if x.get("kind") == "net"]
     n2 = [x for x in o2.get("reaches") or [] if x.get("kind") == "net"]
-    check("executor: a host named by the cell is recorded by its name with the address beside it, and a connection reused in a later cell is recorded in that cell too",
-          len(n1) == 1 and n1[0]["host"] == "localhost" and n1[0]["ip"] == "127.0.0.1" and len(n2) == 1 and n2[0]["host"] == "localhost" and n2[0]["in"] > 5000
+    # on a box where localhost resolves to ::1 first (the CI runner), the first address is refused and the second answers: one
+    # record, the address that answered, no failure recorded (2026-10-28: the first attempt's refusal had stuck on the record)
+    check("executor: a host named by the cell is recorded by its name with the address that answered beside it and no failure, and a connection reused in a later cell is recorded in that cell too",
+          len(n1) == 1 and n1[0]["host"] == "localhost" and n1[0]["ip"] == "127.0.0.1" and n1[0]["failed"] == "" and n1[0]["n"] in (1, 2)
+          and len(n2) == 1 and n2[0]["host"] == "localhost" and n2[0]["in"] > 5000 and n2[0]["failed"] == ""
           and not any(x.get("kind") == "dns" for x in (o.get("reaches") or []) + (o2.get("reaches") or [])), (o.get("reaches"), o2.get("reaches")))
     o = _run("print(open('/etc/hostname').read().strip() != '')\nbase = '/etc'\nt = pd.read_csv(base + '/passwd', sep=':', header=None)\nprint(t.shape[1])\nprint(len(os.listdir('/')) > 0)")
     files = [(x.get("path"), x.get("op"), x.get("via"), x.get("line")) for x in o.get("reaches") or [] if x.get("kind") == "file"]
@@ -212,13 +215,18 @@ try:
     os.makedirs(os.path.join(_pk, "sub"), exist_ok=True)
     with open(os.path.join(_pk, "sub", "f.txt"), "w") as fh:
         fh.write("hello")
-    o0 = _run(f"import sys as _s\n_s.path.append({_pk!r})\nprint('added')")
-    o = _run("import warnings\nwarnings.simplefilter('ignore')\nimport pkg_resources\nprint(len(list(pkg_resources.working_set)) >= 0)")
+    # a stand-in for a library that scans the import path (pkg_resources, importlib.metadata): a module of its own file, so
+    # its frames are not the cell's; under temp, so importing it is no reach
+    _lib = tempfile.mkdtemp(prefix="bamboo_reach_lib_")
+    with open(os.path.join(_lib, "reachlib.py"), "w") as fh:
+        fh.write("import os, sys\n\ndef scan():\n    n = 0\n    for p in list(sys.path):\n        try:\n            n += len(os.listdir(p or '.'))\n        except OSError:\n            pass\n    return n\n")
+    o0 = _run(f"import sys as _s\n_s.path.append({_pk!r})\n_s.path.append({_lib!r})\nprint('added')")
+    o = _run("import reachlib\nprint(reachlib.scan() >= 0)")
     o2 = _run(f"print(len(os.listdir({_pk!r})) >= 0)")
     names = [x.get("name") for x in (o2.get("registry") or {}).get("namespace") or []]
     check("executor: the record's own state never shows in the registry the analyst reads (v64 had listed _REACHES and _IN_CELL beside the cell's names)",
           o0.get("reaches") == [] and "_REACHES" not in names and "_IN_CELL" not in names and "popen" in names, names)   # _returns is an older stray, not this record's
-    o3 = _run(f"import pkg_resources\npkg_resources.working_set = pkg_resources.WorkingSet()\nprint(open({(_pk + '/sub/f.txt')!r}).read())")
+    o3 = _run(f"print(reachlib.scan() >= 0)\nprint(open({(_pk + '/sub/f.txt')!r}).read())")
     check("executor: a library's scan of a folder on the import path is not a reach; the cell's own listing of it is; a file under it read by the cell is recorded without the library's scan of the folder above",
           o.get("reaches") == [] and not o.get("error")
           and [(x.get("path"), x.get("op"), x.get("via")) for x in o2.get("reaches") or []] == [(_pk, "list", "code")]

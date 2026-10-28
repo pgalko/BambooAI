@@ -665,13 +665,24 @@ def _connect_hook(self, address, _ex=False):
         except Exception:
             pass
     try:
-        return _real_connect_ex(self, address) if _ex else _real_connect(self, address)
+        out = _real_connect_ex(self, address) if _ex else _real_connect(self, address)
     except BlockingIOError:
         raise
     except OSError as exc:
-        if rec is not None:
+        # a name resolves to several addresses and the first tried may fail (::1 before 127.0.0.1, an IPv6 route the box
+        # lacks): the failure stands only until an address answers (2026-10-28)
+        if rec is not None and not rec.get("_ok"):
             rec["failed"] = type(exc).__name__ if not str(exc) else f"{type(exc).__name__}: {str(exc)[:80]}"
         raise
+    if rec is not None and (not _ex or out == 0):
+        try:
+            rec["_ok"], rec["failed"] = True, ""
+            addr, _ = _addr_parts(address)
+            if addr != rec.get("host"):
+                rec["ip"] = addr                           # the address that answered
+        except Exception:
+            pass
+    return out
 _socket.socket.connect = lambda self, address: _connect_hook(self, address)
 _socket.socket.connect_ex = lambda self, address: _connect_hook(self, address, True)
 
@@ -774,7 +785,7 @@ def _reaches_out():
     """The cell's records for the payload, without the merge keys; the line and the bytes as they stand."""
     recs = G.get("_REACHES") or []
     connected = {r.get("host") for r in recs if r.get("kind") == "net"} | {r.get("ip") for r in recs if r.get("kind") == "net"}
-    return [{k: v for k, v in r.items() if k != "_key"} for r in recs if not (r.get("kind") == "dns" and r.get("host") in connected)]
+    return [{k: v for k, v in r.items() if not k.startswith("_")} for r in recs if not (r.get("kind") == "dns" and r.get("host") in connected)]
 
 
 _INTERNAL = {

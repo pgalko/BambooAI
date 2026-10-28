@@ -1686,6 +1686,7 @@ check("reach: the record's lines in words",
       and reach.line({"kind": "net", "host": "h", "port": 80, "in": 0, "out": 0, "n": 2}) == "connected to h:80, nothing exchanged (2 connections)"
       and reach.line({"kind": "net", "host": "169.254.169.254", "port": 80, "blocked": True}) == "tried 169.254.169.254:80: the instance metadata address, refused by the kernel"
       and reach.line({"kind": "net", "host": "h", "port": 9, "failed": "ConnectionRefusedError: [Errno 111]"}) == "tried h:9: no connection (ConnectionRefusedError)"
+      and reach.line({"kind": "net", "host": "h", "port": 80, "in": 5115, "out": 147, "n": 2, "failed": "ConnectionRefusedError: [Errno 111]"}) == "fetched 5.1 KB from h:80, sent 147 B (2 connections)"   # bytes outrank a first attempt's refusal (a v65 record)
       and reach.line({"kind": "file", "path": "/etc/passwd", "op": "read", "via": "library"}) == "read /etc/passwd (through a library)"
       and reach.line({"kind": "env", "name": "*"}) == "read the whole environment" and reach.line({"kind": "process", "command": "echo hi"}) == "started a program: echo hi"
       and reach.line({"kind": "listen", "host": "0.0.0.0", "port": 8080}) == "opened a listening port (0.0.0.0:8080)" and reach.line({"kind": "more", "n": 3}) == "3 more, not kept", None)
