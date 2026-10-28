@@ -30,11 +30,13 @@
   tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands),
   2.2.2 (2026-10-08: the Claude 5.5 family on the Anthropic adapter, the contract's STEP section, the forced report's
   card, the replay's display options, auxiliary files in DATA, the template's Claude seats - patches 0101-0110;
-  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.6.0 (2026-10-28: the reach record - what
+  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.6.1 (2026-10-28: a first address refused
+  no longer marks a connection that then answered, and the executor suite's checks hold on the public CI's runner -
+  patch 0235; **executor image v66** - rebuild and roll out), 2.6.0 (2026-10-28: the reach record - what
   each cell touched outside the data, recorded by the kernel, marked asked for or not, reported on the closing card,
   the pane, the notebook and the code map; the tally per model; a refused cell as its own state; the metadata address
   refused; the blacklist's `os.exec`/`os.spawn` families and f-string text fixed - patches 0230-0232, two faults of the
-  first live run fixed in 0234 and two from the public CI in 0235; **executor image v66** - rebuild and roll out), 2.5.1 (2026-10-24: the code map's ways
+  first live run fixed in 0234; executor image v65), 2.5.1 (2026-10-24: the code map's ways
   in and out - a `[cell n]` citation in the report opens the map on that number, the eye on each notebook cell opens
   it at that cell, the recipe panel offers the other view, and *Open in the notebook* lights the lines behind the
   number in the cell; the diagram zooms as the thread map does; the `[cell n]` chip and the panel's buttons in the
