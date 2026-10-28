@@ -305,6 +305,13 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-10-28: 2.6.0.** The reach record (docs/REACH_DESIGN.md): the kernel records, per cell, what the cell
+  touched outside the data - the hosts and the bytes each way, the files outside the data, the environment names, the
+  programs started - each marked whether the question asked for it; a refused cell is its own state, not a failure;
+  the record on the closing card, the pane's rows, the Investigation tab and the code map; the tally script per
+  model; the cloud instance metadata address refused by the kernel; two blacklist faults fixed (the `os.exec` and
+  `os.spawn` families, the text of f-strings) - patches 0230-0232. **Executor build v64**: the image is rebuilt with
+  this ship.
 - **Status 2026-10-24: 2.5.1.** The code map's ways in and out: a `[cell n]` citation in the report opens the map on
   that number; the eye on each notebook cell opens it at that cell; the recipe panel offers the other view; *Open in
   the notebook* lights the lines behind the number in the cell (map version 3). The diagram zooms as the thread map

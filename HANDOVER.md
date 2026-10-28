@@ -30,7 +30,11 @@
   tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands),
   2.2.2 (2026-10-08: the Claude 5.5 family on the Anthropic adapter, the contract's STEP section, the forced report's
   card, the replay's display options, auxiliary files in DATA, the template's Claude seats - patches 0101-0110;
-  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.5.1 (2026-10-24: the code map's ways
+  `anthropic>=0.88` is now the floor; no kernel change, image v51 stands), 2.6.0 (2026-10-28: the reach record - what
+  each cell touched outside the data, recorded by the kernel, marked asked for or not, reported on the closing card,
+  the pane, the notebook and the code map; the tally per model; a refused cell as its own state; the metadata address
+  refused; the blacklist's `os.exec`/`os.spawn` families and f-string text fixed - patches 0230-0232; **executor image
+  v64** - rebuild and roll out), 2.5.1 (2026-10-24: the code map's ways
   in and out - a `[cell n]` citation in the report opens the map on that number, the eye on each notebook cell opens
   it at that cell, the recipe panel offers the other view, and *Open in the notebook* lights the lines behind the
   number in the cell; the diagram zooms as the thread map does; the `[cell n]` chip and the panel's buttons in the
@@ -89,8 +93,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (230/194/31/27/18/49/44/69/14/142/60/42/37/15/1/1 Python; 51/7/40/71/24/71/14/25/4/14 JS); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (104 hosted, 101 local; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/31/142/60/42/37/15/88/1/1 Python; 58/7/40/71/24/71/14/25/4/14/67 JS; 1,492 on 2026-10-28); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (99; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
