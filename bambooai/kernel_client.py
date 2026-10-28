@@ -72,6 +72,7 @@ class RemoteKernel:
         # without a round trip - every response that can change it returns it.
         self.registry = {"namespace": [], "columns": []}
         self._history = []
+        self.last_results, self.last_reaches, self.last_refused, self.sandbox = [], [], "", {}
 
         payload = {
             "session_id": session_id,
@@ -136,6 +137,9 @@ class RemoteKernel:
         # driver runs in the web app process, which never holds the frame, so
         # this is the only place the schema can come from.
         self.schema = started.get("schema")
+        # the box as the kernel sees it from inside, for the reach report (2026-10-28); {} from an executor that
+        # predates the record, which the report says
+        self.sandbox = dict(started.get("sandbox") or {})
         self.step_timeout = step_timeout or started.get("step_timeout", 600)
 
     # ----- transport -------------------------------------------------------
@@ -217,6 +221,8 @@ class RemoteKernel:
         if server_len is not None and server_len != len(self._history):
             self._history = self._fetch_history()
         self.last_results = list(res.get("results") or [])            # RESULT(...) records of this step
+        self.last_reaches = list(res.get("reaches") or [])            # what the step touched outside the data (2026-10-28)
+        self.last_refused = str(res.get("refused") or "")             # the restricted word a refused step was refused for
         return res.get("stdout"), res.get("error"), res.get("plots") or []
 
     def _fetch_history(self):

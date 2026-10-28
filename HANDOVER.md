@@ -471,6 +471,28 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The reach record: what a cell touched outside the data (2026-10-28, patch 0230; executor image v64).** Palo, after
+  Cohere's note on an open-weight model that reaches out unasked: the platform claims transparency but caught nothing of
+  the kind. Observation first, prevention later: the kernel's worker wraps the doors a cell can leave through - sockets
+  (connect, the bytes each way, TLS through the SSL socket, a listening port, a name resolved), files opened or listed
+  outside the data (the cell's own choice of path, or a library's under the box's own places - /etc, /root, /home,
+  /run, /app outside the datasets, dotfiles; what libraries read as a matter of course is listed as noise), the
+  environment (a name read, or the whole environment walked), programs started (os.system, os.popen, Popen - past
+  the blacklist's spelling) - and records them per cell with the cell line, merged by host or path, forty kept.
+  Nothing of the record enters a prompt. The one address refused is the cloud instance metadata service. The kernel
+  reports the box once per process (`sandbox_facts`: user, root, capabilities worth a word, seccomp, container,
+  mounts, the docker socket, whether the metadata address answers) on `/kernel/start` and `/health`. A refused cell
+  is its own state (`last_refused`, the restricted word; `Turn.refused`), not a failure of the code; the record
+  rides `Turn.reaches` (each marked `asked`: the question or an earlier one of the thread named the host, its
+  domain, the file or the name - a substring, nothing cleverer) and `Run.sandbox`; `analyst/reach.py` holds the
+  marking and the wording (one sentence per record, the card's summary, the row chip). Two blacklist faults fixed
+  on the way: `os.exec` and `os.spawn` had matched nothing (the word boundary after the entry), now the families;
+  and the text of an f-string had counted as code, so `f"http://{host}/x"` was refused as the http module - its
+  text is blanked and its expressions stay (3.11's single token scanned; 3.12's FSTRING_MIDDLE tokens). Not seen:
+  a connection made in C (libpq, pycurl), a library's own choice of path outside the sensitive places, and the
+  replay and routines (the same cells re-run on the script route, unrecorded). Tests: test_executor_kernel.py 31
+  (the hooks through the service, the refusal, the families, the f-string, the metadata address, the noise),
+  test_analyst.py 241 (the Turn, the events, the summary, the store's round trip, the marking).
 - **The lines behind a number, lit in the notebook (2026-10-24, patch 0228).** Palo's idea: *Open in the notebook* from a
   number's recipe lands on the cell and lights the code that made the number. The map had the two facts already: each
   RESULT's own statement (the record's `line`) and the statements the number rests on (the result's closure in the

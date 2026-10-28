@@ -40,7 +40,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-20 v63 (RESULT records the cell line it was called from, for the code map)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-28 v64 (the kernel records what a cell reaches outside the data; sandbox facts on /kernel/start and /health; the metadata address refused; os.exec and os.spawn families matched by the blacklist; text of f-strings not read as code)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -195,6 +195,15 @@ except Exception as _kernel_err:
     # starts, passes its health check, and simply has no deep mode.
     KERNEL_SERVICE = {"available": False, "error": str(_kernel_err)}
     log_info(f"Kernel service unavailable ({_kernel_err}); /execute unaffected")
+
+
+def _sandbox_facts():
+    """The box as the kernel sees it from inside (kernel.sandbox_facts), for /health; {} when the kernel modules are absent."""
+    try:
+        from kernel import sandbox_facts
+        return sandbox_facts()
+    except Exception:                                   # noqa: BLE001
+        return {}
 # ------------------------------------------------------------------------------
 
 #### CACHE CONTENT INSPECTION ENDPOINTS ####
@@ -3350,6 +3359,7 @@ def health_check():
             'app_directory': app_dir_exists,
             'ram_gb': total_ram_gb,  # Add this line
             'kernel_service': KERNEL_SERVICE,
+            'sandbox': _sandbox_facts(),           # the box as seen from inside, for the reach report (2026-10-28)
             'libraries': {
                 'pandas': pd.__version__,
                 'numpy': np.__version__

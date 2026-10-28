@@ -16,15 +16,22 @@ logger = logging.getLogger(__name__)
 MAX_OUTPUT_CHARS = 2_000_000  # a disk guard only: the record keeps a cell's output whole; the prompt's VIEW is capped (notebook.render_cells) and SHOW n opens the whole
 
 
-def run_cell(kernel, code: str) -> Tuple[str, str, List[dict], List[dict]]:
-    """Run one cell. Returns (stdout, error, figures, results) - the results being the records the kernel kept
-    for each RESULT(...) call (2026-10-06). A failed cell is rolled back by the kernel; nothing of it survives
-    except the traceback we show."""
+def run_cell(kernel, code: str) -> Tuple[str, str, List[dict], List[dict], dict]:
+    """Run one cell. Returns (stdout, error, figures, results, reach) - the results being the records the kernel kept
+    for each RESULT(...) call (2026-10-06), reach the kernel's record of what the cell touched outside the data and
+    the restricted word it was refused for, {"reaches": [...], "refused": ""} (2026-10-28; an older kernel gives
+    neither). A failed cell is rolled back by the kernel; nothing of it survives except the traceback we show."""
     stdout, error, plots = kernel.execute(code)
     stdout = (stdout or "")
     if len(stdout) > MAX_OUTPUT_CHARS:
         stdout = stdout[:MAX_OUTPUT_CHARS].rstrip() + f"\n... [output truncated at {MAX_OUTPUT_CHARS} characters]"
-    return stdout, (error or ""), list(plots or []), list(getattr(kernel, "last_results", []) or [])
+    reach = {"reaches": list(getattr(kernel, "last_reaches", []) or []), "refused": str(getattr(kernel, "last_refused", "") or "")}
+    return stdout, (error or ""), list(plots or []), list(getattr(kernel, "last_results", []) or []), reach
+
+
+def sandbox(kernel) -> dict:
+    """The box the kernel runs on as it sees itself (kernel.sandbox_facts), {} when the kernel does not say."""
+    return dict(getattr(kernel, "sandbox", None) or {})
 
 
 PRELUDE = "import pandas as pd\nimport numpy as np\nimport matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt"

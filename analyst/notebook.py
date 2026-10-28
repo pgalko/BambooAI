@@ -116,6 +116,8 @@ class Turn:
     figures: List[dict] = field(default_factory=list)   # CELL: plot payloads returned by the kernel
     results: List[dict] = field(default_factory=list)   # CELL: the RESULT(...) records the kernel kept (text, typed, test, corrects, line)
     registry: dict = field(default_factory=dict)   # CELL: the kernel's {name: {type, desc}} for the names this cell made or changed (the code map, 2026-10-20)
+    reaches: List[dict] = field(default_factory=list)   # CELL: what the cell touched outside the data, each marked asked (analyst/reach.py, 2026-10-28)
+    refused: str = ""               # CELL: the restricted word the executor refused the cell for; it did not run and this is not an error of the code (2026-10-28)
     cell_no: Optional[int] = None   # CELL: its number along the path (only committed cells get one)
     text: str = ""                  # ask/report/rewrite: the analyst's text
     usage: dict = field(default_factory=dict)            # tokens, cost, elapsed for the model call
@@ -143,6 +145,7 @@ class Run:
     data: dict = field(default_factory=dict)   # what the run ran on (df_id, name, source, columns, rows, aux): a routine made from it later needs it (2026-10-10)
     mode: str = ""                  # the budget preset the run was asked in: Quick, Deep or Adaptive (2026-10-20, the code map's header)
     code_map: dict = field(default_factory=dict)   # the code map built when the chain ended (analyst/codemap; 2026-10-20), or {"error": ...}
+    sandbox: dict = field(default_factory=dict)   # the box the kernel ran on, as it saw itself (kernel.sandbox_facts; 2026-10-28); {} when the executor did not say
 
     @property
     def note(self) -> str:

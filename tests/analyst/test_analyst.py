@@ -1606,6 +1606,78 @@ _present = {f for f in os.listdir(os.path.join(ROOT, "analyst")) if not f.endswi
             and not os.path.isdir(os.path.join(ROOT, "analyst", f))}        # a subpackage (codemap) is listed under packages
 check("packaging: every non-Python file of analyst/ is listed in pyproject's package-data, and nothing listed is missing", _listed == _present, (sorted(_listed ^ _present)))
 _pkgs = set(_re_p.findall(r'"([^"]+)"', _re_p.search(r"^packages = \[(.*?)\]", _pp, _re_p.M | _re_p.S).group(1)))
+# ---- the reach record (2026-10-28): what a cell touched outside the data rides on its Turn, marked asked or not; a
+# refused cell is a Turn with the restricted word, not an error of the code; the run keeps the box's facts ----
+import threading, http.server, socketserver  # noqa: E402
+from analyst import reach  # noqa: E402
+from analyst.notebook import Run  # noqa: E402
+
+
+class _RH(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b"y" * 3000
+        self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+
+    def log_message(self, *a):
+        pass
+
+
+_rsrv = socketserver.TCPServer(("127.0.0.1", 0), _RH); _rport = _rsrv.server_address[1]
+threading.Thread(target=_rsrv.serve_forever, daemon=True).start()
+reach_script = [act6(f"CELL\n```python\nimport requests\nr = requests.get('http://127.0.0.1:{_rport}/x')\nprint(len(r.content))\n```"),
+                act6("CELL\n```python\nprint(open('/etc/hostname').read().strip() != '')\n```"),
+                act6("CELL\n```python\nimport subprocess\nprint(subprocess.run(['ls']).returncode)\n```"),
+                act6("REPORT\n## r\n\nDone.")]
+kr = PersistentKernel(df=df); nbr = Notebook("tr"); evr = []
+try:
+    rr = Session(kr, nbr, thread_llm_factory(reach_script), data_description="d", emit=evr.append).run(
+        f"Fetch the file from 127.0.0.1:{_rport} and count its bytes", budget=Budget(turns=6, dollars=1.0, review_every=0))
+finally:
+    _rsrv.shutdown()
+    try:
+        kr.close()
+    except Exception:
+        pass
+cells_r = [t for t in rr.turns if t.kind == "cell"]
+check("reach: the cell that fetched carries the record on its Turn, marked asked because the question named the host",
+      len(cells_r) == 3 and len(cells_r[0].reaches) == 1 and cells_r[0].reaches[0]["kind"] == "net" and cells_r[0].reaches[0]["asked"] is True
+      and cells_r[0].reaches[0]["in"] > 3000 and cells_r[0].reaches[0]["line"] == 2 and cells_r[0].refused == "", [(t.reaches, t.refused) for t in cells_r])
+check("reach: a file read the question did not name is on its Turn marked not asked",
+      cells_r[1].reaches and cells_r[1].reaches[0]["kind"] == "file" and cells_r[1].reaches[0]["path"] == "/etc/hostname" and cells_r[1].reaches[0]["asked"] is False, cells_r[1].reaches)
+check("reach: the refused cell is a Turn with the restricted word, no cell number, the notice as its error and no reaches",
+      cells_r[2].refused == "subprocess" and cells_r[2].cell_no is None and "Security notice" in cells_r[2].error and cells_r[2].reaches == [], (cells_r[2].refused, cells_r[2].cell_no, cells_r[2].error[:80]))
+check("reach: the run keeps the box's facts from the kernel", isinstance(rr.sandbox, dict) and "uid" in rr.sandbox and "metadata" in rr.sandbox, rr.sandbox)
+cell_events = [e for e in evr if e.get("type") == "cell"]
+check("reach: the cell events carry the records and the refusal for the pane",
+      len(cell_events) == 3 and cell_events[0]["reaches"][0]["kind"] == "net" and cell_events[0]["refused"] == "" and cell_events[2]["refused"] == "subprocess" and cell_events[2]["reaches"] == [],
+      [(e.get("reaches"), e.get("refused")) for e in cell_events])
+sm = reach.summary(rr)
+check("reach: the summary lists each reach with its cell and tag, the refused attempt after the cell it followed, the counts and the box in one line",
+      [(x["where"], x["kind"], x["tag"]) for x in sm["lines"]] == [("cell 1", "net", "asked"), ("cell 2", "file", "unasked")]
+      and sm["refused"] == [{"where": "attempt after cell 2", "word": "subprocess", "text": "not run: restricted operation (subprocess)"}]
+      and sm["counts"] == {"lines": 2, "unasked": 1, "asked": 1, "blocked": 0, "refused": 1, "net": 1} and sm["recorded"] is True
+      and sm["lines"][0]["text"].startswith("fetched 3.") and "127.0.0.1" in sm["lines"][0]["text"] and sm["lines"][1]["text"] == "read /etc/hostname"
+      and sm["sandbox"] and ("root" in sm["sandbox"]) and "metadata address" in sm["sandbox"], sm)
+check("reach: a run without the record says so", reach.summary(Run(id="x", parent=None, question="q"))["recorded"] is False and reach.sandbox_line({}) == "", reach.summary(Run(id="x", parent=None, question="q")))
+nbr2 = Notebook.from_dict(json.loads(json.dumps(nbr.to_dict())))
+check("reach: the record survives the store's round trip", [t.reaches for t in nbr2.runs[rr.id].turns] == [t.reaches for t in rr.turns] and nbr2.runs[rr.id].sandbox == rr.sandbox
+      and [t.refused for t in nbr2.runs[rr.id].turns] == [t.refused for t in rr.turns], [t.reaches for t in nbr2.runs[rr.id].turns])
+check("reach: asked_for reads the host, its domain, the file's name and the environment name in the questions - a substring, nothing cleverer",
+      reach.asked_for({"kind": "net", "host": "api.github.com"}, ["pull it from github.com please"]) is True
+      and reach.asked_for({"kind": "net", "host": "api.github.com"}, ["fetch it from GitHub"]) is False
+      and reach.asked_for({"kind": "file", "path": "/etc/passwd"}, ["show me passwd"]) is True
+      and reach.asked_for({"kind": "env", "name": "HOME"}, ["use the home folder"]) is True
+      and reach.asked_for({"kind": "env", "name": "*"}, ["*"]) is False
+      and reach.asked_for({"kind": "net", "host": "10.0.0.5", "ip": ""}, ["connect to 10.0.0.5"]) is True, None)
+check("reach: the record's lines in words",
+      reach.line({"kind": "net", "host": "api.x.io", "port": 443, "in": 20480, "out": 812, "n": 1, "tls": True}) == "fetched 20.5 KB from api.x.io:443, sent 812 B over TLS"
+      and reach.line({"kind": "net", "host": "h", "port": 80, "in": 0, "out": 0, "n": 2}) == "connected to h:80, nothing exchanged (2 connections)"
+      and reach.line({"kind": "net", "host": "169.254.169.254", "port": 80, "blocked": True}) == "tried 169.254.169.254:80: the instance metadata address, refused by the kernel"
+      and reach.line({"kind": "net", "host": "h", "port": 9, "failed": "ConnectionRefusedError: [Errno 111]"}) == "tried h:9: no connection (ConnectionRefusedError)"
+      and reach.line({"kind": "file", "path": "/etc/passwd", "op": "read", "via": "library"}) == "read /etc/passwd (through a library)"
+      and reach.line({"kind": "env", "name": "*"}) == "read the whole environment" and reach.line({"kind": "process", "command": "echo hi"}) == "started a program: echo hi"
+      and reach.line({"kind": "listen", "host": "0.0.0.0", "port": 8080}) == "opened a listening port (0.0.0.0:8080)" and reach.line({"kind": "more", "n": 3}) == "3 more, not kept", None)
+
 _subs = {"analyst." + f for f in os.listdir(os.path.join(ROOT, "analyst")) if os.path.isdir(os.path.join(ROOT, "analyst", f)) and f != "__pycache__"}
 check("packaging: every subpackage of analyst/ is listed in pyproject's packages", _subs <= _pkgs, sorted(_subs - _pkgs))
 

@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import tools, report as rep
+from . import tools, report as rep, reach
 from .notebook import Notebook, NotebookStore, Run, Turn
 from .replay import verify
 
@@ -911,6 +911,7 @@ class Session:
             run_id: Optional[str] = None, data: Optional[dict] = None, image: Optional[str] = None, mode: str = "") -> Run:
         run = self.nb.new_run(question, parent, run_id=run_id)
         run.mode = mode or ""                         # the preset the run was asked in, for the code map's header (2026-10-20)
+        run.sandbox = tools.sandbox(self.kernel)      # the box the cells run on, for the reach report (2026-10-28)
         if data:
             run.data = dict(data)                     # what this run runs on, on the record from the start: the computation
                                                       # path (notebook.computed_cells) is drawn from it during the run (2026-10-12)
@@ -971,9 +972,10 @@ class Session:
                 t_cell = time.time()
                 self.emit({"type": "cell_start", "run": run.id, "turn": turn_no})   # the executor is busy from here (2026-09-08)
                 before = tools.namespace(self.kernel)
-                out, err, figs, recs = tools.run_cell(self.kernel, action.arg)
+                out, err, figs, recs, rc = tools.run_cell(self.kernel, action.arg)
                 turn.elapsed = round(time.time() - t_cell, 1)
                 turn.stdout, turn.error, turn.figures, turn.results = out, err, figs, recs
+                turn.reaches, turn.refused = reach.mark(rc["reaches"], self._questions(run)), rc["refused"]   # 2026-10-28
                 if not err:
                     turn.cell_no = self.nb.next_cell_no(run.id)
                     turn.registry = registry_delta(before, tools.namespace(self.kernel))   # what the cell made or changed (the code map, 2026-10-20)
@@ -1286,8 +1288,12 @@ class Session:
             self.emit({"type": "cell_start", "run": run.id, "turn": "figures"})
             before = tools.namespace(self.kernel)
             try:
-                out, err, figs, recs = tools.run_cell(self.kernel, FIGURES_WRAP_HEAD + code.rstrip("\n") + FIGURES_WRAP_TAIL)
+                out, err, figs, recs, rc = tools.run_cell(self.kernel, FIGURES_WRAP_HEAD + code.rstrip("\n") + FIGURES_WRAP_TAIL)
                 lost = False
+                head = len(FIGURES_WRAP_HEAD.splitlines())
+                turn.reaches = reach.mark([{**r, "line": (r["line"] - head if isinstance(r.get("line"), int) and r["line"] > head else r.get("line"))}
+                                           for r in rc["reaches"]], self._questions(run))
+                turn.refused = rc["refused"]
             except Exception as exc:                              # noqa: BLE001 - the kernel itself, not the cell
                 out, err, figs, recs, lost = "", f"the kernel could not run the cell: {exc}", [], [], True
             turn.elapsed = round(time.time() - t_cell, 1)
@@ -1568,10 +1574,15 @@ class Session:
         self._save()
         return rv, cost
 
+    def _questions(self, run: Run) -> List[str]:
+        """The question and the earlier questions of the thread: what the person asked for, as the reach record reads it."""
+        return [r.question for r in self.nb.path(run.id)]
+
     def _emit_turn(self, run: Run, turn: Turn) -> None:
         ev = {"type": turn.kind, "run": run.id, "note": turn.note}
         if turn.kind == "cell":
-            ev.update(code=turn.code, stdout=turn.stdout, error=turn.error, cell_no=turn.cell_no, figures=turn.figures)
+            ev.update(code=turn.code, stdout=turn.stdout, error=turn.error, cell_no=turn.cell_no, figures=turn.figures,
+                      reaches=list(turn.reaches or []), refused=turn.refused or "")       # the reach record (2026-10-28)
         elif turn.kind in ("read", "search"):
             # the digest is the text; the query rides beside it (2026-10-03: the query had been sent as the text, so the
             # pane's row showed the query twice)

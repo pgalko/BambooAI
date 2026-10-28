@@ -343,6 +343,429 @@ try:
 except Exception:
     pass
 
+# ---- Reaches: what a cell touched outside the data (2026-10-28) ----------
+# Observation, not prevention. The doors a cell can leave through are wrapped
+# so the kernel can say, per cell, which hosts it connected to and how many
+# bytes went each way, which files it opened or listed outside the data,
+# which environment names it read, and which programs it started. The records
+# ride back in the step's payload and nothing of them enters a prompt. The
+# blacklist still refuses the modules it names before a cell runs; the one
+# address refused here is the cloud instance metadata service, which answers
+# with the box's own credentials. A record says what the kernel saw: a
+# connection made by a C library (libpq, pycurl) does not pass these doors and
+# is not seen.
+import builtins as _builtins, socket as _socket, tempfile as _tempfile, weakref as _weakref
+try:
+    import ssl as _ssl
+except Exception:
+    _ssl = None
+try:
+    import subprocess as _subprocess
+except Exception:
+    _subprocess = None
+
+G["_REACHES"] = []
+G["_IN_CELL"] = False
+_REACH_CAP = 40                                    # records kept per cell; the rest is one count
+_REACH_META = ("169.254.169.254", "fd00:ec2::254", "metadata.google.internal", "metadata")
+_DNS = {}                                          # ip -> name, from the cell's own lookups
+_SOCKS = {}                                        # fd -> the record of the connection on it
+_STDLIB = os.path.dirname(os.__file__)
+_SELF = __file__                                   # the worker's own frames are not the cell's
+_NOISE = ("/etc/localtime", "/etc/timezone", "/etc/ld.so", "/etc/nsswitch.conf", "/etc/ssl", "/etc/pki", "/etc/fonts",
+          "/etc/matplotlibrc", "/etc/resolv.conf", "/etc/hosts", "/etc/host.conf", "/etc/gai.conf", "/etc/mime.types",
+          "/etc/mailcap", "/etc/os-release", "/etc/lsb-release", "/etc/debian_version", "/etc/alternatives", "/etc/locale",
+          "/etc/papersize", "/etc/magic", "/etc/xdg", "/etc/python")        # what libraries read on a box as a matter of course
+_SENSITIVE = ("/etc", "/root", "/home", "/run", "/var/run", "/var/lib", "/app", "/srv", "/opt")
+
+
+def _reach_roots():
+    """Where a cell reads and writes as its job: the data, the plots, the generated folder, temp, python's own trees."""
+    roots = [_tempfile.gettempdir(), "/tmp", "/dev", "/usr", "/lib", "/lib64", "/bin", "/sbin",
+             sys.prefix, sys.base_prefix, getattr(sys, "exec_prefix", "") or sys.prefix,
+             "/app/datasets", os.path.join(os.path.expanduser("~"), ".cache"), os.path.join(os.path.expanduser("~"), ".config", "matplotlib"),
+             os.path.join(os.path.expanduser("~"), ".local"), os.path.join(os.path.expanduser("~"), ".fonts")]
+    for p in (_df_path, G.get("_generated_dir"), G.get("_analysis_dir")):
+        if p:
+            roots.append(os.path.dirname(p) if p == _df_path else p)
+    if G.get("_generated_dir"):
+        roots.append(os.path.dirname(os.path.realpath(G["_generated_dir"])))      # the person's own datasets folder: the auxiliary files live there
+    try:
+        import matplotlib as _m
+        roots += [_m.get_configdir(), _m.get_cachedir()]
+    except Exception:
+        pass
+    return tuple(sorted({os.path.realpath(r) for r in roots if r}))
+
+
+def _under(path, roots):
+    return any(path == r or path.startswith(r.rstrip("/") + "/") for r in roots)
+
+
+def _cell_frames():
+    """(nearest, line): whether the nearest frame outside the standard library is the cell's own code, and the cell
+    line the call ran from (the top-level statement, through any helper)."""
+    nearest, line = None, None
+    try:
+        fr = sys._getframe(1)
+        while fr is not None:
+            fn = fr.f_code.co_filename
+            if nearest is None and fn != _SELF and not fn.startswith("<frozen ") and not (fn.startswith(_STDLIB) and "-packages" not in fn):
+                nearest = fn                           # frozen modules (os, _collections_abc) are the standard library too
+            if fn == "<string>" and fr.f_code.co_name == "<module>":
+                line = fr.f_lineno
+            fr = fr.f_back
+    except Exception:
+        pass
+    return nearest == "<string>", line
+
+
+def _in_code(*texts):
+    code = G.get("_CURRENT_CODE") or ""
+    return any(t and len(t) >= 3 and t in code for t in texts)
+
+
+def _reach_add(rec, key):
+    """Keep one record per key in the cell, merged; past the cap, one count."""
+    if not G.get("_IN_CELL"):
+        return None
+    recs = G["_REACHES"]
+    for r in recs:
+        if r.get("_key") == key:
+            return r
+    if sum(1 for r in recs if r.get("kind") != "more") >= _REACH_CAP:
+        more = next((r for r in recs if r.get("kind") == "more"), None)
+        if more is None:
+            recs.append({"kind": "more", "n": 0})
+            more = recs[-1]
+        more["n"] += 1
+        return None
+    rec["_key"] = key
+    recs.append(rec)
+    return rec
+
+
+def _reach_file(path, op, raw=None):
+    """A file opened or listed outside the data: recorded when the cell chose the path (its own frame, or the path
+    written in its code), always when under a place that holds the box's own things, always when written."""
+    try:
+        p = os.path.realpath(os.path.expanduser(os.fsdecode(path)))
+    except Exception:
+        return
+    if _under(p, _REACH_ROOTS):
+        return
+    own, line = _cell_frames()
+    parents = [p] + [p[:i] for i in range(len(p) - 1, 1, -1) if p[i] == "/" and p[:i].count("/") >= 2]
+    chosen = own or _in_code(str(raw) if raw is not None else "", *parents)
+    if p.startswith(("/proc", "/sys")) and not chosen:
+        return
+    if not (chosen or op == "write" or (_under(p, _SENSITIVE) and not p.startswith(_NOISE)) or any(seg.startswith(".") for seg in p.split("/"))):
+        return
+    _reach_add({"kind": "file", "path": p, "op": op, "line": line, "via": "code" if chosen else "library"}, ("file", p, op))
+
+
+_real_open = _builtins.open
+def _open_hook(file, mode="r", *a, **k):
+    if G.get("_IN_CELL") and isinstance(file, (str, bytes, os.PathLike)):
+        try:
+            _reach_file(file, "write" if any(c in str(mode) for c in "wax+") else "read", file)
+        except Exception:
+            pass
+    return _real_open(file, mode, *a, **k)
+_builtins.open = _open_hook
+io.open = _open_hook
+
+_real_os_open = os.open
+def _os_open_hook(path, flags, *a, **k):
+    if G.get("_IN_CELL") and isinstance(path, (str, bytes, os.PathLike)):
+        try:
+            _reach_file(path, "write" if flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC) else "read", path)
+        except Exception:
+            pass
+    return _real_os_open(path, flags, *a, **k)
+os.open = _os_open_hook
+
+_real_listdir, _real_scandir = os.listdir, os.scandir
+def _listdir_hook(path="."):
+    if G.get("_IN_CELL"):
+        try:
+            _reach_file(path if not isinstance(path, int) else ".", "list", path)
+        except Exception:
+            pass
+    return _real_listdir(path)
+def _scandir_hook(path="."):
+    if G.get("_IN_CELL"):
+        try:
+            _reach_file(path if not isinstance(path, int) else ".", "list", path)
+        except Exception:
+            pass
+    return _real_scandir(path)
+os.listdir, os.scandir = _listdir_hook, _scandir_hook
+
+
+class _WatchedEnviron(os._Environ):
+    """os.environ with its reads on the record: a name the cell asked for, or '*' when it walked the whole environment."""
+
+    def _note(self, name):
+        try:
+            own, line = _cell_frames()
+            if own or (name != "*" and _in_code(name)):
+                if name != "*" and any(r.get("kind") == "env" and r.get("name") == "*" for r in G["_REACHES"]):
+                    return
+                _reach_add({"kind": "env", "name": name, "line": line}, ("env", name))
+        except Exception:
+            pass
+
+    def __getitem__(self, key):
+        self._note(str(key))
+        return os._Environ.__getitem__(self, key)
+
+    def __contains__(self, key):
+        self._note(str(key))
+        return os._Environ.__contains__(self, key)
+
+    def __iter__(self):
+        self._note("*")
+        return os._Environ.__iter__(self)
+
+    def copy(self):
+        self._note("*")
+        return dict(self)
+
+
+_watched = _WatchedEnviron.__new__(_WatchedEnviron)
+_watched.__dict__.update(os.environ.__dict__)
+os.environ = _watched
+
+
+def _reach_process(what, args):
+    """A program started by the cell: its own call, or a command its code names. A library starting one on its own
+    (matplotlib asks fc-list for the fonts) is not the cell's doing and is not recorded."""
+    try:
+        own, line = _cell_frames()
+        cmd = args if isinstance(args, str) else " ".join(str(a) for a in (args if isinstance(args, (list, tuple)) else [args]))
+        if own or _in_code(str(cmd).split()[0] if str(cmd).split() else ""):
+            _reach_add({"kind": "process", "command": str(cmd)[:200], "via": what, "line": line}, ("process", str(cmd)[:200]))
+    except Exception:
+        pass
+
+_real_system, _real_popen = os.system, os.popen
+def _system_hook(command):
+    _reach_process("os.system", command)
+    return _real_system(command)
+def _popen_hook(cmd, *a, **k):
+    _reach_process("os.popen", cmd)
+    return _real_popen(cmd, *a, **k)
+os.system, os.popen = _system_hook, _popen_hook
+if _subprocess is not None:
+    _real_popen_init = _subprocess.Popen.__init__
+    def _popen_init_hook(self, args, *a, **k):
+        _reach_process("subprocess", args)
+        return _real_popen_init(self, args, *a, **k)
+    _subprocess.Popen.__init__ = _popen_init_hook
+
+
+def _addr_parts(address):
+    """(host, port) of a socket address: a name or ip and a port, or a unix path."""
+    if isinstance(address, (str, bytes)):
+        return "unix:" + os.fsdecode(address), None
+    if isinstance(address, (tuple, list)) and address:
+        return str(address[0]), (address[1] if len(address) > 1 else None)
+    return str(address), None
+
+
+def _reach_connect(sock, address, kind="net"):
+    host, port = _addr_parts(address)
+    name = _DNS.get(host) or host
+    own, line = _cell_frames()
+    rec = _reach_add({"kind": kind, "host": name, "ip": host if name != host else "", "port": port, "out": 0, "in": 0, "n": 0,
+                      "line": line, "tls": bool(_ssl and isinstance(sock, _ssl.SSLSocket)), "blocked": False, "failed": ""},
+                     (kind, name, port))
+    if rec is not None:
+        rec["n"] += 1
+        try:
+            _SOCKS[sock.fileno()] = rec
+        except Exception:
+            pass
+    return rec
+
+
+def _sock_rec(sock):
+    """The record of the connection a socket carries; a reused connection gets a record in the cell it is used in."""
+    try:
+        fd = sock.fileno()
+    except Exception:
+        return None
+    rec = _SOCKS.get(fd)
+    if rec is None:
+        try:
+            peer = sock.getpeername()
+        except Exception:
+            return None
+        rec = _reach_connect(sock, peer)
+        return rec
+    if not any(r is rec for r in G["_REACHES"]):             # the record belongs to an earlier cell: a reused connection
+        fresh = _reach_add({k: v for k, v in rec.items() if k not in ("_key", "out", "in", "n", "line")} | {"out": 0, "in": 0, "n": 0, "line": _cell_frames()[1]},
+                           rec["_key"])
+        if fresh is not None:
+            _SOCKS[fd] = fresh
+            rec = fresh
+    return rec
+
+
+def _numeric(host):
+    try:
+        import ipaddress
+        ipaddress.ip_address(host.strip("[]"))
+        return True
+    except ValueError:
+        return False
+
+
+_real_getaddrinfo = _socket.getaddrinfo
+def _getaddrinfo_hook(host, port, *a, **k):
+    res = _real_getaddrinfo(host, port, *a, **k)
+    try:
+        if isinstance(host, (str, bytes)) and host and G.get("_IN_CELL"):
+            h = os.fsdecode(host)
+            if not _numeric(h):
+                for fam, typ, proto, canon, sa in res:
+                    if sa and str(sa[0]) != h:
+                        _DNS[str(sa[0])] = h
+                own, line = _cell_frames()
+                _reach_add({"kind": "dns", "host": h, "line": line}, ("dns", h))
+    except Exception:
+        pass
+    return res
+_socket.getaddrinfo = _getaddrinfo_hook
+
+_real_connect, _real_connect_ex = _socket.socket.connect, _socket.socket.connect_ex
+def _connect_hook(self, address, _ex=False):
+    rec = None
+    if G.get("_IN_CELL"):
+        try:
+            rec = _reach_connect(self, address)
+            host, _ = _addr_parts(address)
+            if host in _REACH_META or _DNS.get(host, "") in _REACH_META:
+                if rec is not None:
+                    rec["blocked"] = True
+                raise OSError("the instance metadata address is not reachable from here")
+        except OSError:
+            raise
+        except Exception:
+            pass
+    try:
+        return _real_connect_ex(self, address) if _ex else _real_connect(self, address)
+    except BlockingIOError:
+        raise
+    except OSError as exc:
+        if rec is not None:
+            rec["failed"] = type(exc).__name__ if not str(exc) else f"{type(exc).__name__}: {str(exc)[:80]}"
+        raise
+_socket.socket.connect = lambda self, address: _connect_hook(self, address)
+_socket.socket.connect_ex = lambda self, address: _connect_hook(self, address, True)
+
+
+def _count(sock, side, n):
+    if n and G.get("_IN_CELL"):
+        try:
+            rec = _sock_rec(sock)
+            if rec is not None:
+                rec[side] += int(n)
+        except Exception:
+            pass
+
+
+def _plain(sock):
+    return not (_ssl and isinstance(sock, _ssl.SSLSocket))
+
+_real_send, _real_sendall, _real_sendto = _socket.socket.send, _socket.socket.sendall, _socket.socket.sendto
+_real_recv, _real_recv_into, _real_recvfrom = _socket.socket.recv, _socket.socket.recv_into, _socket.socket.recvfrom
+def _send_hook(self, data, *a):
+    n = _real_send(self, data, *a)
+    if _plain(self):
+        _count(self, "out", n)
+    return n
+def _sendall_hook(self, data, *a):
+    r = _real_sendall(self, data, *a)
+    if _plain(self):
+        _count(self, "out", len(data))
+    return r
+def _sendto_hook(self, data, *a):
+    n = _real_sendto(self, data, *a)
+    if G.get("_IN_CELL") and a:
+        try:
+            if _SOCKS.get(self.fileno()) is None:
+                _reach_connect(self, a[-1])
+        except Exception:
+            pass
+    _count(self, "out", n)
+    return n
+def _recv_hook(self, *a):
+    data = _real_recv(self, *a)
+    if _plain(self):
+        _count(self, "in", len(data))
+    return data
+def _recv_into_hook(self, *a, **k):
+    n = _real_recv_into(self, *a, **k)
+    if _plain(self):
+        _count(self, "in", n)
+    return n
+def _recvfrom_hook(self, *a):
+    data, addr = _real_recvfrom(self, *a)
+    _count(self, "in", len(data))
+    return data, addr
+_socket.socket.send, _socket.socket.sendall, _socket.socket.sendto = _send_hook, _sendall_hook, _sendto_hook
+_socket.socket.recv, _socket.socket.recv_into, _socket.socket.recvfrom = _recv_hook, _recv_into_hook, _recvfrom_hook
+
+_real_listen = _socket.socket.listen
+def _listen_hook(self, *a):
+    r = _real_listen(self, *a)
+    if G.get("_IN_CELL"):
+        try:
+            host, port = _addr_parts(self.getsockname())
+            own, line = _cell_frames()
+            _reach_add({"kind": "listen", "host": host, "port": port, "line": line}, ("listen", host, port))
+        except Exception:
+            pass
+    return r
+_socket.socket.listen = _listen_hook
+
+if _ssl is not None:
+    _real_ssl_send, _real_ssl_read = _ssl.SSLSocket.send, _ssl.SSLSocket.read
+    def _ssl_send_hook(self, data, *a):
+        n = _real_ssl_send(self, data, *a)
+        _count(self, "out", n)
+        return n
+    def _ssl_read_hook(self, *a, **k):
+        r = _real_ssl_read(self, *a, **k)
+        _count(self, "in", r if isinstance(r, int) else len(r))
+        return r
+    _ssl.SSLSocket.send, _ssl.SSLSocket.read = _ssl_send_hook, _ssl_read_hook
+    _real_wrap = _ssl.SSLContext.wrap_socket
+    def _wrap_hook(self, sock, *a, **k):
+        ssock = _real_wrap(self, sock, *a, **k)
+        try:
+            rec = _SOCKS.get(ssock.fileno())
+            if rec is not None:
+                rec["tls"] = True
+                name = k.get("server_hostname")
+                if name and rec.get("host") == rec.get("ip", rec.get("host")):
+                    rec["ip"], rec["host"] = rec["host"], str(name)
+        except Exception:
+            pass
+        return ssock
+    _ssl.SSLContext.wrap_socket = _wrap_hook
+
+_REACH_ROOTS = _reach_roots()
+
+
+def _reaches_out():
+    """The cell's records for the payload, without the merge keys; the line and the bytes as they stand."""
+    recs = G.get("_REACHES") or []
+    connected = {r.get("host") for r in recs if r.get("kind") == "net"} | {r.get("ip") for r in recs if r.get("kind") == "net"}
+    return [{k: v for k, v in r.items() if k != "_key"} for r in recs if not (r.get("kind") == "dns" and r.get("host") in connected)]
+
 
 _INTERNAL = {
     "os", "io", "json", "sys", "traceback", "warnings",
@@ -616,6 +1039,10 @@ for _line in sys.stdin:
     G["_saved_plots"] = []
     G["_RESULTS"] = []
     G["_DATASETS"] = []
+    G["_REACHES"] = []
+    _DNS.clear()
+    if os.path.realpath(G["_analysis_dir"]) not in _REACH_ROOTS:
+        _REACH_ROOTS = _reach_roots()              # the plots folder moves with the step
 
     _stdout = None
     _error = None
@@ -628,6 +1055,7 @@ for _line in sys.stdin:
         G["_CURRENT_CODE"] = _user_code
         _buf = io.StringIO()
         plt.close("all")
+        G["_IN_CELL"] = True
         with redirect_stdout(_buf):
             exec(_user_code, G)   # exec into G so derived state persists
         _stdout = _buf.getvalue()
@@ -639,6 +1067,7 @@ for _line in sys.stdin:
     except Exception:
         _error = traceback.format_exc()
     finally:
+        G["_IN_CELL"] = False
         plt.close("all")
 
     _ckpt_ok, _ckpt_skipped = False, []
@@ -654,6 +1083,7 @@ for _line in sys.stdin:
         "plots": list(G.get("_saved_plots", [])),
         "results": list(G.get("_RESULTS", [])),
         "datasets": list(G.get("_DATASETS", [])),
+        "reaches": _reaches_out(),
         "namespace": _namespace_summary(),
         "columns": _df_columns(),
         "checkpoint_ok": _ckpt_ok,
@@ -701,6 +1131,94 @@ def _truncate_traceback(tb, limit=6000):
     return head + ("\n" + "\n".join(tail) if tail else "")
 
 
+_SANDBOX = None
+_CAP_NAMES = {1: "dac_override", 2: "dac_read_search", 7: "setuid", 12: "net_admin", 13: "net_raw", 16: "sys_module",
+              17: "sys_rawio", 19: "sys_ptrace", 21: "sys_admin", 27: "mknod"}
+_VIRTUAL_FS = {"proc", "sysfs", "tmpfs", "devpts", "mqueue", "cgroup", "cgroup2", "devtmpfs", "securityfs", "pstore",
+               "debugfs", "tracefs", "configfs", "fusectl", "hugetlbfs", "binfmt_misc", "autofs", "efivarfs", "bpf",
+               "rpc_pipefs", "nsfs", "overlay", "shm", "ramfs", "squashfs"}
+
+
+def sandbox_facts():
+    """What the box the kernel runs on looks like from inside, read once per process (2026-10-28): the user, the
+    capabilities, seccomp, the mounts, whether a cloud metadata service answers. Facts the kernel can read, not a
+    judgement; a field the box does not expose says so. The reach report prints them beside the reaches."""
+    global _SANDBOX
+    if _SANDBOX is not None:
+        return dict(_SANDBOX)
+    f = {"uid": None, "user": "", "root": None, "caps": "", "notable_caps": [], "seccomp": "", "no_new_privs": None,
+         "container": "", "pid1": "", "mounts": [], "docker_socket": False, "metadata": "", "platform": sys.platform}
+    try:
+        f["uid"] = os.getuid()
+        f["root"] = f["uid"] == 0
+        import pwd
+        f["user"] = pwd.getpwuid(f["uid"]).pw_name
+    except Exception:
+        pass
+    try:
+        with open("/proc/self/status", encoding="utf-8") as fh:
+            for ln in fh:
+                key, _, val = ln.partition(":")
+                val = val.strip()
+                if key == "CapEff":
+                    f["caps"] = val
+                    bits = int(val, 16)
+                    f["notable_caps"] = [n for b, n in sorted(_CAP_NAMES.items()) if bits & (1 << b)]
+                elif key == "Seccomp":
+                    f["seccomp"] = {"0": "off", "1": "strict", "2": "filter"}.get(val, val)
+                elif key == "NoNewPrivs":
+                    f["no_new_privs"] = val == "1"
+    except Exception:
+        pass
+    try:
+        with open("/proc/1/comm", encoding="utf-8") as fh:
+            f["pid1"] = fh.read().strip()
+    except Exception:
+        pass
+    try:
+        cg = ""
+        if os.path.exists("/proc/1/cgroup"):
+            with open("/proc/1/cgroup", encoding="utf-8") as fh:
+                cg = fh.read()
+        if os.path.exists("/.dockerenv") or "docker" in cg or "containerd" in cg:
+            f["container"] = "docker"
+        elif "kubepods" in cg:
+            f["container"] = "kubernetes"
+        elif os.path.exists("/proc/1/cgroup"):
+            f["container"] = "none seen"
+    except Exception:
+        pass
+    try:
+        with open("/proc/self/mounts", encoding="utf-8") as fh:
+            for ln in fh:
+                parts = ln.split()
+                if len(parts) < 4:
+                    continue
+                src, point, fstype, opts = parts[:4]
+                if fstype in _VIRTUAL_FS or point in ("/", "/etc/hosts", "/etc/hostname", "/etc/resolv.conf") or point.startswith(("/proc", "/sys", "/dev")):
+                    continue
+                f["mounts"].append(f"{point} ({fstype}, {'ro' if 'ro' in opts.split(',') else 'rw'})")
+        f["mounts"] = f["mounts"][:12]
+    except Exception:
+        pass
+    f["docker_socket"] = any(os.path.exists(p) for p in ("/var/run/docker.sock", "/run/docker.sock"))
+    try:
+        import socket as _sk
+        try:
+            _sk.create_connection(("169.254.169.254", 80), timeout=0.5).close()
+            f["metadata"] = "answered"
+        except ConnectionRefusedError:
+            f["metadata"] = "refused"
+        except (_sk.timeout, TimeoutError):
+            f["metadata"] = "timed out"
+        except OSError as exc:
+            f["metadata"] = f"unreachable ({type(exc).__name__})"
+    except Exception:
+        pass
+    _SANDBOX = f
+    return dict(f)
+
+
 class KernelDead(Exception):
     """Raised internally when the worker process is gone and must be restarted."""
 
@@ -714,10 +1232,54 @@ class KernelDead(Exception):
 REGISTRY_DESC_RECENT = 25
 
 
+def _fstring_literal_spans(text):
+    """The character spans of an f-string token's literal text - everything outside its {expressions} - as offsets
+    into the token (python 3.11, where an f-string is one STRING token). The quotes and the prefix count as literal;
+    {{ and }} are text; a nested quote inside an expression is part of the expression."""
+    import re
+    m = re.match(r"[A-Za-z]*(\"\"\"|'''|\"|')", text)
+    if not m:
+        return [(0, len(text))]
+    q = m.group(1)
+    body_a = m.end()
+    body_b = len(text) - len(q) if text.endswith(q) and len(text) >= body_a + len(q) else len(text)
+    spans, depth, i, lit_start = [(0, body_a)], 0, body_a, body_a
+    while i < body_b:
+        c = text[i]
+        if depth == 0:
+            if c == "{" and text[i + 1:i + 2] == "{":
+                i += 2
+                continue
+            if c == "{":
+                spans.append((lit_start, i))
+                depth = 1
+            elif c == "}" and text[i + 1:i + 2] == "}":
+                i += 2
+                continue
+        else:
+            if c in "\"'":                                  # a string inside the expression is text too
+                j = text.find(c, i + 1)
+                j = j if j >= 0 else body_b
+                spans.append((i, j + 1))
+                i = j + 1
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    lit_start = i + 1
+        i += 1
+    if depth == 0:
+        spans.append((lit_start, len(text)))
+    return spans
+
+
 def _code_for_security_check(code):
-    """The code as the restricted-name check reads it: comments and plain string literals blanked out, everything
+    """The code as the restricted-name check reads it: comments and the text of string literals blanked out, everything
     else verbatim, so a label or a note that mentions a restricted word is not taken for its use (2026-10-05: a
-    label '+HR eval@150' was refused as the eval module). f-strings stay: their expressions are code. Code that
+    label '+HR eval@150' was refused as the eval module). An f-string's text is blanked too and its {expressions}
+    stay, since those are code (2026-10-28: f"http://{host}/x" had been refused as the http module). Code that
     does not tokenize is checked whole."""
     import io
     import re
@@ -731,14 +1293,25 @@ def _code_for_security_check(code):
         pos += len(line)
         starts.append(pos)
     chars = list(code)
+
+    def blank(a, b):
+        for i in range(a, min(b, len(chars))):
+            if chars[i] != "\n":
+                chars[i] = " "
+
+    middle = getattr(tokenize, "FSTRING_MIDDLE", None)          # python 3.12+: an f-string's text is its own token
     for tok in toks:
-        prefix = re.match(r"[A-Za-z]*", tok.string).group(0).lower() if tok.type == tokenize.STRING else ""
-        if tok.type == tokenize.COMMENT or (tok.type == tokenize.STRING and "f" not in prefix):
-            a = starts[tok.start[0] - 1] + tok.start[1]
-            b = starts[tok.end[0] - 1] + tok.end[1]
-            for i in range(a, min(b, len(chars))):
-                if chars[i] != "\n":
-                    chars[i] = " "
+        a = starts[tok.start[0] - 1] + tok.start[1]
+        b = starts[tok.end[0] - 1] + tok.end[1]
+        if tok.type == tokenize.COMMENT or (middle is not None and tok.type == middle):
+            blank(a, b)
+        elif tok.type == tokenize.STRING:
+            prefix = re.match(r"[A-Za-z]*", tok.string).group(0).lower()
+            if "f" not in prefix:
+                blank(a, b)
+            else:
+                for x, y in _fstring_literal_spans(tok.string):
+                    blank(a + x, a + y)
     return "".join(chars)
 
 
@@ -773,6 +1346,8 @@ class PersistentKernel:
         self._proc = None
         self._reader = None
         self._q = None
+        self.last_results, self.last_reaches, self.last_refused = [], [], ""
+        self.sandbox = sandbox_facts()                 # the box as seen from inside, for the reach report (2026-10-28)
         self._start_worker()
 
     # ----- worker lifecycle ------------------------------------------------
@@ -895,18 +1470,28 @@ class PersistentKernel:
 
     # ----- execution -------------------------------------------------------
 
-    def _security_refuse(self, code):
+    @staticmethod
+    def _security_word(code):
+        """The restricted name the code uses, or None. The check reads the code without its comments and plain
+        strings (_code_for_security_check). An entry that names a family (os.exec, os.spawn) matches its members:
+        os.execv, os.spawnl (2026-10-28: the word boundary after the entry had matched nothing at all)."""
         import re
         code = _code_for_security_check(code)
         for banned in BLACKLIST:
-            pattern = r"\b" + re.escape(banned) + r"\b"
+            pattern = r"\b" + re.escape(banned) + (r"\w*" if banned in ("os.exec", "os.spawn") else "") + r"\b"
             if re.search(pattern, code):
                 if banned == "sys" and "sys." not in code:
                     continue
-                return (
-                    "Security notice: code contains restricted module "
-                    f"({banned}) and was not executed."
-                )
+                return banned
+        return None
+
+    def _security_refuse(self, code):
+        banned = self._security_word(code)
+        if banned:
+            return (
+                "Security notice: code contains restricted module "
+                f"({banned}) and was not executed."
+            )
         return None
 
     def _run_once(self, code, analysis_dir, step=None, no_ckpt=False):
@@ -976,8 +1561,13 @@ class PersistentKernel:
         skip its save), no registry update. Used for chart rendering, whose
         code must see the analytical objects but must never become analytical
         state; call discard_uncommitted() afterwards to restore the worker."""
+        # what the step touched outside the data and whether it was refused, read by the caller after each step
+        # (2026-10-28): a refused step is not run and not an error of the code; a step that reached out and then
+        # failed still reached out, so the records stand beside the error
+        self.last_reaches, self.last_refused = [], ""
         refusal = self._security_refuse(code)
         if refusal:
+            self.last_refused = self._security_word(code) or "restricted"
             return None, refusal, []
 
         result = self._run_once(code, analysis_dir, step=step, no_ckpt=not commit)
@@ -1006,6 +1596,7 @@ class PersistentKernel:
         error = _truncate_traceback(result.get("error"))
         plots = result.get("plots", []) or []
         self.last_results = list(result.get("results") or []) if error is None else []   # RESULT(...) records of this step
+        self.last_reaches = list(result.get("reaches") or [])
 
         if error is not None:
             # TRANSACTIONAL ROLLBACK. The exception may have fired after part of

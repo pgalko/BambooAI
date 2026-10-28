@@ -118,6 +118,114 @@ _g = c.post("/execute", json={"code": "x = 1 / 0", "df_id": "t1", "persist_df": 
 check("executor: a script that fails before printing anything returns no results, as before", _g.get("results") is None and "ZeroDivisionError" in (_g.get("error") or ""), _g)
 
 
+# the reach record (2026-10-28): the kernel says, per cell, what the cell touched outside the data - the hosts it connected
+# to and the bytes each way, the files it opened or listed outside the data, the environment names it read, the programs
+# it started - and the restricted word a refused cell was refused for; the box reports itself on /kernel/start and /health
+import threading  # noqa: E402
+import http.server  # noqa: E402
+import socketserver  # noqa: E402
+
+
+class _Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b"x" * 5000
+        self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers(); self.wfile.write(b"ok")
+
+    def log_message(self, *a):
+        pass
+
+
+_srv = socketserver.TCPServer(("127.0.0.1", 0), _Handler)
+_port = _srv.server_address[1]
+threading.Thread(target=_srv.serve_forever, daemon=True).start()
+r3 = c.post("/kernel/start", json={"df_id": "t1"}).get_json() or {}
+sid3 = r3.get("session_id")
+sb = r3.get("sandbox") or {}
+check("executor: /kernel/start reports the box as the kernel sees it - user, root or not, capabilities, seccomp, container, mounts, the metadata address",
+      all(k in sb for k in ("uid", "user", "root", "caps", "notable_caps", "seccomp", "container", "mounts", "metadata", "docker_socket")) and isinstance(sb["mounts"], list), sb)
+hb = (c.get("/health").get_json() or {})
+check("executor: /health carries the same facts beside the build", (hb.get("sandbox") or {}).get("uid") == sb.get("uid") and "v64" in str(hb.get("build")), (hb.get("build"), hb.get("sandbox")))
+
+
+def _run(code):
+    return c.post("/kernel/execute", json={"session_id": sid3, "code": code}).get_json() or {}
+
+
+try:
+    o = _run("print(df.a.mean())")
+    check("executor: a cell on the data alone reaches nothing, and the route says so", o.get("reaches") == [] and o.get("refused") == "" and not o.get("error"), o)
+    o = _run(f"import requests\nr = requests.get('http://127.0.0.1:{_port}/data')\nprint(len(r.content))")
+    net = [x for x in o.get("reaches") or [] if x.get("kind") == "net"]
+    check("executor: a cell that fetches over HTTP is recorded with the host, the port, the bytes each way and the cell line",
+          len(net) == 1 and net[0]["host"] == "127.0.0.1" and net[0]["port"] == _port and net[0]["in"] > 5000 and 0 < net[0]["out"] < 400
+          and net[0]["line"] == 2 and net[0]["tls"] is False and not net[0]["failed"] and len(o.get("reaches")) == 1, o.get("reaches"))
+    o = _run(f"host = '127.0.0.1'\nr = requests.post(f'http://{{host}}:{_port}/up', data=df.to_csv())\nprint(r.text)")
+    net = [x for x in o.get("reaches") or [] if x.get("kind") == "net"]
+    check("executor: the text of an f-string is not read as code - f'http://{host}' runs (it had been refused as the http module) - and what the cell sent is counted",
+          not o.get("error") and o.get("refused") == "" and len(net) == 1 and net[0]["out"] > 100 and (o.get("stdout") or "").strip() == "ok", o)
+    o = _run(f"sess = requests.Session()\nprint(len(sess.get('http://localhost:{_port}/a').content))")
+    o2 = _run(f"print(len(sess.get('http://localhost:{_port}/b').content))")
+    n1 = [x for x in o.get("reaches") or [] if x.get("kind") == "net"]
+    n2 = [x for x in o2.get("reaches") or [] if x.get("kind") == "net"]
+    check("executor: a host named by the cell is recorded by its name with the address beside it, and a connection reused in a later cell is recorded in that cell too",
+          len(n1) == 1 and n1[0]["host"] == "localhost" and n1[0]["ip"] == "127.0.0.1" and len(n2) == 1 and n2[0]["host"] == "localhost" and n2[0]["in"] > 5000
+          and not any(x.get("kind") == "dns" for x in (o.get("reaches") or []) + (o2.get("reaches") or [])), (o.get("reaches"), o2.get("reaches")))
+    o = _run("print(open('/etc/hostname').read().strip() != '')\nbase = '/etc'\nt = pd.read_csv(base + '/passwd', sep=':', header=None)\nprint(t.shape[1])\nprint(len(os.listdir('/')) > 0)")
+    files = [(x.get("path"), x.get("op"), x.get("via"), x.get("line")) for x in o.get("reaches") or [] if x.get("kind") == "file"]
+    check("executor: a file read outside the data is recorded with its path, through a library too, and a listing of a folder outside the data",
+          files == [("/etc/hostname", "read", "code", 1), ("/etc/passwd", "read", "library", 3), ("/", "list", "code", 5)], o.get("reaches"))
+    o = _run("nm = 'HO' + 'ME'\nprint(bool(os.environ.get(nm)))\nn = sum(1 for k_, v_ in os.environ.items())\nprint(n > 0)")
+    env = [(x.get("name"), x.get("line")) for x in o.get("reaches") or [] if x.get("kind") == "env"]
+    check("executor: an environment name the cell reads is recorded, and a walk of the whole environment as '*'", env == [("HOME", 2), ("*", 3)], o.get("reaches"))
+    o = _run("import subprocess\nprint(subprocess.run(['ls']).returncode)")
+    check("executor: a refused cell comes back with the restricted word beside the notice, not run (2026-10-28: a refusal is not a failure of the code)",
+          o.get("refused") == "subprocess" and "Security notice" in (o.get("error") or "") and o.get("reaches") == [], o)
+    o = _run("os.execv('/bin/true', ['true'])")
+    check("executor: the blacklist's family entries match their members - os.execv is refused as os.exec (the entry had matched nothing)", o.get("refused") == "os.exec", o)
+    o = _run("from os import popen\nprint(popen('echo hi').read().strip())")
+    proc = [(x.get("command"), x.get("via"), x.get("line")) for x in o.get("reaches") or [] if x.get("kind") == "process"]
+    check("executor: a program the cell starts past the blacklist's spelling is recorded with its command", proc == [("echo hi", "os.popen", 2)] and (o.get("stdout") or "").strip() == "hi", o)
+    o = _run("try:\n    requests.get('http://169.254.169.254/latest/meta-data/', timeout=2)\n    print('answered')\nexcept Exception as e:\n    print('blocked', type(e).__name__)")
+    net = [x for x in o.get("reaches") or [] if x.get("kind") == "net"]
+    check("executor: the instance metadata address is refused by the kernel and the attempt recorded as blocked",
+          "blocked" in (o.get("stdout") or "") and len(net) == 1 and net[0]["blocked"] is True and net[0]["host"] == "169.254.169.254", o)
+    o = _run("try:\n    requests.get('http://127.0.0.1:9/x', timeout=1)\nexcept Exception as e:\n    print(type(e).__name__)")
+    net = [x for x in o.get("reaches") or [] if x.get("kind") == "net"]
+    check("executor: a connection that failed is still an attempt, recorded with the failure", len(net) == 1 and net[0]["failed"].startswith("ConnectionRefusedError") and net[0]["in"] == 0, o.get("reaches"))
+    o = _run("import socketserver\nclass _H(socketserver.BaseRequestHandler):\n    pass\n_s = socketserver.TCPServer(('127.0.0.1', 0), _H)\nprint(_s.server_address[1] > 0)\n_s.server_close()")
+    lis = [x for x in o.get("reaches") or [] if x.get("kind") == "listen"]
+    check("executor: a listening port the cell opens is recorded", len(lis) == 1 and lis[0]["host"] == "127.0.0.1" and lis[0]["line"] == 4, o.get("reaches"))
+    o = _run("from matplotlib import font_manager\nprint(len(font_manager.findSystemFonts()) >= 0)\nimport openpyxl, json, csv\nprint(pd.Timestamp.now(tz='Europe/Prague').tzname() != '')\nwith open('/tmp/_reach_probe.txt', 'w') as fh:\n    fh.write('x')\nprint(DS.save(df.head(2), 'probe.csv') != '')")
+    check("executor: what libraries do on a box as a matter of course - the font scan, mime types, time zones - and the cell's own writes under temp and the generated folder are not reaches",
+          o.get("reaches") == [] and not o.get("error"), o)
+    o = _run("x = 1 / 0")
+    check("executor: a failed cell carries no reach records of its own, and the next cell starts clean", o.get("reaches") == [] and "ZeroDivisionError" in (o.get("error") or ""), o)
+finally:
+    c.post("/kernel/stop", json={"session_id": sid3})
+    _srv.shutdown()
+
+# the f-string scanner of python 3.11, where an f-string is one token: its text is blanked, its expressions stay, a
+# string inside an expression is text too (the executor image runs 3.11; this interpreter may tokenize f-strings itself)
+from kernel import _fstring_literal_spans as _spans  # noqa: E402
+
+
+def _masked(t):
+    chars = list(t)
+    for x, y in _spans(t):
+        for i in range(x, y):
+            chars[i] = " "
+    return "".join(chars)
+
+
+_FS = ("f'http://{host}:{port}/up'", "f'a {{ http }} {b:>{w}} c'", 'f\'{"socket"} http\'', "f'''multi {a} http://x'''")
+check("kernel: the 3.11 f-string scanner keeps the expressions and blanks the text, the quotes, {{ }} and a string inside an expression",
+      [_masked(t) for t in _FS] == ["         {host} {port}    ", "               {b:>{w}}   ", "  {        }      ", "          {a}            "],
+      [_masked(t) for t in _FS])
+
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")
 sys.exit(1 if n_fail else 0)

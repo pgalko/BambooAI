@@ -181,7 +181,8 @@ def start():
             # and warm is indistinguishable from cold - for the model AND
             # for anyone reading a run log.
             return jsonify({"session_id": s.id, "reused": True, **s.info(),
-                            "registry": s.kernel.registry})
+                            "registry": s.kernel.registry,
+                            "sandbox": getattr(s.kernel, "sandbox", None) or {}})
 
         # A NAMED session that is not here is GONE, not a request to create one.
         #
@@ -284,7 +285,9 @@ def start():
     log(f"started session {session_id} (df_id={df_id}, shape={shape})")
     return jsonify({"session_id": session_id, "reused": False,
                     "shape": shape, "schema": schema,
-                    "step_timeout": kernel.step_timeout})
+                    "step_timeout": kernel.step_timeout,
+                    # the box as the kernel sees it from inside, for the reach report (2026-10-28)
+                    "sandbox": getattr(kernel, "sandbox", None) or {}})
 
 
 @kernel_bp.route("/execute", methods=["POST"])
@@ -318,6 +321,9 @@ def execute():
         "stdout": stdout,
         "error": error,
         "results": list(getattr(session.kernel, "last_results", []) or []),
+        # what the step touched outside the data, and the restricted word it was refused for (2026-10-28)
+        "reaches": list(getattr(session.kernel, "last_reaches", []) or []),
+        "refused": getattr(session.kernel, "last_refused", "") or "",
         # Container-local paths. Nothing fetches them today: in the planner
         # architecture the Code Generator emits the user-facing visuals. Add a
         # /kernel/plot endpoint if that changes.
