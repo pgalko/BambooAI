@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.7 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0244)
+# Datasets by athlete — design v1.8 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0245)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -8,7 +8,7 @@ one entry whose span grew, and two athletes never share a line. The four decisio
 2026-10-29 (section 11); the next phase, several API keys per coach and an athlete dropdown in the load dialogs, is
 the same tree without the data. **Status**: steps 1-3 of section 10 are built (patches 0237-0241, executor images
 v67-v71; sections 13-15 say what they did and where they differ from the text), and the dialog was redesigned after the
-product owner's second look (patches 0242-0244, images v72-v73; section 16 is the design as it stands); step 4 is not.
+product owner's second look (patches 0242-0245, images v72-v73; section 16 is the design as it stands); step 4 is not.
 
 ## 1. The shape
 
@@ -319,7 +319,7 @@ details; Load from the dialog with a window loaded - let go on asking, loaded fr
 itself, each file's pill once; every dataset loaded together with all eight files written and seven pills; the tree
 with two athletes, fold and filter, Forget through the details, Load to today declined).
 
-## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73, and 0244 - the last paragraphs)
+## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73, 0244 and 0245 - the last paragraphs)
 
 The product owner's second look (2026-10-29) found the rebuilt dialog still an old design bent to the new logic: the
 columns showed for two datasets only, Load on a dataset loaded everything, earlier loads were still listed. The
@@ -416,3 +416,13 @@ gone; each line now says its state in words at its right (`.ds-feed-state`: *on 
 *in the store only* muted), so nothing needs a key. Loading and forgetting stay in the pane; the pill's × takes a
 dataset off the Data tab without deleting it. Tests: `tests/analyst/test_dialogs.js` (the words, no switch, no
 legend), the integrations walk (the pill's × empties the dot and the words say so; Load Wellness from the pane).
+
+**A frame load carries the datasets on the Data tab (patch 0245, page only).** The product owner loaded a window to
+May with every dataset, then *Load Activities to today* - the frame alone, by the selective design - and had a
+frame to today beside files from May, on the Data tab and in the cache: "something is broken". A tab with two
+windows is no tab anyone wants, so loading Activities (from the store or to today) now asks for the datasets that
+are on the Data tab for that athlete too, at the frame's window (`kindsOf`: the kinds read from the pills); *Load
+everything* asks for every dataset held; one dataset alone still asks for its own. The hints say so. The walk now
+runs *Load Activities to today* (the tab's datasets following, the pills one window) and *Load everything to today*
+end to end (every line ending today, the recent laps looked at again, no file downloaded) - the latter had only been
+walked from the store.

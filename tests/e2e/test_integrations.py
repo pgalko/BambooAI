@@ -1062,6 +1062,23 @@ def main():
             check("Load Wellness loads the dataset alone from the store: no call to Intervals.icu, the status line says so with the window held (to today) and names the file, the dialog closes, the Wellness pill is back once and the frame and the other pills were not touched",
                   calls_of(st, "/api/v1/") == calls_before_lw and wspan == f"{a_start.isoformat()} → {today.isoformat()}" and status_lw.startswith(f"Loaded Wellness {wspan} from the store, nothing fetched: wellness_data_") and sum(1 for p_ in lw if "Wellness" in p_) == 1
                   and sum(1 for p_ in lw if p_.startswith("Intervals ICU (")) == 1 and any("Activity Summary" in p_ for p_ in lw) and any("Context (" in p_ for p_ in lw), (status_lw, wspan, lw))
+            # Load Activities to today from the Activities line: the frame to today, and the datasets on the Data tab come with it to the
+            # same window (2026-10-29: a frame loaded to today beside files from May read as broken)
+            open_cache("activities")
+            n_days = (today - a_start).days
+            fits_before_at, well_before_at = calls_of(st, "fit-file"), calls_of(st, "/wellness")
+            hint_at = page.evaluate("() => document.querySelector('#datasetDetails [data-act=\"today\"] + .hint').textContent")
+            page.once("dialog", lambda d: d.accept())
+            page.click("#datasetDetails [data-act='today']")
+            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
+            page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
+            at = pills_now()
+            check("Load Activities to today from the Activities line (the hint says the datasets on the Data tab come with it): the frame to today with [W+S+I+C+R], and every dataset that was on the tab loaded again to the same window - each file's pill once with the days to today - no FIT file fetched (the store had them), the wellness log fetched afresh",
+                  "come with it" in hint_at and sum(1 for p_ in at if p_.startswith("Intervals ICU (")) == 1 and any(p_ == f"Intervals ICU ({n_days} days [W+S+I+C+R]) loaded" for p_ in at)
+                  and all(sum(1 for p_ in at if w in p_) == 1 for w in ("Activity Intervals", "Activity Summary", "Wellness Summary", "Context (", "Planned workouts", "Rider profile", "Custom zones"))
+                  and all(f"({n_days} days)" in p_ for p_ in at if any(w in p_ for w in ("Activity Intervals", "Activity Summary", "Wellness Summary", "Context (", "Planned workouts", "Custom zones")))
+                  and calls_of(st, "fit-file") == fits_before_at and calls_of(st, "/wellness") > well_before_at, (at, n_days, hint_at, calls_of(st, "fit-file") - fits_before_at))
             # Load Activity intervals to today: one dataset through Intervals.icu - no FIT file, the laps of the missing days only, the pill replaced
             open_cache("laps")
             fits_before_td = calls_of(st, "fit-file")
@@ -1076,6 +1093,25 @@ def main():
             check("Load Activity intervals to today from the dataset's details: through Intervals.icu for that dataset alone - no FIT file fetched, the frame untouched, the status line saying so with the file, the Activity Intervals pill once (replaced), and the line's span now ending today (the window covered, though the last laps are older)",
                   calls_of(st, "fit-file") == fits_before_td and status_td.startswith(f"Loaded Activity intervals {lfrom} → {today.isoformat()} through Intervals.icu: activity_intervals_") and sum(1 for p_ in td if "Activity Intervals" in p_) == 1
                   and sum(1 for p_ in td if p_.startswith("Intervals ICU (")) == 1 and lspan == f"{lfrom} → {today.isoformat()}", (status_td, td, lspan, calls_of(st, "fit-file") - fits_before_td))
+            # Load everything to today from the athlete's line: every dataset held through Intervals.icu - the recent activities' laps looked at
+            # again, no FIT file - every line of the tree ending today, the pills one window to today
+            open_cache()
+            laps_before_et, fits_before_et = calls_of(st, "/intervals"), calls_of(st, "fit-file")
+            page.once("dialog", lambda d: d.accept())
+            page.click("#datasetDetails [data-act='today']")
+            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            status_et = page.inner_text("#dsLoadStatus")
+            page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
+            page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
+            et = pills_now()
+            open_cache()
+            spans_et = page.evaluate("() => Object.fromEntries([...document.querySelectorAll('#datasetTree .ds-feed')].map(e => [e.dataset.feed, e.querySelector('.ds-feed-span').textContent]))")
+            words_et = page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-feed .ds-feed-state')].map(e => e.textContent)")
+            check("Load everything to today from the athlete's line: every dataset held, through Intervals.icu - the recent activities' laps looked at again, no FIT file fetched - the status line saying every activity came from the store, every line of the tree ending today and on the Data tab, the pills one window to today with [W+S+I+C+R]",
+                  calls_of(st, "/intervals") > laps_before_et and calls_of(st, "fit-file") == fits_before_et and "all 101 activities from the store, nothing downloaded" in status_et
+                  and all(v.endswith(today.isoformat()) for k, v in spans_et.items() if k != "profile") and spans_et.get("profile") == f"as of {today.isoformat()}" and set(words_et) == {"on the Data tab"} and len(words_et) == 6
+                  and any(p_ == f"Intervals ICU ({n_days} days [W+S+I+C+R]) loaded" for p_ in et) and all(sum(1 for p_ in et if w in p_) == 1 for w in ("Activity Intervals", "Activity Summary", "Wellness Summary", "Context (", "Planned workouts", "Rider profile", "Custom zones")),
+                  (spans_et, words_et, status_et, et, calls_of(st, "/intervals") - laps_before_et))
             # Forget Wellness (confirmed): the pill off the Data tab and the wellness log out of the cache - the line goes, the five others stand
             open_cache("wellness")
             page.once("dialog", lambda d: d.accept())

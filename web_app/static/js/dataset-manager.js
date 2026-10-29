@@ -212,6 +212,10 @@ window.DatasetManager = (function() {
         return { from: froms.sort()[0], to: tos.sort().slice(-1)[0] };
     }
     function kindsOf(subject, feed) {
+        // the datasets a load asks for beside the frame: everything held for the athlete's Load everything; for Activities the
+        // datasets on the Data tab now, so the tab stays one window (2026-10-29: a frame loaded to today beside files from May
+        // read as broken); one dataset alone asks for its own kinds
+        if (feed === 'activities') return Object.keys(onTab(subject.folder)).filter(f => f !== 'activities').reduce((a, f) => a.concat(FEED_KINDS[f] || []), []);
         if (feed) return FEED_KINDS[feed] || [];
         const held = new Set((subject.feeds || []).map(f => f.feed));
         return ['summary', 'laps', 'wellness', 'context', 'profile'].filter(f => held.has(f)).reduce((a, f) => a.concat(FEED_KINDS[f]), []);
@@ -591,13 +595,13 @@ window.DatasetManager = (function() {
     function actionRows(folder, feed, name, loaded, held) {
         const what = feed ? FEED_NAMES[feed] : 'everything';
         const from = feed ? 'the span held, from the store alone' : 'every dataset held, from the store alone - nothing fetched';
-        const replaces = feed === 'activities' ? 'replaces the frame' : feed ? 'replaces the ' + what + ' pill' : 'replaces what is on the Data tab';
+        const replaces = feed === 'activities' ? 'replaces the frame, and the datasets on the Data tab come with it to the same window' : feed ? 'replaces the ' + what + ' pill' : 'replaces what is on the Data tab';
         const forgetOn = feed === 'summary' ? loaded : held;
         const forgetHint = feed === 'summary' ? (loaded ? 'takes the pill off the Data tab; the activity list stays in the cache (every load from the store starts from it)' : 'not on the Data tab')
                          : feed ? 'off the Data tab and out of the cache; a later load downloads it again' : 'every pill off the Data tab and the athlete out of the cache; a later load downloads it all again';
         return `<div class="ds-actions">
             <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="load" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held ? '' : 'disabled'}>Load ${esc(what)}</button><span class="hint">${held ? from + '; ' + replaces : 'nothing held yet: load from the Intervals.icu dialog first'}</span></div>
-            <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="today" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held ? '' : 'disabled'}>Load ${esc(what)} to today</button><span class="hint">through Intervals.icu: only the missing days come down</span></div>
+            <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="today" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held ? '' : 'disabled'}>Load ${esc(what)} to today</button><span class="hint">through Intervals.icu: only the missing days come down${feed === 'activities' ? '; the datasets on the Data tab come with it' : ''}</span></div>
             <div class="ds-row"><button class="dataset-action-btn dataset-remove-btn wide" data-act="forget" data-folder="${esc(folder)}" data-feed="${esc(feed)}" data-name="${esc(name)}" ${forgetOn ? '' : 'disabled'}>Forget ${esc(what)}</button><span class="hint">${forgetHint}</span></div>
         </div>`;
     }
