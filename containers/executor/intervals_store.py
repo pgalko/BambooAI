@@ -338,6 +338,12 @@ class Store:
         m = self.manifest()
         days = sorted(str(r.get("day") or "")[:10] for r in m.values() if r.get("day"))
         laps_days = sorted(str(r.get("day") or "")[:10] for r in m.values() if r.get("laps_fetched") and r.get("day"))
+        chat_days = sorted(str(r.get("day") or "")[:10] for r in m.values() if r.get("messages_fetched") and r.get("day"))
+        columns: List[str] = []
+        for r in m.values():
+            for c in r.get("columns") or []:
+                if c not in columns:
+                    columns.append(str(c))
         size, parts = 0, {}
         for root, _dirs, files in os.walk(self.dir) if os.path.isdir(self.dir) else []:
             for f in files:
@@ -352,11 +358,13 @@ class Store:
         feeds = {}
         for name in FEEDS:
             if os.path.isfile(os.path.join(self.dir, f"{name}.json")) or name in self._feeds:
-                feeds[name] = dict(self.feed(name).span(), bytes=parts.get(name, 0), last_used=self.feed(name).last_used())
+                feeds[name] = dict(self.feed(name).span(), bytes=parts.get(name, 0), last_used=self.feed(name).last_used(), **self.feed(name).facts())
         pdays = self.profile_days()
         used = [float(r.get("used") or 0) for r in m.values() if r.get("used")]
         return {"activities": sum(1 for r in m.values() if r.get("file")), "chats": sum(1 for r in m.values() if r.get("messages_fetched")),
+                "chats_from": chat_days[0] if chat_days else "", "chats_to": chat_days[-1] if chat_days else "", "messages": sum(int(r.get("messages") or 0) for r in m.values()),
                 "laps": sum(1 for r in m.values() if r.get("laps_fetched")), "laps_from": laps_days[0] if laps_days else "", "laps_to": laps_days[-1] if laps_days else "",
+                "lap_rows": sum(int(r.get("laps") or 0) for r in m.values()), "columns": columns,
                 "from": days[0] if days else "", "to": days[-1] if days else "", "bytes": size, "size_mb": round(size / (1024 * 1024), 2),
                 "parts": parts, "last_used": max(used) if used else None,
                 "feeds": feeds, "profile": {"as_of": pdays[-1] if pdays else "", "snapshots": len(pdays), "bytes": parts.get("profile", 0)},
@@ -444,6 +452,25 @@ class Records:
         used = [float(r.get("u") or 0) for r in self.records().values() if r.get("u")]
         return max(used) if used else None
 
+    def facts(self) -> dict:
+        """What the records carry, for the dialog's details: the keys seen across them (the wellness log's columns) and,
+        for records with a category (the calendar), how many of each."""
+        keys: List[str] = []
+        cats: Dict[str, int] = {}
+        for rec in self.records().values():
+            r = rec.get("r") or {}
+            if isinstance(r, dict):
+                for k in r:
+                    if k not in keys:
+                        keys.append(str(k))
+                if "category" in r:
+                    c = str(r.get("category") or "")
+                    cats[c] = cats.get(c, 0) + 1
+        out: dict = {"columns": keys}
+        if cats:
+            out["categories"] = cats
+        return out
+
     def prune(self, cutoff: date, used_days: int = USED_DAYS, now: Optional[float] = None) -> int:
         now = time.time() if now is None else now
         gone = 0
@@ -486,14 +513,18 @@ def athlete_record(user_dir: str, rel: str) -> dict:
         return {}
 
 
-def remember_athlete(user_dir: str, rel: str, source: str, athlete_id: str, name: str, mark: str, now: Optional[float] = None) -> dict:
+def remember_athlete(user_dir: str, rel: str, source: str, athlete_id: str, name: str, mark: str, now: Optional[float] = None,
+                     kinds: Optional[Iterable[str]] = None) -> dict:
     """Write or update the athlete's record: the id and name, the marks that have loaded this athlete (the newest last),
-    first seen and last load."""
+    first seen and last load, and the datasets the last load asked for (`kinds`, as the load dialog names them: what
+    the dialog's Load asks for again)."""
     now = time.time() if now is None else now
     rec = athlete_record(user_dir, rel)
     marks = [m for m in (rec.get("marks") or []) if m and m != mark] + ([mark] if mark else [])
     rec.update({"source": source, "id": str(athlete_id), "name": str(name or rec.get("name") or ""), "marks": marks,
                 "first_seen": rec.get("first_seen") or now, "last_load": now})
+    if kinds is not None:
+        rec["kinds"] = [str(k) for k in kinds]
     os.makedirs(os.path.join(user_dir, rel), exist_ok=True)
     tmp = os.path.join(user_dir, rel, ATHLETE_RECORD + ".tmp")
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -577,23 +608,52 @@ FEED_ORDER = ("activities", "laps", "wellness", "events", "profile")
 
 
 def feeds_of(summary: dict) -> List[dict]:
-    """The feed lines of a store's summary, for the tree: each with its span, count and size; only the feeds held."""
+    """The feed lines of a store's summary, for the tree - one per dataset the load dialog offers, named as there
+    (activities: the streams the frame and the summary are made from; laps: the activity intervals; wellness; events:
+    the calendar; chats: the context's messages; profile: the rider profile and zones) - each with its span, count,
+    size, last use and what it holds; only the feeds held."""
     sm = summary or {}
+    parts = sm.get("parts") or {}
     out = []
     if sm.get("activities"):
-        out.append({"feed": "activities", "from": sm.get("from", ""), "to": sm.get("to", ""), "count": sm.get("activities", 0), "chats": sm.get("chats", 0),
-                    "bytes": (sm.get("parts") or {}).get("activities", 0) + (sm.get("parts") or {}).get("messages", 0), "last_used": sm.get("last_used")})
+        out.append({"feed": "activities", "from": sm.get("from", ""), "to": sm.get("to", ""), "count": sm.get("activities", 0),
+                    "bytes": parts.get("activities", 0), "last_used": sm.get("last_used"), "columns": sm.get("columns") or []})
     if sm.get("laps"):
-        out.append({"feed": "laps", "from": sm.get("laps_from", ""), "to": sm.get("laps_to", ""), "count": sm.get("laps", 0),
-                    "bytes": (sm.get("parts") or {}).get("laps", 0), "last_used": sm.get("last_used")})
-    for name in FEEDS:
-        f = (sm.get("feeds") or {}).get(name)
-        if f and f.get("count"):
-            out.append({"feed": name, "from": f.get("from", ""), "to": f.get("to", ""), "count": f.get("count", 0), "bytes": f.get("bytes", 0), "last_used": f.get("last_used")})
+        out.append({"feed": "laps", "from": sm.get("laps_from", ""), "to": sm.get("laps_to", ""), "count": sm.get("laps", 0), "rows": sm.get("lap_rows", 0),
+                    "bytes": parts.get("laps", 0), "last_used": sm.get("last_used")})
+    f = (sm.get("feeds") or {}).get("wellness")
+    if f and f.get("count"):
+        out.append({"feed": "wellness", "from": f.get("from", ""), "to": f.get("to", ""), "count": f.get("count", 0), "bytes": f.get("bytes", 0), "last_used": f.get("last_used"),
+                    "columns": ["date" if c == "id" else c for c in f.get("columns") or []]})      # as the file names the day
+    f = (sm.get("feeds") or {}).get("events")
+    if f and f.get("count"):
+        out.append({"feed": "events", "from": f.get("from", ""), "to": f.get("to", ""), "count": f.get("count", 0), "bytes": f.get("bytes", 0), "last_used": f.get("last_used"), "categories": f.get("categories") or {}})
+    if sm.get("chats"):
+        out.append({"feed": "chats", "from": sm.get("chats_from", ""), "to": sm.get("chats_to", ""), "count": sm.get("chats", 0), "rows": sm.get("messages", 0),
+                    "bytes": parts.get("messages", 0), "last_used": sm.get("last_used")})
     pf = sm.get("profile") or {}
     if pf.get("snapshots"):
         out.append({"feed": "profile", "as_of": pf.get("as_of", ""), "count": pf.get("snapshots", 0), "bytes": pf.get("bytes", 0)})
     return out
+
+
+def absorb_mark_folders(user_dir: str, rel: str) -> List[str]:
+    """Mark folders from before the athlete was known whose store holds an activity the athlete's store holds too are
+    the same athlete's (an activity id is the platform's, one per activity): each is absorbed into the athlete's
+    folder (adopt_mark_folder), so nothing is listed twice and nothing is downloaded again. A mark folder with no
+    activity in common stays as it is. Returns the marks absorbed."""
+    mine = set(Store(user_dir, rel).manifest())
+    done = []
+    if not mine:
+        return done
+    for name, rec in athlete_folders(user_dir):
+        if rec or "/" in name or name == rel:
+            continue
+        theirs = set(Store(user_dir, name).manifest())
+        if theirs and theirs & mine:
+            adopt_mark_folder(user_dir, name, rel)
+            done.append(name)
+    return done
 
 
 def cache_tree(frames: Iterable[dict], files: Iterable[dict], stores: Iterable[dict], subjects: Iterable[dict]) -> dict:
@@ -620,7 +680,7 @@ def cache_tree(frames: Iterable[dict], files: Iterable[dict], stores: Iterable[d
         folder = str(rec.get("folder") or "")
         sm = stores_by.get(folder) or {}
         subs.append({"id": rec.get("id", ""), "name": rec.get("name", ""), "folder": folder, "source": rec.get("source", "intervals"),
-                     "held_since": rec.get("first_seen"), "last_load": rec.get("last_load"), "marks": list(rec.get("marks") or []),
+                     "held_since": rec.get("first_seen"), "last_load": rec.get("last_load"), "marks": list(rec.get("marks") or []), "kinds": list(rec.get("kinds") or []),
                      "size_mb": sm.get("size_mb", 0), "feeds": feeds_of(sm), "frames": [frame_entry(f) for f in by_folder.pop(folder, [])]})
     legacy = []
     for folder, fs in list(by_folder.items()):

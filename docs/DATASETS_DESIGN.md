@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.3 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0239)
+# Datasets by athlete — design v1.4 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0240)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -6,8 +6,8 @@ window, soon cannot find anything and stops using it. This design replaces the l
 feed → span** — backed by one store per athlete, so that a window asked twice is one entry, a window that grows is
 one entry whose span grew, and two athletes never share a line. The four decisions behind it were taken on
 2026-10-29 (section 11); the next phase, several API keys per coach and an athlete dropdown in the load dialogs, is
-the same tree without the data. **Status**: steps 1-3 of section 10 are built (patches 0237-0239, executor images
-v67-v69; sections 13-15 say what they did and where they differ from the text); step 4 is not.
+the same tree without the data. **Status**: steps 1-3 of section 10 are built (patches 0237-0240, executor images
+v67-v70; sections 13-15 say what they did and where they differ from the text); step 4 is not.
 
 ## 1. The shape
 
@@ -150,7 +150,7 @@ Each step leaves the app working; the image is rebuilt where the executor change
    merged; laps served by signature; views written from the store under `views/`. *Executor image.* **Built (0238,
    v68; section 14).**
 3. **The tree** — the route's new shape, the modal redrawn, the actions, the per-athlete retention. The cache stops
-   listing view files. **Built (0239, v69; section 15).**
+   listing view files. **Built (0239, v69; rebuilt after the first look in 0240, v70; section 15).**
 4. **Connections** (next phase) — the list per user, the dropdowns, a routine run for another athlete.
 
 The e2e walk gains a chain per step on the stack's fake Intervals.icu (two athletes, a window that grows, a key that
@@ -245,39 +245,58 @@ the feeds merged with a correction and a deletion, their spans; the snapshots; t
 migration; the listing), `tests/analyst/test_dialogs.js` (the completion line), the integrations walk (the files
 under `views/`, the prompts' paths).
 
-## 15. Step 3 as built (patch 0239, executor image v69)
+## 15. Step 3 as built (patch 0239, executor image v69; rebuilt after the product owner's first look in 0240, v70)
 
 `/cache/inspect` carries `tree` beside the flat lists (which stay: the routines' cache check reads a window's files
 from `auxiliary_datasets`, each window file now marked `view`): `sources` (Intervals.icu with its athletes - id,
-name, folder, held since, last load, size, the marks that loaded them - each with its `feeds` and its `frames` in
-memory; Endura and SweatStack with their frames, Endura with its race files; `uploads` (the frames and files that
-belong to no loader); `legacy` (a mark folder from before the athlete was known, with its frames, files and store).
-A feed line is one of *activities* (with the chats), *laps*, *wellness*, *events* (the calendar), *profile*, each
-with its span (the profile its newest day), its count, its size and when it was last served. The tree is composed
-by `cache_tree` in `intervals_store.py` from the lists the route already had.
+name, folder, held since, last load, size, the marks that loaded them - each with its datasets; Endura and
+SweatStack with their frames, Endura with its race files); `uploads` (the frames and files that belong to no
+loader); `legacy` (a mark folder from before the athlete was known that holds no activity of a known athlete). An
+athlete's **datasets are named as the load dialog names them** - *Activities* (the streams the frame and the summary
+are made from), *Activity intervals*, *Wellness*, *Calendar*, *Context · chats*, *Rider profile* - each with its
+span (the profile its newest day), its count, its size, when it was last served and what it holds (the columns of
+the activities and of the wellness log, the calendar's entries by category, the laps' and messages' counts). The
+tree is composed by `cache_tree` in `intervals_store.py` from the lists the route already had.
 
-The dialog (`dataset-manager.js`) draws it: a filter box (a name or a feed), the sources, each athlete as a block
-that unfolds (unfolded when there are two athletes or fewer, or a filter is on), the feed lines with **Use** (the
-Intervals.icu load dialog opened with the span and the feed filled in; when the Data tab holds a window the person
-is asked whether to let it go first - what its pill's × does), **Extend to today** (the button says *To today*; the same, the end at today: the
-store serves what it holds and only the missing days come down) and **Forget**; the athlete's line with *held since
-· last load*, its size and **Forget** for the whole folder; the frames in memory under the athlete (*in memory*,
-opening the details with Load and Remove as before); Uploads and Generated as groups of their own. No window file
-is listed. `/cache/forget` (the executor, proxied by the app) drops a feed - the laps alone, a feed's records, the
-profile's snapshots, the activities with their chats and laps - or the athlete's folder whole, and the athlete's
-frames in memory with the activities or the folder; the page lets go of the Data tab's frame when it was one of them.
+The dialog (`dataset-manager.js`) draws it as the first look asked: an athlete's block that the caret folds and
+unfolds; **a click on the athlete's line or on a dataset's line opens its details on the right**, where the actions
+are, as the files' Load and Remove always were. The athlete's details carry the name and id, held since, the last
+load, the size, how many keys have loaded them, the table of datasets held, and **Load** (the span held, with the
+datasets held, straight from the store onto the Data tab - the same job the Intervals.icu dialog starts, no dialog;
+the store serves what it holds and only what the window lacks is downloaded; a window loaded now is let go first,
+after asking, with its file pills), **Load to today** (the same with the end at today) and **Forget**. A dataset's
+details carry its span, count, size, last use, what a load writes from it (the file names), its columns or
+categories, and **Forget**. Uploads and Generated keep their groups; the frames of Endura, SweatStack and uploads
+open the details with Load and Remove as before. The filter box shows only with more than one athlete. No window
+file is listed, and nothing is called *in memory*: an Intervals.icu window is a view of the store, assembled in
+seconds.
+
+`/cache/forget` (the executor, proxied by the app) drops a dataset - the laps alone, a feed's records, the profile's
+snapshots, the activities with their chats and laps - or the athlete's folder whole, and the athlete's frames in
+memory with the activities or the folder; the page lets go of the Data tab's frame when it was one of them.
+
+**Earlier loads.** A mark folder from before the athlete was known whose store holds an activity the athlete's
+store holds too is the athlete's own earlier loads (an activity id is the platform's, one per activity): it is
+absorbed into the athlete's folder at the end of the next load (`absorb_mark_folders`), so nothing is listed twice
+and nothing is downloaded again. Only a mark folder with nothing in common stays, listed as *earlier loads · key
+…xxxx* with Forget in its details.
 
 **Retention per athlete** was already the store's rule across the feeds (step 2); step 3 adds the views' age: a
 window file not written within thirty days leaves at the end of the athlete's next load. Where this differs from
 section 4: the age rule stands alone - a routine's run keeps its own copies of the files it ran on, and a favourite
-keeps its results and its generated files, so neither refers to a window file after the load; the Data tab of a
-thread older than a month reads from the store's next load.
+keeps its results and its generated files, so neither refers to a window file after the load.
 
-Not in this step: the tree's lines for Endura's athletes (an Endura load is one race under the user, as before), the
-*Notes & codes* line (the passages are derived; the coded passages are the app's), the *Extend* action for a feed
-that does not take a window (the profile).
+**A dataset that gave no file says why.** A load asked for a dataset that produced no file (the call failed, the
+window has nothing of it) puts a sentence on the result (`warnings`), and the dialog's completion line reads *Not
+written: …*; a failed wellness or calendar call leaves what the store holds of the window to stand and says so.
 
-Tests: `tests/analyst/test_store.py` (the tree from the inspection and from made-up lists; forgetting a feed, the
-activities and the athlete; the route's checks; the views' age), `tests/analyst/test_dialogs.js` (the dialog's
-ids, lines, actions and styles), the integrations walk (the tree with two athletes, Forget on an athlete through the
-dialog, Use with a window loaded and without).
+Not in this step: Endura's athletes (an Endura load is one race under the user, as before), the *Extend* action for a
+dataset that takes no window (the profile).
+
+Tests: `tests/analyst/test_store.py` (the tree from the inspection and from made-up lists, with what each dataset
+holds; forgetting a dataset, the activities and the athlete; the route's checks; the views' age; earlier loads
+absorbed by a shared activity, on their own and in a load; the warnings), `tests/analyst/test_dialogs.js` (the
+dialog's ids, lines, details, actions, names and styles), the integrations walk (the athlete's and a dataset's
+details; Load from the dialog with a window loaded - let go on asking, loaded from the store, the dialog closing by
+itself, each file's pill once; every dataset loaded together with all eight files written and seven pills; the tree
+with two athletes, fold and filter, Forget through the details, Load to today declined).

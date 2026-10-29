@@ -1,7 +1,8 @@
 // Dataset Manager Module - the Dataset cache dialog. Since 2026-10-29 (docs/DATASETS_DESIGN.md §8) it draws the executor's
-// cache as a tree - source → athlete → feed, with the frames in memory under the athlete - with Use, Extend to today and
-// Forget on each line; uploads and generated files keep their own groups. A load's window files are not listed: they are a
-// run's inputs, shown on the run's Data tab.
+// cache as a tree - source → athlete → dataset (named as the load dialog names them) - and a click on a line opens its
+// details on the right, where the actions are: Load and Load to today bring the span held straight from the store onto the
+// Data tab, Forget drops a dataset or the athlete; uploads and generated files keep their own groups. A load's window files
+// are not listed: they are a run's inputs, shown on the run's Data tab.
 window.DatasetManager = (function() {
     'use strict';
     
@@ -90,53 +91,119 @@ window.DatasetManager = (function() {
                 handleDownloadDataset(e.target);
             }
         });
-        // the tree's own lines and actions (2026-10-29): fold an athlete, Use / Extend to today / Forget a feed, Forget an athlete
+        // the tree's lines (2026-10-29, docs/DATASETS_DESIGN.md §8): the caret folds an athlete; a click on an athlete's line or a
+        // feed line opens its details on the right, where the actions are (Load, Load to today, Forget) - as the files' Load and Remove
         const tree = document.getElementById('datasetTree');
         if (tree) tree.addEventListener('click', handleTreeClick);
         const filter = document.getElementById('datasetFilter');
         if (filter) filter.addEventListener('input', () => renderTree());
+        document.addEventListener('click', function(e) {
+            const b = e.target.closest('#datasetDetails [data-act]');
+            if (!b) return;
+            const d = b.dataset;
+            if (d.act === 'load') startLoad(d.folder, d.from, d.to, false);
+            else if (d.act === 'today') startLoad(d.folder, d.from, localDay(), true);
+            else if (d.act === 'forget') forgetFromCache(d.folder, d.feed, d.name);
+        });
     }
 
     function handleTreeClick(e) {
-        const act = e.target.closest('[data-act]');
-        if (act) {
-            e.stopPropagation();
-            const d = act.dataset;
-            if (d.act === 'use' || d.act === 'extend') openIntervalsLoad(d.feed, d.from, d.act === 'extend' ? localDay() : d.to);
-            else if (d.act === 'forget') forgetFromCache(d.folder, d.feed, d.name);
+        const caret = e.target.closest('.ds-caret');
+        const subj = e.target.closest('.ds-subj');
+        if (caret && subj) {
+            openSubjects[subj.dataset.folder] = !isOpen(subj.dataset.folder);
+            renderTree();
             return;
         }
-        const subj = e.target.closest('.ds-subj');
-        if (subj && !e.target.closest('.dataset-item')) {
-            openSubjects[subj.dataset.folder] = !openSubjects[subj.dataset.folder];
-            renderTree();
-        }
+        const head = e.target.closest('.ds-subj-head');
+        if (head && subj) { selectLine(head); showSubjectDetails(subj.dataset.folder); return; }
+        const feed = e.target.closest('.ds-feed');
+        if (feed && subj) { selectLine(feed); showFeedDetails(subj.dataset.folder, feed.dataset.feed); return; }
+    }
+
+    function isOpen(folder) {
+        if (openSubjects[folder] === undefined) openSubjects[folder] = true;     // unfolded until the person folds it
+        return !!openSubjects[folder];
+    }
+    function selectLine(el) {
+        document.querySelectorAll('#datasetManagerModal .dataset-item, #datasetManagerModal .ds-subj-head, #datasetManagerModal .ds-feed').forEach(x => x.classList.remove('active'));
+        if (el) el.classList.add('active');
+        selectedDataset = null;
     }
 
     function localDay() {
         return typeof localIsoDay === 'function' ? localIsoDay(new Date()) : new Date().toISOString().slice(0, 10);
     }
 
-    // Use / Extend to today (docs/DATASETS_DESIGN.md §1): the Intervals.icu load dialog with the span and the feed filled in -
-    // the person sees what will be fetched and presses Load; the store serves what it holds, only the missing days come down
-    async function openIntervalsLoad(feed, from, to) {
+    function subjectOf(folder) {
+        const tree = currentDatasets.tree || {};
+        for (const src of tree.sources || []) for (const sb of src.subjects || []) if (sb.folder === folder) return sb;
+        return null;
+    }
+    function loadKinds(subject) {
+        // the datasets a Load asks for: those of the athlete's last load (the record keeps them); for a record from before
+        // they were kept, what the store holds, named as the load dialog names them
+        if (Array.isArray(subject.kinds) && subject.kinds.length) return subject.kinds.slice();
+        const held = new Set((subject.feeds || []).map(f => f.feed));
+        const kinds = ['summary'];
+        if (held.has('laps')) kinds.push('intervals');
+        if (held.has('wellness')) kinds.push('wellness');
+        if (held.has('events') || held.has('chats')) kinds.push('context');
+        return kinds;
+    }
+
+    // Load / Load to today (docs/DATASETS_DESIGN.md §1, as the product owner asked on 2026-10-29): the window is loaded straight
+    // from the store - the same job the Intervals.icu dialog starts, with the span held and the datasets held, no dialog; the
+    // store serves what it holds and only what the window lacks is downloaded. A window loaded now is let go first, as its
+    // pill's × does, after asking. The job's progress shows in the details pane; the pills appear on the Data tab as always.
+    async function startLoad(folder, from, to, toToday) {
+        const subject = subjectOf(folder);
+        if (!subject || !from || !to) return;
         if (window.Intervals && window.Intervals.state.isLoaded && window.Intervals.state.pillId) {
-            // the Data tab holds an Intervals.icu window: replacing it is what its pill's × does, then the dialog
-            if (!confirm('The Data tab holds a window from Intervals.icu. Let it go and load this one?')) return;
+            if (!confirm('The Data tab holds a window from Intervals.icu. Let it go and load ' + from + ' → ' + to + '?')) return;
             const pill = document.getElementById(window.Intervals.state.pillId);
             if (pill && typeof removeDatasetPill === 'function') await removeDatasetPill(pill, null, true);
             else if (window.Intervals.removePill) window.Intervals.removePill();
+            // the window's file pills go with it (the files stay on the executor; the new load brings its own pills)
+            let gone = 0;
+            document.querySelectorAll('#datasetStatusPillsContainer .auxiliary-dataset-pill').forEach(p => { if (p.id !== 'contextPill' && /\/views\//.test(p.dataset.identifier || '')) { p.remove(); gone += 1; } });
+            if (typeof contextPillClear === 'function') contextPillClear();
+            if (typeof window.auxiliaryDatasetCount !== 'undefined') window.auxiliaryDatasetCount = Math.max(0, (window.auxiliaryDatasetCount || 0) - gone);
         }
         const busy = primaryLoadedMessage();
         if (busy) { if (typeof showUploadLimitMessage === 'function') showUploadLimitMessage(busy); return; }
-        if (typeof showIntervalsModal !== 'function') return;
-        hideModal();
-        showIntervalsModal();
-        const s = document.getElementById('intervalsStartDate'), e = document.getElementById('intervalsEndDate');
-        const put = (input, v) => { if (!input || !v) return; input.min = ''; input.value = input.max && v > input.max ? input.max : v; };
-        put(s, from); put(e, to);
-        const box = { laps: 'intervals-checkbox', wellness: 'wellness-checkbox', events: 'context-checkbox', profile: 'rider-checkbox' }[feed];
-        if (box) { const c = document.getElementById(box); if (c && !c.checked) { c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); } }
+        const kinds = loadKinds(subject);
+        const status = document.getElementById('dsLoadStatus');
+        const buttons = document.querySelectorAll('#datasetDetails [data-act]');
+        buttons.forEach(b => { b.disabled = true; });
+        if (status) { status.style.display = ''; status.className = 'ds-load-status loading'; status.textContent = 'Starting the load of ' + from + ' → ' + to + '…'; }
+        try {
+            const response = await window.authService.fetch('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_date: from, end_date: to, metrics: [], aux_datasets: kinds, refresh: false }) });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+            if (typeof pollIntervalsJob !== 'function') throw new Error('the Intervals.icu module is not on the page');
+            const msg = document.getElementById('intervals-modal-message');
+            if (msg) { msg.textContent = ''; msg.className = msg.className.replace(/\b(success|error|loading)-message\b/g, '').trim(); }      // an earlier load's line must not pass for this one's
+            pollIntervalsJob(data.job_id, { start: from, end: to }, kinds);          // the dialog's own poller: the pills and the Data tab on completion
+            const mirror = setInterval(() => {
+                const text = msg ? msg.textContent : '';
+                if (status) status.textContent = text || 'Loading…';
+                if (/Data loaded successfully/.test(text)) {
+                    clearInterval(mirror);
+                    if (status) status.className = 'ds-load-status success';
+                    setTimeout(() => { hideModal(); buttons.forEach(b => { b.disabled = false; }); }, 1500);
+                } else if (/^✗|Failed|timed out|expired/.test(text)) {
+                    clearInterval(mirror);
+                    if (status) status.className = 'ds-load-status error';
+                    buttons.forEach(b => { b.disabled = false; });
+                }
+            }, 500);
+        } catch (error) {
+            console.error('Error starting the load from the cache:', error);
+            if (status) { status.className = 'ds-load-status error'; status.textContent = 'Could not start the load: ' + (error.message || error); }
+            buttons.forEach(b => { b.disabled = false; });
+        }
     }
 
     async function forgetFromCache(folder, feed, name) {
@@ -147,6 +214,8 @@ window.DatasetManager = (function() {
             const out = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(out.error || ('HTTP ' + response.status));
             if (out.primary_dropped) clearPrimaryPills({ source: 'intervals' });     // the Data tab's frame was the athlete's: its pill goes, the tab is free
+            const details = document.getElementById('datasetDetails');
+            if (details) { details.className = 'dataset-details-empty'; details.innerHTML = 'Select a dataset to see its details'; }
             loadDatasets();
         } catch (error) {
             console.error('Error forgetting from the cache:', error);
@@ -154,9 +223,17 @@ window.DatasetManager = (function() {
         }
     }
 
-    const FEED_NAMES = { activities: 'Activities', laps: 'Laps', wellness: 'Wellness', events: 'Calendar', profile: 'Profile · zones' };
-    const FEED_HINTS = { activities: 'the second-by-second rows of every activity, with its chat', laps: 'the laps of every activity, as Intervals.icu detected them',
-                         wellness: 'the daily log, a row per day', events: 'the calendar: planned sessions, notes, races, status entries', profile: 'the settings the data is read against, as fetched each load' };
+    // the feeds, named as the load dialog names its datasets (2026-10-29: the lines must read as what was asked for)
+    const FEED_NAMES = { activities: 'Activities', laps: 'Activity intervals', wellness: 'Wellness', events: 'Calendar', chats: 'Context · chats', profile: 'Rider profile' };
+    const FEED_HINTS = { activities: 'The second-by-second rows of every activity, every metric the file had. The frame and the activity summary file are made from them.',
+                         laps: 'The laps of every activity, as Intervals.icu detected them (the Activity intervals dataset). Settled activities are served from here; recent ones are fetched again.',
+                         wellness: 'The daily log, a row per day (the Wellness dataset). The window\'s days come down each load and are merged, so the span held grows.',
+                         events: 'The calendar: planned sessions, notes, races and status entries (the planned workouts file and the calendar\'s part of the context).',
+                         chats: 'The messages under the activities (the Context dataset\'s chats). Settled activities\' chats are served from here; recent ones are fetched again.',
+                         profile: 'The settings the data is read against - thresholds, zones, weight, the custom fields - as fetched; a snapshot is kept when it changes (the Rider profile dataset).' };
+    const FEED_FILES = { activities: 'the frame on the Data tab and activity_summary_<window>.csv', laps: 'activity_intervals_<window>.csv', wellness: 'wellness_data_<window>.csv',
+                         events: 'planned_workouts_<window>.csv and the calendar\'s passages in context_notes_<window>.csv', chats: 'the messages in context_notes_<window>.csv (and context_codes_<window>.csv, the coding pass\'s reading)',
+                         profile: 'rider_profile_<window>.csv and custom_zone_times_<window>.csv' };
     
     async function handleLoadDataset(button) {
         const dfId = button.dataset.dfId;
@@ -290,64 +367,60 @@ window.DatasetManager = (function() {
         const days = Math.floor((Date.now() / 1000 - Number(epoch)) / 86400);
         return days <= 0 ? 'today' : days === 1 ? 'yesterday' : days < 30 ? days + ' days ago' : days < 365 ? Math.round(days / 30) + ' months ago' : new Date(Number(epoch) * 1000).toISOString().slice(0, 10);
     }
+    function dayOf(epoch) { return epoch ? new Date(Number(epoch) * 1000).toISOString().slice(0, 10) : ''; }
     function span(f) { return f.from ? esc(f.from) + ' → ' + esc(f.to) : (f.as_of ? 'as of ' + esc(f.as_of) : ''); }
     function count(f) {
         const n = Number(f.count || 0);
-        if (f.feed === 'activities') return n + ' activit' + (n === 1 ? 'y' : 'ies') + (f.chats ? ', ' + f.chats + ' chat' + (f.chats === 1 ? '' : 's') : '');
-        if (f.feed === 'laps') return n + ' activit' + (n === 1 ? 'y' : 'ies');
+        if (f.feed === 'activities' || f.feed === 'laps') return n + ' activit' + (n === 1 ? 'y' : 'ies');
         if (f.feed === 'wellness') return n + ' day' + (n === 1 ? '' : 's');
         if (f.feed === 'events') return n + ' entr' + (n === 1 ? 'y' : 'ies');
+        if (f.feed === 'chats') return n + ' chat' + (n === 1 ? '' : 's') + (f.rows ? ', ' + f.rows + ' message' + (f.rows === 1 ? '' : 's') : '');
         if (f.feed === 'profile') return n + ' snapshot' + (n === 1 ? '' : 's');
         return String(n);
     }
     function matches(q, ...texts) { return !q || texts.some(t => String(t || '').toLowerCase().includes(q)); }
 
     function frameLine(f) {
+        // a frame the executor holds as a frame alone: an upload, an Endura race, a SweatStack load (an Intervals.icu window is a view of the store, not listed)
         const item = document.createElement('div');
-        item.className = 'dataset-item ds-frame';
-        const where = f.date_range ? esc(f.date_range) : f.race_title ? esc(f.race_title) : f.original_filename ? esc(f.original_filename) : esc(f.source || 'frame');
+        item.className = 'dataset-item';
+        const where = f.original_filename ? esc(f.original_filename) : f.race_title ? esc(f.race_title) : f.date_range ? esc(f.date_range) : esc(f.source || 'frame');
         const rows = f.shape ? Number(f.shape[0]).toLocaleString() + ' rows' : '';
-        item.innerHTML = `<span class="ds-mem" title="in memory: loads without a download">in memory</span><span class="dataset-item-name">${where}${rows ? ' · ' + rows : ''}${f.metrics && f.metrics.length ? ' · ' + esc(f.metrics.join(', ')) : ''}</span><span class="dataset-size">${mb(null, Number(f.memory_mb || 0))}</span>`;
+        item.innerHTML = `<span class="dataset-item-name">${where}${rows ? ' · ' + rows : ''}</span><span class="dataset-size">${mb(null, Number(f.memory_mb || 0))}</span>`;
         item.dataset.id = f.df_id; item.dataset.type = 'primary';
         const full = (currentDatasets.cached || []).find(c => c.df_id === f.df_id) || f;
         item.addEventListener('click', ev => selectDataset.call(item, full, 'primary', ev));
         return item;
     }
-    function fileLine(f) {
-        const item = createDatasetItem(f, 'auxiliary');
-        return item;
-    }
+    function fileLine(f) { return createDatasetItem(f, 'auxiliary'); }
     function feedLine(subject, f) {
         const line = document.createElement('div');
         line.className = 'ds-feed';
-        line.title = FEED_HINTS[f.feed] || '';
-        const usable = f.feed !== 'profile';
+        line.dataset.feed = f.feed;
+        line.title = 'Click for the details';
         const used = f.last_used ? ' · used ' + ago(f.last_used) : '';
         line.innerHTML = `<span class="ds-feed-name">${esc(FEED_NAMES[f.feed] || f.feed)}</span><span class="ds-feed-span">${span(f)}</span>` +
-            `<span class="ds-acts">${usable ? `<button type="button" class="ds-act" data-act="use" data-feed="${esc(f.feed)}" data-from="${esc(f.from)}" data-to="${esc(f.to)}" title="Open the load dialog with this span and feed filled in; the store serves what it holds">Use</button>` +
-            `<button type="button" class="ds-act" data-act="extend" data-feed="${esc(f.feed)}" data-from="${esc(f.from)}" data-to="${esc(f.to)}" title="Load from the first day held to today: only the missing days are fetched">To today</button>` : ''}` +
-            `<button type="button" class="ds-act danger" data-act="forget" data-folder="${esc(subject.folder)}" data-feed="${esc(f.feed)}" data-name="${esc(subject.name || subject.id)}" title="Drop this feed from the store; a later load downloads it again">Forget</button></span>` +
             `<span class="ds-feed-count">${esc(count(f))}${f.bytes ? ' · ' + mb(f.bytes) : ''}${used}</span>`;
         return line;
     }
-    function subjectBlock(subject, q, forceOpen) {
+    function subjectBlock(subject, q) {
+        const open = isOpen(subject.folder);
         const block = document.createElement('div');
-        block.className = 'ds-subj' + (openSubjects[subject.folder] || forceOpen ? ' open' : '');
+        block.className = 'ds-subj' + (open ? ' open' : '');
         block.dataset.folder = subject.folder;
         const head = document.createElement('div');
         head.className = 'ds-subj-head';
-        const held = subject.held_since ? 'held since ' + new Date(Number(subject.held_since) * 1000).toISOString().slice(0, 10) : '';
+        head.title = 'Click for the details: load the span held, or forget it';
+        const held = subject.held_since ? 'held since ' + dayOf(subject.held_since) : '';
         const last = subject.last_load ? 'loaded ' + ago(subject.last_load) : '';
-        head.innerHTML = `<span class="ds-caret">${openSubjects[subject.folder] || forceOpen ? '▾' : '▸'}</span><span class="ds-subj-name" title="${esc(subject.id)}">${esc(subject.name || subject.id)}</span>` +
-            `<span class="ds-subj-meta">${[held, last].filter(Boolean).join(' · ')}</span><span class="dataset-size">${mb(null, Number(subject.size_mb || 0))}</span>` +
-            `<span class="ds-acts"><button type="button" class="ds-act danger" data-act="forget" data-folder="${esc(subject.folder)}" data-feed="" data-name="${esc(subject.name || subject.id)}" title="Drop everything held for this athlete: the store, the frames in memory, the window files">Forget</button></span>`;
+        head.innerHTML = `<span class="ds-caret" title="${open ? 'Fold' : 'Unfold'}">${open ? '▾' : '▸'}</span><span class="ds-subj-name" title="${esc(subject.id)}">${esc(subject.name || subject.id)}</span>` +
+            `<span class="ds-subj-meta">${[held, last].filter(Boolean).join(' · ')}</span><span class="dataset-size">${mb(null, Number(subject.size_mb || 0))}</span>`;
         block.appendChild(head);
-        if (openSubjects[subject.folder] || forceOpen) {
+        if (open) {
             const body = document.createElement('div');
             body.className = 'ds-subj-body';
             const feeds = (subject.feeds || []).filter(f => matches(q, FEED_NAMES[f.feed], f.feed, subject.name, subject.id));
             feeds.forEach(f => body.appendChild(feedLine(subject, f)));
-            (subject.frames || []).filter(f => matches(q, 'in memory', f.date_range, subject.name, subject.id)).forEach(f => body.appendChild(frameLine(f)));
             if (!body.children.length) body.innerHTML = '<div class="dataset-empty">nothing held</div>';
             block.appendChild(body);
         }
@@ -366,24 +439,29 @@ window.DatasetManager = (function() {
         if (!root) return;
         root.innerHTML = '';
         const tree = currentDatasets.tree || { sources: [], uploads: { frames: [], files: [] }, legacy: [] };
-        const q = String((document.getElementById('datasetFilter') || {}).value || '').trim().toLowerCase();
+        const filter = document.getElementById('datasetFilter');
+        const q = String((filter || {}).value || '').trim().toLowerCase();
+        // the filter box earns its place when there is more than one athlete to tell apart
+        const athletes = (tree.sources || []).reduce((n, src) => n + (src.subjects || []).length, 0);
+        if (filter) filter.style.display = (athletes > 1 || q) ? '' : 'none';
         (tree.sources || []).forEach(src => {
             const subjects = (src.subjects || []).filter(sb => matches(q, sb.name, sb.id) || (sb.feeds || []).some(f => matches(q, FEED_NAMES[f.feed], f.feed)));
-            const frames = (src.frames || []).filter(f => matches(q, f.date_range, f.race_title, src.title));
+            const frames = (src.frames || []).filter(f => matches(q, f.date_range, f.race_title, f.original_filename, src.title));
             const files = (src.files || []).filter(f => matches(q, f.filename));
-            const legacy = src.source === 'intervals' ? (tree.legacy || []) : [];
+            const legacy = src.source === 'intervals' ? (tree.legacy || []).filter(lg => matches(q, 'earlier', lg.folder)) : [];
             if (src.source !== 'intervals' && !frames.length && !files.length) return;
             const g = group(src.title, (src.source === 'intervals' && !subjects.length && !frames.length && !legacy.length) ? (q ? 'nothing matches' : 'nothing held yet — a load fills it') : '');
-            const few = subjects.length <= 2 || !!q;              // unfold when there are few athletes or a filter is on
-            subjects.forEach(sb => g.appendChild(subjectBlock(sb, q, few)));
+            subjects.forEach(sb => g.appendChild(subjectBlock(sb, q)));
             frames.forEach(f => g.appendChild(frameLine(f)));
             files.forEach(f => g.appendChild(fileLine(f)));
             legacy.forEach(lg => {
+                // a key's folder from before the athlete was known that holds no activity of a known athlete (one of theirs is
+                // absorbed on the next load): its frames and files, and Forget in its details
                 const key = String(lg.folder || '');
                 const block = document.createElement('div');
                 block.className = 'ds-subj open';
-                block.innerHTML = `<div class="ds-subj-head"><span class="ds-caret">·</span><span class="ds-subj-name">earlier loads · key …${esc(key.slice(-4))}</span><span class="ds-subj-meta">${lg.store ? esc(lg.store.activities || 0) + ' activities' : ''}</span><span class="dataset-size">${lg.store ? mb(null, Number(lg.store.size_mb || 0)) : ''}</span>` +
-                    `<span class="ds-acts"><button type="button" class="ds-act danger" data-act="forget" data-folder="${esc(key)}" data-feed="" data-name="key …${esc(key.slice(-4))}" title="Drop this key's folder from before the athlete was known">Forget</button></span></div>`;
+                block.dataset.folder = key;
+                block.innerHTML = `<div class="ds-subj-head" title="Loads from before the athlete was known, under the key …${esc(key.slice(-4))}; click for the details"><span class="ds-caret">·</span><span class="ds-subj-name">earlier loads · key …${esc(key.slice(-4))}</span><span class="ds-subj-meta">${lg.store ? esc(lg.store.activities || 0) + ' activities' : ''}</span><span class="dataset-size">${lg.store ? mb(null, Number(lg.store.size_mb || 0)) : ''}</span></div>`;
                 const body = document.createElement('div'); body.className = 'ds-subj-body';
                 (lg.frames || []).forEach(f => body.appendChild(frameLine(f)));
                 (lg.files || []).filter(f => !f.view).forEach(f => body.appendChild(fileLine(f)));
@@ -398,6 +476,71 @@ window.DatasetManager = (function() {
         upFrames.forEach(f => ug.appendChild(frameLine(f)));
         upFiles.forEach(f => ug.appendChild(fileLine(f)));
         root.appendChild(ug);
+    }
+
+    // ---- the details of an athlete and of a feed (the right pane; the actions live here, as the files' Load and Remove do) ----
+    function showSubjectDetails(folder) {
+        const panel = document.getElementById('datasetDetails');
+        const tree = currentDatasets.tree || {};
+        const subject = subjectOf(folder);
+        const legacy = (tree.legacy || []).find(lg => lg.folder === folder);
+        if (!panel || (!subject && !legacy)) return;
+        panel.classList.remove('dataset-details-empty');
+        if (!subject) {
+            const key = String(folder);
+            panel.innerHTML = `<div class="dataset-details-content"><div class="dataset-info-section"><h3>Earlier loads</h3><div class="dataset-metadata">` +
+                `<span class="metadata-label">Key:</span><span class="metadata-value">…${esc(key.slice(-4))} (a key from before the athlete was known)</span>` +
+                (legacy.store ? `<span class="metadata-label">Store:</span><span class="metadata-value">${esc(legacy.store.activities || 0)} activities · ${mb(null, Number(legacy.store.size_mb || 0))}</span>` : '') +
+                `</div><p class="ds-note">Loads made under this key before the athlete was known. When a load of a known athlete holds one of these activities, the folder is absorbed into theirs; otherwise it stays here until forgotten.</p></div></div>` +
+                `<div class="dataset-actions"><button class="dataset-action-btn dataset-remove-btn" data-act="forget" data-folder="${esc(key)}" data-feed="" data-name="key …${esc(key.slice(-4))}">Forget</button></div>`;
+            return;
+        }
+        const acts = (subject.feeds || []).find(f => f.feed === 'activities');
+        const kinds = loadKinds(subject);
+        const rows = (subject.feeds || []).map(f => `<tr><td>${esc(FEED_NAMES[f.feed] || f.feed)}</td><td>${span(f)}</td><td>${esc(count(Object.assign({}, f, { rows: 0 })))}</td><td class="num">${mb(f.bytes)}</td></tr>`).join('');
+        panel.innerHTML = `<div class="dataset-details-content">
+            <div class="dataset-info-section"><h3>Athlete</h3><div class="dataset-metadata">
+                <span class="metadata-label">Name:</span><span class="metadata-value">${esc(subject.name || subject.id)}</span>
+                <span class="metadata-label">Intervals.icu id:</span><span class="metadata-value">${esc(subject.id)}</span>
+                <span class="metadata-label">Held since:</span><span class="metadata-value">${esc(dayOf(subject.held_since))}</span>
+                <span class="metadata-label">Last load:</span><span class="metadata-value">${esc(ago(subject.last_load))}${subject.last_load ? ' (' + esc(dayOf(subject.last_load)) + ')' : ''}</span>
+                <span class="metadata-label">Size:</span><span class="metadata-value">${mb(null, Number(subject.size_mb || 0))}</span>
+                <span class="metadata-label">Loaded by:</span><span class="metadata-value">${(subject.marks || []).length === 1 ? '1 API key' : (subject.marks || []).length + ' API keys'}</span>
+            </div></div>
+            <div class="dataset-info-section dataset-info-columns"><h3>Held</h3><div class="dataset-columns"><table class="dataset-preview-table ds-feeds"><thead><tr><th>Dataset</th><th>Span</th><th>Held</th><th>Size</th></tr></thead><tbody>${rows}</tbody></table>
+                <p class="ds-note">${acts ? 'Load brings the span held, ' + esc(acts.from) + ' → ' + esc(acts.to) + ', onto the Data tab with the datasets of the last load (' + esc(kinds.join(', ')) + '): the store serves what it holds and only what the window lacks is downloaded. Load to today extends the span to today. For another window or other datasets, use the Intervals.icu dialog.' : 'No activities held yet.'}</p>
+            </div></div>
+            <div id="dsLoadStatus" class="ds-load-status" style="display:none"></div>
+        </div>
+        <div class="dataset-actions">
+            ${acts ? `<button class="dataset-action-btn dataset-load-btn" data-act="load" data-folder="${esc(folder)}" data-from="${esc(acts.from)}" data-to="${esc(acts.to)}" title="Load ${esc(acts.from)} → ${esc(acts.to)} from the store">Load</button>
+            <button class="dataset-action-btn dataset-load-btn" data-act="today" data-folder="${esc(folder)}" data-from="${esc(acts.from)}" data-to="${esc(acts.to)}" title="Load ${esc(acts.from)} → today: only the missing days are fetched">Load to today</button>` : ''}
+            <button class="dataset-action-btn dataset-remove-btn" data-act="forget" data-folder="${esc(folder)}" data-feed="" data-name="${esc(subject.name || subject.id)}" title="Drop everything held for this athlete: the store and the window files">Forget</button>
+        </div>`;
+    }
+
+    function showFeedDetails(folder, feedName) {
+        const panel = document.getElementById('datasetDetails');
+        const subject = subjectOf(folder);
+        const f = subject && (subject.feeds || []).find(x => x.feed === feedName);
+        if (!panel || !f) return;
+        panel.classList.remove('dataset-details-empty');
+        const cols = (f.columns || []);
+        const cats = f.categories ? Object.keys(f.categories).sort((a, b) => f.categories[b] - f.categories[a]).map(k => esc(k || '(none)') + ' ' + f.categories[k]).join(', ') : '';
+        panel.innerHTML = `<div class="dataset-details-content">
+            <div class="dataset-info-section"><h3>${esc(FEED_NAMES[f.feed] || f.feed)} · ${esc(subject.name || subject.id)}</h3><div class="dataset-metadata">
+                <span class="metadata-label">${f.as_of ? 'As of:' : 'Span:'}</span><span class="metadata-value">${span(f)}</span>
+                <span class="metadata-label">Held:</span><span class="metadata-value">${esc(count(f))}${f.feed === 'laps' && f.rows ? ' (' + Number(f.rows).toLocaleString() + ' laps)' : ''}</span>
+                <span class="metadata-label">Size:</span><span class="metadata-value">${mb(f.bytes) || '0 KB'}</span>
+                ${f.last_used ? `<span class="metadata-label">Last used:</span><span class="metadata-value">${esc(ago(f.last_used))}</span>` : ''}
+                ${cats ? `<span class="metadata-label">Entries:</span><span class="metadata-value">${cats}</span>` : ''}
+                <span class="metadata-label">A load writes:</span><span class="metadata-value">${esc(FEED_FILES[f.feed] || '')}</span>
+            </div><p class="ds-note">${esc(FEED_HINTS[f.feed] || '')}</p></div>
+            ${cols.length ? `<div class="dataset-info-section dataset-info-columns"><h3>Columns (${cols.length})</h3><div class="dataset-columns"><div class="column-list">${cols.map(c => `<span class="column-chip">${esc(c)}</span>`).join('')}</div></div></div>` : ''}
+        </div>
+        <div class="dataset-actions">
+            <button class="dataset-action-btn dataset-remove-btn" data-act="forget" data-folder="${esc(folder)}" data-feed="${esc(f.feed)}" data-name="${esc(subject.name || subject.id)}" title="Drop this dataset from the store; a later load downloads it again">Forget</button>
+        </div>`;
     }
 
     function createDatasetItem(dataset, type) {

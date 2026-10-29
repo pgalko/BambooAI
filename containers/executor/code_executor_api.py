@@ -35,14 +35,14 @@ import shutil
 from datetime import datetime, timedelta
 from intervals_store import Store, stores_under, RETENTION_DAYS as STORE_RETENTION_DAYS   # the Intervals.icu store (2026-10-15)
 from intervals_store import athlete_rel, athlete_record, remember_athlete, adopt_mark_folder, athlete_folders, views_rel, adopt_views, VIEWS_DIR   # the athlete's folder (2026-10-29)
-from intervals_store import cache_tree, forget as forget_store, prune_views, SOURCES as STORE_SOURCES, APP_FOLDERS as STORE_APP_FOLDERS   # the tree, forgetting, the views' age (step 3)
+from intervals_store import cache_tree, forget as forget_store, prune_views, absorb_mark_folders, SOURCES as STORE_SOURCES, APP_FOLDERS as STORE_APP_FOLDERS   # the tree, forgetting, the views' age (step 3)
 
 # Set the number of CPU cores for pyarrow
 pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-29 v69 (the cache as a tree: /cache/inspect carries source -> subject -> feed with the frames in memory, /cache/forget drops a feed or a subject, window files older than a month leave; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-29 v70 (the cache as a tree, as rebuilt after the first look: /cache/inspect carries source -> subject -> dataset with what each holds, /cache/forget drops a dataset or a subject, earlier loads of the same subject absorbed, window files older than a month leave, a dataset that gave no file said on the result; v69 the first tree; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -235,7 +235,7 @@ def inspect_cache():
                 folder = os.path.join(user_datasets_dir, rel) if rel else user_datasets_dir
                 who = {'source': rec.get('source', ''), 'id': rec.get('id', ''), 'name': rec.get('name', '')} if rec else None
                 if rec:
-                    subjects.append(dict(folder=rel, **who, marks=list(rec.get('marks') or []), first_seen=rec.get('first_seen'), last_load=rec.get('last_load')))
+                    subjects.append(dict(folder=rel, **who, marks=list(rec.get('marks') or []), kinds=list(rec.get('kinds') or []), first_seen=rec.get('first_seen'), last_load=rec.get('last_load')))
                 # a load's window files live under the folder's views/ (2026-10-29); a file at the folder itself is one an
                 # earlier executor wrote there, or an upload at the user's folder
                 places = [folder] + ([os.path.join(folder, VIEWS_DIR)] if rel and os.path.isdir(os.path.join(folder, VIEWS_DIR)) else [])
@@ -1705,7 +1705,7 @@ def fetch_intervals_background(data, job_id):
             moved = adopt_mark_folder(user_dir, mark, folder)
             if moved:
                 log_info(f"the key's folder moved under the athlete's: {mark} -> {folder} ({moved})")
-            remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark)
+            remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark, kinds=aux_datasets)      # and the datasets asked for: the dialog's Load asks for them again
         if adopt_views(user_dir, folder):                     # window files an earlier executor wrote at the folder itself (2026-10-29)
             log_info(f"the window files of {folder} moved under {VIEWS_DIR}/")
         views = views_rel(folder)                             # where this load's window files go
@@ -1785,6 +1785,7 @@ def fetch_intervals_background(data, job_id):
         
         # Handle auxiliary datasets
         aux_filepaths = []
+        warnings = []                                           # a feed asked for that gave no file, and why (2026-10-29): on the result, said on the page
 
         # the subject's record (fetched first, above): the custom fields' definitions decode the files' columns (0183), the
         # context tells authors apart and reads the custom fields by it, the rider profile is built from it
@@ -1798,6 +1799,8 @@ def fetch_intervals_background(data, job_id):
             if not intervals_df.empty:
                 intervals_path = save_aux_dataset(intervals_df, 'intervals', user_id, start_date, end_date, subdir=views)
                 aux_filepaths.append(intervals_path)
+            else:
+                warnings.append('no activity intervals file: no laps came back for the window')
         
         if 'summary' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Preparing summary data...'
@@ -1805,6 +1808,8 @@ def fetch_intervals_background(data, job_id):
             if not summary_df.empty:
                 summary_path = save_aux_dataset(summary_df, 'summary', user_id, start_date, end_date, subdir=views)
                 aux_filepaths.append(summary_path)
+            else:
+                warnings.append('no activity summary file: the window has no activities')
         
         wellness_records = None
         if 'wellness' in aux_datasets or 'context' in aux_datasets:
@@ -1819,9 +1824,12 @@ def fetch_intervals_background(data, job_id):
             wellness_df = wellness_frame(wellness_records, fields=field_definitions(custom_items, 'INPUT_FIELD'))
             if w_failed:
                 log_info(f"wellness: {w_failed}; {len(wellness_records)} days held from earlier loads stand")
+                warnings.append(w_failed + (f"; the {len(wellness_records)} days held from earlier loads stand" if wellness_records else ''))
             if 'wellness' in aux_datasets and not wellness_df.empty:
                 wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date, subdir=views)
                 aux_filepaths.append(wellness_path)
+            elif 'wellness' in aux_datasets:
+                warnings.append('no wellness file: the window has no wellness days' + ('' if not w_failed else ' held'))
         
         # The context (2026-10-13): the words written beside the data, one file of passages. Never fatal to the
         # load - a call that fails is a sentence in the report, and a window without words is a file with no rows.
@@ -1836,6 +1844,8 @@ def fetch_intervals_background(data, job_id):
             events = store.feed('events').within(start_date, end_date)
             if events_failed and events:
                 events_failed += f"; the {len(events)} entries held from earlier loads stand"
+            if events_failed:
+                warnings.append(events_failed)
         if 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching the words written beside the data...'
             rows, context_report = fetch_context_rows(session, base_url, activities, wellness_records or [], start_date, end_date,
@@ -1866,6 +1876,7 @@ def fetch_intervals_background(data, job_id):
             if athlete is None:
                 profile_note = "the subject's record could not be fetched, so there is no rider profile in this load"
                 log_info(f"rider profile: {profile_note}")
+                warnings.append(profile_note)
             else:
                 profile_df = profile_frame(athlete)
                 aux_filepaths.append(save_aux_dataset(profile_df, 'rider', user_id, start_date, end_date, subdir=views))
@@ -1884,6 +1895,15 @@ def fetch_intervals_background(data, job_id):
         gone_views = prune_views(user_dir, folder)             # window files not written within a month leave (docs/DATASETS_DESIGN.md §4)
         if gone_views:
             log_info(f"views: {gone_views} window files older than a month left {views}/")
+        if athlete_id:
+            # other keys' folders from before the athlete was known that hold one of this athlete's activities are the
+            # athlete's own earlier loads (2026-10-29): absorbed now that the store holds this window, so nothing is listed
+            # twice and nothing is downloaded again; the store is read afresh for the account below
+            absorbed = absorb_mark_folders(user_dir, folder)
+            if absorbed:
+                log_info(f"earlier loads absorbed into {folder}: {absorbed}")
+                adopt_views(user_dir, folder)
+                store = Store(user_dir, folder)
         
         # Mark as completed
         intervals_jobs[job_id]['status'] = 'completed'
@@ -1897,6 +1917,7 @@ def fetch_intervals_background(data, job_id):
             'profile_note': profile_note,
             'store': {'window': total_activities, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary(),
                       'laps': laps_report},     # the laps' account when the file was asked (2026-10-29): {window, held, fetched}
+            'warnings': warnings,               # a dataset asked for that gave no file, and why (2026-10-29)
             'subject': who                      # whose data this load is (2026-10-29): the app keeps it on the load record
         }
         

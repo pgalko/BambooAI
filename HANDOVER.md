@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0239 (datasets by subject, steps 1-3; **executor image v69** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0240 (datasets by subject, steps 1-3 and the tree as rebuilt; **executor image v70** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,10 +95,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/73/37/15/88/1/1 Python; 58/7/42/71/24/71/14/25/4/14/67 JS; 1,529 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/77/37/15/88/1/1 Python; 58/7/43/71/24/71/14/25/4/14/67 JS; 1,534 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (103; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (107; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -477,6 +477,24 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The tree as rebuilt after Palo's first look (2026-10-29, patch 0240; executor image v70 - rebuild and roll out).**
+  Seven points from the live dialog, each with its cause: (1) the athlete could not be folded - the few-athletes rule
+  forced it open; now the caret toggles, unfolded until folded. (2) The lines showed nothing on the right - only
+  files and frames did; now a click on the athlete's line or a dataset's line opens its details, and the actions
+  live there (Load, Load to today, Forget), as the files' Load and Remove always did; hover buttons gone. (3) *Use*
+  opened the Intervals dialog; now *Load* brings the span held straight from the store onto the Data tab (the same
+  job the dialog starts, with the datasets held; a window loaded now is let go first, after asking, with its file
+  pills; the progress in the details pane; the dialog closes by itself). (4) *in memory* lines gone - an Intervals
+  window is a view of the store; uploads, Endura and SweatStack keep their frames as plain lines. (5) *earlier loads*:
+  a mark folder whose store holds an activity the athlete's store holds too is the athlete's own, absorbed at the end
+  of the next load (`absorb_mark_folders`); only a folder with nothing in common stays listed. (6) Five lines for
+  seven datasets: the lines are now named as the load dialog names its datasets - Activities, Activity intervals,
+  Wellness, Calendar, Context · chats, Rider profile - with what each holds in its details (columns, categories,
+  counts, the files a load writes from it). (7) A live load with every dataset showed six pills, the wellness one
+  missing, which the fake could not reproduce (the walk now loads every dataset at once and checks the eight files
+  and seven pills); a dataset asked for that gives no file now puts a sentence on the result (`warnings`) and on the
+  completion line (*Not written: …*), so the next time says why. Tests: test_store.py 77, test_dialogs.js 43, the
+  stamp checks v70; the integrations walk 107.
 - **Datasets by subject, step 3 - the tree (2026-10-29, patch 0239; executor image v69 - rebuild and roll out).**
   `/cache/inspect` carries `tree` (source → athlete → feed, with the frames in memory under the athlete; Endura,
   SweatStack, uploads and a mark folder from before as their own groups), composed by `cache_tree` from the lists

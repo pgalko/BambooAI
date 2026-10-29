@@ -665,11 +665,12 @@ description, and the summary file carries the settings in force on each day. The
 
 The executor keeps what it has loaded - the frames with their window and metrics, the files a load
 writes, the datasets an analysis writes with `DS.save` - and the **Dataset cache** dialog (the rail)
-draws it as a tree: the source, the athlete under it, and under the athlete what is held of each
-feed - activities with their chats, laps, wellness, calendar, profile - with its span, its count and
-its size, and the frames in memory. Each line offers **Use** (the load dialog with that span filled
-in), **Extend to today** (only the missing days come down) and **Forget**; the athlete's line forgets
-everything held for them. Uploads and generated files keep their own groups. A routine whose window
+draws it as a tree: the source, the athlete under it, and under the athlete each dataset held -
+activities, activity intervals, wellness, calendar, the context's chats, the rider profile - with its
+span, its count and its size. A click on a line opens its details: an athlete's offer **Load** (the
+span held, straight from the store onto the Data tab), **Load to today** (only the missing days come
+down) and **Forget**; a dataset's say what it holds and what a load writes from it. Uploads and
+generated files keep their own groups. A routine whose window
 lies inside a load the executor still holds runs from the cache without a download.
 
 Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the

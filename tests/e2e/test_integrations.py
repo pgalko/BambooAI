@@ -130,6 +130,23 @@ def main():
                   "Data loaded successfully! 60 activities downloaded." in msg_a and len(manifest_a) == 60 and len(os.listdir(os.path.join(store_a, "activities"))) == 60 and all(r.get("signature") and r.get("day") for r in manifest_a.values()),
                   (msg_a, len(manifest_a), sorted(os.listdir(store_a)) if os.path.isdir(store_a) else None))
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
+            # the Dataset cache dialog (docs/DATASETS_DESIGN.md §8, as rebuilt 2026-10-29): the athlete's line opens the details, where
+            # Load brings the span held straight from the store - no dialog; the window loaded now is let go first, on asking
+            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
+            page.click("#datasetTree .ds-subj-head .ds-subj-name")
+            page.wait_for_selector("#datasetDetails [data-act='load']", timeout=10000)
+            det = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), feeds: [...document.querySelectorAll('#datasetTree .ds-feed')].map(e => e.dataset.feed), acts: [...document.querySelectorAll('#datasetDetails [data-act]')].map(b => b.dataset.act), filter: getComputedStyle(document.getElementById('datasetFilter')).display })")
+            check("the athlete's line opens the details on the right: the name and id the profile gave, held since, the datasets held - Activities and Wellness as the load dialog names them, and the rider profile the load fetched for the id - with their spans, the datasets of the last load (summary, wellness) that Load would ask for, and the actions Load / Load to today / Forget; the lines carry no actions and no window file; one athlete, so no filter box",
+                  "The subject" in det["text"] and "i0" in det["text"] and "Held since" in det["text"] and det["feeds"] == ["activities", "wellness", "profile"] and det["acts"] == ["load", "today", "forget"]
+                  and f"{a_start.isoformat()} → {a_end.isoformat()}" in det["text"] and re.search(r"datasets of the last load \((summary, wellness|wellness, summary)\)", det["text"]) and "wellness_data_" not in det["text"] and det["filter"] == "none", det)
+            page.click("#datasetTree .ds-feed[data-feed='wellness']")
+            page.wait_for_function("() => /A load writes/.test(document.getElementById('datasetDetails').textContent)", timeout=10000)
+            fdet = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), acts: [...document.querySelectorAll('#datasetDetails [data-act]')].map(b => b.dataset.act), cols: [...document.querySelectorAll('#datasetDetails .column-chip')].map(c => c.textContent) })")
+            n_well_a = sum(1 for d_ in apis_data.days_in(a_start.isoformat(), a_end.isoformat()) if apis_data.has_wellness(d_))
+            check("a dataset's line opens its details: the span, the days held, the size, what a load writes from it (wellness_data_<window>.csv), its columns as the file names them, and Forget",
+                  "Wellness" in fdet["text"] and f"{n_well_a} days" in fdet["text"] and "wellness_data_<window>.csv" in fdet["text"] and fdet["acts"] == ["forget"] and "date" in fdet["cols"] and "weight" in fdet["cols"] and "id" not in fdet["cols"], (fdet, n_well_a))
+            page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
 
             page.fill("#queryInput", mod.QUESTIONS[0])
             page.evaluate("setMode('deep')")
@@ -752,11 +769,18 @@ def main():
             page.click("#intervalsDownload [data-refresh='1']")
             dl_state = page.evaluate("() => ({ box: document.getElementById('intervals-refresh').checked, on: document.querySelector('#intervalsDownload .on').textContent })")
             check("the Download choice: Everything again clicked - the hidden box on, the side lit", dl_state["box"] is True and dl_state["on"] == "Everything again", dl_state)
+            page.evaluate("() => ['summary-checkbox', 'intervals-checkbox', 'wellness-checkbox', 'context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")     # every dataset the dialog offers (2026-10-29: one went missing on a live load)
             fits_before_rf, msgs_before_rf = calls_of(st, "fit-file"), calls_of(st, "/messages")
             page.click("#connectIntervals")
             page.wait_for_function("() => /fetched again/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             msg_rf = page.inner_text("#intervals-modal-message")
+            pills_all = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.replace(/\\s+/g, ' ').trim())")
+            views_all = sorted(os.path.basename(p_) for p_ in glob.glob(os.path.join(exec_views, f"*_{tag_a}.csv")))
+            check("every dataset the dialog offers, loaded together: the loader wrote all eight files of the window (the codes by the app), the Data tab carries a pill for each of the seven (the context's two under one), and the line names nothing as not written",
+                  views_all == sorted([f"activity_intervals_{tag_a}.csv", f"activity_summary_{tag_a}.csv", f"wellness_data_{tag_a}.csv", f"context_notes_{tag_a}.csv", f"context_codes_{tag_a}.csv", f"planned_workouts_{tag_a}.csv", f"rider_profile_{tag_a}.csv", f"custom_zone_times_{tag_a}.csv"])
+                  and all(any(w in p_ for p_ in pills_all) for w in ("Activity Intervals", "Activity Summary", "Wellness Summary", "Context (", "Planned workouts", "Rider profile", "Custom zones")) and "Not written" not in msg_rf
+                  and any("[W+S+I+C+R]" in p_ for p_ in pills_all), (views_all, pills_all, msg_rf[:200]))
             check("Everything again: every FIT file and every chat of the window fetched again, the line says 60 activities fetched again, and the choice is back on Only what's new for the next load",
                   calls_of(st, "fit-file") - fits_before_rf == 60 and calls_of(st, "/messages") - msgs_before_rf == chats_a and "60 activities fetched again" in msg_rf and page.evaluate("() => document.getElementById('intervals-refresh').checked") is False and page.evaluate("() => document.querySelector('#intervalsDownload .on').textContent") == "Only what\u2019s new",
                   (calls_of(st, "fit-file") - fits_before_rf, calls_of(st, "/messages") - msgs_before_rf, msg_rf[:160]))
@@ -765,32 +789,42 @@ def main():
             page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
             page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length >= 2", timeout=15000)
             tree_items = page.evaluate("""() => [...document.querySelectorAll('#datasetTree .ds-subj')].map(e => ({ head: e.querySelector('.ds-subj-head').textContent.replace(/\\s+/g, ' ').trim(),
-                feeds: [...e.querySelectorAll('.ds-feed')].map(f => f.textContent.replace(/\\s+/g, ' ').trim()), frames: e.querySelectorAll('.ds-frame').length, acts: [...e.querySelectorAll('[data-act]')].map(b => b.dataset.act) }))""")
+                feeds: [...e.querySelectorAll('.ds-feed')].map(f => f.textContent.replace(/\\s+/g, ' ').trim()), acts: [...e.querySelectorAll('[data-act]')].map(b => b.dataset.act), open: e.classList.contains('open') }))""")
             modal_text = page.evaluate("() => document.getElementById('datasetManagerModal').textContent")
-            check("the Dataset cache dialog draws the tree: one athlete block per subject by the name the profile gave, both unfolded, with the feeds held - Activities with the span and the count, Wellness, Calendar, Profile - the frames in memory, and the actions Use / Extend to today / Forget on the feeds and Forget on the athlete; no window file listed anywhere",
-                  len(tree_items) == 2 and any("The subject" in t["head"] and any(f.startswith("Activities") and "101 activities" in f and f"{a_start.isoformat()} → {today.isoformat()}" in f for f in t["feeds"]) and any(f.startswith("Wellness") for f in t["feeds"]) and any(f.startswith("Calendar") for f in t["feeds"]) and any(f.startswith("Profile") for f in t["feeds"]) for t in tree_items)
+            check("the Dataset cache dialog draws the tree: one athlete block per subject by the name the profile gave, both unfolded, with the datasets held - Activities with the span and the count, Activity intervals, Wellness, Calendar, Context · chats, Rider profile - and the filter box with two athletes; no actions on the lines, no window file listed anywhere, nothing 'in memory'",
+                  len(tree_items) == 2 and all(t["open"] and not t["acts"] and "held since" in t["head"] and ("MB" in t["head"] or "KB" in t["head"]) for t in tree_items)
+                  and any("The subject" in t["head"] and any(f.startswith("Activities") and "101 activities" in f and f"{a_start.isoformat()} → {today.isoformat()}" in f for f in t["feeds"]) and any(f.startswith("Activity intervals") for f in t["feeds"]) and any(f.startswith("Wellness") for f in t["feeds"]) and any(f.startswith("Calendar") for f in t["feeds"]) and any(f.startswith("Context") for f in t["feeds"]) and any(f.startswith("Rider profile") for f in t["feeds"]) for t in tree_items)
                   and any("The other subject" in t["head"] and any("60 activities" in f for f in t["feeds"]) for t in tree_items)
-                  and all({"use", "extend", "forget"} <= set(t["acts"]) and "held since" in t["head"] and ("MB" in t["head"] or "KB" in t["head"]) for t in tree_items) and "wellness_data_" not in modal_text and "activity_summary_" not in modal_text
-                  and sum(t["frames"] for t in tree_items) >= 1, tree_items)
-            # Forget the other subject through the dialog: its folder goes whole, the first subject stands
+                  and "wellness_data_" not in modal_text and "activity_summary_" not in modal_text and "in memory" not in modal_text and page.evaluate("() => getComputedStyle(document.getElementById('datasetFilter')).display") != "none", tree_items)
+            # the caret folds an athlete and unfolds it again; the filter narrows the tree to a name
+            page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].find(e => /The other subject/.test(e.textContent)).querySelector('.ds-caret').click()")
+            folded = page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].map(e => ({ name: e.querySelector('.ds-subj-name').textContent, open: e.classList.contains('open'), feeds: e.querySelectorAll('.ds-feed').length }))")
+            page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].find(e => /The other subject/.test(e.textContent)).querySelector('.ds-caret').click()")
+            unfolded = page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].map(e => e.classList.contains('open'))")
+            page.fill("#datasetFilter", "other")
+            narrowed = page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj .ds-subj-name')].map(e => e.textContent)")
+            page.fill("#datasetFilter", "")
+            check("the caret folds the athlete (its lines gone, the other's stay) and unfolds it again; the filter box narrows the tree to the name typed",
+                  [x for x in folded if x["name"] == "The other subject"][0]["open"] is False and [x for x in folded if x["name"] == "The other subject"][0]["feeds"] == 0 and [x for x in folded if x["name"] == "The subject"][0]["open"] is True
+                  and unfolded == [True, True] and narrowed == ["The other subject"], (folded, unfolded, narrowed))
+            # Forget the other subject through its details: its folder goes whole, the first subject stands
+            page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].find(e => /The other subject/.test(e.textContent)).querySelector('.ds-subj-head .ds-subj-name').click()")
+            page.wait_for_function("() => /The other subject/.test(document.getElementById('datasetDetails').textContent) && !!document.querySelector('#datasetDetails [data-act=\"forget\"]')", timeout=10000)
             page.once("dialog", lambda d: d.accept())
-            page.evaluate("() => { const b = [...document.querySelectorAll('#datasetTree .ds-subj')].find(e => /The other subject/.test(e.textContent)).querySelector('.ds-subj-head [data-act=\"forget\"]'); b.click(); }")
+            page.click("#datasetDetails [data-act='forget']")
             page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
-            check("Forget on the athlete's line (confirmed) drops everything held for the other subject - the folder with its store and files - and the first subject stands with its store",
+            check("Forget in the athlete's details (confirmed) drops everything held for the other subject - the folder with its store and files - and the first subject stands with its store; the details pane is cleared",
                   not os.path.exists(exec_ds2) and os.path.isdir(os.path.join(exec_ds, "store")) and len(json.load(open(os.path.join(exec_ds, "store", "activities.json")))) == 101
-                  and page.evaluate("() => document.querySelector('#datasetTree .ds-subj .ds-subj-name').textContent") == "The subject", (os.path.exists(exec_ds2), sorted(os.listdir(os.path.join(workdir, "executor", "datasets", USER, "intervals")))))
-            # Use on the Activities line while the Data tab holds a window: asked whether to let it go; declined, nothing moves
+                  and page.evaluate("() => document.querySelector('#datasetTree .ds-subj .ds-subj-name').textContent") == "The subject" and not page.evaluate("() => !!document.querySelector('#datasetDetails [data-act]')"), (os.path.exists(exec_ds2), sorted(os.listdir(os.path.join(workdir, "executor", "datasets", USER, "intervals")))))
+            # Load to today from the details while the Data tab holds a window: asked whether to let it go; declined, nothing moves
+            page.click("#datasetTree .ds-subj-head .ds-subj-name")
+            page.wait_for_selector("#datasetDetails [data-act='today']", timeout=10000)
             page.once("dialog", lambda d: d.dismiss())
-            page.evaluate("() => { const b = document.querySelector('#datasetTree .ds-feed [data-act=\"use\"]'); b.click(); }")
+            page.click("#datasetDetails [data-act='today']")
             page.wait_for_timeout(600)
-            kept = page.evaluate("() => ({ intervals: document.getElementById('intervalsModal').style.display, cache: document.getElementById('datasetManagerModal').style.display, loaded: !!(window.Intervals && window.Intervals.state.isLoaded) })")
-            check("Use while a window is loaded asks whether to let it go; declined, the cache dialog stays, the load dialog does not open and the data stays loaded", kept["intervals"] != "flex" and kept["cache"] != "none" and kept["loaded"], kept)
-            # ...and with nothing loaded (the state flagged so, to keep the data this walk goes on with): the load dialog opens with the span held filled in
-            page.evaluate("() => { window.__cdn = currentDatasetName; currentDatasetName = null; window.Intervals.state.isLoaded = false; const b = document.querySelector('#datasetTree .ds-feed [data-act=\"use\"]'); b.click(); }")
-            page.wait_for_function("() => document.getElementById('intervalsModal').style.display === 'flex' && document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
-            use_dates = page.evaluate("() => ({ start: document.getElementById('intervalsStartDate').value, end: document.getElementById('intervalsEndDate').value })")
-            check("Use on the Activities line closes the cache dialog and opens the load dialog with the span held as the window (the store serves it; only what is missing is fetched)", use_dates == {"start": a_start.isoformat(), "end": today.isoformat()}, use_dates)
-            page.evaluate("() => { window.Intervals.state.isLoaded = true; currentDatasetName = window.__cdn; const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
+            kept = page.evaluate("() => ({ status: (document.getElementById('dsLoadStatus') || {}).style.display, cache: document.getElementById('datasetManagerModal').style.display, loaded: !!(window.Intervals && window.Intervals.state.isLoaded), pills: document.querySelectorAll('.dataset-status-pill').length })")
+            check("Load to today while a window is loaded asks whether to let it go; declined, nothing starts, the dialog stays and the data stays loaded", kept["status"] == "none" and kept["cache"] != "none" and kept["loaded"] and kept["pills"] > 1, kept)
+            page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
             page.fill("#queryInput", mod.COUNT_QUESTION)
             page.evaluate("setMode('deep')")
             page.click("#submitQuery")
@@ -815,9 +849,9 @@ def main():
             rdirs_n = [d_ for d_ in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")) if "fatigue" in json.load(open(d_)).get("name", "").lower()]
             rj_n = wait_verified(rdirs_n[0]) if rdirs_n else {}
             rec_n = ((rj_n.get("versions") or [{}])[0].get("manifest") or {}).get("data") or {}
-            check("Create: run zero reproduced the two lines on the original window; the record's auxiliary files are the seven of the load - summary, wellness, context, planned workouts, codes, the rider profile and the custom zone times (on by default, 2026-10-16) - under the key's folder, the load's kinds with context, plan and rider",
+            check("Create: run zero reproduced the two lines on the original window; the record's auxiliary files are the eight of the load - summary, intervals, wellness, context, planned workouts, codes, the rider profile and the custom zone times (every dataset was asked, 2026-10-29) - under the subject's folder, the load's kinds with context, plan and rider",
                   err_n is None and rdirs_n and (rj_n.get("versions") or [{}])[0].get("run_zero", {}).get("status") == "reproduced"
-                  and sorted(aux_kind(p_) for p_ in rec_n.get("aux") or []) == ["codes", "context", "plan", "rider", "summary", "wellness", "zones"] and {"context", "plan", "rider"} <= set((rec_n.get("load") or {}).get("aux_kinds", [])), (err_n, rec_n.get("aux"), (rec_n.get("load") or {}).get("aux_kinds")))
+                  and sorted(aux_kind(p_) for p_ in rec_n.get("aux") or []) == ["codes", "context", "intervals", "plan", "rider", "summary", "wellness", "zones"] and {"context", "plan", "rider"} <= set((rec_n.get("load") or {}).get("aux_kinds", [])), (err_n, rec_n.get("aux"), (rec_n.get("load") or {}).get("aux_kinds")))
             rid_n = rj_n.get("id")
             # run 1: the next window - the dialog's load asks for the context too; the pass behind the load is waited for; the count compared
             page.click("#routinesPill")
@@ -931,16 +965,37 @@ def main():
             run3_path = os.path.join(os.path.dirname(rdirs_n[0]), "runs", "v1_3", "run.json")
             run3_n = json.load(open(run3_path)) if os.path.exists(run3_path) else {}
             _chk_d = next((r for r in rv_d["rows"] if "CHECK" in r), "")
-            check("run 3 ran from the cache with all seven files - none refused by the auxiliary limit (derived from the loaders' registry since 0181): no download, the LOAD row 'cut from the cache', the CHECK row - a sentence per file, whole on the page (the 600-character cut had lost its tail) - ending 'cut to the window from the cached load', the context, codes, plan, rider profile and zone times files among the seven bound, the run complete",
+            check("run 3 ran from the cache with all eight files - none refused by the auxiliary limit (derived from the loaders' registry since 0181): no download, the LOAD row 'cut from the cache', the CHECK row - a sentence per file, whole on the page (the 600-character cut had lost its tail) - ending 'cut to the window from the cached load', the context, codes, plan, rider profile, zone times and intervals files among the eight bound, the run complete",
                   "run 3 of 3" in rv_d["position"] and "Maximum" not in prog_d and calls_of(st, "fit-file") == fits_before_d
                   and any("LOAD" in r and "cut from the cache" in r for r in rv_d["rows"]) and f"cut to {d_start.isoformat()} → {d_end.isoformat()} from the cached load" in _chk_d
-                  and run3_n.get("status") in ("ran", "reproduced") and sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []) == ["codes", "context", "plan", "rider", "summary", "wellness", "zones"]
+                  and run3_n.get("status") in ("ran", "reproduced") and sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []) == ["codes", "context", "intervals", "plan", "rider", "summary", "wellness", "zones"]
                   and not run3_n.get("aux_absent") and "Run 3 complete" in rv_d["done"] and not rv_d["warn"],
                   (prog_d[:200], rv_d["position"], _chk_d[-300:], calls_of(st, "fit-file") - fits_before_d, rv_d["warn"], sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []), run3_n.get("status"), run3_n.get("aux_absent"), rv_d["done"][:160]))
             # the words of a cut run are the window's (2026-10-16): the count the method printed is the fake calendar's for the
             # window, not the cached load's (CTX used to read the files loaded now - the whole load's context)
             res3_n = {r_.get("what"): rt_number(r_.get("estimate")) for r_ in run3_n.get("results") or []}
             check("the cut run's words are the window's: the fatigue count is the fake calendar's for the window, smaller than the cached load's", res3_n.get("of them read as fatigue by the coding pass") == fatigue_expected(d_start, d_end) and fatigue_expected(d_start, d_end) < exp_a, (res3_n, fatigue_expected(d_start, d_end), exp_a))
+
+            # ---- Load from the Dataset cache dialog (2026-10-29, as the product owner asked): the athlete's span, straight from the store, no dialog ----
+            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
+            page.click("#datasetTree .ds-subj-head .ds-subj-name")
+            page.wait_for_selector("#datasetDetails [data-act='load']", timeout=10000)
+            det_end = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), from: document.querySelector('#datasetDetails [data-act=\"load\"]').dataset.from, to: document.querySelector('#datasetDetails [data-act=\"load\"]').dataset.to })")
+            fits_before_cl, msgs_before_cl = calls_of(st, "fit-file"), calls_of(st, "/messages")
+            was_loaded = page.evaluate("() => !!(window.Intervals && window.Intervals.state.isLoaded)")
+            page.once("dialog", lambda d: d.accept())
+            page.click("#datasetDetails [data-act='load']")
+            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            status_cl = page.inner_text("#dsLoadStatus")
+            page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
+            page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
+            pills_cl = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.replace(/\\s+/g, ' ').trim())")
+            check("Load from the cache dialog: the span held (the athlete's activities, " + f"{a_start.isoformat()} → {today.isoformat()}" + ") with the datasets of the last load, straight from the store - no FIT file and no chat fetched, the status line in the dialog says every activity came from the store, the dialog closes by itself - the window loaded before let go on asking, and the Data tab showing the window with each file's pill once",
+                  det_end["from"] == a_start.isoformat() and det_end["to"] == today.isoformat() and "the datasets of the last load" in det_end["text"] and was_loaded
+                  and calls_of(st, "fit-file") == fits_before_cl and calls_of(st, "/messages") == msgs_before_cl and "from the store" in status_cl and "downloaded" not in status_cl.replace("nothing downloaded", "")
+                  and sum(1 for p_ in pills_cl if p_.startswith("Intervals ICU (")) == 1 and sum(1 for p_ in pills_cl if "Activity Summary" in p_) == 1 and sum(1 for p_ in pills_cl if "Wellness" in p_) == 1 and sum(1 for p_ in pills_cl if "Context (" in p_) == 1,
+                  (det_end, status_cl, pills_cl, calls_of(st, "fit-file") - fits_before_cl, calls_of(st, "/messages") - msgs_before_cl))
             errs = page.evaluate("window.__stackErrors || []")
             b.close()
         apis = __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"]

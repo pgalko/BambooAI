@@ -479,7 +479,9 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                 setIntervalsRefresh(false);
                 // the context's line (docs/CONTEXT_DESIGN.md §4 F1): what was written beside the data, and any call that failed
                 const ctxLine = contextReportLine(job.result && job.result.context);
-                showIntervalsMessage('Data loaded successfully!' + (stLine ? ' ' + stLine + '.' : '') + (ctxLine ? ' ' + ctxLine : ''), 'success');
+                // a dataset asked for that gave no file, and why (2026-10-29): said here rather than silently missing from the pills
+                const warnLine = (job.result && Array.isArray(job.result.warnings) && job.result.warnings.length) ? ' Not written: ' + job.result.warnings.join('; ') + '.' : '';
+                showIntervalsMessage('Data loaded successfully!' + (stLine ? ' ' + stLine + '.' : '') + (ctxLine ? ' ' + ctxLine : '') + warnLine, 'success');
 
                 setTimeout(() => {
                     hideIntervalsModal();

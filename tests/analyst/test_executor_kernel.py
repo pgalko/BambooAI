@@ -148,7 +148,7 @@ sb = r3.get("sandbox") or {}
 check("executor: /kernel/start reports the box as the kernel sees it - user, root or not, capabilities, seccomp, container, mounts, the metadata address",
       all(k in sb for k in ("uid", "user", "root", "caps", "notable_caps", "seccomp", "container", "mounts", "metadata", "docker_socket")) and isinstance(sb["mounts"], list), sb)
 hb = (c.get("/health").get_json() or {})
-check("executor: /health carries the same facts beside the build", (hb.get("sandbox") or {}).get("uid") == sb.get("uid") and "v69" in str(hb.get("build")), (hb.get("build"), hb.get("sandbox")))
+check("executor: /health carries the same facts beside the build", (hb.get("sandbox") or {}).get("uid") == sb.get("uid") and "v70" in str(hb.get("build")), (hb.get("build"), hb.get("sandbox")))
 
 
 def _run(code):
