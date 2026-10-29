@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0243 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended; **executor image v73** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0244 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended; **executor image v73** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -477,6 +477,11 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The dot is an indicator, not a control (2026-10-29, patch 0244; page only, image v73 stands).** Palo still
+  "could not click on the dot" and asked what it was for: the click (0243's switch) and the legend line he was
+  clicking are gone; each line says its state in words at its right - *on the Data tab* / *in the store only*
+  (`.ds-feed-state`). The pill's × takes a dataset off the tab without deleting it; Load and Forget stay in the pane.
+  Tests: test_dialogs.js 45; the integrations walk 116.
 - **After Palo's third look (2026-10-29, patch 0243; executor image v73 - rebuild and roll out).** Five points on
   0242: (1) a line's span read as the first and last day with data, so "Load everything to today" seemed not to end
   today - the loader now records on the athlete's record the window each dataset's online loads covered

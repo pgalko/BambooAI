@@ -1,11 +1,11 @@
 // Dataset Manager Module - the Dataset cache dialog. Since 2026-10-29 (docs/DATASETS_DESIGN.md §8, §16) it draws the executor's
 // store as a tree - source → athlete → dataset, exactly the datasets the Intervals.icu dialog offers plus the frame - with a
-// dot on each line saying whether it is on the Data tab now; the dot is a switch (a click loads the dataset from the store, or
-// takes it off the tab). A click on a line opens its details on the right, where the actions are: Load <dataset> (the span
-// held, from the store alone) and Load <dataset> to today (through Intervals.icu for the missing days) for one dataset, Load
-// everything / Load everything to today for the athlete; Forget takes the pill(s) off the Data tab and the data out of the
-// cache (the product owner's word, 2026-10-29). Uploads and generated files keep their own groups. A load's window files are
-// not listed: they are a run's inputs, shown on the Data tab.
+// dot and the words on each line saying whether it is on the Data tab now or in the store only (an indicator, not a control:
+// the product owner clicked it, 2026-10-29). A click on a line opens its details on the right, where the actions are: Load
+// <dataset> (the span held, from the store alone) and Load <dataset> to today (through Intervals.icu for the missing days)
+// for one dataset, Load everything / Load everything to today for the athlete; Forget takes the pill(s) off the Data tab and
+// the data out of the cache (his word); the pill's × takes a dataset off the tab alone. Uploads and generated files keep their
+// own groups. A load's window files are not listed: they are a run's inputs, shown on the Data tab.
 window.DatasetManager = (function() {
     'use strict';
     
@@ -118,15 +118,6 @@ window.DatasetManager = (function() {
         if (caret && subj) {
             openSubjects[subj.dataset.folder] = !isOpen(subj.dataset.folder);
             renderTree();
-            return;
-        }
-        const sw = e.target.closest('.ds-feed .ds-dot');
-        if (sw && subj) {
-            // the dot is a switch: on → off the Data tab (as the pill's ×); off → loaded from the store, with the details open so the progress shows
-            const line = sw.closest('.ds-feed');
-            selectLine(line); showFeedDetails(subj.dataset.folder, line.dataset.feed);
-            if (sw.classList.contains('on')) unloadFromTab(subj.dataset.folder, line.dataset.feed);
-            else startLoad(subj.dataset.folder, line.dataset.feed, false);
             return;
         }
         const head = e.target.closest('.ds-subj-head');
@@ -507,7 +498,7 @@ window.DatasetManager = (function() {
         return String(n);
     }
     function matches(q, ...texts) { return !q || texts.some(t => String(t || '').toLowerCase().includes(q)); }
-    const dot = (on, sw) => `<span class="ds-dot${on ? ' on' : ''}" title="${on ? 'on the Data tab now' + (sw ? ' - click to take it off the tab' : '') : 'in the store only' + (sw ? ' - click to load it from the store' : '')}"></span>`;
+    const dot = on => `<span class="ds-dot${on ? ' on' : ''}" title="${on ? 'on the Data tab now' : 'in the store only'}"></span>`;
 
     function frameLine(f) {
         // a frame the executor holds as a frame alone: an upload, an Endura race, a SweatStack load (an Intervals.icu window is a view of the store, not listed)
@@ -527,8 +518,9 @@ window.DatasetManager = (function() {
         line.className = 'ds-feed' + (shown && shown.folder === subject.folder && shown.feed === f.feed ? ' active' : '');
         line.dataset.feed = f.feed;
         line.title = 'Click for the details';
-        line.innerHTML = dot(!!tab[f.feed], true) + `<span class="ds-feed-name">${esc(FEED_NAMES[f.feed] || f.feed)}</span><span class="ds-feed-span">${span(f)}</span>` +
-            `<span class="ds-feed-count">${esc(count(f))}${f.bytes ? ' · ' + mb(f.bytes) : ''}</span>`;
+        const on = !!tab[f.feed];
+        line.innerHTML = dot(on) + `<span class="ds-feed-name">${esc(FEED_NAMES[f.feed] || f.feed)}</span><span class="ds-feed-span">${span(f)}</span>` +
+            `<span class="ds-feed-count">${esc(count(f))}${f.bytes ? ' · ' + mb(f.bytes) : ''}</span><span class="ds-feed-state${on ? ' on' : ''}">${on ? 'on the Data tab' : 'in the store only'}</span>`;
         return line;
     }
     function subjectBlock(subject, q) {
@@ -548,7 +540,6 @@ window.DatasetManager = (function() {
         if (open) {
             const body = document.createElement('div');
             body.className = 'ds-subj-body';
-            body.innerHTML = `<div class="ds-legend">${dot(true)} on the Data tab &nbsp;·&nbsp; ${dot(false)} in the store only &nbsp;·&nbsp; click a dot to load it, or to take it off the tab</div>`;
             const feeds = (subject.feeds || []).filter(f => matches(q, FEED_NAMES[f.feed], f.feed, subject.name, subject.id));
             feeds.forEach(f => body.appendChild(feedLine(subject, f, tab)));
             if (!feeds.length) body.innerHTML = '<div class="dataset-empty">nothing held</div>';

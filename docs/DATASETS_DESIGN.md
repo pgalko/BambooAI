@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.6 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0243)
+# Datasets by athlete — design v1.7 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0244)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -8,7 +8,7 @@ one entry whose span grew, and two athletes never share a line. The four decisio
 2026-10-29 (section 11); the next phase, several API keys per coach and an athlete dropdown in the load dialogs, is
 the same tree without the data. **Status**: steps 1-3 of section 10 are built (patches 0237-0241, executor images
 v67-v71; sections 13-15 say what they did and where they differ from the text), and the dialog was redesigned after the
-product owner's second look (patches 0242-0243, images v72-v73; section 16 is the design as it stands); step 4 is not.
+product owner's second look (patches 0242-0244, images v72-v73; section 16 is the design as it stands); step 4 is not.
 
 ## 1. The shape
 
@@ -319,7 +319,7 @@ details; Load from the dialog with a window loaded - let go on asking, loaded fr
 itself, each file's pill once; every dataset loaded together with all eight files written and seven pills; the tree
 with two athletes, fold and filter, Forget through the details, Load to today declined).
 
-## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73 - the last paragraphs)
+## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73, and 0244 - the last paragraphs)
 
 The product owner's second look (2026-10-29) found the rebuilt dialog still an old design bent to the new logic: the
 columns showed for two datasets only, Load on a dataset loaded everything, earlier loads were still listed. The
@@ -396,9 +396,8 @@ to today alone; Forget everything; Delete Wellness from the store).
   dataset - `Forget everything` the athlete's folder - after a question; the quiet *Delete from the store…* link is
   gone. The activity summary's Forget is off the Data tab alone: the activity list is the store's own, every load from
   the store starts from it. Taking a dataset off the Data tab *without* deleting it is the pill's × - or the dot.
-- *The dot is a switch*: a click on a line's dot takes the dataset off the Data tab when it is on, and loads it from
-  the store when it is off (the line's details open, the progress in the pane). The legend says so; it is no longer
-  two radio-looking items.
+- *The dot* was made a switch here (a click took the dataset off the Data tab or loaded it from the store) and
+  undone in 0244: see below.
 - *The columns of a second file* sit under a small label (`.ds-file`: the file name in mono, its count, a note for
   the codes file), not a heading in capitals among the chips.
 - *The dialog has one size* (1100 × 800 at most, 96vw × 86vh on a small screen): the columns scroll inside it,
@@ -409,3 +408,11 @@ clip; the record widened), `tests/analyst/test_dialogs.js` (the switch, Forget's
 labels, the size), the integrations walk (the wellness line's span as the window with the data's days beside; the
 dot taking Wellness off the tab and loading it again from the store; Load Activity intervals to today ending today;
 Forget Wellness out of the cache; Forget everything on the other athlete and on the first).
+
+**Amended once more (patch 0244, page only).** The product owner still could not "click on the dot" and asked what
+it was for. It is an indicator - filled when the dataset is on the Data tab now, empty when it is in the store only
+- and a 10-px dot is no control; the legend line he was clicking was not one either. The click and the legend are
+gone; each line now says its state in words at its right (`.ds-feed-state`: *on the Data tab* in the model's green,
+*in the store only* muted), so nothing needs a key. Loading and forgetting stay in the pane; the pill's × takes a
+dataset off the Data tab without deleting it. Tests: `tests/analyst/test_dialogs.js` (the words, no switch, no
+legend), the integrations walk (the pill's × empties the dot and the words say so; Load Wellness from the pane).

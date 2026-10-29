@@ -1040,24 +1040,26 @@ def main():
                   and sum(1 for p_ in pills_cl if p_.startswith("Intervals ICU (")) == 1 and sum(1 for p_ in pills_cl if "Activity Summary" in p_) == 1 and sum(1 for p_ in pills_cl if "Wellness" in p_) == 1 and sum(1 for p_ in pills_cl if "Context (" in p_) == 1
                   and sum(1 for p_ in pills_cl if "Activity Intervals" in p_) == 1 and sum(1 for p_ in pills_cl if "Rider profile" in p_) == 1 and any("[W+S+I+C+R]" in p_ for p_ in pills_cl),
                   (det_end, status_cl, pills_cl, calls_of(st, "/api/v1/") - calls_before_cl))
-            # the dot is a switch: on the Wellness line it takes the pill off the Data tab; the line stays (the cache keeps the days)
-            open_cache()
-            page.click("#datasetTree .ds-feed[data-feed='wellness'] .ds-dot")
+            # the Wellness pill's × takes it off the Data tab; the line stays (the cache keeps the days) and says so in words - the dot is an indicator, not a control
+            page.evaluate("() => { const p = [...document.querySelectorAll('.dataset-status-pill')].find(x => /Wellness/.test(x.textContent)); p.querySelector('.dataset-pill-remove-icon').click(); }")
             page.wait_for_function("() => ![...document.querySelectorAll('.dataset-status-pill')].some(p => /Wellness/.test(p.textContent))", timeout=10000)
-            fw = { "pills": pills_now(), "dots": dots_now(), "forget": page.evaluate("() => document.querySelector('#datasetDetails [data-act=\"forget\"]').disabled"), "text": page.evaluate("() => document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' ')") }
-            check("a click on the Wellness line's dot (on) takes the Wellness pill off the Data tab and nothing else: the frame and the other pills stay, the dot empties, the line stays (the cache keeps the days), the pane opens on Wellness saying not loaded",
+            open_cache("wellness")
+            fw = { "pills": pills_now(), "dots": dots_now(), "words": page.evaluate("() => Object.fromEntries([...document.querySelectorAll('#datasetTree .ds-feed')].map(e => [e.dataset.feed, e.querySelector('.ds-feed-state').textContent]))"),
+                   "forget": page.evaluate("() => document.querySelector('#datasetDetails [data-act=\"forget\"]').disabled"), "text": page.evaluate("() => document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' ')"), "legend": page.evaluate("() => !!document.querySelector('#datasetTree .ds-legend')") }
+            check("the Wellness pill's × takes it off the Data tab and nothing else: the frame and the other pills stay; in the dialog the Wellness line's dot empties and its words say 'in the store only' (every other line 'on the Data tab'), no legend to click; its pane says not loaded, Forget still on (the cache holds it)",
                   not any("Wellness" in p_ for p_ in fw["pills"]) and sum(1 for p_ in fw["pills"] if p_.startswith("Intervals ICU (")) == 1 and any("Activity Summary" in p_ for p_ in fw["pills"]) and any("Context (" in p_ for p_ in fw["pills"])
-                  and fw["dots"] == {"activities": True, "summary": True, "laps": True, "wellness": False, "context": True, "profile": True} and fw["forget"] is False and "Wellness · The subject" in fw["text"] and "○ not loaded" in fw["text"], fw)
+                  and fw["dots"] == {"activities": True, "summary": True, "laps": True, "wellness": False, "context": True, "profile": True} and fw["words"] == {"activities": "on the Data tab", "summary": "on the Data tab", "laps": "on the Data tab", "wellness": "in the store only", "context": "on the Data tab", "profile": "on the Data tab"}
+                  and not fw["legend"] and fw["forget"] is False and "Wellness · The subject" in fw["text"] and "○ not loaded" in fw["text"], fw)
             if shots: page.screenshot(path=os.path.join(shots, "cache_dialog_wellness_off.png"))
-            # the dot again (off): Wellness loaded from the store alone - no call, the frame untouched, the pill back
+            # Load Wellness from its pane: the dataset alone from the store - no call, the frame untouched, the pill back
             calls_before_lw = calls_of(st, "/api/v1/")
             wspan = page.evaluate("() => document.querySelector('#datasetTree .ds-feed[data-feed=\"wellness\"] .ds-feed-span').textContent")
-            page.click("#datasetTree .ds-feed[data-feed='wellness'] .ds-dot")
+            page.click("#datasetDetails [data-act='load']")
             page.wait_for_function("() => /^Loaded Wellness/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=120000)
             status_lw = page.inner_text("#dsLoadStatus")
             page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
             lw = pills_now()
-            check("a click on the dot (off) loads Wellness alone from the store: no call to Intervals.icu, the status line says so with the window held (to today) and names the file, the dialog closes, the Wellness pill is back once and the frame and the other pills were not touched",
+            check("Load Wellness loads the dataset alone from the store: no call to Intervals.icu, the status line says so with the window held (to today) and names the file, the dialog closes, the Wellness pill is back once and the frame and the other pills were not touched",
                   calls_of(st, "/api/v1/") == calls_before_lw and wspan == f"{a_start.isoformat()} → {today.isoformat()}" and status_lw.startswith(f"Loaded Wellness {wspan} from the store, nothing fetched: wellness_data_") and sum(1 for p_ in lw if "Wellness" in p_) == 1
                   and sum(1 for p_ in lw if p_.startswith("Intervals ICU (")) == 1 and any("Activity Summary" in p_ for p_ in lw) and any("Context (" in p_ for p_ in lw), (status_lw, wspan, lw))
             # Load Activity intervals to today: one dataset through Intervals.icu - no FIT file, the laps of the missing days only, the pill replaced
@@ -1087,7 +1089,7 @@ def main():
             open_cache()
             page.once("dialog", lambda d: d.accept())
             page.click("#datasetDetails [data-act='forget']")
-            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 0 && document.querySelectorAll('.dataset-status-pill').length === 0", timeout=15000)
+            page.wait_for_function("() => /nothing held yet/.test(document.getElementById('datasetTree').textContent) && document.querySelectorAll('.dataset-status-pill').length === 0", timeout=15000)     # the tree redrawn after the refresh, not its Loading… state
             fe = { "pills": pills_now(), "loaded": page.evaluate("() => !!(window.Intervals && window.Intervals.state.isLoaded)"), "tree": page.evaluate("() => document.getElementById('datasetTree').textContent.replace(/\\s+/g, ' ')") }
             check("Forget everything (confirmed) takes every pill off the Data tab - the frame's and the files' - and the athlete out of the cache: the folder is gone, the tree says nothing is held",
                   fe["pills"] == [] and not fe["loaded"] and not os.path.exists(exec_ds) and "nothing held yet" in fe["tree"], (fe, os.path.exists(exec_ds)))

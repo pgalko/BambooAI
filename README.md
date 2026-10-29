@@ -667,14 +667,14 @@ The executor keeps what it has loaded - the frames with their window and metrics
 writes, the datasets an analysis writes with `DS.save` - and the **Dataset cache** dialog (the rail)
 draws it as a tree: the source, the athlete under it, and under the athlete one line per dataset the
 Intervals.icu dialog offers plus the frame - Activities, Activity summary, Activity intervals, Wellness,
-Context (chats and calendar), Rider profile - with its span, what is held and its size, and a dot saying
-whether it is on the Data tab now. A click on a line opens its details - what it is, what is held, the
+Context (chats and calendar), Rider profile - with its span, what is held and its size, and whether it is
+on the Data tab now or in the store only. A click on a line opens its details - what it is, what is held, the
 files a load writes and their columns - and the actions: **Load <dataset>** (the span held, from the
 store alone - nothing is fetched), **Load <dataset> to today** (through Intervals.icu, only the missing
 days come down) and **Forget <dataset>** (its pill off the Data tab and the data out of the cache,
 after asking); the athlete's line has the same for everything held. Loading one dataset leaves the
-frame as it is; a click on a line's dot takes the dataset off the Data tab or loads it from the store.
-Uploads and generated files keep their own groups. A routine whose window lies inside a load the
+frame as it is; a pill's × takes a dataset off the Data tab without deleting it. Uploads and generated
+files keep their own groups. A routine whose window lies inside a load the
 executor still holds runs from the cache without a download.
 
 Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the
