@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.8 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0245)
+# Datasets by athlete — design v1.9 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0246)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -8,7 +8,7 @@ one entry whose span grew, and two athletes never share a line. The four decisio
 2026-10-29 (section 11); the next phase, several API keys per coach and an athlete dropdown in the load dialogs, is
 the same tree without the data. **Status**: steps 1-3 of section 10 are built (patches 0237-0241, executor images
 v67-v71; sections 13-15 say what they did and where they differ from the text), and the dialog was redesigned after the
-product owner's second look (patches 0242-0245, images v72-v73; section 16 is the design as it stands); step 4 is not.
+product owner's second look (patches 0242-0246, images v72-v73; section 16 is the design as it stands); step 4 is not.
 
 ## 1. The shape
 
@@ -319,7 +319,7 @@ details; Load from the dialog with a window loaded - let go on asking, loaded fr
 itself, each file's pill once; every dataset loaded together with all eight files written and seven pills; the tree
 with two athletes, fold and filter, Forget through the details, Load to today declined).
 
-## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73, 0244 and 0245 - the last paragraphs)
+## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73, 0244-0246 - the last paragraphs)
 
 The product owner's second look (2026-10-29) found the rebuilt dialog still an old design bent to the new logic: the
 columns showed for two datasets only, Load on a dataset loaded everything, earlier loads were still listed. The
@@ -426,3 +426,16 @@ everything* asks for every dataset held; one dataset alone still asks for its ow
 runs *Load Activities to today* (the tab's datasets following, the pills one window) and *Load everything to today*
 end to end (every line ending today, the recent laps looked at again, no file downloaded) - the latter had only been
 walked from the store.
+
+**One athlete at a time on the Data tab (patch 0246, page and app).** With the first athlete's data on the Data tab,
+*Load everything* for the second let the first's frame go but left their file pills, and the second's came in
+beside them (7 → 14). The Data tab belongs to one athlete: any load from the cache dialog for one athlete first takes
+every pill of the other athletes off - the frame's and the files', through their removers - after one question
+(`intervalsOtherAthletePills` in intervals.js names them by the athlete's folder in the file path); the Intervals.icu
+dialog's completion takes the others' file pills off too (`intervalsOneAthlete`); and the app's completion drops the
+other athletes' window files from the session (`_other_athletes_file`), so the page and the session agree. A
+routine's run already cleared the tab before its load. Found on the way: a second load from the open Intervals.icu
+dialog added a second frame pill beside the first; `createIntervalsPill` now removes the earlier window's pill - one
+frame on the page - and a frame pill an earlier load left behind goes with the other athletes' pills. The walk: Load everything for the other subject with the
+first's data on the tab - one question, the first's pills all gone, the other's in alone, the first's old file no
+longer in the session, the dialog's words saying which athlete is on the tab.

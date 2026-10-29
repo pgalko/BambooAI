@@ -229,6 +229,15 @@ window.DatasetManager = (function() {
         const from = span.from, to = online ? localDay() : span.to;
         const kinds = kindsOf(subject, feed), withFrame = withFrameOf(subject, feed);
         const what = feed ? FEED_NAMES[feed] : 'everything';
+        // one athlete at a time on the Data tab (2026-10-29): another athlete's pills - the frame's and the files' - go first, after asking
+        const others = typeof intervalsOtherAthletePills === 'function' ? intervalsOtherAthletePills(folder) : [];
+        if (others.length) {
+            if (!confirm("The Data tab holds another athlete's data. Let it go and load " + (subject.name || subject.id) + "'s " + what + '?')) return;
+            for (const p of others) {
+                if (p.dataset.datasetType === 'intervals' && p.id !== (window.Intervals && window.Intervals.state.pillId)) { p.remove(); continue; }    // a frame pill an earlier load left behind: the page's alone
+                if (typeof removeDatasetPill === 'function') await removeDatasetPill(p, null, true); else p.remove();
+            }
+        }
         if (withFrame && window.Intervals && window.Intervals.state.isLoaded && window.Intervals.state.pillId) {
             if (!confirm('The Data tab holds a window from Intervals.icu. Let it go and load ' + from + ' → ' + to + '?')) return;
             const pill = document.getElementById(window.Intervals.state.pillId);

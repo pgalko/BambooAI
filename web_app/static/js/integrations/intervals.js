@@ -107,6 +107,9 @@ function contextReportLine(report) {
 if (typeof module !== 'undefined' && module.exports) module.exports.contextReportLine = contextReportLine;
 
 function createIntervalsPill(dataInfo) {
+    // one frame on the page: the pill of an earlier window goes when a new one lands (2026-10-29: a second load from the open dialog
+    // used to add a second frame pill beside the first)
+    if (currentIntervalsState.pillId) { const old = document.getElementById(currentIntervalsState.pillId); if (old) old.remove(); }
     const pillId = 'intervals-pill-' + Date.now();
     const dayCount = Math.ceil((new Date(dataInfo.end_date) - new Date(dataInfo.start_date)) / (1000 * 60 * 60 * 24));
     const auxDatasets = dataInfo.aux_datasets || [];
@@ -292,7 +295,34 @@ function pollContextCoding(jobId, dataInfo, onDone) {
     };
     setTimeout(tick, 2000);
 }
-if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, contextPillProposals, contextPillProposalsText, contextCodebookOpen, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, showIntervalsStoreLine }); }
+if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, contextPillProposals, contextPillProposalsText, contextCodebookOpen, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, showIntervalsStoreLine, intervalsOtherAthletePills, intervalsOneAthlete }); }
+
+// One athlete at a time on the Data tab (2026-10-29, the product owner: another athlete's Load everything added its pills to the
+// first's). The file pills of the other athletes - a path under datasets/<user>/intervals/<id>/views/ names the athlete - and the
+// frame pill when it is another athlete's: `intervalsOtherAthletePills` lists them; `intervalsOneAthlete` takes the file pills off
+// without a call (the app drops their files when the load completes) and returns how many went.
+function intervalsOtherAthletePills(folder) {
+    const out = [];
+    const st = currentIntervalsState;
+    const mine = st.isLoaded && st.pillId && st.dataInfo && st.dataInfo.folder === folder ? st.pillId : '';
+    document.querySelectorAll('#datasetStatusPillsContainer .dataset-status-pill[data-dataset-type="intervals"]').forEach(p => { if (p.id !== mine) out.push(p); });    // every frame pill but this athlete's own
+    document.querySelectorAll('#datasetStatusPillsContainer .auxiliary-dataset-pill').forEach(p => {
+        const m = String(p.dataset.identifier || '').replace(/\\/g, '/').match(/\/(intervals\/[^/]+)\/views\//);
+        if (m && m[1] !== folder) out.push(p);
+    });
+    return out;
+}
+function intervalsOneAthlete(folder) {
+    if (!folder) return 0;
+    let gone = 0;
+    intervalsOtherAthletePills(folder).forEach(p => {
+        if (p.id === 'contextPill') { contextPillClear(); gone += 1; return; }
+        if (p.id === currentIntervalsState.pillId) return;           // the frame is let go through its own route before a load
+        p.remove(); gone += 1;
+    });
+    if (gone && typeof window.auxiliaryDatasetCount !== 'undefined') window.auxiliaryDatasetCount = Math.max(0, (window.auxiliaryDatasetCount || 0) - gone);
+    return gone;
+}
 
 function removeIntervalsPill() {
     if (currentIntervalsState.pillId) {
@@ -499,6 +529,7 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                     folder: (job.result && job.result.subject && job.result.subject.folder) || ''      // whose window (2026-10-29): the Dataset cache dialog's dots read it
                 };
                 createIntervalsPill(dataInfo);
+                intervalsOneAthlete(dataInfo.folder);              // another athlete's file pills left behind go (the app drops their files)
 
                 const coding = job.result && job.result.context && job.result.context.coding;
                 if (job.result && job.result.aux_datasets && job.result.aux_datasets.length > 0) {

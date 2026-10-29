@@ -317,7 +317,7 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   datasets plus the frame, each with its columns and a dot for what is on the Data tab; one dataset can be loaded
   alone (`with_frame` off); Forget is off the Data tab and out of the cache; each line says in words whether it is
   on the Data tab; a line's span is the window its loads covered, on the record; earlier loads are deleted on the
-  executor's first start (0242-0245, v73). **Executor build v73**: the image is rebuilt with this ship.
+  executor's first start; one athlete at a time on the Data tab (0242-0246, v73). **Executor build v73**: the image is rebuilt with this ship.
 - **Status 2026-10-28: 2.6.1.** A first address refused no longer marks a connection that then answered (on a box
   without an IPv6 route every dual-stack host would have read as "no connection" under a download that worked); the
   executor suite's checks hold on the public CI's runner - patch 0235. **Executor build v66**: the image is rebuilt

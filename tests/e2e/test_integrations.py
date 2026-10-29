@@ -838,17 +838,51 @@ def main():
             check("the caret folds the athlete (its lines gone, the other's stay) and unfolds it again; the filter box narrows the tree to the name typed",
                   [x for x in folded if x["name"] == "The other subject"][0]["open"] is False and [x for x in folded if x["name"] == "The other subject"][0]["feeds"] == 0 and [x for x in folded if x["name"] == "The subject"][0]["open"] is True
                   and unfolded == [True, True] and narrowed == ["The other subject"], (folded, unfolded, narrowed))
-            # Forget everything on the other subject (confirmed): its folder goes whole from the cache, the first subject stands
+            # one athlete at a time on the Data tab (2026-10-29): Load everything for the other subject, with the first subject's data on the
+            # tab, asks once and lets the first's pills go - the frame's and the files' - so the other's come in alone
             page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].find(e => /The other subject/.test(e.textContent)).querySelector('.ds-subj-head .ds-subj-name').click()")
             page.wait_for_function("() => /The other subject/.test(document.getElementById('datasetDetails').textContent) && !!document.querySelector('#datasetDetails [data-act=\"forget\"]')", timeout=10000)
             other_forget = page.evaluate("() => ({ disabled: document.querySelector('#datasetDetails [data-act=\"forget\"]').disabled, hint: document.querySelector('#datasetDetails [data-act=\"forget\"] + .hint').textContent, tab: document.getElementById('datasetDetails').textContent.includes('nothing of this athlete') })")
             check("the other athlete's details: nothing of theirs on the Data tab; Forget everything is on all the same (the cache holds them) and says the athlete leaves the cache", other_forget["disabled"] is False and "out of the cache" in other_forget["hint"] and other_forget["tab"], other_forget)
+            pills_before_sw = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim())")
+            questions = []
+            page.once("dialog", lambda d: (questions.append(d.message), d.accept()))
+            page.click("#datasetDetails [data-act='load']")
+            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
+            page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
+            sw = page.evaluate("() => ({ ids: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || ''), texts: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.replace(/\\s+/g, ' ').trim()), folder: (window.Intervals.state.dataInfo || {}).folder })")
+            old_first = next(x for x in pills_before_sw if "/intervals/i0/views/" in str(x))
+            probe_sw = fetch_json(page, "/remove_auxiliary_dataset", {"file_path": old_first})       # a file no longer in the session's list is 404 here
+            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length >= 2", timeout=15000)
+            words_sw = page.evaluate("() => Object.fromEntries([...document.querySelectorAll('#datasetTree .ds-subj')].map(e => [e.querySelector('.ds-subj-name').textContent, [...e.querySelectorAll('.ds-feed-state')].map(s => s.textContent)]))")
+            check("Load everything for the other subject while the first's data is on the Data tab: one question (another athlete's data), then the first's pills all gone - the frame's and the files' - and the other's in alone: the frame pill with the other's folder, each of its files once, nothing of the first under the pills nor in the session's files; in the dialog every line of the other reads 'on the Data tab', every line of the first 'in the store only'",
+                  len(questions) == 1 and "another athlete's data" in questions[0] and any("/intervals/i0/views/" in str(x) for x in pills_before_sw)
+                  and sw["folder"] == "intervals/i1" and not any("/intervals/i0/views/" in i_ for i_ in sw["ids"]) and sum(1 for i_ in sw["ids"] if "/intervals/i1/views/" in i_) >= 3 and sum(1 for p_ in sw["texts"] if p_.startswith("Intervals ICU (")) == 1
+                  and probe_sw["status"] == 404
+                  and set(words_sw.get("The other subject", [])) == {"on the Data tab"} and set(words_sw.get("The subject", [])) == {"in the store only"}, (questions, sw, words_sw, probe_sw))
+            # Forget everything on the other subject (confirmed): its pills off the tab and its folder gone from the cache; the first subject stands
+            page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].find(e => /The other subject/.test(e.textContent)).querySelector('.ds-subj-head .ds-subj-name').click()")
+            page.wait_for_function("() => /The other subject/.test(document.getElementById('datasetDetails').textContent) && !!document.querySelector('#datasetDetails [data-act=\"forget\"]')", timeout=10000)
             page.once("dialog", lambda d: d.accept())
             page.click("#datasetDetails [data-act='forget']")
-            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
-            check("Forget everything in the athlete's details (confirmed) drops everything held for the other subject - the folder with its store and files - and the first subject stands with its store; the details pane is cleared",
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1 && document.querySelectorAll('.dataset-status-pill').length === 0", timeout=15000)
+            check("Forget everything in the athlete's details (confirmed) takes the other subject's pills off the Data tab and drops everything held for them - the folder with its store and files - and the first subject stands with its store; the details pane is cleared",
                   not os.path.exists(exec_ds2) and os.path.isdir(os.path.join(exec_ds, "store")) and len(json.load(open(os.path.join(exec_ds, "store", "activities.json")))) == 101
                   and page.evaluate("() => document.querySelector('#datasetTree .ds-subj .ds-subj-name').textContent") == "The subject" and not page.evaluate("() => !!document.querySelector('#datasetDetails [data-act]')"), (os.path.exists(exec_ds2), sorted(os.listdir(os.path.join(workdir, "executor", "datasets", USER, "intervals")))))
+            # the first subject's original window back on the Data tab as it was, through the Intervals.icu dialog (nothing loaded now, so it opens)
+            page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
+            page.evaluate("showIntervalsModal()")
+            page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            set_window(page, a_start, a_end)
+            page.evaluate("() => ['summary-checkbox', 'intervals-checkbox', 'wellness-checkbox', 'context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
+            page.click("#connectIntervals")
+            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
+            page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
+            page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
+            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
             # Load to today from the details while the Data tab holds a window: asked whether to let it go; declined, nothing moves
             page.click("#datasetTree .ds-subj-head .ds-subj-name")
             page.wait_for_selector("#datasetDetails [data-act='today']", timeout=10000)

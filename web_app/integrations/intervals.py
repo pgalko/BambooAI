@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 import json
+import re
 from datetime import datetime
 from flask import Blueprint, request, jsonify, session
 from auth import requires_auth, get_current_user_id
@@ -298,6 +299,9 @@ def get_job_status(job_id):
             new_files = list(result.get('aux_datasets') or [])
             if kinds or new_files:
                 prefs['auxiliary_datasets'] = [p for p in (prefs.get('auxiliary_datasets') or []) if aux_kind(p) not in owned and p not in new_files] + new_files
+            mine = str((result.get('subject') or {}).get('folder') or '')
+            if mine:                                             # one athlete at a time on the Data tab (2026-10-29): the others' files go
+                prefs['auxiliary_datasets'] = [p for p in (prefs.get('auxiliary_datasets') or []) if not _other_athletes_file(p, mine)]
             if result.get('frame') is False:
                 # one dataset alone (the dialog's Load <dataset>): the frame and its load record stay; the kinds loaded join the record
                 intervals_bp.user_preferences[session_id] = prefs
@@ -368,6 +372,13 @@ def get_job_status(job_id):
     except Exception as e:
         intervals_bp.logger.error(f'Error getting job status: {str(e)}')
         return jsonify({'status': 'error', 'error': str(e)}), 500
+
+def _other_athletes_file(path, folder):
+    """Whether a session file is a window file of another athlete than `folder` (<source>/<id>): the loader writes them
+    under datasets/<user>/<source>/<id>/views/ (2026-10-29: one athlete at a time on the Data tab)."""
+    m = re.search(r'/((?:intervals|endura|sweatstack)/[^/]+)/views/', str(path or '').replace('\\', '/'))
+    return bool(m and m.group(1) != folder)
+
 
 def _coding_states():
     jobs = getattr(intervals_bp, 'context_coding', None)
