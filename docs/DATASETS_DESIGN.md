@@ -261,15 +261,27 @@ tree is composed by `cache_tree` in `intervals_store.py` from the lists the rout
 The dialog (`dataset-manager.js`) draws it as the first look asked: an athlete's block that the caret folds and
 unfolds; **a click on the athlete's line or on a dataset's line opens its details on the right**, where the actions
 are, as the files' Load and Remove always were. The athlete's details carry the name and id, held since, the last
-load, the size, how many keys have loaded them, the table of datasets held, and **Load** (the span held, with the
-datasets held, straight from the store onto the Data tab - the same job the Intervals.icu dialog starts, no dialog;
-the store serves what it holds and only what the window lacks is downloaded; a window loaded now is let go first,
-after asking, with its file pills), **Load to today** (the same with the end at today) and **Forget**. A dataset's
-details carry its span, count, size, last use, what a load writes from it (the file names), its columns or
-categories, and **Forget**. Uploads and Generated keep their groups; the frames of Endura, SweatStack and uploads
-open the details with Load and Remove as before. The filter box shows only with more than one athlete. No window
-file is listed, and nothing is called *in memory*: an Intervals.icu window is a view of the store, assembled in
-seconds.
+load, the size, how many keys have loaded them and the table of datasets held; a dataset's details its span, count,
+size, last use, what a load writes from it (the file names) and its columns or categories. Every details pane
+carries the same three actions - **Load**, **Load to today** and **Forget** (the athlete's or the dataset's):
+
+- **Load** brings the span held onto the Data tab **from the store alone**: nothing is fetched. The executor
+  (`from_store` on the request, the athlete's `folder`) makes the window from what the store holds - the activity
+  list's entries it kept from every online load (`entries.json`, by id with the day), the files, the laps, the
+  chats, the wellness log, the calendar, the newest profile, the coaches the record kept - with the datasets of the
+  last load (the record's `kinds`). A span the store has no entries for (held from before the entries were kept)
+  takes one call for the list, said on the completion line; a span whose files the store does not hold is refused
+  with a sentence pointing to the Intervals.icu dialog. The completion line says *all n activities from the store,
+  nothing fetched*.
+- **Load to today** goes through Intervals.icu for the same span extended to today: the store serves what it holds,
+  the missing days come down, the wellness log and the calendar are fetched afresh and merged, recent chats and laps
+  looked at again - the load the Intervals.icu dialog would make for that window.
+- A window loaded now is let go first, after asking, with its file pills; the job's progress shows in the pane; the
+  dialog closes by itself; the Data tab shows the window and its pills as any load's.
+
+Uploads and Generated keep their groups; the frames of Endura, SweatStack and uploads open the details with Load and
+Remove as before. The filter box shows only with more than one athlete. No window file is listed, and nothing is
+called *in memory*: an Intervals.icu window is a view of the store, assembled in seconds.
 
 `/cache/forget` (the executor, proxied by the app) drops a dataset - the laps alone, a feed's records, the profile's
 snapshots, the activities with their chats and laps - or the athlete's folder whole, and the athlete's frames in
@@ -277,9 +289,10 @@ memory with the activities or the folder; the page lets go of the Data tab's fra
 
 **Earlier loads.** A mark folder from before the athlete was known whose store holds an activity the athlete's
 store holds too is the athlete's own earlier loads (an activity id is the platform's, one per activity): it is
-absorbed into the athlete's folder at the end of the next load (`absorb_mark_folders`), so nothing is listed twice
-and nothing is downloaded again. Only a mark folder with nothing in common stays, listed as *earlier loads · key
-…xxxx* with Forget in its details.
+absorbed into the athlete's folder at the end of the next online load (`absorb_mark_folders`), so nothing is listed
+twice and nothing is downloaded again. A mark folder with nothing in common is another athlete's (or another
+account's), loaded under a key that is not the one in use: it stays listed as *earlier loads · key …xxxx*, its
+details saying so, with Forget; a load with that key files it under its athlete.
 
 **Retention per athlete** was already the store's rule across the feeds (step 2); step 3 adds the views' age: a
 window file not written within thirty days leaves at the end of the athlete's next load. Where this differs from
@@ -288,7 +301,11 @@ keeps its results and its generated files, so neither refers to a window file af
 
 **A dataset that gave no file says why.** A load asked for a dataset that produced no file (the call failed, the
 window has nothing of it) puts a sentence on the result (`warnings`), and the dialog's completion line reads *Not
-written: …*; a failed wellness or calendar call leaves what the store holds of the window to stand and says so.
+written: …* and stays until the dialog is closed; a failed wellness or calendar call leaves what the store holds of
+the window to stand and says so. The small calls - the profile, the activity list, the wellness log, the calendar -
+wait out a rate limit (429, `Retry-After` honoured) or a passing server fault and try again, twice
+(`get_with_retry`): a live load with every dataset had lost its wellness file right after a thousand calls for the
+files, laps and chats.
 
 Not in this step: Endura's athletes (an Endura load is one race under the user, as before), the *Extend* action for a
 dataset that takes no window (the profile).

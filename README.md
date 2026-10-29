@@ -667,10 +667,10 @@ The executor keeps what it has loaded - the frames with their window and metrics
 writes, the datasets an analysis writes with `DS.save` - and the **Dataset cache** dialog (the rail)
 draws it as a tree: the source, the athlete under it, and under the athlete each dataset held -
 activities, activity intervals, wellness, calendar, the context's chats, the rider profile - with its
-span, its count and its size. A click on a line opens its details: an athlete's offer **Load** (the
-span held, straight from the store onto the Data tab), **Load to today** (only the missing days come
-down) and **Forget**; a dataset's say what it holds and what a load writes from it. Uploads and
-generated files keep their own groups. A routine whose window
+span, its count and its size. A click on a line opens its details and the actions: **Load** (the span
+held, from the store alone - nothing is fetched), **Load to today** (through Intervals.icu, only the
+missing days come down) and **Forget**; a dataset's details say what it holds and what a load writes
+from it. Uploads and generated files keep their own groups. A routine whose window
 lies inside a load the executor still holds runs from the cache without a download.
 
 Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the

@@ -33,7 +33,8 @@ LAPS_FRESH_DAYS = 60           # the laps too: their labels, RPE and lactate are
 RETENTION_DAYS = 400           # activities started earlier than this many days ago leave the store when a load ends...
 USED_DAYS = 30                 # ...unless a load served them within this many days (a routine over an old window keeps its data)
 ENGINE_WHEN_NO_PARQUET = "pickle"
-FEEDS = ("wellness", "events")   # the feeds kept by day or by entry in one file each (<feed>.json)
+FEEDS = ("wellness", "events", "entries")   # the feeds kept by day or by entry in one file each (<feed>.json): the wellness log, the
+                                             # calendar, and the activity list's entries (2026-10-29: what a load from the store alone starts from)
 
 
 def _have_parquet() -> bool:
@@ -358,7 +359,7 @@ class Store:
         feeds = {}
         for name in FEEDS:
             if os.path.isfile(os.path.join(self.dir, f"{name}.json")) or name in self._feeds:
-                feeds[name] = dict(self.feed(name).span(), bytes=parts.get(name, 0), last_used=self.feed(name).last_used(), **self.feed(name).facts())
+                feeds[name] = dict(self.feed(name).span(), bytes=parts.get(name, 0), last_used=self.feed(name).last_used(), **(self.feed(name).facts() if name != "entries" else {}))
         pdays = self.profile_days()
         used = [float(r.get("used") or 0) for r in m.values() if r.get("used")]
         return {"activities": sum(1 for r in m.values() if r.get("file")), "chats": sum(1 for r in m.values() if r.get("messages_fetched")),
@@ -526,6 +527,19 @@ def remember_athlete(user_dir: str, rel: str, source: str, athlete_id: str, name
     if kinds is not None:
         rec["kinds"] = [str(k) for k in kinds]
     os.makedirs(os.path.join(user_dir, rel), exist_ok=True)
+    tmp = os.path.join(user_dir, rel, ATHLETE_RECORD + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(rec, fh, indent=1)
+    os.replace(tmp, os.path.join(user_dir, rel, ATHLETE_RECORD))
+    return rec
+
+
+def update_record(user_dir: str, rel: str, **fields) -> dict:
+    """Put fields on the athlete's record (the coaches' ids a load learnt, say); nothing else changes."""
+    rec = athlete_record(user_dir, rel)
+    if not rec:
+        return rec
+    rec.update(fields)
     tmp = os.path.join(user_dir, rel, ATHLETE_RECORD + ".tmp")
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(rec, fh, indent=1)

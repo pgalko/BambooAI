@@ -43,6 +43,7 @@ function storeLine(st) {
     if (!st || !st.window) return '';
     const n = st.window, held = st.held || 0, word = n === 1 ? 'activity' : 'activities';
     const laps = st.laps && st.laps.window ? (st.laps.held === st.laps.window ? '; every lap from the store' : st.laps.held ? '; laps: ' + st.laps.held + ' of ' + st.laps.window + ' from the store' : '') : '';
+    if (st.offline) return (held === n ? 'all ' + n + ' ' + word : held + ' of ' + n + ' ' + word) + ' from the store, nothing fetched';     // the Dataset cache dialog's Load (2026-10-29)
     if (st.refresh) return n + ' ' + word + ' fetched again';
     if (!held) return n + ' ' + word + ' downloaded' + laps;
     if (held === n) return 'all ' + n + ' ' + word + ' from the store, nothing downloaded' + laps;

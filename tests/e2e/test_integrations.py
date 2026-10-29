@@ -144,8 +144,8 @@ def main():
             page.wait_for_function("() => /A load writes/.test(document.getElementById('datasetDetails').textContent)", timeout=10000)
             fdet = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), acts: [...document.querySelectorAll('#datasetDetails [data-act]')].map(b => b.dataset.act), cols: [...document.querySelectorAll('#datasetDetails .column-chip')].map(c => c.textContent) })")
             n_well_a = sum(1 for d_ in apis_data.days_in(a_start.isoformat(), a_end.isoformat()) if apis_data.has_wellness(d_))
-            check("a dataset's line opens its details: the span, the days held, the size, what a load writes from it (wellness_data_<window>.csv), its columns as the file names them, and Forget",
-                  "Wellness" in fdet["text"] and f"{n_well_a} days" in fdet["text"] and "wellness_data_<window>.csv" in fdet["text"] and fdet["acts"] == ["forget"] and "date" in fdet["cols"] and "weight" in fdet["cols"] and "id" not in fdet["cols"], (fdet, n_well_a))
+            check("a dataset's line opens its details: the span, the days held, the size, what a load writes from it (wellness_data_<window>.csv), its columns as the file names them, the Load buttons as on the athlete's, and Forget for the dataset alone",
+                  "Wellness" in fdet["text"] and f"{n_well_a} days" in fdet["text"] and "wellness_data_<window>.csv" in fdet["text"] and fdet["acts"] == ["load", "today", "forget"] and "Forget Wellness" in fdet["text"] and "date" in fdet["cols"] and "weight" in fdet["cols"] and "id" not in fdet["cols"], (fdet, n_well_a))
             page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
 
             page.fill("#queryInput", mod.QUESTIONS[0])
@@ -982,7 +982,7 @@ def main():
             page.click("#datasetTree .ds-subj-head .ds-subj-name")
             page.wait_for_selector("#datasetDetails [data-act='load']", timeout=10000)
             det_end = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), from: document.querySelector('#datasetDetails [data-act=\"load\"]').dataset.from, to: document.querySelector('#datasetDetails [data-act=\"load\"]').dataset.to })")
-            fits_before_cl, msgs_before_cl = calls_of(st, "fit-file"), calls_of(st, "/messages")
+            calls_before_cl = calls_of(st, "/api/v1/")
             was_loaded = page.evaluate("() => !!(window.Intervals && window.Intervals.state.isLoaded)")
             page.once("dialog", lambda d: d.accept())
             page.click("#datasetDetails [data-act='load']")
@@ -991,11 +991,24 @@ def main():
             page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             pills_cl = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.replace(/\\s+/g, ' ').trim())")
-            check("Load from the cache dialog: the span held (the athlete's activities, " + f"{a_start.isoformat()} → {today.isoformat()}" + ") with the datasets of the last load, straight from the store - no FIT file and no chat fetched, the status line in the dialog says every activity came from the store, the dialog closes by itself - the window loaded before let go on asking, and the Data tab showing the window with each file's pill once",
+            check("Load from the cache dialog: the span held (the athlete's activities, " + f"{a_start.isoformat()} → {today.isoformat()}" + ") with the datasets of the last load, from the store alone - not one call to Intervals.icu, the status line says every activity came from the store and nothing was fetched, the dialog closes by itself - the window loaded before let go on asking, and the Data tab showing the window with each file's pill once",
                   det_end["from"] == a_start.isoformat() and det_end["to"] == today.isoformat() and "the datasets of the last load" in det_end["text"] and was_loaded
-                  and calls_of(st, "fit-file") == fits_before_cl and calls_of(st, "/messages") == msgs_before_cl and "from the store" in status_cl and "downloaded" not in status_cl.replace("nothing downloaded", "")
+                  and calls_of(st, "/api/v1/") == calls_before_cl and "from the store, nothing fetched" in status_cl
                   and sum(1 for p_ in pills_cl if p_.startswith("Intervals ICU (")) == 1 and sum(1 for p_ in pills_cl if "Activity Summary" in p_) == 1 and sum(1 for p_ in pills_cl if "Wellness" in p_) == 1 and sum(1 for p_ in pills_cl if "Context (" in p_) == 1,
-                  (det_end, status_cl, pills_cl, calls_of(st, "fit-file") - fits_before_cl, calls_of(st, "/messages") - msgs_before_cl))
+                  (det_end, status_cl, pills_cl, calls_of(st, "/api/v1/") - calls_before_cl))
+            # Load to today goes through Intervals.icu for what the span lacks: here the span already ends today, so the store serves it all
+            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
+            page.click("#datasetTree .ds-feed[data-feed='wellness']")
+            page.wait_for_selector("#datasetDetails [data-act='today']", timeout=10000)
+            fits_before_td = calls_of(st, "fit-file")
+            page.once("dialog", lambda d: d.accept())
+            page.click("#datasetDetails [data-act='today']")
+            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            status_td = page.inner_text("#dsLoadStatus")
+            page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
+            check("Load to today from a dataset's details (the buttons are on every details pane): through Intervals.icu, the store serving every activity - no FIT file fetched - the wellness log fetched afresh and merged, the status line saying so",
+                  calls_of(st, "fit-file") == fits_before_td and "all 101 activities from the store, nothing downloaded" in status_td, (status_td, calls_of(st, "fit-file") - fits_before_td))
             errs = page.evaluate("window.__stackErrors || []")
             b.close()
         apis = __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"]

@@ -101,8 +101,8 @@ window.DatasetManager = (function() {
             const b = e.target.closest('#datasetDetails [data-act]');
             if (!b) return;
             const d = b.dataset;
-            if (d.act === 'load') startLoad(d.folder, d.from, d.to, false);
-            else if (d.act === 'today') startLoad(d.folder, d.from, localDay(), true);
+            if (d.act === 'load') startLoad(d.folder, d.from, d.to, false);              // from the store alone
+            else if (d.act === 'today') startLoad(d.folder, d.from, localDay(), true);  // through Intervals.icu: the missing days come down
             else if (d.act === 'forget') forgetFromCache(d.folder, d.feed, d.name);
         });
     }
@@ -152,11 +152,13 @@ window.DatasetManager = (function() {
         return kinds;
     }
 
-    // Load / Load to today (docs/DATASETS_DESIGN.md §1, as the product owner asked on 2026-10-29): the window is loaded straight
-    // from the store - the same job the Intervals.icu dialog starts, with the span held and the datasets held, no dialog; the
-    // store serves what it holds and only what the window lacks is downloaded. A window loaded now is let go first, as its
-    // pill's × does, after asking. The job's progress shows in the details pane; the pills appear on the Data tab as always.
-    async function startLoad(folder, from, to, toToday) {
+    // Load / Load to today (docs/DATASETS_DESIGN.md §1, as the product owner asked on 2026-10-29). Load brings the span held
+    // onto the Data tab from the store alone - nothing is fetched: the activity list, the files, the laps, the chats, the
+    // wellness log, the calendar and the profile all come from what the store holds. Load to today goes through Intervals.icu
+    // for the same span extended to today: the store serves what it holds and only what is missing comes down. Both are the
+    // job the Intervals.icu dialog starts, with the datasets of the last load, no dialog. A window loaded now is let go first,
+    // as its pill's × does, after asking. The job's progress shows in the details pane; the pills appear on the Data tab.
+    async function startLoad(folder, from, to, online) {
         const subject = subjectOf(folder);
         if (!subject || !from || !to) return;
         if (window.Intervals && window.Intervals.state.isLoaded && window.Intervals.state.pillId) {
@@ -176,10 +178,10 @@ window.DatasetManager = (function() {
         const status = document.getElementById('dsLoadStatus');
         const buttons = document.querySelectorAll('#datasetDetails [data-act]');
         buttons.forEach(b => { b.disabled = true; });
-        if (status) { status.style.display = ''; status.className = 'ds-load-status loading'; status.textContent = 'Starting the load of ' + from + ' → ' + to + '…'; }
+        if (status) { status.style.display = ''; status.className = 'ds-load-status loading'; status.textContent = (online ? 'Loading ' + from + ' → ' + to + ' - the store serves what it holds, the rest comes from Intervals.icu…' : 'Loading ' + from + ' → ' + to + ' from the store…'); }
         try {
             const response = await window.authService.fetch('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start_date: from, end_date: to, metrics: [], aux_datasets: kinds, refresh: false }) });
+                body: JSON.stringify({ start_date: from, end_date: to, metrics: [], aux_datasets: kinds, refresh: false, from_store: !online, folder: folder }) });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
             if (typeof pollIntervalsJob !== 'function') throw new Error('the Intervals.icu module is not on the page');
@@ -225,6 +227,7 @@ window.DatasetManager = (function() {
 
     // the feeds, named as the load dialog names its datasets (2026-10-29: the lines must read as what was asked for)
     const FEED_NAMES = { activities: 'Activities', laps: 'Activity intervals', wellness: 'Wellness', events: 'Calendar', chats: 'Context · chats', profile: 'Rider profile' };
+    const notHidden = f => !/^\./.test(String((f && f.filename) || ''));      // a dotfile (.DS_Store) is the system's, not an upload
     const FEED_HINTS = { activities: 'The second-by-second rows of every activity, every metric the file had. The frame and the activity summary file are made from them.',
                          laps: 'The laps of every activity, as Intervals.icu detected them (the Activity intervals dataset). Settled activities are served from here; recent ones are fetched again.',
                          wellness: 'The daily log, a row per day (the Wellness dataset). The window\'s days come down each load and are merged, so the span held grows.',
@@ -471,7 +474,7 @@ window.DatasetManager = (function() {
             root.appendChild(g);
         });
         const up = tree.uploads || { frames: [], files: [] };
-        const upFrames = (up.frames || []).filter(f => matches(q, f.original_filename, f.source)), upFiles = (up.files || []).filter(f => matches(q, f.filename));
+        const upFrames = (up.frames || []).filter(f => matches(q, f.original_filename, f.source)), upFiles = (up.files || []).filter(f => notHidden(f) && matches(q, f.filename));
         const ug = group('Uploads', (!upFrames.length && !upFiles.length) ? (q ? 'nothing matches' : 'no uploaded datasets') : '');
         upFrames.forEach(f => ug.appendChild(frameLine(f)));
         upFiles.forEach(f => ug.appendChild(fileLine(f)));
@@ -479,6 +482,18 @@ window.DatasetManager = (function() {
     }
 
     // ---- the details of an athlete and of a feed (the right pane; the actions live here, as the files' Load and Remove do) ----
+    function loadButtons(subject) {
+        const acts = (subject.feeds || []).find(f => f.feed === 'activities');
+        if (!acts) return '';
+        return `<button class="dataset-action-btn dataset-load-btn" data-act="load" data-folder="${esc(subject.folder)}" data-from="${esc(acts.from)}" data-to="${esc(acts.to)}" title="Load ${esc(acts.from)} → ${esc(acts.to)} from the store alone: nothing is fetched">Load</button>
+            <button class="dataset-action-btn dataset-load-btn" data-act="today" data-folder="${esc(subject.folder)}" data-from="${esc(acts.from)}" data-to="${esc(acts.to)}" title="Load ${esc(acts.from)} → today through Intervals.icu: the store serves what it holds, only the missing days come down">Load to today</button>`;
+    }
+    function loadNote(subject) {
+        const acts = (subject.feeds || []).find(f => f.feed === 'activities');
+        if (!acts) return 'No activities held yet: load from the Intervals.icu dialog first.';
+        return 'Load brings ' + esc(acts.from) + ' → ' + esc(acts.to) + ' onto the Data tab from the store alone - nothing is fetched - with the datasets of the last load (' + esc(loadKinds(subject).join(', ')) + '). Load to today goes through Intervals.icu for the same span extended to today: the store serves what it holds and only what is missing comes down. For another window or other datasets, use the Intervals.icu dialog.';
+    }
+
     function showSubjectDetails(folder) {
         const panel = document.getElementById('datasetDetails');
         const tree = currentDatasets.tree || {};
@@ -491,12 +506,10 @@ window.DatasetManager = (function() {
             panel.innerHTML = `<div class="dataset-details-content"><div class="dataset-info-section"><h3>Earlier loads</h3><div class="dataset-metadata">` +
                 `<span class="metadata-label">Key:</span><span class="metadata-value">…${esc(key.slice(-4))} (a key from before the athlete was known)</span>` +
                 (legacy.store ? `<span class="metadata-label">Store:</span><span class="metadata-value">${esc(legacy.store.activities || 0)} activities · ${mb(null, Number(legacy.store.size_mb || 0))}</span>` : '') +
-                `</div><p class="ds-note">Loads made under this key before the athlete was known. When a load of a known athlete holds one of these activities, the folder is absorbed into theirs; otherwise it stays here until forgotten.</p></div></div>` +
+                `</div><p class="ds-note">Loaded under a key that is not the one in use, before the athlete was known. None of these activities is among the athlete's above, so they are another athlete's (or another account's): load with that key to file them under their athlete, or forget them.</p></div></div>` +
                 `<div class="dataset-actions"><button class="dataset-action-btn dataset-remove-btn" data-act="forget" data-folder="${esc(key)}" data-feed="" data-name="key …${esc(key.slice(-4))}">Forget</button></div>`;
             return;
         }
-        const acts = (subject.feeds || []).find(f => f.feed === 'activities');
-        const kinds = loadKinds(subject);
         const rows = (subject.feeds || []).map(f => `<tr><td>${esc(FEED_NAMES[f.feed] || f.feed)}</td><td>${span(f)}</td><td>${esc(count(Object.assign({}, f, { rows: 0 })))}</td><td class="num">${mb(f.bytes)}</td></tr>`).join('');
         panel.innerHTML = `<div class="dataset-details-content">
             <div class="dataset-info-section"><h3>Athlete</h3><div class="dataset-metadata">
@@ -508,13 +521,12 @@ window.DatasetManager = (function() {
                 <span class="metadata-label">Loaded by:</span><span class="metadata-value">${(subject.marks || []).length === 1 ? '1 API key' : (subject.marks || []).length + ' API keys'}</span>
             </div></div>
             <div class="dataset-info-section dataset-info-columns"><h3>Held</h3><div class="dataset-columns"><table class="dataset-preview-table ds-feeds"><thead><tr><th>Dataset</th><th>Span</th><th>Held</th><th>Size</th></tr></thead><tbody>${rows}</tbody></table>
-                <p class="ds-note">${acts ? 'Load brings the span held, ' + esc(acts.from) + ' → ' + esc(acts.to) + ', onto the Data tab with the datasets of the last load (' + esc(kinds.join(', ')) + '): the store serves what it holds and only what the window lacks is downloaded. Load to today extends the span to today. For another window or other datasets, use the Intervals.icu dialog.' : 'No activities held yet.'}</p>
+                <p class="ds-note">${loadNote(subject)}</p>
             </div></div>
             <div id="dsLoadStatus" class="ds-load-status" style="display:none"></div>
         </div>
         <div class="dataset-actions">
-            ${acts ? `<button class="dataset-action-btn dataset-load-btn" data-act="load" data-folder="${esc(folder)}" data-from="${esc(acts.from)}" data-to="${esc(acts.to)}" title="Load ${esc(acts.from)} → ${esc(acts.to)} from the store">Load</button>
-            <button class="dataset-action-btn dataset-load-btn" data-act="today" data-folder="${esc(folder)}" data-from="${esc(acts.from)}" data-to="${esc(acts.to)}" title="Load ${esc(acts.from)} → today: only the missing days are fetched">Load to today</button>` : ''}
+            ${loadButtons(subject)}
             <button class="dataset-action-btn dataset-remove-btn" data-act="forget" data-folder="${esc(folder)}" data-feed="" data-name="${esc(subject.name || subject.id)}" title="Drop everything held for this athlete: the store and the window files">Forget</button>
         </div>`;
     }
@@ -535,11 +547,13 @@ window.DatasetManager = (function() {
                 ${f.last_used ? `<span class="metadata-label">Last used:</span><span class="metadata-value">${esc(ago(f.last_used))}</span>` : ''}
                 ${cats ? `<span class="metadata-label">Entries:</span><span class="metadata-value">${cats}</span>` : ''}
                 <span class="metadata-label">A load writes:</span><span class="metadata-value">${esc(FEED_FILES[f.feed] || '')}</span>
-            </div><p class="ds-note">${esc(FEED_HINTS[f.feed] || '')}</p></div>
+            </div><p class="ds-note">${esc(FEED_HINTS[f.feed] || '')} ${loadNote(subject)}</p></div>
             ${cols.length ? `<div class="dataset-info-section dataset-info-columns"><h3>Columns (${cols.length})</h3><div class="dataset-columns"><div class="column-list">${cols.map(c => `<span class="column-chip">${esc(c)}</span>`).join('')}</div></div></div>` : ''}
+            <div id="dsLoadStatus" class="ds-load-status" style="display:none"></div>
         </div>
         <div class="dataset-actions">
-            <button class="dataset-action-btn dataset-remove-btn" data-act="forget" data-folder="${esc(folder)}" data-feed="${esc(f.feed)}" data-name="${esc(subject.name || subject.id)}" title="Drop this dataset from the store; a later load downloads it again">Forget</button>
+            ${loadButtons(subject)}
+            <button class="dataset-action-btn dataset-remove-btn" data-act="forget" data-folder="${esc(folder)}" data-feed="${esc(f.feed)}" data-name="${esc(subject.name || subject.id)}" title="Drop this dataset from the store; a later load downloads it again">Forget ${esc(FEED_NAMES[f.feed] || f.feed)}</button>
         </div>`;
     }
 

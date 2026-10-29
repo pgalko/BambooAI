@@ -227,7 +227,9 @@ def load_data():
                 'aux_datasets': data.get('aux_datasets', []),
                 'user_id': user_id,
                 'refresh': bool(data.get('refresh')),          # Refresh everything: every file and chat of the window again (2026-10-15)
-                'retention_days': retention_days
+                'retention_days': retention_days,
+                'from_store': bool(data.get('from_store')),    # the Dataset cache dialog's Load (2026-10-29): from the store alone, nothing fetched
+                'folder': str(data.get('folder') or '')        # ...the athlete's folder it names
             },
             timeout=10
         )
@@ -244,6 +246,8 @@ def load_data():
         prefs['load'] = {'source': 'intervals', 'start_date': data['start_date'], 'end_date': data['end_date'],
                          'metrics': list(data.get('metrics', []) or []), 'aux_kinds': list(data.get('aux_datasets', []) or []), 'df_id': new_df_id,
                          'key': key_fingerprint(api_key)}             # whose data this is - a one-way mark of the key, never the key (2026-10-11, routines)
+        if data.get('from_store'):
+            prefs['load']['from_store'] = True                 # loaded from the store alone (2026-10-29)
         
         return jsonify({'job_id': job_data['job_id']}), 202
         
@@ -302,7 +306,7 @@ def get_job_status(job_id):
             if (prefs.get('load') or {}).get('df_id') == result['df_id']:
                 st = result.get('store') or {}                # what the store held of the window (docs/INCREMENTAL_LOADS_DESIGN.md), on the load record
                 if st.get('window'):
-                    prefs['load']['store'] = {'window': st.get('window'), 'held': st.get('held', 0), 'fetched': st.get('fetched', 0), 'refresh': bool(st.get('refresh'))}
+                    prefs['load']['store'] = {'window': st.get('window'), 'held': st.get('held', 0), 'fetched': st.get('fetched', 0), 'refresh': bool(st.get('refresh')), 'offline': bool(st.get('offline'))}
                     if isinstance(st.get('laps'), dict) and st['laps'].get('window'):     # the laps' account (2026-10-29)
                         prefs['load']['store']['laps'] = {k: int(st['laps'].get(k) or 0) for k in ('window', 'held', 'fetched')}
                 if isinstance(result.get('subject'), dict) and result['subject'].get('id'):

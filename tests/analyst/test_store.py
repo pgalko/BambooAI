@@ -639,6 +639,45 @@ check("the wellness call failing: the file is still written from the days the st
       jwf["status"] == "completed" and any("wellness_data_" in p_ for p_ in rwf.get("aux_datasets", [])) and len(rwf.get("warnings", [])) == 1 and "could not be fetched" in rwf["warnings"][0] and "days held from earlier loads stand" in rwf["warnings"][0], (jwf.get("error"), rwf.get("warnings")))
 check("a load with every dataset says nothing is missing: no warnings", (load(s1, e1, aux=("summary", "intervals", "wellness", "context", "rider")).get("result") or {}).get("warnings") == [])
 
+# a load from the store alone (2026-10-29, the Dataset cache dialog's Load): nothing is fetched - the activity list's entries the
+# store kept, the files, the laps, the chats, the wellness log, the calendar and the newest profile all come from the store
+_entries = S.Store(_udir, "intervals/" + D.SUBJECT["id"]).feed("entries").span()
+check("every online load keeps the activity list's entries in the store, by id with the day", _entries["count"] >= len(D.activities(s2, e1)) and _entries["from"] <= s2, _entries)
+_fits_all, _calls_all = len(SESSION.fits()), len(SESSION.calls)
+joff = load(s2, e1, aux=("summary", "intervals", "wellness", "context", "rider"), from_store=True, folder="intervals/" + D.SUBJECT["id"])
+roff = joff.get("result") or {}
+_names_off = sorted(os.path.basename(p_) for p_ in roff.get("aux_datasets", []))
+check("from the store alone: the load completes without one call to the API; the frame is the window's; every file is written - summary, intervals, wellness, context, plan, rider, zones; the chats come from the store whatever the activity's age; the result says offline and that nothing was fetched; no warning",
+      joff["status"] == "completed" and SESSION.calls == [] and E.df_cache.get(roff["df_id"]).activity_id.nunique() == len(D.activities(s2, e1))
+      and _names_off == sorted(f"{k}_{s2.replace('-', '')}_to_{e1.replace('-', '')}.csv" for k in ("activity_summary", "activity_intervals", "wellness_data", "context_notes", "planned_workouts", "rider_profile", "custom_zone_times"))
+      and roff["store"]["offline"] is True and roff["store"]["fetched"] == 0 and roff["store"]["held"] == len(D.activities(s2, e1)) and roff["store"]["laps"]["fetched"] == 0
+      and roff["context"]["calls"] == 0 and roff["context"]["messages_reused"] == sum(1 for d in D.days_in(s2, e1) if D.has_chat(d)) and roff.get("warnings") == [],
+      (joff.get("error"), SESSION.calls[:5], _names_off, roff.get("store", {}).get("laps"), roff.get("context"), roff.get("warnings")))
+_ctx_off = pd.read_csv(roff["context"]["path"], dtype=str, keep_default_na=False)
+check("from the store alone, the context has the chats' messages and the coaches told apart by the record (kept by the online loads)",
+      (_ctx_off.kind == "activity_message").sum() > 0 and (_ctx_off.author_role == "coach").sum() > 0 and S.athlete_record(_udir, "intervals/" + D.SUBJECT["id"]).get("coaches"), (_ctx_off.author_role.value_counts().to_dict(), S.athlete_record(_udir, "intervals/" + D.SUBJECT["id"]).get("coaches")))
+_old_span_s = (TODAY - timedelta(days=300)).isoformat(); _old_span_e = (TODAY - timedelta(days=290)).isoformat()
+joff2 = load(_old_span_s, _old_span_e, aux=("summary",), from_store=True, folder="intervals/" + D.SUBJECT["id"])
+roff2 = joff2.get("result") or {}
+check("from the store alone over a span the store never held: the activity list is fetched this once and kept (the one call), but the files are not - the load says the store holds none of them and points to the Intervals.icu dialog",
+      joff2["status"] == "error" and "holds none of the" in joff2["error"] and "Intervals.icu dialog" in joff2["error"] and SESSION.calls == ["/athlete/0/activities"]
+      and S.Store(_udir, "intervals/" + D.SUBJECT["id"]).feed("entries").within(_old_span_s, _old_span_e), (joff2.get("error"), SESSION.calls[:5]))
+joff3 = load(s2, e1, aux=("summary",), from_store=True, folder="intervals/nothere")
+check("from the store alone for an athlete nothing is held for: refused with a plain sentence", joff3["status"] == "error" and "Nothing is held" in joff3["error"], joff3)
+# the small calls wait out a rate limit (2026-10-29: the wellness call of a live load failed after a thousand calls)
+class _Limited:
+    def __init__(self, fails): self.fails, self.n = fails, 0
+    def get(self, url, params=None, timeout=None):
+        self.n += 1
+        if self.n <= self.fails:
+            r = _R({}, 429); r.headers = {"Retry-After": "0"}; return r
+        r = _R([{"id": "2026-01-01", "weight": 70}]); r.headers = {}; return r
+_lim = _Limited(2)
+_t0 = time.time()
+_recs, _failed = E.fetch_wellness_records(_lim, "http://icu/api/v1", "2026-01-01", "2026-01-02")
+check("get_with_retry: a 429 is waited out (Retry-After honoured, two retries) and the records come on the third try; a limit that does not lift is the failure it was",
+      _recs == [{"id": "2026-01-01", "weight": 70}] and _failed == "" and _lim.n == 3 and E.fetch_wellness_records(_Limited(9), "http://icu/api/v1", "2026-01-01", "2026-01-02")[1] != "", (_recs, _failed, _lim.n))
+
 # the views' age: a window file not written within a month leaves at the end of a load; a fresh one stays
 _pv = os.path.join(_udir, "intervals", "pv", "views"); os.makedirs(_pv, exist_ok=True)
 open(os.path.join(_pv, "wellness_data_20260101_to_20260131.csv"), "w").write("date\n"); open(os.path.join(_pv, "activity_summary_20261001_to_20261029.csv"), "w").write("id\n")

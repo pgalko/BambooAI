@@ -35,14 +35,14 @@ import shutil
 from datetime import datetime, timedelta
 from intervals_store import Store, stores_under, RETENTION_DAYS as STORE_RETENTION_DAYS   # the Intervals.icu store (2026-10-15)
 from intervals_store import athlete_rel, athlete_record, remember_athlete, adopt_mark_folder, athlete_folders, views_rel, adopt_views, VIEWS_DIR   # the athlete's folder (2026-10-29)
-from intervals_store import cache_tree, forget as forget_store, prune_views, absorb_mark_folders, SOURCES as STORE_SOURCES, APP_FOLDERS as STORE_APP_FOLDERS   # the tree, forgetting, the views' age (step 3)
+from intervals_store import cache_tree, forget as forget_store, prune_views, absorb_mark_folders, update_record, SOURCES as STORE_SOURCES, APP_FOLDERS as STORE_APP_FOLDERS   # the tree, forgetting, the views' age (step 3)
 
 # Set the number of CPU cores for pyarrow
 pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-29 v70 (the cache as a tree, as rebuilt after the first look: /cache/inspect carries source -> subject -> dataset with what each holds, /cache/forget drops a dataset or a subject, earlier loads of the same subject absorbed, window files older than a month leave, a dataset that gave no file said on the result; v69 the first tree; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-29 v71 (a load from the store alone: from_store makes the window from the entries, files, laps, chats, wellness, calendar and profile the store holds, nothing fetched; the small calls wait out a rate limit; the cache as a tree since v69-v70; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -242,7 +242,7 @@ def inspect_cache():
                 for place in places:
                     for filename in sorted(os.listdir(place)):
                         filepath = os.path.join(place, filename)
-                        if os.path.isfile(filepath) and filename != 'subject.json':
+                        if os.path.isfile(filepath) and filename != 'subject.json' and not filename.startswith('.'):     # a dotfile (.DS_Store) is the system's
                             file_stat = os.stat(filepath)
                             
                             auxiliary_datasets.append({
@@ -1652,6 +1652,27 @@ def fetch_intervals_data():
     # Return immediately with job_id
     return jsonify({'job_id': job_id}), 202
 
+def get_with_retry(session, url, params=None, timeout=30, tries=3):
+    """A GET that waits out a rate limit (429, Retry-After honoured) or a passing server fault (5xx) and tries again,
+    `tries` times in all (2026-10-29: the wellness call of a live load failed right after a thousand calls for the
+    files, laps and chats). Anything else is returned as it came."""
+    import time as _time
+    r = None
+    for i in range(max(1, tries)):
+        r = session.get(url, params=params, timeout=timeout)
+        if r.status_code != 429 and r.status_code < 500:
+            return r
+        if i == tries - 1:
+            break
+        wait = 0
+        try:
+            wait = float(r.headers.get('Retry-After') or 0)
+        except (TypeError, ValueError, AttributeError):
+            wait = 0
+        _time.sleep(min(max(wait, 2.0 * (i + 1)), 30))
+    return r
+
+
 def key_mark(api_key):
     """A short, one-way mark of an API key (2026-10-11): whose data a load is, without the key itself. The same
     formula as analyst.routines.key_fingerprint in the app, which compares the two."""
@@ -1672,54 +1693,83 @@ def fetch_intervals_background(data, job_id):
         aux_datasets = data.get('aux_datasets', [])
         user_id = data.get('user_id', 'default')
         mark = key_mark(api_key)                # whose key: the frame carries it, the auxiliary files live under it
+        # A load from the store alone (2026-10-29, the Dataset cache dialog's Load): nothing is fetched - the window is
+        # made from what the athlete's store holds (the activity list's entries, the files, the laps, the chats, the
+        # wellness log, the calendar, the newest profile). `folder` names the athlete; the key is not used.
+        offline = bool(data.get('from_store'))
+        folder_req = str(data.get('folder') or '').strip().replace('\\', '/')
+        user_dir = os.path.join('datasets', user_id)
+        warnings = []                                           # a dataset asked for that gave no file, and why (2026-10-29): on the result, said on the page
         
         # Update status
         intervals_jobs[job_id]['status'] = 'processing'
-        intervals_jobs[job_id]['message'] = 'Connecting to Intervals.icu...'
+        intervals_jobs[job_id]['message'] = 'Reading the store...' if offline else 'Connecting to Intervals.icu...'
         
-        log_info(f"Fetching Intervals.icu data for job_id: {job_id}")
+        log_info(f"Fetching Intervals.icu data for job_id: {job_id}" + (" (from the store alone)" if offline else ""))
         
         # Create session
         session = requests.Session()
         session.auth = ("API_KEY", api_key)
         base_url = "https://intervals.icu/api/v1"
         
-        # The subject's record first (2026-10-29, docs/DATASETS_DESIGN.md §2): the athlete's id names the folder the
-        # load writes under - datasets/<user>/intervals/<id>/ - and the name goes on the record; the key's mark named
-        # the folder before the athlete was known and stays as a credential's fingerprint. The record also decodes
-        # the files' columns and tells authors apart (2026-10-16). Never fatal: without it the load writes under the
-        # mark as before, and there is no profile.
-        intervals_jobs[job_id]['message'] = "Fetching the subject's record..."
         athlete = None
-        try:
-            ar = session.get(f"{base_url}/athlete/0", timeout=30)
-            ar.raise_for_status()
-            athlete = ar.json() if isinstance(ar.json(), dict) else None
-        except Exception as e:                          # noqa: BLE001
-            log_info(f"the subject's record could not be fetched ({e})")
-        athlete_id = str((athlete or {}).get('id') or '').strip()
-        athlete_name = str((athlete or {}).get('name') or ' '.join(str((athlete or {}).get(k) or '') for k in ('firstname', 'lastname')).strip() or '').strip()
-        user_dir = os.path.join('datasets', user_id)
-        folder = athlete_rel('intervals', athlete_id, mark)
-        if athlete_id:
-            moved = adopt_mark_folder(user_dir, mark, folder)
-            if moved:
-                log_info(f"the key's folder moved under the athlete's: {mark} -> {folder} ({moved})")
-            remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark, kinds=aux_datasets)      # and the datasets asked for: the dialog's Load asks for them again
+        if offline:
+            if not re.fullmatch(r'intervals/[\w.@-]{1,120}', folder_req) or not os.path.isdir(os.path.join(user_dir, folder_req)):
+                intervals_jobs[job_id]['status'] = 'error'
+                intervals_jobs[job_id]['error'] = 'Nothing is held for this athlete; load from Intervals.icu first'
+                return
+            folder = folder_req
+            athlete_id = folder.split('/')[1]
+            athlete_name = str(athlete_record(user_dir, folder).get('name') or '')
+            snap = Store(user_dir, folder).newest_profile()
+            athlete = snap[1] if snap else None                 # the record as last fetched: the custom fields, the ticks, the zones
+            remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark, kinds=aux_datasets)
+        else:
+            # The subject's record first (2026-10-29, docs/DATASETS_DESIGN.md §2): the athlete's id names the folder the
+            # load writes under - datasets/<user>/intervals/<id>/ - and the name goes on the record; the key's mark named
+            # the folder before the athlete was known and stays as a credential's fingerprint. The record also decodes
+            # the files' columns and tells authors apart (2026-10-16). Never fatal: without it the load writes under the
+            # mark as before, and there is no profile.
+            intervals_jobs[job_id]['message'] = "Fetching the subject's record..."
+            try:
+                ar = get_with_retry(session, f"{base_url}/athlete/0", timeout=30)
+                ar.raise_for_status()
+                athlete = ar.json() if isinstance(ar.json(), dict) else None
+            except Exception as e:                          # noqa: BLE001
+                log_info(f"the subject's record could not be fetched ({e})")
+            athlete_id = str((athlete or {}).get('id') or '').strip()
+            athlete_name = str((athlete or {}).get('name') or ' '.join(str((athlete or {}).get(k) or '') for k in ('firstname', 'lastname')).strip() or '').strip()
+            folder = athlete_rel('intervals', athlete_id, mark)
+            if athlete_id:
+                moved = adopt_mark_folder(user_dir, mark, folder)
+                if moved:
+                    log_info(f"the key's folder moved under the athlete's: {mark} -> {folder} ({moved})")
+                remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark, kinds=aux_datasets)      # and the datasets asked for: the dialog's Load asks for them again
         if adopt_views(user_dir, folder):                     # window files an earlier executor wrote at the folder itself (2026-10-29)
             log_info(f"the window files of {folder} moved under {VIEWS_DIR}/")
         views = views_rel(folder)                             # where this load's window files go
         who = {'source': 'intervals', 'id': athlete_id, 'name': athlete_name, 'folder': folder}      # the subject: the app's word for the athlete
+        store = Store(user_dir, folder)
 
-        # Fetch activities
-        intervals_jobs[job_id]['message'] = 'Fetching activity list...'
-        
-        activities_url = f"{base_url}/athlete/0/activities"
-        activities_params = {'oldest': start_date, 'newest': end_date}
-        
-        response = session.get(activities_url, params=activities_params)
-        response.raise_for_status()
-        activities = response.json()
+        # Fetch activities - or, from the store alone, the list's entries it kept from earlier loads (2026-10-29); a span the
+        # store has no entries for (held from before the list was kept) takes one call for the list, and keeps it now
+        intervals_jobs[job_id]['message'] = 'Reading the activity list from the store...' if offline else 'Fetching activity list...'
+        activities = None
+        if offline:
+            activities = list(reversed(store.feed('entries').within(start_date, end_date)))      # newest first, as the list comes
+            if not activities:
+                log_info("the store has no activity list for this span: one call for it")
+                warnings.append('the activity list came from Intervals.icu this once (the store held none for this span); it is kept now')
+                activities = None
+        if activities is None:
+            activities_url = f"{base_url}/athlete/0/activities"
+            activities_params = {'oldest': start_date, 'newest': end_date}
+            
+            response = get_with_retry(session, activities_url, params=activities_params, timeout=60)
+            response.raise_for_status()
+            activities = response.json()
+            store.feed('entries').merge([a for a in activities if isinstance(a, dict)], key_of=lambda r: r.get('id'), day_of=lambda r: r.get('start_date_local'), start=start_date, end=end_date)
+            store.save()
         
         # Filter activities
         activities_with_files = [
@@ -1729,7 +1779,7 @@ def fetch_intervals_background(data, job_id):
         
         if not activities_with_files:
             intervals_jobs[job_id]['status'] = 'error'
-            intervals_jobs[job_id]['error'] = 'No activities found with files in date range'
+            intervals_jobs[job_id]['error'] = 'No activities found with files in date range' + (' (in the store)' if offline else '')
             return
         
         total_activities = len(activities_with_files)
@@ -1739,16 +1789,19 @@ def fetch_intervals_background(data, job_id):
         # Intervals holds. Every activity the store already has, under the same file signature, is taken from it;
         # the rest are downloaded and kept; the frame is assembled from the store, cut to the metrics asked.
         # `refresh` fetches every file and every chat again.
-        refresh = bool(data.get('refresh'))
-        store = Store(user_dir, folder)
-        if athlete is not None:
+        refresh = bool(data.get('refresh')) and not offline
+        if athlete is not None and not offline:
             store.put_profile(athlete)                        # the record as fetched today, a snapshot when it changed (2026-10-29)
         held = [] if refresh else [act for act in activities_with_files if store.has_detail(act)]
         held_ids = {str(act.get('id')) for act in held}
-        todo = [act for act in activities_with_files if str(act.get('id')) not in held_ids]
-        intervals_jobs[job_id]['message'] = (f'The store holds all {total_activities} activities of this window; nothing to download'
-                                             if not todo else f'The store holds {len(held)} of {total_activities} activities; downloading {len(todo)}...')
-        log_info(f"Found {total_activities} activities to process; {len(held)} in the store, {len(todo)} to download" + (" (refresh)" if refresh else ""))
+        todo = [] if offline else [act for act in activities_with_files if str(act.get('id')) not in held_ids]
+        if offline:
+            intervals_jobs[job_id]['message'] = (f'The store holds all {total_activities} activities of this window' if len(held) == total_activities
+                                                 else f'The store holds {len(held)} of {total_activities} activities of this window; the rest are not fetched')
+        else:
+            intervals_jobs[job_id]['message'] = (f'The store holds all {total_activities} activities of this window; nothing to download'
+                                                 if not todo else f'The store holds {len(held)} of {total_activities} activities; downloading {len(todo)}...')
+        log_info(f"Found {total_activities} activities to process; {len(held)} in the store, {len(todo)} to download" + (" (refresh)" if refresh else "") + (" (from the store alone)" if offline else ""))
         
         # Download and parse the files the store lacks, keeping each activity as it is parsed
         kept = download_and_parse_fits_with_progress(session, base_url, todo, job_id, store) if todo else []
@@ -1762,7 +1815,8 @@ def fetch_intervals_background(data, job_id):
         
         if detail_df.empty:
             intervals_jobs[job_id]['status'] = 'error'
-            intervals_jobs[job_id]['error'] = 'No data could be extracted from activities'
+            intervals_jobs[job_id]['error'] = (f'The store holds none of the {total_activities} activities of this span; load it from the Intervals.icu dialog' if offline
+                                               else 'No data could be extracted from activities')
             return
         
         # Process data
@@ -1785,7 +1839,6 @@ def fetch_intervals_background(data, job_id):
         
         # Handle auxiliary datasets
         aux_filepaths = []
-        warnings = []                                           # a feed asked for that gave no file, and why (2026-10-29): on the result, said on the page
 
         # the subject's record (fetched first, above): the custom fields' definitions decode the files' columns (0183), the
         # context tells authors apart and reads the custom fields by it, the rider profile is built from it
@@ -1795,7 +1848,7 @@ def fetch_intervals_background(data, job_id):
         if 'intervals' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching activity intervals data...'
             intervals_df, laps_report = fetch_activity_intervals_data(session, base_url, activities, job_id, field_definitions(custom_items, 'INTERVAL_FIELD'),
-                                                                      store=store, refresh=refresh, with_report=True)
+                                                                      store=store, refresh=refresh, with_report=True, offline=offline)
             if not intervals_df.empty:
                 intervals_path = save_aux_dataset(intervals_df, 'intervals', user_id, start_date, end_date, subdir=views)
                 aux_filepaths.append(intervals_path)
@@ -1817,8 +1870,8 @@ def fetch_intervals_background(data, job_id):
             # the window's days come down each load (one call) and are merged into the store, whose span is then the
             # union of every load (2026-10-29); the file is the store's window. A call that fails leaves what the
             # store holds of the window to stand.
-            fetched_w, w_failed = fetch_wellness_records(session, base_url, start_date, end_date)
-            if not w_failed:
+            fetched_w, w_failed = ([], '') if offline else fetch_wellness_records(session, base_url, start_date, end_date)
+            if not w_failed and not offline:
                 store.feed('wellness').merge(fetched_w, key_of=lambda r: r.get('id'), day_of=lambda r: r.get('id'), start=start_date, end=end_date)
             wellness_records = store.feed('wellness').within(start_date, end_date)
             wellness_df = wellness_frame(wellness_records, fields=field_definitions(custom_items, 'INPUT_FIELD'))
@@ -1829,7 +1882,7 @@ def fetch_intervals_background(data, job_id):
                 wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date, subdir=views)
                 aux_filepaths.append(wellness_path)
             elif 'wellness' in aux_datasets:
-                warnings.append('no wellness file: the window has no wellness days' + ('' if not w_failed else ' held'))
+                warnings.append('no wellness file: the window has no wellness days' + (' held in the store' if offline or w_failed else ''))
         
         # The context (2026-10-13): the words written beside the data, one file of passages. Never fatal to the
         # load - a call that fails is a sentence in the report, and a window without words is a file with no rows.
@@ -1837,9 +1890,9 @@ def fetch_intervals_background(data, job_id):
         context_report = None
         events, events_failed = None, ''
         if 'context' in aux_datasets or 'plan' in aux_datasets:
-            intervals_jobs[job_id]['message'] = 'Fetching the calendar...'
-            fetched_e, events_failed = fetch_calendar(session, base_url, start_date, end_date)
-            if not events_failed:                             # merged into the store by entry; the window's entries are the store's (2026-10-29)
+            intervals_jobs[job_id]['message'] = 'Reading the calendar from the store...' if offline else 'Fetching the calendar...'
+            fetched_e, events_failed = ([], '') if offline else fetch_calendar(session, base_url, start_date, end_date)
+            if not events_failed and not offline:             # merged into the store by entry; the window's entries are the store's (2026-10-29)
                 store.feed('events').merge(fetched_e, key_of=lambda r: r.get('id'), day_of=lambda r: r.get('start_date_local'), start=start_date, end=end_date)
             events = store.feed('events').within(start_date, end_date)
             if events_failed and events:
@@ -1849,9 +1902,12 @@ def fetch_intervals_background(data, job_id):
         if 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching the words written beside the data...'
             rows, context_report = fetch_context_rows(session, base_url, activities, wellness_records or [], start_date, end_date,
-                                                      job_id=job_id, athlete=athlete, store=store, refresh=refresh, events=events, events_failed=events_failed)
+                                                      job_id=job_id, athlete=athlete, store=store, refresh=refresh, events=events, events_failed=events_failed,
+                                                      offline=offline, coach_ids=athlete_record(user_dir, folder).get('coaches') if offline else None)
             if athlete is None:
                 context_report['failed'].insert(0, "the subject's record could not be fetched, so authors are not told apart and custom fields are not read")
+            if not offline and athlete_id and context_report.get('coach_ids'):
+                update_record(user_dir, folder, coaches=list(context_report['coach_ids']))      # the coaches a load learnt, for a load from the store alone
             context_path = save_aux_dataset(context_frame(rows), 'context', user_id, start_date, end_date, subdir=views)
             aux_filepaths.append(context_path)
             context_report['path'] = context_path
@@ -1874,7 +1930,8 @@ def fetch_intervals_background(data, job_id):
         if 'rider' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Preparing the rider profile...'
             if athlete is None:
-                profile_note = "the subject's record could not be fetched, so there is no rider profile in this load"
+                profile_note = ("the store holds no record of the subject yet, so there is no rider profile in this load" if offline
+                                else "the subject's record could not be fetched, so there is no rider profile in this load")
                 log_info(f"rider profile: {profile_note}")
                 warnings.append(profile_note)
             else:
@@ -1895,7 +1952,7 @@ def fetch_intervals_background(data, job_id):
         gone_views = prune_views(user_dir, folder)             # window files not written within a month leave (docs/DATASETS_DESIGN.md §4)
         if gone_views:
             log_info(f"views: {gone_views} window files older than a month left {views}/")
-        if athlete_id:
+        if athlete_id and not offline:
             # other keys' folders from before the athlete was known that hold one of this athlete's activities are the
             # athlete's own earlier loads (2026-10-29): absorbed now that the store holds this window, so nothing is listed
             # twice and nothing is downloaded again; the store is read afresh for the account below
@@ -1916,7 +1973,8 @@ def fetch_intervals_background(data, job_id):
             'context': context_report,
             'profile_note': profile_note,
             'store': {'window': total_activities, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary(),
-                      'laps': laps_report},     # the laps' account when the file was asked (2026-10-29): {window, held, fetched}
+                      'laps': laps_report,      # the laps' account when the file was asked (2026-10-29): {window, held, fetched}
+                      'offline': offline},      # from the store alone: nothing fetched (2026-10-29)
             'warnings': warnings,               # a dataset asked for that gave no file, and why (2026-10-29)
             'subject': who                      # whose data this load is (2026-10-29): the app keeps it on the load record
         }
@@ -2172,7 +2230,7 @@ def transform_intervals_detail_data(df):
     
     return df
 
-def fetch_activity_intervals_data(session, base_url, activities, job_id, fields=None, store=None, refresh=False, with_report=False):
+def fetch_activity_intervals_data(session, base_url, activities, job_id, fields=None, store=None, refresh=False, with_report=False, offline=False):
     """The laps of every activity of the window, as one frame. `fields`: the account's INTERVAL_FIELD definitions
     (field_definitions), whose values ride on the records under their codes (2026-10-16). With a `store` (2026-10-29)
     the laps of an older, unchanged activity are taken from it instead of fetched (the same rule as the chat's), and
@@ -2186,9 +2244,9 @@ def fetch_activity_intervals_data(session, base_url, activities, job_id, fields=
     if not activities_with_ids:
         return (pd.DataFrame(), report) if with_report else pd.DataFrame()
     
-    held = {} if (store is None or refresh) else {str(act['id']): store.get_laps(act['id']) for act in activities_with_ids if store.laps_fresh(act)}
+    held = {} if (store is None or refresh) else {str(act['id']): store.get_laps(act['id']) for act in activities_with_ids if offline or store.laps_fresh(act)}
     held = {k: v for k, v in held.items() if v is not None}
-    todo = [act for act in activities_with_ids if str(act['id']) not in held]
+    todo = [] if offline else [act for act in activities_with_ids if str(act['id']) not in held]       # from the store alone: what it lacks is not fetched
     report['held'] = len(held)
     
     def fetch_intervals_for_activity(activity):
@@ -2487,7 +2545,7 @@ def create_activity_summary(activities, fields=None):
 def fetch_wellness_records(session, base_url, start_date, end_date):
     """The wellness log of a window as the API gives it (one call): (records, '') or ([], a sentence saying why not)."""
     try:
-        response = session.get(f"{base_url}/athlete/0/wellness", params={'oldest': start_date, 'newest': end_date})
+        response = get_with_retry(session, f"{base_url}/athlete/0/wellness", params={'oldest': start_date, 'newest': end_date}, timeout=60)
         response.raise_for_status()
         data = response.json()
         return (data if isinstance(data, list) else []), ''
@@ -2638,7 +2696,7 @@ def _custom_text_fields(custom_items):
 def fetch_calendar(session, base_url, start_date, end_date):
     """The calendar of a window, every category (one call); (events, '') or ([], a sentence saying why not)."""
     try:
-        r = session.get(f"{base_url}/athlete/0/events", params={'oldest': start_date, 'newest': end_date}, timeout=60)
+        r = get_with_retry(session, f"{base_url}/athlete/0/events", params={'oldest': start_date, 'newest': end_date}, timeout=60)
         r.raise_for_status()
         return (r.json() or []), ''
     except Exception as e:                                  # noqa: BLE001
@@ -2683,7 +2741,7 @@ def planned_workouts_frame(events, activities):
 
 
 def fetch_context_rows(session, base_url, activities, wellness_records, start_date, end_date, job_id=None, athlete=None, store=None, refresh=False,
-                       events=None, events_failed=''):
+                       events=None, events_failed='', offline=False, coach_ids=None):
     """The passages of a window (docs/CONTEXT_DESIGN.md §3.1). `activities` is the window's activity list as the API
     returned it; `wellness_records` the wellness JSON (a list of dicts, one per day); `athlete` the subject's record
     (GET /athlete/0: id, timezone, coach_ticks, custom_items) or None. Calls made here: the calendar events once, the
@@ -2725,8 +2783,8 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
     # first so the calendar's authors are told apart too - and, since a live load (2026-10-14) marked every coach
     # 'other', whoever created the planned workouts on the calendar and is not the subject
     with_chat = [a for a in activities or [] if isinstance(a, dict) and a.get('icu_chat_id') is not None]
-    coach_ids, roles_seen = set(), {}
-    if with_chat:
+    coach_ids, roles_seen = set(str(c) for c in (coach_ids or [])), {}
+    if with_chat and not offline:                            # from the store alone (2026-10-29): the coaches as the record kept them
         try:
             calls += 1
             r = session.get(f"{base_url}/chats/{with_chat[0]['icu_chat_id']}", timeout=30)
@@ -2823,10 +2881,13 @@ def fetch_context_rows(session, base_url, activities, wellness_records, start_da
     for i, act in enumerate(with_chat, 1):
         aid = str(act.get('id') or '')
         msgs = None
-        if store is not None and not refresh and store.messages_fresh(act):
+        if store is not None and not refresh and (offline or store.messages_fresh(act)):
             msgs = store.get_messages(aid)
             if msgs is not None:
                 reused += 1
+        if msgs is None and offline:                        # from the store alone: a chat the store lacks is not fetched
+            failed.append(f"the chat of activity {aid} is not in the store")
+            continue
         if msgs is None:
             progress(f'Fetching messages {i}/{len(with_chat)}...' + (f' ({reused} from the store)' if reused else ''))
             try:

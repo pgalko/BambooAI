@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0240 (datasets by subject, steps 1-3 and the tree as rebuilt; **executor image v70** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0241 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone; **executor image v71** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,10 +95,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/77/37/15/88/1/1 Python; 58/7/43/71/24/71/14/25/4/14/67 JS; 1,534 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/83/37/15/88/1/1 Python; 58/7/44/71/24/71/14/25/4/14/67 JS; 1,541 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (107; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (108; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -477,6 +477,22 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Load from the store alone, after Palo's second look (2026-10-29, patch 0241; executor image v71 - rebuild and
+  roll out).** Load in the cache dialog had gone through Intervals.icu (the small feeds fresh, recent chats and laps
+  looked at again, as the design said) and read as "loading from Intervals again"; the expectation is the stored
+  version, at once. The executor now keeps the activity list's entries in the store (`entries.json`, merged on every
+  online load) and takes `from_store` with the athlete's `folder`: the window is made from the store alone - the
+  entries, the files, the laps, the chats whatever the activity's age, the wellness log, the calendar, the newest
+  profile, the coaches the record kept (`coaches`, written by the online loads) - with the datasets of the last load;
+  nothing is fetched (a span without entries takes one call for the list, said on the completion line; a span whose
+  files are not held is refused with a sentence pointing to the dialog). *Load to today* stays the online load for
+  the span extended to today. Every details pane - the athlete's and a dataset's - carries Load, Load to today and
+  Forget (the dataset's Forget names it). The earlier-loads block that stayed on the Mac holds no activity of the
+  athlete's: another athlete's data under a key no longer in use - its details say so; it is not absorbed and not
+  removed by itself. The small calls (profile, list, wellness, calendar) wait out a 429 or a 5xx and try again twice
+  (`get_with_retry`), which is the likeliest cause of the wellness file missing on a live load after a thousand
+  calls; a completion line that names a dataset not written stays until the dialog is closed; `.DS_Store` is not
+  an upload. Tests: test_store.py 83, test_dialogs.js 44, the stamp checks v71; the integrations walk 108.
 - **The tree as rebuilt after Palo's first look (2026-10-29, patch 0240; executor image v70 - rebuild and roll out).**
   Seven points from the live dialog, each with its cause: (1) the athlete could not be folded - the few-athletes rule
   forced it open; now the caret toggles, unfolded until folded. (2) The lines showed nothing on the right - only

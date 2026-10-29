@@ -482,8 +482,9 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                 // a dataset asked for that gave no file, and why (2026-10-29): said here rather than silently missing from the pills
                 const warnLine = (job.result && Array.isArray(job.result.warnings) && job.result.warnings.length) ? ' Not written: ' + job.result.warnings.join('; ') + '.' : '';
                 showIntervalsMessage('Data loaded successfully!' + (stLine ? ' ' + stLine + '.' : '') + (ctxLine ? ' ' + ctxLine : '') + warnLine, 'success');
+                if (warnLine) console.warn('Intervals.icu load: ' + warnLine.trim());
 
-                setTimeout(() => {
+                if (!warnLine) setTimeout(() => {                   // a line that names what was not written stays until the dialog is closed
                     hideIntervalsModal();
                 }, ctxLine ? 6000 : 2000);
 
