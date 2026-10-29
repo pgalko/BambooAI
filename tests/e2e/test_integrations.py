@@ -440,10 +440,18 @@ def main():
             page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /another key/.test(c.textContent); }", timeout=15000)
             cl5 = page.inner_text("#routineRunModal .rt-cache")
             check("under another key the original window, though cached, is not used: the line says it was loaded under another key and will be downloaded", "loaded under another key" in cl5 and "will be downloaded" in cl5, cl5)
+            pills_before5 = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim())")
             page.click("#routineRunModal [data-act='run']")
             wait_text(page, "#chainPosition", "run 5 of 5", 300000)
             page.wait_for_timeout(800)
             r5 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '' })")
+            # one athlete at a time, whatever path brings the pills (2026-10-29): the routine's load for the other subject took the first
+            # subject's pills off the Data tab (the page, as the pills were made) and the first's files out of the session (the app)
+            tab5 = page.evaluate("() => ({ ids: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || ''), frames: document.querySelectorAll('.dataset-status-pill[data-dataset-type=\"intervals\"]').length, folder: (window.Intervals.state.dataInfo || {}).folder })")
+            first5 = [x for x in pills_before5 if "/intervals/i0/views/" in str(x)]
+            probe5 = fetch_json(page, "/remove_auxiliary_dataset", {"file_path": first5[0]}) if first5 else None       # a file no longer in the session's list is 404 here
+            check("the routine's load for the other subject, with the first subject's window on the Data tab: the first's pills went as the other's were made - one frame pill, the other's folder on it, the other's files under the pills and none of the first's - and the first's files are out of the session",
+                  first5 and tab5["frames"] == 1 and tab5["folder"] == "intervals/i1" and not any("/intervals/i0/views/" in i_ for i_ in tab5["ids"]) and sum(1 for i_ in tab5["ids"] if "/intervals/i1/views/" in i_) >= 1 and probe5["status"] == 404, (pills_before5, tab5, probe5))
             fits_after5 = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
             run5 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_5", "run.json")))
             check("run 5 downloaded the window afresh under the new key (new FIT requests, no 'from the cache'), and its record carries the new key's mark - never the key - and the other subject the profile named",

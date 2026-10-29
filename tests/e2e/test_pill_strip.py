@@ -69,10 +69,21 @@ with sync_playwright() as p:
     page.wait_for_timeout(400)
     wheeled = page.evaluate("() => { const c = document.getElementById('datasetStatusPillsContainer'); return { scrollLeft: c.scrollLeft, cls: c.className, pageY: window.scrollY }; }")
     check("a vertical wheel over the row scrolls it sideways (the page does not move); both fades while in the middle", wheeled["scrollLeft"] > 0 and wheeled["pageY"] == 0 and "more-left" in wheeled["cls"] and "more-right" in wheeled["cls"], wheeled)
+    # at the wheel's own pace (2026-10-29): a gesture is many small ticks, and the row must move by their sum - with smooth scrolling
+    # each tick restarted the glide from wherever the row was, so a gesture of 300 moved it a fraction of that ("too slow")
+    page.evaluate("() => { const c = document.getElementById('datasetStatusPillsContainer'); c.scrollTo({ left: 0, behavior: 'instant' }); }")
+    page.wait_for_timeout(200)
+    for _ in range(10):
+        page.mouse.wheel(0, 30)
+    page.wait_for_timeout(500)
+    burst = page.evaluate("() => { const c = document.getElementById('datasetStatusPillsContainer'); return { scrollLeft: c.scrollLeft, overflow: c.scrollWidth - c.clientWidth }; }")
+    check("ten wheel ticks of 30 move the row by 300 - the gesture's whole distance, at its own pace", burst["overflow"] > 300 and 290 <= burst["scrollLeft"] <= 310, burst)
     b.close()
 
-check("shell.css: the row's rules - no scrollbar shown, the fades, the chips never shrink, the spacer no longer takes the free width",
-      all(t in open(os.path.join(STATIC, "css", "shell.css"), encoding="utf-8").read() for t in ("scrollbar-width: none", ".more-right {", ".more-left {", "#datasetStatusPillsContainer > * { flex-shrink: 0; }", ".topbar .sp { flex: 0 0 6px; }")))
+shell_css = open(os.path.join(STATIC, "css", "shell.css"), encoding="utf-8").read()
+check("shell.css: the row's rules - no scrollbar shown, the fades, the chips never shrink, the spacer no longer takes the free width; no smooth scrolling on the row (the wheel sets its pace), and the script glides a new chip into view itself and moves by lines or pages when the wheel reports those",
+      all(t in shell_css for t in ("scrollbar-width: none", ".more-right {", ".more-left {", "#datasetStatusPillsContainer > * { flex-shrink: 0; }", ".topbar .sp { flex: 0 0 6px; }")) and "scroll-behavior: smooth" not in shell_css.split("#datasetStatusPillsContainer {")[1].split("\n")[0]
+      and "const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? container.clientWidth : 1;" in strip_js and "container.scrollLeft += d * unit;" in strip_js and "added.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })" in strip_js)
 fails = [n for n, ok in results if not ok]
 print(f"\n{len(results) - len(fails)} passed, {len(fails)} failed")
 sys.exit(1 if fails else 0)

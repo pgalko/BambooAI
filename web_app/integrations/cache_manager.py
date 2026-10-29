@@ -1,5 +1,6 @@
 # integrations/cache_manager.py - Cache viewing and management blueprint
 
+import re
 import requests
 from flask import Blueprint, request, jsonify, session
 from auth import requires_auth, get_current_user_id
@@ -7,6 +8,28 @@ import json
 
 # Create the blueprint
 cache_bp = Blueprint('cache', __name__, url_prefix='/cache')
+
+
+def _athlete_folder(path):
+    """The athlete folder (<source>/<id>) a window file is under - the loader writes them under
+    datasets/<user>/<source>/<id>/views/ - or '' for any other file (an upload, a race file)."""
+    m = re.search(r'/((?:intervals|endura|sweatstack)/[^/]+)/views/', str(path or '').replace('\\', '/'))
+    return m.group(1) if m else ''
+
+
+def _one_athlete(session_id, prefs, folder):
+    """One athlete at a time on the Data tab (2026-10-29): when an athlete's frame or window file comes onto it, the
+    other athletes' window files leave the session's list - and the instance's, which holds the same list - as their
+    pills leave the page. Files that are nobody's (uploads, race files) stay."""
+    if not folder:
+        return
+    keep = [p for p in prefs.get('auxiliary_datasets') or [] if _athlete_folder(p) in ('', folder)]
+    if len(keep) == len(prefs.get('auxiliary_datasets') or []):
+        return
+    prefs['auxiliary_datasets'] = keep
+    inst = cache_bp.bamboo_ai_instances.get(session_id)
+    if inst is not None:
+        inst.auxiliary_datasets = keep
 
 def init_cache_integration(app, **dependencies):
     """Initialize Cache management integration with the main app and dependencies"""
@@ -171,7 +194,8 @@ def load_primary_from_cache():
         # Update with new df_id
         prefs['df_id'] = df_id
         cache_bp.user_preferences[session_id] = prefs
-        
+        _one_athlete(session_id, prefs, str(data.get('folder') or ''))      # whose frame (the routine's cached load says): the other athletes' files go
+
         # Clean up and create new BambooAI instance
         #cache_bp.cleanup_and_remove_bamboo_instance(session_id)
 
@@ -237,6 +261,8 @@ def load_auxiliary_from_cache():
             'planning': False, 'ontology_path': None, 'auxiliary_datasets': []
         })
         
+        _one_athlete(session_id, prefs, _athlete_folder(file_path))      # an athlete's window file: the other athletes' files go first
+
         # Check auxiliary dataset limit (a file already in the list is not a new one: loading it again is a no-op)
         if file_path not in prefs.get('auxiliary_datasets', []) and len(prefs.get('auxiliary_datasets', [])) >= cache_bp.max_aux:
             return jsonify({'error': f'Maximum {cache_bp.max_aux} auxiliary datasets allowed'}), 400

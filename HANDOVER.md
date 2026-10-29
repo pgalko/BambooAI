@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0246 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended; **executor image v73** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0247 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time; **executor image v73** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,10 +95,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/93/37/15/88/1/1 Python; 58/7/45/71/24/71/14/25/4/14/67 JS; 1,552 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/198/31/27/18/49/44/72/33/144/60/93/37/15/88/1/1 Python; 58/7/45/71/24/71/14/25/4/14/67 JS; 1,555 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (119; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (120; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -477,6 +477,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The one-athlete rule where the pills are made; the thread across athletes; the pill strip's pace (2026-10-29,
+  patch 0247; page and app, image v73 stands).** Palo deployed 0246 and still saw both athletes' pills (the walk's
+  sequence passes; likeliest a page not reloaded after the restart - asked for Cmd-R and the exact clicks if it
+  stays). The rule now lives where the pills are made, whatever path makes them: `createIntervalsPill` and
+  `createIntervalsAuxiliaryPills` take the other athletes' pills off (`intervalsOneAthlete`); the cache's own load
+  routes drop the other athletes' window files from the session (`_one_athlete`, cache_manager.py; a routine's
+  cached load sends the frame's folder). His question "what happens to the kernel and context": the thread stays, the
+  kernel starts fresh on the new data (2026-10-12), and the ledger now says *On another subject's data (…)* under
+  the chains that ran on the other athlete - the subject's id is part of the data's identity (`subject_id_of`) -
+  never a name; uploads and Endura stay *On other data*. The pill strip crawled under the wheel (`scroll-behavior:
+  smooth` with each tick added mid-glide: 102 of 300); it moves at the wheel's pace now, a new chip alone glides in.
+  docs/DATASETS_DESIGN.md §16 (v1.10). Tests: test_analyst.py 244, test_app_path.py 198, the pill strip suite 6,
+  the integrations walk 120.
 - **One athlete at a time on the Data tab (2026-10-29, patch 0246; page and app, image v73 stands).** Load
   everything for a second athlete had added their pills beside the first's (the frame was let go, the files were
   not). A load from the cache dialog now takes the other athletes' pills off first, after one question

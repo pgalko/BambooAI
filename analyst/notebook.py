@@ -65,18 +65,26 @@ def split_sentences(text: str) -> List[str]:
     return out
 
 
+def subject_id_of(d: Optional[dict]) -> str:
+    """Whose data a record is, by the source's own id of the person on its load (2026-10-29); "" when the load names none
+    (an upload, a race, a record from before the subject was kept)."""
+    load = (d or {}).get("load") or {}
+    return str(((load.get("subject") or {}) if isinstance(load.get("subject"), dict) else {}).get("id") or "")
+
+
 def data_signature(d: Optional[dict]) -> str:
     """A data record's identity by content, for the same frame loaded again under another id (2026-10-12: an upload
     gets a fresh id every time, so the same file in a new session is a new frame to the cache): the name, the rows,
-    the columns' names, the period, the loader's details (metrics, activities, the race, the athletes). "" when
-    the record has no rows or columns to go by."""
+    the columns' names, the period, the loader's details (metrics, activities, the race, the athletes), and whose data
+    it is (2026-10-29: two subjects' windows are never the same data, whatever their rows). "" when the record has no
+    rows or columns to go by."""
     d = d or {}
     cols = [str(c.get("name")) for c in (d.get("columns") or []) if isinstance(c, dict)]
     if d.get("rows") is None or not cols:
         return ""
     extra = d.get("extra") or {}
     return "|".join([str(d.get("name") or ""), str(d.get("rows")), ",".join(cols), str(d.get("date_range") or ""),
-                     json.dumps({k: extra[k] for k in sorted(extra)}, sort_keys=True, default=str) if extra else ""])
+                     json.dumps({k: extra[k] for k in sorted(extra)}, sort_keys=True, default=str) if extra else "", subject_id_of(d)])
 
 
 def same_data(a: Optional[dict], b: Optional[dict]) -> bool:
@@ -238,13 +246,17 @@ class Notebook:
         words = ", ".join(p for p in parts if p and p != "none")
         return words or (f"frame {str(d.get('df_id'))[:12]}" if d.get("df_id") else "")
 
-    def other_data_line(self, run: "Run") -> str:
+    def other_data_line(self, run: "Run", now: Optional[dict] = None) -> str:
         """The ledger's line under a chain that ran on data no longer loaded: its numbers are that data's; its cells are
-        not in the kernel; the record still opens them."""
+        not in the kernel; the record still opens them. With `now`, the record of the data loaded now: when the chain ran
+        on another subject's data (both records name one, and they differ), the line says so - "another subject's", never
+        a name (2026-10-29: the Data tab holds one athlete at a time, and a thread may go from one to the next)."""
         what = self.data_words(run)
         nos = [c.cell_no for c in run.cells() if c.cell_no is not None]
         cells = (f"its cells {nos[0]}-{nos[-1]} are" if len(nos) > 1 else f"its cell {nos[0]} is") if nos else ""
-        head = f"On other data ({what}): " if what else "On other data (not on record): "
+        was, is_now = subject_id_of(run.data), subject_id_of(now)
+        whose = "another subject's data" if was and is_now and was != is_now else "other data"
+        head = f"On {whose} ({what}): " if what else f"On {whose} (not on record): "
         return head + "its numbers are that data's" + (f"; {cells} not in the kernel (SHOW n re-opens one from the record)" if cells else "")
 
     def next_cell_no(self, run_id: str) -> int:
@@ -415,11 +427,12 @@ class Notebook:
             return ""
         parts = ["EARLIER IN THIS THREAD - the ledger (every chain; SHOW RUN k opens one whole):"]
         other = {r.id for r in self.earlier_on_other_data(run_id)}
+        now = (self.runs.get(str(run_id)).data if self.runs.get(str(run_id)) is not None else None) or {}
         for k, run in enumerate(path, 1):
             q = re.sub(r"\s+", " ", run.question.strip())
             parts.append(f"[run {k}] Q: {q}\n        Conclusion: {self.conclusion(run)}")
             if run.id in other:
-                parts.append("        " + self.other_data_line(run))     # the data changed since: context, not computation (2026-10-12)
+                parts.append("        " + self.other_data_line(run, now))     # the data changed since: context, not computation (2026-10-12)
                 continue
             nm = self.names_line(run)
             if nm:

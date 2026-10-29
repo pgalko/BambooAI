@@ -370,7 +370,10 @@ function pillStrip(container) {
         if (container.scrollWidth <= container.clientWidth) return;
         const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
         if (!d) return;
-        container.scrollLeft += d;
+        // at the wheel's own pace (2026-10-29: smooth scrolling animated every tick from the position mid-animation, a crawl);
+        // a wheel that reports lines or pages moves by lines or pages
+        const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? container.clientWidth : 1;
+        container.scrollLeft += d * unit;
         e.preventDefault();
     }, { passive: false });
     container.addEventListener('scroll', update, { passive: true });
@@ -379,7 +382,7 @@ function pillStrip(container) {
         new MutationObserver(records => {
             update();
             const added = records.flatMap(r => [...r.addedNodes]).filter(n => n.nodeType === 1).pop();   // the newest chip, into view
-            if (added && typeof added.scrollIntoView === 'function') added.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            if (added && typeof added.scrollIntoView === 'function') added.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
         }).observe(container, { childList: true });
     }
     update();

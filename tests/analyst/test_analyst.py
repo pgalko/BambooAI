@@ -75,6 +75,24 @@ check("the ledger marks the chains before the change as on other data - the file
 check("the cells view after the change shows the computed cells only (4 as older, 5 whole), never the earlier chains' cells",
       "cell 4" in nbd.render_cells(rd.id) and "cell 5" in nbd.render_cells(rd.id) and "cell 1" not in nbd.render_cells(rd.id) and "--- cell 1" not in nbd.render_cells(rd.id, everything=True), nbd.render_cells(rd.id))
 check("other_data_line: one cell says 'its cell n is'; no data on record says so", "its cell 4 is not in the kernel" in nbd.other_data_line(rc) and nbd.other_data_line(ro0).startswith("On other data (not on record): its numbers are that data's"))
+# whose data (2026-10-29): the Data tab holds one athlete at a time and a thread may go from one to the next, so the subject's id on
+# the load is part of the data's identity, and the ledger says a chain ran on another subject's data - never a name
+from analyst.notebook import subject_id_of
+one = {"df_id": "S1", "name": "window.csv", "date_range": "2026-01-01 to 2026-03-01", "rows": 60, "columns": [{"name": "t", "dtype": "int64"}],
+       "load": {"source": "intervals", "subject": {"source": "intervals", "id": "i0", "name": "The subject"}}}
+two = dict(one, df_id="S2", load={"source": "intervals", "subject": {"source": "intervals", "id": "i1", "name": "The other subject"}})
+check("subject_id_of reads the load's subject id ('' without one, or with a record that is no record); the same window under two subjects is not the same data; the same subject's window again is; records without a subject still match by the rest",
+      subject_id_of(one) == "i0" and subject_id_of({"load": {"subject": "x"}}) == "" and subject_id_of(None) == "" and not same_data(one, two) and same_data(one, dict(one, df_id="S1-again"))
+      and data_signature(dict(one, load=None)) == data_signature(dict(two, load=None)) and data_signature(one) != data_signature(two))
+nbs = Notebook("subjects")
+rs1 = nbs.new_run("the first chain"); rs1.data = one; rs1.turns = [Turn(kind="cell", cell_no=1, code="a = 1")]
+rs2 = nbs.new_run("the next, on the other", parent=rs1.id); rs2.data = two; rs2.turns = [Turn(kind="cell", cell_no=2, code="b = 1")]
+rs3 = nbs.new_run("then an upload", parent=rs2.id); rs3.data = {"df_id": "U", "name": "u.csv", "rows": 3, "columns": [{"name": "t", "dtype": "int64"}]}
+for r in (rs1, rs2, rs3): r.status = "answered"; r.report = "## r\n\nDone."
+anc2, anc3 = nbs.render_ancestry(rs2.id), nbs.render_ancestry(rs3.id)
+check("the ledger under a chain on another subject's data says so - the window's words, no name; after an upload (no subject on its record) the earlier chains are on 'other data'; the kernel is fresh either way (nothing of the first chain's rehydrated for the second)",
+      "On another subject's data (window.csv, 2026-01-01 to 2026-03-01, 60 rows): its numbers are that data's; its cell 1 is not in the kernel" in anc2 and "The subject" not in anc2 and "The other subject" not in anc2
+      and "another subject" not in anc3 and anc3.count("On other data (window.csv") == 2 and [c.cell_no for c in nbs.computed_cells(rs2.id)] == [2], (anc2, anc3))
 
 # ---- the loop over a real kernel, with a scripted analyst ----
 df = pd.DataFrame({"unit": np.repeat(["a", "b", "c", "d"], 50), "arm": np.tile(["A", "B"], 100),

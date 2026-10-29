@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.9 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0246)
+# Datasets by athlete — design v1.10 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0247)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -319,7 +319,7 @@ details; Load from the dialog with a window loaded - let go on asking, loaded fr
 itself, each file's pill once; every dataset loaded together with all eight files written and seven pills; the tree
 with two athletes, fold and filter, Forget through the details, Load to today declined).
 
-## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73, 0244-0246 - the last paragraphs)
+## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73, 0244-0247 - the last paragraphs)
 
 The product owner's second look (2026-10-29) found the rebuilt dialog still an old design bent to the new logic: the
 columns showed for two datasets only, Load on a dataset loaded everything, earlier loads were still listed. The
@@ -439,3 +439,34 @@ dialog added a second frame pill beside the first; `createIntervalsPill` now rem
 frame on the page - and a frame pill an earlier load left behind goes with the other athletes' pills. The walk: Load everything for the other subject with the
 first's data on the tab - one question, the first's pills all gone, the other's in alone, the first's old file no
 longer in the session, the dialog's words saying which athlete is on the tab.
+
+**The rule where the pills are made; the thread across athletes (patch 0247, page and app).** The product owner
+deployed 0246, "tested it", and still saw both athletes' pills - the walk's same sequence passes, and the likeliest
+cause is the page not reloaded after the app restart (an app restart does not reload a page; Cmd-R does). Rather
+than argue the cause, the rule now lives where the pills are made, whatever path makes them: `createIntervalsPill`
+takes the earlier frame's pill off and then the other athletes' file pills (`intervalsOneAthlete`, after the state
+names the new window); `createIntervalsAuxiliaryPills` takes the other athletes' pills off before it adds a file's.
+The three paths - the Intervals.icu dialog, the cache dialog, a routine's run - all end there. On the app, the
+cache's own load routes (`/cache/load_primary` with the athlete's folder, which a routine's cached load now sends;
+`/cache/load_auxiliary` for an athlete's window file) drop the other athletes' window files from the session's list
+(`_one_athlete` in cache_manager.py) as the loader's completion does, so the session and the page agree on every
+path. The pill strip's "too slow" scroll was `scroll-behavior: smooth` on the row with the wheel adding each tick
+to a position mid-glide (a gesture of 300 moved it 102): the row scrolls at the wheel's own pace (lines and pages
+honoured by `deltaMode`), and only a newly added chip glides into view.
+
+*The kernel and the context when the athlete changes* (the product owner's question). The thread stays; what the
+model is told is the existing design of 2026-10-12 with one addition. On the next question after the data changed,
+the kernel is started fresh for that data (`_kernel_for`: nothing of the earlier athlete's cells is in it; cells of
+chains on the *same* data are re-run into it, none for a new athlete). The ledger the model reads keeps every
+earlier chain - question and conclusion - and marks those that ran on data no longer loaded; the subject's id on the
+load is now part of a data record's identity (`subject_id_of` in `data_signature`: the same window under two
+athletes is never the same data), and when both the chain's record and the data loaded now name a subject and they
+differ, the line reads *On another subject's data (window, period, rows): its numbers are that data's; its cells are
+not in the kernel* - never a name (C5: the athlete's name is the page's, not a prompt's). An upload or an Endura
+race after an athlete's window, or the reverse, is *On other data (…)* as before: the rule is by content for every
+source, and the one-athlete rule is Intervals' alone, since only its files are an athlete's. The context (the chats,
+notes and calendar) is a dataset of the athlete on the tab: the other athlete's left with their pills, and the
+coding pass runs per athlete (its store is the athlete's). Tests: test_analyst.py 244 (the signature by subject;
+the ledger's line), test_app_path.py 198 (the cache routes' rule), test_dialogs.js (the rule at the pill's
+creation), the pill strip suite (a burst of ten ticks moves the row by their sum), the integrations walk 120 (a
+routine's load for the other subject leaves one athlete's pills and files).

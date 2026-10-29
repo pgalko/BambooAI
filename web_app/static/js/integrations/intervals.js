@@ -131,6 +131,7 @@ function createIntervalsPill(dataInfo) {
     currentIntervalsState.isLoaded = true;
     currentIntervalsState.pillId = pillId;
     currentIntervalsState.dataInfo = dataInfo;
+    intervalsOneAthlete(dataInfo.folder);                  // one athlete on the Data tab: another athlete's file pills go (2026-10-29)
 
     console.log('Intervals ICU data pill created successfully');
 }
@@ -155,6 +156,7 @@ function intervalsDayCount(dataInfo) {
 
 function createIntervalsAuxiliaryPills(auxDatasets, dataInfo, options) {
     if (!auxDatasets || auxDatasets.length === 0) return {};
+    intervalsOneAthlete(dataInfo && dataInfo.folder);      // one athlete on the Data tab, whatever path brings the files (2026-10-29)
     const dayCount = intervalsDayCount(dataInfo);
     const ids = {};
     let shown = 0;
@@ -529,7 +531,6 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                     folder: (job.result && job.result.subject && job.result.subject.folder) || ''      // whose window (2026-10-29): the Dataset cache dialog's dots read it
                 };
                 createIntervalsPill(dataInfo);
-                intervalsOneAthlete(dataInfo.folder);              // another athlete's file pills left behind go (the app drops their files)
 
                 const coding = job.result && job.result.context && job.result.context.coding;
                 if (job.result && job.result.aux_datasets && job.result.aux_datasets.length > 0) {

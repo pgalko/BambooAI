@@ -945,7 +945,7 @@
             // the load is in the cache with every file the routine wants: the cached frame and files are taken through the
             // Dataset cache's own routes, the pills as a load's, no download
             progress('Taking it from the cache…', 'loading');
-            const res = await fetchJson('/cache/load_primary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ df_id: cached.df_id }) });
+            const res = await fetchJson('/cache/load_primary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ df_id: cached.df_id, folder: cached.folder || '' }) });     // whose frame: the other athletes' files leave the session with it (2026-10-29)
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the cached data could not be loaded');
             for (const fp of cached.files || []) {
                 const ar = await fetchJson('/cache/load_auxiliary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file_path: fp }) });

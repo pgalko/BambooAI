@@ -20,7 +20,7 @@
    the chain navigation and scrolls sideways when the chips outrun it (2026-10-15: a load with the context brings five
    files, and more auxiliaries are coming - the row used to clip what did not fit); the scrollbar is hidden, the wheel
    scrolls it (core.js pillStrip), and a fade at either edge says there is more (.more-left / .more-right). */
-.topbar #datasetStatusPillsContainer { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; margin: 0; padding: 0; min-width: 0; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
+.topbar #datasetStatusPillsContainer { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; margin: 0; padding: 0; min-width: 0; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -ms-overflow-style: none; }     /* the wheel moves it at its own pace; a new chip glides into view (core.js) */
 .topbar #datasetStatusPillsContainer::-webkit-scrollbar { display: none; }
 .topbar #datasetStatusPillsContainer.more-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
 .topbar #datasetStatusPillsContainer.more-left { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px); mask-image: linear-gradient(to right, transparent, #000 28px); }

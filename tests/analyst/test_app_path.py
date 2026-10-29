@@ -1107,6 +1107,21 @@ try:
     IV._coding_start("job-5", "s1", _res5, {"auxiliary_datasets": [_ctx4]})
     check("an account that may not run a query: the pass is skipped with the reason in the line, no call", _res5["context"]["coding"]["status"] == "skipped" and _res5["context"]["coding"]["line"] == "the context was not coded: no funds" and len(_calls4) == 2, _res5["context"])
     IV.can_execute_chain = lambda a: {"ok": True, "data": {"allowed": True}}
+    # one athlete at a time on the Data tab, on the app's side of the cache's own load routes too (2026-10-29): a routine run taken
+    # from the cache goes through /cache/load_primary and /cache/load_auxiliary, never the loader's completion, and the session's
+    # list of files - the instance holds the same list - must follow the page's pills
+    sys.modules.pop("integrations.cache_manager", None)
+    import integrations.cache_manager as CM
+    _a0 = "/x/datasets/u3/intervals/i0/views/wellness_data_20260101_to_20260301.csv"; _a1 = "/x/datasets/u3/intervals/i1/views/wellness_data_20260101_to_20260301.csv"; _up = "/x/datasets/u3/upload.csv"
+    _p6 = {"auxiliary_datasets": [_a0, _ath, _up]}
+    _bi = B.BambooAI(df=None, df_id=None, user_id="u3", webui=True, auxiliary_datasets=_p6["auxiliary_datasets"])
+    CM.cache_bp.bamboo_ai_instances = {"s6": _bi}
+    CM._one_athlete("s6", _p6, ""); _none = _p6["auxiliary_datasets"] == [_a0, _ath, _up]
+    CM._one_athlete("s6", _p6, "intervals/i0"); _own = _p6["auxiliary_datasets"] == [_a0, _ath, _up] and _bi.auxiliary_datasets is _p6["auxiliary_datasets"]
+    CM._one_athlete("s6", _p6, "intervals/i1"); _p6["auxiliary_datasets"].append(_a1)
+    check("the cache routes' one-athlete rule: a window file's athlete folder is read from its path (none for an upload or a file elsewhere; backslashes too); nobody's folder or the athlete's own changes nothing; another athlete's frame or file takes the first athlete's window files off the session's list and the instance's - the same list still, so the file appended after lands in both - and leaves the files that are nobody's",
+          CM._athlete_folder(_a0) == "intervals/i0" and CM._athlete_folder(_ath) == "" and CM._athlete_folder(_up) == "" and CM._athlete_folder("C:\\d\\u\\endura\\r9\\views\\f.csv") == "endura/r9"
+          and _none and _own and _p6["auxiliary_datasets"] == [_ath, _up, _a1] and _bi.auxiliary_datasets == [_ath, _up, _a1] and _bi.auxiliary_datasets is _p6["auxiliary_datasets"], (_p6, _bi.auxiliary_datasets))
 
     from bambooai.models import ModelManager as _MM
     _mm = _MM.__new__(_MM)
