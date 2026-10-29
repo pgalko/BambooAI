@@ -21,9 +21,10 @@ def _one_athlete(session_id, prefs, folder):
     """One athlete at a time on the Data tab (2026-10-29): when an athlete's frame or window file comes onto it, the
     other athletes' window files leave the session's list - and the instance's, which holds the same list - as their
     pills leave the page. Files that are nobody's (uploads, race files) stay."""
+    from analyst.routines import other_subjects_file
     if not folder:
         return
-    keep = [p for p in prefs.get('auxiliary_datasets') or [] if _athlete_folder(p) in ('', folder)]
+    keep = [p for p in prefs.get('auxiliary_datasets') or [] if not other_subjects_file(p, folder)]
     if len(keep) == len(prefs.get('auxiliary_datasets') or []):
         return
     prefs['auxiliary_datasets'] = keep

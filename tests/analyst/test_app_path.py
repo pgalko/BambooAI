@@ -1118,8 +1118,9 @@ try:
     CM.cache_bp.bamboo_ai_instances = {"s6": _bi}
     CM._one_athlete("s6", _p6, ""); _none = _p6["auxiliary_datasets"] == [_a0, _ath, _up]
     CM._one_athlete("s6", _p6, "intervals/i0"); _own = _p6["auxiliary_datasets"] == [_a0, _ath, _up] and _bi.auxiliary_datasets is _p6["auxiliary_datasets"]
+    _mk = "/x/datasets/u3/abcdef012345/views/planned_workouts_20260101_to_20260301.csv"; _p6["auxiliary_datasets"].append(_mk)      # a loader's file an earlier load left under a key's mark
     CM._one_athlete("s6", _p6, "intervals/i1"); _p6["auxiliary_datasets"].append(_a1)
-    check("the cache routes' one-athlete rule: a window file's athlete folder is read from its path (none for an upload or a file elsewhere; backslashes too); nobody's folder or the athlete's own changes nothing; another athlete's frame or file takes the first athlete's window files off the session's list and the instance's - the same list still, so the file appended after lands in both - and leaves the files that are nobody's",
+    check("the cache routes' one-athlete rule: a window file's athlete folder is read from its path (none for an upload or a file elsewhere; backslashes too); nobody's folder or the athlete's own changes nothing; another athlete's frame or file takes the first athlete's window files off the session's list and the instance's - a loader's file under a key's mark folder too - the same list still, so the file appended after lands in both - and leaves the files that are nobody's",
           CM._athlete_folder(_a0) == "intervals/i0" and CM._athlete_folder(_ath) == "" and CM._athlete_folder(_up) == "" and CM._athlete_folder("C:\\d\\u\\endura\\r9\\views\\f.csv") == "endura/r9"
           and _none and _own and _p6["auxiliary_datasets"] == [_ath, _up, _a1] and _bi.auxiliary_datasets == [_ath, _up, _a1] and _bi.auxiliary_datasets is _p6["auxiliary_datasets"], (_p6, _bi.auxiliary_datasets))
 

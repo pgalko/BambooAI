@@ -138,5 +138,13 @@ check('the auxiliary limit: the template sets window.MAX_AUXILIARY_DATASETS from
   html.includes('window.MAX_AUXILIARY_DATASETS = Number("{{ max_auxiliary_datasets|default(10)|int }}") || 10;') && html.indexOf('window.MAX_AUXILIARY_DATASETS') < html.indexOf("js/core.js") && html.indexOf('window.MAX_AUXILIARY_DATASETS') > html.indexOf("js/workspace-gate.js")
   && core.includes('const MAX_AUXILIARY_DATASETS = Number(window.MAX_AUXILIARY_DATASETS) || 10;') && !/MAX_AUXILIARY_DATASETS = \d/.test(core)
   && dmj.includes('auxiliaryDatasetCount >= MAX_AUXILIARY_DATASETS') && fmj.includes('auxiliaryDatasetCount < MAX_AUXILIARY_DATASETS') && !/Maximum \d+ auxiliary/.test(dmj + fmj));
+// the update bar (2026-10-29): the status answer carries the page's build; a change under an open page puts a bar under the top bar
+const csj = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'container-status.js'), 'utf8');
+const csr = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'container_status_routes.py'), 'utf8');
+check('the update bar: the app fingerprints static/ and templates/ once per process and puts page_build on every status answer; the page keeps the first build it sees, and on a different one makes the bar once - under the top bar, with Reload and Not now - styled in shell.css',
+  csr.includes("def page_build():") && csr.includes("for top in ('static', 'templates'):") && csr.includes("out['page_build'] = page_build()") && csr.includes("'page_build': page_build()")
+  && csj.includes('appUpdatedWatch(data);') && csj.includes("if (!pageBuild) { pageBuild = build; return; }") && csj.includes("if (build === pageBuild || document.getElementById('appUpdatedBar')) return;")
+  && csj.includes("top.insertAdjacentElement('afterend', bar)") && csj.includes("addEventListener('click', () => window.location.reload())") && csj.includes("BambooAI was updated.")
+  && shell.includes('.container .app-updated {') && shell.includes('.container .app-updated button.reload:hover'));
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

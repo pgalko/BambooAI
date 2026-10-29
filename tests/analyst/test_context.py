@@ -307,7 +307,7 @@ check("the summary carries the settings in force that day: max_hr_setting, pm_ft
       summ.iloc[0]["max_hr_setting"] == 190 and summ.iloc[0]["pm_ftp_watts"] == 280 and summ.iloc[0]["ftp_watts"] == 300 and summ.iloc[0]["power_zones"] == "55|75|90" and summ.iloc[0]["hr_zones"] == "140|155" and "pace_zones" not in summ.columns, summ.to_dict())
 check("save_aux_dataset names the two files by their kinds and the window", os.path.basename(E.save_aux_dataset(prof, "rider", "u", "2026-06-15", "2026-10-13")) == "rider_profile_20260615_to_20261013.csv"
       and os.path.basename(E.save_aux_dataset(zt, "zones", "u", "2026-06-15", "2026-10-13")) == "custom_zone_times_20260615_to_20261013.csv")
-check("the executor's build stamp is v73 (the window each dataset covered on the record; the Dataset cache dialog redesigned in v72; the feeds in the store since v68; the context's activity day and copies since v62)", "v73" in E.EXECUTOR_BUILD and "covered" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
+check("the executor's build stamp is v74 (a load asked for one athlete under another's key refused; the window each dataset covered on the record since v73; the Dataset cache dialog redesigned in v72; the feeds in the store since v68; the context's activity day and copies since v62)", "v74" in E.EXECUTOR_BUILD and "refused" in E.EXECUTOR_BUILD and "covered" in E.EXECUTOR_BUILD, E.EXECUTOR_BUILD)
 
 # ---- every custom field under its code (2026-10-16, patch 0183): the account's definitions decode the files' columns ----
 IF = E.field_definitions(REC["custom_items"], "INTERVAL_FIELD")

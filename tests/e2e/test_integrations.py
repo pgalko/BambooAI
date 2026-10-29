@@ -111,6 +111,11 @@ def main():
             check("earlier loads are deleted on the executor's first start, without a question: the mark folder with its store and the loader's file at the user's folder are gone, the upload stays",
                   not os.path.exists(os.path.join(exec_user, "abcdef012345")) and not os.path.exists(os.path.join(exec_user, "activity_summary_20250101_to_20250201.csv")) and os.path.isfile(os.path.join(exec_user, "my_notes.txt")),
                   sorted(os.listdir(exec_user)))
+            # the update bar (2026-10-29): the status answer carries the page's build; a different one under an open page puts the bar up
+            st_ = fetch_json(page, "/api/container/status")
+            bar = page.evaluate("() => { appUpdatedWatch({ page_build: 'not-this-page' }); appUpdatedWatch({ page_build: 'not-this-page' }); const b = document.querySelectorAll('#appUpdatedBar'); const one = b[0]; const out = { n: b.length, afterTop: !!one && one.previousElementSibling === document.querySelector('.container .topbar'), text: one ? one.textContent : '', reload: !!(one && one.querySelector('button.reload')) }; if (one) one.querySelector('button.later').click(); out.gone = !document.getElementById('appUpdatedBar'); appUpdatedWatch({ page_build: 'not-this-page' }); out.stillGone = !document.getElementById('appUpdatedBar'); appUpdatedWatch({ page_build: 'changed-again' }); out.again = !!document.getElementById('appUpdatedBar'); if (out.again) document.getElementById('appUpdatedBar').remove(); return out; }")
+            check("the status answer carries the page's build (a fingerprint of the app's files); a different one later puts the update bar under the top bar, once - 'BambooAI was updated', Reload - Not now takes it off and that build counts as seen; a further change puts it up again",
+                  re.fullmatch(r"[0-9a-f]{12}", str((st_["json"] or {}).get("page_build") or "")) is not None and bar["n"] == 1 and bar["afterTop"] and "BambooAI was updated" in bar["text"] and bar["reload"] and bar["gone"] and bar["stillGone"] and bar["again"], (st_["json"], bar))
             # the key, as the settings dialog stores it; then the Data tab's Intervals dialog loads the original window
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
             check("the Intervals.icu key is stored through its route (the stack's store)", r["status"] == 200, r)
@@ -431,6 +436,22 @@ def main():
             # windows are the first subject's and must not be served; the new key has loaded nothing yet, so it is only "another key"
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key-two"})
             check("another Intervals.icu key stored", r["status"] == 200, r)
+            # a load asked for one athlete under another athlete's key is refused (2026-10-29, executor v74): the cache dialog's Load
+            # Wellness to today for the first subject, with the other subject's key stored - the loader used to fetch the key's athlete
+            # under the asked athlete's window, two athletes on the Data tab - says whose key is stored and what to do; nothing written
+            pills_k = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim())")
+            files_k = sorted(os.listdir(exec_views))
+            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-feed[data-feed=\"wellness\"]').length >= 1", timeout=15000)
+            page.evaluate("() => document.querySelector('#datasetTree .ds-feed[data-feed=\"wellness\"]').click()")
+            page.wait_for_function("() => !!document.querySelector('#datasetDetails [data-act=\"today\"]') && /Wellness/.test(document.getElementById('datasetDetails').textContent)", timeout=10000)
+            page.click("#datasetDetails [data-act='today']")
+            page.wait_for_function("() => /Failed|Loaded /.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=120000)
+            refused = page.evaluate("() => ({ line: document.getElementById('dsLoadStatus').textContent, cls: document.getElementById('dsLoadStatus').className, pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim()) })")
+            page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
+            check("Load Wellness to today for the first subject while the other subject's key is stored: refused with whose key it is and what to do, nothing written for either subject (no folder for the other yet, the first's files as they were), the Data tab untouched",
+                  "Failed: The Intervals.icu key stored is The other subject's, not The subject's: put The subject's key in the Intervals.icu dialog, then load again" in refused["line"] and "error" in refused["cls"]
+                  and not os.path.exists(os.path.join(workdir, "executor", "datasets", USER, "intervals", "i1")) and refused["pills"] == pills_k and sorted(os.listdir(exec_views)) == files_k, (refused, pills_k, files_k))
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => { const t = (document.querySelector('#routinesModal .rt-right .title') || {}).textContent || ''; return t.length > 0 && !/Again on the cached window/.test(t); }", timeout=15000)     # the manager re-opens on the routine it last showed - the deleted one - until the list's first has loaded

@@ -520,6 +520,23 @@ def kind_prefix(kind: str) -> str:
     return next((p for p, k in AUX_KINDS if k == kind), "")
 
 
+# the kinds the Intervals loader writes for a subject - LOAD_KINDS["intervals"] and what those bring (2026-10-29)
+INTERVALS_KINDS = ("summary", "wellness", "intervals", "context", "plan", "rider", "codes", "zones")
+
+
+def loader_file(path: str) -> bool:
+    """Whether a file is one the Intervals loader writes for a subject, by its name; an upload or a race file is not."""
+    return aux_kind(path) in INTERVALS_KINDS
+
+
+def other_subjects_file(path: str, folder: str) -> bool:
+    """Whether a session file is another subject's than `folder` (intervals/<id>): a loader's file not under that subject's
+    views/ - whatever path an earlier load gave it (2026-10-29: one subject at a time on the Data tab; the page's
+    intervalsOtherAthletePills reads the pills the same way)."""
+    p = str(path or "").replace("\\", "/")
+    return bool(folder) and loader_file(p) and ("/" + str(folder) + "/views/") not in p
+
+
 _RANGE_RE = re.compile(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-|→)\s*(\d{4}-\d{2}-\d{2})\s*$")
 
 

@@ -193,6 +193,27 @@ function updateContainerStatus(data) {
     };
     
     updateStatusUI();
+    appUpdatedWatch(data);
+}
+
+// The page's files changed under it (2026-10-29): the status answer carries a fingerprint of the app's static files and
+// templates; the first one seen is this page's, and a different one later means an update was deployed (the app
+// restarted, the page not reloaded) - the page runs the old scripts until it is reloaded, so a bar says so, once.
+let pageBuild = '';
+function appUpdatedWatch(data) {
+    const build = data && data.page_build;
+    if (!build) return;
+    if (!pageBuild) { pageBuild = build; return; }
+    if (build === pageBuild || document.getElementById('appUpdatedBar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'appUpdatedBar';
+    bar.className = 'app-updated';
+    bar.innerHTML = '<span>BambooAI was updated. This page still runs the version it was opened with - reload it to use the new one.</span>'
+        + '<button type="button" class="reload">Reload</button><button type="button" class="later" title="Not now">\u00d7</button>';
+    bar.querySelector('.reload').addEventListener('click', () => window.location.reload());
+    bar.querySelector('.later').addEventListener('click', () => { pageBuild = build; bar.remove(); });      // not now: this build counts as seen, the next change says so again
+    const top = document.querySelector('.container .topbar');
+    if (top) top.insertAdjacentElement('afterend', bar); else document.body.prepend(bar);
 }
 
 // Then simplify your updateStatusUI function - remove the entire switch statement and replace with:

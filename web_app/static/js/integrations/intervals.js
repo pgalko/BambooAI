@@ -300,17 +300,20 @@ function pollContextCoding(jobId, dataInfo, onDone) {
 if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, contextPillProposals, contextPillProposalsText, contextCodebookOpen, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, showIntervalsStoreLine, intervalsOtherAthletePills, intervalsOneAthlete }); }
 
 // One athlete at a time on the Data tab (2026-10-29, the product owner: another athlete's Load everything added its pills to the
-// first's). The file pills of the other athletes - a path under datasets/<user>/intervals/<id>/views/ names the athlete - and the
-// frame pill when it is another athlete's: `intervalsOtherAthletePills` lists them; `intervalsOneAthlete` takes the file pills off
-// without a call (the app drops their files when the load completes) and returns how many went.
+// first's). The file pills of the other athletes and the frame pill when it is another athlete's: `intervalsOtherAthletePills`
+// lists them; `intervalsOneAthlete` takes the file pills off without a call (the app drops their files when the load completes)
+// and returns how many went. An athlete's own file is one under datasets/<user>/intervals/<id>/views/; every other file the
+// Intervals loader writes - known by its name, whatever path an earlier load gave it - is another athlete's. Uploads and race
+// files are nobody's and stay.
+const INTERVALS_LOADER_FILE = /^(activity_summary|wellness_data|activity_intervals|context_notes|context_codes|planned_workouts|rider_profile|custom_zone_times)_\d{8}_to_\d{8}\.csv$/;
 function intervalsOtherAthletePills(folder) {
     const out = [];
     const st = currentIntervalsState;
     const mine = st.isLoaded && st.pillId && st.dataInfo && st.dataInfo.folder === folder ? st.pillId : '';
     document.querySelectorAll('#datasetStatusPillsContainer .dataset-status-pill[data-dataset-type="intervals"]').forEach(p => { if (p.id !== mine) out.push(p); });    // every frame pill but this athlete's own
     document.querySelectorAll('#datasetStatusPillsContainer .auxiliary-dataset-pill').forEach(p => {
-        const m = String(p.dataset.identifier || '').replace(/\\/g, '/').match(/\/(intervals\/[^/]+)\/views\//);
-        if (m && m[1] !== folder) out.push(p);
+        const id = String(p.dataset.identifier || '').replace(/\\/g, '/');
+        if (INTERVALS_LOADER_FILE.test(id.split('/').pop()) && !id.includes('/' + folder + '/views/')) out.push(p);
     });
     return out;
 }

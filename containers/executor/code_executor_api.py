@@ -43,7 +43,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-29 v73 (the window each dataset covered on the record, so a load to today reads as ending today; the Dataset cache dialog redesigned in v72: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-29 v74 (a load asked for one athlete under another athlete\'s key is refused; the window each dataset covered on the record since v73, so a load to today reads as ending today; the Dataset cache dialog redesigned in v72: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -1753,6 +1753,19 @@ def fetch_intervals_background(data, job_id):
             athlete_id = str((athlete or {}).get('id') or '').strip()
             athlete_name = str((athlete or {}).get('name') or ' '.join(str((athlete or {}).get(k) or '') for k in ('firstname', 'lastname')).strip() or '').strip()
             folder = athlete_rel('intervals', athlete_id, mark)
+            # The Dataset cache dialog names the athlete it loads for (folder_req); the data comes from whichever key the
+            # Intervals.icu dialog holds. Another athlete's key used to fetch that athlete's data under the asked athlete's
+            # window - two athletes on the Data tab, the page none the wiser (2026-10-29) - so the load is refused before
+            # anything is written: the coach puts the right key in and loads again.
+            if folder_req and athlete_id and folder != folder_req:
+                asked = str(athlete_record(user_dir, folder_req).get('name') or folder_req.split('/')[-1])
+                intervals_jobs[job_id]['status'] = 'error'
+                intervals_jobs[job_id]['error'] = f"The Intervals.icu key stored is {athlete_name or athlete_id}'s, not {asked}'s: put {asked}'s key in the Intervals.icu dialog, then load again"
+                return
+            if folder_req and not athlete_id:
+                intervals_jobs[job_id]['status'] = 'error'
+                intervals_jobs[job_id]['error'] = "The athlete behind the stored key could not be checked (the profile call failed), so nothing was loaded; try again"
+                return
             if athlete_id:
                 moved = adopt_mark_folder(user_dir, mark, folder)
                 if moved:

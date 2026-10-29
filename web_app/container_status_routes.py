@@ -1,3 +1,4 @@
+import hashlib
 import os
 import time
 import requests
@@ -8,6 +9,30 @@ import gc
 
 # Create the blueprint
 container_status_bp = Blueprint('container_status', __name__)
+
+_PAGE_BUILD = None
+
+
+def page_build():
+    """A fingerprint of the page's files (static/ and templates/: each path with its size and mtime), computed once per
+    process. The status answer carries it and the page compares it with the one it first saw: when the files changed
+    under an open page - an update deployed, the app restarted, the page not reloaded - the page says so with a way to
+    reload (2026-10-29: a page left open across a deploy ran the old scripts, and a fix looked like no fix)."""
+    global _PAGE_BUILD
+    if _PAGE_BUILD is None:
+        h = hashlib.sha1()
+        base = os.path.dirname(os.path.abspath(__file__))
+        for top in ('static', 'templates'):
+            for root, _dirs, files in os.walk(os.path.join(base, top)):
+                for f in sorted(files):
+                    fp = os.path.join(root, f)
+                    try:
+                        st = os.stat(fp)
+                    except OSError:
+                        continue
+                    h.update(f"{os.path.relpath(fp, base)}|{st.st_size}|{st.st_mtime_ns}".encode('utf-8'))
+        _PAGE_BUILD = h.hexdigest()[:12]
+    return _PAGE_BUILD
 
 def init_container_status_integration(app, **dependencies):
     """Initialize container status integration with the main app and dependencies"""
@@ -69,22 +94,23 @@ def get_container_status():
         mode = os.getenv('EXECUTION_MODE', 'api')
         direct = (os.getenv('EXECUTOR_API_BASE_URL') or '').rstrip('/')
         if mode == 'local':
-            return jsonify({'status': 'ready', 'tier': 'local', 'user_id': user_id}), 200
-        if direct:
-            return jsonify(dict(_direct_executor_status(direct), user_id=user_id)), 200
-        if container_status_bp.container_orchestrator is None:
-            return jsonify({'status': 'offline', 'tier': 'none', 'user_id': user_id, 'error': 'no executor: set EXECUTION_MODE=local or EXECUTOR_API_BASE_URL'}), 200
-        
-        # Use the centralized orchestrator client
-        status_data = container_status_bp.container_orchestrator.get_container_status(user_id)
-        
-        return jsonify(status_data), 200
+            out = {'status': 'ready', 'tier': 'local', 'user_id': user_id}
+        elif direct:
+            out = dict(_direct_executor_status(direct), user_id=user_id)
+        elif container_status_bp.container_orchestrator is None:
+            out = {'status': 'offline', 'tier': 'none', 'user_id': user_id, 'error': 'no executor: set EXECUTION_MODE=local or EXECUTOR_API_BASE_URL'}
+        else:
+            # Use the centralized orchestrator client
+            out = dict(container_status_bp.container_orchestrator.get_container_status(user_id) or {})
+        out['page_build'] = page_build()                  # the page's files as this process sees them (the page watches for a change)
+        return jsonify(out), 200
             
     except Exception as e:
         container_status_bp.logger.error(f"Container status check failed: {str(e)}")
         return jsonify({
             'status': 'offline', 
-            'error': str(e)
+            'error': str(e),
+            'page_build': page_build()
         }), 200
 
 def _restart_managed_container(name: str):

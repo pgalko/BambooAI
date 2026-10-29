@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.10 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0247)
+# Datasets by athlete — design v1.11 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0248)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -176,6 +176,10 @@ rotates); the unit suites cover the store's merge and span, the migration, the t
 - Whether the tree shows the store's size per athlete on the hosted service (it is the coach's own disk on the single
   edition; on the hosted boxes it is a quota question).
 - The name in `run.data` (section 6): on screen only, or in the record as proposed.
+- A key per athlete (2026-10-29, after 0248): the Intervals.icu dialog holds one key, and a coach with two athletes
+  switches it by hand; the cache dialog's *to today* loads for an athlete whose key is not the one stored are refused
+  since v74. With a key kept per athlete folder (stored as the dialog's key is, under the user), the dialog's loads
+  would take the right key themselves and the switch would go.
 
 ## 13. Step 1 as built (patch 0237, executor image v67)
 
@@ -319,7 +323,7 @@ details; Load from the dialog with a window loaded - let go on asking, loaded fr
 itself, each file's pill once; every dataset loaded together with all eight files written and seven pills; the tree
 with two athletes, fold and filter, Forget through the details, Load to today declined).
 
-## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73, 0244-0247 - the last paragraphs)
+## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73, 0244-0248, v74 - the last paragraphs)
 
 The product owner's second look (2026-10-29) found the rebuilt dialog still an old design bent to the new logic: the
 columns showed for two datasets only, Load on a dataset loaded everything, earlier loads were still listed. The
@@ -470,3 +474,30 @@ coding pass runs per athlete (its store is the athlete's). Tests: test_analyst.p
 the ledger's line), test_app_path.py 198 (the cache routes' rule), test_dialogs.js (the rule at the pill's
 creation), the pill strip suite (a burst of ten ticks moves the row by their sum), the integrations walk 120 (a
 routine's load for the other subject leaves one athlete's pills and files).
+
+**A load for one athlete under another athlete's key is refused; the page's rule by the file's name; the update bar
+(patch 0248, executor image v74).** After 0247 the product owner still had a mix on the Data tab: the second athlete's
+210-day frame and files beside *Planned workouts (363 days)*, *Rider profile* and *Custom zones (363 days)*, while
+the dialog said nothing of the first athlete's was on the tab. Reproduced on the stack: the cache dialog's *Load <dataset> to today* names the
+athlete it loads for (`folder`), but the data comes from whichever key the Intervals.icu dialog holds, and the loader
+took the key's athlete - another one - and wrote that athlete's calendar and profile under the asked athlete's
+window, in the key's athlete's folder. The page then held two athletes' data under one window length, and by folder
+every pill was the key's athlete's own, so nothing was taken off. Three changes:
+
+- *The executor refuses it* (v74): an online load with a `folder` whose athlete is not the key's ends before anything
+  is written - *The Intervals.icu key stored is X's, not Y's: put Y's key in the Intervals.icu dialog, then load
+  again* - and one whose key's athlete cannot be checked (the profile call failed) too. The Intervals.icu dialog's
+  own loads name no folder and run as before. (The right design is a key per athlete, so the dialog's loads never
+  need the key switched by hand - open, §12.)
+- *The page's rule by the file's name*: an athlete's own file is one under `datasets/<user>/intervals/<id>/views/`;
+  every other file the Intervals loader writes - known by its name, whatever path an earlier load gave it (a key's
+  mark folder, the athlete's folder itself) - is another athlete's (`INTERVALS_LOADER_FILE` in intervals.js;
+  `other_subjects_file` in analyst/routines.py for the app's two routes). Uploads and race files are nobody's.
+- *The update bar*: the status answer carries a fingerprint of the app's static files and templates (`page_build`,
+  computed once per process); the page keeps the first it sees and, on a different one, puts a bar under the top bar
+  - *BambooAI was updated… reload* - with Reload and Not now. A page left open across a deploy runs the old scripts,
+  and twice today a fix looked like no fix for that reason.
+
+Tests: test_routines.py 145 (the helper), test_app_path.py 198 (the cache routes with a mark-folder file),
+test_dialogs.js (the rule's tokens), test_shell.js 72 (the bar), the stamp checks v74; the integrations walk 122
+(the refusal with its line, nothing written, the tab untouched; the bar).

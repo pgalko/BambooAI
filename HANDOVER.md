@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0247 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time; **executor image v73** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0248 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time, a load under another athlete's key refused; **executor image v74** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,10 +95,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/198/31/27/18/49/44/72/33/144/60/93/37/15/88/1/1 Python; 58/7/45/71/24/71/14/25/4/14/67 JS; 1,555 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/198/31/27/18/49/44/72/33/145/60/93/37/15/88/1/1 Python; 58/7/45/72/24/71/14/25/4/14/67 JS; 1,557 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (120; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (122; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -477,6 +477,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **A load for one athlete under another athlete's key is refused; the one-athlete rule by the file's name; the
+  update bar (2026-10-29, patch 0248; executor image v74 - rebuild and roll out).** After 0247 Palo still had a
+  mix: the second athlete's 210-day frame and files beside a 363-day plan, profile and zones that looked like the
+  first's, the dialog saying nothing of the first's was on the tab. Reproduced: the cache dialog's *Load <dataset> to today* for one athlete with
+  the other's key in the Intervals.icu dialog fetched the key's athlete under the asked athlete's window, into the
+  key's athlete's folder - two athletes on the tab, every pill "its own" by folder. The executor now refuses such
+  a load before writing (the line says whose key is stored and what to do; `folder_req` vs the key's athlete), the
+  page's rule treats every loader file (by name) not under the athlete's views/ as another athlete's
+  (`INTERVALS_LOADER_FILE`; `other_subjects_file` in analyst/routines.py for the app), and the page shows a bar
+  when the app's files changed under it (`page_build` on the status answer; container-status.js) - a page left
+  open across a deploy runs the old scripts, which is what the scroll report most likely was. Open: a key per
+  athlete (DATASETS_DESIGN §12). Tests: test_routines.py 145, test_shell.js 72, the stamp checks v74, the
+  integrations walk 122.
 - **The one-athlete rule where the pills are made; the thread across athletes; the pill strip's pace (2026-10-29,
   patch 0247; page and app, image v73 stands).** Palo deployed 0246 and still saw both athletes' pills (the walk's
   sequence passes; likeliest a page not reloaded after the restart - asked for Cmd-R and the exact clicks if it

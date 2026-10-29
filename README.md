@@ -676,8 +676,9 @@ after asking); the athlete's line has the same for everything held. Loading one 
 frame as it is; loading Activities brings the datasets on the Data tab with it, to the same window; the
 Data tab holds one athlete at a time (a load for another athlete lets the first's pills go, after
 asking; the thread stays, the kernel starts fresh on the new data, and the model's ledger marks the
-earlier chains as on another subject's data); a pill's × takes a dataset off the Data tab without
-deleting it. Uploads and generated files keep their own groups. A routine whose window lies inside a
+earlier chains as on another subject's data); a *to today* load for an athlete whose key is not the
+one in the Intervals.icu dialog is refused, with whose key it is; a pill's × takes a dataset off the
+Data tab without deleting it. Uploads and generated files keep their own groups. A routine whose window lies inside a
 load the executor still holds runs from the cache without a download.
 
 Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the

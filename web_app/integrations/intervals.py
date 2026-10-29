@@ -6,7 +6,6 @@ import threading
 import time
 import uuid
 import json
-import re
 from datetime import datetime
 from flask import Blueprint, request, jsonify, session
 from auth import requires_auth, get_current_user_id
@@ -374,10 +373,11 @@ def get_job_status(job_id):
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 def _other_athletes_file(path, folder):
-    """Whether a session file is a window file of another athlete than `folder` (<source>/<id>): the loader writes them
-    under datasets/<user>/<source>/<id>/views/ (2026-10-29: one athlete at a time on the Data tab)."""
-    m = re.search(r'/((?:intervals|endura|sweatstack)/[^/]+)/views/', str(path or '').replace('\\', '/'))
-    return bool(m and m.group(1) != folder)
+    """Whether a session file is another athlete's than `folder` (intervals/<id>): a file the loader writes, by its name,
+    that is not under that athlete's views/ (2026-10-29: one athlete at a time on the Data tab; a file an earlier load
+    left under another path is another athlete's too)."""
+    from analyst.routines import other_subjects_file
+    return other_subjects_file(path, folder)
 
 
 def _coding_states():
