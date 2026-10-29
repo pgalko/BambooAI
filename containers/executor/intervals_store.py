@@ -333,25 +333,33 @@ class Store:
 
     def summary(self) -> dict:
         """What the store holds, for the cache listing and the dialogs: activities, chats and laps with the span of
-        their days, each feed's span and count, the profile's newest day, the size."""
+        their days, each feed's span and count, the profile's newest day, the size - whole and by part (the tree
+        shows each feed's), and when each was last served."""
         m = self.manifest()
         days = sorted(str(r.get("day") or "")[:10] for r in m.values() if r.get("day"))
-        size = 0
+        laps_days = sorted(str(r.get("day") or "")[:10] for r in m.values() if r.get("laps_fetched") and r.get("day"))
+        size, parts = 0, {}
         for root, _dirs, files in os.walk(self.dir) if os.path.isdir(self.dir) else []:
             for f in files:
                 try:
-                    size += os.path.getsize(os.path.join(root, f))
+                    n = os.path.getsize(os.path.join(root, f))
                 except OSError:
-                    pass
+                    continue
+                size += n
+                rel = os.path.relpath(os.path.join(root, f), self.dir).replace("\\", "/")
+                part = rel.split("/")[0] if "/" in rel else rel.split(".")[0]
+                parts[part] = parts.get(part, 0) + n
         feeds = {}
         for name in FEEDS:
             if os.path.isfile(os.path.join(self.dir, f"{name}.json")) or name in self._feeds:
-                feeds[name] = self.feed(name).span()
+                feeds[name] = dict(self.feed(name).span(), bytes=parts.get(name, 0), last_used=self.feed(name).last_used())
         pdays = self.profile_days()
+        used = [float(r.get("used") or 0) for r in m.values() if r.get("used")]
         return {"activities": sum(1 for r in m.values() if r.get("file")), "chats": sum(1 for r in m.values() if r.get("messages_fetched")),
-                "laps": sum(1 for r in m.values() if r.get("laps_fetched")),
+                "laps": sum(1 for r in m.values() if r.get("laps_fetched")), "laps_from": laps_days[0] if laps_days else "", "laps_to": laps_days[-1] if laps_days else "",
                 "from": days[0] if days else "", "to": days[-1] if days else "", "bytes": size, "size_mb": round(size / (1024 * 1024), 2),
-                "feeds": feeds, "profile": {"as_of": pdays[-1] if pdays else "", "snapshots": len(pdays)},
+                "parts": parts, "last_used": max(used) if used else None,
+                "feeds": feeds, "profile": {"as_of": pdays[-1] if pdays else "", "snapshots": len(pdays), "bytes": parts.get("profile", 0)},
                 "engine": "parquet" if HAVE_PARQUET else ENGINE_WHEN_NO_PARQUET}
 
 
@@ -431,6 +439,10 @@ class Records:
     def span(self) -> dict:
         days = sorted(str(r.get("day") or "") for r in self.records().values() if r.get("day"))
         return {"from": days[0] if days else "", "to": days[-1] if days else "", "count": len(self.records())}
+
+    def last_used(self) -> Optional[float]:
+        used = [float(r.get("u") or 0) for r in self.records().values() if r.get("u")]
+        return max(used) if used else None
 
     def prune(self, cutoff: date, used_days: int = USED_DAYS, now: Optional[float] = None) -> int:
         now = time.time() if now is None else now
@@ -556,6 +568,144 @@ def adopt_mark_folder(user_dir: str, mark: str, rel: str) -> dict:
 def views_rel(rel: str) -> str:
     """The folder of a load's window files, relative to the user's: the athlete's views/ (2026-10-29)."""
     return f"{rel}/{VIEWS_DIR}" if rel else VIEWS_DIR
+
+
+LOADER_PREFIXES = ("activity_summary_", "wellness_data_", "activity_intervals_", "context_notes_", "context_codes_", "planned_workouts_",
+                   "rider_profile_", "custom_zone_times_")                                   # the Intervals loader's window files
+ENDURA_PREFIXES = ("athlete_profiles_race_", "race_turns_race_", "race_climbs_race_", "race_waymarkers_race_")
+FEED_ORDER = ("activities", "laps", "wellness", "events", "profile")
+
+
+def feeds_of(summary: dict) -> List[dict]:
+    """The feed lines of a store's summary, for the tree: each with its span, count and size; only the feeds held."""
+    sm = summary or {}
+    out = []
+    if sm.get("activities"):
+        out.append({"feed": "activities", "from": sm.get("from", ""), "to": sm.get("to", ""), "count": sm.get("activities", 0), "chats": sm.get("chats", 0),
+                    "bytes": (sm.get("parts") or {}).get("activities", 0) + (sm.get("parts") or {}).get("messages", 0), "last_used": sm.get("last_used")})
+    if sm.get("laps"):
+        out.append({"feed": "laps", "from": sm.get("laps_from", ""), "to": sm.get("laps_to", ""), "count": sm.get("laps", 0),
+                    "bytes": (sm.get("parts") or {}).get("laps", 0), "last_used": sm.get("last_used")})
+    for name in FEEDS:
+        f = (sm.get("feeds") or {}).get(name)
+        if f and f.get("count"):
+            out.append({"feed": name, "from": f.get("from", ""), "to": f.get("to", ""), "count": f.get("count", 0), "bytes": f.get("bytes", 0), "last_used": f.get("last_used")})
+    pf = sm.get("profile") or {}
+    if pf.get("snapshots"):
+        out.append({"feed": "profile", "as_of": pf.get("as_of", ""), "count": pf.get("snapshots", 0), "bytes": pf.get("bytes", 0)})
+    return out
+
+
+def cache_tree(frames: Iterable[dict], files: Iterable[dict], stores: Iterable[dict], subjects: Iterable[dict]) -> dict:
+    """The cache as the tree the Dataset cache dialog draws (docs/DATASETS_DESIGN.md §8, 2026-10-29): source → athlete →
+    feed, with the athlete's frames in memory under it; the window files are not listed (they are a run's inputs).
+    Endura and SweatStack carry their frames (and Endura its race files); uploads are the frames and files that belong
+    to no loader; a mark folder from before the athlete was known is listed as earlier loads under its mark."""
+    frames = [f for f in frames or [] if isinstance(f, dict)]
+    files = [f for f in files or [] if isinstance(f, dict)]
+    stores_by = {str(s.get("folder") or ""): s for s in stores or [] if isinstance(s, dict)}
+
+    def frame_entry(f):
+        return {k: f.get(k) for k in ("df_id", "source", "date_range", "shape", "metrics", "memory_mb", "cached_at", "activities_count", "race_id", "race_title",
+                                     "race_date", "original_filename", "folder", "key_mark", "subject") if k in f}
+
+    def file_entry(f):
+        return {k: f.get(k) for k in ("filename", "path", "size_mb", "modified_at", "folder") if k in f}
+
+    by_folder: Dict[str, List[dict]] = {}
+    for f in frames:
+        by_folder.setdefault(str(f.get("folder") or f.get("key_mark") or ""), []).append(f)
+    subs = []
+    for rec in sorted((r for r in subjects or [] if isinstance(r, dict)), key=lambda r: (str(r.get("name") or ""), str(r.get("id") or ""))):
+        folder = str(rec.get("folder") or "")
+        sm = stores_by.get(folder) or {}
+        subs.append({"id": rec.get("id", ""), "name": rec.get("name", ""), "folder": folder, "source": rec.get("source", "intervals"),
+                     "held_since": rec.get("first_seen"), "last_load": rec.get("last_load"), "marks": list(rec.get("marks") or []),
+                     "size_mb": sm.get("size_mb", 0), "feeds": feeds_of(sm), "frames": [frame_entry(f) for f in by_folder.pop(folder, [])]})
+    legacy = []
+    for folder, fs in list(by_folder.items()):
+        if folder and "/" not in folder:
+            legacy.append({"folder": folder, "frames": [frame_entry(f) for f in fs], "files": [], "store": stores_by.get(folder)})
+            by_folder.pop(folder)
+    for folder, sm in stores_by.items():
+        if folder and "/" not in folder and not any(x["folder"] == folder for x in legacy):
+            legacy.append({"folder": folder, "frames": [], "files": [], "store": sm})
+    for f in files:
+        folder = str(f.get("folder") or "")
+        if folder and "/" not in folder:
+            for x in legacy:
+                if x["folder"] == folder:
+                    x["files"].append(file_entry(f))
+    top_frames = by_folder.get("", [])
+    top_files = [f for f in files if not f.get("folder")]
+    intervals_loose = [frame_entry(f) for f in top_frames if str(f.get("source")) == "intervals"]
+    endura_files = [file_entry(f) for f in top_files if str(f.get("filename") or "").startswith(ENDURA_PREFIXES)]
+    sources = [{"source": "intervals", "title": "Intervals.icu", "subjects": subs, "frames": intervals_loose},
+               {"source": "endura", "title": "Endura", "frames": [frame_entry(f) for f in top_frames if str(f.get("source")) == "endura"], "files": endura_files},
+               {"source": "sweatstack", "title": "SweatStack", "frames": [frame_entry(f) for f in top_frames if str(f.get("source")) == "sweatstack"]}]
+    uploads = {"frames": [frame_entry(f) for f in top_frames if str(f.get("source")) not in ("intervals", "endura", "sweatstack")],
+               "files": [file_entry(f) for f in top_files if not str(f.get("filename") or "").startswith(ENDURA_PREFIXES + LOADER_PREFIXES)]}
+    return {"sources": sources, "uploads": uploads, "legacy": legacy}
+
+
+def forget(user_dir: str, rel: str, feed: str = "") -> dict:
+    """Forget a feed of the athlete's store, or the athlete whole (no feed): the folder with its record, store and
+    views. Activities take their chats and laps with them (the laps are theirs); the laps alone leave the manifest's
+    laps fields behind. Returns {"removed": what}."""
+    import shutil
+    top = os.path.join(user_dir, rel)
+    if not rel or not os.path.isdir(top):
+        return {"removed": ""}
+    feed = str(feed or "")
+    if not feed or feed == "subject":
+        shutil.rmtree(top, ignore_errors=True)
+        return {"removed": "subject"}
+    st = Store(user_dir, rel)
+    if feed == "activities":
+        for d in (st.activities_dir, st.messages_dir, st.laps_dir):
+            shutil.rmtree(d, ignore_errors=True)
+        try:
+            os.remove(os.path.join(st.dir, MANIFEST))
+        except OSError:
+            pass
+    elif feed == "laps":
+        shutil.rmtree(st.laps_dir, ignore_errors=True)
+        for rec in st.manifest().values():
+            for k in ("laps_fetched", "laps_signature", "laps"):
+                rec.pop(k, None)
+        st._dirty = True
+        st.save()
+    elif feed in FEEDS:
+        try:
+            os.remove(os.path.join(st.dir, f"{feed}.json"))
+        except OSError:
+            pass
+    elif feed == "profile":
+        shutil.rmtree(st.profile_dir, ignore_errors=True)
+    elif feed == "views":
+        shutil.rmtree(os.path.join(top, VIEWS_DIR), ignore_errors=True)
+    else:
+        return {"removed": ""}
+    return {"removed": feed}
+
+
+def prune_views(user_dir: str, rel: str, days: int = USED_DAYS, now: Optional[float] = None) -> int:
+    """The window files under views/ not written within `days` leave (docs/DATASETS_DESIGN.md §4: a run's inputs,
+    cleaned by age; a routine's run keeps its own copies, a favourite its results); returns how many went."""
+    now = time.time() if now is None else now
+    folder = os.path.join(user_dir, rel, VIEWS_DIR)
+    if not os.path.isdir(folder):
+        return 0
+    gone = 0
+    for name in os.listdir(folder):
+        p = os.path.join(folder, name)
+        try:
+            if os.path.isfile(p) and now - os.path.getmtime(p) > days * 86400:
+                os.remove(p)
+                gone += 1
+        except OSError:
+            pass
+    return gone
 
 
 def adopt_views(user_dir: str, rel: str) -> int:

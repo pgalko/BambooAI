@@ -470,8 +470,8 @@ check("the wellness file is the same frame the one call gives (the store is a ca
       and set(wdf.columns) == set(E.wellness_frame(D.wellness(s2, e1)).columns), (list(wdf.columns), len(wdf)))
 check("the feeds' records carry the day, when fetched and when last served; the summary carries each feed's span and count and the profile's newest day",
       all({"r", "day", "f", "u"} <= set(rec) for rec in list(_me.feed("wellness").records().values())[:5])
-      and _me.summary()["feeds"]["wellness"] == _me.feed("wellness").span() and _me.summary()["feeds"]["events"] == _me.feed("events").span() and _me.summary()["laps"] >= days_r
-      and _me.summary()["profile"] == {"as_of": TODAY.isoformat(), "snapshots": 1}, _me.summary())
+      and {k: _me.summary()["feeds"]["wellness"][k] for k in ("from", "to", "count")} == _me.feed("wellness").span() and {k: _me.summary()["feeds"]["events"][k] for k in ("from", "to", "count")} == _me.feed("events").span() and _me.summary()["laps"] >= days_r
+      and _me.summary()["profile"]["as_of"] == TODAY.isoformat() and _me.summary()["profile"]["snapshots"] == 1 and _me.summary()["parts"]["activities"] > 0 and _me.summary()["feeds"]["wellness"]["bytes"] > 0, _me.summary())
 
 # the profile as dated snapshots: the record as fetched, a new snapshot when it changed, the day's own replaced
 _ps = S.Store(_udir, "intervals/snap")
@@ -533,6 +533,79 @@ _mine_files = [x for x in listing2["auxiliary_datasets"] if x["folder"] == "inte
 check("/cache/inspect lists the window files from under views/ with the athlete's folder and subject; the store's summary carries the feeds",
       _mine_files and all(x["path"].startswith(_views + os.sep) for x in _mine_files) and all(x["subject"]["id"] == D.SUBJECT["id"] for x in _mine_files)
       and next(s_ for s_ in listing2["stores"] if s_["folder"] == "intervals/" + D.SUBJECT["id"])["feeds"]["wellness"]["count"] == _w["count"], ([x["path"] for x in _mine_files][:3], listing2.get("stores")))
+
+# ---- the tree, forgetting and the views' age (2026-10-29, docs/DATASETS_DESIGN.md §1, §4, §8, step 3) --------------------------
+print("-- the tree")
+_tree = listing2.get("tree") or {}
+_iv = next((x for x in _tree.get("sources", []) if x["source"] == "intervals"), {})
+_sub = next((x for x in _iv.get("subjects", []) if x["id"] == D.SUBJECT["id"]), {})
+_feeds = {f["feed"]: f for f in _sub.get("feeds", [])}
+check("the inspection carries the tree: Intervals.icu with the athlete under it - name, id, folder, held since, last load, size - its feeds with their spans and counts (activities with the chats, laps, wellness, calendar, profile), and its frames in memory; no window file anywhere in it",
+      _sub.get("name") == D.SUBJECT["name"] and _sub.get("folder") == "intervals/" + D.SUBJECT["id"] and _sub.get("held_since") and _sub.get("last_load") and _sub.get("size_mb", 0) > 0
+      and list(_feeds) == ["activities", "laps", "wellness", "events", "profile"]
+      and _feeds["activities"]["count"] == _me.summary()["activities"] and _feeds["activities"]["chats"] == _me.summary()["chats"] and _feeds["activities"]["from"] == _me.summary()["from"] and _feeds["activities"]["bytes"] > 0
+      and _feeds["laps"]["count"] == _me.summary()["laps"] and _feeds["laps"]["from"] and _feeds["wellness"]["count"] == _w["count"] and _feeds["wellness"]["from"] == _w["from"] and _feeds["events"]["count"] == _me.feed("events").span()["count"]
+      and _feeds["profile"]["as_of"] == TODAY.isoformat() and _feeds["profile"]["count"] == 1
+      and all(fr.get("df_id") and fr.get("date_range") and fr.get("subject", {}).get("id") == D.SUBJECT["id"] for fr in _sub.get("frames", [])) and len(_sub.get("frames", [])) >= 1
+      and "files" not in _sub and not any("filename" in str(x) for x in _iv.get("subjects", [])), (_sub.get("feeds"), [fr.get("date_range") for fr in _sub.get("frames", [])]))
+check("the window files are marked as views in the flat listing (the routines' cache check reads them there) and the tree has no uploads but lists Endura and SweatStack empty; a mark folder from before is listed under earlier loads with its store",
+      all(x.get("view") is True for x in listing2["auxiliary_datasets"] if x["folder"] == "intervals/" + D.SUBJECT["id"]) and _tree["uploads"] == {"frames": [], "files": []}
+      and [x["source"] for x in _tree["sources"]] == ["intervals", "endura", "sweatstack"] and _tree["sources"][1]["frames"] == [] and _tree["sources"][1]["files"] == []
+      and [lg["folder"] for lg in _tree.get("legacy", [])] == ["mark1"] and (_tree["legacy"][0].get("store") or {}).get("activities") == 3, (_tree.get("legacy"), _tree.get("uploads")))
+# the pure function over made-up lists: frames and files sorted into the groups
+_ct = S.cache_tree([{"df_id": "a", "source": "intervals", "date_range": "2026-01-01 to 2026-02-01", "shape": [10, 3], "folder": "intervals/i0", "subject": {"id": "i0"}},
+                    {"df_id": "b", "source": "endura", "race_id": 2, "race_title": "Flat crit", "shape": [5, 2]}, {"df_id": "c", "source": "csv", "original_filename": "titanic.csv", "shape": [891, 12]},
+                    {"df_id": "d", "source": "intervals", "date_range": "2025-01-01 to 2025-02-01", "shape": [10, 3], "key_mark": "abcdef012345"}, {"df_id": "e", "source": "sweatstack", "shape": [1, 1]}],
+                   [{"filename": "race_climbs_race_2.csv", "path": "datasets/u/race_climbs_race_2.csv", "size_mb": 0.1, "folder": ""}, {"filename": "eedr.csv", "path": "datasets/u/eedr.csv", "size_mb": 1.0, "folder": ""},
+                    {"filename": "wellness_data_20260101_to_20260201.csv", "path": "datasets/u/intervals/i0/views/wellness_data_20260101_to_20260201.csv", "folder": "intervals/i0", "view": True},
+                    {"filename": "activity_summary_20250101_to_20250201.csv", "path": "datasets/u/abcdef012345/activity_summary_20250101_to_20250201.csv", "folder": "abcdef012345", "key_mark": "abcdef012345"}],
+                   [{"folder": "intervals/i0", "activities": 2, "chats": 1, "laps": 0, "from": "2026-01-01", "to": "2026-02-01", "size_mb": 1.5, "parts": {"activities": 1000, "messages": 10}, "feeds": {}, "profile": {}}, {"folder": "abcdef012345", "activities": 1, "size_mb": 0.2}],
+                   [{"source": "intervals", "id": "i0", "name": "One", "folder": "intervals/i0", "marks": ["m"], "first_seen": 1.0, "last_load": 2.0}])
+check("cache_tree: the athlete's feeds and frame under Intervals.icu; Endura's frame and race file; SweatStack's frame; the csv frame and the plain file under uploads; the mark folder's frame, file and store under earlier loads; the view file nowhere",
+      [f["feed"] for f in _ct["sources"][0]["subjects"][0]["feeds"]] == ["activities"] and _ct["sources"][0]["subjects"][0]["feeds"][0]["bytes"] == 1010 and [fr["df_id"] for fr in _ct["sources"][0]["subjects"][0]["frames"]] == ["a"]
+      and _ct["sources"][0]["frames"] == [] and [fr["df_id"] for fr in _ct["sources"][1]["frames"]] == ["b"] and [f["filename"] for f in _ct["sources"][1]["files"]] == ["race_climbs_race_2.csv"]
+      and [fr["df_id"] for fr in _ct["sources"][2]["frames"]] == ["e"] and [fr["df_id"] for fr in _ct["uploads"]["frames"]] == ["c"] and [f["filename"] for f in _ct["uploads"]["files"]] == ["eedr.csv"]
+      and _ct["legacy"][0]["folder"] == "abcdef012345" and [fr["df_id"] for fr in _ct["legacy"][0]["frames"]] == ["d"] and [f["filename"] for f in _ct["legacy"][0]["files"]] == ["activity_summary_20250101_to_20250201.csv"] and _ct["legacy"][0]["store"]["activities"] == 1
+      and "wellness_data" not in json.dumps(_ct), _ct)
+
+# forgetting: a feed, then the athlete whole; the frames in memory go with the activities
+_fg = S.Store(_udir, "intervals/fg")
+_fg.put_detail(entry(8001, TODAY - timedelta(days=70)), frame(8001, TODAY - timedelta(days=70))); _fg.put_messages(entry(8001, TODAY - timedelta(days=70)), [{"content": "x"}]); _fg.put_laps(entry(8001, TODAY - timedelta(days=70)), {"icu_intervals": [{"LapNumber": 1}]})
+_fg.feed("wellness").merge([{"id": "2026-06-01", "weight": 70}], key_of=lambda r: r["id"], day_of=lambda r: r["id"], start="2026-06-01", end="2026-06-01")
+_fg.feed("events").merge([{"id": 9, "start_date_local": "2026-06-01T00:00:00"}], key_of=lambda r: r["id"], day_of=lambda r: r["start_date_local"], start="2026-06-01", end="2026-06-01")
+_fg.put_profile({"id": "fg"}); _fg.save()
+S.remember_athlete(_udir, "intervals/fg", "intervals", "fg", "Forgotten", "mk")
+os.makedirs(os.path.join(_udir, "intervals", "fg", "views"), exist_ok=True); open(os.path.join(_udir, "intervals", "fg", "views", "wellness_data_20260601_to_20260601.csv"), "w").write("date\n")
+check("forget a feed: the laps go with their file and their manifest fields, the activity stays; wellness and events go as files; the profile's snapshots go; the rest stands",
+      S.forget(_udir, "intervals/fg", "laps") == {"removed": "laps"} and not os.path.exists(_fg._laps_path(8001)) and "laps_fetched" not in S.Store(_udir, "intervals/fg").manifest()["8001"] and S.Store(_udir, "intervals/fg").has_detail(entry(8001, TODAY - timedelta(days=70)))
+      and S.forget(_udir, "intervals/fg", "wellness") == {"removed": "wellness"} and not os.path.exists(os.path.join(_fg.dir, "wellness.json")) and S.Store(_udir, "intervals/fg").feed("events").span()["count"] == 1
+      and S.forget(_udir, "intervals/fg", "profile") == {"removed": "profile"} and S.Store(_udir, "intervals/fg").profile_days() == [] and S.forget(_udir, "intervals/fg", "nonsense") == {"removed": ""}, sorted(os.listdir(_fg.dir)))
+check("forget the activities: the rows, chats and laps go with the manifest; the calendar stays",
+      S.forget(_udir, "intervals/fg", "activities") == {"removed": "activities"} and not os.path.isdir(_fg.activities_dir) and not os.path.exists(os.path.join(_fg.dir, S.MANIFEST)) and S.Store(_udir, "intervals/fg").feed("events").span()["count"] == 1)
+check("forget the athlete: the folder goes whole - the record, the store, the views; nothing where it was; an unknown folder is nothing removed",
+      S.forget(_udir, "intervals/fg", "") == {"removed": "subject"} and not os.path.exists(os.path.join(_udir, "intervals", "fg")) and S.forget(_udir, "intervals/nothere", "") == {"removed": ""})
+# the route: the folder checked, the athlete's frames in memory dropped with the activities or the folder
+with E.app.test_client() as c:
+    _bad = c.post("/cache/forget", json={"user_id": "u", "folder": "../etc", "feed": ""}).status_code
+    _bad2 = c.post("/cache/forget", json={"user_id": "u", "folder": "generated", "feed": ""}).status_code
+    _none = c.post("/cache/forget", json={"user_id": "u", "folder": "intervals/nothere", "feed": ""}).status_code
+    _before = [m["df_id"] for m in E.df_cache.get_all_metadata() if (m.get("subject") or {}).get("id") == D.SUBJECT["id"]]
+    _r = c.post("/cache/forget", json={"user_id": "u", "folder": "intervals/" + D.SUBJECT["id"], "feed": "laps"}).get_json()
+    _after_laps = [m["df_id"] for m in E.df_cache.get_all_metadata() if (m.get("subject") or {}).get("id") == D.SUBJECT["id"]]
+    _r2 = c.post("/cache/forget", json={"user_id": "u", "folder": "intervals/" + D.SUBJECT["id"], "feed": ""}).get_json()
+    _after = [m["df_id"] for m in E.df_cache.get_all_metadata() if (m.get("subject") or {}).get("id") == D.SUBJECT["id"]]
+check("/cache/forget: a folder outside the sources or the app's own is refused, an absent one is 404; forgetting the laps keeps the frames; forgetting the athlete drops its frames from memory and says which, and the folder is gone",
+      _bad == 400 and _bad2 == 400 and _none == 404 and _r.get("removed") == "laps" and _r.get("frames_dropped") == [] and _after_laps == _before and len(_before) >= 1
+      and _r2.get("removed") == "subject" and sorted(_r2.get("frames_dropped") or []) == sorted(_before) and _after == [] and not os.path.exists(os.path.join(_udir, "intervals", D.SUBJECT["id"])), (_bad, _bad2, _none, _r, _r2, _before, _after))
+
+# the views' age: a window file not written within a month leaves at the end of a load; a fresh one stays
+_pv = os.path.join(_udir, "intervals", "pv", "views"); os.makedirs(_pv, exist_ok=True)
+open(os.path.join(_pv, "wellness_data_20260101_to_20260131.csv"), "w").write("date\n"); open(os.path.join(_pv, "activity_summary_20261001_to_20261029.csv"), "w").write("id\n")
+os.utime(os.path.join(_pv, "wellness_data_20260101_to_20260131.csv"), (time.time() - 40 * 86400, time.time() - 40 * 86400))
+check("prune_views: the file older than a month goes, the fresh one stays; a folder without views is nothing",
+      S.prune_views(_udir, "intervals/pv") == 1 and sorted(os.listdir(_pv)) == ["activity_summary_20261001_to_20261029.csv"] and S.prune_views(_udir, "intervals/none") == 0)
+jv = load(s1, e1)
+check("a load prunes its athlete's old views: the window just written stays (the loader writes it fresh)", jv["status"] == "completed" and all(os.path.isfile(p_) for p_ in (jv.get("result") or {}).get("aux_datasets", [])), jv.get("error"))
 
 fails = [n for n, ok in results if not ok]
 print(f"\n{len(results) - len(fails)} passed, {len(fails)} failed")

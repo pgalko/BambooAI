@@ -35,13 +35,14 @@ import shutil
 from datetime import datetime, timedelta
 from intervals_store import Store, stores_under, RETENTION_DAYS as STORE_RETENTION_DAYS   # the Intervals.icu store (2026-10-15)
 from intervals_store import athlete_rel, athlete_record, remember_athlete, adopt_mark_folder, athlete_folders, views_rel, adopt_views, VIEWS_DIR   # the athlete's folder (2026-10-29)
+from intervals_store import cache_tree, forget as forget_store, prune_views, SOURCES as STORE_SOURCES, APP_FOLDERS as STORE_APP_FOLDERS   # the tree, forgetting, the views' age (step 3)
 
 # Set the number of CPU cores for pyarrow
 pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-29 v68 (the feeds in the store: the laps of settled activities served from the store, the wellness log by day and the calendar by entry merged across loads, the profile as dated snapshots, the window files under the subject\'s views/; datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-29 v69 (the cache as a tree: /cache/inspect carries source -> subject -> feed with the frames in memory, /cache/forget drops a feed or a subject, window files older than a month leave; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -250,6 +251,7 @@ def inspect_cache():
                                 'key_mark': rel if rel and '/' not in rel else '',
                                 'folder': rel,
                                 'subject': who,
+                                'view': place != folder,              # a load's window file (2026-10-29): listed for the routines' cache check, not in the dialog's tree
                                 'size_mb': file_stat.st_size / (1024 * 1024),
                                 'created_at': datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
                                 'modified_at': datetime.fromtimestamp(file_stat.st_mtime).isoformat()
@@ -280,12 +282,14 @@ def inspect_cache():
         # Calculate total cache memory usage
         total_cache_mb = sum(df['memory_mb'] for df in cached_dataframes)
         
+        stores = stores_under(user_datasets_dir)
         return jsonify({
             'cached_dataframes': cached_dataframes,
             'auxiliary_datasets': auxiliary_datasets,
             'generated_datasets': generated_datasets,  # Add this line
-            'stores': stores_under(user_datasets_dir),  # what each store holds (2026-10-15), by athlete since 2026-10-29
+            'stores': stores,                            # what each store holds (2026-10-15), by athlete since 2026-10-29
             'subjects': subjects,                        # the athletes with a folder: source, id, name, the marks that loaded them
+            'tree': cache_tree(cached_dataframes, auxiliary_datasets, stores, subjects),   # source → athlete → feed, for the dialog (docs/DATASETS_DESIGN.md §8)
             'cache_stats': {
                 'total_memory_mb': total_cache_mb,
                 'max_cache_size': df_cache.max_size,
@@ -716,6 +720,35 @@ def remove_primary_from_cache():
             return jsonify({'message': 'DataFrame removed from cache'}), 200
         else:
             return jsonify({'error': 'DataFrame not found in cache'}), 404
+
+@app.route('/cache/forget', methods=['POST'])
+def forget_from_cache():
+    """Forget a feed of an athlete's store, or the athlete whole (docs/DATASETS_DESIGN.md §1, 2026-10-29): `folder` the
+    athlete's (<source>/<id>) or a mark folder from before, `feed` one of activities, laps, wellness, events, profile,
+    views - or none for the whole folder. The athlete's frames in memory go with the activities or the folder."""
+    data = request.json or {}
+    user_id = str(data.get('user_id') or 'default')
+    folder = str(data.get('folder') or '').strip().replace('\\', '/')
+    feed = str(data.get('feed') or '')
+    parts = folder.split('/')
+    ok = (len(parts) == 2 and parts[0] in STORE_SOURCES and re.fullmatch(r'[\w.@-]{1,120}', parts[1])) or (len(parts) == 1 and re.fullmatch(r'[0-9a-f]{12}', folder) and folder not in STORE_APP_FOLDERS)
+    if not ok:
+        return jsonify({'error': 'folder must be <source>/<athlete id> or a mark'}), 400
+    user_dir = os.path.join('datasets', user_id)
+    if not os.path.isdir(os.path.join(user_dir, folder)):
+        return jsonify({'error': 'no such folder'}), 404
+    out = forget_store(user_dir, folder, feed)
+    dropped = []
+    if out.get('removed') in ('subject', 'activities'):
+        with df_cache.lock:
+            for df_id, entry in list(df_cache.cache.items()):
+                meta = entry.get('metadata') or {}
+                if str(meta.get('folder') or meta.get('key_mark') or '') == folder:
+                    df_cache.cache.pop(df_id)
+                    dropped.append(df_id)
+    log_info(f"forgotten: {folder} {feed or '(whole)'} -> {out.get('removed')}; frames dropped: {dropped}")
+    return jsonify(dict(out, folder=folder, frames_dropped=dropped)), 200
+
 
 # This endpoint computes the index for the given DataFrame
 
@@ -1848,6 +1881,9 @@ def fetch_intervals_background(data, job_id):
         store.save()
         if gone:
             log_info(f"store: {gone} activities older than {retention} days left the store")
+        gone_views = prune_views(user_dir, folder)             # window files not written within a month leave (docs/DATASETS_DESIGN.md §4)
+        if gone_views:
+            log_info(f"views: {gone_views} window files older than a month left {views}/")
         
         # Mark as completed
         intervals_jobs[job_id]['status'] = 'completed'

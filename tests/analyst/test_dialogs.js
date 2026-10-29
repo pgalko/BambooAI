@@ -54,8 +54,12 @@ check('workflows dialog: workflow-replay.js is retired (not linked; no replay vi
 // ---- the JS-built dialogs: the scripts build the ids they later query, inside the shell ----
 const dm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'dataset-manager.js'), 'utf8');
 const dmroot = doc.createElement('div'); dmroot.innerHTML = dm.slice(dm.indexOf('<div class="modal-content'), dm.indexOf('`;', dm.indexOf('<div class="modal-content')));
-check('dataset dialog: the script builds every id it queries, inside the shell (header/close/body panels)',
-  ['primaryDatasetList', 'auxiliaryDatasetList', 'generatedDatasetList', 'datasetDetails'].every(id => dmroot.querySelector('#' + id)) && dmroot.querySelector('.ui-dlg-h .x.close') && dmroot.querySelector('.dataset-list-panel') && dmroot.querySelector('.dataset-details-panel') && dm.includes("modal.className = 'modal ui-modal'"));
+check('dataset dialog: the script builds every id it queries, inside the shell (header/close/body panels): the filter, the tree, the generated list and the details (2026-10-29: the tree replaces the Primary, Auxiliary and Store lists)',
+  ['datasetFilter', 'datasetTree', 'generatedDatasetList', 'datasetDetails'].every(id => dmroot.querySelector('#' + id)) && !dmroot.querySelector('#primaryDatasetList') && !dmroot.querySelector('#storeList') && dmroot.querySelector('.ui-dlg-h .x.close') && dmroot.querySelector('.dataset-list-panel') && dmroot.querySelector('.dataset-details-panel') && dm.includes("modal.className = 'modal ui-modal'"));
+check('dataset dialog: the tree\'s lines and actions - Use, Extend to today and Forget on a feed, Forget on an athlete, the frames in memory, the filter - and dialogs.css styles them',
+  ['data-act="use"', 'data-act="extend"', 'data-act="forget"', 'ds-subj-head', 'ds-feed', 'ds-frame', 'ds-filter', "fetch('/cache/forget'"].every(t => dm.includes(t)) && dm.includes("openIntervalsLoad(d.feed, d.from, d.act === 'extend' ? localDay() : d.to)")
+  && ['.ds-subj-head', '.ds-feed', '.ds-act', '.ds-acts', '.ds-filter', '.ds-frame .ds-mem'].every(c => dcss.includes(c)) && !dm.includes('storeList'),
+  ['ds-subj-head', 'ds-feed', 'ds-act'].filter(c => !dcss.includes('.' + c)));
 const mr = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'memory-review.js'), 'utf8');
 check('memory dialog: the script builds the shell and the body it renders into', mr.includes("'<div class=\"memory-modal ui-dlg\">'") && mr.includes('id="memoryReviewBody" class="memory-modal-body ui-dlg-b"') && mr.includes('memoryReviewClose'));
 check('dataset-manager.css and memory.css are retired (not linked)', !html.includes("filename='css/dataset-manager.css'") && !html.includes("filename='css/memory.css'"));

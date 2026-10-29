@@ -663,19 +663,24 @@ description, and the summary file carries the settings in force on each day. The
 
 ### The Dataset cache and the store
 
-The executor keeps what it has loaded - the frames with their window and metrics, the auxiliary
-files, the datasets an analysis writes with `DS.save` - and the **Dataset cache** panel (the rail)
-lists them: a frame can be loaded again from there, a file previewed or removed. A routine whose
-window lies inside a load the executor still holds runs from the cache without a download.
+The executor keeps what it has loaded - the frames with their window and metrics, the files a load
+writes, the datasets an analysis writes with `DS.save` - and the **Dataset cache** dialog (the rail)
+draws it as a tree: the source, the athlete under it, and under the athlete what is held of each
+feed - activities with their chats, laps, wellness, calendar, profile - with its span, its count and
+its size, and the frames in memory. Each line offers **Use** (the load dialog with that span filled
+in), **Extend to today** (only the missing days come down) and **Forget**; the athlete's line forgets
+everything held for them. Uploads and generated files keep their own groups. A routine whose window
+lies inside a load the executor still holds runs from the cache without a download.
 
 Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the
 athlete's folder (the source and the athlete id the profile gives), with the chats and the laps fetched
-for it, the wellness log by day, the calendar by entry and the profile's snapshots. A load is a view over the store: the window's activity
-list is fetched, the activities the store lacks (or whose file changed) are downloaded, the rest are
-assembled from disk, and the chats of activities older than sixty days are reused. *Refresh
-everything* in the load dialog fetches the whole window again. Activities fall out of the store
-after 400 days unless a load used them in the last thirty. The Dataset cache panel shows each athlete's
-store, by the name the profile gave - its activities, chats, span and size.
+for it, the wellness log by day, the calendar by entry and the profile's snapshots. A load is a view
+over the store: the window's activity list is fetched, the activities the store lacks (or whose file
+changed) are downloaded, the rest are assembled from disk, and the chats and laps of activities older
+than sixty days are reused; the wellness and calendar of the window come down and are merged, so the
+span held is the union of every load. *Everything again* in the load dialog fetches the whole window
+again. Activities fall out of the store after 400 days unless a load used them in the last thirty; the
+window files a load writes leave after a month.
 
 The store and the loaded files live in the Docker volume `bambooai-datasets`, which outlives the
 container and its image: an upgrade keeps them. `docker volume rm bambooai-datasets` starts the

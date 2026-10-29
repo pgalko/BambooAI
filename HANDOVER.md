@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0238 (datasets by subject, steps 1 and 2; **executor image v68** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0239 (datasets by subject, steps 1-3; **executor image v69** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,10 +95,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/64/37/15/88/1/1 Python; 58/7/41/71/24/71/14/25/4/14/67 JS; 1,519 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/73/37/15/88/1/1 Python; 58/7/42/71/24/71/14/25/4/14/67 JS; 1,529 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (100; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (103; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -477,6 +477,20 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Datasets by subject, step 3 - the tree (2026-10-29, patch 0239; executor image v69 - rebuild and roll out).**
+  `/cache/inspect` carries `tree` (source → athlete → feed, with the frames in memory under the athlete; Endura,
+  SweatStack, uploads and a mark folder from before as their own groups), composed by `cache_tree` from the lists
+  the route had; the flat lists stay for the routines' cache check, each window file marked `view`. The Dataset cache
+  dialog draws the tree with a filter box: an athlete's block (name, held since, last load, size, Forget), its feed
+  lines - Activities with the chats, Laps, Wellness, Calendar, Profile · zones - each with its span, count, size and
+  last use and the actions Use (the Intervals load dialog with the span and feed filled in; a window loaded now is
+  let go on confirmation, as its pill's × does), Extend to today (the button *To today*; the same with the end at today) and Forget; the
+  frames in memory under the athlete open the details with Load and Remove as before; Uploads and Generated keep
+  their groups; no window file is listed. `/cache/forget` on the executor (proxied by the app) drops a feed or the
+  athlete whole and the athlete's frames with the activities; the page lets go of the Data tab's frame when it was
+  one of them. Window files not written within thirty days leave at the end of the athlete's next load
+  (`prune_views`). Tests: test_store.py 73, test_dialogs.js 42, the stamp checks v69; the integrations walk's tree,
+  Forget and Use checks (103). Step 4 (the connections and the dropdowns) is not built.
 - **Datasets by subject, step 2 - the feeds in the store (2026-10-29, patch 0238; executor image v68 - rebuild
   and roll out).** The store under the athlete's folder keeps, beside the streams and the chats: the laps under each
   activity (`store/laps/<id>.json.gz`, served by the chat's rule - older than sixty days and the file unchanged -

@@ -1,13 +1,18 @@
-// Dataset Manager Module - Updated with Generated Datasets Support
+// Dataset Manager Module - the Dataset cache dialog. Since 2026-10-29 (docs/DATASETS_DESIGN.md §8) it draws the executor's
+// cache as a tree - source → athlete → feed, with the frames in memory under the athlete - with Use, Extend to today and
+// Forget on each line; uploads and generated files keep their own groups. A load's window files are not listed: they are a
+// run's inputs, shown on the run's Data tab.
 window.DatasetManager = (function() {
     'use strict';
     
     let currentDatasets = {
         cached: [],
         auxiliary: [],
-        generated: []
+        generated: [],
+        tree: null
     };
     let selectedDataset = null;
+    let openSubjects = {};                                   // which athletes are unfolded (their folder → true), kept across refreshes
     
     function initialize() {
         console.log('Initializing Dataset Manager...');
@@ -29,27 +34,17 @@ window.DatasetManager = (function() {
         modal.innerHTML = `
             <div class="modal-content ui-dlg lg">
                 <div class="dataset-modal-header ui-dlg-h">
-                    <div><div class="dataset-modal-title title">Dataset cache</div><div class="sub">datasets held on your executor - primary, auxiliary and generated</div></div>
+                    <div><div class="dataset-modal-title title">Dataset cache</div><div class="sub">what your executor holds - by source and athlete, with uploads and generated files</div></div>
                     <span class="sp"></span>
                     <button class="close x" aria-label="Close">×</button>
                 </div>
                 <div class="dataset-modal-body">
                     <div class="dataset-list-panel">
-                        <div class="dataset-category">
-                            <h4>Primary</h4>
-                            <div id="primaryDatasetList"></div>
-                        </div>
-                        <div class="dataset-category">
-                            <h4>Auxiliary</h4>
-                            <div id="auxiliaryDatasetList"></div>
-                        </div>
+                        <input type="search" id="datasetFilter" class="ds-filter ui-input" placeholder="Filter by name or feed" autocomplete="off">
+                        <div id="datasetTree"></div>
                         <div class="dataset-category">
                             <h4>Generated</h4>
                             <div id="generatedDatasetList"></div>
-                        </div>
-                        <div class="dataset-category">
-                            <h4>Store</h4>
-                            <div id="storeList"></div>
                         </div>
                     </div>
                     <div class="dataset-details-panel">
@@ -95,7 +90,73 @@ window.DatasetManager = (function() {
                 handleDownloadDataset(e.target);
             }
         });
+        // the tree's own lines and actions (2026-10-29): fold an athlete, Use / Extend to today / Forget a feed, Forget an athlete
+        const tree = document.getElementById('datasetTree');
+        if (tree) tree.addEventListener('click', handleTreeClick);
+        const filter = document.getElementById('datasetFilter');
+        if (filter) filter.addEventListener('input', () => renderTree());
     }
+
+    function handleTreeClick(e) {
+        const act = e.target.closest('[data-act]');
+        if (act) {
+            e.stopPropagation();
+            const d = act.dataset;
+            if (d.act === 'use' || d.act === 'extend') openIntervalsLoad(d.feed, d.from, d.act === 'extend' ? localDay() : d.to);
+            else if (d.act === 'forget') forgetFromCache(d.folder, d.feed, d.name);
+            return;
+        }
+        const subj = e.target.closest('.ds-subj');
+        if (subj && !e.target.closest('.dataset-item')) {
+            openSubjects[subj.dataset.folder] = !openSubjects[subj.dataset.folder];
+            renderTree();
+        }
+    }
+
+    function localDay() {
+        return typeof localIsoDay === 'function' ? localIsoDay(new Date()) : new Date().toISOString().slice(0, 10);
+    }
+
+    // Use / Extend to today (docs/DATASETS_DESIGN.md §1): the Intervals.icu load dialog with the span and the feed filled in -
+    // the person sees what will be fetched and presses Load; the store serves what it holds, only the missing days come down
+    async function openIntervalsLoad(feed, from, to) {
+        if (window.Intervals && window.Intervals.state.isLoaded && window.Intervals.state.pillId) {
+            // the Data tab holds an Intervals.icu window: replacing it is what its pill's × does, then the dialog
+            if (!confirm('The Data tab holds a window from Intervals.icu. Let it go and load this one?')) return;
+            const pill = document.getElementById(window.Intervals.state.pillId);
+            if (pill && typeof removeDatasetPill === 'function') await removeDatasetPill(pill, null, true);
+            else if (window.Intervals.removePill) window.Intervals.removePill();
+        }
+        const busy = primaryLoadedMessage();
+        if (busy) { if (typeof showUploadLimitMessage === 'function') showUploadLimitMessage(busy); return; }
+        if (typeof showIntervalsModal !== 'function') return;
+        hideModal();
+        showIntervalsModal();
+        const s = document.getElementById('intervalsStartDate'), e = document.getElementById('intervalsEndDate');
+        const put = (input, v) => { if (!input || !v) return; input.min = ''; input.value = input.max && v > input.max ? input.max : v; };
+        put(s, from); put(e, to);
+        const box = { laps: 'intervals-checkbox', wellness: 'wellness-checkbox', events: 'context-checkbox', profile: 'rider-checkbox' }[feed];
+        if (box) { const c = document.getElementById(box); if (c && !c.checked) { c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); } }
+    }
+
+    async function forgetFromCache(folder, feed, name) {
+        const what = feed ? (FEED_NAMES[feed] || feed) + ' of ' + (name || folder) : 'everything held for ' + (name || folder);
+        if (!confirm('Forget ' + what + '? What a later load needs is downloaded again.')) return;
+        try {
+            const response = await window.authService.fetch('/cache/forget', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: folder, feed: feed || '' }) });
+            const out = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(out.error || ('HTTP ' + response.status));
+            if (out.primary_dropped) clearPrimaryPills({ source: 'intervals' });     // the Data tab's frame was the athlete's: its pill goes, the tab is free
+            loadDatasets();
+        } catch (error) {
+            console.error('Error forgetting from the cache:', error);
+            alert('Could not forget: ' + (error.message || error));
+        }
+    }
+
+    const FEED_NAMES = { activities: 'Activities', laps: 'Laps', wellness: 'Wellness', events: 'Calendar', profile: 'Profile · zones' };
+    const FEED_HINTS = { activities: 'the second-by-second rows of every activity, with its chat', laps: 'the laps of every activity, as Intervals.icu detected them',
+                         wellness: 'the daily log, a row per day', events: 'the calendar: planned sessions, notes, races, status entries', profile: 'the settings the data is read against, as fetched each load' };
     
     async function handleLoadDataset(button) {
         const dfId = button.dataset.dfId;
@@ -179,6 +240,7 @@ window.DatasetManager = (function() {
             currentDatasets.auxiliary = cacheData.auxiliary_datasets || [];
             currentDatasets.generated = cacheData.generated_datasets || [];
             currentDatasets.stores = cacheData.stores || [];
+            currentDatasets.tree = cacheData.tree || treeFromLists(cacheData);
             displayDatasets();
         })
         .catch(error => {
@@ -186,63 +248,20 @@ window.DatasetManager = (function() {
             showErrorState('Failed to load datasets');
         });
     }
+
+    // an executor from before the tree (v68 and earlier) lists frames and files only: the same groups, without athletes
+    function treeFromLists(d) {
+        const frames = d.cached_dataframes || [], files = (d.auxiliary_datasets || []).filter(f => !f.view);
+        const by = src => frames.filter(f => String(f.source) === src);
+        return { sources: [{ source: 'intervals', title: 'Intervals.icu', subjects: [], frames: by('intervals') },
+                           { source: 'endura', title: 'Endura', frames: by('endura'), files: files.filter(f => /^(athlete_profiles|race_turns|race_climbs|race_waymarkers)_race_/.test(f.filename || '')) },
+                           { source: 'sweatstack', title: 'SweatStack', frames: by('sweatstack') }],
+                 uploads: { frames: frames.filter(f => !['intervals', 'endura', 'sweatstack'].includes(String(f.source))), files: files.filter(f => !f.folder && !/^(athlete_profiles|race_turns|race_climbs|race_waymarkers)_race_|^(activity_summary|wellness_data|activity_intervals|context_notes|context_codes|planned_workouts|rider_profile|custom_zone_times)_/.test(f.filename || '')) },
+                 legacy: [] };
+    }
     
     function displayDatasets() {
-        // Display primary datasets
-        const primaryList = document.getElementById('primaryDatasetList');
-        if (primaryList) {
-            primaryList.innerHTML = '';
-            
-            if (currentDatasets.cached.length === 0) {
-                primaryList.innerHTML = '<div class="dataset-empty">No cached datasets</div>';
-            } else {
-                currentDatasets.cached.forEach(dataset => {
-                    const item = createDatasetItem(dataset, 'primary');
-                    primaryList.appendChild(item);
-                });
-            }
-        }
-        
-        // Display auxiliary datasets
-        const auxList = document.getElementById('auxiliaryDatasetList');
-        if (auxList) {
-            auxList.innerHTML = '';
-            
-            if (currentDatasets.auxiliary.length === 0) {
-                auxList.innerHTML = '<div class="dataset-empty">No auxiliary datasets</div>';
-            } else {
-                currentDatasets.auxiliary.forEach(dataset => {
-                    const item = createDatasetItem(dataset, 'auxiliary');
-                    auxList.appendChild(item);
-                });
-            }
-        }
-
-        // The Intervals.icu store (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): what the executor keeps for each key,
-        // by the key's mark - activities kept by file, the chats under them, the span and the size. Not a dataset to
-        // load or remove: a load takes from it what the window asks for.
-        const storeList = document.getElementById('storeList');
-        if (storeList) {
-            storeList.innerHTML = '';
-            const stores = currentDatasets.stores || [];
-            if (!stores.length) {
-                storeList.innerHTML = '<div class="dataset-empty">Nothing kept yet — a load from Intervals.icu fills it</div>';
-            } else {
-                stores.forEach(st => {
-                    const item = document.createElement('div');
-                    item.className = 'dataset-item store-type';
-                    // whose store (2026-10-29, docs/DATASETS_DESIGN.md): the athlete the load named, else the key's mark for a store from before
-                    const key = String(st.key_mark || '');
-                    const who = st.subject && (st.subject.name || st.subject.id) ? escapeHtml(st.subject.name || st.subject.id) : (key ? 'key …' + escapeHtml(key.slice(-4)) : '');
-                    item.title = (st.subject && st.subject.name ? 'Activities of ' + st.subject.name + (st.subject.id ? ' (' + st.subject.id + ')' : '') : 'Activities fetched under the key ' + (key ? '…' + key.slice(-4) : '')) + ' are kept and reused; only what a window lacks is downloaded.';
-                    item.innerHTML = `
-                        <span class="dataset-item-name">Intervals.icu${who ? ' · ' + who : ''} · ${st.activities || 0} activit${st.activities === 1 ? 'y' : 'ies'}, ${st.chats || 0} chat${st.chats === 1 ? '' : 's'}${st.from ? ' · ' + escapeHtml(st.from) + ' → ' + escapeHtml(st.to) : ''}</span>
-                        <span class="dataset-size">${Number(st.size_mb || 0).toFixed(1)} MB</span>
-                    `;
-                    storeList.appendChild(item);
-                });
-            }
-        }
+        renderTree();
 
         // Display generated datasets
         const genList = document.getElementById('generatedDatasetList');
@@ -260,6 +279,127 @@ window.DatasetManager = (function() {
         }
     }
     
+    // ---- the tree (docs/DATASETS_DESIGN.md §1, §8) -------------------------------------------------------------------
+    const esc = t => escapeHtml(String(t == null ? '' : t));
+    function mb(bytes, mbValue) {
+        const v = typeof mbValue === 'number' ? mbValue : Number(bytes || 0) / (1024 * 1024);
+        return v >= 100 ? Math.round(v) + ' MB' : v >= 1 ? v.toFixed(1) + ' MB' : v > 0 ? (v * 1024).toFixed(0) + ' KB' : '';
+    }
+    function ago(epoch) {
+        if (!epoch) return '';
+        const days = Math.floor((Date.now() / 1000 - Number(epoch)) / 86400);
+        return days <= 0 ? 'today' : days === 1 ? 'yesterday' : days < 30 ? days + ' days ago' : days < 365 ? Math.round(days / 30) + ' months ago' : new Date(Number(epoch) * 1000).toISOString().slice(0, 10);
+    }
+    function span(f) { return f.from ? esc(f.from) + ' → ' + esc(f.to) : (f.as_of ? 'as of ' + esc(f.as_of) : ''); }
+    function count(f) {
+        const n = Number(f.count || 0);
+        if (f.feed === 'activities') return n + ' activit' + (n === 1 ? 'y' : 'ies') + (f.chats ? ', ' + f.chats + ' chat' + (f.chats === 1 ? '' : 's') : '');
+        if (f.feed === 'laps') return n + ' activit' + (n === 1 ? 'y' : 'ies');
+        if (f.feed === 'wellness') return n + ' day' + (n === 1 ? '' : 's');
+        if (f.feed === 'events') return n + ' entr' + (n === 1 ? 'y' : 'ies');
+        if (f.feed === 'profile') return n + ' snapshot' + (n === 1 ? '' : 's');
+        return String(n);
+    }
+    function matches(q, ...texts) { return !q || texts.some(t => String(t || '').toLowerCase().includes(q)); }
+
+    function frameLine(f) {
+        const item = document.createElement('div');
+        item.className = 'dataset-item ds-frame';
+        const where = f.date_range ? esc(f.date_range) : f.race_title ? esc(f.race_title) : f.original_filename ? esc(f.original_filename) : esc(f.source || 'frame');
+        const rows = f.shape ? Number(f.shape[0]).toLocaleString() + ' rows' : '';
+        item.innerHTML = `<span class="ds-mem" title="in memory: loads without a download">in memory</span><span class="dataset-item-name">${where}${rows ? ' · ' + rows : ''}${f.metrics && f.metrics.length ? ' · ' + esc(f.metrics.join(', ')) : ''}</span><span class="dataset-size">${mb(null, Number(f.memory_mb || 0))}</span>`;
+        item.dataset.id = f.df_id; item.dataset.type = 'primary';
+        const full = (currentDatasets.cached || []).find(c => c.df_id === f.df_id) || f;
+        item.addEventListener('click', ev => selectDataset.call(item, full, 'primary', ev));
+        return item;
+    }
+    function fileLine(f) {
+        const item = createDatasetItem(f, 'auxiliary');
+        return item;
+    }
+    function feedLine(subject, f) {
+        const line = document.createElement('div');
+        line.className = 'ds-feed';
+        line.title = FEED_HINTS[f.feed] || '';
+        const usable = f.feed !== 'profile';
+        const used = f.last_used ? ' · used ' + ago(f.last_used) : '';
+        line.innerHTML = `<span class="ds-feed-name">${esc(FEED_NAMES[f.feed] || f.feed)}</span><span class="ds-feed-span">${span(f)}</span>` +
+            `<span class="ds-acts">${usable ? `<button type="button" class="ds-act" data-act="use" data-feed="${esc(f.feed)}" data-from="${esc(f.from)}" data-to="${esc(f.to)}" title="Open the load dialog with this span and feed filled in; the store serves what it holds">Use</button>` +
+            `<button type="button" class="ds-act" data-act="extend" data-feed="${esc(f.feed)}" data-from="${esc(f.from)}" data-to="${esc(f.to)}" title="Load from the first day held to today: only the missing days are fetched">To today</button>` : ''}` +
+            `<button type="button" class="ds-act danger" data-act="forget" data-folder="${esc(subject.folder)}" data-feed="${esc(f.feed)}" data-name="${esc(subject.name || subject.id)}" title="Drop this feed from the store; a later load downloads it again">Forget</button></span>` +
+            `<span class="ds-feed-count">${esc(count(f))}${f.bytes ? ' · ' + mb(f.bytes) : ''}${used}</span>`;
+        return line;
+    }
+    function subjectBlock(subject, q, forceOpen) {
+        const block = document.createElement('div');
+        block.className = 'ds-subj' + (openSubjects[subject.folder] || forceOpen ? ' open' : '');
+        block.dataset.folder = subject.folder;
+        const head = document.createElement('div');
+        head.className = 'ds-subj-head';
+        const held = subject.held_since ? 'held since ' + new Date(Number(subject.held_since) * 1000).toISOString().slice(0, 10) : '';
+        const last = subject.last_load ? 'loaded ' + ago(subject.last_load) : '';
+        head.innerHTML = `<span class="ds-caret">${openSubjects[subject.folder] || forceOpen ? '▾' : '▸'}</span><span class="ds-subj-name" title="${esc(subject.id)}">${esc(subject.name || subject.id)}</span>` +
+            `<span class="ds-subj-meta">${[held, last].filter(Boolean).join(' · ')}</span><span class="dataset-size">${mb(null, Number(subject.size_mb || 0))}</span>` +
+            `<span class="ds-acts"><button type="button" class="ds-act danger" data-act="forget" data-folder="${esc(subject.folder)}" data-feed="" data-name="${esc(subject.name || subject.id)}" title="Drop everything held for this athlete: the store, the frames in memory, the window files">Forget</button></span>`;
+        block.appendChild(head);
+        if (openSubjects[subject.folder] || forceOpen) {
+            const body = document.createElement('div');
+            body.className = 'ds-subj-body';
+            const feeds = (subject.feeds || []).filter(f => matches(q, FEED_NAMES[f.feed], f.feed, subject.name, subject.id));
+            feeds.forEach(f => body.appendChild(feedLine(subject, f)));
+            (subject.frames || []).filter(f => matches(q, 'in memory', f.date_range, subject.name, subject.id)).forEach(f => body.appendChild(frameLine(f)));
+            if (!body.children.length) body.innerHTML = '<div class="dataset-empty">nothing held</div>';
+            block.appendChild(body);
+        }
+        return block;
+    }
+    function group(title, hint) {
+        const g = document.createElement('div');
+        g.className = 'dataset-category ds-group';
+        g.innerHTML = `<h4>${esc(title)}</h4>`;
+        if (hint) { const e = document.createElement('div'); e.className = 'dataset-empty'; e.textContent = hint; g.appendChild(e); }
+        return g;
+    }
+
+    function renderTree() {
+        const root = document.getElementById('datasetTree');
+        if (!root) return;
+        root.innerHTML = '';
+        const tree = currentDatasets.tree || { sources: [], uploads: { frames: [], files: [] }, legacy: [] };
+        const q = String((document.getElementById('datasetFilter') || {}).value || '').trim().toLowerCase();
+        (tree.sources || []).forEach(src => {
+            const subjects = (src.subjects || []).filter(sb => matches(q, sb.name, sb.id) || (sb.feeds || []).some(f => matches(q, FEED_NAMES[f.feed], f.feed)));
+            const frames = (src.frames || []).filter(f => matches(q, f.date_range, f.race_title, src.title));
+            const files = (src.files || []).filter(f => matches(q, f.filename));
+            const legacy = src.source === 'intervals' ? (tree.legacy || []) : [];
+            if (src.source !== 'intervals' && !frames.length && !files.length) return;
+            const g = group(src.title, (src.source === 'intervals' && !subjects.length && !frames.length && !legacy.length) ? (q ? 'nothing matches' : 'nothing held yet — a load fills it') : '');
+            const few = subjects.length <= 2 || !!q;              // unfold when there are few athletes or a filter is on
+            subjects.forEach(sb => g.appendChild(subjectBlock(sb, q, few)));
+            frames.forEach(f => g.appendChild(frameLine(f)));
+            files.forEach(f => g.appendChild(fileLine(f)));
+            legacy.forEach(lg => {
+                const key = String(lg.folder || '');
+                const block = document.createElement('div');
+                block.className = 'ds-subj open';
+                block.innerHTML = `<div class="ds-subj-head"><span class="ds-caret">·</span><span class="ds-subj-name">earlier loads · key …${esc(key.slice(-4))}</span><span class="ds-subj-meta">${lg.store ? esc(lg.store.activities || 0) + ' activities' : ''}</span><span class="dataset-size">${lg.store ? mb(null, Number(lg.store.size_mb || 0)) : ''}</span>` +
+                    `<span class="ds-acts"><button type="button" class="ds-act danger" data-act="forget" data-folder="${esc(key)}" data-feed="" data-name="key …${esc(key.slice(-4))}" title="Drop this key's folder from before the athlete was known">Forget</button></span></div>`;
+                const body = document.createElement('div'); body.className = 'ds-subj-body';
+                (lg.frames || []).forEach(f => body.appendChild(frameLine(f)));
+                (lg.files || []).filter(f => !f.view).forEach(f => body.appendChild(fileLine(f)));
+                if (body.children.length) block.appendChild(body);
+                g.appendChild(block);
+            });
+            root.appendChild(g);
+        });
+        const up = tree.uploads || { frames: [], files: [] };
+        const upFrames = (up.frames || []).filter(f => matches(q, f.original_filename, f.source)), upFiles = (up.files || []).filter(f => matches(q, f.filename));
+        const ug = group('Uploads', (!upFrames.length && !upFiles.length) ? (q ? 'nothing matches' : 'no uploaded datasets') : '');
+        upFrames.forEach(f => ug.appendChild(frameLine(f)));
+        upFiles.forEach(f => ug.appendChild(fileLine(f)));
+        root.appendChild(ug);
+    }
+
     function createDatasetItem(dataset, type) {
         const item = document.createElement('div');
         item.className = 'dataset-item';
@@ -301,17 +441,18 @@ window.DatasetManager = (function() {
             item.dataset.type = 'auxiliary';
         }
         
-        item.addEventListener('click', () => selectDataset(dataset, type));
+        item.addEventListener('click', ev => selectDataset.call(item, dataset, type, ev));
         
         return item;
     }
 
-    function selectDataset(dataset, type) {
+    function selectDataset(dataset, type, ev) {
         // Update active state
         document.querySelectorAll('.dataset-item').forEach(item => {
             item.classList.remove('active');
         });
-        event.currentTarget.classList.add('active');
+        const el = (ev && ev.currentTarget) || this;
+        if (el && el.classList) el.classList.add('active');
         
         // Store selected dataset
         selectedDataset = { dataset, type };
@@ -637,8 +778,38 @@ window.DatasetManager = (function() {
             
             // Get dataset info to determine source
             const dataset = currentDatasets.cached.find(d => d.df_id === dfId);
+            clearPrimaryPills(dataset);
             
-            // Remove pills based on dataset source
+            // Clear the details pane if this was the selected dataset
+            if (selectedDataset && selectedDataset.dataset.df_id === dfId) {
+                const detailsPanel = document.getElementById('datasetDetails');
+                if (detailsPanel) {
+                    detailsPanel.className = 'dataset-details-empty';
+                    detailsPanel.innerHTML = 'Select a dataset to view details';
+                }
+                selectedDataset = null;
+            }
+            
+            // Refresh cache display
+            loadDatasets();
+            
+            console.log('Primary dataset removed from cache');
+            
+        } catch (error) {
+            console.error('Error removing primary dataset:', error);
+            alert('Failed to remove dataset: ' + error.message);
+        } finally {
+            if (removeButton) {
+                removeButton.textContent = originalText;
+                removeButton.classList.remove('loading');
+                removeButton.disabled = false;
+            }
+        }
+    }
+
+    // the Data tab's pills and the loaders' state after the primary frame went (removed, or forgotten with its athlete)
+    function clearPrimaryPills(dataset) {
+        {                                                      // (the block as it stood in removePrimaryDataset)
             if (dataset) {
                 if (dataset.source === 'sweatstack') {
                     // Remove SweatStack pill
@@ -695,35 +866,10 @@ window.DatasetManager = (function() {
             }
             
             // Clear global state
-           currentDatasetName = null;
-            
-            // Clear the details pane if this was the selected dataset
-            if (selectedDataset && selectedDataset.dataset.df_id === dfId) {
-                const detailsPanel = document.getElementById('datasetDetails');
-                if (detailsPanel) {
-                    detailsPanel.className = 'dataset-details-empty';
-                    detailsPanel.innerHTML = 'Select a dataset to view details';
-                }
-                selectedDataset = null;
-            }
-            
-            // Refresh cache display
-            loadDatasets();
-            
-            console.log('Primary dataset removed from cache');
-            
-        } catch (error) {
-            console.error('Error removing primary dataset:', error);
-            alert(`Failed to remove dataset: ${error.message}`);
-        } finally {
-            if (removeButton) {
-                removeButton.textContent = originalText;
-                removeButton.classList.remove('loading');
-                removeButton.disabled = false;
-            }
+            currentDatasetName = null;
         }
     }
-    
+
     async function removeAuxiliaryDataset(filePath) {
         // Update button state
         const removeButton = document.querySelector(`.dataset-remove-btn[data-path="${filePath}"]`);
@@ -787,36 +933,19 @@ window.DatasetManager = (function() {
         }
     }
     
-    async function loadPrimaryDataset(dfId) {
-        // Check if primary dataset already exists
-        if (currentDatasetName) {
-            if (typeof showUploadLimitMessage === 'function') {
-                showUploadLimitMessage('Primary dataset already loaded. Remove current to load new.');
-            }
-            return;
-        }
-        
-        // Check if SweatStack data is loaded
-        if (window.SweatStack && window.SweatStack.state.isLoaded) {
-            if (typeof showUploadLimitMessage === 'function') {
-                showUploadLimitMessage('SweatStack data already loaded. Remove current to load primary dataset.');
-            }
-            return;
-        }
-        
-        // Check if Intervals data is loaded
-        if (window.Intervals && window.Intervals.state.isLoaded) {
-            if (typeof showUploadLimitMessage === 'function') {
-                showUploadLimitMessage('Intervals ICU data already loaded. Remove current to load primary dataset.');
-            }
-            return;
-        }
+    // why a primary frame cannot be loaded now, or '' (the Data tab holds one dataset at a time)
+    function primaryLoadedMessage() {
+        if (typeof currentDatasetName !== 'undefined' && currentDatasetName) return 'Primary dataset already loaded. Remove current to load new.';
+        if (window.SweatStack && window.SweatStack.state.isLoaded) return 'SweatStack data already loaded. Remove current to load primary dataset.';
+        if (window.Intervals && window.Intervals.state.isLoaded) return 'Intervals ICU data already loaded. Remove current to load primary dataset.';
+        if (window.Endura && window.Endura.state.isLoaded) return 'Endura data already loaded. Remove current to load primary dataset.';
+        return '';
+    }
 
-        // Check if Endura data is loaded
-        if (window.Endura && window.Endura.state.isLoaded) {
-            if (typeof showUploadLimitMessage === 'function') {
-                showUploadLimitMessage('Endura data already loaded. Remove current to load primary dataset.');
-            }
+    async function loadPrimaryDataset(dfId) {
+        const busy = primaryLoadedMessage();
+        if (busy) {
+            if (typeof showUploadLimitMessage === 'function') showUploadLimitMessage(busy);
             return;
         }
         
@@ -1066,26 +1195,22 @@ window.DatasetManager = (function() {
     }
     
     function showLoadingState() {
-        const primaryList = document.getElementById('primaryDatasetList');
-        const auxList = document.getElementById('auxiliaryDatasetList');
+        const tree = document.getElementById('datasetTree');
         const genList = document.getElementById('generatedDatasetList');
         
         const loadingHtml = '<div class="dataset-loading"><div class="dataset-loading-spinner"></div>Loading...</div>';
         
-        if (primaryList) primaryList.innerHTML = loadingHtml;
-        if (auxList) auxList.innerHTML = loadingHtml;
+        if (tree) tree.innerHTML = loadingHtml;
         if (genList) genList.innerHTML = loadingHtml;
     }
     
     function showErrorState(message) {
-        const primaryList = document.getElementById('primaryDatasetList');
-        const auxList = document.getElementById('auxiliaryDatasetList');
+        const tree = document.getElementById('datasetTree');
         const genList = document.getElementById('generatedDatasetList');
         
         const errorHtml = `<div style="color: var(--error-color); font-size: 13px;">${message}</div>`;
         
-        if (primaryList) primaryList.innerHTML = errorHtml;
-        if (auxList) auxList.innerHTML = '';
+        if (tree) tree.innerHTML = errorHtml;
         if (genList) genList.innerHTML = '';
     }
     

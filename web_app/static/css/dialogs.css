@@ -341,7 +341,28 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 /* ---- dataset cache dialog (#datasetManagerModal, built by dataset-manager.js): dataset-manager.css is retired ---- */
 #datasetManagerModal .ui-dlg { width: min(1040px, 100%); max-height: min(85vh, 760px); }
 #datasetManagerModal .dataset-modal-body { display: flex; flex: 1; min-height: 0; }
-#datasetManagerModal .dataset-list-panel { width: 300px; flex-shrink: 0; border-right: 1px solid var(--border-color); overflow: auto; padding: 12px 12px; display: flex; flex-direction: column; gap: 14px; }
+#datasetManagerModal .dataset-list-panel { width: 500px; flex-shrink: 0; border-right: 1px solid var(--border-color); overflow: auto; padding: 12px 12px; display: flex; flex-direction: column; gap: 14px; }
+/* the tree (docs/DATASETS_DESIGN.md §8, 2026-10-29): source → athlete → feed, the frames in memory under the athlete, the actions on each line */
+#datasetManagerModal .ds-filter { width: 100%; height: 30px; font-size: 12.5px; flex-shrink: 0; }
+#datasetManagerModal .ds-subj { border: 1px solid var(--border-color); border-radius: var(--r-2); margin-bottom: 6px; }
+#datasetManagerModal .ds-subj-head { display: flex; align-items: center; gap: 8px; padding: 7px 9px; cursor: pointer; font-size: 12.5px; color: var(--text-primary); }
+#datasetManagerModal .ds-subj-head:hover { background: var(--bg-tertiary); }
+#datasetManagerModal .ds-caret { width: 10px; color: var(--text-quaternary); flex-shrink: 0; }
+#datasetManagerModal .ds-subj-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#datasetManagerModal .ds-subj-meta { flex: 1; min-width: 0; font-size: var(--fs-small); color: var(--text-quaternary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#datasetManagerModal .ds-subj-body { border-top: 1px solid var(--border-color); padding: 4px 6px 6px 18px; display: flex; flex-direction: column; gap: 2px; }
+#datasetManagerModal .ds-feed { display: grid; grid-template-columns: 96px 1fr auto; grid-template-areas: "name span acts" "name count count"; align-items: center; column-gap: 8px; row-gap: 1px; padding: 5px 6px; border-radius: var(--r-1); font-size: 12.5px; color: var(--text-secondary); }
+#datasetManagerModal .ds-feed:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+#datasetManagerModal .ds-feed-name { grid-area: name; color: var(--text-primary); white-space: nowrap; align-self: start; padding-top: 3px; }
+#datasetManagerModal .ds-feed-span { grid-area: span; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#datasetManagerModal .ds-feed .ds-acts { grid-area: acts; }
+#datasetManagerModal .ds-feed-count { grid-area: count; min-width: 0; font-size: var(--fs-small); color: var(--text-quaternary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#datasetManagerModal .ds-acts { display: inline-flex; gap: 4px; flex-shrink: 0; visibility: hidden; }
+#datasetManagerModal .ds-feed:hover .ds-acts, #datasetManagerModal .ds-subj-head:hover .ds-acts { visibility: visible; }
+#datasetManagerModal .ds-act { height: 22px; padding: 0 7px; border: 1px solid var(--border-color); border-radius: var(--r-1); background: none; color: var(--text-secondary); font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+#datasetManagerModal .ds-act:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+#datasetManagerModal .ds-act.danger:hover { color: var(--c-fail); border-color: var(--chip-fail-border); }
+#datasetManagerModal .ds-frame .ds-mem { font-size: 10.5px; color: var(--c-kernel); border: 1px solid var(--c-kernel); border-radius: 999px; padding: 0 6px; flex-shrink: 0; }
 #datasetManagerModal .dataset-category h4 { margin: 0 0 6px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
 #datasetManagerModal .dataset-item { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-1); font-size: 12.5px; color: var(--text-secondary); cursor: pointer; }
 #datasetManagerModal .dataset-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }

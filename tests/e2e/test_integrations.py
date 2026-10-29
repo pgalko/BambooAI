@@ -761,12 +761,36 @@ def main():
                   calls_of(st, "fit-file") - fits_before_rf == 60 and calls_of(st, "/messages") - msgs_before_rf == chats_a and "60 activities fetched again" in msg_rf and page.evaluate("() => document.getElementById('intervals-refresh').checked") is False and page.evaluate("() => document.querySelector('#intervalsDownload .on').textContent") == "Only what\u2019s new",
                   (calls_of(st, "fit-file") - fits_before_rf, calls_of(st, "/messages") - msgs_before_rf, msg_rf[:160]))
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
-            # the Dataset cache panel lists the key's store
+            # the Dataset cache dialog draws the tree (docs/DATASETS_DESIGN.md §8, 2026-10-29): source → athlete → feed, the frames in memory under the athlete
             page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
-            page.wait_for_function("() => (document.getElementById('storeList') || {}).textContent && !/Nothing kept|Loading/.test(document.getElementById('storeList').textContent)", timeout=15000)
-            store_items = page.evaluate("() => [...document.querySelectorAll('#storeList .dataset-item')].map(e => e.textContent.replace(/\\s+/g, ' ').trim())")
-            check("the Dataset cache panel lists the stores under Store: one per subject, by the name the profile gave, with the activities and chats held, the span and the size", len(store_items) == 2 and any("The subject" in i and "101 activities" in i and f"{a_start.isoformat()} → {today.isoformat()}" in i and "MB" in i for i in store_items) and any("The other subject" in i and "60 activities" in i for i in store_items), store_items)
-            page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length >= 2", timeout=15000)
+            tree_items = page.evaluate("""() => [...document.querySelectorAll('#datasetTree .ds-subj')].map(e => ({ head: e.querySelector('.ds-subj-head').textContent.replace(/\\s+/g, ' ').trim(),
+                feeds: [...e.querySelectorAll('.ds-feed')].map(f => f.textContent.replace(/\\s+/g, ' ').trim()), frames: e.querySelectorAll('.ds-frame').length, acts: [...e.querySelectorAll('[data-act]')].map(b => b.dataset.act) }))""")
+            modal_text = page.evaluate("() => document.getElementById('datasetManagerModal').textContent")
+            check("the Dataset cache dialog draws the tree: one athlete block per subject by the name the profile gave, both unfolded, with the feeds held - Activities with the span and the count, Wellness, Calendar, Profile - the frames in memory, and the actions Use / Extend to today / Forget on the feeds and Forget on the athlete; no window file listed anywhere",
+                  len(tree_items) == 2 and any("The subject" in t["head"] and any(f.startswith("Activities") and "101 activities" in f and f"{a_start.isoformat()} → {today.isoformat()}" in f for f in t["feeds"]) and any(f.startswith("Wellness") for f in t["feeds"]) and any(f.startswith("Calendar") for f in t["feeds"]) and any(f.startswith("Profile") for f in t["feeds"]) for t in tree_items)
+                  and any("The other subject" in t["head"] and any("60 activities" in f for f in t["feeds"]) for t in tree_items)
+                  and all({"use", "extend", "forget"} <= set(t["acts"]) and "held since" in t["head"] and ("MB" in t["head"] or "KB" in t["head"]) for t in tree_items) and "wellness_data_" not in modal_text and "activity_summary_" not in modal_text
+                  and sum(t["frames"] for t in tree_items) >= 1, tree_items)
+            # Forget the other subject through the dialog: its folder goes whole, the first subject stands
+            page.once("dialog", lambda d: d.accept())
+            page.evaluate("() => { const b = [...document.querySelectorAll('#datasetTree .ds-subj')].find(e => /The other subject/.test(e.textContent)).querySelector('.ds-subj-head [data-act=\"forget\"]'); b.click(); }")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
+            check("Forget on the athlete's line (confirmed) drops everything held for the other subject - the folder with its store and files - and the first subject stands with its store",
+                  not os.path.exists(exec_ds2) and os.path.isdir(os.path.join(exec_ds, "store")) and len(json.load(open(os.path.join(exec_ds, "store", "activities.json")))) == 101
+                  and page.evaluate("() => document.querySelector('#datasetTree .ds-subj .ds-subj-name').textContent") == "The subject", (os.path.exists(exec_ds2), sorted(os.listdir(os.path.join(workdir, "executor", "datasets", USER, "intervals")))))
+            # Use on the Activities line while the Data tab holds a window: asked whether to let it go; declined, nothing moves
+            page.once("dialog", lambda d: d.dismiss())
+            page.evaluate("() => { const b = document.querySelector('#datasetTree .ds-feed [data-act=\"use\"]'); b.click(); }")
+            page.wait_for_timeout(600)
+            kept = page.evaluate("() => ({ intervals: document.getElementById('intervalsModal').style.display, cache: document.getElementById('datasetManagerModal').style.display, loaded: !!(window.Intervals && window.Intervals.state.isLoaded) })")
+            check("Use while a window is loaded asks whether to let it go; declined, the cache dialog stays, the load dialog does not open and the data stays loaded", kept["intervals"] != "flex" and kept["cache"] != "none" and kept["loaded"], kept)
+            # ...and with nothing loaded (the state flagged so, to keep the data this walk goes on with): the load dialog opens with the span held filled in
+            page.evaluate("() => { window.__cdn = currentDatasetName; currentDatasetName = null; window.Intervals.state.isLoaded = false; const b = document.querySelector('#datasetTree .ds-feed [data-act=\"use\"]'); b.click(); }")
+            page.wait_for_function("() => document.getElementById('intervalsModal').style.display === 'flex' && document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
+            use_dates = page.evaluate("() => ({ start: document.getElementById('intervalsStartDate').value, end: document.getElementById('intervalsEndDate').value })")
+            check("Use on the Activities line closes the cache dialog and opens the load dialog with the span held as the window (the store serves it; only what is missing is fetched)", use_dates == {"start": a_start.isoformat(), "end": today.isoformat()}, use_dates)
+            page.evaluate("() => { window.Intervals.state.isLoaded = true; currentDatasetName = window.__cdn; const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
             page.fill("#queryInput", mod.COUNT_QUESTION)
             page.evaluate("setMode('deep')")
             page.click("#submitQuery")

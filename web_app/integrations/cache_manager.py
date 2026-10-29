@@ -323,6 +323,43 @@ def remove_primary_from_cache():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@cache_bp.route('/forget', methods=['POST'])
+@requires_auth
+def forget_from_cache():
+    """Forget a feed of a subject's store, or the subject whole (docs/DATASETS_DESIGN.md §1, 2026-10-29): the executor
+    drops the folder's feed (activities, laps, wellness, events, profile) or the folder with its record, store and
+    window files, and the subject's frames in memory with the activities. The session's primary frame is let go when
+    it was one of those."""
+    try:
+        data = request.json or {}
+        folder, feed = str(data.get('folder') or '').strip(), str(data.get('feed') or '')
+        if not folder:
+            return jsonify({'error': 'folder is required'}), 400
+        user_id = cache_bp.get_user_id()
+        executor_urls = cache_bp.get_dynamic_executor_urls(user_id)
+        response = requests.post(f"{executor_urls['EXECUTOR_API_BASE_URL']}/cache/forget", json={'user_id': user_id, 'folder': folder, 'feed': feed}, timeout=30)
+        if response.status_code != 200:
+            return jsonify({'error': (response.json() or {}).get('error') if response.headers.get('content-type', '').startswith('application/json') else response.text}), response.status_code
+        out = response.json() or {}
+        session_id = session.get('session_id')
+        dropped = set(out.get('frames_dropped') or [])
+        primary_dropped = False
+        if session_id and dropped:
+            prefs = cache_bp.user_preferences.get(session_id, {})
+            if prefs.get('df_id') in dropped:
+                primary_dropped = True
+                inst = cache_bp.bamboo_ai_instances.get(session_id)
+                if inst:
+                    inst.df = None
+                    inst.df_id = None
+                prefs.pop('df_id', None)
+                cache_bp.user_preferences[session_id] = prefs
+        cache_bp.logger.info(f"forgotten: {folder} {feed or '(whole)'} for {user_id}: {out.get('removed')}, frames dropped {sorted(dropped)}")
+        return jsonify(dict(out, success=True, primary_dropped=primary_dropped)), 200
+    except Exception as e:                                       # noqa: BLE001
+        cache_bp.logger.error(f'Error forgetting from the cache: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
 @cache_bp.route('/remove_auxiliary', methods=['POST'])
 @requires_auth  
 def remove_auxiliary_from_cache():

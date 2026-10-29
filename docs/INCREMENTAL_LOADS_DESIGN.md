@@ -118,8 +118,10 @@ method's inputs and the Data tab's pills; they are small).
 - The Intervals dialog's Download choice has two sides, *Only what's new* (the default) and *Everything again*; the routine run
   dialog offers *Everything again* as a box (off by default). Until 2026-10-16 both were a box named *Refresh everything*, which
   read as a reload of the page as easily as a re-download.
-- `/cache/inspect` lists the stores (`stores`: one per key with a store, by mark); the Dataset cache panel shows
-  what each key's store holds.
+- `/cache/inspect` lists the stores (`stores`: one per key with a store, by mark; one per athlete since 2026-10-29)
+  and, since step 3 of docs/DATASETS_DESIGN.md, the `tree` the Dataset cache dialog draws: source → athlete → feed,
+  each feed with its span and count, the frames in memory under the athlete, Use / Extend to today / Forget on the
+  lines. The window files are not shown there any more.
 
 ## 5. Decisions
 

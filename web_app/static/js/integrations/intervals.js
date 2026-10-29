@@ -785,7 +785,8 @@ function showIntervalsStoreLine() {
         const n = stores.reduce((a, st) => a + (Number(st.activities) || 0), 0);
         const froms = stores.map(st => st.from).filter(Boolean).sort(), tos = stores.map(st => st.to).filter(Boolean).sort();
         const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-        el.innerHTML = 'Store \u00b7 <b>' + n + ' activit' + (n === 1 ? 'y' : 'ies') + '</b>' + (froms.length ? ' \u00b7 ' + esc(froms[0]) + ' \u2192 ' + esc(tos[tos.length - 1]) : '') + ' \u00b7 only what the window lacks is fetched';
+        const names = stores.map(st => st.subject && (st.subject.name || st.subject.id)).filter(Boolean);     // whose (2026-10-29)
+        el.innerHTML = 'Store' + (names.length === 1 ? ' \u00b7 ' + esc(names[0]) : names.length > 1 ? ' \u00b7 ' + names.length + ' athletes' : '') + ' \u00b7 <b>' + n + ' activit' + (n === 1 ? 'y' : 'ies') + '</b>' + (froms.length ? ' \u00b7 ' + esc(froms[0]) + ' \u2192 ' + esc(tos[tos.length - 1]) : '') + ' \u00b7 only what the window lacks is fetched';
     }).catch(() => {});
 }
 
