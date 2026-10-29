@@ -207,10 +207,11 @@ def load_data():
     
     try:
         session_id = session['session_id']
-        
+        with_frame = data.get('with_frame') is not False   # the Dataset cache dialog's Load <dataset> (2026-10-29): the files asked for, the frame untouched
+
         # Generate new df_id
         new_df_id = str(uuid.uuid4())
-        
+
         # Start job on executor
         executor_urls = intervals_bp.get_dynamic_executor_urls(user_id)
         if not executor_urls:                      # the self-hosted edition on the local kernel (docs/OSS_DESIGN.md D5)
@@ -229,14 +230,17 @@ def load_data():
                 'refresh': bool(data.get('refresh')),          # Refresh everything: every file and chat of the window again (2026-10-15)
                 'retention_days': retention_days,
                 'from_store': bool(data.get('from_store')),    # the Dataset cache dialog's Load (2026-10-29): from the store alone, nothing fetched
-                'folder': str(data.get('folder') or '')        # ...the athlete's folder it names
+                'folder': str(data.get('folder') or ''),       # ...the athlete's folder it names
+                'with_frame': with_frame                       # off: one dataset alone (2026-10-29) - the frame on the Data tab stays as it is
             },
             timeout=10
         )
         response.raise_for_status()
-        
+
         job_data = response.json()
-        
+
+        if not with_frame:                                     # the load record is the frame's: a dataset alone joins it when it completes
+            return jsonify({'job_id': job_data['job_id']}), 202
         # Store df_id in session for later
         session['intervals_df_id'] = new_df_id
         session['intervals_job_id'] = job_data['job_id']
@@ -248,7 +252,7 @@ def load_data():
                          'key': key_fingerprint(api_key)}             # whose data this is - a one-way mark of the key, never the key (2026-10-11, routines)
         if data.get('from_store'):
             prefs['load']['from_store'] = True                 # loaded from the store alone (2026-10-29)
-        
+
         return jsonify({'job_id': job_data['job_id']}), 202
         
     except Exception as e:
@@ -286,11 +290,26 @@ def get_job_status(job_id):
             prefs = intervals_bp.user_preferences.get(session_id, {
                 'planning': False, 'ontology_path': None, 'auxiliary_datasets': []
             })
+            # the session's files: those of the kinds this load asked for are replaced by what it wrote, the rest stay
+            # (2026-10-29: a load of one dataset alone replaces that dataset's files; an upload, another kind's file, keep)
+            from analyst.routines import aux_kind, brings
+            kinds = [str(k) for k in (result.get('kinds') if result.get('kinds') is not None else (prefs.get('load') or {}).get('aux_kinds') or [])]
+            owned = set(kinds) | set(brings('intervals', kinds))
+            new_files = list(result.get('aux_datasets') or [])
+            if kinds or new_files:
+                prefs['auxiliary_datasets'] = [p for p in (prefs.get('auxiliary_datasets') or []) if aux_kind(p) not in owned and p not in new_files] + new_files
+            if result.get('frame') is False:
+                # one dataset alone (the dialog's Load <dataset>): the frame and its load record stay; the kinds loaded join the record
+                intervals_bp.user_preferences[session_id] = prefs
+                inst = intervals_bp.bamboo_ai_instances[session_id] = intervals_bp.get_bamboo_ai(session_id)
+                inst.auxiliary_datasets = list(prefs['auxiliary_datasets'])
+                if prefs.get('load'):
+                    prefs['load']['aux_kinds'] = list(dict.fromkeys(list(prefs['load'].get('aux_kinds') or []) + kinds))
+                    inst.load_params = dict(prefs['load'])
+                _coding_start(job_id, session_id, result, prefs)       # a context file came: the pass behind it, as after a whole load
+                return jsonify(job_data), 200
             prefs['df_id'] = result['df_id']
-            
-            if result.get('aux_datasets'):
-                prefs['auxiliary_datasets'] = result['aux_datasets']
-            
+
             # Clean up and create new instance
             #intervals_bp.cleanup_and_remove_bamboo_instance(session_id)
 

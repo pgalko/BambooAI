@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0241 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone; **executor image v71** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0242 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned; **executor image v72** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,10 +95,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/83/37/15/88/1/1 Python; 58/7/44/71/24/71/14/25/4/14/67 JS; 1,541 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/91/37/15/88/1/1 Python; 58/7/45/71/24/71/14/25/4/14/67 JS; 1,550 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (108; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (116; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -477,6 +477,32 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Dataset cache dialog redesigned after Palo's second look (2026-10-29, patch 0242; executor image v72 -
+  rebuild and roll out).** His points on the rebuilt dialog: the columns showed for two datasets only; Load on a
+  dataset loaded everything; earlier loads were still listed; "it looks like we are trying to adjust the older
+  design to the new logic". Mockups were agreed first (docs/DATASETS_DESIGN.md §16 is the design as it stands). The
+  lines under an athlete are now exactly the Intervals.icu dialog's datasets plus the frame - Activities, Activity
+  summary, Activity intervals, Wellness, Context (the calendar inside it, as the dialog has no calendar box), Rider
+  profile - each with a dot saying whether it is on the Data tab now (read from the pills: the file path names the
+  athlete's folder, the prefix the line; the frame's record carries the folder). Every dataset shows its columns:
+  the executor makes them the way a load makes the files (`dataset_columns`, `columns_of` on `/cache/inspect`; the
+  executor's `CODES_COLUMNS` mirrors analyst/context.py, a test keeps them in step). A dataset's pane has Load
+  <dataset> (from the store alone), Load <dataset> to today (through Intervals.icu) and Forget <dataset>; the
+  athlete's Load everything / Load everything to today / Forget everything. A dataset alone is loaded with
+  `with_frame` off: the executor downloads nothing, assembles and caches nothing, writes the files asked for, says
+  `frame: false` and the `kinds`; the app's completion replaces the session's files of those kinds (and what they
+  bring) and keeps the rest, adds the kinds to the load record, starts the coding pass when a context file came; the
+  dialog polls it itself. Every completion now replaces the session's files **by kind** (a whole load replaced them
+  wholesale and dropped uploads). Forget takes pills off the Data tab through their own removers - the store keeps
+  the data, no question; "Delete from the store…" is the quiet link that removes a dataset or the athlete from the
+  disk after asking (`/cache/forget`: activities are the files alone now, the laps and chats stay with their lines;
+  `context` deletes the chats and the calendar). Earlier loads are deleted on the executor's first start after the
+  upgrade (`purge_earlier_loads`: the mark folders and "unmarked", the loader's files at the user's folder; uploads
+  and the athletes stay; the log says what went) and the tree has no legacy block. The last load's `kinds` on the
+  record are a whole load's only. Tests: test_store.py 91, test_dialogs.js 45, the stamp checks v72; the
+  integrations walk 116 (the purge at start, the panes with dots and columns, Delete of the other athlete, Load
+  everything, Forget Wellness, Load Wellness alone, Load Activity intervals to today alone, Forget everything, Delete
+  Wellness from the store; renders with `SHOTS=<folder>`).
 - **Load from the store alone, after Palo's second look (2026-10-29, patch 0241; executor image v71 - rebuild and
   roll out).** Load in the cache dialog had gone through Intervals.icu (the small feeds fresh, recent chats and laps
   looked at again, as the design said) and read as "loading from Intervals again"; the expectation is the stored

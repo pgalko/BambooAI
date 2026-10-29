@@ -665,13 +665,17 @@ description, and the summary file carries the settings in force on each day. The
 
 The executor keeps what it has loaded - the frames with their window and metrics, the files a load
 writes, the datasets an analysis writes with `DS.save` - and the **Dataset cache** dialog (the rail)
-draws it as a tree: the source, the athlete under it, and under the athlete each dataset held -
-activities, activity intervals, wellness, calendar, the context's chats, the rider profile - with its
-span, its count and its size. A click on a line opens its details and the actions: **Load** (the span
-held, from the store alone - nothing is fetched), **Load to today** (through Intervals.icu, only the
-missing days come down) and **Forget**; a dataset's details say what it holds and what a load writes
-from it. Uploads and generated files keep their own groups. A routine whose window
-lies inside a load the executor still holds runs from the cache without a download.
+draws it as a tree: the source, the athlete under it, and under the athlete one line per dataset the
+Intervals.icu dialog offers plus the frame - Activities, Activity summary, Activity intervals, Wellness,
+Context (chats and calendar), Rider profile - with its span, what is held and its size, and a dot saying
+whether it is on the Data tab now. A click on a line opens its details - what it is, what is held, the
+files a load writes and their columns - and the actions: **Load <dataset>** (the span held, from the
+store alone - nothing is fetched), **Load <dataset> to today** (through Intervals.icu, only the missing
+days come down) and **Forget <dataset>** (its pill off the Data tab; the store keeps the data); the
+athlete's line has the same for everything held. Loading one dataset leaves the frame as it is. *Delete
+from the store…* is the quiet link that removes data from the disk. Uploads and generated files keep
+their own groups. A routine whose window lies inside a load the executor still holds runs from the
+cache without a download.
 
 Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the
 athlete's folder (the source and the athlete id the profile gives), with the chats and the laps fetched

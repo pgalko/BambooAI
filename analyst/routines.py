@@ -642,7 +642,7 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
                 continue
             rows = (f.get("shape") or [None])[0]
             size = (f" ({int(rows):,} rows" + (", with " + ", ".join(names) if names else "") + ")") if rows is not None else ""
-            out = {"hit": True, "df_id": str(f.get("df_id") or ""), "files": [have[(folder, n)] for n in names.values()], "rows": rows, "date_range": f"{cs} to {ce}"}
+            out = {"hit": True, "df_id": str(f.get("df_id") or ""), "files": [have[(folder, n)] for n in names.values()], "rows": rows, "date_range": f"{cs} to {ce}", "folder": folder}   # whose folder (2026-10-29): on the pill's record, for the cache dialog's dots
             if (cs, ce) == (str(start), str(end)):
                 out["line"] = f"{what} is in the cache{size} - no download"
             else:

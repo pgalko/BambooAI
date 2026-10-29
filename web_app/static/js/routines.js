@@ -955,7 +955,7 @@
             const load = Object.assign({}, asked, { cached: true }, cached.cut && cached.cut.length === 2 ? { cached_from: cached.cut } : {}, cached.key ? { key: cached.key } : {});
             if (src === 'intervals') {
                 const held = cached.cut && cached.cut.length === 2 ? { start_date: cached.cut[0], end_date: cached.cut[1] } : { start_date: asked.start_date, end_date: asked.end_date };
-                const info = Object.assign({ aux_datasets: plan.aux_kinds || [], shape: [cached.rows, null], columns: [] }, held);
+                const info = Object.assign({ aux_datasets: plan.aux_kinds || [], shape: [cached.rows, null], columns: [], folder: cached.folder || '' }, held);     // the athlete's folder on the record (2026-10-29): the cache dialog's dots read it
                 if (typeof createIntervalsPill === 'function') createIntervalsPill(info);
                 if (typeof createIntervalsAuxiliaryPills === 'function' && (cached.files || []).length) createIntervalsAuxiliaryPills(cached.files, info);
                 dfTab(res.json);
@@ -982,7 +982,7 @@
                 const jr = await fetchJson('/intervals/job/' + encodeURIComponent(jobId));
                 const job = jr.json || {};
                 if (job.status === 'completed') {
-                    const info = { start_date: start, end_date: end, aux_datasets: plan.aux_kinds || [], shape: (job.result || {}).shape, columns: (job.result || {}).columns };
+                    const info = { start_date: start, end_date: end, aux_datasets: plan.aux_kinds || [], shape: (job.result || {}).shape, columns: (job.result || {}).columns, folder: ((job.result || {}).subject || {}).folder || '' };
                     let files = (job.result || {}).aux_datasets || [];
                     // the coding pass behind the load (2026-10-14): a routine's counts depend on the codes, so the run waits for it here
                     let coding = job.result && job.result.context && job.result.context.coding;

@@ -495,7 +495,8 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                     aux_datasets: auxDatasets,
                     shape: job.result.shape,
                     columns: job.result.columns,
-                    files: (job.result && job.result.aux_datasets) || []
+                    files: (job.result && job.result.aux_datasets) || [],
+                    folder: (job.result && job.result.subject && job.result.subject.folder) || ''      // whose window (2026-10-29): the Dataset cache dialog's dots read it
                 };
                 createIntervalsPill(dataInfo);
 

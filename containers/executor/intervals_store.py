@@ -16,6 +16,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import time
 from datetime import date, timedelta
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -618,37 +619,83 @@ def views_rel(rel: str) -> str:
 LOADER_PREFIXES = ("activity_summary_", "wellness_data_", "activity_intervals_", "context_notes_", "context_codes_", "planned_workouts_",
                    "rider_profile_", "custom_zone_times_")                                   # the Intervals loader's window files
 ENDURA_PREFIXES = ("athlete_profiles_race_", "race_turns_race_", "race_climbs_race_", "race_waymarkers_race_")
-FEED_ORDER = ("activities", "laps", "wellness", "events", "profile")
+# The dataset lines of an athlete (2026-10-29, the dialog redesigned): exactly the datasets the Intervals.icu dialog offers,
+# plus the frame - and the window files a load writes from each (the prefix; the executor supplies the columns of each).
+# The calendar sits inside Context, as it does in the dialog (the planned workouts file rides along).
+FEED_ORDER = ("activities", "summary", "laps", "wellness", "context", "profile")
+LINE_FILES = {"activities": (), "summary": ("activity_summary",), "laps": ("activity_intervals",), "wellness": ("wellness_data",),
+              "context": ("context_notes", "planned_workouts", "context_codes"), "profile": ("rider_profile", "custom_zone_times")}
+
+
+def _line_files(sm: dict, feed: str) -> List[dict]:
+    cols = sm.get("columns_of") or {}
+    return [{"file": p + "_<window>.csv", "columns": list(cols.get(p) or [])} for p in LINE_FILES.get(feed, ())]
 
 
 def feeds_of(summary: dict) -> List[dict]:
-    """The feed lines of a store's summary, for the tree - one per dataset the load dialog offers, named as there
-    (activities: the streams the frame and the summary are made from; laps: the activity intervals; wellness; events:
-    the calendar; chats: the context's messages; profile: the rider profile and zones) - each with its span, count,
-    size, last use and what it holds; only the feeds held."""
+    """The dataset lines of a store's summary, for the tree - one per dataset the load dialog offers, named as there,
+    plus the frame (activities: the second-by-second files; summary: the activity list's entries, one row each; laps:
+    the activity intervals; wellness; context: the chats and the calendar; profile: the rider profile and zones) - each
+    with its span, count, size, last use, what it holds, and the files a load writes from it with their columns
+    (`columns_of` on the summary, by file prefix, from the executor); only the datasets held."""
     sm = summary or {}
     parts = sm.get("parts") or {}
+    feeds = sm.get("feeds") or {}
     out = []
     if sm.get("activities"):
         out.append({"feed": "activities", "from": sm.get("from", ""), "to": sm.get("to", ""), "count": sm.get("activities", 0),
-                    "bytes": parts.get("activities", 0), "last_used": sm.get("last_used"), "columns": sm.get("columns") or []})
+                    "bytes": parts.get("activities", 0), "last_used": sm.get("last_used"), "columns": sm.get("columns") or [], "files": []})
+    f = feeds.get("entries")
+    if f and f.get("count"):
+        out.append({"feed": "summary", "from": f.get("from", ""), "to": f.get("to", ""), "count": f.get("count", 0), "bytes": f.get("bytes", 0), "last_used": f.get("last_used"),
+                    "files": _line_files(sm, "summary")})
     if sm.get("laps"):
         out.append({"feed": "laps", "from": sm.get("laps_from", ""), "to": sm.get("laps_to", ""), "count": sm.get("laps", 0), "rows": sm.get("lap_rows", 0),
-                    "bytes": parts.get("laps", 0), "last_used": sm.get("last_used")})
-    f = (sm.get("feeds") or {}).get("wellness")
+                    "bytes": parts.get("laps", 0), "last_used": sm.get("last_used"), "files": _line_files(sm, "laps")})
+    f = feeds.get("wellness")
     if f and f.get("count"):
-        out.append({"feed": "wellness", "from": f.get("from", ""), "to": f.get("to", ""), "count": f.get("count", 0), "bytes": f.get("bytes", 0), "last_used": f.get("last_used"),
-                    "columns": ["date" if c == "id" else c for c in f.get("columns") or []]})      # as the file names the day
-    f = (sm.get("feeds") or {}).get("events")
-    if f and f.get("count"):
-        out.append({"feed": "events", "from": f.get("from", ""), "to": f.get("to", ""), "count": f.get("count", 0), "bytes": f.get("bytes", 0), "last_used": f.get("last_used"), "categories": f.get("categories") or {}})
-    if sm.get("chats"):
-        out.append({"feed": "chats", "from": sm.get("chats_from", ""), "to": sm.get("chats_to", ""), "count": sm.get("chats", 0), "rows": sm.get("messages", 0),
-                    "bytes": parts.get("messages", 0), "last_used": sm.get("last_used")})
+        files = _line_files(sm, "wellness")
+        if not files[0]["columns"]:
+            files[0]["columns"] = ["date" if c == "id" else c for c in f.get("columns") or []]      # as the file names the day
+        out.append({"feed": "wellness", "from": f.get("from", ""), "to": f.get("to", ""), "count": f.get("count", 0), "bytes": f.get("bytes", 0), "last_used": f.get("last_used"), "files": files})
+    ev = feeds.get("events") or {}
+    if sm.get("chats") or ev.get("count"):
+        days = [d for d in (sm.get("chats_from"), sm.get("chats_to"), ev.get("from"), ev.get("to")) if d]
+        used = [u for u in (sm.get("last_used"), ev.get("last_used")) if u]
+        out.append({"feed": "context", "from": min(days) if days else "", "to": max(days) if days else "", "count": sm.get("chats", 0), "rows": sm.get("messages", 0),
+                    "entries": ev.get("count", 0), "categories": ev.get("categories") or {}, "bytes": parts.get("messages", 0) + ev.get("bytes", 0),
+                    "last_used": max(used) if used else None, "files": _line_files(sm, "context")})
     pf = sm.get("profile") or {}
     if pf.get("snapshots"):
-        out.append({"feed": "profile", "as_of": pf.get("as_of", ""), "count": pf.get("snapshots", 0), "bytes": pf.get("bytes", 0)})
+        out.append({"feed": "profile", "as_of": pf.get("as_of", ""), "count": pf.get("snapshots", 0), "bytes": pf.get("bytes", 0), "files": _line_files(sm, "profile")})
     return out
+
+
+def purge_earlier_loads(datasets_root: str) -> List[str]:
+    """Earlier loads leave the system on the executor's first start after the upgrade (2026-10-29, the product owner:
+    not consolidated, not listed - deleted): under every user's folder, each folder of a load from before the athlete
+    was known (a key's mark, or "unmarked") and each window file an older executor wrote at the user's folder itself.
+    Uploads, the athletes' folders and the app's own folders stay. Returns what went, as paths relative to the root."""
+    import shutil
+    gone: List[str] = []
+    if not os.path.isdir(datasets_root):
+        return gone
+    for user in sorted(os.listdir(datasets_root)):
+        udir = os.path.join(datasets_root, user)
+        if not os.path.isdir(udir):
+            continue
+        for name in sorted(os.listdir(udir)):
+            p = os.path.join(udir, name)
+            try:
+                if os.path.isdir(p) and name not in SOURCES and name not in APP_FOLDERS and (re.fullmatch(r"[0-9a-f]{12}", name) or name == "unmarked"):
+                    shutil.rmtree(p, ignore_errors=True)
+                    gone.append(f"{user}/{name}/")
+                elif os.path.isfile(p) and name.startswith(LOADER_PREFIXES):
+                    os.remove(p)
+                    gone.append(f"{user}/{name}")
+            except OSError:
+                pass
+    return gone
 
 
 def absorb_mark_folders(user_dir: str, rel: str) -> List[str]:
@@ -672,9 +719,10 @@ def absorb_mark_folders(user_dir: str, rel: str) -> List[str]:
 
 def cache_tree(frames: Iterable[dict], files: Iterable[dict], stores: Iterable[dict], subjects: Iterable[dict]) -> dict:
     """The cache as the tree the Dataset cache dialog draws (docs/DATASETS_DESIGN.md §8, 2026-10-29): source → athlete →
-    feed, with the athlete's frames in memory under it; the window files are not listed (they are a run's inputs).
+    dataset, with the athlete's frames in memory under it; the window files are not listed (they are a run's inputs).
     Endura and SweatStack carry their frames (and Endura its race files); uploads are the frames and files that belong
-    to no loader; a mark folder from before the athlete was known is listed as earlier loads under its mark."""
+    to no loader. A folder that is no athlete's (a load whose profile call failed) is not listed: earlier loads are
+    deleted at start (purge_earlier_loads), not shown."""
     frames = [f for f in frames or [] if isinstance(f, dict)]
     files = [f for f in files or [] if isinstance(f, dict)]
     stores_by = {str(s.get("folder") or ""): s for s in stores or [] if isinstance(s, dict)}
@@ -696,20 +744,6 @@ def cache_tree(frames: Iterable[dict], files: Iterable[dict], stores: Iterable[d
         subs.append({"id": rec.get("id", ""), "name": rec.get("name", ""), "folder": folder, "source": rec.get("source", "intervals"),
                      "held_since": rec.get("first_seen"), "last_load": rec.get("last_load"), "marks": list(rec.get("marks") or []), "kinds": list(rec.get("kinds") or []),
                      "size_mb": sm.get("size_mb", 0), "feeds": feeds_of(sm), "frames": [frame_entry(f) for f in by_folder.pop(folder, [])]})
-    legacy = []
-    for folder, fs in list(by_folder.items()):
-        if folder and "/" not in folder:
-            legacy.append({"folder": folder, "frames": [frame_entry(f) for f in fs], "files": [], "store": stores_by.get(folder)})
-            by_folder.pop(folder)
-    for folder, sm in stores_by.items():
-        if folder and "/" not in folder and not any(x["folder"] == folder for x in legacy):
-            legacy.append({"folder": folder, "frames": [], "files": [], "store": sm})
-    for f in files:
-        folder = str(f.get("folder") or "")
-        if folder and "/" not in folder:
-            for x in legacy:
-                if x["folder"] == folder:
-                    x["files"].append(file_entry(f))
     top_frames = by_folder.get("", [])
     top_files = [f for f in files if not f.get("folder")]
     intervals_loose = [frame_entry(f) for f in top_frames if str(f.get("source")) == "intervals"]
@@ -719,13 +753,25 @@ def cache_tree(frames: Iterable[dict], files: Iterable[dict], stores: Iterable[d
                {"source": "sweatstack", "title": "SweatStack", "frames": [frame_entry(f) for f in top_frames if str(f.get("source")) == "sweatstack"]}]
     uploads = {"frames": [frame_entry(f) for f in top_frames if str(f.get("source")) not in ("intervals", "endura", "sweatstack")],
                "files": [file_entry(f) for f in top_files if not str(f.get("filename") or "").startswith(ENDURA_PREFIXES + LOADER_PREFIXES)]}
-    return {"sources": sources, "uploads": uploads, "legacy": legacy}
+    return {"sources": sources, "uploads": uploads}
+
+
+def _drop_fields(st: "Store", fields: Tuple[str, ...]) -> None:
+    """Take the fields off every manifest entry; an entry with nothing left (no file, laps or chat) goes."""
+    for aid, rec in list(st.manifest().items()):
+        for k in fields:
+            rec.pop(k, None)
+        if not any(rec.get(k) for k in ("file", "laps_fetched", "messages_fetched")):
+            del st.manifest()[aid]
+    st._dirty = True
+    st.save()
 
 
 def forget(user_dir: str, rel: str, feed: str = "") -> dict:
-    """Forget a feed of the athlete's store, or the athlete whole (no feed): the folder with its record, store and
-    views. Activities take their chats and laps with them (the laps are theirs); the laps alone leave the manifest's
-    laps fields behind. Returns {"removed": what}."""
+    """Delete a dataset from the athlete's store, or the athlete whole (no feed): the folder with its record, store and
+    views. The datasets are the dialog's lines (2026-10-29): activities (the files; the laps and chats under them stay
+    with their own lines), laps, wellness, context (the chats and the calendar), profile - and views, the window files.
+    Returns {"removed": what}."""
     import shutil
     top = os.path.join(user_dir, rel)
     if not rel or not os.path.isdir(top):
@@ -736,19 +782,18 @@ def forget(user_dir: str, rel: str, feed: str = "") -> dict:
         return {"removed": "subject"}
     st = Store(user_dir, rel)
     if feed == "activities":
-        for d in (st.activities_dir, st.messages_dir, st.laps_dir):
-            shutil.rmtree(d, ignore_errors=True)
-        try:
-            os.remove(os.path.join(st.dir, MANIFEST))
-        except OSError:
-            pass
+        shutil.rmtree(st.activities_dir, ignore_errors=True)
+        _drop_fields(st, ("file", "signature", "rows", "columns", "fetched", "used"))
     elif feed == "laps":
         shutil.rmtree(st.laps_dir, ignore_errors=True)
-        for rec in st.manifest().values():
-            for k in ("laps_fetched", "laps_signature", "laps"):
-                rec.pop(k, None)
-        st._dirty = True
-        st.save()
+        _drop_fields(st, ("laps_fetched", "laps_signature", "laps"))
+    elif feed == "context":
+        shutil.rmtree(st.messages_dir, ignore_errors=True)
+        _drop_fields(st, ("messages_fetched", "messages_signature", "messages"))
+        try:
+            os.remove(os.path.join(st.dir, "events.json"))
+        except OSError:
+            pass
     elif feed in FEEDS:
         try:
             os.remove(os.path.join(st.dir, f"{feed}.json"))

@@ -36,13 +36,14 @@ from datetime import datetime, timedelta
 from intervals_store import Store, stores_under, RETENTION_DAYS as STORE_RETENTION_DAYS   # the Intervals.icu store (2026-10-15)
 from intervals_store import athlete_rel, athlete_record, remember_athlete, adopt_mark_folder, athlete_folders, views_rel, adopt_views, VIEWS_DIR   # the athlete's folder (2026-10-29)
 from intervals_store import cache_tree, forget as forget_store, prune_views, absorb_mark_folders, update_record, SOURCES as STORE_SOURCES, APP_FOLDERS as STORE_APP_FOLDERS   # the tree, forgetting, the views' age (step 3)
+from intervals_store import purge_earlier_loads   # earlier loads deleted at start (2026-10-29, the dialog redesigned)
 
 # Set the number of CPU cores for pyarrow
 pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-29 v71 (a load from the store alone: from_store makes the window from the entries, files, laps, chats, wellness, calendar and profile the store holds, nothing fetched; the small calls wait out a rate limit; the cache as a tree since v69-v70; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-29 v72 (the Dataset cache dialog redesigned: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the cache as a tree since v69-v70; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -173,6 +174,12 @@ configure_pandas_optimizations()
 # Initialize cache
 df_cache = DataFrameCache()
 
+# Earlier loads leave on the first start after the upgrade (2026-10-29, the product owner: not consolidated, not listed -
+# deleted): the folders of loads from before the athlete was known and the window files at the users' folders themselves
+_gone_at_start = purge_earlier_loads('datasets')
+if _gone_at_start:
+    log_info(f"earlier loads deleted at start: {len(_gone_at_start)} - {', '.join(_gone_at_start[:8])}{', ...' if len(_gone_at_start) > 8 else ''}")
+
 # --- delv-e persistent kernel -------------------------------------------------
 # The kernel is RELOCATED here, not reimplemented: kernel.py, executor.py,
 # dataio.py is vendored from delv-e unchanged, and
@@ -283,6 +290,8 @@ def inspect_cache():
         total_cache_mb = sum(df['memory_mb'] for df in cached_dataframes)
         
         stores = stores_under(user_datasets_dir)
+        for s in stores:
+            s['columns_of'] = dataset_columns(user_datasets_dir, s['folder'])      # every dataset's columns in the dialog (2026-10-29)
         return jsonify({
             'cached_dataframes': cached_dataframes,
             'auxiliary_datasets': auxiliary_datasets,
@@ -723,9 +732,9 @@ def remove_primary_from_cache():
 
 @app.route('/cache/forget', methods=['POST'])
 def forget_from_cache():
-    """Forget a feed of an athlete's store, or the athlete whole (docs/DATASETS_DESIGN.md §1, 2026-10-29): `folder` the
-    athlete's (<source>/<id>) or a mark folder from before, `feed` one of activities, laps, wellness, events, profile,
-    views - or none for the whole folder. The athlete's frames in memory go with the activities or the folder."""
+    """Delete a dataset from an athlete's store, or the athlete whole (docs/DATASETS_DESIGN.md §1, 2026-10-29): `folder` the
+    athlete's (<source>/<id>), `feed` one of the dialog's lines - activities, laps, wellness, context, profile - or views,
+    or none for the whole folder. The athlete's frames in memory go with the activities or the folder."""
     data = request.json or {}
     user_id = str(data.get('user_id') or 'default')
     folder = str(data.get('folder') or '').strip().replace('\\', '/')
@@ -1698,6 +1707,9 @@ def fetch_intervals_background(data, job_id):
         # wellness log, the calendar, the newest profile). `folder` names the athlete; the key is not used.
         offline = bool(data.get('from_store'))
         folder_req = str(data.get('folder') or '').strip().replace('\\', '/')
+        # A load of one dataset alone (2026-10-29, the dialog's Load <dataset>): `with_frame` off leaves the frame on the Data
+        # tab as it is - no file downloaded, nothing assembled or cached - and writes only the files asked for
+        with_frame = data.get('with_frame') is not False
         user_dir = os.path.join('datasets', user_id)
         warnings = []                                           # a dataset asked for that gave no file, and why (2026-10-29): on the result, said on the page
         
@@ -1723,7 +1735,7 @@ def fetch_intervals_background(data, job_id):
             athlete_name = str(athlete_record(user_dir, folder).get('name') or '')
             snap = Store(user_dir, folder).newest_profile()
             athlete = snap[1] if snap else None                 # the record as last fetched: the custom fields, the ticks, the zones
-            remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark, kinds=aux_datasets)
+            remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark, kinds=aux_datasets if with_frame else None)
         else:
             # The subject's record first (2026-10-29, docs/DATASETS_DESIGN.md §2): the athlete's id names the folder the
             # load writes under - datasets/<user>/intervals/<id>/ - and the name goes on the record; the key's mark named
@@ -1744,7 +1756,7 @@ def fetch_intervals_background(data, job_id):
                 moved = adopt_mark_folder(user_dir, mark, folder)
                 if moved:
                     log_info(f"the key's folder moved under the athlete's: {mark} -> {folder} ({moved})")
-                remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark, kinds=aux_datasets)      # and the datasets asked for: the dialog's Load asks for them again
+                remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark, kinds=aux_datasets if with_frame else None)      # and the datasets a whole load asked for
         if adopt_views(user_dir, folder):                     # window files an earlier executor wrote at the folder itself (2026-10-29)
             log_info(f"the window files of {folder} moved under {VIEWS_DIR}/")
         views = views_rel(folder)                             # where this load's window files go
@@ -1777,7 +1789,7 @@ def fetch_intervals_background(data, job_id):
             if act.get('file_type') in ['fit', 'tcx', 'gpx']
         ]
         
-        if not activities_with_files:
+        if not activities_with_files and with_frame:
             intervals_jobs[job_id]['status'] = 'error'
             intervals_jobs[job_id]['error'] = 'No activities found with files in date range' + (' (in the store)' if offline else '')
             return
@@ -1792,10 +1804,12 @@ def fetch_intervals_background(data, job_id):
         refresh = bool(data.get('refresh')) and not offline
         if athlete is not None and not offline:
             store.put_profile(athlete)                        # the record as fetched today, a snapshot when it changed (2026-10-29)
-        held = [] if refresh else [act for act in activities_with_files if store.has_detail(act)]
+        held = [] if refresh or not with_frame else [act for act in activities_with_files if store.has_detail(act)]
         held_ids = {str(act.get('id')) for act in held}
-        todo = [] if offline else [act for act in activities_with_files if str(act.get('id')) not in held_ids]
-        if offline:
+        todo = [] if offline or not with_frame else [act for act in activities_with_files if str(act.get('id')) not in held_ids]
+        if not with_frame:
+            intervals_jobs[job_id]['message'] = 'The frame stays as it is; preparing the dataset asked for...'
+        elif offline:
             intervals_jobs[job_id]['message'] = (f'The store holds all {total_activities} activities of this window' if len(held) == total_activities
                                                  else f'The store holds {len(held)} of {total_activities} activities of this window; the rest are not fetched')
         else:
@@ -1807,21 +1821,24 @@ def fetch_intervals_background(data, job_id):
         kept = download_and_parse_fits_with_progress(session, base_url, todo, job_id, store) if todo else []
         store.save()
         
-        # The window's frame, from the store
-        intervals_jobs[job_id]['message'] = 'Assembling the window from the store...'
-        detail_df, unserved = store.assemble(activities_with_files, selected_metrics)
-        if unserved:
-            log_info(f"{len(unserved)} activities could not be served (download or parse failed): {unserved[:10]}")
+        # The window's frame, from the store (not for a load of one dataset alone: the frame stays as it is)
+        detail_df = pd.DataFrame()
+        if with_frame:
+            intervals_jobs[job_id]['message'] = 'Assembling the window from the store...'
+            detail_df, unserved = store.assemble(activities_with_files, selected_metrics)
+            if unserved:
+                log_info(f"{len(unserved)} activities could not be served (download or parse failed): {unserved[:10]}")
         
-        if detail_df.empty:
+        if detail_df.empty and with_frame:
             intervals_jobs[job_id]['status'] = 'error'
             intervals_jobs[job_id]['error'] = (f'The store holds none of the {total_activities} activities of this span; load it from the Intervals.icu dialog' if offline
                                                else 'No data could be extracted from activities')
             return
         
         # Process data
-        intervals_jobs[job_id]['message'] = 'Processing data...'
-        detail_df = transform_intervals_detail_data(detail_df)
+        if with_frame:
+            intervals_jobs[job_id]['message'] = 'Processing data...'
+            detail_df = transform_intervals_detail_data(detail_df)
         
         # Prepare metadata for caching
         metadata = {
@@ -1835,7 +1852,8 @@ def fetch_intervals_background(data, job_id):
         }
         
         # Cache the DataFrame with metadata
-        df_cache.put(df_id, detail_df, metadata)
+        if with_frame:
+            df_cache.put(df_id, detail_df, metadata)
         
         # Handle auxiliary datasets
         aux_filepaths = []
@@ -1966,20 +1984,22 @@ def fetch_intervals_background(data, job_id):
         intervals_jobs[job_id]['status'] = 'completed'
         intervals_jobs[job_id]['message'] = 'Data loaded successfully'
         intervals_jobs[job_id]['result'] = {
-            'df_id': df_id,
+            'df_id': df_id if with_frame else None,
+            'frame': with_frame,                # off: a load of one dataset alone (2026-10-29) - the app keeps its frame, replaces the files of the kinds asked
+            'kinds': list(aux_datasets),        # ...the kinds asked for
             'shape': list(detail_df.shape),
             'columns': detail_df.columns.tolist(),
             'aux_datasets': aux_filepaths,
             'context': context_report,
             'profile_note': profile_note,
-            'store': {'window': total_activities, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary(),
+            'store': {'window': total_activities if with_frame else 0, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary(),
                       'laps': laps_report,      # the laps' account when the file was asked (2026-10-29): {window, held, fetched}
                       'offline': offline},      # from the store alone: nothing fetched (2026-10-29)
             'warnings': warnings,               # a dataset asked for that gave no file, and why (2026-10-29)
             'subject': who                      # whose data this load is (2026-10-29): the app keeps it on the load record
         }
         
-        log_info(f"Intervals.icu data cached successfully: {detail_df.shape}")
+        log_info(f"Intervals.icu data cached successfully: {detail_df.shape}" if with_frame else f"Intervals.icu datasets written without the frame: {[os.path.basename(p) for p in aux_filepaths]}")
         
     except requests.exceptions.HTTPError as e:
         log_info(f"HTTP error in job {job_id}: {str(e)}")
@@ -3187,6 +3207,41 @@ def custom_zone_times_frame(activities, custom_items):
         df['start_date_local'] = pd.to_datetime(df['start_date_local'], errors='coerce')
         df = df.sort_values(['start_date_local', 'set_code'], ascending=[False, True], kind='stable')
     return df
+
+
+CODES_COLUMNS = ['id', 'code', 'tone', 'quote', 'status', 'coder', 'codebook_version', 'direction', 'basis', 'about', 'day']   # as the app writes the codes file (analyst/context.py)
+
+
+def dataset_columns(user_dir, folder):
+    """The columns of each window file a load writes from the athlete's store, by file prefix (2026-10-29: the dialog
+    shows every dataset's columns, not only those the store's records happen to carry): made the way a load makes the
+    files, over what the store holds - the summary over the activity list's entries with the account's activity fields,
+    the wellness file over the log's days; the laps file's columns are its fixed ones plus the account's interval fields
+    under their codes; the context, plan, codes, profile and zones files have fixed columns (the zones file only when
+    the account defines a custom zone set)."""
+    st = Store(user_dir, folder)
+    snap = st.newest_profile()
+    custom = (snap[1] if snap else {}).get('custom_items') or []
+    out = {}
+    try:
+        entries = st.feed('entries').within('0000-00-00', '9999-99-99', mark_used=False)
+        if entries:
+            out['activity_summary'] = [str(c) for c in create_activity_summary(entries, field_definitions(custom, 'ACTIVITY_FIELD')).columns]
+        if any(r.get('laps_fetched') for r in st.manifest().values()):
+            cols = list(process_interval_data({'icu_intervals': [{}]}, 0)[0])
+            for code, (_name, ftype, pairs) in field_definitions(custom, 'INTERVAL_FIELD').items():
+                cols.append(code)
+                if ftype == 'select' and any(_num(v) is not None for v, _t in pairs):
+                    cols.append(f'{code}_value')
+            out['activity_intervals'] = cols
+        days = st.feed('wellness').within('0000-00-00', '9999-99-99', mark_used=False)
+        if days:
+            out['wellness_data'] = [str(c) for c in wellness_frame(days, fields=field_definitions(custom, 'INPUT_FIELD')).columns]
+    except Exception as e:                                  # noqa: BLE001 - the dialog shows what could be made
+        log_info(f"the columns of {folder} could not all be made: {e}")
+    out.update({'context_notes': list(CONTEXT_COLUMNS), 'planned_workouts': list(PLAN_COLUMNS), 'context_codes': list(CODES_COLUMNS), 'rider_profile': list(PROFILE_COLUMNS),
+                'custom_zone_times': list(ZONE_TIMES_COLUMNS) if any(isinstance(it, dict) and it.get('type') == 'ZONES' for it in custom) else []})
+    return out
 
 
 def save_aux_dataset(df, dataset_type, user_id, start_date, end_date, subdir=''):

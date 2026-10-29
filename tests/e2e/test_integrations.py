@@ -93,6 +93,13 @@ def main():
     today = date.today()
     a_start, a_end = today - timedelta(days=100), today - timedelta(days=41)       # the original window: rides, temperature, wellness
     print(f"windows: original {a_start} -> {a_end}; the run's default ends {today}")
+    # earlier loads from before this work, planted as an older executor left them (2026-10-29): a key's mark folder with a store, a
+    # window file at the user's folder itself - and an upload beside them, which must stay
+    exec_user = os.path.join(workdir, "executor", "datasets", USER)
+    os.makedirs(os.path.join(exec_user, "abcdef012345", "store", "activities"), exist_ok=True)
+    json.dump({"1": {"file": "activities/1.parquet", "day": "2025-01-05"}}, open(os.path.join(exec_user, "abcdef012345", "store", "activities.json"), "w"))
+    open(os.path.join(exec_user, "activity_summary_20250101_to_20250201.csv"), "w").write("activity_id\n1\n")
+    open(os.path.join(exec_user, "my_notes.txt"), "w").write("kept\n")
     with Stack(workdir=workdir, scenario="start_hours", fresh=True, auto_ports=True, edition="hosted", compute="orchestrator") as st:
         with sync_playwright() as pw:
             b, page, logs = open_page(pw, st.app_url)
@@ -100,6 +107,10 @@ def main():
             page.wait_for_selector("#queryInput", state="visible", timeout=60000)
             page.app_ready()
             page.wait_for_function("() => /Ready/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+            shots = os.environ.get("SHOTS")                                      # a folder for the dialog's renders, when asked
+            check("earlier loads are deleted on the executor's first start, without a question: the mark folder with its store and the loader's file at the user's folder are gone, the upload stays",
+                  not os.path.exists(os.path.join(exec_user, "abcdef012345")) and not os.path.exists(os.path.join(exec_user, "activity_summary_20250101_to_20250201.csv")) and os.path.isfile(os.path.join(exec_user, "my_notes.txt")),
+                  sorted(os.listdir(exec_user)))
             # the key, as the settings dialog stores it; then the Data tab's Intervals dialog loads the original window
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
             check("the Intervals.icu key is stored through its route (the stack's store)", r["status"] == 200, r)
@@ -136,16 +147,33 @@ def main():
             page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
             page.click("#datasetTree .ds-subj-head .ds-subj-name")
             page.wait_for_selector("#datasetDetails [data-act='load']", timeout=10000)
-            det = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), feeds: [...document.querySelectorAll('#datasetTree .ds-feed')].map(e => e.dataset.feed), acts: [...document.querySelectorAll('#datasetDetails [data-act]')].map(b => b.dataset.act), filter: getComputedStyle(document.getElementById('datasetFilter')).display })")
-            check("the athlete's line opens the details on the right: the name and id the profile gave, held since, the datasets held - Activities and Wellness as the load dialog names them, and the rider profile the load fetched for the id - with their spans, the datasets of the last load (summary, wellness) that Load would ask for, and the actions Load / Load to today / Forget; the lines carry no actions and no window file; one athlete, so no filter box",
-                  "The subject" in det["text"] and "i0" in det["text"] and "Held since" in det["text"] and det["feeds"] == ["activities", "wellness", "profile"] and det["acts"] == ["load", "today", "forget"]
-                  and f"{a_start.isoformat()} → {a_end.isoformat()}" in det["text"] and re.search(r"datasets of the last load \((summary, wellness|wellness, summary)\)", det["text"]) and "wellness_data_" not in det["text"] and det["filter"] == "none", det)
+            det = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), feeds: [...document.querySelectorAll('#datasetTree .ds-feed')].map(e => e.dataset.feed), dots: [...document.querySelectorAll('#datasetTree .ds-feed')].map(e => e.querySelector('.ds-dot').classList.contains('on')), acts: [...document.querySelectorAll('#datasetDetails [data-act]')].map(b => b.dataset.act + (b.disabled ? '-' : '')), labels: [...document.querySelectorAll('#datasetDetails button[data-act]')].map(b => b.textContent.trim()), filter: getComputedStyle(document.getElementById('datasetFilter')).display, uploads: [...document.querySelectorAll('#datasetTree .ds-group')].map(g => g.textContent.replace(/\\s+/g, ' ').trim()).filter(x => /^Uploads/.test(x)) })")
+            check("the athlete's line opens the details on the right (the dialog redesigned, 2026-10-29): the name and id the profile gave, held since, the span held, what is on the Data tab now (Activities, Activity summary, Wellness - the first load's) and what is not (the Rider profile the load fetched for the id), the table of datasets held with their dots, the actions Load everything / Load everything to today / Forget everything and the quiet Delete link; the lines are the dialog's datasets - Activities, Activity summary, Wellness, Rider profile - each with its dot, three on, the profile's off; no window file in the text; one athlete, so no filter box; the upload planted before the start listed under Uploads",
+                  "The subject" in det["text"] and "i0" in det["text"] and "Held since" in det["text"] and "Span held" in det["text"] and f"{a_start.isoformat()} → {a_end.isoformat()}" in det["text"]
+                  and det["feeds"] == ["activities", "summary", "wellness", "profile"] and det["dots"] == [True, True, True, False]
+                  and re.search(r"On the Data tab● \S+ → \S+ Activities, Activity summary, Wellness", det["text"]) and "Not loadedRider profile" in det["text"]
+                  and det["acts"] == ["load", "today", "forget", "delete"] and det["labels"] == ["Load everything", "Load everything to today", "Forget everything"] and "Delete from the store" in det["text"]
+                  and "wellness_data_" not in det["text"] and det["filter"] == "none" and any("my_notes.txt" in u for u in det["uploads"]), det)
+            if shots: page.screenshot(path=os.path.join(shots, "cache_dialog_athlete.png"))
             page.click("#datasetTree .ds-feed[data-feed='wellness']")
             page.wait_for_function("() => /A load writes/.test(document.getElementById('datasetDetails').textContent)", timeout=10000)
-            fdet = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), acts: [...document.querySelectorAll('#datasetDetails [data-act]')].map(b => b.dataset.act), cols: [...document.querySelectorAll('#datasetDetails .column-chip')].map(c => c.textContent) })")
+            fdet = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), acts: [...document.querySelectorAll('#datasetDetails [data-act]')].map(b => b.dataset.act + (b.disabled ? '-' : '')), labels: [...document.querySelectorAll('#datasetDetails button[data-act]')].map(b => b.textContent.trim()), cols: [...document.querySelectorAll('#datasetDetails .column-chip')].map(c => c.textContent) })")
             n_well_a = sum(1 for d_ in apis_data.days_in(a_start.isoformat(), a_end.isoformat()) if apis_data.has_wellness(d_))
-            check("a dataset's line opens its details: the span, the days held, the size, what a load writes from it (wellness_data_<window>.csv), its columns as the file names them, the Load buttons as on the athlete's, and Forget for the dataset alone",
-                  "Wellness" in fdet["text"] and f"{n_well_a} days" in fdet["text"] and "wellness_data_<window>.csv" in fdet["text"] and fdet["acts"] == ["load", "today", "forget"] and "Forget Wellness" in fdet["text"] and "date" in fdet["cols"] and "weight" in fdet["cols"] and "id" not in fdet["cols"], (fdet, n_well_a))
+            check("a dataset's line opens its details: what it is, the span and days held, the size, that it is on the Data tab with the window's file, what a load writes from it (wellness_data_<window>.csv), its columns as the file names them, and the actions Load Wellness / Load Wellness to today / Forget Wellness (on, since the pill is on the tab) with the Delete link",
+                  "Wellness · The subject" in fdet["text"] and f"{n_well_a} days" in fdet["text"] and "wellness_data_<window>.csv" in fdet["text"] and f"wellness_data_{tag_a}.csv" in fdet["text"] and "●" in fdet["text"]
+                  and fdet["acts"] == ["load", "today", "forget", "delete"] and fdet["labels"] == ["Load Wellness", "Load Wellness to today", "Forget Wellness"] and "date" in fdet["cols"] and "weight" in fdet["cols"] and "id" not in fdet["cols"], (fdet, n_well_a))
+            if shots: page.screenshot(path=os.path.join(shots, "cache_dialog_wellness.png"))
+            page.click("#datasetTree .ds-feed[data-feed='profile']")
+            page.wait_for_function("() => /Rider profile · /.test(document.getElementById('datasetDetails').textContent)", timeout=10000)
+            pdet = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), acts: [...document.querySelectorAll('#datasetDetails [data-act]')].map(b => b.dataset.act + (b.disabled ? '-' : '')), heads: [...document.querySelectorAll('#datasetDetails .dataset-columns h3')].map(h => h.textContent), cols: [...document.querySelectorAll('#datasetDetails .column-chip')].map(c => c.textContent) })")
+            check("every dataset shows its columns, loaded or not (the product owner's first point): the Rider profile's details - not on the Data tab, Forget greyed - carry the profile file's columns and the zones file's, the two files a load writes",
+                  "○ not loaded" in pdet["text"] and pdet["acts"] == ["load", "today", "forget-", "delete"] and pdet["heads"][0] == "Columns (8)" and any(h.startswith("custom_zone_times_<window>.csv (11 columns") for h in pdet["heads"])
+                  and "section" in pdet["cols"] and "zone_name" in pdet["cols"] and "rider_profile_<window>.csv, custom_zone_times_<window>.csv" in pdet["text"], pdet)
+            page.click("#datasetTree .ds-feed[data-feed='summary']")
+            page.wait_for_function("() => /Activity summary · /.test(document.getElementById('datasetDetails').textContent)", timeout=10000)
+            sdet = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), cols: [...document.querySelectorAll('#datasetDetails .column-chip')].map(c => c.textContent), link: !!document.querySelector('#datasetDetails [data-act=\"delete\"]') })")
+            check("the Activity summary's details: one row per activity, on the Data tab with the window's file, the columns the summary file has (from the activity list's entries), no Delete link (the list is the store's own)",
+                  "rows, one per activity" in sdet["text"] and f"activity_summary_{tag_a}.csv" in sdet["text"] and {"activity_id", "type", "start_date_local", "distance_m"} <= set(sdet["cols"]) and not sdet["link"], sdet)
             page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
 
             page.fill("#queryInput", mod.QUESTIONS[0])
@@ -789,13 +817,15 @@ def main():
             page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
             page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length >= 2", timeout=15000)
             tree_items = page.evaluate("""() => [...document.querySelectorAll('#datasetTree .ds-subj')].map(e => ({ head: e.querySelector('.ds-subj-head').textContent.replace(/\\s+/g, ' ').trim(),
-                feeds: [...e.querySelectorAll('.ds-feed')].map(f => f.textContent.replace(/\\s+/g, ' ').trim()), acts: [...e.querySelectorAll('[data-act]')].map(b => b.dataset.act), open: e.classList.contains('open') }))""")
+                feeds: [...e.querySelectorAll('.ds-feed')].map(f => f.textContent.replace(/\\s+/g, ' ').trim()), dots: [...e.querySelectorAll('.ds-feed .ds-dot')].map(d => d.classList.contains('on')), acts: [...e.querySelectorAll('[data-act]')].map(b => b.dataset.act), open: e.classList.contains('open') }))""")
             modal_text = page.evaluate("() => document.getElementById('datasetManagerModal').textContent")
-            check("the Dataset cache dialog draws the tree: one athlete block per subject by the name the profile gave, both unfolded, with the datasets held - Activities with the span and the count, Activity intervals, Wellness, Calendar, Context · chats, Rider profile - and the filter box with two athletes; no actions on the lines, no window file listed anywhere, nothing 'in memory'",
+            check("the Dataset cache dialog draws the tree: one athlete block per subject by the name the profile gave, both unfolded, with the six lines - Activities with the span and the count, Activity summary, Activity intervals with the laps, Wellness, Context with the chats and the calendar entries, Rider profile - the dots on for the first subject (every dataset on the Data tab) and the filter box with two athletes; no actions on the lines, no window file listed anywhere, nothing 'in memory', no earlier loads",
                   len(tree_items) == 2 and all(t["open"] and not t["acts"] and "held since" in t["head"] and ("MB" in t["head"] or "KB" in t["head"]) for t in tree_items)
-                  and any("The subject" in t["head"] and any(f.startswith("Activities") and "101 activities" in f and f"{a_start.isoformat()} → {today.isoformat()}" in f for f in t["feeds"]) and any(f.startswith("Activity intervals") for f in t["feeds"]) and any(f.startswith("Wellness") for f in t["feeds"]) and any(f.startswith("Calendar") for f in t["feeds"]) and any(f.startswith("Context") for f in t["feeds"]) and any(f.startswith("Rider profile") for f in t["feeds"]) for t in tree_items)
-                  and any("The other subject" in t["head"] and any("60 activities" in f for f in t["feeds"]) for t in tree_items)
-                  and "wellness_data_" not in modal_text and "activity_summary_" not in modal_text and "in memory" not in modal_text and page.evaluate("() => getComputedStyle(document.getElementById('datasetFilter')).display") != "none", tree_items)
+                  and any("The subject" in t["head"] and [re.match(r"Activities|Activity summary|Activity intervals|Wellness|Context|Rider profile", f).group(0) for f in t["feeds"]] == ["Activities", "Activity summary", "Activity intervals", "Wellness", "Context", "Rider profile"] and any(f.startswith("Activities") and "101 activities" in f and f"{a_start.isoformat()} → {today.isoformat()}" in f for f in t["feeds"])
+                          and any(f.startswith("Activity summary") and "one per activity" in f for f in t["feeds"]) and any(f.startswith("Activity intervals") and "laps" in f for f in t["feeds"]) and any(f.startswith("Context") and "chats" in f and "calendar entries" in f for f in t["feeds"]) and all(t["dots"]) for t in tree_items)
+                  and any("The other subject" in t["head"] and any("60 activities" in f for f in t["feeds"]) and not any(t["dots"]) for t in tree_items)
+                  and "wellness_data_" not in modal_text and "activity_summary_" not in modal_text and "in memory" not in modal_text and "earlier loads" not in modal_text and "Calendar" not in modal_text and page.evaluate("() => getComputedStyle(document.getElementById('datasetFilter')).display") != "none", tree_items)
+            if shots: page.screenshot(path=os.path.join(shots, "cache_dialog_two_athletes.png"))
             # the caret folds an athlete and unfolds it again; the filter narrows the tree to a name
             page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].find(e => /The other subject/.test(e.textContent)).querySelector('.ds-caret').click()")
             folded = page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].map(e => ({ name: e.querySelector('.ds-subj-name').textContent, open: e.classList.contains('open'), feeds: e.querySelectorAll('.ds-feed').length }))")
@@ -807,13 +837,15 @@ def main():
             check("the caret folds the athlete (its lines gone, the other's stay) and unfolds it again; the filter box narrows the tree to the name typed",
                   [x for x in folded if x["name"] == "The other subject"][0]["open"] is False and [x for x in folded if x["name"] == "The other subject"][0]["feeds"] == 0 and [x for x in folded if x["name"] == "The subject"][0]["open"] is True
                   and unfolded == [True, True] and narrowed == ["The other subject"], (folded, unfolded, narrowed))
-            # Forget the other subject through its details: its folder goes whole, the first subject stands
+            # Delete the other subject from the store through its details (the quiet link, confirmed): its folder goes whole, the first subject stands
             page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj')].find(e => /The other subject/.test(e.textContent)).querySelector('.ds-subj-head .ds-subj-name').click()")
-            page.wait_for_function("() => /The other subject/.test(document.getElementById('datasetDetails').textContent) && !!document.querySelector('#datasetDetails [data-act=\"forget\"]')", timeout=10000)
+            page.wait_for_function("() => /The other subject/.test(document.getElementById('datasetDetails').textContent) && !!document.querySelector('#datasetDetails [data-act=\"delete\"]')", timeout=10000)
+            other_forget = page.evaluate("() => ({ disabled: document.querySelector('#datasetDetails [data-act=\"forget\"]').disabled, hint: document.querySelector('#datasetDetails [data-act=\"forget\"] + .hint').textContent, tab: document.getElementById('datasetDetails').textContent.includes('nothing of this athlete') })")
+            check("the other athlete's details: nothing of theirs on the Data tab, so Forget everything is greyed (not on the Data tab)", other_forget["disabled"] is True and other_forget["hint"] == "not on the Data tab" and other_forget["tab"], other_forget)
             page.once("dialog", lambda d: d.accept())
-            page.click("#datasetDetails [data-act='forget']")
+            page.click("#datasetDetails [data-act='delete']")
             page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
-            check("Forget in the athlete's details (confirmed) drops everything held for the other subject - the folder with its store and files - and the first subject stands with its store; the details pane is cleared",
+            check("Delete from the store in the athlete's details (confirmed) drops everything held for the other subject - the folder with its store and files - and the first subject stands with its store; the details pane is cleared",
                   not os.path.exists(exec_ds2) and os.path.isdir(os.path.join(exec_ds, "store")) and len(json.load(open(os.path.join(exec_ds, "store", "activities.json")))) == 101
                   and page.evaluate("() => document.querySelector('#datasetTree .ds-subj .ds-subj-name').textContent") == "The subject" and not page.evaluate("() => !!document.querySelector('#datasetDetails [data-act]')"), (os.path.exists(exec_ds2), sorted(os.listdir(os.path.join(workdir, "executor", "datasets", USER, "intervals")))))
             # Load to today from the details while the Data tab holds a window: asked whether to let it go; declined, nothing moves
@@ -976,12 +1008,22 @@ def main():
             res3_n = {r_.get("what"): rt_number(r_.get("estimate")) for r_ in run3_n.get("results") or []}
             check("the cut run's words are the window's: the fatigue count is the fake calendar's for the window, smaller than the cached load's", res3_n.get("of them read as fatigue by the coding pass") == fatigue_expected(d_start, d_end) and fatigue_expected(d_start, d_end) < exp_a, (res3_n, fatigue_expected(d_start, d_end), exp_a))
 
-            # ---- Load from the Dataset cache dialog (2026-10-29, as the product owner asked): the athlete's span, straight from the store, no dialog ----
-            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
-            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
-            page.click("#datasetTree .ds-subj-head .ds-subj-name")
-            page.wait_for_selector("#datasetDetails [data-act='load']", timeout=10000)
-            det_end = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), from: document.querySelector('#datasetDetails [data-act=\"load\"]').dataset.from, to: document.querySelector('#datasetDetails [data-act=\"load\"]').dataset.to })")
+            # ---- the Dataset cache dialog's loads (2026-10-29, as the product owner asked): everything from the store, one dataset alone, to today ----
+            def open_cache(feed=None):
+                page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
+                page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
+                if feed:
+                    page.click(f"#datasetTree .ds-feed[data-feed='{feed}']")
+                    page.wait_for_function("(f) => (document.querySelector('#datasetDetails [data-act=\"load\"]') || {}).dataset && document.querySelector('#datasetDetails [data-act=\"load\"]').dataset.feed === f", arg=feed, timeout=10000)
+                else:
+                    page.click("#datasetTree .ds-subj-head .ds-subj-name")
+                    page.wait_for_function("() => (document.querySelector('#datasetDetails [data-act=\"load\"]') || {}).dataset && document.querySelector('#datasetDetails [data-act=\"load\"]').dataset.feed === ''", timeout=10000)
+            def pills_now():
+                return page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.replace(/\\s+/g, ' ').trim())")
+            def dots_now():
+                return page.evaluate("() => Object.fromEntries([...document.querySelectorAll('#datasetTree .ds-feed')].map(e => [e.dataset.feed, e.querySelector('.ds-dot').classList.contains('on')]))")
+            open_cache()
+            det_end = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' ') })")
             calls_before_cl = calls_of(st, "/api/v1/")
             was_loaded = page.evaluate("() => !!(window.Intervals && window.Intervals.state.isLoaded)")
             page.once("dialog", lambda d: d.accept())
@@ -990,25 +1032,59 @@ def main():
             status_cl = page.inner_text("#dsLoadStatus")
             page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
-            pills_cl = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.replace(/\\s+/g, ' ').trim())")
-            check("Load from the cache dialog: the span held (the athlete's activities, " + f"{a_start.isoformat()} → {today.isoformat()}" + ") with the datasets of the last load, from the store alone - not one call to Intervals.icu, the status line says every activity came from the store and nothing was fetched, the dialog closes by itself - the window loaded before let go on asking, and the Data tab showing the window with each file's pill once",
-                  det_end["from"] == a_start.isoformat() and det_end["to"] == today.isoformat() and "the datasets of the last load" in det_end["text"] and was_loaded
+            pills_cl = pills_now()
+            check("Load everything from the athlete's details: the span held (" + f"{a_start.isoformat()} → {today.isoformat()}" + ") with every dataset held, from the store alone - not one call to Intervals.icu, the status line says every activity came from the store and nothing was fetched, the dialog closes by itself - the window loaded before let go on asking, and the Data tab showing the window with each file's pill once",
+                  f"Span held{a_start.isoformat()} → {today.isoformat()}" in det_end["text"] and was_loaded and re.search(r"On the Data tab● \S+ → \S+ Activities, ", det_end["text"])
                   and calls_of(st, "/api/v1/") == calls_before_cl and "from the store, nothing fetched" in status_cl
-                  and sum(1 for p_ in pills_cl if p_.startswith("Intervals ICU (")) == 1 and sum(1 for p_ in pills_cl if "Activity Summary" in p_) == 1 and sum(1 for p_ in pills_cl if "Wellness" in p_) == 1 and sum(1 for p_ in pills_cl if "Context (" in p_) == 1,
+                  and sum(1 for p_ in pills_cl if p_.startswith("Intervals ICU (")) == 1 and sum(1 for p_ in pills_cl if "Activity Summary" in p_) == 1 and sum(1 for p_ in pills_cl if "Wellness" in p_) == 1 and sum(1 for p_ in pills_cl if "Context (" in p_) == 1
+                  and sum(1 for p_ in pills_cl if "Activity Intervals" in p_) == 1 and sum(1 for p_ in pills_cl if "Rider profile" in p_) == 1 and any("[W+S+I+C+R]" in p_ for p_ in pills_cl),
                   (det_end, status_cl, pills_cl, calls_of(st, "/api/v1/") - calls_before_cl))
-            # Load to today goes through Intervals.icu for what the span lacks: here the span already ends today, so the store serves it all
-            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
-            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
-            page.click("#datasetTree .ds-feed[data-feed='wellness']")
-            page.wait_for_selector("#datasetDetails [data-act='today']", timeout=10000)
+            # Forget Wellness: the pill off the Data tab, the rest stay, the dot empties, the store keeps the days (the line stays)
+            open_cache("wellness")
+            page.click("#datasetDetails [data-act='forget']")
+            page.wait_for_function("() => ![...document.querySelectorAll('.dataset-status-pill')].some(p => /Wellness/.test(p.textContent))", timeout=10000)
+            fw = { "pills": pills_now(), "dots": dots_now(), "forget": page.evaluate("() => document.querySelector('#datasetDetails [data-act=\"forget\"]').disabled"), "text": page.evaluate("() => document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' ')") }
+            check("Forget Wellness takes the Wellness pill off the Data tab and nothing else: the frame and the other pills stay, the line's dot empties, the line stays (the store keeps the days), the pane says not loaded and Forget greys",
+                  not any("Wellness" in p_ for p_ in fw["pills"]) and sum(1 for p_ in fw["pills"] if p_.startswith("Intervals ICU (")) == 1 and any("Activity Summary" in p_ for p_ in fw["pills"]) and any("Context (" in p_ for p_ in fw["pills"])
+                  and fw["dots"] == {"activities": True, "summary": True, "laps": True, "wellness": False, "context": True, "profile": True} and fw["forget"] is True and "○ not loaded" in fw["text"], fw)
+            if shots: page.screenshot(path=os.path.join(shots, "cache_dialog_wellness_forgotten.png"))
+            # Load Wellness: the dataset alone, from the store - no call, the frame untouched, the pill back
+            calls_before_lw = calls_of(st, "/api/v1/")
+            wspan = page.evaluate("() => document.querySelector('#datasetTree .ds-feed[data-feed=\"wellness\"] .ds-feed-span').textContent")
+            page.click("#datasetDetails [data-act='load']")
+            page.wait_for_function("() => /^Loaded Wellness/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=120000)
+            status_lw = page.inner_text("#dsLoadStatus")
+            page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
+            lw = pills_now()
+            check("Load Wellness loads the dataset alone, from the store: no call to Intervals.icu, the status line says so with the span held and names the file, the dialog closes, the Wellness pill is back once and the frame and the other pills were not touched",
+                  calls_of(st, "/api/v1/") == calls_before_lw and status_lw.startswith(f"Loaded Wellness {wspan} from the store, nothing fetched: wellness_data_") and sum(1 for p_ in lw if "Wellness" in p_) == 1
+                  and sum(1 for p_ in lw if p_.startswith("Intervals ICU (")) == 1 and any("Activity Summary" in p_ for p_ in lw) and any("Context (" in p_ for p_ in lw), (status_lw, wspan, lw))
+            # Load Activity intervals to today: one dataset through Intervals.icu - no FIT file, the laps of the missing days only, the pill replaced
+            open_cache("laps")
             fits_before_td = calls_of(st, "fit-file")
-            page.once("dialog", lambda d: d.accept())
+            lfrom = page.evaluate("() => document.querySelector('#datasetTree .ds-feed[data-feed=\"laps\"] .ds-feed-span').textContent.split(' → ')[0]")
             page.click("#datasetDetails [data-act='today']")
-            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            page.wait_for_function("() => /^Loaded Activity intervals/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
             status_td = page.inner_text("#dsLoadStatus")
             page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
-            check("Load to today from a dataset's details (the buttons are on every details pane): through Intervals.icu, the store serving every activity - no FIT file fetched - the wellness log fetched afresh and merged, the status line saying so",
-                  calls_of(st, "fit-file") == fits_before_td and "all 101 activities from the store, nothing downloaded" in status_td, (status_td, calls_of(st, "fit-file") - fits_before_td))
+            td = pills_now()
+            check("Load Activity intervals to today from the dataset's details: through Intervals.icu for that dataset alone - no FIT file fetched, the frame untouched, the status line saying so with the file, the Activity Intervals pill once (replaced)",
+                  calls_of(st, "fit-file") == fits_before_td and status_td.startswith(f"Loaded Activity intervals {lfrom} → {today.isoformat()} through Intervals.icu: activity_intervals_") and sum(1 for p_ in td if "Activity Intervals" in p_) == 1
+                  and sum(1 for p_ in td if p_.startswith("Intervals ICU (")) == 1, (status_td, td, calls_of(st, "fit-file") - fits_before_td))
+            # Forget everything: every pill of the athlete off the Data tab; Delete Wellness from the store: the line goes, the rest of the store stands
+            open_cache()
+            page.click("#datasetDetails [data-act='forget']")
+            page.wait_for_function("() => document.querySelectorAll('.dataset-status-pill').length === 0", timeout=15000)
+            fe = { "pills": pills_now(), "dots": dots_now(), "loaded": page.evaluate("() => !!(window.Intervals && window.Intervals.state.isLoaded)"), "forget": page.evaluate("() => document.querySelector('#datasetDetails [data-act=\"forget\"]').disabled"), "lines": page.evaluate("() => document.querySelectorAll('#datasetTree .ds-feed').length") }
+            check("Forget everything takes every pill off the Data tab - the frame's and the files' - the dots all empty, the six lines still held, Forget everything greyed",
+                  fe["pills"] == [] and not fe["loaded"] and not any(fe["dots"].values()) and fe["lines"] == 6 and fe["forget"] is True, fe)
+            open_cache("wellness")
+            page.once("dialog", lambda d: d.accept())
+            page.click("#datasetDetails [data-act='delete']")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-feed').length === 5", timeout=15000)
+            check("Delete from the store on the Wellness line (confirmed) removes the wellness log from the executor's disk: the line is gone, the five others stand, the pane is cleared",
+                  not os.path.exists(os.path.join(exec_ds, "store", "wellness.json")) and os.path.isdir(os.path.join(exec_ds, "store", "activities")) and page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-feed')].map(e => e.dataset.feed)") == ["activities", "summary", "laps", "context", "profile"]
+                  and not page.evaluate("() => !!document.querySelector('#datasetDetails [data-act]')"), sorted(os.listdir(os.path.join(exec_ds, "store"))))
             errs = page.evaluate("window.__stackErrors || []")
             b.close()
         apis = __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"]

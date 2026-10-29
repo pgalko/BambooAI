@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.4 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0240)
+# Datasets by athlete — design v1.5 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -6,8 +6,9 @@ window, soon cannot find anything and stops using it. This design replaces the l
 feed → span** — backed by one store per athlete, so that a window asked twice is one entry, a window that grows is
 one entry whose span grew, and two athletes never share a line. The four decisions behind it were taken on
 2026-10-29 (section 11); the next phase, several API keys per coach and an athlete dropdown in the load dialogs, is
-the same tree without the data. **Status**: steps 1-3 of section 10 are built (patches 0237-0240, executor images
-v67-v70; sections 13-15 say what they did and where they differ from the text); step 4 is not.
+the same tree without the data. **Status**: steps 1-3 of section 10 are built (patches 0237-0241, executor images
+v67-v71; sections 13-15 say what they did and where they differ from the text), and the dialog was redesigned after the
+product owner's second look (patch 0242, image v72; section 16 is the design as it stands); step 4 is not.
 
 ## 1. The shape
 
@@ -317,3 +318,65 @@ dialog's ids, lines, details, actions, names and styles), the integrations walk 
 details; Load from the dialog with a window loaded - let go on asking, loaded from the store, the dialog closing by
 itself, each file's pill once; every dataset loaded together with all eight files written and seven pills; the tree
 with two athletes, fold and filter, Forget through the details, Load to today declined).
+
+## 16. The dialog redesigned (patch 0242, executor image v72)
+
+The product owner's second look (2026-10-29) found the rebuilt dialog still an old design bent to the new logic: the
+columns showed for two datasets only, Load on a dataset loaded everything, earlier loads were still listed. The
+dialog was redesigned from mockups he approved; this section is the design as it stands and replaces the parts of
+sections 1, 8 and 15 it contradicts.
+
+**The lines are the dialog's datasets.** Under an athlete there is one line per dataset the Intervals.icu dialog
+offers, plus the frame - *Activities* (the second-by-second files: the frame), *Activity summary* (the activity
+list's entries, one row each), *Activity intervals* (the laps), *Wellness*, *Context* (the chats and the calendar
+together, as the dialog has no calendar box; the planned workouts ride along), *Rider profile* (the settings and the
+zone times) - each with its span, what is held, its size. `feeds_of` in `intervals_store.py` makes them from the
+store's summary (`FEED_ORDER`, `LINE_FILES`). A **dot** in front of each line says whether that dataset is **on the
+Data tab now** (filled) or in the store only (empty); the page reads it from the pills - an auxiliary pill's file
+path names the athlete's folder and the file's prefix names the line (`PREFIX_FEED`); the frame's pill carries the
+athlete's folder on its record (`dataInfo.folder`, from the job's `subject`).
+
+**Every dataset shows its columns.** The details of a line carry what it is, what is held, whether it is on the
+Data tab (with the window's file), the files a load writes from it and **their columns** - every dataset, not only
+those whose records happen to carry keys. The executor supplies them on `/cache/inspect` (`dataset_columns`, by file
+prefix, as `columns_of` on each store's summary): made the way a load makes the files - the summary over the activity
+list's entries with the account's activity fields, the wellness file over the log's days (the day as `date`), the
+laps file's fixed columns plus the account's interval fields under their codes; the context, plan, codes, profile
+and zones files have fixed columns (`CODES_COLUMNS` on the executor mirrors `analyst/context.py`; the zones file only
+when the account defines a custom zone set).
+
+**Selective load.** A dataset's details carry **Load <dataset>** (the span held, from the store alone) and **Load
+<dataset> to today** (through Intervals.icu, only the missing days come down); the athlete's carry **Load
+everything** and **Load everything to today** (every dataset held). Loading Activities, or everything, loads the
+frame: the frame on the Data tab is let go first, after asking, and the pills of the kinds loaded are replaced. Any
+other dataset alone leaves the frame as it is and replaces its own pill(s) - `with_frame` off on the request: the
+loader (`fetch_intervals_background`) downloads no file, assembles and caches nothing, writes only the files asked
+for, and the result says `frame: false` with the `kinds` asked; the app's completion (`get_job_status`) then
+replaces the session's files of those kinds (and what they bring: the codes with the context, the zones with the
+profile) and keeps the rest - uploads, other kinds - adds the kinds to the load record, and starts the coding pass
+when a context file came. The dialog polls such a job itself (`pollDatasetJob`); a frame load keeps the Intervals.icu
+dialog's poller. The session's files are replaced **by kind** on every completion now, a whole load's too (they
+were replaced wholesale, which dropped uploads).
+
+**Forget is off the Data tab; Delete is off the disk.** **Forget <dataset>** takes the dataset's pill(s) off the
+Data tab through the pills' own removers (the session's file list follows); **Forget everything** takes every pill
+of the athlete off, the frame's too. The store keeps the data - Load brings it back - so there is no question. Forget
+is greyed when the dataset is not on the tab. **Delete from the store…** is a quiet link on each pane that, after
+asking, removes the dataset (or the athlete whole) from the executor's disk through `/cache/forget` - the datasets as
+the lines: activities (the files alone; the laps and chats stay with their lines), laps, wellness, context (the chats
+and the calendar), profile; no link on the summary (the activity list is the store's own, every load from the store
+starts from it).
+
+**Earlier loads are deleted, not shown.** On the executor's first start after the upgrade, `purge_earlier_loads`
+deletes under every user's folder the folders of loads from before the athlete was known (a key's mark, or
+*unmarked*) and the loader's window files an older executor wrote at the user's folder itself; uploads, the athletes'
+folders and the app's own folders stay; the log says what went. The tree has no *legacy* block any more; a folder
+that is no athlete's (a load whose profile call failed) is not listed. `absorb_mark_folders` stays for that one case.
+
+Tests: `tests/analyst/test_store.py` (the six lines with their files and columns, the columns checked against the
+files a load wrote and the app's codes columns; a load of one dataset alone from the store and to today; the context
+alone; deleting the context and the activities; the purge), `tests/analyst/test_dialogs.js` (the actions, the dots,
+the names, the styles), the integrations walk (earlier loads gone at start with the upload kept; the athlete's and
+three datasets' details with their dots and columns; the tree with two athletes and the dots; Delete of the other
+athlete; Load everything from the store; Forget Wellness; Load Wellness alone from the store; Load Activity intervals
+to today alone; Forget everything; Delete Wellness from the store).
