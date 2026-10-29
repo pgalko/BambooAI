@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patch 0237 (datasets by subject, step 1; **executor image v67** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0238 (datasets by subject, steps 1 and 2; **executor image v68** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,7 +95,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/45/37/15/88/1/1 Python; 58/7/40/71/24/71/14/25/4/14/67 JS; 1,499 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/64/37/15/88/1/1 Python; 58/7/41/71/24/71/14/25/4/14/67 JS; 1,519 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (100; hosted only - the loaders need the executor; the
@@ -477,6 +477,27 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Datasets by subject, step 2 - the feeds in the store (2026-10-29, patch 0238; executor image v68 - rebuild
+  and roll out).** The store under the athlete's folder keeps, beside the streams and the chats: the laps under each
+  activity (`store/laps/<id>.json.gz`, served by the chat's rule - older than sixty days and the file unchanged -
+  and fetched again otherwise; a refresh fetches all), the wellness log by day and the calendar by entry
+  (`store/wellness.json`, `store/events.json`: the window's records replaced by what came down each load, the rest
+  kept, so the span held is the union of every load; a day corrected at the source is corrected, an entry deleted
+  there goes; a failed call leaves the store's window to stand), the profile as dated snapshots. The window's files
+  are written from the store under the athlete's `views/` folder (files an earlier executor left at the folder
+  itself move there on the first load); `/cache/inspect` lists them as before with the athlete's folder, and the
+  store's summary carries each feed's span and the profile's newest day. Retention runs across the feeds. The load's
+  result carries the laps' account (`store.laps`), the completion line says *every lap from the store*. The
+  context's passages are not stored as a table - they are derived from records the store keeps or the load fetches
+  anyway (docs/DATASETS_DESIGN.md §14 says why). Tests: test_store.py 64, test_dialogs.js 41, the stamp checks
+  v68; the integrations walk's paths under `views/`. Steps 3-4 (the tree and the modal with retention per athlete,
+  the connections and the dropdowns) are not built. **A divergence found while shipping it**: the Mac's copy of
+  `tests/e2e/test_integrations.py` lacked two lines of patch 0206 (the codes file's `day` column in its check and
+  the activity day each code is tested against) while every other file matched the reference clone, so 0238 as
+  first formatted did not apply there; 0238 was re-made against the Mac's tree (the public repository at 2.6.1 plus
+  0237) and restores the two lines, so the trees are the same again. The walk is hosted-only, which is why the Mac
+  never saw its check fail. From here on a patch is rehearsed on the public repository's tree, not only on a clone
+  of the reference.
 - **Datasets by subject, step 1 (2026-10-29, patch 0237; executor image v67 - rebuild and roll out).** The design
   (docs/DATASETS_DESIGN.md, agreed with Palo the same day): the Dataset cache becomes a tree, source → athlete → feed →
   span, over one store per athlete; the athlete is the source's own id, not the key; the per-run window files are a

@@ -27,7 +27,9 @@ inside one is still cut; what changes is the cost of a miss.
 
 **The store holds activities, not windows.** Under the subject's folder on the executor's disk,
 `datasets/<user>/<source>/<athlete id>/store/` (since 2026-10-29, docs/DATASETS_DESIGN.md step 1: the folder was the
-key's mark before; a mark folder is adopted on the first load that learns whose it is):
+key's mark before; a mark folder is adopted on the first load that learns whose it is; since step 2 the store also
+keeps the laps under each activity, the wellness log by day, the calendar by entry and the profile as dated
+snapshots - docs/DATASETS_DESIGN.md §14 - and the window's files are written under the folder's `views/`):
 
 - `activities.json` - the manifest: for each activity id, the signature of its file, the day it started, the file's
   path, its row count and columns, when it was fetched, when a load last served it, and the same for its chat;
@@ -47,15 +49,19 @@ to the metrics asked - and sorted newest first, which is what the loader built b
 asking for other metrics over the same window downloads nothing.
 
 **What is fetched fresh every load**: the activity list, the wellness log, the calendar, the subject's record - one
-call each, small, and the source of the summary and wellness files and most of the passages. **The chat under an
-activity** is fetched again while the activity is recent (started within `MESSAGES_FRESH_DAYS` = 60 days; a chat is
-still being written) or when its file changed (a re-sync is a reason to look again), and taken from the store for an
-older, unchanged one. **Everything again** (the request's `refresh`; *Refresh everything* until 2026-10-16) fetches every file and every chat of the window
+call each, small, and the source of the summary and wellness files and most of the passages. Since 2026-10-29 (step
+2 of docs/DATASETS_DESIGN.md) what comes down of the wellness log and the calendar is merged into the store by day
+and by entry, so the store's span is the union of every load and the window's file is the store's window. **The chat
+under an activity** is fetched again while the activity is recent (started within `MESSAGES_FRESH_DAYS` = 60 days; a
+chat is still being written) or when its file changed (a re-sync is a reason to look again), and taken from the store
+for an older, unchanged one; **the laps** under an activity follow the same rule since step 2 (`LAPS_FRESH_DAYS` = 60:
+labels, RPE and lactate are typed in after the sync). **Everything again** (the request's `refresh`; *Refresh everything* until 2026-10-16) fetches every file and every chat of the window
 again, for the person who knows something changed that the signature does not see (a message added under an old
 activity, say).
 
 **Retention.** When a load ends, activities started more than `RETENTION_DAYS` = 400 days ago leave the store
-(rows and chat) unless a load served them within `USED_DAYS` = 30 days - a routine over an old window keeps its data
+(rows, chat and laps; the feeds' days and entries that old leave with them, and old profile snapshots but the newest)
+unless a load served them within `USED_DAYS` = 30 days - a routine over an old window keeps its data
 as long as it runs; a one-off look at an old year is gone a month later. The app can pass `retention_days` with the
 request (a free tier's shorter span). The startup cleanup does not touch the store (it clears the app's own datasets
 folder and skips every subfolder).
@@ -65,8 +71,9 @@ folder and skips every subfolder).
 **Only Intervals.icu.** SweatStack's loader is unchanged (later, if its volumes ask for it); Endura loads one race
 and needs nothing.
 
-**The laps file** (the `intervals` auxiliary dataset, one call per activity) is still fetched each load it is asked
-for; the same signature would serve it from the store, a later patch.
+**The laps file** (the `intervals` auxiliary dataset, one call per activity) was fetched each load it was asked
+for until 2026-10-29; since step 2 of docs/DATASETS_DESIGN.md the laps of a settled, unchanged activity come from the
+store (`store/laps/<id>.json.gz`, the answer as the API gave it) and only the rest are fetched.
 
 ## 3. Where the store lives, and how it persists
 

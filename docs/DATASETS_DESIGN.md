@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.1 (2026-10-29; v1.0 agreed the same day, step 1 built in patch 0237)
+# Datasets by athlete — design v1.2 (2026-10-29; v1.0 agreed the same day, step 1 built in patch 0237, step 2 in 0238)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -6,8 +6,8 @@ window, soon cannot find anything and stops using it. This design replaces the l
 feed → span** — backed by one store per athlete, so that a window asked twice is one entry, a window that grows is
 one entry whose span grew, and two athletes never share a line. The four decisions behind it were taken on
 2026-10-29 (section 11); the next phase, several API keys per coach and an athlete dropdown in the load dialogs, is
-the same tree without the data. **Status**: step 1 of section 10 is built (patch 0237, executor image v67; section
-13 says what it did and where it differs from the text); steps 2-4 are not.
+the same tree without the data. **Status**: steps 1 and 2 of section 10 are built (patches 0237 and 0238, executor
+images v67 and v68; sections 13 and 14 say what they did and where they differ from the text); steps 3-4 are not.
 
 ## 1. The shape
 
@@ -147,7 +147,8 @@ Each step leaves the app working; the image is rebuilt where the executor change
    the athlete's record; routines record the connection; the run's record carries it. *Executor image.* **Built
    (0237, v67; section 13).**
 2. **The feeds into the store** — wellness, calendar, notes, codes, profile and zones kept by day, id or snapshot and
-   merged; laps served by signature; views written from the store under `views/`. *Executor image.*
+   merged; laps served by signature; views written from the store under `views/`. *Executor image.* **Built (0238,
+   v68; section 14).**
 3. **The tree** — the route's new shape, the modal redrawn, the actions, the per-athlete retention. The cache stops
    listing view files.
 4. **Connections** (next phase) — the list per user, the dropdowns, a routine run for another athlete.
@@ -203,3 +204,43 @@ Tests: `tests/analyst/test_store.py` (the folder, the record, the listing, the m
 `tests/analyst/test_routines.py` (the match by subject), the integrations walk (the stack's fake Intervals.icu
 answers another athlete to a key ending in `-two`: the folders, the records, *another key* before the key has loaded
 and *another subject* after, the first athlete's window a hit again under its own key).
+
+## 14. Step 2 as built (patch 0238, executor image v68)
+
+The store under the athlete's folder now keeps, beside the streams and the chats:
+
+- **the laps** under each activity (`store/laps/<id>.json.gz`, the API's answer as given, with the signature and the
+  time on the activity's manifest entry), served from the store by the chat's rule - the activity older than sixty
+  days and its file unchanged - and fetched again otherwise, because labels, RPE and lactate are typed in after the
+  sync without the file changing; *Refresh everything* fetches them all. The load's result carries the laps' account
+  (`store.laps`: window, held, fetched) and the dialog's completion line says *every lap from the store* or *laps: n
+  of m from the store*;
+- **the wellness log by day** and **the calendar by entry** (`store/wellness.json`, `store/events.json`: each record
+  under its key with its day, when fetched and when last served). The window's days or entries come down each load
+  (one call each) and are merged: what came down replaces the window's records - a day corrected at the source is
+  corrected here, an entry deleted there goes here - and the rest stay, so the span held is the union of every
+  load. The window's file is written from the store's window. A call that fails leaves what the store holds of the
+  window to stand, said in the log and the context's report;
+- **the profile as dated snapshots** (`store/profile/<day>.json`, the record as fetched, a new snapshot only when it
+  changed, the day's own replaced); the profile and zones files are built from the record just fetched, as before.
+
+The window's files - summary, wellness, laps, context (and the codes the app writes beside it), planned workouts,
+profile, zone times - are written under the athlete's `views/` folder, the same window to the same file; files an
+earlier executor left at the athlete's folder itself move under `views/` on the first load. `/cache/inspect` lists
+them as before, each with the athlete's folder and subject (the tree of step 3 stops listing them); the store's
+summary carries each feed's span and count and the profile's newest day. The retention rule runs across the feeds:
+an activity older than the retention and unused leaves with its rows, chat and laps; so do such days and entries;
+old snapshots leave but the newest. The migration of a mark folder takes the laps, the feeds and the snapshots too.
+
+Where this differs from section 3: the **passages of the context are not kept as a table**. They are derived, at
+each load, from records the store already keeps or the load fetches anyway - the chats (stored), the notes and tags
+on the activities (the window's list), the wellness comments (stored by day), the calendar entries (stored by
+entry) - so a passages table would be a second copy of the same words; the coded passages stay the app's, keyed by
+athlete id. The summary file is built from the window's activity list, fetched each load as the manifest of what
+Intervals holds; the list's entries are not stored either. The tree (step 3) therefore shows the feeds the store
+holds - activities, laps, wellness, calendar, profile - and counts the passages from the newest context view.
+
+Tests: `tests/analyst/test_store.py` (the laps served, re-fetched on a changed file, on a refresh and while recent;
+the feeds merged with a correction and a deletion, their spans; the snapshots; the retention across the feeds; the
+migration; the listing), `tests/analyst/test_dialogs.js` (the completion line), the integrations walk (the files
+under `views/`, the prompts' paths).

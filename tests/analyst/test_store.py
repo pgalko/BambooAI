@@ -147,6 +147,7 @@ class FakeSession:
     """The Intervals.icu routes the loader calls, answered from the stack's calendar (apis_data), the calls logged."""
     def __init__(self):
         self.calls, self.auth, self.touched = [], None, {}
+        self.wellness_patch, self.dropped_events = {}, set()      # a day corrected at the source; a calendar entry deleted there
 
     def _day(self, aid):
         for d in D.days_in((TODAY - timedelta(days=800)).isoformat(), TODAY.isoformat()):
@@ -168,13 +169,16 @@ class FakeSession:
             d = self._day(path.split("/")[2])
             return _R(content=gzip.compress(write_activity(D.fit_records(d), fields=D.fit_fields(d))))
         if path == "/athlete/0/wellness":
-            return _R(D.wellness(params["oldest"], params["newest"]))
+            rows = D.wellness(params["oldest"], params["newest"])
+            for row in rows:
+                row.update(self.wellness_patch.get(row["id"], {}))
+            return _R(rows)
         if path.endswith("/intervals"):
             return _R(D.laps(self._day(path.split("/")[2])))
         if path == "/athlete/0":
             return _R(D.SUBJECT)
         if path == "/athlete/0/events":
-            return _R(D.events(params["oldest"], params["newest"]))
+            return _R([e for e in D.events(params["oldest"], params["newest"]) if e["id"] not in self.dropped_events])
         if path.startswith("/chats/"):
             return _R(D.chat(int(path.split("/")[2])))
         if path.endswith("/messages"):
@@ -186,6 +190,9 @@ class FakeSession:
 
     def chats(self):
         return [c for c in self.calls if c.endswith("/messages")]
+
+    def laps(self):
+        return [c for c in self.calls if c.endswith("/intervals")]
 
 
 SESSION = FakeSession()
@@ -343,9 +350,9 @@ before_fits = len(SESSION.fits())
 j9 = load(s2, e1, api_key="key-2")                                # a rotated key: the same athlete (the fake's profile), its old folder absorbed
 r9 = j9.get("result") or {}
 _rec2 = S.athlete_record(_udir, "intervals/" + D.SUBJECT["id"])
-check("a rotated key loads the same athlete: the key's old folder is absorbed into the athlete's (the window file kept, the activity and its chat taken over), the record lists both marks, and the window came from the store - nothing downloaded again",
+check("a rotated key loads the same athlete: the key's old folder is absorbed into the athlete's (the window file kept - under views/ once the load runs, the activity and its chat taken over), the record lists both marks, and the window came from the store - nothing downloaded again",
       j9["status"] == "completed" and r9["subject"]["id"] == D.SUBJECT["id"] and not os.path.exists(os.path.join(_udir, E.key_mark("key-2")))
-      and os.path.isfile(os.path.join(_udir, "intervals", D.SUBJECT["id"], "wellness_data_20250201_to_20250228.csv"))
+      and os.path.isfile(os.path.join(_udir, "intervals", D.SUBJECT["id"], "views", "wellness_data_20250201_to_20250228.csv")) and not os.path.exists(os.path.join(_udir, "intervals", D.SUBJECT["id"], "wellness_data_20250201_to_20250228.csv"))
       and S.Store(_udir, "intervals/" + D.SUBJECT["id"]).has_detail({"id": 900002, "start_date_local": _recent, "icu_sync_date": "y"})
       and S.Store(_udir, "intervals/" + D.SUBJECT["id"]).get_messages(900002) == [{"content": "older"}]
       and _rec2.get("marks") == [E.key_mark("key-1"), E.key_mark("key-2")] and r9["store"]["held"] == n2 and len(SESSION.fits()) == 0, (j9.get("error"), r9.get("store"), _rec2, len(SESSION.fits())))
@@ -403,6 +410,129 @@ try:
           and SESSION.calls.count("/athlete/0") == 1 and not SESSION.chats(), (jn.get("error"), rn.get("aux_datasets")))
 finally:
     D.SUBJECT = saved_subject
+
+# ---- the feeds in the store (2026-10-29, docs/DATASETS_DESIGN.md §3, step 2) -----------------------------------------
+print("-- the feeds in the store")
+_me = S.Store(_udir, "intervals/" + D.SUBJECT["id"])
+_views = os.path.join(_udir, "intervals", D.SUBJECT["id"], "views")
+check("the window's files live under the athlete's views/ folder, nothing at the folder itself but the record and the store",
+      os.path.isdir(_views) and all(p_.startswith(_views + os.sep) for p_ in rn["aux_datasets"] + ri["aux_datasets"] + r1["aux_datasets"])
+      and sorted(os.listdir(os.path.join(_udir, "intervals", D.SUBJECT["id"]))) == ["store", "subject.json", "views"], (rn.get("aux_datasets"), sorted(os.listdir(os.path.join(_udir, "intervals", D.SUBJECT["id"])))))
+# the laps: the settled window's laps were fetched once (the load above with the intervals file) and kept as the API gave them
+_laps_calls_first = days_r
+check("the laps of every activity of the window were fetched once and kept under the store (laps/<id>.json.gz, the answer as given), the manifest saying when and under which signature; the result's account says so",
+      ri["store"]["laps"] == {"window": days_r, "held": 0, "fetched": days_r} and len(os.listdir(_me.laps_dir)) >= days_r
+      and all(_me.manifest()[str(D.activity_id(d))].get("laps_fetched") and _me.manifest()[str(D.activity_id(d))].get("laps") == 3 for d in D.days_in(sr, er))
+      and _me.get_laps(D.activity_id(next(iter(D.days_in(sr, er))))) == D.laps(next(iter(D.days_in(sr, er)))), (ri.get("store", {}).get("laps"), sorted(os.listdir(_me.laps_dir))[:3]))
+ji2 = load(sr, er, aux=("intervals",))
+ri2 = ji2.get("result") or {}
+idf2 = pd.read_csv(next(p_ for p_ in ri2["aux_datasets"] if "activity_intervals_" in p_))
+check("the same settled window again: no laps fetched - every activity older than sixty days and unchanged is served from the store, and the file is the same",
+      ji2["status"] == "completed" and SESSION.laps() == [] and ri2["store"]["laps"] == {"window": days_r, "held": days_r, "fetched": 0}
+      and idf2.shape == idf.shape and (idf2.fillna(-1) == idf.fillna(-1)).all().all() and any(l.startswith("Fetching laps") for l in getattr(ji, "lines", [])) and not any(l.startswith("Fetching laps") for l in getattr(ji2, "lines", [])),
+      (SESSION.laps()[:3], ri2.get("store", {}).get("laps"), [l for l in getattr(ji2, "lines", []) if "laps" in l]))
+_touch_day = next(iter(D.days_in(sr, er)))
+SESSION.touched[D.activity_id(_touch_day)] = "2026-10-20T00:00:00Z"
+ji3 = load(sr, er, aux=("intervals",))
+ri3 = ji3.get("result") or {}
+check("a re-synced activity's laps are fetched again, alone (its file changed: the signature decides, as for the chat)", SESSION.laps() == [f"/activity/{D.activity_id(_touch_day)}/intervals"] and ri3["store"]["laps"]["fetched"] == 1 and ri3["store"]["laps"]["held"] == days_r - 1, (SESSION.laps(), ri3.get("store", {}).get("laps")))
+ji4 = load(sr, er, aux=("intervals",), refresh=True)
+check("refresh fetches every activity's laps again", len(SESSION.laps()) == days_r and (ji4.get("result") or {})["store"]["laps"]["held"] == 0, len(SESSION.laps()))
+_recent_s, _recent_e = (TODAY - timedelta(days=20)).isoformat(), (TODAY - timedelta(days=11)).isoformat()
+ji5 = load(_recent_s, _recent_e, aux=("intervals",)); ji6 = load(_recent_s, _recent_e, aux=("intervals",))
+_n_recent = sum(1 for _ in D.days_in(_recent_s, _recent_e))
+check("a recent window's laps are fetched on every load (labels, RPE and lactate are typed in after the sync): held none, fetched all, twice",
+      ji5["status"] == "completed" and ji6["status"] == "completed" and len(SESSION.laps()) == _n_recent and (ji6.get("result") or {})["store"]["laps"] == {"window": _n_recent, "held": 0, "fetched": _n_recent}, (len(SESSION.laps()), (ji6.get("result") or {}).get("store", {}).get("laps")))
+check("a load without the laps file carries no laps account", r1["store"].get("laps") is None)
+
+# the wellness log by day and the calendar by entry: merged across loads, the span the union, a day corrected at the source
+# corrected here, an entry deleted there gone here, the file the store's window
+_w = _me.feed("wellness").span(); _e = _me.feed("events").span()
+_all_days = [d for d in D.days_in(min(s2, sr), e1) if D.has_wellness(d)]
+check("the wellness log in the store spans every window loaded with it (the union), a record per day the source had one; the calendar too, by entry",
+      _w["from"] == _all_days[0].isoformat() and _w["to"] == _all_days[-1].isoformat() and _w["count"] == len(_all_days)
+      and _e["from"] <= s2 and _e["to"] >= (TODAY - timedelta(days=61)).isoformat() and _e["count"] == len({e["id"] for e in D.events(min(s2, sr), e1) if e["id"] not in SESSION.dropped_events}), (_w, _e, len(_all_days)))
+_wday = next(d for d in D.days_in(s2, e1) if D.has_wellness(d)).isoformat()
+SESSION.wellness_patch[_wday] = {"weight": 65.5}
+_gone_event = next(e["id"] for e in D.events(s2, e1) if e["category"] == "WORKOUT")
+SESSION.dropped_events.add(_gone_event)
+jw = load(s2, e1, aux=("wellness", "plan"))
+rw = jw.get("result") or {}
+wdf = pd.read_csv(next(p_ for p_ in rw["aux_datasets"] if "wellness_data_" in p_))
+pdf = pd.read_csv(next(p_ for p_ in rw["aux_datasets"] if "planned_workouts_" in p_), dtype=str, keep_default_na=False)
+_me = S.Store(_udir, "intervals/" + D.SUBJECT["id"])                  # read afresh: the loader's own Store wrote the files
+check("a day corrected at the source is corrected in the store and in the window's file; an entry deleted at the source is gone from both; the span held did not shrink",
+      jw["status"] == "completed" and float(wdf[wdf.date == _wday].weight.iloc[0]) == 65.5 and _me.feed("wellness").records()[_wday]["r"]["weight"] == 65.5
+      and str(_gone_event) not in set(pdf.event_id) and str(_gone_event) not in _me.feed("events").records() and _me.feed("wellness").span() == _w and _me.feed("events").span()["count"] == _e["count"] - 1,
+      (float(wdf[wdf.date == _wday].weight.iloc[0]) if len(wdf[wdf.date == _wday]) else None, _me.feed("wellness").span(), _me.feed("events").span()))
+check("the wellness file is the same frame the one call gives (the store is a cache, not another reading): the day as date, newest first, every column with data",
+      list(wdf.columns)[0] == "date" and pd.to_datetime(wdf.date).is_monotonic_decreasing and len(wdf) == sum(1 for d in D.days_in(s2, e1) if D.has_wellness(d))
+      and set(wdf.columns) == set(E.wellness_frame(D.wellness(s2, e1)).columns), (list(wdf.columns), len(wdf)))
+check("the feeds' records carry the day, when fetched and when last served; the summary carries each feed's span and count and the profile's newest day",
+      all({"r", "day", "f", "u"} <= set(rec) for rec in list(_me.feed("wellness").records().values())[:5])
+      and _me.summary()["feeds"]["wellness"] == _me.feed("wellness").span() and _me.summary()["feeds"]["events"] == _me.feed("events").span() and _me.summary()["laps"] >= days_r
+      and _me.summary()["profile"] == {"as_of": TODAY.isoformat(), "snapshots": 1}, _me.summary())
+
+# the profile as dated snapshots: the record as fetched, a new snapshot when it changed, the day's own replaced
+_ps = S.Store(_udir, "intervals/snap")
+check("put_profile: the first snapshot, the same record another day no new snapshot, a changed record a new one, the day's own replaced; newest_profile is the newest",
+      _ps.put_profile({"id": "x", "ftp": 250}, today=date(2026, 1, 1)) and not _ps.put_profile({"id": "x", "ftp": 250}, today=date(2026, 1, 2))
+      and _ps.put_profile({"id": "x", "ftp": 260}, today=date(2026, 2, 1)) and _ps.put_profile({"id": "x", "ftp": 265}, today=date(2026, 2, 1))
+      and _ps.profile_days() == ["2026-01-01", "2026-02-01"] and _ps.newest_profile() == ("2026-02-01", {"id": "x", "ftp": 265}) and not _ps.put_profile({}, today=date(2026, 3, 1)), (_ps.profile_days(), _ps.newest_profile()))
+
+# retention, one rule across the feeds: an old unused activity leaves with its laps; old unused days and entries leave; old snapshots but the newest leave
+_pr = S.Store(_udir, "intervals/prune")
+_old_e = entry(777, TODAY - timedelta(days=500))
+_pr.put_detail(_old_e, frame(777, TODAY - timedelta(days=500))); _pr.put_laps(_old_e, {"icu_intervals": [{"LapNumber": 1}]})
+_pr.feed("wellness").merge([{"id": (TODAY - timedelta(days=500)).isoformat(), "weight": 70}, {"id": (TODAY - timedelta(days=10)).isoformat(), "weight": 71}], key_of=lambda r: r["id"], day_of=lambda r: r["id"],
+                           start=(TODAY - timedelta(days=500)).isoformat(), end=TODAY.isoformat(), now=time.time() - 40 * 86400)
+_pr.feed("events").merge([{"id": 1, "start_date_local": (TODAY - timedelta(days=500)).isoformat() + "T00:00:00"}], key_of=lambda r: r["id"], day_of=lambda r: r["start_date_local"],
+                         start=(TODAY - timedelta(days=500)).isoformat(), end=TODAY.isoformat(), now=time.time() - 40 * 86400)
+_pr.put_profile({"a": 1}, today=TODAY - timedelta(days=500)); _pr.put_profile({"a": 2}, today=TODAY - timedelta(days=450)); _pr.put_profile({"a": 3}, today=TODAY)
+_laps_file = _pr._laps_path(777)
+_pr.save()
+check("prune across the feeds: the old activity leaves with its laps file; the old day and the old entry leave, the recent day stays; the old snapshots leave, the newest stays",
+      _pr.prune() == 1 and not os.path.exists(_laps_file) and "777" not in _pr.manifest()
+      and list(_pr.feed("wellness").records()) == [(TODAY - timedelta(days=10)).isoformat()] and _pr.feed("events").records() == {}
+      and _pr.profile_days() == [TODAY.isoformat()], (sorted(_pr.feed("wellness").records()), _pr.feed("events").records(), _pr.profile_days()))
+_pr.save()
+check("the feeds are written with the store: a new Store over the folder reads the same", S.Store(_udir, "intervals/prune").feed("wellness").span()["count"] == 1 and S.Store(_udir, "intervals/prune").summary()["profile"]["snapshots"] == 1)
+
+# Records on its own: a window merged replaces the window's records and leaves the rest; held and updated counted; within by day
+_rc = S.Records(os.path.join(WORK, "feeds", "w.json"))
+_m1 = _rc.merge([{"id": "2026-01-01", "w": 1}, {"id": "2026-01-02", "w": 2}], key_of=lambda r: r["id"], day_of=lambda r: r["id"], start="2026-01-01", end="2026-01-03")
+_m2 = _rc.merge([{"id": "2026-01-02", "w": 3}, {"id": "2026-01-03", "w": 4}], key_of=lambda r: r["id"], day_of=lambda r: r["id"], start="2026-01-02", end="2026-01-03")
+_m3 = _rc.merge([{"id": "2026-01-02", "w": 3}], key_of=lambda r: r["id"], day_of=lambda r: r["id"], start="2026-01-02", end="2026-01-02")
+check("Records.merge: the first window added; the second updates a day, adds one, leaves the day before the window; the third holds the one unchanged; within gives the window by day",
+      _m1 == {"added": 2, "updated": 0, "removed": 0, "held": 0} and _m2 == {"added": 1, "updated": 1, "removed": 0, "held": 0} and _m3 == {"added": 0, "updated": 0, "removed": 0, "held": 1}
+      and [r["w"] for r in _rc.within("2026-01-01", "2026-01-03")] == [1, 3, 4] and _rc.span() == {"from": "2026-01-01", "to": "2026-01-03", "count": 3}, (_m1, _m2, _m3))
+_m4 = _rc.merge([{"id": "2026-01-01", "w": 1}], key_of=lambda r: r["id"], day_of=lambda r: r["id"], start="2026-01-01", end="2026-01-02")
+check("Records.merge: a day inside the window that did not come down is removed (deleted at the source); a day outside the window is untouched", _m4 == {"added": 0, "updated": 0, "removed": 1, "held": 1} and sorted(_rc.records()) == ["2026-01-01", "2026-01-03"], (_m4, sorted(_rc.records())))
+
+# the migration takes the laps and the feeds too
+_oldm = S.Store(_udir, "markL")
+_oldm.put_laps(entry(5001, TODAY - timedelta(days=100)), {"icu_intervals": [{"LapNumber": 1}]})
+_oldm.feed("wellness").merge([{"id": "2026-05-05", "weight": 70}], key_of=lambda r: r["id"], day_of=lambda r: r["id"], start="2026-05-05", end="2026-05-05")
+_oldm.put_profile({"id": "m"}, today=date(2026, 5, 5))
+_oldm.save()
+os.makedirs(os.path.join(_udir, "intervals", "iL", "store"), exist_ok=True)
+S.Store(_udir, "intervals/iL").put_detail(entry(5002, TODAY - timedelta(days=90)), frame(5002, TODAY - timedelta(days=90))); S.Store(_udir, "intervals/iL").save()
+_mv = S.adopt_mark_folder(_udir, "markL", "intervals/iL")
+_newm = S.Store(_udir, "intervals/iL")
+check("adopt_mark_folder absorbs the laps, the feeds' records and the profile snapshots the athlete's store lacks",
+      _mv["activities"] == 1 and _newm.get_laps(5001) == {"icu_intervals": [{"LapNumber": 1}]} and _newm.manifest()["5001"].get("laps_fetched")
+      and _newm.feed("wellness").span()["count"] == 1 and _newm.profile_days() == ["2026-05-05"] and not os.path.exists(os.path.join(_udir, "markL")), (_mv, _newm.summary()))
+check("adopt_views moves window files an earlier executor left at the folder itself under views/, once",
+      (open(os.path.join(_udir, "intervals", "iL", "wellness_data_20260101_to_20260131.csv"), "w").write("date\n") or True) and S.adopt_views(_udir, "intervals/iL") == 1
+      and os.path.isfile(os.path.join(_udir, "intervals", "iL", "views", "wellness_data_20260101_to_20260131.csv")) and S.adopt_views(_udir, "intervals/iL") == 0 and S.views_rel("intervals/iL") == "intervals/iL/views")
+
+# the cache listing: the window files under views/ listed under the athlete's folder, as before
+with E.app.test_client() as c:
+    listing2 = c.get("/cache/inspect?user_id=u").get_json()
+_mine_files = [x for x in listing2["auxiliary_datasets"] if x["folder"] == "intervals/" + D.SUBJECT["id"]]
+check("/cache/inspect lists the window files from under views/ with the athlete's folder and subject; the store's summary carries the feeds",
+      _mine_files and all(x["path"].startswith(_views + os.sep) for x in _mine_files) and all(x["subject"]["id"] == D.SUBJECT["id"] for x in _mine_files)
+      and next(s_ for s_ in listing2["stores"] if s_["folder"] == "intervals/" + D.SUBJECT["id"])["feeds"]["wellness"]["count"] == _w["count"], ([x["path"] for x in _mine_files][:3], listing2.get("stores")))
 
 fails = [n for n, ok in results if not ok]
 print(f"\n{len(results) - len(fails)} passed, {len(fails)} failed")

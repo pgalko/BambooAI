@@ -34,14 +34,14 @@ import hashlib
 import shutil
 from datetime import datetime, timedelta
 from intervals_store import Store, stores_under, RETENTION_DAYS as STORE_RETENTION_DAYS   # the Intervals.icu store (2026-10-15)
-from intervals_store import athlete_rel, athlete_record, remember_athlete, adopt_mark_folder, athlete_folders   # the athlete's folder (2026-10-29)
+from intervals_store import athlete_rel, athlete_record, remember_athlete, adopt_mark_folder, athlete_folders, views_rel, adopt_views, VIEWS_DIR   # the athlete's folder (2026-10-29)
 
 # Set the number of CPU cores for pyarrow
 pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-29 v67 (datasets by subject: the loader learns the subject from the profile and keeps the window files and the store under <source>/<id> with the subject record; a key mark folder is adopted on the first load; /cache/inspect lists the subjects and the folder of every entry; the reach record since v66)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-29 v68 (the feeds in the store: the laps of settled activities served from the store, the wellness log by day and the calendar by entry merged across loads, the profile as dated snapshots, the window files under the subject\'s views/; datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -235,21 +235,25 @@ def inspect_cache():
                 who = {'source': rec.get('source', ''), 'id': rec.get('id', ''), 'name': rec.get('name', '')} if rec else None
                 if rec:
                     subjects.append(dict(folder=rel, **who, marks=list(rec.get('marks') or []), first_seen=rec.get('first_seen'), last_load=rec.get('last_load')))
-                for filename in os.listdir(folder):
-                    filepath = os.path.join(folder, filename)
-                    if os.path.isfile(filepath) and filename != 'subject.json':
-                        file_stat = os.stat(filepath)
-                        
-                        auxiliary_datasets.append({
-                            'filename': filename,
-                            'path': filepath,
-                            'key_mark': rel if rel and '/' not in rel else '',
-                            'folder': rel,
-                            'subject': who,
-                            'size_mb': file_stat.st_size / (1024 * 1024),
-                            'created_at': datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
-                            'modified_at': datetime.fromtimestamp(file_stat.st_mtime).isoformat()
-                        })
+                # a load's window files live under the folder's views/ (2026-10-29); a file at the folder itself is one an
+                # earlier executor wrote there, or an upload at the user's folder
+                places = [folder] + ([os.path.join(folder, VIEWS_DIR)] if rel and os.path.isdir(os.path.join(folder, VIEWS_DIR)) else [])
+                for place in places:
+                    for filename in sorted(os.listdir(place)):
+                        filepath = os.path.join(place, filename)
+                        if os.path.isfile(filepath) and filename != 'subject.json':
+                            file_stat = os.stat(filepath)
+                            
+                            auxiliary_datasets.append({
+                                'filename': filename,
+                                'path': filepath,
+                                'key_mark': rel if rel and '/' not in rel else '',
+                                'folder': rel,
+                                'subject': who,
+                                'size_mb': file_stat.st_size / (1024 * 1024),
+                                'created_at': datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
+                                'modified_at': datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                            })
         
         # Get generated datasets info
         generated_datasets = []
@@ -1669,6 +1673,9 @@ def fetch_intervals_background(data, job_id):
             if moved:
                 log_info(f"the key's folder moved under the athlete's: {mark} -> {folder} ({moved})")
             remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark)
+        if adopt_views(user_dir, folder):                     # window files an earlier executor wrote at the folder itself (2026-10-29)
+            log_info(f"the window files of {folder} moved under {VIEWS_DIR}/")
+        views = views_rel(folder)                             # where this load's window files go
         who = {'source': 'intervals', 'id': athlete_id, 'name': athlete_name, 'folder': folder}      # the subject: the app's word for the athlete
 
         # Fetch activities
@@ -1701,6 +1708,8 @@ def fetch_intervals_background(data, job_id):
         # `refresh` fetches every file and every chat again.
         refresh = bool(data.get('refresh'))
         store = Store(user_dir, folder)
+        if athlete is not None:
+            store.put_profile(athlete)                        # the record as fetched today, a snapshot when it changed (2026-10-29)
         held = [] if refresh else [act for act in activities_with_files if store.has_detail(act)]
         held_ids = {str(act.get('id')) for act in held}
         todo = [act for act in activities_with_files if str(act.get('id')) not in held_ids]
@@ -1748,26 +1757,37 @@ def fetch_intervals_background(data, job_id):
         # context tells authors apart and reads the custom fields by it, the rider profile is built from it
         custom_items = (athlete or {}).get('custom_items') or []
 
+        laps_report = None
         if 'intervals' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching activity intervals data...'
-            intervals_df = fetch_activity_intervals_data(session, base_url, activities, job_id, field_definitions(custom_items, 'INTERVAL_FIELD'))
+            intervals_df, laps_report = fetch_activity_intervals_data(session, base_url, activities, job_id, field_definitions(custom_items, 'INTERVAL_FIELD'),
+                                                                      store=store, refresh=refresh, with_report=True)
             if not intervals_df.empty:
-                intervals_path = save_aux_dataset(intervals_df, 'intervals', user_id, start_date, end_date, subdir=folder)
+                intervals_path = save_aux_dataset(intervals_df, 'intervals', user_id, start_date, end_date, subdir=views)
                 aux_filepaths.append(intervals_path)
         
         if 'summary' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Preparing summary data...'
             summary_df = create_activity_summary(activities, field_definitions(custom_items, 'ACTIVITY_FIELD'))
             if not summary_df.empty:
-                summary_path = save_aux_dataset(summary_df, 'summary', user_id, start_date, end_date, subdir=folder)
+                summary_path = save_aux_dataset(summary_df, 'summary', user_id, start_date, end_date, subdir=views)
                 aux_filepaths.append(summary_path)
         
         wellness_records = None
         if 'wellness' in aux_datasets or 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching wellness data...'
-            wellness_df, wellness_records = fetch_wellness_data(session, base_url, start_date, end_date, with_records=True, fields=field_definitions(custom_items, 'INPUT_FIELD'))
+            # the window's days come down each load (one call) and are merged into the store, whose span is then the
+            # union of every load (2026-10-29); the file is the store's window. A call that fails leaves what the
+            # store holds of the window to stand.
+            fetched_w, w_failed = fetch_wellness_records(session, base_url, start_date, end_date)
+            if not w_failed:
+                store.feed('wellness').merge(fetched_w, key_of=lambda r: r.get('id'), day_of=lambda r: r.get('id'), start=start_date, end=end_date)
+            wellness_records = store.feed('wellness').within(start_date, end_date)
+            wellness_df = wellness_frame(wellness_records, fields=field_definitions(custom_items, 'INPUT_FIELD'))
+            if w_failed:
+                log_info(f"wellness: {w_failed}; {len(wellness_records)} days held from earlier loads stand")
             if 'wellness' in aux_datasets and not wellness_df.empty:
-                wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date, subdir=folder)
+                wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date, subdir=views)
                 aux_filepaths.append(wellness_path)
         
         # The context (2026-10-13): the words written beside the data, one file of passages. Never fatal to the
@@ -1777,14 +1797,19 @@ def fetch_intervals_background(data, job_id):
         events, events_failed = None, ''
         if 'context' in aux_datasets or 'plan' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching the calendar...'
-            events, events_failed = fetch_calendar(session, base_url, start_date, end_date)
+            fetched_e, events_failed = fetch_calendar(session, base_url, start_date, end_date)
+            if not events_failed:                             # merged into the store by entry; the window's entries are the store's (2026-10-29)
+                store.feed('events').merge(fetched_e, key_of=lambda r: r.get('id'), day_of=lambda r: r.get('start_date_local'), start=start_date, end=end_date)
+            events = store.feed('events').within(start_date, end_date)
+            if events_failed and events:
+                events_failed += f"; the {len(events)} entries held from earlier loads stand"
         if 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching the words written beside the data...'
             rows, context_report = fetch_context_rows(session, base_url, activities, wellness_records or [], start_date, end_date,
                                                       job_id=job_id, athlete=athlete, store=store, refresh=refresh, events=events, events_failed=events_failed)
             if athlete is None:
                 context_report['failed'].insert(0, "the subject's record could not be fetched, so authors are not told apart and custom fields are not read")
-            context_path = save_aux_dataset(context_frame(rows), 'context', user_id, start_date, end_date, subdir=folder)
+            context_path = save_aux_dataset(context_frame(rows), 'context', user_id, start_date, end_date, subdir=views)
             aux_filepaths.append(context_path)
             context_report['path'] = context_path
             log_info(f"context: {context_report['passages']} passages, {context_report['calls']} calls, {context_report.get('messages_reused', 0)} chats from the store, {len(context_report['failed'])} failed")
@@ -1795,7 +1820,7 @@ def fetch_intervals_background(data, job_id):
         if 'plan' in aux_datasets or 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Preparing the planned workouts...'
             plan_df = planned_workouts_frame(events or [], activities)
-            plan_path = save_aux_dataset(plan_df, 'plan', user_id, start_date, end_date, subdir=folder)
+            plan_path = save_aux_dataset(plan_df, 'plan', user_id, start_date, end_date, subdir=views)
             aux_filepaths.append(plan_path)
             log_info(f"plan: {len(plan_df)} planned workouts, {int(plan_df['activity_id'].astype(bool).sum()) if len(plan_df) else 0} paired" + (f" ({events_failed})" if events_failed else ""))
 
@@ -1810,10 +1835,10 @@ def fetch_intervals_background(data, job_id):
                 log_info(f"rider profile: {profile_note}")
             else:
                 profile_df = profile_frame(athlete)
-                aux_filepaths.append(save_aux_dataset(profile_df, 'rider', user_id, start_date, end_date, subdir=folder))
+                aux_filepaths.append(save_aux_dataset(profile_df, 'rider', user_id, start_date, end_date, subdir=views))
                 zones_df = custom_zone_times_frame(activities, athlete.get('custom_items'))
                 if zones_df is not None:
-                    aux_filepaths.append(save_aux_dataset(zones_df, 'zones', user_id, start_date, end_date, subdir=folder))
+                    aux_filepaths.append(save_aux_dataset(zones_df, 'zones', user_id, start_date, end_date, subdir=views))
                 log_info(f"rider profile: {len(profile_df)} rows ({', '.join(f'{s} {n}' for s, n in profile_df['section'].value_counts().items())})"
                          + (f"; custom zone times: {len(zones_df)} rows" if zones_df is not None else "; no custom zone sets defined"))
         
@@ -1834,7 +1859,8 @@ def fetch_intervals_background(data, job_id):
             'aux_datasets': aux_filepaths,
             'context': context_report,
             'profile_note': profile_note,
-            'store': {'window': total_activities, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary()},
+            'store': {'window': total_activities, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary(),
+                      'laps': laps_report},     # the laps' account when the file was asked (2026-10-29): {window, held, fetched}
             'subject': who                      # whose data this load is (2026-10-29): the app keeps it on the load record
         }
         
@@ -2089,18 +2115,27 @@ def transform_intervals_detail_data(df):
     
     return df
 
-def fetch_activity_intervals_data(session, base_url, activities, job_id, fields=None):
-    """Fetch intervals for all activities using parallel requests. `fields`: the account's INTERVAL_FIELD definitions
-    (field_definitions), whose values ride on the records under their codes (2026-10-16)."""
+def fetch_activity_intervals_data(session, base_url, activities, job_id, fields=None, store=None, refresh=False, with_report=False):
+    """The laps of every activity of the window, as one frame. `fields`: the account's INTERVAL_FIELD definitions
+    (field_definitions), whose values ride on the records under their codes (2026-10-16). With a `store` (2026-10-29)
+    the laps of an older, unchanged activity are taken from it instead of fetched (the same rule as the chat's), and
+    every answer fetched is kept there as the API gave it; `refresh` fetches them all. With `with_report`, returns
+    (frame, {window, held, fetched})."""
     
     # Filter activities with IDs
     activities_with_ids = [act for act in activities if 'id' in act]
+    report = {'window': len(activities_with_ids), 'held': 0, 'fetched': 0}
     
     if not activities_with_ids:
-        return pd.DataFrame()
+        return (pd.DataFrame(), report) if with_report else pd.DataFrame()
+    
+    held = {} if (store is None or refresh) else {str(act['id']): store.get_laps(act['id']) for act in activities_with_ids if store.laps_fresh(act)}
+    held = {k: v for k, v in held.items() if v is not None}
+    todo = [act for act in activities_with_ids if str(act['id']) not in held]
+    report['held'] = len(held)
     
     def fetch_intervals_for_activity(activity):
-        """Download all intervals for a single activity"""
+        """Download all intervals for a single activity; (the activity, the answer or None)"""
         activity_id = activity['id']
         url = f"{base_url}/activity/{activity_id}/intervals"
         
@@ -2108,21 +2143,20 @@ def fetch_activity_intervals_data(session, base_url, activities, job_id, fields=
             response = session.get(url, timeout=10)
             if response.ok:
                 data = response.json()
-                # Transform to flat structure - returns list of records
-                return process_interval_data(data, activity_id, fields)
-            return []
+                return activity, (data if isinstance(data, dict) else None)
+            return activity, None
         except Exception as e:
             log_info(f"Error fetching intervals for activity {activity_id}: {e}")
-            return []
+            return activity, None
     
-    # Use ThreadPoolExecutor for parallel downloads
-    all_intervals = []
+    # the window's laps: the store's, then what the pool fetches - kept as it comes
+    answers = dict(held)
     completed = 0
-    total = len(activities_with_ids)
+    total = len(todo)
     
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(fetch_intervals_for_activity, act) 
-                  for act in activities_with_ids]
+                  for act in todo]
         
         for future in as_completed(futures):
             completed += 1
@@ -2130,14 +2164,25 @@ def fetch_activity_intervals_data(session, base_url, activities, job_id, fields=
             # Update progress
             if job_id in intervals_jobs:
                 intervals_jobs[job_id]['message'] = \
-                    f'Processing Activity Intervals {completed}/{total}'
+                    f'Fetching laps {completed}/{total}' + (f' ({len(held)} activities from the store)' if held else '')
             
-            result = future.result()
-            if result:
-                all_intervals.extend(result)
+            activity, data = future.result()
+            if data is not None:
+                answers[str(activity['id'])] = data
+                report['fetched'] += 1
+                if store is not None:
+                    store.put_laps(activity, data)
+    if store is not None:
+        store.save()
+    
+    all_intervals = []
+    for act in activities_with_ids:
+        data = answers.get(str(act['id']))
+        if data:
+            all_intervals.extend(process_interval_data(data, act['id'], fields))     # the flat rows, from the answer as kept
     
     if not all_intervals:
-        return pd.DataFrame()
+        return (pd.DataFrame(), report) if with_report else pd.DataFrame()
     
     # Convert to DataFrame and sort
     df = pd.DataFrame(all_intervals)
@@ -2146,7 +2191,7 @@ def fetch_activity_intervals_data(session, base_url, activities, job_id, fields=
     if 'activity_id' in df.columns and 'lap_number' in df.columns:
         df = df.sort_values(['activity_id', 'lap_number'])
     
-    return df
+    return (df, report) if with_report else df
 
 def process_interval_data(data, activity_id, fields=None):
     """Transform the JSON response into multiple flat records. The four columns read by name (label, RPE, lactate,
@@ -2382,45 +2427,49 @@ def create_activity_summary(activities, fields=None):
     return df
 
 
-def fetch_wellness_data(session, base_url, start_date, end_date, with_records=False, fields=None):
-    """Fetch wellness data from Intervals.icu. With `with_records`, returns (frame, the JSON list as returned) - the
-    context (2026-10-13) reads the day's comment and the custom fields off the records. `fields`: the account's
-    INPUT_FIELD definitions - every one rides under its code already (the frame is the records); a select's column
-    becomes its text, with the number in <code>_value (2026-10-16)."""
-    records = []
-    
-    url = f"{base_url}/athlete/0/wellness"
-    params = {'oldest': start_date, 'newest': end_date}
-    
+def fetch_wellness_records(session, base_url, start_date, end_date):
+    """The wellness log of a window as the API gives it (one call): (records, '') or ([], a sentence saying why not)."""
     try:
-        response = session.get(url, params=params)
+        response = session.get(f"{base_url}/athlete/0/wellness", params={'oldest': start_date, 'newest': end_date})
         response.raise_for_status()
-        wellness_data = response.json()
-        records = wellness_data if isinstance(wellness_data, list) else []
-        
-        if not wellness_data:
-            return (pd.DataFrame(), records) if with_records else pd.DataFrame()
-        
-        df = pd.DataFrame(wellness_data)
-        
-        # Rename 'id' to 'date'
-        if 'id' in df.columns:
-            df.rename(columns={'id': 'date'}, inplace=True)
-            df['date'] = pd.to_datetime(df['date'])
-        df = decode_select_columns(df, fields)
-        
-        # Remove columns with no data
-        df = df.dropna(axis=1, how='all')
-        
-        # Sort by date (newest first)
-        if 'date' in df.columns:
-            df = df.sort_values('date', ascending=False)
-        
-        return (df, records) if with_records else df
-        
-    except Exception as e:
+        data = response.json()
+        return (data if isinstance(data, list) else []), ''
+    except Exception as e:                                  # noqa: BLE001
         log_info(f"Error fetching wellness data: {e}")
-        return (pd.DataFrame(), records) if with_records else pd.DataFrame()
+        return [], f"the wellness log could not be fetched ({type(e).__name__}: {str(e)[:120]})"
+
+
+def wellness_frame(records, fields=None):
+    """The wellness file's frame from the records (2026-10-29: the store's window, merged from every load): the day
+    as `date`, newest first, every column with data. `fields`: the account's INPUT_FIELD definitions - every one rides
+    under its code already (the frame is the records); a select's column becomes its text, with the number in
+    <code>_value (2026-10-16)."""
+    if not records:
+        return pd.DataFrame()
+    df = pd.DataFrame(records)
+    
+    # Rename 'id' to 'date'
+    if 'id' in df.columns:
+        df.rename(columns={'id': 'date'}, inplace=True)
+        df['date'] = pd.to_datetime(df['date'])
+    df = decode_select_columns(df, fields)
+    
+    # Remove columns with no data
+    df = df.dropna(axis=1, how='all')
+    
+    # Sort by date (newest first)
+    if 'date' in df.columns:
+        df = df.sort_values('date', ascending=False)
+    
+    return df
+
+
+def fetch_wellness_data(session, base_url, start_date, end_date, with_records=False, fields=None):
+    """Fetch wellness data from Intervals.icu, as a frame (the loader goes through the store since 2026-10-29; this
+    stays for callers that want one call's answer as a frame). With `with_records`, returns (frame, the records)."""
+    records, _failed = fetch_wellness_records(session, base_url, start_date, end_date)
+    df = wellness_frame(records, fields)
+    return (df, records) if with_records else df
 
 
 def decode_select_columns(df, fields):
@@ -3023,9 +3072,10 @@ def custom_zone_times_frame(activities, custom_items):
 
 
 def save_aux_dataset(df, dataset_type, user_id, start_date, end_date, subdir=''):
-    """Save auxiliary dataset to filesystem. With `subdir` - the load's folder: the subject's, <source>/<athlete id>
-    (2026-10-29), the mark of the key that loaded it before the subject was known (2026-10-11) - the file goes under
-    datasets/<user>/<subdir>/, so two subjects' loads of the same window do not overwrite each other."""
+    """Save auxiliary dataset to filesystem. With `subdir` - the load's folder: the subject's views/, <source>/<athlete
+    id>/views (2026-10-29), the mark of the key that loaded it before the subject was known (2026-10-11) - the file
+    goes under datasets/<user>/<subdir>/, so two subjects' loads of the same window do not overwrite each other; the
+    same window asked twice writes the same file once."""
     
     # Create user-specific directory
     executor_datasets_dir = os.path.join('datasets', user_id, subdir) if subdir else os.path.join('datasets', user_id)

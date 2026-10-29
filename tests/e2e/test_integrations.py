@@ -116,10 +116,11 @@ def main():
             import hashlib
             _kf = lambda k: hashlib.sha256(k.encode("utf-8")).hexdigest()[:12]      # analyst.routines.key_fingerprint = the loader's key_mark
             exec_ds = os.path.join(workdir, "executor", "datasets", USER, "intervals", "i0")                               # the subject's folder: source and the source's own id (2026-10-29; the key's mark named it before)
-            aux_a = sorted(os.path.basename(p) for p in glob.glob(os.path.join(exec_ds, "*.csv")))
+            exec_views = os.path.join(exec_ds, "views")                                                                     # the window's files, under the subject's views/ (step 2, 2026-10-29)
+            aux_a = sorted(os.path.basename(p) for p in glob.glob(os.path.join(exec_views, "*.csv")))
             tag_a = f"{a_start.strftime('%Y%m%d')}_to_{a_end.strftime('%Y%m%d')}"
-            check("the loader wrote the summary and the wellness files named after the window, under the subject's folder (the source, the id the profile gave) with the subject's record beside them; nothing at the user's folder itself, no folder named by the key's mark",
-                  aux_a == [f"activity_summary_{tag_a}.csv", f"wellness_data_{tag_a}.csv"] and not glob.glob(os.path.join(workdir, "executor", "datasets", USER, "*.csv")) and not os.path.exists(os.path.join(workdir, "executor", "datasets", USER, _kf("stack-key")))
+            check("the loader wrote the summary and the wellness files named after the window, under the subject's views/ folder (the source, the id the profile gave) with the subject's record and the store beside them; nothing at the user's folder itself nor at the subject's, no folder named by the key's mark",
+                  aux_a == [f"activity_summary_{tag_a}.csv", f"wellness_data_{tag_a}.csv"] and not glob.glob(os.path.join(workdir, "executor", "datasets", USER, "*.csv")) and not glob.glob(os.path.join(exec_ds, "*.csv")) and not os.path.exists(os.path.join(workdir, "executor", "datasets", USER, _kf("stack-key")))
                   and json.load(open(os.path.join(exec_ds, "subject.json"))).get("marks") == [_kf("stack-key")] and json.load(open(os.path.join(exec_ds, "subject.json"))).get("name") == "The subject", (aux_a, sorted(os.listdir(os.path.join(workdir, "executor", "datasets", USER)))))
             # the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): the first load fetched the window whole and kept it
             msg_a = page.inner_text("#intervals-modal-message")
@@ -260,7 +261,7 @@ def main():
                   and run1["sources"][run1["bindings"][0][0]].endswith(f"activity_summary_{tag_b}.csv")
                   and "avg_power" in run1["shape"]["files"][run1["bindings"][0][0]]["missing"] and os.path.exists(os.path.join(workdir, "executor", run1["bindings"][0][1]))
                   and os.path.exists(os.path.join(workdir, "executor", aux_mirror(run1["run_dir"], next(p_ for p_ in run1["shape"]["placeholders"]))))
-                  and not os.path.exists(os.path.join(exec_ds, f"wellness_data_{tag_a}.csv.bak")) and sorted(os.path.basename(p) for p in glob.glob(os.path.join(exec_ds, "wellness_data_*.csv"))) == [f"wellness_data_{tag_a}.csv"],
+                  and not os.path.exists(os.path.join(exec_views, f"wellness_data_{tag_a}.csv.bak")) and sorted(os.path.basename(p) for p in glob.glob(os.path.join(exec_views, "wellness_data_*.csv"))) == [f"wellness_data_{tag_a}.csv"],
                   (run1.get("status"), run1.get("aux_absent"), run1.get("fit"), run1.get("bindings"), run1.get("shape")))
             # a run on the data loaded now (the window just loaded) with the band changed: the dialog offers it; compared with run 1
             page.click("#routinesPill")
@@ -404,7 +405,7 @@ def main():
                   and run5["data"]["load"].get("subject") == {"source": "intervals", "id": "i1", "name": "The other subject"},
                   (r5["rows"], (fits_after4, fits_after5), run5["data"].get("load")))
             exec_ds2 = os.path.join(workdir, "executor", "datasets", USER, "intervals", "i1")
-            check("the other subject's files went to its own folder (the source, its id), with its record; the first subject's are where they were", os.path.exists(os.path.join(exec_ds2, f"activity_summary_{tag_a}.csv")) and os.path.exists(os.path.join(exec_ds, f"activity_summary_{tag_a}.csv"))
+            check("the other subject's files went to its own folder (the source, its id, views/), with its record; the first subject's are where they were", os.path.exists(os.path.join(exec_ds2, "views", f"activity_summary_{tag_a}.csv")) and os.path.exists(os.path.join(exec_views, f"activity_summary_{tag_a}.csv"))
                   and json.load(open(os.path.join(exec_ds2, "subject.json"))).get("marks") == [_kf("stack-key-two")], (sorted(os.listdir(exec_ds2)), sorted(os.listdir(exec_ds))))
             check("the other subject has a store of its own, with the window just fetched; the first subject's store was not consulted for it (the whole window was downloaded) and holds its 101 activities still",
                   len(json.load(open(os.path.join(exec_ds2, "store", "activities.json")))) == 60 and len(json.load(open(os.path.join(exec_ds, "store", "activities.json")))) == 101, None)
@@ -524,7 +525,7 @@ def main():
             page.evaluate("() => { const r = [...document.querySelectorAll('#contextPill .context-pill-menu .row')][0]; r.click(); }")
             page.wait_for_function("() => { const t = document.querySelector('#content-dataframe, .tab-content.active'); return !!t && /text_en/.test(t.textContent || ''); }", timeout=30000)
             check("the list's Passages row previews the context file in the Data tab, with the lang and text_en columns", True)
-            ctx_path = os.path.join(exec_ds, f"context_notes_{tag_a}.csv")
+            ctx_path = os.path.join(exec_views, f"context_notes_{tag_a}.csv")
             ctx = pd.read_csv(ctx_path, dtype=str, keep_default_na=False) if os.path.exists(ctx_path) else None
             kinds_c = dict(ctx["kind"].value_counts()) if ctx is not None else {}
             check("the executor wrote the context file beside the summary and wellness files, in the key's folder, with the columns of the design and the kinds the fake calendar holds: messages (subject and coach), the coach's private notes, descriptions, tags, ticks, wellness comments, the custom select, the plan's prose, notes, the sick span, the race",
@@ -532,7 +533,7 @@ def main():
                   and all(k in kinds_c for k in ("activity_message", "activity_private_note", "activity_note", "tag", "coach_tick", "wellness_note", "custom_field", "plan_note", "day_note", "status")), (ctx_path, kinds_c))
             # the planned workouts file beside it (2026-10-15): one row per WORKOUT entry of the window's calendar, the rides paired
             # to their activity with its compliance, the skipped sessions with none, the step lines and the structure as JSON
-            plan_path = os.path.join(exec_ds, f"planned_workouts_{tag_a}.csv")
+            plan_path = os.path.join(exec_views, f"planned_workouts_{tag_a}.csv")
             plan_f = pd.read_csv(plan_path, dtype=str, keep_default_na=False) if os.path.exists(plan_path) else None
             ev_a = [e_ for e_ in apis_data.events(a_start.isoformat(), a_end.isoformat()) if e_["category"] == "WORKOUT"]
             check("the executor wrote the planned workouts file beside the context file: a row per planned workout, the rides paired (with the activity's compliance), the skipped sessions unpaired, the step lines the context leaves out, the plan's numbers and the structured workout as JSON",
@@ -542,7 +543,7 @@ def main():
                   (plan_path, None if plan_f is None else (len(plan_f), len(ev_a), plan_f.head(2).to_dict("records"))))
             # the rider profile (2026-10-16, docs/RIDER_PROFILE_DESIGN.md): on by default, two files beside the others - the settings the data
             # is read against from the subject's record (a whitelist: nothing identifying), and the time in the account's custom zones per ride
-            rider_path, zones_path = os.path.join(exec_ds, f"rider_profile_{tag_a}.csv"), os.path.join(exec_ds, f"custom_zone_times_{tag_a}.csv")
+            rider_path, zones_path = os.path.join(exec_views, f"rider_profile_{tag_a}.csv"), os.path.join(exec_views, f"custom_zone_times_{tag_a}.csv")
             prof_f = pd.read_csv(rider_path, dtype=str, keep_default_na=False) if os.path.exists(rider_path) else None
             zones_f = pd.read_csv(zones_path, dtype=str, keep_default_na=False) if os.path.exists(zones_path) else None
             rides_a = sum(1 for i in range(60) if apis_data.is_ride(a_start + timedelta(days=i)))
@@ -580,10 +581,12 @@ def main():
                 check("the coder wrote the language and an English rendering into every Danish passage and left the English ones their own (lang en, text_en empty); a tag is a label, never sent to the coder - no language, no rendering (patch 0197)",
                       len(da) and (da["lang"] == "da").all() and (da["text_en"] == "The legs were heavy today, rode shorter than planned.").all()
                       and len(en) and (en["lang"] == "en").all() and (en["text_en"] == "").all() and len(tagrows) and (tagrows["lang"] == "").all() and (tagrows["text_en"] == "").all(), (da[["lang", "text_en"]].head(2).to_dict("records"), en[["lang", "text_en"]].head(1).to_dict("records"), tagrows[["lang", "text_en"]].head(2).to_dict("records")))
-                codes_path = os.path.join(exec_ds, f"context_codes_{tag_a}.csv")
+                codes_path = os.path.join(exec_views, f"context_codes_{tag_a}.csv")
                 codes = pd.read_csv(codes_path, dtype=str, keep_default_na=False) if os.path.exists(codes_path) else None
-                check("the codes file beside the context file: the design's columns, one row per code with the words it rests on verbatim in the original, the tone, codebook rows and the proposed code's rows marked, the coder and the codebook's version, and each code's direction and basis (patch 0198)",
-                      codes is not None and list(codes.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about"] and len(codes) > 20
+                _own = {i: (a or d)[:10] for i, a, d in zip(ctx["id"], ctx["activity_date"], ctx["date"])} if "activity_date" in ctx.columns else {}
+                check("the codes file beside the context file: the design's columns, one row per code with the words it rests on verbatim in the original, the tone, codebook rows and the proposed code's rows marked, the coder and the codebook's version, and each code's direction and basis (patch 0198) and the day it describes - its passage's own when it names none (patch 0206)",
+                      codes is not None and list(codes.columns) == ["id", "code", "tone", "quote", "status", "coder", "codebook_version", "direction", "basis", "about", "day"] and len(codes) > 20
+                      and (codes["day"] != "").all() and all(d == _own.get(i) for i, d, a in zip(codes["id"], codes["day"], codes["about"]) if not a)
                       and set(codes["direction"]) <= {"worse", "better", "neutral"} and (codes[codes["code"] == "fatigue"]["direction"] == "worse").all() and (codes["basis"] == "said").all()
                       and all(q in ctx.set_index("id").loc[i, "text"] for i, q in zip(codes["id"], codes["quote"]))
                       and set(codes["status"]) == {"codebook", "proposed"} and (codes[codes["code"] == "coach_flag"]["status"] == "proposed").all() and len(codes[codes["code"] == "coach_flag"]) >= 1
@@ -610,12 +613,12 @@ def main():
             prompt1 = page.inner_text("#userInstructions")
             page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; }")
             check("DATA: the context file is listed with its columns and its row count and none of its rows; the map follows - the span, the passages by kind with the authors of the messages, the roles, the private entries, the months, the closing sentence",
-                  f"Path: datasets/{USER}/intervals/i0/context_notes_{tag_a}.csv" in prompt1 and "Rows: " in prompt1 and "(the rows are passages: read them with CTX, not from this head)" in prompt1
+                  f"Path: datasets/{USER}/intervals/i0/views/context_notes_{tag_a}.csv" in prompt1 and "Rows: " in prompt1 and "(the rows are passages: read them with CTX, not from this head)" in prompt1
                   and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in prompt1 and "activity_message" in prompt1 and "(subject " in prompt1 and "authors: subject " in prompt1
                   and "private entries " in prompt1 and "by month " in prompt1 and "A plan_note is dated the day it was planned for, not the day it was written." in prompt1 and "A passage is cited as" not in prompt1
                   and "Private: check the sleep log" not in prompt1 and "Bra jobba" not in prompt1, prompt1[prompt1.find("CONTEXT ("):prompt1.find("CONTEXT (") + 700] if "CONTEXT (" in prompt1 else prompt1[-800:])    # the chat's lines are in the context alone (a description also sits in the summary's head, 2026-10-15)
             check("DATA with the rider profile: its entry is the columns, the count with what a row is, and the Settings line from the file's rows - the measurements, the ride and run groups' thresholds, the rest counted; the zone times file described as any other",
-                  re.search(rf"Path: datasets/{USER}/intervals/i0/rider_profile_{tag_a}\.csv\s+Columns: section, sport_types, key, value, unit, low, high, note\s+Rows: \d+ \(one row per setting: section, key, value, unit, the bounds for a zone, a note; read the file with pandas\)", prompt1) is not None
+                  re.search(rf"Path: datasets/{USER}/intervals/i0/views/rider_profile_{tag_a}\.csv\s+Columns: section, sport_types, key, value, unit, low, high, note\s+Rows: \d+ \(one row per setting: section, key, value, unit, the bounds for a zone, a note; read the file with pandas\)", prompt1) is not None
                   and re.search(r"Settings: weight 71\.0 kg, height 1\.78 m, resting_hr 47 bpm, age \d+ years, sex M, timezone [\w/]+; Ride\|VirtualRide: ftp 280 W, indoor_ftp 270 W, lthr 168 bpm, max_hr 188 bpm; Run: lthr 160 bpm, max_hr 182 bpm, threshold_pace 3\.4 m/s; "
                             r"soreness, sleepQuality 1-4 \(the wellness file's subjective scales, by the platform's convention: a bigger number is worse, 1 the good end\); "
                             r"also in the file: 22 zone rows with their bounds, 3 custom zone rows in 2 sets \(Breath 'Breathing' on respiration; Cad 'Cadence' on cadence\), 2 custom field definitions - the codes other files' columns carry, with their options; "
@@ -741,7 +744,7 @@ def main():
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             reuse_line = page.evaluate("() => (document.querySelector('#contextPill .dataset-pill-content') || {}).getAttribute('title')")
             check("the same window loaded again in a new thread: the pass reused the store (the line says so) and settled in seconds", "already coded by an earlier load" in (reuse_line or ""), reuse_line)
-            ctx_again = pd.read_csv(os.path.join(exec_ds, f"context_notes_{tag_a}.csv"), dtype=str, keep_default_na=False)
+            ctx_again = pd.read_csv(os.path.join(exec_views, f"context_notes_{tag_a}.csv"), dtype=str, keep_default_na=False)
             check("the chats of the window came from the store this time (every activity is older than sixty days and unchanged): no messages call, and the context file has the messages as before",
                   calls_of(st, "/messages") == msgs_before_r and (ctx_again.kind == "activity_message").sum() > 0 and ctx is not None and (ctx_again.kind == "activity_message").sum() == (ctx.kind == "activity_message").sum(), (calls_of(st, "/messages") - msgs_before_r, (ctx_again.kind == "activity_message").sum()))
             # Everything again (the Download choice's second side): the whole window fetched again - every FIT file and every chat - and the
@@ -828,9 +831,9 @@ def main():
             # are not re-coded and keep version 1 with coach_flag as it was coded (proposed); the days after it are coded now, under version
             # 2, and the coder's coach_flag (it still proposes it) is the book's own there - marked codebook, not proposed
             tag_b = f"{b_start_n.replace('-', '')}_to_{b_end_n.replace('-', '')}"
-            codes_b_path = os.path.join(exec_ds, f"context_codes_{tag_b}.csv")
+            codes_b_path = os.path.join(exec_views, f"context_codes_{tag_b}.csv")
             codes_b = pd.read_csv(codes_b_path, dtype=str, keep_default_na=False) if os.path.exists(codes_b_path) else None
-            ctx_b_path = os.path.join(exec_ds, f"context_notes_{tag_b}.csv")
+            ctx_b_path = os.path.join(exec_views, f"context_notes_{tag_b}.csv")
             ctx_b = pd.read_csv(ctx_b_path, dtype=str, keep_default_na=False) if os.path.exists(ctx_b_path) else None
             cb_rows = codes_b.merge(ctx_b[["id", "date"]], on="id", how="left") if codes_b is not None and ctx_b is not None else None
             old_b = cb_rows[cb_rows["date"] <= a_end.isoformat()] if cb_rows is not None else None
@@ -866,10 +869,10 @@ def main():
             run2_n = json.load(open(os.path.join(os.path.dirname(rdirs_n[0]), "runs", "v1_2", "run.json")))
             res2_n = {r_.get("what"): rt_number(r_.get("estimate")) for r_ in run2_n.get("results") or []}
             tag_c = f"{c_start.strftime('%Y%m%d')}_to_{c_end.strftime('%Y%m%d')}"
-            ctx_c = os.path.join(exec_ds, f"context_notes_{tag_c}.csv")
+            ctx_c = os.path.join(exec_views, f"context_notes_{tag_c}.csv")
             check("run 2 on a window without words: the loader wrote the context file as its header alone and no codes file; the CHECK row says 'no passages in this window' and does not call the codes absent (the wellness file is); "
                   "the method printed its zeros; the Comparison tab sets them against run 1; the Context pill shows the window with no coding line",
-                  os.path.exists(ctx_c) and len(open(ctx_c, encoding="utf-8").read().strip().splitlines()) == 1 and not os.path.exists(os.path.join(exec_ds, f"context_codes_{tag_c}.csv"))
+                  os.path.exists(ctx_c) and len(open(ctx_c, encoding="utf-8").read().strip().splitlines()) == 1 and not os.path.exists(os.path.join(exec_views, f"context_codes_{tag_c}.csv"))
                   and "no passages in this window (the context and codes tables are empty)" in _chk_s and "codes absent" not in _chk_s and "wellness absent in this data" in _chk_s
                   and res2_n.get("passages the subject wrote in the window") == 0 and res2_n.get("of them read as fatigue by the coding pass") == 0 and run2_n["status"] in ("ran", "reproduced")
                   and "against run 1" in rv_s["cmp"] and "Run 2 complete" in rv_s["done"] and not rv_s["warn"] and rv_s["ctx"] is not None and rv_s["ctx"]["label"].startswith("Context (")

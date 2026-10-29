@@ -303,6 +303,8 @@ def get_job_status(job_id):
                 st = result.get('store') or {}                # what the store held of the window (docs/INCREMENTAL_LOADS_DESIGN.md), on the load record
                 if st.get('window'):
                     prefs['load']['store'] = {'window': st.get('window'), 'held': st.get('held', 0), 'fetched': st.get('fetched', 0), 'refresh': bool(st.get('refresh'))}
+                    if isinstance(st.get('laps'), dict) and st['laps'].get('window'):     # the laps' account (2026-10-29)
+                        prefs['load']['store']['laps'] = {k: int(st['laps'].get(k) or 0) for k in ('window', 'held', 'fetched')}
                 if isinstance(result.get('subject'), dict) and result['subject'].get('id'):
                     # whose data (2026-10-29, docs/DATASETS_DESIGN.md): the source's own id of the person and the name the
                     # profile gave, from the executor - on the load record, so a run and a routine know whose

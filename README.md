@@ -669,7 +669,8 @@ lists them: a frame can be loaded again from there, a file previewed or removed.
 window lies inside a load the executor still holds runs from the cache without a download.
 
 Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the
-athlete's folder (the source and the athlete id the profile gives), with the chats fetched for it. A load is a view over the store: the window's activity
+athlete's folder (the source and the athlete id the profile gives), with the chats and the laps fetched
+for it, the wellness log by day, the calendar by entry and the profile's snapshots. A load is a view over the store: the window's activity
 list is fetched, the activities the store lacks (or whose file changed) are downloaded, the rest are
 assembled from disk, and the chats of activities older than sixty days are reused. *Refresh
 everything* in the load dialog fetches the whole window again. Activities fall out of the store

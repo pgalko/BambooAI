@@ -1,14 +1,18 @@
-"""The Intervals.icu store (2026-10-15, docs/INCREMENTAL_LOADS_DESIGN.md): what a load fetched, kept by what it is rather
-than by window - one file per activity's second-by-second rows, the chat under each activity, a manifest - under the
-key's folder on the executor's disk (datasets/<user>/<mark>/store/). A window is then a view: the loader fetches the
-window's activity list (the manifest of what Intervals holds), takes from the store every activity it already has whose
-file has not changed, downloads only the rest, and assembles the frame from the store. The wellness log and the calendar
-are fetched fresh each load (one call each); the messages under an activity are fetched again while the activity is
-recent or changed, and reused for older ones.
+"""The Intervals.icu store (2026-10-15, docs/INCREMENTAL_LOADS_DESIGN.md; by athlete and by feed since 2026-10-29,
+docs/DATASETS_DESIGN.md): what a load fetched, kept by what it is rather than by window, under the athlete's folder on
+the executor's disk (datasets/<user>/<source>/<athlete id>/store/) - one file per activity's second-by-second rows, the
+chat and the laps under each activity, a manifest; the wellness log by day, the calendar by entry, the profile as dated
+snapshots. A window is then a view: the loader fetches the window's activity list (the manifest of what Intervals
+holds), takes from the store every activity it already has whose file has not changed, downloads only the rest, and
+assembles the frame from the store. The wellness log and the calendar are fetched fresh each load (one call each) and
+merged, so the store's span is the union of every load; the chat and the laps under an activity are fetched again while
+the activity is recent or changed, and reused for older ones. The window's files (the summary, wellness, laps, context,
+plan and profile files the analysis reads) are written from the store under the athlete's views/ folder.
 
 The files are parquet (compressed; a year of second-by-second data is a tenth of its CSV size). Where pandas has no parquet
 engine - the test sandbox - the same frames go to compressed pickles under another extension; the real image carries pyarrow.
 """
+import gzip
 import hashlib
 import json
 import os
@@ -19,14 +23,17 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import pandas as pd
 
 STORE_DIR = "store"
+VIEWS_DIR = "views"            # the window's files, beside the store under the athlete's folder (2026-10-29)
 MANIFEST = "activities.json"
 # the fields of an activity's list entry that change when its file changes (a re-sync, a re-upload, a different
 # recording): the detail rows are fetched again when any of them differs from the stored signature
 DETAIL_SIGNATURE = ("icu_sync_date", "file_type", "start_date_local", "elapsed_time", "moving_time", "distance")
 MESSAGES_FRESH_DAYS = 60       # the chat under an activity started within this many days is fetched again each load
+LAPS_FRESH_DAYS = 60           # the laps too: their labels, RPE and lactate are typed in after the sync, without the file changing
 RETENTION_DAYS = 400           # activities started earlier than this many days ago leave the store when a load ends...
 USED_DAYS = 30                 # ...unless a load served them within this many days (a routine over an old window keeps its data)
 ENGINE_WHEN_NO_PARQUET = "pickle"
+FEEDS = ("wellness", "events")   # the feeds kept by day or by entry in one file each (<feed>.json)
 
 
 def _have_parquet() -> bool:
@@ -67,8 +74,11 @@ class Store:
         self.dir = os.path.join(user_dir, mark or "unmarked", STORE_DIR)
         self.activities_dir = os.path.join(self.dir, "activities")
         self.messages_dir = os.path.join(self.dir, "messages")
+        self.laps_dir = os.path.join(self.dir, "laps")
+        self.profile_dir = os.path.join(self.dir, "profile")
         self._manifest: Optional[Dict[str, dict]] = None
         self._dirty = False
+        self._feeds: Dict[str, "Records"] = {}
 
     # ---------------------------------------------------------------- the manifest
     def manifest(self) -> Dict[str, dict]:
@@ -83,6 +93,8 @@ class Store:
         return self._manifest
 
     def save(self) -> None:
+        for feed in self._feeds.values():
+            feed.save()
         if not self._dirty:
             return
         os.makedirs(self.dir, exist_ok=True)
@@ -203,10 +215,93 @@ class Store:
         except (OSError, ValueError):
             return None
 
+    # ---------------------------------------------------------------- the laps under an activity (2026-10-29)
+    def _laps_path(self, activity_id) -> str:
+        return os.path.join(self.laps_dir, f"{activity_id}.json.gz")
+
+    def laps_fresh(self, entry: dict, today: Optional[date] = None, fresh_days: int = LAPS_FRESH_DAYS) -> bool:
+        """Whether the stored laps of this activity may stand for the live ones - the same rule as the chat's: stored,
+        the activity older than the fresh window (labels, RPE and lactate are typed in after the sync, without the
+        file changing), and its file unchanged since."""
+        aid = str((entry or {}).get("id") or "")
+        rec = self.manifest().get(aid) or {}
+        if not rec.get("laps_fetched") or not os.path.isfile(self._laps_path(aid)):
+            return False
+        day = _day_of(entry)
+        if day is None or (today or date.today()) - day <= timedelta(days=fresh_days):
+            return False
+        return rec.get("laps_signature") == signature_of(entry)
+
+    def put_laps(self, entry: dict, data: dict) -> None:
+        """Keep an activity's laps as the API gave them (the intervals and the groups); the view is made from them."""
+        aid = str((entry or {}).get("id") or "")
+        os.makedirs(self.laps_dir, exist_ok=True)
+        path = self._laps_path(aid)
+        tmp = path + ".tmp"
+        with gzip.open(tmp, "wt", encoding="utf-8") as fh:
+            json.dump(data if isinstance(data, dict) else {}, fh)
+        os.replace(tmp, path)
+        rec = self.manifest().get(aid) or {}
+        rec.update({"laps_fetched": time.time(), "laps_signature": signature_of(entry), "laps": len((data or {}).get("icu_intervals") or []) if isinstance(data, dict) else 0,
+                    "day": rec.get("day") or str((entry or {}).get("start_date_local") or "")[:10]})
+        self.manifest()[aid] = rec
+        self._dirty = True
+
+    def get_laps(self, activity_id) -> Optional[dict]:
+        try:
+            with gzip.open(self._laps_path(activity_id), "rt", encoding="utf-8") as fh:
+                d = json.load(fh)
+            return d if isinstance(d, dict) else None
+        except (OSError, ValueError, EOFError):
+            return None
+
+    # ---------------------------------------------------------------- the feeds kept by day or by entry (2026-10-29)
+    def feed(self, name: str) -> "Records":
+        """The wellness log (a record per day, keyed by the day) or the calendar (a record per entry, keyed by its id)."""
+        if name not in self._feeds:
+            self._feeds[name] = Records(os.path.join(self.dir, f"{name}.json"))
+        return self._feeds[name]
+
+    # ---------------------------------------------------------------- the profile as dated snapshots (2026-10-29)
+    def put_profile(self, athlete: dict, today: Optional[date] = None) -> bool:
+        """Keep the record as fetched today, when it differs from the newest snapshot held; the day's own snapshot is
+        replaced. Returns whether a snapshot was written."""
+        if not isinstance(athlete, dict) or not athlete:
+            return False
+        day = (today or date.today()).isoformat()
+        newest = self.newest_profile()
+        if newest and newest[0] != day and json.dumps(newest[1], sort_keys=True) == json.dumps(athlete, sort_keys=True):
+            return False
+        os.makedirs(self.profile_dir, exist_ok=True)
+        tmp = os.path.join(self.profile_dir, day + ".json.tmp")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(athlete, fh)
+        os.replace(tmp, os.path.join(self.profile_dir, day + ".json"))
+        return True
+
+    def profile_days(self) -> List[str]:
+        try:
+            return sorted(f[:-5] for f in os.listdir(self.profile_dir) if f.endswith(".json"))
+        except OSError:
+            return []
+
+    def newest_profile(self) -> Optional[Tuple[str, dict]]:
+        """(the day, the record) of the newest snapshot, or None."""
+        for day in reversed(self.profile_days()):
+            try:
+                with open(os.path.join(self.profile_dir, day + ".json"), encoding="utf-8") as fh:
+                    rec = json.load(fh)
+                if isinstance(rec, dict):
+                    return day, rec
+            except (OSError, ValueError):
+                continue
+        return None
+
     # ---------------------------------------------------------------- housekeeping and the account of it
     def prune(self, today: Optional[date] = None, days: int = RETENTION_DAYS, used_days: int = USED_DAYS, now: Optional[float] = None) -> int:
-        """Drop activities started earlier than `days` ago (their rows and chat) that no load served within
-        `used_days`; returns how many went."""
+        """Drop activities started earlier than `days` ago (their rows, chat and laps) that no load served within
+        `used_days`, the feeds' records of such days, and profile snapshots that old but the newest; returns how many
+        activities went. One rule across the feeds (docs/DATASETS_DESIGN.md §7)."""
         cutoff = (today or date.today()) - timedelta(days=days)
         now = time.time() if now is None else now
         gone = 0
@@ -217,7 +312,7 @@ class Store:
                 continue
             if day >= cutoff or now - float(rec.get("used") or 0) <= used_days * 86400:
                 continue
-            for p in (os.path.join(self.dir, rec.get("file") or "__none__"), self._messages_path(aid)):
+            for p in (os.path.join(self.dir, rec.get("file") or "__none__"), self._messages_path(aid), self._laps_path(aid)):
                 try:
                     os.remove(p)
                 except OSError:
@@ -225,10 +320,20 @@ class Store:
             del self.manifest()[aid]
             self._dirty = True
             gone += 1
+        for name in FEEDS:
+            if os.path.isfile(os.path.join(self.dir, f"{name}.json")) or name in self._feeds:
+                self.feed(name).prune(cutoff, used_days=used_days, now=now)
+        for day in self.profile_days()[:-1]:
+            try:
+                if date.fromisoformat(day) < cutoff:
+                    os.remove(os.path.join(self.profile_dir, day + ".json"))
+            except (ValueError, OSError):
+                pass
         return gone
 
     def summary(self) -> dict:
-        """What the store holds, for the cache listing and the dialogs: activities, the span of their days, the size."""
+        """What the store holds, for the cache listing and the dialogs: activities, chats and laps with the span of
+        their days, each feed's span and count, the profile's newest day, the size."""
         m = self.manifest()
         days = sorted(str(r.get("day") or "")[:10] for r in m.values() if r.get("day"))
         size = 0
@@ -238,9 +343,109 @@ class Store:
                     size += os.path.getsize(os.path.join(root, f))
                 except OSError:
                     pass
+        feeds = {}
+        for name in FEEDS:
+            if os.path.isfile(os.path.join(self.dir, f"{name}.json")) or name in self._feeds:
+                feeds[name] = self.feed(name).span()
+        pdays = self.profile_days()
         return {"activities": sum(1 for r in m.values() if r.get("file")), "chats": sum(1 for r in m.values() if r.get("messages_fetched")),
+                "laps": sum(1 for r in m.values() if r.get("laps_fetched")),
                 "from": days[0] if days else "", "to": days[-1] if days else "", "bytes": size, "size_mb": round(size / (1024 * 1024), 2),
+                "feeds": feeds, "profile": {"as_of": pdays[-1] if pdays else "", "snapshots": len(pdays)},
                 "engine": "parquet" if HAVE_PARQUET else ENGINE_WHEN_NO_PARQUET}
+
+
+class Records:
+    """A feed's records in one JSON file, each under its key with the day it belongs to and when it was fetched and
+    last served: the wellness log by day, the calendar by entry (2026-10-29, docs/DATASETS_DESIGN.md §3). A load merges
+    the window it fetched: the window's records are replaced by what came down (a day corrected at the source is
+    corrected here, an entry deleted there goes here), the rest stay, so the span held is the union of every load."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self._recs: Optional[Dict[str, dict]] = None
+        self._dirty = False
+
+    def records(self) -> Dict[str, dict]:
+        if self._recs is None:
+            try:
+                with open(self.path, encoding="utf-8") as fh:
+                    d = json.load(fh)
+                self._recs = d if isinstance(d, dict) else {}
+            except (OSError, ValueError):
+                self._recs = {}
+        return self._recs
+
+    def save(self) -> None:
+        if not self._dirty:
+            return
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(self.records(), fh)
+        os.replace(tmp, self.path)
+        self._dirty = False
+
+    def merge(self, fetched: Iterable[dict], key_of, day_of, start: str, end: str, now: Optional[float] = None) -> dict:
+        """Merge the window's records as fetched: `key_of(record)` its key, `day_of(record)` its day (YYYY-MM-DD).
+        Returns {"added", "updated", "removed", "held"} - held: the window's records already there and unchanged."""
+        now = time.time() if now is None else now
+        recs = self.records()
+        seen, out = set(), {"added": 0, "updated": 0, "removed": 0, "held": 0}
+        for r in fetched or []:
+            if not isinstance(r, dict):
+                continue
+            k, d = str(key_of(r) or ""), str(day_of(r) or "")[:10]
+            if not k:
+                continue
+            seen.add(k)
+            old = recs.get(k)
+            if old is None:
+                out["added"] += 1
+            elif old.get("r") != r:
+                out["updated"] += 1
+            else:
+                out["held"] += 1
+                old["u"] = now
+                continue
+            recs[k] = {"r": r, "day": d, "f": now, "u": now}
+        for k, rec in list(recs.items()):
+            if k not in seen and start <= str(rec.get("day") or "") <= end:
+                del recs[k]
+                out["removed"] += 1
+        self._dirty = True
+        return out
+
+    def within(self, start: str, end: str, mark_used: bool = True, now: Optional[float] = None) -> List[dict]:
+        """The window's records, by day then key."""
+        now = time.time() if now is None else now
+        out = []
+        for k, rec in self.records().items():
+            if start <= str(rec.get("day") or "") <= end:
+                out.append((str(rec.get("day") or ""), k, rec))
+                if mark_used:
+                    rec["u"] = now
+                    self._dirty = True
+        return [rec["r"] for _d, _k, rec in sorted(out, key=lambda t: (t[0], t[1]))]
+
+    def span(self) -> dict:
+        days = sorted(str(r.get("day") or "") for r in self.records().values() if r.get("day"))
+        return {"from": days[0] if days else "", "to": days[-1] if days else "", "count": len(self.records())}
+
+    def prune(self, cutoff: date, used_days: int = USED_DAYS, now: Optional[float] = None) -> int:
+        now = time.time() if now is None else now
+        gone = 0
+        for k, rec in list(self.records().items()):
+            try:
+                day = date.fromisoformat(str(rec.get("day") or "")[:10])
+            except ValueError:
+                continue
+            if day < cutoff and now - float(rec.get("u") or 0) > used_days * 86400:
+                del self.records()[k]
+                gone += 1
+        if gone:
+            self._dirty = True
+        return gone
 
 
 # ---- the athlete's folder (2026-10-29, docs/DATASETS_DESIGN.md §2): datasets/<user>/<source>/<athlete id>/ -----------
@@ -323,12 +528,52 @@ def adopt_mark_folder(user_dir: str, mark: str, rel: str) -> dict:
                 os.replace(old._messages_path(aid), new._messages_path(aid))
             else:
                 kept.pop("messages_fetched", None); kept.pop("messages_signature", None)
+            if os.path.isfile(old._laps_path(aid)):
+                os.makedirs(new.laps_dir, exist_ok=True)
+                os.replace(old._laps_path(aid), new._laps_path(aid))
+            else:
+                kept.pop("laps_fetched", None); kept.pop("laps_signature", None)
             nm[aid] = kept
             moved["activities"] += 1
+        for name in FEEDS:                                     # a feed's records the athlete's store lacks
+            if os.path.isfile(os.path.join(old.dir, f"{name}.json")):
+                target = new.feed(name).records()
+                for k, rec in old.feed(name).records().items():
+                    if k not in target:
+                        target[k] = rec
+                        new.feed(name)._dirty = True
+        for day in old.profile_days():
+            if day not in new.profile_days():
+                os.makedirs(new.profile_dir, exist_ok=True)
+                os.replace(os.path.join(old.profile_dir, day + ".json"), os.path.join(new.profile_dir, day + ".json"))
         new._dirty = True
         new.save()
     import shutil
     shutil.rmtree(src, ignore_errors=True)
+    return moved
+
+
+def views_rel(rel: str) -> str:
+    """The folder of a load's window files, relative to the user's: the athlete's views/ (2026-10-29)."""
+    return f"{rel}/{VIEWS_DIR}" if rel else VIEWS_DIR
+
+
+def adopt_views(user_dir: str, rel: str) -> int:
+    """The window files an earlier executor wrote at the athlete's (or the mark's) folder itself move under views/,
+    the first time the folder is loaded under this one; returns how many moved. A file already under views/ stays."""
+    top = os.path.join(user_dir, rel)
+    if not os.path.isdir(top):
+        return 0
+    moved = 0
+    for name in os.listdir(top):
+        p = os.path.join(top, name)
+        if os.path.isfile(p) and name.endswith(".csv"):
+            os.makedirs(os.path.join(top, VIEWS_DIR), exist_ok=True)
+            if not os.path.exists(os.path.join(top, VIEWS_DIR, name)):
+                os.replace(p, os.path.join(top, VIEWS_DIR, name))
+            else:
+                os.remove(p)
+            moved += 1
     return moved
 
 
