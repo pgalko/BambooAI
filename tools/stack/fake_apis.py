@@ -91,6 +91,12 @@ def wellness():
 def athlete(athlete_id="0"):
     if not _auth_ok():
         return jsonify({"error": "unauthorized"}), 401
+    # whose key (2026-10-29, docs/DATASETS_DESIGN.md): a key ending in "-two" is another subject's - the same data, another
+    # record (id and name) - so a walk can change subjects; any other key is the subject's own, however it is spelt
+    a = request.authorization
+    key = str((a.password or a.username) if a else "")
+    if key.endswith("-two"):
+        return jsonify(dict(D.SUBJECT, id="i1", name="The other subject", firstname="The other", lastname="Subject"))
     return jsonify(D.SUBJECT)
 
 

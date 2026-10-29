@@ -63,6 +63,7 @@ class Store:
     """One key's store on disk. Cheap to construct; the manifest is read once and written when it changes."""
 
     def __init__(self, user_dir: str, mark: str):
+        # `mark`: the load's folder relative to the user's - <source>/<athlete id> since 2026-10-29, the key's mark before
         self.dir = os.path.join(user_dir, mark or "unmarked", STORE_DIR)
         self.activities_dir = os.path.join(self.dir, "activities")
         self.messages_dir = os.path.join(self.dir, "messages")
@@ -242,14 +243,124 @@ class Store:
                 "engine": "parquet" if HAVE_PARQUET else ENGINE_WHEN_NO_PARQUET}
 
 
-def stores_under(user_dir: str) -> List[dict]:
-    """The stores of every key under a user's datasets folder, each with its mark and summary (for /cache/inspect)."""
-    out = []
+# ---- the athlete's folder (2026-10-29, docs/DATASETS_DESIGN.md §2): datasets/<user>/<source>/<athlete id>/ -----------
+# A load is identified by the source's athlete id, learnt from the profile call; the key's mark named the folder until
+# then and stays only as a credential's fingerprint. The athlete's record (subject.json - "the subject" is the word the
+# app uses) keeps the id, the name the profile gave, the marks that have loaded this athlete, and when.
+ATHLETE_RECORD = "subject.json"
+SOURCES = ("intervals", "endura", "sweatstack")
+APP_FOLDERS = ("generated", "routines", "documents")     # the app's own folders under a user's: never a load's
+
+
+def athlete_rel(source: str, athlete_id: str, mark: str) -> str:
+    """The folder of a load, relative to the user's datasets folder: <source>/<athlete id> when the id is known, else
+    the key's mark as before (the profile call failed, or an older executor's load)."""
+    aid = str(athlete_id or "").strip().replace("/", "_").replace("\\", "_")
+    return f"{source}/{aid}" if aid else (mark or "unmarked")
+
+
+def athlete_record(user_dir: str, rel: str) -> dict:
+    """The athlete's record under the folder, {} when there is none."""
+    try:
+        with open(os.path.join(user_dir, rel, ATHLETE_RECORD), encoding="utf-8") as fh:
+            rec = json.load(fh)
+        return rec if isinstance(rec, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def remember_athlete(user_dir: str, rel: str, source: str, athlete_id: str, name: str, mark: str, now: Optional[float] = None) -> dict:
+    """Write or update the athlete's record: the id and name, the marks that have loaded this athlete (the newest last),
+    first seen and last load."""
+    now = time.time() if now is None else now
+    rec = athlete_record(user_dir, rel)
+    marks = [m for m in (rec.get("marks") or []) if m and m != mark] + ([mark] if mark else [])
+    rec.update({"source": source, "id": str(athlete_id), "name": str(name or rec.get("name") or ""), "marks": marks,
+                "first_seen": rec.get("first_seen") or now, "last_load": now})
+    os.makedirs(os.path.join(user_dir, rel), exist_ok=True)
+    tmp = os.path.join(user_dir, rel, ATHLETE_RECORD + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(rec, fh, indent=1)
+    os.replace(tmp, os.path.join(user_dir, rel, ATHLETE_RECORD))
+    return rec
+
+
+def adopt_mark_folder(user_dir: str, mark: str, rel: str) -> dict:
+    """The migration (docs/DATASETS_DESIGN.md §9): what a key's mark folder holds moves under the athlete's folder the
+    first time the athlete is known. A folder that does not exist yet is the mark folder renamed; one that does
+    absorbs the mark folder's window files (kept when absent) and its store (each activity and chat the athlete's
+    store lacks, with its manifest entry), then the mark folder goes. Returns what was moved; {} when there was
+    nothing to move. Nothing is downloaded again."""
+    src = os.path.join(user_dir, mark) if mark else ""
+    dst = os.path.join(user_dir, rel)
+    if not mark or not os.path.isdir(src) or os.path.normpath(src) == os.path.normpath(dst):
+        return {}
+    if not os.path.isdir(dst):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        os.rename(src, dst)
+        return {"renamed": True, "files": 0, "activities": 0}
+    moved = {"renamed": False, "files": 0, "activities": 0}
+    for name in os.listdir(src):
+        p = os.path.join(src, name)
+        if os.path.isfile(p) and not os.path.exists(os.path.join(dst, name)):
+            os.replace(p, os.path.join(dst, name))
+            moved["files"] += 1
+    old, new = Store(user_dir, mark), Store(user_dir, rel)
+    if os.path.isdir(old.dir):
+        om, nm = old.manifest(), new.manifest()
+        for aid, entry in om.items():
+            if aid in nm:
+                continue                                       # the athlete's store has it already: the newer load wins
+            kept = dict(entry)
+            rel_file = entry.get("file") or ""
+            if rel_file and os.path.isfile(os.path.join(old.dir, rel_file)):
+                os.makedirs(os.path.dirname(os.path.join(new.dir, rel_file)), exist_ok=True)
+                os.replace(os.path.join(old.dir, rel_file), os.path.join(new.dir, rel_file))
+            else:
+                kept.pop("file", None); kept.pop("signature", None)
+            if os.path.isfile(old._messages_path(aid)):
+                os.makedirs(new.messages_dir, exist_ok=True)
+                os.replace(old._messages_path(aid), new._messages_path(aid))
+            else:
+                kept.pop("messages_fetched", None); kept.pop("messages_signature", None)
+            nm[aid] = kept
+            moved["activities"] += 1
+        new._dirty = True
+        new.save()
+    import shutil
+    shutil.rmtree(src, ignore_errors=True)
+    return moved
+
+
+def athlete_folders(user_dir: str) -> List[Tuple[str, dict]]:
+    """Every load folder under a user's datasets folder: (the folder relative to it, the athlete's record or {}) -
+    the athletes' folders by source, then the marks of loads before the athlete was known."""
+    out: List[Tuple[str, dict]] = []
     if not os.path.isdir(user_dir):
         return out
-    for mark in sorted(os.listdir(user_dir)):
-        if mark in ("generated", "routines") or not os.path.isdir(os.path.join(user_dir, mark, STORE_DIR)):
+    for name in sorted(os.listdir(user_dir)):
+        p = os.path.join(user_dir, name)
+        if name in APP_FOLDERS or not os.path.isdir(p):
             continue
-        s = Store(user_dir, mark)
-        out.append(dict(key_mark=mark, **s.summary()))
+        if name in SOURCES:
+            for aid in sorted(os.listdir(p)):
+                if os.path.isdir(os.path.join(p, aid)):
+                    rel = f"{name}/{aid}"
+                    out.append((rel, athlete_record(user_dir, rel) or {"source": name, "id": aid, "name": ""}))
+        else:
+            out.append((name, {}))
+    return out
+
+
+def stores_under(user_dir: str) -> List[dict]:
+    """The stores under a user's datasets folder, each with its folder, its subject (the record's source, id and name -
+    the athlete; none for a mark's folder from before the athlete was known), the mark for such a folder, and its
+    summary (for /cache/inspect)."""
+    out = []
+    for rel, rec in athlete_folders(user_dir):
+        if not os.path.isdir(os.path.join(user_dir, rel, STORE_DIR)):
+            continue
+        s = Store(user_dir, rel)
+        subject = {"source": rec.get("source", ""), "id": rec.get("id", ""), "name": rec.get("name", "")} if rec else None
+        out.append(dict(key_mark="" if "/" in rel else rel, folder=rel, subject=subject, **s.summary()))
     return out

@@ -745,6 +745,29 @@ check("cache_match by key: the same window loaded under two keys - each key gets
       ck1["hit"] and ck1["df_id"] == "a" and ck1["files"] == [f"datasets/u/{k1}/activity_summary_20260113_to_20260611.csv"] and ck2["hit"] and ck2["df_id"] == "b" and ck2["files"][0].startswith(f"datasets/u/{k2}/")
       and not ck3["hit"] and "loaded under another key" in ck3["line"] and not ck4["hit"] and "before loads were marked" in ck4["line"] and ck5["hit"] and ck5["df_id"] == "a" and ck5.get("cut") == ["2026-01-13", "2026-06-11"],
       (ck1, ck2, ck3["line"], ck4["line"], ck5))
+# whose data a key loads (2026-10-29, docs/DATASETS_DESIGN.md): the executor's records (`subjects`, one per subject with the marks
+# of the keys that loaded it) say; a frame then counts by the subject's id, whatever key loaded it, and lives in the subject's folder
+k3 = rt.key_fingerprint("key-three")
+insp_s = {"cached_dataframes": [{"df_id": "a", "shape": [1000, 17], "source": "intervals", "date_range": "2026-01-13 to 2026-06-11", "metrics": [], "key_mark": k1, "subject": {"source": "intervals", "id": "i0", "name": "One"}, "folder": "intervals/i0"},
+                                {"df_id": "b", "shape": [900, 17], "source": "intervals", "date_range": "2026-01-13 to 2026-06-11", "metrics": [], "key_mark": k3, "subject": {"source": "intervals", "id": "i1", "name": "Two"}, "folder": "intervals/i1"},
+                                {"df_id": "c", "shape": [300, 17], "source": "intervals", "date_range": "2026-07-01 to 2026-07-31", "metrics": [], "key_mark": k1}],
+          "auxiliary_datasets": [{"path": "datasets/u/intervals/i0/activity_summary_20260113_to_20260611.csv", "key_mark": "", "folder": "intervals/i0"}, {"path": "datasets/u/intervals/i1/activity_summary_20260113_to_20260611.csv", "key_mark": "", "folder": "intervals/i1"},
+                                 {"path": f"datasets/u/{k1}/activity_summary_20260701_to_20260731.csv", "key_mark": k1}],
+          "subjects": [{"source": "intervals", "id": "i0", "name": "One", "folder": "intervals/i0", "marks": [k1, k2]}, {"source": "intervals", "id": "i1", "name": "Two", "folder": "intervals/i1", "marks": [k3]}]}
+cs1 = rt.cache_match(plan_k, insp_s, "2026-01-13", "2026-06-11", key=k2)        # the rotated key: the records say it is i0's
+cs2 = rt.cache_match(plan_k, insp_s, "2026-01-13", "2026-06-11", key=k3)        # the other subject's key
+cs3 = rt.cache_match(plan_k, insp_s, "2026-01-13", "2026-06-11", key=rt.key_fingerprint("key-four"))     # a key that has not loaded yet
+cs4 = rt.cache_match(plan_k, insp_s, "2026-07-01", "2026-07-31", key=k2)        # an older frame marked with the first key, no subject on it
+cs5 = rt.cache_match(plan_k, insp_s, "2026-07-01", "2026-07-31", key=k3)
+cs6 = rt.cache_match(plan_k, insp_s, "2026-01-13", "2026-06-11", key=k2, subject="i1")                   # the subject named outright outranks the key
+check("cache_match by subject: a rotated key is served its subject's window loaded under the first key, the file in the subject's folder; the other subject's key gets its own frame; a key that never loaded gets neither, said as another key's; "
+      "a frame from before subjects were recorded still counts by its mark alone, so the rotated key is told it is another key's; the subject named outright decides",
+      cs1["hit"] and cs1["df_id"] == "a" and cs1["files"] == ["datasets/u/intervals/i0/activity_summary_20260113_to_20260611.csv"] and cs2["hit"] and cs2["df_id"] == "b" and cs2["files"][0].startswith("datasets/u/intervals/i1/")
+      and not cs3["hit"] and "loaded under another key" in cs3["line"] and not cs4["hit"] and "loaded under another key" in cs4["line"] and not cs5["hit"] and "loaded under another key" in cs5["line"]
+      and cs6["hit"] and cs6["df_id"] == "b" and rt.subject_of_key(insp_s, k2) == "i0" and rt.subject_of_key(insp_s, "") == "" and rt.subject_of_key(insp_k, k1) == "",
+      (cs1, cs2, cs3["line"], cs4["line"], cs5["line"], cs6))
+cs7 = rt.cache_match(plan_k, {**insp_s, "cached_dataframes": insp_s["cached_dataframes"][:1]}, "2026-01-13", "2026-06-11", key=k3)    # only i0's frame cached, i1's key in use
+check("a window the cache holds for another subject only is said so - loaded for another subject, to be downloaded", not cs7["hit"] and "loaded for another subject" in cs7["line"], cs7)
 check("the key's mark is one-way and twelve characters, empty for no key, and the formula is the loader's (sha256 of the key, the first twelve hex characters)",
       len(k1) == 12 and k1 != k2 and rt.key_fingerprint("") == "" and "key-one" not in k1 and k1 == __import__("hashlib").sha256(b"key-one").hexdigest()[:12])
 check("without a key the match is as before (the newest exact window); Endura's files are the event's, at the user's folder", rt.cache_match(plan_k, insp_k, "2026-01-13", "2026-06-11")["df_id"] == "b"

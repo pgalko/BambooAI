@@ -231,10 +231,12 @@ window.DatasetManager = (function() {
                 stores.forEach(st => {
                     const item = document.createElement('div');
                     item.className = 'dataset-item store-type';
+                    // whose store (2026-10-29, docs/DATASETS_DESIGN.md): the athlete the load named, else the key's mark for a store from before
                     const key = String(st.key_mark || '');
-                    item.title = 'Activities fetched under the key ' + (key ? '…' + key.slice(-4) : '') + ' are kept and reused; only what a window lacks is downloaded.';
+                    const who = st.subject && (st.subject.name || st.subject.id) ? escapeHtml(st.subject.name || st.subject.id) : (key ? 'key …' + escapeHtml(key.slice(-4)) : '');
+                    item.title = (st.subject && st.subject.name ? 'Activities of ' + st.subject.name + (st.subject.id ? ' (' + st.subject.id + ')' : '') : 'Activities fetched under the key ' + (key ? '…' + key.slice(-4) : '')) + ' are kept and reused; only what a window lacks is downloaded.';
                     item.innerHTML = `
-                        <span class="dataset-item-name">Intervals.icu${key ? ' · key …' + escapeHtml(key.slice(-4)) : ''} · ${st.activities || 0} activit${st.activities === 1 ? 'y' : 'ies'}, ${st.chats || 0} chat${st.chats === 1 ? '' : 's'}${st.from ? ' · ' + escapeHtml(st.from) + ' → ' + escapeHtml(st.to) : ''}</span>
+                        <span class="dataset-item-name">Intervals.icu${who ? ' · ' + who : ''} · ${st.activities || 0} activit${st.activities === 1 ? 'y' : 'ies'}, ${st.chats || 0} chat${st.chats === 1 ? '' : 's'}${st.from ? ' · ' + escapeHtml(st.from) + ' → ' + escapeHtml(st.to) : ''}</span>
                         <span class="dataset-size">${Number(st.size_mb || 0).toFixed(1)} MB</span>
                     `;
                     storeList.appendChild(item);

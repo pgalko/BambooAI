@@ -115,11 +115,12 @@ def main():
                   any("Intervals ICU (59 days [W+S]) loaded" in p for p in pills) and any("Activity Summary" in p for p in pills) and any("Wellness" in p for p in pills), pills)
             import hashlib
             _kf = lambda k: hashlib.sha256(k.encode("utf-8")).hexdigest()[:12]      # analyst.routines.key_fingerprint = the loader's key_mark
-            exec_ds = os.path.join(workdir, "executor", "datasets", USER, _kf("stack-key"))                                # the key's own folder (2026-10-11)
+            exec_ds = os.path.join(workdir, "executor", "datasets", USER, "intervals", "i0")                               # the subject's folder: source and the source's own id (2026-10-29; the key's mark named it before)
             aux_a = sorted(os.path.basename(p) for p in glob.glob(os.path.join(exec_ds, "*.csv")))
             tag_a = f"{a_start.strftime('%Y%m%d')}_to_{a_end.strftime('%Y%m%d')}"
-            check("the loader wrote the summary and the wellness files named after the window, under the folder of the key that loaded them; nothing at the user's folder itself",
-                  aux_a == [f"activity_summary_{tag_a}.csv", f"wellness_data_{tag_a}.csv"] and not glob.glob(os.path.join(workdir, "executor", "datasets", USER, "*.csv")), aux_a)
+            check("the loader wrote the summary and the wellness files named after the window, under the subject's folder (the source, the id the profile gave) with the subject's record beside them; nothing at the user's folder itself, no folder named by the key's mark",
+                  aux_a == [f"activity_summary_{tag_a}.csv", f"wellness_data_{tag_a}.csv"] and not glob.glob(os.path.join(workdir, "executor", "datasets", USER, "*.csv")) and not os.path.exists(os.path.join(workdir, "executor", "datasets", USER, _kf("stack-key")))
+                  and json.load(open(os.path.join(exec_ds, "subject.json"))).get("marks") == [_kf("stack-key")] and json.load(open(os.path.join(exec_ds, "subject.json"))).get("name") == "The subject", (aux_a, sorted(os.listdir(os.path.join(workdir, "executor", "datasets", USER)))))
             # the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): the first load fetched the window whole and kept it
             msg_a = page.inner_text("#intervals-modal-message")
             store_a = os.path.join(exec_ds, "store")
@@ -170,9 +171,9 @@ def main():
                   "INPUTS['band']" in (vs.get("script") or "") and "INPUTS['window']" not in (vs.get("script") or "") and re.search(r"pd\.read_csv\('datasets/\S*activity_summary_\d{8}_to_\d{8}\.csv'\)", vs.get("script") or "")
                   and [(p["key"], p.get("derived")) for p in vs.get("manifest", {}).get("parameters", [])] == [("band", None), ("kinds", None), ("span", "span")]
                   and (vs.get("manifest", {}).get("data", {}).get("span") or {}).get("column") == "datetime", ((vs.get("script") or "")[:300], vs.get("manifest", {}).get("parameters"), vs.get("manifest", {}).get("data", {}).get("span")))
-            check("the routine's data record: the source, how it was loaded (the window, the auxiliary kinds, the mark of the key - never the key), the two auxiliary files in the key's folder and their columns (the shape a run is made to fit)",
+            check("the routine's data record: the source, how it was loaded (the window, the auxiliary kinds, the mark of the key - never the key - and whose: the subject's source, id and name), the two auxiliary files in the subject's folder and their columns (the shape a run is made to fit)",
                   rec.get("source") == "intervals" and rec.get("load", {}).get("source") == "intervals" and sorted(rec["load"]["aux_kinds"]) == ["summary", "wellness"] and rec["load"]["start_date"] == a_start.isoformat()
-                  and rec["load"].get("key") == _kf("stack-key") and "stack-key" not in json.dumps(rec) and all(f"/{_kf('stack-key')}/" in p for p in rec.get("aux") or [])
+                  and rec["load"].get("key") == _kf("stack-key") and "stack-key" not in json.dumps(rec) and all("/intervals/i0/" in p for p in rec.get("aux") or []) and rec["load"].get("subject") == {"source": "intervals", "id": "i0", "name": "The subject"}
                   and len(rec.get("aux") or []) == 2 and set(rec.get("aux_shape") or {}) == set(rec["aux"]) and any(c["name"] == "avg_power" for c in rec["aux_shape"][rec["aux"][0]]["columns"])
                   and any(c["name"] == "power" for c in rec.get("columns", [])), (rec.get("load"), list((rec.get("aux_shape") or {}).keys())))
 
@@ -360,9 +361,9 @@ def main():
             rj_c = wait_verified(rj_c_path) if rj_c_path else {}
             check("...and its verdict landed: reproduced", (rj_c.get("versions") or [{}])[0].get("run_zero", {}).get("status") == "reproduced", (rj_c.get("versions") or [{}])[0].get("run_zero"))
             load_c = ((rj_c.get("versions") or [{}])[0].get("manifest") or {}).get("data", {}).get("load") or {}
-            check("the routine's data record: the load is the cached frame's own Intervals load - the window, the kinds, the key's mark - marked cached, not 'cache'",
+            check("the routine's data record: the load is the cached frame's own Intervals load - the window, the kinds, the key's mark, the subject - marked cached, not 'cache'",
                   load_c.get("source") == "intervals" and load_c.get("cached") is True and load_c.get("start_date") == a_start.isoformat() and load_c.get("end_date") == a_end.isoformat()
-                  and sorted(load_c.get("aux_kinds") or []) == ["summary", "wellness"] and load_c.get("key") == _kf("stack-key"), load_c)
+                  and sorted(load_c.get("aux_kinds") or []) == ["summary", "wellness"] and load_c.get("key") == _kf("stack-key") and (load_c.get("subject") or {}).get("id") == "i0", load_c)
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => [...document.querySelectorAll('#routinesModal .rt-side .it')].some(e => /Again on the cached window/.test(e.textContent))", timeout=15000)
@@ -379,12 +380,13 @@ def main():
             r = fetch_json(page, "/routines/" + rj_c.get("id", "none"), {}, "DELETE")       # the rest of the walk runs the first routine by its place in the list
             check("the routine from the second chain deleted again (the rest of the walk runs the first)", r["status"] == 200, r)
 
-            # the coach changes the key (another subject): the cached windows are the first subject's and must not be served
+            # the coach changes the key (another subject: the fake's /athlete/0 answers "i1" to a key ending in -two): the cached
+            # windows are the first subject's and must not be served; the new key has loaded nothing yet, so it is only "another key"
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key-two"})
             check("another Intervals.icu key stored", r["status"] == 200, r)
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
-            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.wait_for_function("() => { const t = (document.querySelector('#routinesModal .rt-right .title') || {}).textContent || ''; return t.length > 0 && !/Again on the cached window/.test(t); }", timeout=15000)     # the manager re-opens on the routine it last showed - the deleted one - until the list's first has loaded
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
@@ -397,24 +399,38 @@ def main():
             r5 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '' })")
             fits_after5 = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
             run5 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_5", "run.json")))
-            check("run 5 downloaded the window afresh under the new key (new FIT requests, no 'from the cache'), and its record carries the new key's mark - never the key",
-                  fits_after5 > fits_after4 and any("LOAD" in r and "from the cache" not in r for r in r5["rows"]) and "Run 5 complete" in r5["done"] and run5["data"]["load"].get("key") == _kf("stack-key-two") and "stack-key-two" not in json.dumps(run5),
+            check("run 5 downloaded the window afresh under the new key (new FIT requests, no 'from the cache'), and its record carries the new key's mark - never the key - and the other subject the profile named",
+                  fits_after5 > fits_after4 and any("LOAD" in r and "from the cache" not in r for r in r5["rows"]) and "Run 5 complete" in r5["done"] and run5["data"]["load"].get("key") == _kf("stack-key-two") and "stack-key-two" not in json.dumps(run5)
+                  and run5["data"]["load"].get("subject") == {"source": "intervals", "id": "i1", "name": "The other subject"},
                   (r5["rows"], (fits_after4, fits_after5), run5["data"].get("load")))
-            exec_ds2 = os.path.join(workdir, "executor", "datasets", USER, _kf("stack-key-two"))
-            check("the second key's files went to its own folder; the first key's are where they were", os.path.exists(os.path.join(exec_ds2, f"activity_summary_{tag_a}.csv")) and os.path.exists(os.path.join(exec_ds, f"activity_summary_{tag_a}.csv")), (sorted(os.listdir(exec_ds2)), sorted(os.listdir(exec_ds))))
-            check("the second key has a store of its own, with the window just fetched; the first key's store was not consulted for it (the whole window was downloaded) and holds its 101 activities still",
+            exec_ds2 = os.path.join(workdir, "executor", "datasets", USER, "intervals", "i1")
+            check("the other subject's files went to its own folder (the source, its id), with its record; the first subject's are where they were", os.path.exists(os.path.join(exec_ds2, f"activity_summary_{tag_a}.csv")) and os.path.exists(os.path.join(exec_ds, f"activity_summary_{tag_a}.csv"))
+                  and json.load(open(os.path.join(exec_ds2, "subject.json"))).get("marks") == [_kf("stack-key-two")], (sorted(os.listdir(exec_ds2)), sorted(os.listdir(exec_ds))))
+            check("the other subject has a store of its own, with the window just fetched; the first subject's store was not consulted for it (the whole window was downloaded) and holds its 101 activities still",
                   len(json.load(open(os.path.join(exec_ds2, "store", "activities.json")))) == 60 and len(json.load(open(os.path.join(exec_ds, "store", "activities.json")))) == 101, None)
+            # the new key has loaded now, so the records say whose it is: the next window (run 1's, the first subject's) is another subject's
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => { const t = (document.querySelector('#routinesModal .rt-right .title') || {}).textContent || ''; return t.length > 0 && !/Again on the cached window/.test(t); }", timeout=15000)     # the manager re-opens on the routine it last showed - the deleted one - until the list's first has loaded
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
+            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /subject|key|cache/.test(c.textContent); }", timeout=15000)
+            cl5b = page.inner_text("#routineRunModal .rt-cache")
+            check("under the other subject's key, once it has loaded, a window the cache holds for the first subject only is said to be another subject's and will be downloaded", "loaded for another subject" in cl5b and "will be downloaded" in cl5b, cl5b)
+            page.click("#routineRunModal [data-act='cancel']")
+            page.evaluate("RoutinesUI.closeManager()")
+            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
             # the first key again: its window is still in the cache, untouched by the second key's load
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
-            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
+            page.wait_for_function("() => { const t = (document.querySelector('#routinesModal .rt-right .title') || {}).textContent || ''; return t.length > 0 && !/Again on the cached window/.test(t); }", timeout=15000)     # the manager re-opens on the routine it last showed - the deleted one - until the list's first has loaded
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
             page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /hit|another key/.test(c.className + ' ' + c.textContent); }", timeout=15000)
             cl6 = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-cache').textContent, cls: document.querySelector('#routineRunModal .rt-cache').className })")
-            check("back under the first key, the original window is a hit again - the second key's load did not overwrite it", "hit" in cl6["cls"] and "no download" in cl6["text"], cl6)
+            check("back under the first key, the original window is a hit again (the first subject's, by its id) - the other subject's load did not overwrite it", "hit" in cl6["cls"] and "no download" in cl6["text"], cl6)
             page.click("#routineRunModal [data-act='cancel']")
             page.evaluate("RoutinesUI.closeManager()")
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
@@ -594,12 +610,12 @@ def main():
             prompt1 = page.inner_text("#userInstructions")
             page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; }")
             check("DATA: the context file is listed with its columns and its row count and none of its rows; the map follows - the span, the passages by kind with the authors of the messages, the roles, the private entries, the months, the closing sentence",
-                  f"Path: datasets/{USER}/{_kf('stack-key')}/context_notes_{tag_a}.csv" in prompt1 and "Rows: " in prompt1 and "(the rows are passages: read them with CTX, not from this head)" in prompt1
+                  f"Path: datasets/{USER}/intervals/i0/context_notes_{tag_a}.csv" in prompt1 and "Rows: " in prompt1 and "(the rows are passages: read them with CTX, not from this head)" in prompt1
                   and "CONTEXT (the words written beside the data; in the kernel as CTX; files " in prompt1 and "activity_message" in prompt1 and "(subject " in prompt1 and "authors: subject " in prompt1
                   and "private entries " in prompt1 and "by month " in prompt1 and "A plan_note is dated the day it was planned for, not the day it was written." in prompt1 and "A passage is cited as" not in prompt1
                   and "Private: check the sleep log" not in prompt1 and "Bra jobba" not in prompt1, prompt1[prompt1.find("CONTEXT ("):prompt1.find("CONTEXT (") + 700] if "CONTEXT (" in prompt1 else prompt1[-800:])    # the chat's lines are in the context alone (a description also sits in the summary's head, 2026-10-15)
             check("DATA with the rider profile: its entry is the columns, the count with what a row is, and the Settings line from the file's rows - the measurements, the ride and run groups' thresholds, the rest counted; the zone times file described as any other",
-                  re.search(rf"Path: datasets/{USER}/{_kf('stack-key')}/rider_profile_{tag_a}\.csv\s+Columns: section, sport_types, key, value, unit, low, high, note\s+Rows: \d+ \(one row per setting: section, key, value, unit, the bounds for a zone, a note; read the file with pandas\)", prompt1) is not None
+                  re.search(rf"Path: datasets/{USER}/intervals/i0/rider_profile_{tag_a}\.csv\s+Columns: section, sport_types, key, value, unit, low, high, note\s+Rows: \d+ \(one row per setting: section, key, value, unit, the bounds for a zone, a note; read the file with pandas\)", prompt1) is not None
                   and re.search(r"Settings: weight 71\.0 kg, height 1\.78 m, resting_hr 47 bpm, age \d+ years, sex M, timezone [\w/]+; Ride\|VirtualRide: ftp 280 W, indoor_ftp 270 W, lthr 168 bpm, max_hr 188 bpm; Run: lthr 160 bpm, max_hr 182 bpm, threshold_pace 3\.4 m/s; "
                             r"soreness, sleepQuality 1-4 \(the wellness file's subjective scales, by the platform's convention: a bigger number is worse, 1 the good end\); "
                             r"also in the file: 22 zone rows with their bounds, 3 custom zone rows in 2 sets \(Breath 'Breathing' on respiration; Cad 'Cadence' on cadence\), 2 custom field definitions - the codes other files' columns carry, with their options; "
@@ -746,7 +762,7 @@ def main():
             page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
             page.wait_for_function("() => (document.getElementById('storeList') || {}).textContent && !/Nothing kept|Loading/.test(document.getElementById('storeList').textContent)", timeout=15000)
             store_items = page.evaluate("() => [...document.querySelectorAll('#storeList .dataset-item')].map(e => e.textContent.replace(/\\s+/g, ' ').trim())")
-            check("the Dataset cache panel lists the stores under Store: one per key, with the activities and chats held, the span and the size", len(store_items) == 2 and any("101 activities" in i and f"{a_start.isoformat()} → {today.isoformat()}" in i and "MB" in i for i in store_items) and any("60 activities" in i for i in store_items), store_items)
+            check("the Dataset cache panel lists the stores under Store: one per subject, by the name the profile gave, with the activities and chats held, the span and the size", len(store_items) == 2 and any("The subject" in i and "101 activities" in i and f"{a_start.isoformat()} → {today.isoformat()}" in i and "MB" in i for i in store_items) and any("The other subject" in i and "60 activities" in i for i in store_items), store_items)
             page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
             page.fill("#queryInput", mod.COUNT_QUESTION)
             page.evaluate("setMode('deep')")

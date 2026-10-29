@@ -594,6 +594,8 @@ class BambooAI:
                 out.update(start_date=m.group(1), end_date=m.group(2))
             if meta.get("key_mark"):
                 out["key"] = meta["key_mark"]
+            if isinstance(meta.get("subject"), dict) and meta["subject"].get("id"):      # whose data (2026-10-29)
+                out["subject"] = {k: meta["subject"].get(k, "") for k in ("source", "id", "name")}
         elif src == "endura":
             out.update(race_id=meta.get("race_id"), race_title=meta.get("race_title") or "", aux_kinds=[k for k in kinds if k in rt.LOAD_KINDS["endura"]])
         elif src == "sweatstack":

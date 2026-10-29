@@ -34,13 +34,14 @@ import hashlib
 import shutil
 from datetime import datetime, timedelta
 from intervals_store import Store, stores_under, RETENTION_DAYS as STORE_RETENTION_DAYS   # the Intervals.icu store (2026-10-15)
+from intervals_store import athlete_rel, athlete_record, remember_athlete, adopt_mark_folder, athlete_folders   # the athlete's folder (2026-10-29)
 
 # Set the number of CPU cores for pyarrow
 pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-28 v66 (the kernel records what a cell reaches outside the data; sandbox facts on /kernel/start and /health; the metadata address refused; os.exec and os.spawn families matched by the blacklist; text of f-strings not read as code; a library scan of the import path is not a reach; a first address refused does not mark a connection that then answered)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-29 v67 (datasets by subject: the loader learns the subject from the profile and keeps the window files and the store under <source>/<id> with the subject record; a key mark folder is adopted on the first load; /cache/inspect lists the subjects and the folder of every entry; the reach record since v66)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -219,24 +220,32 @@ def inspect_cache():
         # Get cached DataFrames info
         cached_dataframes = df_cache.get_all_metadata()
         
-        # Get auxiliary datasets info: the user's folder and, one level down, the folders of the keys that loaded
-        # them (2026-10-11); the generated and routines folders are the app's own and are not auxiliary datasets
+        # Get auxiliary datasets info: the user's folder (uploads) and the load folders under it - the athletes' by
+        # source (datasets/<user>/<source>/<athlete id>/, 2026-10-29, docs/DATASETS_DESIGN.md) and the marks of loads
+        # from before the athlete was known (2026-10-11); the generated and routines folders are the app's own and are
+        # not auxiliary datasets. Each file says which folder it is in and, when the folder is an athlete's, whose.
         auxiliary_datasets = []
         user_datasets_dir = os.path.join('datasets', user_id)
+        subjects = []
         
         if os.path.exists(user_datasets_dir):
-            folders = [user_datasets_dir] + [os.path.join(user_datasets_dir, d) for d in sorted(os.listdir(user_datasets_dir))
-                                             if d not in ('generated', 'routines') and os.path.isdir(os.path.join(user_datasets_dir, d))]
-            for folder in folders:
+            folders = [('', {})] + athlete_folders(user_datasets_dir)
+            for rel, rec in folders:
+                folder = os.path.join(user_datasets_dir, rel) if rel else user_datasets_dir
+                who = {'source': rec.get('source', ''), 'id': rec.get('id', ''), 'name': rec.get('name', '')} if rec else None
+                if rec:
+                    subjects.append(dict(folder=rel, **who, marks=list(rec.get('marks') or []), first_seen=rec.get('first_seen'), last_load=rec.get('last_load')))
                 for filename in os.listdir(folder):
                     filepath = os.path.join(folder, filename)
-                    if os.path.isfile(filepath):
+                    if os.path.isfile(filepath) and filename != 'subject.json':
                         file_stat = os.stat(filepath)
                         
                         auxiliary_datasets.append({
                             'filename': filename,
                             'path': filepath,
-                            'key_mark': os.path.basename(folder) if folder != user_datasets_dir else '',
+                            'key_mark': rel if rel and '/' not in rel else '',
+                            'folder': rel,
+                            'subject': who,
                             'size_mb': file_stat.st_size / (1024 * 1024),
                             'created_at': datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
                             'modified_at': datetime.fromtimestamp(file_stat.st_mtime).isoformat()
@@ -271,7 +280,8 @@ def inspect_cache():
             'cached_dataframes': cached_dataframes,
             'auxiliary_datasets': auxiliary_datasets,
             'generated_datasets': generated_datasets,  # Add this line
-            'stores': stores_under(user_datasets_dir),  # what each key's Intervals.icu store holds (2026-10-15)
+            'stores': stores_under(user_datasets_dir),  # what each store holds (2026-10-15), by athlete since 2026-10-29
+            'subjects': subjects,                        # the athletes with a folder: source, id, name, the marks that loaded them
             'cache_stats': {
                 'total_memory_mb': total_cache_mb,
                 'max_cache_size': df_cache.max_size,
@@ -1637,6 +1647,30 @@ def fetch_intervals_background(data, job_id):
         session.auth = ("API_KEY", api_key)
         base_url = "https://intervals.icu/api/v1"
         
+        # The subject's record first (2026-10-29, docs/DATASETS_DESIGN.md §2): the athlete's id names the folder the
+        # load writes under - datasets/<user>/intervals/<id>/ - and the name goes on the record; the key's mark named
+        # the folder before the athlete was known and stays as a credential's fingerprint. The record also decodes
+        # the files' columns and tells authors apart (2026-10-16). Never fatal: without it the load writes under the
+        # mark as before, and there is no profile.
+        intervals_jobs[job_id]['message'] = "Fetching the subject's record..."
+        athlete = None
+        try:
+            ar = session.get(f"{base_url}/athlete/0", timeout=30)
+            ar.raise_for_status()
+            athlete = ar.json() if isinstance(ar.json(), dict) else None
+        except Exception as e:                          # noqa: BLE001
+            log_info(f"the subject's record could not be fetched ({e})")
+        athlete_id = str((athlete or {}).get('id') or '').strip()
+        athlete_name = str((athlete or {}).get('name') or ' '.join(str((athlete or {}).get(k) or '') for k in ('firstname', 'lastname')).strip() or '').strip()
+        user_dir = os.path.join('datasets', user_id)
+        folder = athlete_rel('intervals', athlete_id, mark)
+        if athlete_id:
+            moved = adopt_mark_folder(user_dir, mark, folder)
+            if moved:
+                log_info(f"the key's folder moved under the athlete's: {mark} -> {folder} ({moved})")
+            remember_athlete(user_dir, folder, 'intervals', athlete_id, athlete_name, mark)
+        who = {'source': 'intervals', 'id': athlete_id, 'name': athlete_name, 'folder': folder}      # the subject: the app's word for the athlete
+
         # Fetch activities
         intervals_jobs[job_id]['message'] = 'Fetching activity list...'
         
@@ -1666,7 +1700,7 @@ def fetch_intervals_background(data, job_id):
         # the rest are downloaded and kept; the frame is assembled from the store, cut to the metrics asked.
         # `refresh` fetches every file and every chat again.
         refresh = bool(data.get('refresh'))
-        store = Store(os.path.join('datasets', user_id), mark)
+        store = Store(user_dir, folder)
         held = [] if refresh else [act for act in activities_with_files if store.has_detail(act)]
         held_ids = {str(act.get('id')) for act in held}
         todo = [act for act in activities_with_files if str(act.get('id')) not in held_ids]
@@ -1699,7 +1733,9 @@ def fetch_intervals_background(data, job_id):
             'activities_count': len(activities_with_files),
             'date_range': f"{start_date} to {end_date}",
             'metrics': selected_metrics,
-            'key_mark': mark                    # whose key loaded it (2026-10-11): a cached window is reused only under the same key
+            'key_mark': mark,                   # whose key loaded it (2026-10-11): a cached window is reused only under the same key
+            'subject': who,                     # whose data it is (2026-10-29): the source's athlete id and name, and the folder the files are under
+            'folder': folder
         }
         
         # Cache the DataFrame with metadata
@@ -1708,31 +1744,22 @@ def fetch_intervals_background(data, job_id):
         # Handle auxiliary datasets
         aux_filepaths = []
 
-        # the subject's record, once (2026-10-16): the custom fields' definitions decode the files' columns (0183), the
-        # context tells authors apart and reads the custom fields by it, the rider profile is built from it. Never
-        # fatal: without it the files carry the records' keys as they come and there is no profile
-        athlete = None
-        if aux_datasets:
-            try:
-                ar = session.get(f"{base_url}/athlete/0", timeout=30)
-                ar.raise_for_status()
-                athlete = ar.json() if isinstance(ar.json(), dict) else None
-            except Exception as e:                      # noqa: BLE001
-                log_info(f"the subject's record could not be fetched ({e})")
+        # the subject's record (fetched first, above): the custom fields' definitions decode the files' columns (0183), the
+        # context tells authors apart and reads the custom fields by it, the rider profile is built from it
         custom_items = (athlete or {}).get('custom_items') or []
 
         if 'intervals' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Fetching activity intervals data...'
             intervals_df = fetch_activity_intervals_data(session, base_url, activities, job_id, field_definitions(custom_items, 'INTERVAL_FIELD'))
             if not intervals_df.empty:
-                intervals_path = save_aux_dataset(intervals_df, 'intervals', user_id, start_date, end_date, subdir=mark)
+                intervals_path = save_aux_dataset(intervals_df, 'intervals', user_id, start_date, end_date, subdir=folder)
                 aux_filepaths.append(intervals_path)
         
         if 'summary' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Preparing summary data...'
             summary_df = create_activity_summary(activities, field_definitions(custom_items, 'ACTIVITY_FIELD'))
             if not summary_df.empty:
-                summary_path = save_aux_dataset(summary_df, 'summary', user_id, start_date, end_date, subdir=mark)
+                summary_path = save_aux_dataset(summary_df, 'summary', user_id, start_date, end_date, subdir=folder)
                 aux_filepaths.append(summary_path)
         
         wellness_records = None
@@ -1740,7 +1767,7 @@ def fetch_intervals_background(data, job_id):
             intervals_jobs[job_id]['message'] = 'Fetching wellness data...'
             wellness_df, wellness_records = fetch_wellness_data(session, base_url, start_date, end_date, with_records=True, fields=field_definitions(custom_items, 'INPUT_FIELD'))
             if 'wellness' in aux_datasets and not wellness_df.empty:
-                wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date, subdir=mark)
+                wellness_path = save_aux_dataset(wellness_df, 'wellness', user_id, start_date, end_date, subdir=folder)
                 aux_filepaths.append(wellness_path)
         
         # The context (2026-10-13): the words written beside the data, one file of passages. Never fatal to the
@@ -1757,7 +1784,7 @@ def fetch_intervals_background(data, job_id):
                                                       job_id=job_id, athlete=athlete, store=store, refresh=refresh, events=events, events_failed=events_failed)
             if athlete is None:
                 context_report['failed'].insert(0, "the subject's record could not be fetched, so authors are not told apart and custom fields are not read")
-            context_path = save_aux_dataset(context_frame(rows), 'context', user_id, start_date, end_date, subdir=mark)
+            context_path = save_aux_dataset(context_frame(rows), 'context', user_id, start_date, end_date, subdir=folder)
             aux_filepaths.append(context_path)
             context_report['path'] = context_path
             log_info(f"context: {context_report['passages']} passages, {context_report['calls']} calls, {context_report.get('messages_reused', 0)} chats from the store, {len(context_report['failed'])} failed")
@@ -1768,7 +1795,7 @@ def fetch_intervals_background(data, job_id):
         if 'plan' in aux_datasets or 'context' in aux_datasets:
             intervals_jobs[job_id]['message'] = 'Preparing the planned workouts...'
             plan_df = planned_workouts_frame(events or [], activities)
-            plan_path = save_aux_dataset(plan_df, 'plan', user_id, start_date, end_date, subdir=mark)
+            plan_path = save_aux_dataset(plan_df, 'plan', user_id, start_date, end_date, subdir=folder)
             aux_filepaths.append(plan_path)
             log_info(f"plan: {len(plan_df)} planned workouts, {int(plan_df['activity_id'].astype(bool).sum()) if len(plan_df) else 0} paired" + (f" ({events_failed})" if events_failed else ""))
 
@@ -1783,10 +1810,10 @@ def fetch_intervals_background(data, job_id):
                 log_info(f"rider profile: {profile_note}")
             else:
                 profile_df = profile_frame(athlete)
-                aux_filepaths.append(save_aux_dataset(profile_df, 'rider', user_id, start_date, end_date, subdir=mark))
+                aux_filepaths.append(save_aux_dataset(profile_df, 'rider', user_id, start_date, end_date, subdir=folder))
                 zones_df = custom_zone_times_frame(activities, athlete.get('custom_items'))
                 if zones_df is not None:
-                    aux_filepaths.append(save_aux_dataset(zones_df, 'zones', user_id, start_date, end_date, subdir=mark))
+                    aux_filepaths.append(save_aux_dataset(zones_df, 'zones', user_id, start_date, end_date, subdir=folder))
                 log_info(f"rider profile: {len(profile_df)} rows ({', '.join(f'{s} {n}' for s, n in profile_df['section'].value_counts().items())})"
                          + (f"; custom zone times: {len(zones_df)} rows" if zones_df is not None else "; no custom zone sets defined"))
         
@@ -1807,7 +1834,8 @@ def fetch_intervals_background(data, job_id):
             'aux_datasets': aux_filepaths,
             'context': context_report,
             'profile_note': profile_note,
-            'store': {'window': total_activities, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary()}
+            'store': {'window': total_activities, 'held': len(held), 'fetched': len(kept), 'refresh': refresh, 'summary': store.summary()},
+            'subject': who                      # whose data this load is (2026-10-29): the app keeps it on the load record
         }
         
         log_info(f"Intervals.icu data cached successfully: {detail_df.shape}")
@@ -2995,8 +3023,9 @@ def custom_zone_times_frame(activities, custom_items):
 
 
 def save_aux_dataset(df, dataset_type, user_id, start_date, end_date, subdir=''):
-    """Save auxiliary dataset to filesystem. With `subdir` - the mark of the key that loaded it (2026-10-11) - the file
-    goes under datasets/<user>/<mark>/, so two keys' loads of the same window do not overwrite each other."""
+    """Save auxiliary dataset to filesystem. With `subdir` - the load's folder: the subject's, <source>/<athlete id>
+    (2026-10-29), the mark of the key that loaded it before the subject was known (2026-10-11) - the file goes under
+    datasets/<user>/<subdir>/, so two subjects' loads of the same window do not overwrite each other."""
     
     # Create user-specific directory
     executor_datasets_dir = os.path.join('datasets', user_id, subdir) if subdir else os.path.join('datasets', user_id)

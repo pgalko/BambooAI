@@ -248,9 +248,18 @@ check("the load with the context wrote the planned workouts file beside the cont
       (plan_path, None if plan_df is None else (len(plan_df), len(ev1), plan_df.head(3).to_dict("records"))))
 chats1 = len(SESSION.chats())
 check("the context: every chat of the window fetched on the first load and kept", chats1 == sum(1 for d in D.days_in(s1, e1) if D.has_chat(d)) and chats1 > 0 and r1["context"]["messages_reused"] == 0, (chats1, r1.get("context")))
-store_dir = os.path.join("datasets", "u", E.key_mark("key-1"), "store")
-check("the store lives under datasets/<user>/<mark>/store beside the window's files", os.path.isdir(os.path.join(store_dir, "activities")) and os.path.isfile(os.path.join(store_dir, "activities.json"))
-      and len(os.listdir(os.path.join(store_dir, "activities"))) == n1 and len(os.listdir(os.path.join(store_dir, "messages"))) == chats1)
+# the athlete's folder (2026-10-29, docs/DATASETS_DESIGN.md §2): the load learns the athlete's id from the profile call it makes
+# first, and writes under datasets/<user>/intervals/<id>/ - the store, the window's files, the athlete's record
+store_dir = os.path.join("datasets", "u", "intervals", D.SUBJECT["id"], "store")
+check("the store lives under datasets/<user>/intervals/<athlete id>/store beside the window's files", os.path.isdir(os.path.join(store_dir, "activities")) and os.path.isfile(os.path.join(store_dir, "activities.json"))
+      and len(os.listdir(os.path.join(store_dir, "activities"))) == n1 and len(os.listdir(os.path.join(store_dir, "messages"))) == chats1
+      and all(p_.startswith(os.path.join("datasets", "u", "intervals", D.SUBJECT["id"]) + os.sep) for p_ in r1["aux_datasets"]), (store_dir, r1.get("aux_datasets")))
+_rec = S.athlete_record(os.path.join("datasets", "u"), "intervals/" + D.SUBJECT["id"])
+check("the athlete's record beside the store: the source, the id and the name the profile gave, the mark of the key that loaded, first seen and last load; the load's result and the frame's metadata carry the same athlete",
+      _rec.get("source") == "intervals" and _rec.get("id") == D.SUBJECT["id"] and _rec.get("name") == D.SUBJECT["name"] and _rec.get("marks") == [E.key_mark("key-1")] and _rec.get("first_seen") and _rec.get("last_load")
+      and r1.get("subject") == {"source": "intervals", "id": D.SUBJECT["id"], "name": D.SUBJECT["name"], "folder": "intervals/" + D.SUBJECT["id"]}
+      and (E.df_cache.get_all_metadata()[-1].get("subject") or {}).get("id") == D.SUBJECT["id"] and E.df_cache.get_all_metadata()[-1].get("folder") == "intervals/" + D.SUBJECT["id"]
+      and not os.path.exists(os.path.join("datasets", "u", E.key_mark("key-1"))), (_rec, r1.get("subject"), E.df_cache.get_all_metadata()[-1]))
 
 # the same frame as a straight parse would give (the store is a cache, not a different reading)
 direct = []
@@ -306,10 +315,40 @@ check("refresh: every file and every chat fetched again", len(SESSION.fits()) ==
 # the cache listing shows the store
 with E.app.test_client() as c:
     listing = c.get("/cache/inspect?user_id=u").get_json()
-mine_store = [s for s in listing.get("stores", []) if s["key_mark"] == E.key_mark("key-1")]
-check("/cache/inspect lists the key's store among the user's: its mark, activities, chats, span and size", len(mine_store) == 1 and [s["key_mark"] for s in listing["stores"]] == sorted(s["key_mark"] for s in listing["stores"])
-      and mine_store[0]["activities"] == n2 and mine_store[0]["chats"] > 0 and mine_store[0]["to"] == e1, listing.get("stores"))
-check("the window's files are listed as before, the store folder not among them", all(x["filename"].endswith(".csv") for x in listing["auxiliary_datasets"]) and len(listing["auxiliary_datasets"]) >= 3)
+mine_store = [s for s in listing.get("stores", []) if s["folder"] == "intervals/" + D.SUBJECT["id"]]
+check("/cache/inspect lists the athlete's store among the user's: its folder, the athlete (source, id, name), activities, chats, span and size; a store from before the athlete was known keeps its mark",
+      len(mine_store) == 1 and mine_store[0]["subject"] == {"source": "intervals", "id": D.SUBJECT["id"], "name": D.SUBJECT["name"]} and mine_store[0]["key_mark"] == ""
+      and mine_store[0]["activities"] == n2 and mine_store[0]["chats"] > 0 and mine_store[0]["to"] == e1
+      and [s["folder"] for s in listing["stores"] if s["key_mark"]] == ["mark1"] and [s["subject"] for s in listing["stores"] if s["key_mark"]] == [None], listing.get("stores"))
+check("the window's files are listed as before, each with its folder and its athlete, the store folder and the athlete's record not among them; the athletes are listed with their marks",
+      all(x["filename"].endswith(".csv") for x in listing["auxiliary_datasets"]) and len(listing["auxiliary_datasets"]) >= 3
+      and all(x["folder"] == "intervals/" + D.SUBJECT["id"] and x["subject"]["name"] == D.SUBJECT["name"] and x["key_mark"] == "" for x in listing["auxiliary_datasets"] if x["filename"].startswith(("wellness", "activity_summary", "context")))
+      and [a["id"] for a in listing.get("subjects", [])] == [D.SUBJECT["id"]] and listing["subjects"][0]["marks"] == [E.key_mark("key-1")] and listing["subjects"][0]["folder"] == "intervals/" + D.SUBJECT["id"], (listing.get("subjects"), listing["auxiliary_datasets"][:2]))
+
+# the migration (docs/DATASETS_DESIGN.md §9): a key's folder from before the athlete was known moves under the athlete's folder
+# the first time the athlete is known - renamed when the athlete has no folder yet, absorbed (its window files kept when absent,
+# its store's activities and chats the athlete's store lacks taken over) when it has; nothing is downloaded again
+_udir = os.path.join("datasets", "u")
+_legacy = S.Store(_udir, "markX")
+_legacy.put_detail({"id": 900001, "start_date_local": "2025-01-05T08:00:00", "icu_sync_date": "x"}, pd.DataFrame({"power": [1, 2]})); _legacy.put_messages({"id": 900001, "start_date_local": "2025-01-05T08:00:00"}, [{"content": "old"}]); _legacy.save()
+open(os.path.join(_udir, "markX", "wellness_data_20250101_to_20250131.csv"), "w").write("date,weight\n2025-01-01,70\n")
+_moved = S.adopt_mark_folder(_udir, "markX", "intervals/i9")
+check("a mark's folder for an athlete with no folder yet is renamed whole", _moved == {"renamed": True, "files": 0, "activities": 0} and not os.path.exists(os.path.join(_udir, "markX"))
+      and os.path.isfile(os.path.join(_udir, "intervals", "i9", "wellness_data_20250101_to_20250131.csv")) and S.Store(_udir, "intervals/i9").has_detail({"id": 900001, "start_date_local": "2025-01-05T08:00:00", "icu_sync_date": "x"}), _moved)
+_old2 = S.Store(_udir, E.key_mark("key-2"))
+_recent = (TODAY - timedelta(days=200)).isoformat() + "T08:00:00"                 # within the retention: an old folder's activity that is not is pruned as any other
+_old2.put_detail({"id": 900002, "start_date_local": _recent, "icu_sync_date": "y"}, pd.DataFrame({"power": [3]})); _old2.put_messages({"id": 900002, "start_date_local": _recent}, [{"content": "older"}]); _old2.save()
+open(os.path.join(_udir, E.key_mark("key-2"), "wellness_data_20250201_to_20250228.csv"), "w").write("date,weight\n2025-02-01,70\n")
+before_fits = len(SESSION.fits())
+j9 = load(s2, e1, api_key="key-2")                                # a rotated key: the same athlete (the fake's profile), its old folder absorbed
+r9 = j9.get("result") or {}
+_rec2 = S.athlete_record(_udir, "intervals/" + D.SUBJECT["id"])
+check("a rotated key loads the same athlete: the key's old folder is absorbed into the athlete's (the window file kept, the activity and its chat taken over), the record lists both marks, and the window came from the store - nothing downloaded again",
+      j9["status"] == "completed" and r9["subject"]["id"] == D.SUBJECT["id"] and not os.path.exists(os.path.join(_udir, E.key_mark("key-2")))
+      and os.path.isfile(os.path.join(_udir, "intervals", D.SUBJECT["id"], "wellness_data_20250201_to_20250228.csv"))
+      and S.Store(_udir, "intervals/" + D.SUBJECT["id"]).has_detail({"id": 900002, "start_date_local": _recent, "icu_sync_date": "y"})
+      and S.Store(_udir, "intervals/" + D.SUBJECT["id"]).get_messages(900002) == [{"content": "older"}]
+      and _rec2.get("marks") == [E.key_mark("key-1"), E.key_mark("key-2")] and r9["store"]["held"] == n2 and len(SESSION.fits()) == 0, (j9.get("error"), r9.get("store"), _rec2, len(SESSION.fits())))
 
 # retention: a key's old data leaves when it is older than the retention asked and not in use
 j6 = load(s2, e1, retention_days=50)

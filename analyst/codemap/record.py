@@ -31,8 +31,10 @@ def inputs_from_data(run, context=False):
     out = []
     if data.get("df_id") or data.get("columns"):
         cols = [c.get("name") if isinstance(c, dict) else str(c) for c in data.get("columns") or []]
+        who = str(((data.get("load") or {}).get("subject") or {}).get("name") or "")     # whose data, for the lane's hover (2026-10-29)
+        size = f"{data['rows']} rows x {len(cols)} columns" if data.get("rows") and cols else ""
         out.append(dict(kind="primary", label=PRIMARY_LABEL, name=data.get("name") or data.get("source") or PRIMARY_LABEL, columns=[c for c in cols if c],
-                        detail=(f"{data['rows']} rows x {len(cols)} columns" if data.get("rows") and cols else "")))
+                        detail=" · ".join(x for x in (who, size) if x)))
     for p in data.get("aux") or []:
         out.append(dict(kind="file", label=file_label(str(p)), path=str(p), columns=[]))
     if context:

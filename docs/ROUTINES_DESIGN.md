@@ -348,6 +348,14 @@ version's data record, `load`), and offers the data loaded now beside it.
    looking for its files in that folder; a frame marked with another key is said (*loaded under another key - it
    will be downloaded*), one from before the loader marked them is downloaded this once. The Intervals route puts
    the mark on the load record (`load.key`), so a routine and each run say which key they were made and run under.
+   **Since 2026-10-29 (docs/DATASETS_DESIGN.md, step 1) a load is the subject's, not the key's**: the loader learns
+   the athlete's id and name from the profile before it writes anything, keeps the files and the store under
+   `datasets/<user>/<source>/<athlete id>/` with a record of the marks that have loaded that subject
+   (`subject.json`), and `/cache/inspect` lists the subjects (`subjects`) and each entry's `folder`; the load record
+   carries `load.subject` (source, id, name) beside the mark. The cache check resolves the key in use to its subject
+   by those records (`subject_of_key`) and matches frames by the subject's id, so a rotated key is served its
+   subject's cached windows once it has loaded; a key that has not loaded yet is still *another key*, and a window
+   the cache holds for another subject is said so (*loaded for another subject - it will be downloaded*).
    The kinds a run's load can ask for are summary, wellness, intervals, context and, since 2026-10-15, plan - the
    planned workouts table written with the context (docs/CONTEXT_DESIGN.md §3.1a), cut to a window by its `date`.
    **Below the cache, the store** (2026-10-15, docs/INCREMENTAL_LOADS_DESIGN.md): a miss no longer downloads the

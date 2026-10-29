@@ -62,7 +62,8 @@ tools, and the one expensive step — coding every passage — happens once per 
   the Reader seat quoting verbatim, every quote checked against the unit's text, the report's citation chips with
   hover and click. Context reuses every one of these; the passage is a unit whose "page" is a date.
 - **The Intervals.icu load** (patches 0116–0125, 0136): auxiliary files named by kind and window
-  (`AUX_KINDS` in `analyst/routines.py`), kept in the key's folder in the executor's cache, listed by
+  (`AUX_KINDS` in `analyst/routines.py`), kept in the load's folder in the executor's cache (the subject's since
+  2026-10-29, docs/DATASETS_DESIGN.md; the key's mark before), listed by
   `/cache/inspect`, matched by `cache_match` for a routine's run, described in DATA by `_auxiliary_block`. The
   context and codes files are two more kinds in that table and travel the same way. What a load can be asked for,
   and what it brings beside, is the registry `LOAD_KINDS` / `LOAD_BRINGS` there (2026-10-16), which the app's
@@ -512,8 +513,9 @@ routine's narrative may say, not analysis methods the contract may prescribe (C2
 
 ## 8. Storage
 
-Executor side: the two files in the key's folder beside the summary, wellness and intervals files
-(`datasets/<user>/<key mark>/context_notes_…csv`, `context_codes_…csv`), ephemeral as every file there; a
+Executor side: the two files in the load's folder beside the summary, wellness and intervals files
+(`datasets/<user>/intervals/<athlete id>/context_notes_…csv`, `context_codes_…csv`; the key's mark named the folder
+before 2026-10-29), ephemeral as every file there; a
 routine's run copies them into its own folder like the others. App side: `storage/<user>/context/codebook.json`,
 files in both editions as the favourites and routines are; nothing in the database. Labels are not persisted (§12
 D1). Sizes: a season's context is tens of kilobytes; the codebook a few.

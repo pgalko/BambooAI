@@ -465,7 +465,8 @@ def data_line(rec: dict) -> str:
     rows = rec.get("rows")
     count = (f" · {int(extra['activities_count']):,} activities" if isinstance(extra.get("activities_count"), (int, float)) and extra["activities_count"] else "")
     if src == "intervals":
-        head = SOURCE_NAMES[src] + (f" · {start} to {end}" if start and end else "") + count
+        who = str((load.get("subject") or {}).get("name") or "")      # whose data (2026-10-29): the page's head, never a prompt
+        head = SOURCE_NAMES[src] + (f" · {who}" if who else "") + (f" · {start} to {end}" if start and end else "") + count
     elif src == "endura":
         head = SOURCE_NAMES[src] + (f" · {load.get('race_title') or load.get('race_id')}" if (load.get('race_title') or load.get('race_id')) else "")
     elif src == "sweatstack":
@@ -523,17 +524,36 @@ _RANGE_RE = re.compile(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-|→)\s*(\d{4}-\d{2
 
 
 def key_fingerprint(key) -> str:
-    """A short, one-way mark of an API key (2026-10-11): whose data a load is, without the key itself. The executor's
-    loader writes the same mark on each frame it caches (`key_mark` there, the same formula) and keeps that key's
-    auxiliary files under a folder of that name, so a coach who changes the key to look at another subject is never
-    served the first one's cached windows."""
+    """A short, one-way mark of an API key (2026-10-11): which credential loaded, without the key itself. The executor's
+    loader writes the same mark on each frame it caches (`key_mark` there, the same formula) and on the subject's
+    record beside the files (the marks that have loaded that subject, since 2026-10-29; before that the mark named
+    the folder), so a coach who changes the key to look at another subject is never served the first one's cached
+    windows (`cache_match`)."""
     import hashlib
     k = str(key or "").strip()
     return hashlib.sha256(k.encode("utf-8")).hexdigest()[:12] if k else ""
 
 
+def folder_of(entry: dict) -> str:
+    """The load folder a cached frame or a listed file is under, relative to the user's: the subject's (`folder`, since
+    2026-10-29) or the key's mark (older loads); "" for an upload at the top."""
+    return str((entry or {}).get("folder") or (entry or {}).get("key_mark") or "")
+
+
+def subject_of_key(inspect: Optional[dict], key: Optional[str]) -> str:
+    """The id of the subject a key loads, by the executor's records: the subject whose marks include the key's mark
+    (`subjects` in the inspection, since 2026-10-29); "" when the key has not loaded yet, or the records predate them."""
+    k = str(key or "")
+    if not k:
+        return ""
+    for rec in (inspect or {}).get("subjects") or []:
+        if isinstance(rec, dict) and k in [str(m) for m in rec.get("marks") or []]:
+            return str(rec.get("id") or "")
+    return ""
+
+
 def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None, end: Optional[str] = None, race_id=None,
-                key: Optional[str] = None) -> dict:
+                key: Optional[str] = None, subject: Optional[str] = None) -> dict:
     """Whether the load a run dialog asks for is already in the executor's cache (2026-10-11: a run re-downloaded a
     window the Data tab had loaded minutes before): a cached frame of the same source with the same window (Intervals:
     date_range, and the same metrics) or the same race (Endura), and every auxiliary file of the kinds the routine
@@ -542,22 +562,27 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
     files to the window before the method runs (`cut`: the cached load's window). SweatStack's entries do not say
     which subjects they hold, so they never match. With `key` (the mark of the key in use), an Intervals frame counts
     only when the loader marked it with the same key, and its files are looked for in that key's folder; a frame
-    without a mark (cached before the loader marked them) is downloaded this once. Returns {hit, df_id, files,
-    rows, cut?, line}; `line` says why when there is no hit."""
+    without a mark (cached before the loader marked them) is downloaded this once. Since 2026-10-29 (docs/DATASETS_DESIGN.md)
+    a load is the subject's, not the key's: the executor's records (`subjects` in the inspection, one per subject with
+    the marks of the keys that loaded it) say whose data the key in use loads, and when they do, a cached frame counts
+    when it carries that subject's id, whatever key loaded it (a rotated key serves its subject's cached windows once
+    it has loaded once); `subject` names the subject outright (the next phase's dropdown) and outranks the key. The
+    files are looked for in the frame's folder (`folder`: the subject's, or the mark's for an older load). Returns
+    {hit, df_id, files, rows, cut?, line}; `line` says why when there is no hit."""
     src = str((plan or {}).get("source") or "")
     frames = [f for f in ((inspect or {}).get("cached_dataframes") or []) if isinstance(f, dict)]
-    have: Dict[Tuple[str, str], str] = {}                       # (the key's folder, the file's name) -> its path
+    have: Dict[Tuple[str, str], str] = {}                       # (the load's folder, the file's name) -> its path
     for f in (inspect or {}).get("auxiliary_datasets") or []:
         p = str((f or {}).get("path") or (f or {}).get("filename") or "")
         if p:
-            folder = str((f or {}).get("key_mark") or "")
-            have[(folder, os.path.basename(p))] = p
+            have[(folder_of(f), os.path.basename(p))] = p
     kinds = [str(k) for k in (plan or {}).get("aux_kinds") or []]
-    sizes: Dict[Tuple[str, str], float] = {}                     # (the key's folder, the file's name) -> its size in bytes, when listed
+    sizes: Dict[Tuple[str, str], float] = {}                     # (the load's folder, the file's name) -> its size in bytes, when listed
     for f in (inspect or {}).get("auxiliary_datasets") or []:
         p = str((f or {}).get("path") or (f or {}).get("filename") or "")
         if p and isinstance((f or {}).get("size_mb"), (int, float)):
-            sizes[(str((f or {}).get("key_mark") or ""), os.path.basename(p))] = float(f["size_mb"]) * 1024 * 1024
+            sizes[(folder_of(f), os.path.basename(p))] = float(f["size_mb"]) * 1024 * 1024
+    who = str(subject or "") or subject_of_key(inspect, key)       # whose data the run would load, when known
     if src == "intervals":
         if not (start and end):
             return {"hit": False, "line": ""}
@@ -576,13 +601,21 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
                 around.append((f, cs, ce))
         if not exact and not around:
             return {"hit": False, "line": f"{what} is not in the cache - it will be downloaded"}
-        if key is not None:
-            # whose: only the frames the loader marked with the key in use; a frame marked with another key is another
-            # subject's window, an unmarked one is from before the loader marked them
+        if key is not None or who:
+            # whose: the subject's frames when the records say whose data the key in use loads (2026-10-29), else only
+            # the frames the loader marked with that key; a frame of another subject, or marked with another key, is
+            # another subject's window; an unmarked one is from before the loader marked them
+            def mine(f):
+                fs = str(((f or {}).get("subject") or {}).get("id") or "")
+                if who and fs:
+                    return fs == who
+                return key is not None and str((f or {}).get("key_mark") or "") == str(key)
             covering = exact + around
-            exact = [t for t in exact if str(t[0].get("key_mark") or "") == str(key)]
-            around = [t for t in around if str(t[0].get("key_mark") or "") == str(key)]
+            exact = [t for t in exact if mine(t[0])]
+            around = [t for t in around if mine(t[0])]
             if not exact and not around:
+                if who and any(str(((t[0] or {}).get("subject") or {}).get("id") or "") for t in covering):
+                    return {"hit": False, "line": f"{what} is in the cache but was loaded for another subject - it will be downloaded"}
                 if any(str(t[0].get("key_mark") or "") for t in covering):
                     return {"hit": False, "line": f"{what} is in the cache but was loaded under another key - it will be downloaded"}
                 return {"hit": False, "line": f"{what} is in the cache from before loads were marked with their key - it will be downloaded this once"}
@@ -592,7 +625,7 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
         candidates = exact + around
         for f, cs, ce in candidates:
             tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
-            folder = str(f.get("key_mark") or "")
+            folder = folder_of(f)
             names = {k: f"{kind_prefix(k)}{tag}.csv" for k in kinds if kind_prefix(k)}
             # the files a load brings beside the kinds asked (LOAD_BRINGS) are wanted too: the codes the pass wrote beside
             # the context (2026-10-14) - unless the cached context file is its header alone, a window without words, for
@@ -618,7 +651,7 @@ def cache_match(plan: dict, inspect: Optional[dict], start: Optional[str] = None
             return out
         f, cs, ce = candidates[0]
         tag = f"{cs.replace('-', '')}_to_{ce.replace('-', '')}"
-        folder = str(f.get("key_mark") or "")
+        folder = folder_of(f)
         missing = [k for k in kinds + [b for b in brings(src, kinds) if b not in BRINGS_IF_DEFINED] if kind_prefix(k) and (folder, f"{kind_prefix(k)}{tag}.csv") not in have]
         held = what if exact else f"the cached load around {what}"
         return {"hit": False, "line": f"{held} is in the cache without {', '.join(missing)} - it will be downloaded"}

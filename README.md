@@ -669,12 +669,12 @@ lists them: a frame can be loaded again from there, a file previewed or removed.
 window lies inside a load the executor still holds runs from the cache without a download.
 
 Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the
-key's folder, with the chats fetched for it. A load is a view over the store: the window's activity
+athlete's folder (the source and the athlete id the profile gives), with the chats fetched for it. A load is a view over the store: the window's activity
 list is fetched, the activities the store lacks (or whose file changed) are downloaded, the rest are
 assembled from disk, and the chats of activities older than sixty days are reused. *Refresh
 everything* in the load dialog fetches the whole window again. Activities fall out of the store
-after 400 days unless a load used them in the last thirty. The Dataset cache panel shows each key's
-store - its activities, chats, span and size.
+after 400 days unless a load used them in the last thirty. The Dataset cache panel shows each athlete's
+store, by the name the profile gave - its activities, chats, span and size.
 
 The store and the loaded files live in the Docker volume `bambooai-datasets`, which outlives the
 container and its image: an upgrade keeps them. `docker volume rm bambooai-datasets` starts the

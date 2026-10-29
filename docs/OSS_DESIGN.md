@@ -305,6 +305,11 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-10-29: unreleased (patch 0237).** Datasets by subject, step 1 (docs/DATASETS_DESIGN.md): the
+  Intervals loader keeps the store and the window's files under the subject's folder, `datasets/<user>/intervals/
+  <athlete id>/`, with the subject's record beside them; a key's mark folder is adopted on the first load; the load
+  record, the routines and the runs carry whose data; the cache check matches by the subject. **Executor build v67**:
+  the image is rebuilt with this ship.
 - **Status 2026-10-28: 2.6.1.** A first address refused no longer marks a connection that then answered (on a box
   without an IPv6 route every dual-stack host would have read as "no connection" under a download that worked); the
   executor suite's checks hold on the public CI's runner - patch 0235. **Executor build v66**: the image is rebuilt

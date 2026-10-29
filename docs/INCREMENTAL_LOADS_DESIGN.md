@@ -25,8 +25,9 @@ the frame is cached, so that is where a window is assembled from what is already
 app asks, in what the frame looks like, or in the Dataset cache above it - a cached window is still a hit, a window
 inside one is still cut; what changes is the cost of a miss.
 
-**The store holds activities, not windows.** Under the key's folder on the executor's disk,
-`datasets/<user>/<mark>/store/`:
+**The store holds activities, not windows.** Under the subject's folder on the executor's disk,
+`datasets/<user>/<source>/<athlete id>/store/` (since 2026-10-29, docs/DATASETS_DESIGN.md step 1: the folder was the
+key's mark before; a mark folder is adopted on the first load that learns whose it is):
 
 - `activities.json` - the manifest: for each activity id, the signature of its file, the day it started, the file's
   path, its row count and columns, when it was fetched, when a load last served it, and the same for its chat;
@@ -69,8 +70,8 @@ for; the same signature would serve it from the store, a later patch.
 
 ## 3. Where the store lives, and how it persists
 
-The executor's working folder, `/app/datasets` in the image, under the user's folder and the key's mark - beside the
-window's CSV files, which are still written per load (the summary, wellness, laps, context and codes files are the
+The executor's working folder, `/app/datasets` in the image, under the user's folder and the subject's (the source
+and the source's own athlete id; the key's mark until 2026-10-29) - beside the window's CSV files, which are still written per load (the summary, wellness, laps, context and codes files are the
 method's inputs and the Data tab's pills; they are small).
 
 - **Single edition** (`bambooai serve`, patch 0162): the container is recreated whenever the image changes, and
@@ -86,7 +87,7 @@ method's inputs and the Data tab's pills; they are small).
   the driver Nomad reads a relative source as a folder inside the allocation directory, which goes with the
   allocation) - created on first use with the image's ownership, like the single edition's, and kept across
   dispatches; one volume per user, so a person's executor never sees another's files. Inside the container nothing
-  differs from the single edition: the same image, the same `/app/datasets/<user>/<mark>/store/`.
+  differs from the single edition: the same image, the same `/app/datasets/<user>/<source>/<athlete id>/store/`.
   **Roll-out on a box** (HANDOVER has the steps): the Nomad client's configuration needs `plugin "docker" { config {
   volumes { enabled = true } } }` (the documentation gives the default as false; a volume driver is refused without
   it) and a restart of the agent (running allocations survive one); the four jobs re-registered (`nomad job run
