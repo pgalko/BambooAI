@@ -1,10 +1,11 @@
 // Dataset Manager Module - the Dataset cache dialog. Since 2026-10-29 (docs/DATASETS_DESIGN.md §8, §16) it draws the executor's
 // store as a tree - source → athlete → dataset, exactly the datasets the Intervals.icu dialog offers plus the frame - with a
-// dot on each line saying whether it is on the Data tab now. A click on a line opens its details on the right, where the
-// actions are: Load <dataset> (the span held, from the store alone) and Load <dataset> to today (through Intervals.icu for the
-// missing days) for one dataset, Load everything / Load everything to today for the athlete; Forget takes the pill(s) off the
-// Data tab and the store keeps the data; "Delete from the store…" is the quiet link that removes data from the disk. Uploads and
-// generated files keep their own groups. A load's window files are not listed: they are a run's inputs, shown on the Data tab.
+// dot on each line saying whether it is on the Data tab now; the dot is a switch (a click loads the dataset from the store, or
+// takes it off the tab). A click on a line opens its details on the right, where the actions are: Load <dataset> (the span
+// held, from the store alone) and Load <dataset> to today (through Intervals.icu for the missing days) for one dataset, Load
+// everything / Load everything to today for the athlete; Forget takes the pill(s) off the Data tab and the data out of the
+// cache (the product owner's word, 2026-10-29). Uploads and generated files keep their own groups. A load's window files are
+// not listed: they are a run's inputs, shown on the Data tab.
 window.DatasetManager = (function() {
     'use strict';
     
@@ -107,8 +108,7 @@ window.DatasetManager = (function() {
             const d = b.dataset;
             if (d.act === 'load') startLoad(d.folder, d.feed, false);             // the span held, from the store alone
             else if (d.act === 'today') startLoad(d.folder, d.feed, true);       // through Intervals.icu: the missing days come down
-            else if (d.act === 'forget') forgetLoaded(d.folder, d.feed);         // off the Data tab; the store keeps the data
-            else if (d.act === 'delete') deleteFromStore(d.folder, d.feed, d.name);   // off the disk, after asking
+            else if (d.act === 'forget') forgetDataset(d.folder, d.feed, d.name);   // off the Data tab and out of the cache, after asking
         });
     }
 
@@ -118,6 +118,15 @@ window.DatasetManager = (function() {
         if (caret && subj) {
             openSubjects[subj.dataset.folder] = !isOpen(subj.dataset.folder);
             renderTree();
+            return;
+        }
+        const sw = e.target.closest('.ds-feed .ds-dot');
+        if (sw && subj) {
+            // the dot is a switch: on → off the Data tab (as the pill's ×); off → loaded from the store, with the details open so the progress shows
+            const line = sw.closest('.ds-feed');
+            selectLine(line); showFeedDetails(subj.dataset.folder, line.dataset.feed);
+            if (sw.classList.contains('on')) unloadFromTab(subj.dataset.folder, line.dataset.feed);
+            else startLoad(subj.dataset.folder, line.dataset.feed, false);
             return;
         }
         const head = e.target.closest('.ds-subj-head');
@@ -313,8 +322,8 @@ window.DatasetManager = (function() {
         setTimeout(tick, 800);
     }
 
-    // Forget: the dataset's pill(s) off the Data tab - or every pill of the athlete; the store keeps the data (no question: Load brings it back)
-    async function forgetLoaded(folder, feed) {
+    // off the Data tab: the dataset's pill(s) - or every pill of the athlete - through the pills' own removers; the cache keeps the data
+    async function unloadFromTab(folder, feed) {
         const pills = pillsOf(folder, feed);
         if ((!feed || feed === 'activities') && window.Intervals && window.Intervals.state.isLoaded && window.Intervals.state.dataInfo && window.Intervals.state.dataInfo.folder === folder && window.Intervals.state.pillId) {
             const pill = document.getElementById(window.Intervals.state.pillId);
@@ -329,10 +338,14 @@ window.DatasetManager = (function() {
         renderTree();
     }
 
-    // Delete from the store: the data off the executor's disk - a dataset, or the athlete whole - after asking
-    async function deleteFromStore(folder, feed, name) {
+    // Forget (the product owner's word, 2026-10-29): the dataset off the Data tab and out of the cache - or the athlete whole -
+    // after asking; a later load downloads it again. The activity summary is the activity list, which every load from the
+    // store starts from: its Forget is off the Data tab alone.
+    async function forgetDataset(folder, feed, name) {
         const what = feed ? (FEED_NAMES[feed] || feed) + ' of ' + (name || folder) : 'everything held for ' + (name || folder);
-        if (!confirm('Delete ' + what + ' from the store? The Data tab keeps what it has; a later load downloads the data again.')) return;
+        if (feed === 'summary') { await unloadFromTab(folder, feed); return; }
+        if (!confirm('Forget ' + what + '? It comes off the Data tab and out of the cache; a later load downloads it again.')) return;
+        await unloadFromTab(folder, feed);
         try {
             const response = await window.authService.fetch('/cache/forget', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: folder, feed: feed || '' }) });
             const out = await response.json().catch(() => ({}));
@@ -343,8 +356,8 @@ window.DatasetManager = (function() {
             shown = null;
             loadDatasets();
         } catch (error) {
-            console.error('Error deleting from the store:', error);
-            alert('Could not delete: ' + (error.message || error));
+            console.error('Error forgetting from the cache:', error);
+            alert('Could not forget: ' + (error.message || error));
         }
     }
     
@@ -494,7 +507,7 @@ window.DatasetManager = (function() {
         return String(n);
     }
     function matches(q, ...texts) { return !q || texts.some(t => String(t || '').toLowerCase().includes(q)); }
-    const dot = on => `<span class="ds-dot${on ? ' on' : ''}" title="${on ? 'on the Data tab now' : 'in the store only'}"></span>`;
+    const dot = (on, sw) => `<span class="ds-dot${on ? ' on' : ''}" title="${on ? 'on the Data tab now' + (sw ? ' - click to take it off the tab' : '') : 'in the store only' + (sw ? ' - click to load it from the store' : '')}"></span>`;
 
     function frameLine(f) {
         // a frame the executor holds as a frame alone: an upload, an Endura race, a SweatStack load (an Intervals.icu window is a view of the store, not listed)
@@ -514,7 +527,7 @@ window.DatasetManager = (function() {
         line.className = 'ds-feed' + (shown && shown.folder === subject.folder && shown.feed === f.feed ? ' active' : '');
         line.dataset.feed = f.feed;
         line.title = 'Click for the details';
-        line.innerHTML = dot(!!tab[f.feed]) + `<span class="ds-feed-name">${esc(FEED_NAMES[f.feed] || f.feed)}</span><span class="ds-feed-span">${span(f)}</span>` +
+        line.innerHTML = dot(!!tab[f.feed], true) + `<span class="ds-feed-name">${esc(FEED_NAMES[f.feed] || f.feed)}</span><span class="ds-feed-span">${span(f)}</span>` +
             `<span class="ds-feed-count">${esc(count(f))}${f.bytes ? ' · ' + mb(f.bytes) : ''}</span>`;
         return line;
     }
@@ -535,7 +548,7 @@ window.DatasetManager = (function() {
         if (open) {
             const body = document.createElement('div');
             body.className = 'ds-subj-body';
-            body.innerHTML = `<div class="ds-legend">${dot(true)} on the Data tab now &nbsp; ${dot(false)} in the store only</div>`;
+            body.innerHTML = `<div class="ds-legend">${dot(true)} on the Data tab &nbsp;·&nbsp; ${dot(false)} in the store only &nbsp;·&nbsp; click a dot to load it, or to take it off the tab</div>`;
             const feeds = (subject.feeds || []).filter(f => matches(q, FEED_NAMES[f.feed], f.feed, subject.name, subject.id));
             feeds.forEach(f => body.appendChild(feedLine(subject, f, tab)));
             if (!feeds.length) body.innerHTML = '<div class="dataset-empty">nothing held</div>';
@@ -588,10 +601,13 @@ window.DatasetManager = (function() {
         const what = feed ? FEED_NAMES[feed] : 'everything';
         const from = feed ? 'the span held, from the store alone' : 'every dataset held, from the store alone - nothing fetched';
         const replaces = feed === 'activities' ? 'replaces the frame' : feed ? 'replaces the ' + what + ' pill' : 'replaces what is on the Data tab';
+        const forgetOn = feed === 'summary' ? loaded : held;
+        const forgetHint = feed === 'summary' ? (loaded ? 'takes the pill off the Data tab; the activity list stays in the cache (every load from the store starts from it)' : 'not on the Data tab')
+                         : feed ? 'off the Data tab and out of the cache; a later load downloads it again' : 'every pill off the Data tab and the athlete out of the cache; a later load downloads it all again';
         return `<div class="ds-actions">
             <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="load" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held ? '' : 'disabled'}>Load ${esc(what)}</button><span class="hint">${held ? from + '; ' + replaces : 'nothing held yet: load from the Intervals.icu dialog first'}</span></div>
             <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="today" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held ? '' : 'disabled'}>Load ${esc(what)} to today</button><span class="hint">through Intervals.icu: only the missing days come down</span></div>
-            <div class="ds-row"><button class="dataset-action-btn dataset-remove-btn wide" data-act="forget" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${loaded ? '' : 'disabled'}>Forget ${esc(what)}</button><span class="hint">${loaded ? 'takes ' + (feed ? 'the ' + what + ' pill' : 'every pill') + ' off the Data tab; the store keeps the data' : 'not on the Data tab'}</span>${feed === 'summary' ? '' : `<span class="ds-link" data-act="delete" data-folder="${esc(folder)}" data-feed="${esc(feed)}" data-name="${esc(name)}" title="Remove ${esc(what)} from the executor's disk; a later load downloads it again">Delete from the store…</span>`}</div>
+            <div class="ds-row"><button class="dataset-action-btn dataset-remove-btn wide" data-act="forget" data-folder="${esc(folder)}" data-feed="${esc(feed)}" data-name="${esc(name)}" ${forgetOn ? '' : 'disabled'}>Forget ${esc(what)}</button><span class="hint">${forgetHint}</span></div>
         </div>`;
     }
 
@@ -631,10 +647,13 @@ window.DatasetManager = (function() {
         const tab = onTab(folder)[f.feed];
         const files = f.feed === 'activities' ? [{ file: 'the frame on the Data tab', columns: f.columns || [] }] : (f.files || []);
         const cats = f.categories ? Object.keys(f.categories).sort((a, b) => f.categories[b] - f.categories[a]).map(k => esc(k || '(none)') + ' ' + f.categories[k]).join(', ') : '';
-        const held = [span(f), count(f), mb(f.bytes), f.last_used ? 'last used ' + esc(ago(f.last_used)) : ''].filter(Boolean).join(' · ');
-        const cols = files.map((x, i) => {
-            const title = i === 0 ? `Columns (${x.columns.length})` : `${esc(x.file)} (${x.columns.length} columns${x.file.startsWith('context_codes') ? ', written by the coding pass behind the load' : x.file.startsWith('custom_zone_times') && !x.columns.length ? ': only when the account defines a custom zone set' : ''})`;
-            return `<h3>${title}</h3><div class="column-list">${x.columns.map(c => `<span class="column-chip">${esc(c)}</span>`).join('') || '<span class="dataset-empty">no columns known yet</span>'}</div>`;
+        // the span is the window the loads covered; the data's own first and last day beside the count when they differ (2026-10-29)
+        const days = f.first && (f.first !== f.from || f.last !== f.to) ? ' (' + esc(f.first) + ' → ' + esc(f.last) + ')' : '';
+        const held = [span(f), count(f) + days, mb(f.bytes), f.last_used ? 'last used ' + esc(ago(f.last_used)) : ''].filter(Boolean).join(' · ');
+        const cols = files.map(x => {
+            const note = x.file.startsWith('context_codes') ? ', written by the coding pass behind the load' : x.file.startsWith('custom_zone_times') && !x.columns.length ? ': only when the account defines a custom zone set' : '';
+            const label = files.length > 1 ? `<div class="ds-file"><span class="mono">${esc(x.file)}</span> · ${x.columns.length} column${x.columns.length === 1 ? '' : 's'}${note}</div>` : '';
+            return label + `<div class="column-list">${x.columns.map(c => `<span class="column-chip">${esc(c)}</span>`).join('') || '<span class="dataset-empty">no columns known yet</span>'}</div>`;
         }).join('');
         panel.innerHTML = `<div class="dataset-details-content">
             <div class="dataset-info-section"><h3>${esc(FEED_NAMES[f.feed] || f.feed)} · ${esc(subject.name || subject.id)}</h3><div class="ds-kv">
@@ -643,7 +662,7 @@ window.DatasetManager = (function() {
                 <span class="k">On the Data tab</span><span>${onTabCell(tab, true)}</span>
                 <span class="k">A load writes</span><span>${f.feed === 'activities' ? 'the frame on the Data tab' : esc(files.map(x => x.file).join(', '))}</span>
             </div></div>
-            <div class="dataset-info-section dataset-info-columns"><div class="dataset-columns">${cols}</div></div>
+            <div class="dataset-info-section dataset-info-columns"><h3>Columns${files.length === 1 ? ' (' + files[0].columns.length + ')' : ''}</h3><div class="dataset-columns">${cols}</div></div>
             <div id="dsLoadStatus" class="ds-load-status" style="display:none"></div>
             ${actionRows(folder, f.feed, subject.name || subject.id, !!tab, true)}
         </div>`;

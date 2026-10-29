@@ -36,14 +36,14 @@ from datetime import datetime, timedelta
 from intervals_store import Store, stores_under, RETENTION_DAYS as STORE_RETENTION_DAYS   # the Intervals.icu store (2026-10-15)
 from intervals_store import athlete_rel, athlete_record, remember_athlete, adopt_mark_folder, athlete_folders, views_rel, adopt_views, VIEWS_DIR   # the athlete's folder (2026-10-29)
 from intervals_store import cache_tree, forget as forget_store, prune_views, absorb_mark_folders, update_record, SOURCES as STORE_SOURCES, APP_FOLDERS as STORE_APP_FOLDERS   # the tree, forgetting, the views' age (step 3)
-from intervals_store import purge_earlier_loads   # earlier loads deleted at start (2026-10-29, the dialog redesigned)
+from intervals_store import purge_earlier_loads, record_covered   # earlier loads deleted at start; the window each dataset's loads covered (2026-10-29, the dialog redesigned)
 
 # Set the number of CPU cores for pyarrow
 pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-10-29 v72 (the Dataset cache dialog redesigned: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the cache as a tree since v69-v70; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-10-29 v73 (the window each dataset covered on the record, so a load to today reads as ending today; the Dataset cache dialog redesigned in v72: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -242,7 +242,8 @@ def inspect_cache():
                 folder = os.path.join(user_datasets_dir, rel) if rel else user_datasets_dir
                 who = {'source': rec.get('source', ''), 'id': rec.get('id', ''), 'name': rec.get('name', '')} if rec else None
                 if rec:
-                    subjects.append(dict(folder=rel, **who, marks=list(rec.get('marks') or []), kinds=list(rec.get('kinds') or []), first_seen=rec.get('first_seen'), last_load=rec.get('last_load')))
+                    subjects.append(dict(folder=rel, **who, marks=list(rec.get('marks') or []), kinds=list(rec.get('kinds') or []), first_seen=rec.get('first_seen'), last_load=rec.get('last_load'),
+                                         covered=dict(rec.get('covered') or {})))       # the window each dataset's loads covered (2026-10-29): the lines' spans
                 # a load's window files live under the folder's views/ (2026-10-29); a file at the folder itself is one an
                 # earlier executor wrote there, or an upload at the user's folder
                 places = [folder] + ([os.path.join(folder, VIEWS_DIR)] if rel and os.path.isdir(os.path.join(folder, VIEWS_DIR)) else [])
@@ -1965,6 +1966,19 @@ def fetch_intervals_background(data, job_id):
         retention = int(data.get('retention_days') or STORE_RETENTION_DAYS)
         gone = store.prune(days=retention)
         store.save()
+        if athlete_id and not offline:
+            # the window this load covered, per dataset, on the record (2026-10-29): a line's span is the window its loads
+            # asked for - a load to today reads as ending today whatever the last day with data; the retention clips the start
+            covered = {'summary': (start_date, end_date)}                       # the activity list came down for the window
+            if with_frame:
+                covered['activities'] = (start_date, end_date)
+            if 'intervals' in aux_datasets:
+                covered['laps'] = (start_date, end_date)
+            if wellness_records is not None and not w_failed:
+                covered['wellness'] = (start_date, end_date)
+            if events is not None and not events_failed:
+                covered['context'] = (start_date, end_date)
+            record_covered(user_dir, folder, covered, cutoff=(datetime.now() - timedelta(days=retention)).strftime('%Y-%m-%d'))
         if gone:
             log_info(f"store: {gone} activities older than {retention} days left the store")
         gone_views = prune_views(user_dir, folder)             # window files not written within a month leave (docs/DATASETS_DESIGN.md §4)

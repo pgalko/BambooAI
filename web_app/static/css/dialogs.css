@@ -339,7 +339,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 .workflow-label-separator { height: 1px; background: var(--border-color); margin: 4px 0; }
 
 /* ---- dataset cache dialog (#datasetManagerModal, built by dataset-manager.js): dataset-manager.css is retired ---- */
-#datasetManagerModal .ui-dlg { width: min(1040px, 100%); max-height: min(85vh, 760px); }
+#datasetManagerModal .ui-dlg { width: min(1100px, 96vw); height: min(86vh, 800px); }     /* one size whatever the pane shows (2026-10-29): the columns scroll inside it */
 #datasetManagerModal .dataset-modal-body { display: flex; flex: 1; min-height: 0; }
 #datasetManagerModal .dataset-list-panel { width: 520px; flex-shrink: 0; border-right: 1px solid var(--border-color); overflow: auto; padding: 12px 12px; display: flex; flex-direction: column; gap: 14px; }
 /* the tree (docs/DATASETS_DESIGN.md §8, 2026-10-29): source → athlete → feed; a click on a line opens its details on the right, where the actions are */
@@ -357,7 +357,8 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 /* the dot (2026-10-29, the dialog redesigned): filled when the dataset is on the Data tab now, empty when it is in the store only */
 #datasetManagerModal .ds-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; border: 1px solid var(--text-quaternary); background: transparent; vertical-align: middle; }
 #datasetManagerModal .ds-dot.on { background: var(--c-model); border-color: var(--c-model); }
-#datasetManagerModal .ds-feed .ds-dot { grid-area: dot; align-self: start; margin-top: 7px; }
+#datasetManagerModal .ds-feed .ds-dot { grid-area: dot; align-self: start; margin-top: 7px; cursor: pointer; }     /* a switch: load it, or take it off the tab */
+#datasetManagerModal .ds-feed .ds-dot:hover { box-shadow: 0 0 0 3px var(--bg-primary), 0 0 0 4px var(--text-tertiary); }
 #datasetManagerModal .ds-legend { font-size: var(--fs-small); color: var(--text-quaternary); padding: 2px 6px 4px 6px; display: flex; gap: 6px; align-items: center; }
 #datasetManagerModal .ds-feed:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 #datasetManagerModal .ds-feed.active { background: var(--bg-tertiary); color: var(--text-primary); box-shadow: inset 2px 0 0 var(--c-kernel); }
@@ -374,15 +375,14 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #datasetManagerModal .ds-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-color); flex-shrink: 0; }
 #datasetManagerModal .ds-row { display: flex; gap: 8px; align-items: center; }
 #datasetManagerModal .ds-row .hint { font-size: var(--fs-small); color: var(--text-quaternary); }
-#datasetManagerModal .ds-link { font-size: var(--fs-small); color: var(--text-quaternary); text-decoration: underline; cursor: pointer; margin-left: auto; white-space: nowrap; }
-#datasetManagerModal .ds-link:hover { color: var(--c-fail); }
+#datasetManagerModal .ds-file { font-size: var(--fs-small); color: var(--text-tertiary); margin: 10px 0 5px; }     /* a second file's label among the columns */
+#datasetManagerModal .ds-file:first-child { margin-top: 0; }
+#datasetManagerModal .ds-file .mono { font-family: var(--font-mono); color: var(--text-secondary); }
 #datasetManagerModal .dataset-action-btn.wide { min-width: 200px; justify-content: center; white-space: nowrap; }
 #datasetManagerModal .dataset-action-btn:disabled { opacity: .45; cursor: default; }
 #datasetManagerModal .dataset-action-btn:disabled:hover { background: none; border-color: var(--border-color); color: var(--text-secondary); }
 #datasetManagerModal .dataset-load-btn:disabled:hover { border-color: var(--c-model); color: var(--c-model); }
 #datasetManagerModal .dataset-remove-btn:disabled:hover { border-color: var(--chip-fail-border); color: var(--c-fail); }
-#datasetManagerModal .dataset-columns h3 { margin: 10px 0 6px; }
-#datasetManagerModal .dataset-columns h3:first-child { margin-top: 0; }
 #datasetManagerModal .ds-feeds { table-layout: auto; }
 #datasetManagerModal .ds-feeds td, #datasetManagerModal .ds-feeds th { font-variant-numeric: tabular-nums; white-space: normal; padding: 4px 6px; }
 #datasetManagerModal .ds-feeds td:first-child { width: 14px; padding-right: 0; }

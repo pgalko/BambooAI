@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0242 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned; **executor image v72** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0243 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended; **executor image v73** - rebuild and roll out). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,7 +95,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/91/37/15/88/1/1 Python; 58/7/45/71/24/71/14/25/4/14/67 JS; 1,550 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (242/197/31/27/18/49/44/72/33/144/60/93/37/15/88/1/1 Python; 58/7/45/71/24/71/14/25/4/14/67 JS; 1,552 on 2026-10-29; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (16);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (5, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (116; hosted only - the loaders need the executor; the
@@ -477,6 +477,15 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **After Palo's third look (2026-10-29, patch 0243; executor image v73 - rebuild and roll out).** Five points on
+  0242: (1) a line's span read as the first and last day with data, so "Load everything to today" seemed not to end
+  today - the loader now records on the athlete's record the window each dataset's online loads covered
+  (`record_covered`, `covered` on subject.json, clipped by the retention), the lines show it joined with the data's
+  days, the details the data's own first/last day beside the count; (2) Forget is off the Data tab **and** out of the
+  cache (his word), after a question - the quiet Delete link is gone; the summary's Forget is off the tab alone; the
+  pill's × or the dot take a dataset off the tab without deleting it; (3) the dot is a switch (off the tab / loaded
+  from the store), the legend says so; (4) a second file's columns sit under a small label, not a capitals heading;
+  (5) the dialog has one size. Tests: test_store.py 93, the stamp checks v73; the integrations walk 116.
 - **The Dataset cache dialog redesigned after Palo's second look (2026-10-29, patch 0242; executor image v72 -
   rebuild and roll out).** His points on the rebuilt dialog: the columns showed for two datasets only; Load on a
   dataset loaded everything; earlier loads were still listed; "it looks like we are trying to adjust the older

@@ -671,11 +671,11 @@ Context (chats and calendar), Rider profile - with its span, what is held and it
 whether it is on the Data tab now. A click on a line opens its details - what it is, what is held, the
 files a load writes and their columns - and the actions: **Load <dataset>** (the span held, from the
 store alone - nothing is fetched), **Load <dataset> to today** (through Intervals.icu, only the missing
-days come down) and **Forget <dataset>** (its pill off the Data tab; the store keeps the data); the
-athlete's line has the same for everything held. Loading one dataset leaves the frame as it is. *Delete
-from the store…* is the quiet link that removes data from the disk. Uploads and generated files keep
-their own groups. A routine whose window lies inside a load the executor still holds runs from the
-cache without a download.
+days come down) and **Forget <dataset>** (its pill off the Data tab and the data out of the cache,
+after asking); the athlete's line has the same for everything held. Loading one dataset leaves the
+frame as it is; a click on a line's dot takes the dataset off the Data tab or loads it from the store.
+Uploads and generated files keep their own groups. A routine whose window lies inside a load the
+executor still holds runs from the cache without a download.
 
 Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the
 athlete's folder (the source and the athlete id the profile gives), with the chats and the laps fetched

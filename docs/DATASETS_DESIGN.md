@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.5 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242)
+# Datasets by athlete — design v1.6 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0243)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -8,7 +8,7 @@ one entry whose span grew, and two athletes never share a line. The four decisio
 2026-10-29 (section 11); the next phase, several API keys per coach and an athlete dropdown in the load dialogs, is
 the same tree without the data. **Status**: steps 1-3 of section 10 are built (patches 0237-0241, executor images
 v67-v71; sections 13-15 say what they did and where they differ from the text), and the dialog was redesigned after the
-product owner's second look (patch 0242, image v72; section 16 is the design as it stands); step 4 is not.
+product owner's second look (patches 0242-0243, images v72-v73; section 16 is the design as it stands); step 4 is not.
 
 ## 1. The shape
 
@@ -319,7 +319,7 @@ details; Load from the dialog with a window loaded - let go on asking, loaded fr
 itself, each file's pill once; every dataset loaded together with all eight files written and seven pills; the tree
 with two athletes, fold and filter, Forget through the details, Load to today declined).
 
-## 16. The dialog redesigned (patch 0242, executor image v72)
+## 16. The dialog redesigned (patch 0242, executor image v72; amended by 0243, v73 - the last paragraphs)
 
 The product owner's second look (2026-10-29) found the rebuilt dialog still an old design bent to the new logic: the
 columns showed for two datasets only, Load on a dataset loaded everything, earlier loads were still listed. The
@@ -380,3 +380,32 @@ the names, the styles), the integrations walk (earlier loads gone at start with 
 three datasets' details with their dots and columns; the tree with two athletes and the dots; Delete of the other
 athlete; Load everything from the store; Forget Wellness; Load Wellness alone from the store; Load Activity intervals
 to today alone; Forget everything; Delete Wellness from the store).
+
+**Amended after the third look (patch 0243, image v73).** Five points on the redesign, each with its cause.
+
+- *A line's span is the window its loads covered*, not the first and last day with data (a load to today read as
+  ending on 10-25 for the activities and 10-07 for the context - the last activity, the last chat - which looked
+  broken). The loader puts on the athlete's record the window each dataset's online loads have covered
+  (`record_covered`: `covered` on `subject.json`, dataset → [from, to], widened by every load - the activity list on
+  every online load, the frame when loaded, the laps, the wellness log and the calendar when they came down - and
+  clipped at the start by the retention's cutoff); `cache_tree` gives each line the window joined with the days that
+  hold data, and the data's own first and last day beside (`first`, `last`), which the details show after the count
+  when they differ. Forgetting a dataset drops its window from the record.
+- *Forget is off the Data tab **and** out of the cache* (the product owner's word on seeing the pills go and the
+  datasets stay): `Forget <dataset>` takes the pill(s) off through their removers, then `/cache/forget` deletes the
+  dataset - `Forget everything` the athlete's folder - after a question; the quiet *Delete from the store…* link is
+  gone. The activity summary's Forget is off the Data tab alone: the activity list is the store's own, every load from
+  the store starts from it. Taking a dataset off the Data tab *without* deleting it is the pill's × - or the dot.
+- *The dot is a switch*: a click on a line's dot takes the dataset off the Data tab when it is on, and loads it from
+  the store when it is off (the line's details open, the progress in the pane). The legend says so; it is no longer
+  two radio-looking items.
+- *The columns of a second file* sit under a small label (`.ds-file`: the file name in mono, its count, a note for
+  the codes file), not a heading in capitals among the chips.
+- *The dialog has one size* (1100 × 800 at most, 96vw × 86vh on a small screen): the columns scroll inside it,
+  the actions stay at the bottom; it no longer grows and shrinks with the pane.
+
+Tests: `tests/analyst/test_store.py` (the windows covered on the record and on the lines, with first/last; the
+clip; the record widened), `tests/analyst/test_dialogs.js` (the switch, Forget's two halves, no delete link, the
+labels, the size), the integrations walk (the wellness line's span as the window with the data's days beside; the
+dot taking Wellness off the tab and loading it again from the store; Load Activity intervals to today ending today;
+Forget Wellness out of the cache; Forget everything on the other athlete and on the first).

@@ -548,6 +548,26 @@ def update_record(user_dir: str, rel: str, **fields) -> dict:
     return rec
 
 
+def record_covered(user_dir: str, rel: str, spans: Dict[str, Tuple[str, str]], cutoff: Optional[str] = None) -> dict:
+    """The window each dataset's loads have covered, on the athlete's record (`covered`: dataset → [from, to]; 2026-10-29,
+    the product owner: a load to today must read as ending today, whatever the last day with data): each window given
+    widens the dataset's (the earliest start, the latest end); `cutoff` - the retention's - clips every start, as the
+    store's prune drops what is older. Returns the record."""
+    rec = athlete_record(user_dir, rel)
+    if not rec:
+        return rec
+    covered = dict(rec.get("covered") or {})
+    for name, (start, end) in (spans or {}).items():
+        if not (start and end):
+            continue
+        old = covered.get(name) or [start, end]
+        covered[name] = [min(str(old[0]), str(start)), max(str(old[1]), str(end))]
+    if cutoff:
+        for name, (start, end) in list(covered.items()):
+            covered[name] = [max(str(start), str(cutoff)), str(end)]
+    return update_record(user_dir, rel, covered=covered)
+
+
 def adopt_mark_folder(user_dir: str, mark: str, rel: str) -> dict:
     """The migration (docs/DATASETS_DESIGN.md §9): what a key's mark folder holds moves under the athlete's folder the
     first time the athlete is known. A folder that does not exist yet is the mark folder renamed; one that does
@@ -741,9 +761,17 @@ def cache_tree(frames: Iterable[dict], files: Iterable[dict], stores: Iterable[d
     for rec in sorted((r for r in subjects or [] if isinstance(r, dict)), key=lambda r: (str(r.get("name") or ""), str(r.get("id") or ""))):
         folder = str(rec.get("folder") or "")
         sm = stores_by.get(folder) or {}
+        feeds = feeds_of(sm)
+        for line in feeds:
+            # the span a line shows is the window its loads covered (the record's `covered`, 2026-10-29) joined with the
+            # days that hold data; the data's own first and last day ride beside it for the details
+            win = (rec.get("covered") or {}).get(line["feed"])
+            if win and line.get("from"):
+                line["first"], line["last"] = line["from"], line["to"]
+                line["from"], line["to"] = min(str(win[0]), line["from"]), max(str(win[1]), line["to"])
         subs.append({"id": rec.get("id", ""), "name": rec.get("name", ""), "folder": folder, "source": rec.get("source", "intervals"),
                      "held_since": rec.get("first_seen"), "last_load": rec.get("last_load"), "marks": list(rec.get("marks") or []), "kinds": list(rec.get("kinds") or []),
-                     "size_mb": sm.get("size_mb", 0), "feeds": feeds_of(sm), "frames": [frame_entry(f) for f in by_folder.pop(folder, [])]})
+                     "size_mb": sm.get("size_mb", 0), "feeds": feeds, "frames": [frame_entry(f) for f in by_folder.pop(folder, [])]})
     top_frames = by_folder.get("", [])
     top_files = [f for f in files if not f.get("folder")]
     intervals_loose = [frame_entry(f) for f in top_frames if str(f.get("source")) == "intervals"]
@@ -781,6 +809,10 @@ def forget(user_dir: str, rel: str, feed: str = "") -> dict:
         shutil.rmtree(top, ignore_errors=True)
         return {"removed": "subject"}
     st = Store(user_dir, rel)
+    rec = athlete_record(user_dir, rel)
+    if rec and feed in (rec.get("covered") or {}):
+        covered = dict(rec["covered"]); covered.pop(feed, None)
+        update_record(user_dir, rel, covered=covered)
     if feed == "activities":
         shutil.rmtree(st.activities_dir, ignore_errors=True)
         _drop_fields(st, ("file", "signature", "rows", "columns", "fetched", "used"))
