@@ -513,8 +513,9 @@ loads data names an athlete, and the app picks that athlete's key itself.
 **Storage.** `intervals_integration` goes from one row per coach to one row per coach and athlete: `athlete_id` and
 `athlete_name` added, the uniqueness now on (`bamboo_user_id`, `athlete_id`). Hosted and local editions go through
 the same functions (`web_app/auth/supabase_client.py`) and the same encryption; the hosted table takes
-`docs/sql/intervals_keys_per_athlete.sql` once, the local SQLite file rebuilds the table on its first opening
-(`LocalStore._upgrade`). The row each coach has today keeps its key as the one *pending* row (`athlete_id ''`),
+`docs/sql/intervals_keys_per_athlete.sql` once (it drops every one-row-per-coach uniqueness, on `bamboo_user_id` or
+on `auth0_id` - the second was missed at first and refused the second athlete's key on dev, 0254), the local SQLite
+file rebuilds the table on its first opening (`LocalStore._upgrade`). The row each coach has today keeps its key as the one *pending* row (`athlete_id ''`),
 named at the next load from the loader's own record of whom it fetched (`name_pending_intervals_key`), or when the
 Settings dialog lists it and Intervals.icu answers. A key Intervals.icu refuses is not kept; one it could not be
 asked about (the service unreachable) is kept pending and named later. An athlete's new key replaces their old one

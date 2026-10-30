@@ -61,6 +61,18 @@ def _bump():
     return {"queries_used": _counter()}
 
 
+# the unique keys the hosted tables have (the integration tables one row per user; the Intervals one per user and athlete
+# since docs/sql/intervals_keys_per_athlete.sql): an insert that repeats one raises, as the real client does
+_UNIQUE = {"intervals_integration": (("bamboo_user_id", "athlete_id"),), "endura_integration": (("bamboo_user_id",),), "sweatstack_integration": (("bamboo_user_id",),),
+           "users": (("auth0_id",),), "llm_config": (("auth0_id",),)}
+
+
+class APIError(Exception):
+    """What postgrest raises: the error as a dict, its text the message."""
+    def __init__(self, info):
+        super().__init__(str(info)); self.info = info
+
+
 class Result:
     def __init__(self, data, count=None):
         self.data, self.count = data, count
@@ -121,6 +133,13 @@ class _Query:
                         # key stored replaces the first, 2026-10-11), the rest by id
                         key = "bamboo_user_id" if self.table.endswith("_integration") and row.get("bamboo_user_id") is not None else "id"
                         self.rows[:] = [r for r in self.rows if r.get(key) != row[key]]
+                    else:
+                        # as Postgres does (2026-10-30): an insert that repeats a unique key is refused - the hosted tables' keys
+                        # as they stand after docs/sql/intervals_keys_per_athlete.sql (one row per coach and athlete there)
+                        for cols in _UNIQUE.get(self.table, ()):
+                            if all(row.get(c) is not None for c in cols) and any(all(r.get(c) == row.get(c) for c in cols) for r in self.rows):
+                                raise APIError({"message": f"duplicate key value violates unique constraint \"{self.table}_{'_'.join(cols)}_key\"", "code": "23505",
+                                                "details": "Key (" + ", ".join(cols) + ")=(" + ", ".join(str(row.get(c)) for c in cols) + ") already exists."})
                     self.rows.append(row); out.append(dict(row))
                 return Result(out, len(out))
             if self.op == "update":

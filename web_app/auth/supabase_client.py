@@ -592,7 +592,10 @@ def store_intervals_api_key(bamboo_user_id: str, auth0_id: str, api_key: str, at
             return False
         
     except Exception as e:
-        logger.error(f"Error storing Intervals API key for user {bamboo_user_id}: {str(e)}")
+        hint = ''
+        if 'duplicate key' in str(e) and ('auth0_id' in str(e) or '(bamboo_user_id)' in str(e)):      # the table still has one row per coach (2026-10-30, dev)
+            hint = ' - the table keeps one Intervals.icu key per coach still: run docs/sql/intervals_keys_per_athlete.sql on this project'
+        logger.error(f"Error storing Intervals API key for user {bamboo_user_id}: {str(e)}{hint}")
         return False
 
 

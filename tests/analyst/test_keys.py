@@ -84,6 +84,40 @@ sc.get_service_client = lambda: fake_supabase.create_client("http://supabase.loc
 try:
     fake_supabase.TABLES["intervals_integration"].clear() if hasattr(fake_supabase, "TABLES") else None
     scenario("stand-in")
+    # the stand-in refuses a repeated unique key as Postgres does (2026-10-30: the hosted table had kept a uniqueness on auth0_id
+    # that the first migration left in place, so a second athlete's key was refused on dev - the amended SQL drops it; the
+    # store's log line names the file to run when the error is that one)
+    import logging as _lg
+    _fc = fake_supabase.create_client("http://supabase.local", "local")
+    _dup = None
+    try:
+        _fc.table("intervals_integration").insert({"bamboo_user_id": "someone", "auth0_id": "a|someone", "api_key": "x", "athlete_id": "i9"}).execute()
+        _fc.table("intervals_integration").insert({"bamboo_user_id": "someone", "auth0_id": "a|someone", "api_key": "y", "athlete_id": "i9"}).execute()
+    except Exception as exc:                                   # noqa: BLE001
+        _dup = str(exc)
+    _second = _fc.table("intervals_integration").insert({"bamboo_user_id": "someone", "auth0_id": "a|someone", "api_key": "z", "athlete_id": "i10"}).execute()
+    class _Catch(_lg.Handler):
+        lines = []
+        def emit(self, rec): self.lines.append(rec.getMessage())
+    _h = _Catch(); sc.logger.addHandler(_h)
+    class _OldTable:                                           # a project where the first migration ran: one row per coach still, by auth0_id
+        def table(self, name):
+            return self
+        def select(self, *a, **k): return self
+        def eq(self, *a, **k): return self
+        def order(self, *a, **k): return self
+        def execute(self): return fake_supabase.Result([])
+        def insert(self, row): raise fake_supabase.APIError({"message": 'duplicate key value violates unique constraint "intervals_integration_auth0_id_key"', "code": "23505"})
+    _real_old = sc.get_service_client
+    sc.get_service_client = lambda: _OldTable()
+    with app.app_context():
+        g.current_user_id = A
+        _stored = sc.store_intervals_api_key(U, A, "key-x", "i1", "One")
+    sc.get_service_client = _real_old
+    sc.logger.removeHandler(_h)
+    check("the stand-in refuses a second row for the same coach and athlete with Postgres's words, keeps a second athlete's row; a project whose table still has one row per coach (the uniqueness on auth0_id) refuses the store, and the log line says which file to run",
+          _dup is not None and "duplicate key value violates unique constraint" in _dup and _second.data and _stored is False
+          and any("run docs/sql/intervals_keys_per_athlete.sql" in ln for ln in _h.lines), (_dup, _h.lines))
 finally:
     sc.get_service_client = _real
 
