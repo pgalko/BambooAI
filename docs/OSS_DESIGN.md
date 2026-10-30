@@ -308,7 +308,12 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
-- **Status 2026-10-29: unreleased (patches 0237-0241).** Datasets by subject, steps 1-3 (docs/DATASETS_DESIGN.md):
+- **Status 2026-10-30: 2.7.0 (patches 0237-0253).** Keys per athlete (docs/DATASETS_DESIGN.md §17): one Intervals.icu
+  key per athlete, named by the service when saved, the hosted table migrated once by `docs/sql/intervals_keys_per_athlete.sql`
+  and the local SQLite file by itself; the Intervals.icu dialog opens on a roster of the athletes; the Dataset cache
+  lists athletes with a key and nothing held; a routine run picks the athlete, the comparison and the history stay
+  within one athlete's runs, the Comparison tab says whose and when, the arrows within the athlete (0249-0252; the
+  executor image stays v74). Before that, datasets by subject, steps 1-3 (docs/DATASETS_DESIGN.md):
   the Intervals loader keeps the store and the window's files under the subject's folder, `datasets/<user>/intervals/
   <athlete id>/`, with the subject's record beside them; a key's mark folder is adopted on the first load; the load
   record, the routines and the runs carry whose data; the cache check matches by the subject (0237, v67). The store

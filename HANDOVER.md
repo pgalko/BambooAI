@@ -23,8 +23,12 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0252 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time, a load under another athlete's key refused, keys per athlete with the roster, routines by athlete with the Comparison tab saying whose and when; **executor image v74** - rebuild and roll out; **the hosted table takes docs/sql/intervals_keys_per_athlete.sql once**). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
-  `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
+- **Published.** Nothing unreleased: 2.7.0 (2026-10-30) carries patches 0237-0253. The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+  `v1-final` tag). PyPI: 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
+  alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
+  athlete with the roster; routines by athlete with the Comparison tab saying whose and when - patches 0237-0252, the release 0253;
+  **executor image v74** - rebuild and roll out; **the hosted table takes docs/sql/intervals_keys_per_athlete.sql once, before the app
+  starts**; the self-hosted edition's database upgrades itself), 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
   tidied and repriced, gpt-6.1-sol, the pricing preflight - patches 0097-0100; no kernel change, image v51 stands),
