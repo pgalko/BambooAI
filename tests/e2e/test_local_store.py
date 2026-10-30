@@ -79,10 +79,11 @@ def main():
             check("integration: an Intervals key is stored (encrypted) through the same route as the hosted edition; Intervals.icu could not be asked whose it is here (no service in this edition's test), so it is kept pending - named at the next load - and listed without an athlete (2026-10-30)",
                   key_ok and "could not be reached" in str((key["body"] or {}).get("message")) and [a.get("id") for a in (key["body"] or {}).get("athletes") or []] == [""], key)
 
-            usage = api(page, "GET", "/usage_tracking?period=30_days")
-            total = (usage["body"] or {}).get("summary", {}).get("total_cost") if usage["body"] else None
-            calls = (usage["body"] or {}).get("summary", {}).get("total_calls") if usage["body"] else None
-            check("usage: the dashboard reads the run's calls from the local store", usage["status"] == 200 and usage["body"] and json.dumps(usage["body"]).count("cost") >= 1, (usage["status"], str(usage["body"])[:200]))
+            usage = api(page, "GET", "/usage?period=30d&tz=0")
+            tot = (usage["body"] or {}).get("totals") or {}
+            check("usage: the dialog's answer reads the run's calls from the local store - the calls, the chain, the cost; the ledger names the question from the thread store (2026-10-31)",
+                  usage["status"] == 200 and tot.get("calls", 0) >= 1 and tot.get("chains", 0) >= 1 and tot.get("cost", 0) > 0 and (usage["body"].get("analyses") or [{}])[0].get("question") and usage["body"]["period"]["edition"] == "self-hosted",
+                  (usage["status"], str(usage["body"])[:300]))
             usage_first = usage["body"]
             b.close()
         store = os.path.join(workdir, "webapp", "bambooai.sqlite")
@@ -108,8 +109,8 @@ def main():
             check("after restart: the Intervals key is still stored (the initialise call reports it)", st_["status"] == 200 and iv.get("intervals_authenticated") is True, st_["body"] and st_["body"].get("intervals"))
             ath = api(page, "GET", "/intervals/athletes")
             check("after restart: the pending key is still listed, still unnamed (the file upgraded in place keeps it as the one pending row)", ath["status"] == 200 and [a.get("id") for a in (ath["body"] or {}).get("athletes") or []] == [""], ath)
-            usage = api(page, "GET", "/usage_tracking?period=30_days")
-            check("after restart: the Usage dashboard shows the same records", usage["status"] == 200 and usage["body"] == usage_first, (str(usage["body"])[:160], str(usage_first)[:160]))
+            usage = api(page, "GET", "/usage?period=30d&tz=0")
+            check("after restart: the Usage dialog's answer shows the same records", usage["status"] == 200 and usage["body"]["totals"] == usage_first["totals"] and [e["chain"] for e in usage["body"]["analyses"]] == [e["chain"] for e in usage_first["analyses"]], (str(usage["body"])[:160], str(usage_first)[:160]))
             b.close()
 
     n_fail = sum(1 for _, ok in results if not ok)

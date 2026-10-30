@@ -26,16 +26,12 @@ check('account dialog: the shell is in place (header/body/footer, the close butt
   root.querySelector('.ui-dlg-h .x.close') && root.querySelector('.ui-dlg-b') && root.querySelector('.ui-dlg-f') && root.querySelector('#subscriptionModal').className.includes('ui-modal') && root.querySelector('.modal-content').className.includes('ui-dlg'));
 check('account dialog: the mandatory state still has a rule that hides the close button', fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8').includes('#subscriptionModal.mandatory .ui-dlg-h .x.close { display: none; }'));
 check('account dialog: subscription.css is retired (not linked); dialogs.css is', !html.includes("filename='css/subscription.css'") && html.includes("filename='css/dialogs.css'"));
-// ---- the usage dialog ----
-const uroot = doc.createElement('div'); uroot.innerHTML = fragment('usageTrackingModal');
-const uids = ['usageTrackingModal', 'usagePeriodSelector', 'usageViewSelector', 'usageLoadingContainer', 'usageErrorContainer', 'usageErrorMessage', 'usageDataContainer', 'usagePeriodDescription', 'totalQueries', 'totalCost', 'totalInputTokens', 'totalOutputTokens', 'costChartData', 'tokenChartData'];
-const umissing = uids.filter(id => !uroot.querySelector('#' + id));
-check('usage dialog: every id usage-tracking.js addresses exists', umissing.length === 0, umissing.join(','));
-check('usage dialog: the close button, the shell, and the charts section the height rule measures', uroot.querySelector('.ui-dlg-h .x.close') && uroot.querySelector('.ui-dlg-b') && uroot.querySelector('#usageTrackingModal .charts-section') && uroot.querySelector('#usageTrackingModal').className.includes('ui-modal'));
-check('usage dialog: the period and view selects keep their option values', ['1_day', '7_days', '30_days', '90_days'].every(v => uroot.querySelector(`#usagePeriodSelector option[value="${v}"]`)) && ['agents', 'models', 'queries'].every(v => uroot.querySelector(`#usageViewSelector option[value="${v}"]`)));
-check('usage dialog: usage-tracking.css is retired (not linked)', !html.includes("filename='css/usage-tracking.css'"));
-const uj = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'usage-tracking.js'), 'utf8');
-check('usage charts: colours come from the theme tokens, not a hard-coded palette', uj.includes("v('--accent-color'") && uj.includes("--c-kernel") && !uj.includes("'#1E2730'"));
+// ---- the usage dialog (usage.js builds it, 2026-10-31; the old #usageTrackingModal markup and usage-tracking.js are retired) ----
+check('usage dialog: no markup in the page (the script builds it); usage.js linked, usage-tracking.js gone; the settings entry is .usage-option', !html.includes('usageTrackingModal') && html.includes("filename='js/usage.js'") && !html.includes('usage-tracking.js') && html.includes('settings-option usage-option') && !html.includes("filename='css/usage-tracking.css'"));
+const us = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'usage.js'), 'utf8');
+check('usage dialog: the script builds the hooks it later queries - the period select, the compare toggle, the export button, the tabs, the body, the foot, the close - inside the shell, and addresses no id of the old dialog',
+  ['data-period', 'data-compare', 'data-act="export"', 'data-tab="overview"', 'data-body', 'data-foot', 'class="close x"', "modal.className = 'modal ui-modal'", "modal.id = 'usageModal'"].every(t => us.includes(t)) && !us.includes('usageTrackingModal') && !us.includes('Plotly'));
+check('usage charts: the series colours are classes over the --viz tokens (no hex in the script), so the SVG follows the theme', !/#[0-9a-fA-F]{6}\b/.test(us) && us.includes("'us-s' + (i + 1)") && fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'tokens.css'), 'utf8').includes('--viz-other'));
 // ---- the saved-workflows dialog (workflow-modal.js and labels.js reach into it; workflow-replay.js is retired, 2026-10-11) ----
 const wroot = doc.createElement('div'); wroot.innerHTML = fragment('workflowManagerModal');
 const wids = ['workflowManagerModal', 'workflowNewLabelInput', 'workflowAddLabelBtn', 'workflowLabelsList', 'workflowSearchInput', 'workflowSearchClear', 'workflowSearchSubmit', 'workflowChainsGrid'];

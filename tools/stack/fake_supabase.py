@@ -106,7 +106,7 @@ class Result:
 class _Query:
     def __init__(self, table):
         self.table, self.rows = table, TABLES.setdefault(table, [])
-        self.op, self.payload, self.filters, self._single, self._limit, self._order = "select", None, [], False, None, None
+        self.op, self.payload, self.filters, self._single, self._limit, self._orders, self._range = "select", None, [], False, None, [], None
 
     # builder verbs (each returns self)
     def select(self, *a, **k): self.op = "select"; return self
@@ -118,14 +118,18 @@ class _Query:
     def neq(self, col, val): self.filters.append((col, ("neq", val))); return self
     def in_(self, col, vals): self.filters.append((col, ("in", list(vals)))); return self
     def is_(self, col, val): self.filters.append((col, val)); return self
-    def order(self, col, **k): self._order = (col, bool(k.get("desc", False))); return self
+    def order(self, col, **k): self._orders.append((col, bool(k.get("desc", False)))); return self
     def limit(self, n): self._limit = n; return self
     def single(self): self._single = True; return self
     def maybe_single(self): self._single = True; return self
-    def range(self, a, b): return self
+    def range(self, a, b): self._range = (a, b); return self            # real since 2026-10-31: the usage routes page through the rows
     def ilike(self, col, pat): return self
-    def gte(self, col, v): return self
-    def lte(self, col, v): return self
+    # the comparisons as Postgres makes them (2026-10-31; they returned everything): the usage routes cut a period out
+    # of the rows by timestamp, text against text in the logger's own format
+    def gte(self, col, v): self.filters.append((col, (">=", v))); return self
+    def lte(self, col, v): self.filters.append((col, ("<=", v))); return self
+    def gt(self, col, v): self.filters.append((col, (">", v))); return self
+    def lt(self, col, v): self.filters.append((col, ("<", v))); return self
 
     def _match(self, row):
         for col, val in self.filters:
@@ -133,6 +137,11 @@ class _Query:
                 if row.get(col) == val[1]: return False
             elif isinstance(val, tuple) and val and val[0] == "in":
                 if row.get(col) not in val[1]: return False
+            elif isinstance(val, tuple) and val and val[0] in (">=", "<=", ">", "<"):
+                have, want = row.get(col), val[1]
+                if have is None: return False
+                a, b = (have, want) if isinstance(have, (int, float)) and isinstance(want, (int, float)) else (str(have).replace("T", " "), str(want).replace("T", " "))
+                if not {">=": a >= b, "<=": a <= b, ">": a > b, "<": a < b}[val[0]]: return False
             elif row.get(col) != val:
                 return False
         return True
@@ -141,8 +150,10 @@ class _Query:
         with _lock:
             if self.op == "select":
                 rows = [dict(r) for r in self.rows if self._match(r)]
-                if self._order:
-                    rows.sort(key=lambda r: (r.get(self._order[0]) is None, r.get(self._order[0])), reverse=self._order[1])
+                for col, desc in reversed(self._orders):                     # the first order the strongest, as SQL has it
+                    rows.sort(key=lambda r: (r.get(col) is None, r.get(col)), reverse=desc)
+                if self._range is not None:
+                    rows = rows[self._range[0]:self._range[1] + 1]
                 if self._limit is not None:
                     rows = rows[:self._limit]
                 return Result(rows[0] if self._single and rows else (None if self._single else rows), len(rows))

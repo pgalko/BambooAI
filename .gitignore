@@ -30,3 +30,5 @@ tools/stack/browser/vendor/
 # the self-hosted edition's database (BAMBOO_DATA_DIR or the working folder)
 bambooai.sqlite
 bambooai.sqlite-*
+# the usage dialog's gallery fixture, made by tools/usage_fixture.py when the gallery misses it
+tools/fixtures/usage.json

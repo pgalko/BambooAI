@@ -291,7 +291,7 @@ function continueAppInitialization() {
     // of racing authentication behind a timer.
     if (typeof window.initializeMemoryReview === 'function') window.initializeMemoryReview();
     if (typeof initializePDFExport === 'function') initializePDFExport();
-    if (typeof initializeUsageTracking === 'function') initializeUsageTracking();
+    if (window.UsageUI) window.UsageUI.initialize();                  // the Usage dialog (usage.js, 2026-10-31)
 
     // Add container status initialization
     if (typeof window.containerStatus !== 'undefined' && typeof window.containerStatus.initialize === 'function') {

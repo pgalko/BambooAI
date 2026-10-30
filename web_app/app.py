@@ -44,7 +44,7 @@ except ImportError:                                     # the self-hosted editio
 
 # Blueprints
 from llm_config_routes import llm_config_bp
-from usage_tracking_routes import usage_tracking_bp
+from usage_routes import usage_bp
 from subscription_routes import subscription_bp
 from labels_routes import labels_bp
 from agent_instructions_routes import agent_instructions_bp
@@ -226,7 +226,7 @@ app.config['SESSION_COOKIE_NAME'] = os.getenv('SESSION_COOKIE_NAME', 'session')
 
 # Register the blueprints
 app.register_blueprint(llm_config_bp)
-app.register_blueprint(usage_tracking_bp)
+app.register_blueprint(usage_bp)
 app.register_blueprint(subscription_bp)
 app.register_blueprint(labels_bp)
 app.register_blueprint(agent_instructions_bp)

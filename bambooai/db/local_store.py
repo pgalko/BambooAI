@@ -147,6 +147,7 @@ class _Query:
     def lt(self, col, val): self.where.append((col, "<", val)); return self
     def lte(self, col, val): self.where.append((col, "<=", val)); return self
     def is_(self, col, val): self.where.append((col, "IS", val)); return self
+    def in_(self, col, vals): self.where.append((col, "IN", list(vals))); return self        # the usage ledger's chains (2026-10-31)
 
     def order(self, col, desc=False, **kwargs):
         self.orders.append((col, "DESC" if desc or kwargs.get("ascending") is False else "ASC"))
@@ -165,6 +166,8 @@ class _Query:
         for col, op, val in self.where:
             if op == "IS":
                 parts.append(f'"{col}" IS NULL' if val in (None, "null") else f'"{col}" IS NOT NULL')
+            elif op == "IN":
+                parts.append((f'"{col}" IN ({", ".join("?" * len(val))})') if val else "0"); args.extend(val)
             else:
                 parts.append(f'"{col}" {op} ?'); args.append(val)
         return " WHERE " + " AND ".join(parts), args

@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.7.0: patch 0255 (the usage records; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**; image v74 stands). 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.7.0: patches 0255 (the usage records; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**) and 0256 (the Usage dialog rebuilt: the route and the page; no migration); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
   athlete with the roster; routines by athlete with the Comparison tab saying whose and when - patches 0237-0252, the release 0253;
@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/199/31/27/18/49/44/72/33/157/60/93/27/8/37/15/88/1/1 Python; 58/7/47/72/24/86/14/25/4/14/67 JS; 1,622 on 2026-10-31; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/199/31/27/18/49/44/72/33/157/60/93/27/29/37/15/88/1/1 Python; 58/7/45/72/24/86/14/25/4/14/67/40 JS; 1,681 on 2026-10-31; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (135; hosted only - the loaders need the executor; the
@@ -481,6 +481,30 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Usage dialog rebuilt, step 2: the route and the dialog (2026-10-31, patch 0256; app and page, image v74
+  stands; no migration).** `web_app/usage_routes.py` answers `/usage?period=24h|7d|30d|90d|month|last_month&compare=1&tz=…`
+  from the usage rows of the period and the period before (the days in the person's own time - the page sends its
+  offset; the rows stay UTC) and the thread store (through the chains and threads tables, two plain selects in
+  batches; the thread files' facts cached by mtime): the tiles' totals with the deltas, the days split by seat,
+  model and mode, the seats and models with the configuration's list prices, the ledger (one entry per chain: the
+  question, title, mode, cells, outcome, wall time, the seat split, `saved` - the page opens a chain from its
+  favourite file, as the thread list does), three computed lines of what stands out; `/usage/analysis/<chain>`
+  (the calls in time, the seats ranked, the models), `/usage/calls` (paged), `/usage/export.csv`. The cache
+  figures are over the rows that carry them (NULL from before 0255 reads as not recorded; the foot says how many).
+  The hosted compute is `query_cost` once per chain from the rows. `web_app/static/js/usage.js` builds the dialog
+  (`#usageModal`, 1240px, four tabs - Overview with the tiles, the stacked column chart (the page's own SVG, the
+  legend as a table beside it, a click isolates a series, a tooltip per column), what stands out; Seats & models
+  sortable; Analyses as the ledger grouped by day with the detail pane - the figures, the seats ranked, the calls
+  laid out in time, the models; Calls raw and paged; Export CSV fetched with the session's token). The series
+  colours are classes `us-s1..7`/`us-s0` over `--viz-*` tokens in tokens.css (the validated palette, one set per
+  theme), the seven slots to the keys ranked by the measure, the tail folded into Other; the deltas are neutral.
+  Retired: `/usage_tracking`, `get_user_usage_dashboard`, `usage-tracking.js`, the `#usageTrackingModal` markup;
+  Plotly stays for the analyst's figures. `LocalStore` took `in_()`; the stack's stand-in took real `gte/lte/gt/lt`,
+  `range` and several `order()` keys (they returned everything). A probe on the test stack: one analysis, the dialog
+  opened from the gear menu, the detail, the calls, the CSV. `tools/usage_fixture.py` (a synthetic month through the
+  route, made when the gallery misses it; the JSON untracked) feeds the gallery's `dlg_usage` and `dlg_usage_analyses`. Step 3 (the stack walk opening the dialog
+  after its runs and checking the figures against the rows; the plain-words doc) to come. Tests: test_usage.py 29,
+  test_usage_page.js 40 (new), test_dialogs.js 45, the battery 1,681.
 - **The Usage dialog rebuilt, step 1: the records (2026-10-31, patch 0255; app and migration, image v74 stands).**
   Palo found the Usage dialog subpar (two Plotly charts in a mid-size dialog, the legend over the bars, four
   totals) and chose, from three mockups, the tabs with the ledger-and-detail Analyses tab; the dollars shown are

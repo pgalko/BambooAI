@@ -196,6 +196,9 @@
     --row-select-bg: rgba(255, 255, 255, 0.04);          /* a selected row or box */
     --edge-color: rgba(255, 255, 255, 0.3);              /* a diagram's arrows */
     --scrim-heavy: rgba(0, 0, 0, 0.82);                  /* the working window dimmed under the code map */
+    /* the series colours of the Usage dialog's charts (2026-10-31, docs/USAGE_DESIGN.md §4): seven slots in rank order
+       and one for the tail folded into Other, validated for colour-blind readers against this theme's surfaces */
+    --viz-1: #3987e5; --viz-2: #d95926; --viz-3: #199e70; --viz-4: #c98500; --viz-5: #d55181; --viz-6: #008300; --viz-7: #9085e9; --viz-other: #6b6b6b;
 }
 [data-theme="light"] {
     --shadow-dialog: 0 20px 60px rgba(0, 0, 0, 0.18);
@@ -209,6 +212,7 @@
     --row-select-bg: #f6f8fb;
     --edge-color: #b4b4b4;
     --scrim-heavy: rgba(0, 0, 0, 0.5);
+    --viz-1: #2a78d6; --viz-2: #eb6834; --viz-3: #1baf7a; --viz-4: #eda100; --viz-5: #e87ba4; --viz-6: #008300; --viz-7: #6250d6; --viz-other: #9a9a9a;
 }
 
 /* ---- variables that other stylesheets referenced without anyone defining them (2026-09-08) ----

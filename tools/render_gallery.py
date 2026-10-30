@@ -17,7 +17,8 @@ STATES = {
     'composer_running': "setMode('deep'); document.getElementById('submitQuery').classList.add('query-running'); document.getElementById('rankButton').style.display='';",
     'collapsed': "document.getElementById('collapseButton').click();",
     'dlg_account': "showSubscriptionModal(false);",
-    'dlg_usage': "document.getElementById('usageTrackingModal').style.display='flex'; document.getElementById('usageDataContainer').style.display='flex';",
+    'dlg_usage': "UsageUI.open();",                      # the dialog over tools/fixtures/usage.json (2026-10-31)
+    'dlg_usage_analyses': "UsageUI.open(); setTimeout(()=>{ document.querySelector('.us-tabs [data-tab=analyses]').click(); setTimeout(()=>{ const it=document.querySelector('.us-list .it'); it && it.click(); }, 200); }, 300);",
     'dlg_workflows': "WorkflowModal.open();",
     'dlg_dataset': "document.getElementById('datasetManagerPill').click(); setTimeout(()=>{ const it=document.querySelector('#primaryDatasetList .dataset-item'); it && it.click(); }, 700);",
     'dlg_memory': "document.getElementById('memoryReviewPill').style.display=''; document.getElementById('memoryReviewPill').click();",
@@ -34,6 +35,10 @@ def render_all(out, light=False):
     from playwright.sync_api import sync_playwright
     html = rp.static_index(); fixtures = json.load(open(os.path.join(HERE, 'fixtures', 'workflows.json'))); ROOT = rp.ROOT
     fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'codebook.json'))))     # the codebook screen's book (2026-10-16), a file of its own
+    usage_fx = os.path.join(HERE, 'fixtures', 'usage.json')                               # the usage dialog's answers (2026-10-31): a synthetic month, made on demand
+    if not os.path.exists(usage_fx):
+        import subprocess; subprocess.run([sys.executable, os.path.join(HERE, 'usage_fixture.py'), usage_fx], check=True, env=dict(os.environ, PYTHONPATH=os.path.join(ROOT, 'tools', 'stack', 'fakepkgs')))
+    fixtures.update(json.load(open(usage_fx)))
     with sync_playwright() as pw:
         b = pw.chromium.launch()
         for name, js in STATES.items():

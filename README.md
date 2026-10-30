@@ -117,7 +117,7 @@ nothing to install.
 3. Run `bambooai serve` again. Upload a CSV, Parquet, JSON or XLSX file and ask a question. Choose
    *Quick*, *Deep* or *Adaptive* in the composer.
 4. Open **Models & Compute** from the gear menu to choose and save a preset: `cost`, `performance`
-   or `max`. **Usage** shows the calls, tokens and cost per run.
+   or `max`. **Usage** shows what the analyses cost and where the money and the time went.
 
 The working folder:
 
@@ -775,9 +775,15 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
 - `logs/<user>/bambooai_run_log.json`: every model call of the current thread, including seat, model, prompt,
   response, tokens, time and cost, overwritten when a new thread starts.
 - `logs/<user>/consolidated_logs.json`: the same across threads, rotated at 5 MB.
-- In the app: **Usage** (gear menu) aggregates calls, tokens and cost by seat, model and run; the
-  closing card of every run shows its cells, cost and time and opens the per-call telemetry; the
-  prompt button on any turn shows the exact prompt that produced it.
+- In the app: **Usage** (gear menu) reads the call records for a period - the last 24 hours, 7, 30 or 90
+  days, this month or last month - against the period before: the model cost, analyses, calls, tokens in
+  (with the share served from the prompt cache and what it saved), tokens out and model time as tiles; a
+  column chart by day stacked by seat, model or mode, measuring cost, tokens, calls or time; the seats and
+  models as sortable tables with the configuration's list prices; every analysis with what it cost and how
+  it ended, and for the one picked its seats, its calls laid out in time and its models; the raw rows; a CSV
+  export. Every number comes from the records; nothing in it is written by a model. The closing card of
+  every run shows its cells, cost and time and opens the per-call telemetry; the prompt button on any
+  turn shows the exact prompt that produced it.
 
 ## Development
 

@@ -155,7 +155,7 @@
             <span>Models & Compute</span>
             </button>
 
-            <button class="settings-option usage-tracking-option">
+            <button class="settings-option usage-option">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 20V10"/>
             <path d="M12 20V4"/>
@@ -611,48 +611,6 @@
         </div>
     </div>
 
-    <!-- Usage Tracking Modal -->
-    <div id="usageTrackingModal" class="modal ui-modal">
-        <div class="modal-content ui-dlg lg">
-            <div class="ui-dlg-h">
-                <div><div class="title">Usage</div><div class="sub" id="usagePeriodDescription">Last 30 days</div></div>
-                <span class="sp"></span>
-                <div class="period-selector-section">
-                    <label for="usagePeriodSelector">Period</label>
-                    <select id="usagePeriodSelector" class="ui-input">
-                        <option value="1_day">Last 24 hours</option>
-                        <option value="7_days">Last 7 days</option>
-                        <option value="30_days" selected>Last 30 days</option>
-                        <option value="90_days">Last 90 days</option>
-                    </select>
-                    <label for="usageViewSelector">View</label>
-                    <select id="usageViewSelector" class="ui-input">
-                        <option value="agents" selected>Seats</option>
-                        <option value="models">Models</option>
-                        <option value="queries">Runs</option>
-                    </select>
-                </div>
-                <button class="close x" aria-label="Close">×</button>
-            </div>
-            <div class="modal-body ui-dlg-b">
-                <div id="usageLoadingContainer" class="loading-container"><div class="loading-spinner"></div><div class="loading-text">Loading usage…</div></div>
-                <div id="usageErrorContainer" class="error-container"><div id="usageErrorMessage" class="error-message">Could not load usage. Please try again.</div></div>
-                <div id="usageDataContainer" class="data-container">
-                    <div class="summary-section ui-stats">
-                        <div class="summary-card ui-stat"><div id="totalQueries" class="value">0</div><span>runs</span></div>
-                        <div class="summary-card ui-stat"><div id="totalCost" class="value">$0.00</div><span>cost</span></div>
-                        <div class="summary-card ui-stat"><div id="totalInputTokens" class="value">0</div><span>input tokens</span></div>
-                        <div class="summary-card ui-stat"><div id="totalOutputTokens" class="value">0</div><span>output tokens</span></div>
-                    </div>
-                    <div class="charts-section">
-                        <div class="chart-container ui-card"><h4>Cost over time</h4><div id="costChartData"></div></div>
-                        <div class="chart-container ui-card"><h4>Tokens over time</h4><div id="tokenChartData"></div></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Workflow Manager Modal -->
     <div id="workflowManagerModal" class="workflow-manager-modal-container ui-modal-plain">
         <div class="workflow-manager-modal-content ui-dlg lg">
@@ -803,7 +761,7 @@
     <script src="{{ url_for('static', filename='js/pdf-export.js') }}"></script>
     <script src="{{ url_for('static', filename='js/api-keys.js') }}"></script>
     <script src="{{ url_for('static', filename='js/subscription.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/usage-tracking.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/usage.js') }}"></script>
     <script src="{{ url_for('static', filename='js/labels.js') }}"></script>
     <script src="{{ url_for('static', filename='js/workflow-modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/routines.js') }}"></script>
