@@ -85,6 +85,9 @@ def main():
         os.environ["ORCHESTRATOR_API_URL"] = f"http://127.0.0.1:{a.orchestrator_port}"
     elif a.compute == "direct":
         os.environ["EXECUTOR_API_BASE_URL"] = f"http://127.0.0.1:{a.executor_port}"     # one executor, as a docker run would be
+    # the app asks Intervals.icu whose a key is when it is saved (2026-10-30): the stack's fake answers; without one (the
+    # local kernel, no fake APIs) a dead port, so no walk ever reaches the real service with a made-up key
+    os.environ["INTERVALS_API_BASE_URL"] = (os.environ.get("STACK_FAKE_APIS", "").rstrip("/") or "http://127.0.0.1:9") + "/api/v1"
     sys.path[:0] = [ROOT, os.path.join(ROOT, "delve"), os.path.join(ROOT, "web_app"), HERE]
     import sandbox
     try:

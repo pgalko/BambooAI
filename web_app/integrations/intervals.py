@@ -16,10 +16,65 @@ from auth.supabase_client import (
     get_intervals_api_key,
     remove_intervals_api_key,
     get_intervals_integration_status,
+    list_intervals_athletes,
+    name_pending_intervals_key,
     get_user_subscription,
     can_execute_chain,
     increment_queries_counter,
 )
+
+# Whose key (2026-10-30, docs/DATASETS_DESIGN.md §17): a key is an athlete. Intervals.icu is asked who owns a key when it is
+# saved - `whose_key` - so the list in Settings names the athlete and every load can pick the athlete's own key. The base URL
+# is the service's; INTERVALS_API_BASE_URL points it elsewhere (the stack's fake, a proxy).
+INTERVALS_API_BASE_URL = os.getenv('INTERVALS_API_BASE_URL', 'https://intervals.icu/api/v1').rstrip('/')
+
+
+def whose_key(api_key, timeout=12):
+    """{'id', 'name'} of the athlete whose key this is, from Intervals.icu's own record; {'refused': True} when the service
+    does not accept the key; {'unreachable': '<why>'} when it could not be asked."""
+    try:
+        r = requests.get(f"{INTERVALS_API_BASE_URL}/athlete/0", auth=('API_KEY', str(api_key or '')), timeout=timeout)
+    except Exception as exc:                                   # noqa: BLE001
+        return {'unreachable': str(exc)[:200]}
+    if r.status_code in (401, 403):
+        return {'refused': True}
+    if not r.ok:
+        return {'unreachable': f'HTTP {r.status_code}'}
+    try:
+        a = r.json() if isinstance(r.json(), dict) else {}
+    except ValueError:
+        return {'unreachable': 'no record in the answer'}
+    athlete_id = str(a.get('id') or '').strip()
+    name = str(a.get('name') or ' '.join(str(a.get(k) or '') for k in ('firstname', 'lastname')).strip() or '').strip()
+    if not athlete_id:
+        return {'unreachable': 'the record names no athlete'}
+    return {'id': athlete_id, 'name': name}
+
+
+def _name_pending(user_id, auth0_id):
+    """A key stored without its athlete (the one from before the keys were kept per athlete, or saved while Intervals.icu was
+    unreachable): asked for now, named when the service answers. The list and the load call this."""
+    pending = get_intervals_api_key(user_id, auth0_id, '')
+    if not pending:
+        return
+    who = whose_key(pending)
+    if who.get('id'):
+        name_pending_intervals_key(user_id, auth0_id, who['id'], who.get('name') or '')
+    elif who.get('refused'):
+        intervals_bp.logger.warning(f'Intervals.icu refused the pending key of user {user_id}; it stays listed unnamed until removed')
+
+
+def _job_keys():
+    """job id -> the athlete id whose key the load ran on ('' for the pending key), for naming it when the job completes."""
+    if getattr(intervals_bp, 'job_keys', None) is None:
+        intervals_bp.job_keys = {}
+    return intervals_bp.job_keys
+
+
+def athlete_rows(user_id, auth0_id):
+    """The athletes with a key, for the page: id, name, added, last used; a pending key as an entry without an id."""
+    return [{'id': a['athlete_id'], 'name': a['athlete_name'], 'added': a.get('created_at'), 'last_used': a.get('last_used_at')}
+            for a in list_intervals_athletes(user_id, auth0_id)]
 
 # Create the blueprint
 intervals_bp = Blueprint('intervals', __name__, url_prefix='/intervals')
@@ -74,9 +129,11 @@ def init_intervals_integration(app, **dependencies):
 @intervals_bp.route('/store_api_key', methods=['POST'])
 @requires_auth
 def store_api_key():
-    """Store user's Intervals API key"""
+    """Store an Intervals API key: Intervals.icu is asked whose it is, and the key is kept as that athlete's - their earlier
+    key replaced when they had one. A key the service refuses is not kept; one it could not be asked about is kept pending
+    and named at the first chance. The answer carries the athlete and the list."""
     data = request.json or {}
-    api_key = data.get('api_key')
+    api_key = str(data.get('api_key') or '').strip()
     
     if not api_key:
         return jsonify({'error': 'API key is required'}), 400
@@ -84,32 +141,53 @@ def store_api_key():
     try:
         user_id = intervals_bp.get_user_id()
         auth0_id = get_current_user_id()
-        
-        success = store_intervals_api_key(user_id, auth0_id, api_key)
-        
-        if success:
-            intervals_bp.logger.info(f'Intervals API key stored for user: {user_id}')
-            return jsonify({'message': 'API key stored successfully'}), 200
-        else:
+        who = whose_key(api_key)
+        if who.get('refused'):
+            return jsonify({'error': 'Intervals.icu did not accept this key'}), 400
+        athlete_id, name = who.get('id') or '', who.get('name') or ''
+        before = {a['id'] for a in athlete_rows(user_id, auth0_id)}
+        success = store_intervals_api_key(user_id, auth0_id, api_key, athlete_id, name)
+        if not success:
             return jsonify({'error': 'Failed to store API key'}), 500
+        if athlete_id:
+            message = f"{name or athlete_id}'s key " + ('replaced' if athlete_id in before else 'added')
+        else:
+            message = 'Key kept; Intervals.icu could not be reached to name its athlete (' + str(who.get('unreachable') or '') + ') - it is named at the next load'
+        intervals_bp.logger.info(f'Intervals API key stored for user {user_id}: {message}')
+        return jsonify({'message': message, 'athlete': {'id': athlete_id, 'name': name}, 'replaced': bool(athlete_id and athlete_id in before),
+                        'athletes': athlete_rows(user_id, auth0_id)}), 200
             
     except Exception as e:
         intervals_bp.logger.error(f'Error storing Intervals API key: {str(e)}')
         return jsonify({'error': f'Failed to store API key: {str(e)}'}), 500
 
-@intervals_bp.route('/remove_api_key', methods=['POST'])
+@intervals_bp.route('/athletes', methods=['GET'])
 @requires_auth
-def remove_api_key():
-    """Remove user's Intervals API key"""
+def athletes():
+    """The athletes with a key, last used first (a pending key named now if Intervals.icu answers)."""
     try:
         user_id = intervals_bp.get_user_id()
         auth0_id = get_current_user_id()
-        
-        success = remove_intervals_api_key(user_id, auth0_id)
+        _name_pending(user_id, auth0_id)
+        return jsonify({'athletes': athlete_rows(user_id, auth0_id)}), 200
+    except Exception as e:
+        intervals_bp.logger.error(f'Error listing Intervals athletes: {str(e)}')
+        return jsonify({'error': f'Failed to list the athletes: {str(e)}'}), 500
+
+@intervals_bp.route('/remove_api_key', methods=['POST'])
+@requires_auth
+def remove_api_key():
+    """Remove an athlete's Intervals API key (`athlete_id`; '' the pending key); without one, every key."""
+    try:
+        user_id = intervals_bp.get_user_id()
+        auth0_id = get_current_user_id()
+        data = request.json or {}
+        athlete_id = data.get('athlete_id')
+        success = remove_intervals_api_key(user_id, auth0_id, None if athlete_id is None else str(athlete_id))
         
         if success:
             intervals_bp.logger.info(f'Intervals API key removed for user: {user_id}')
-            return jsonify({'message': 'API key removed successfully'}), 200
+            return jsonify({'message': 'API key removed successfully', 'athletes': athlete_rows(user_id, auth0_id)}), 200
         else:
             return jsonify({'error': 'Failed to remove API key'}), 500
             
@@ -156,14 +234,26 @@ def load_data():
     """Start Intervals.icu data load job with tier-based date restrictions"""
     data = request.json or {}
     
-    # Get user's API key from database
+    # Get user's API key from database - the athlete's own (2026-10-30): the dialog's pick (`athlete`), or the athlete whose
+    # folder the Dataset cache dialog names; neither given, the key last used
     user_id = intervals_bp.get_user_id()
     auth0_id = get_current_user_id()
+    folder = str(data.get('folder') or '').replace('\\', '/')
+    athlete_id = str(data.get('athlete') or (folder.split('/', 1)[1] if folder.startswith('intervals/') else '') or '')
+    if athlete_id:
+        api_key = get_intervals_api_key(user_id, auth0_id, athlete_id)
+        used = athlete_id
+        if not api_key and not data.get('from_store'):
+            name = str(data.get('athlete_name') or '').strip() or athlete_id      # the page's head names the athlete; the key list no longer can
+            return jsonify({'error': f"No Intervals.icu key stored for {name}: add it under Settings \u2192 Intervals ICU"}), 401
+    else:
+        api_key = get_intervals_api_key(user_id, auth0_id)
+        named = [a for a in athlete_rows(user_id, auth0_id) if a['id']]
+        used = named[0]['id'] if named else ''                 # whose key was taken: the last used named athlete's, else the pending one
     
-    api_key = get_intervals_api_key(user_id, auth0_id)
-    
-    if not api_key:
+    if not api_key and not data.get('from_store'):
         return jsonify({'error': 'No API key configured. Please add your Intervals.icu API key.'}), 401
+    api_key = api_key or ''                                    # a load from the store alone needs none
     
     # Validate and auto-adjust date range based on compute tier
     retention_days = 400                        # how long the executor's store keeps a key's activities (docs/INCREMENTAL_LOADS_DESIGN.md)
@@ -238,6 +328,8 @@ def load_data():
         response.raise_for_status()
 
         job_data = response.json()
+        if api_key:
+            _job_keys()[job_data['job_id']] = used             # whose key the job ran on ('' = the pending one, named when the job completes)
 
         if not with_frame:                                     # the load record is the frame's: a dataset alone joins it when it completes
             return jsonify({'job_id': job_data['job_id']}), 202
@@ -285,6 +377,12 @@ def get_job_status(job_id):
         if job_data['status'] == 'completed' and 'result' in job_data:
             session_id = session['session_id']
             result = job_data['result']
+            # the load ran on the pending key (its athlete not named yet): the loader's record of whom it fetched names it (2026-10-30)
+            if _job_keys().pop(job_id, None) == '' and (result.get('subject') or {}).get('id'):
+                try:
+                    name_pending_intervals_key(user_id, get_current_user_id(), str(result['subject']['id']), str(result['subject'].get('name') or ''))
+                except Exception as exc:                       # noqa: BLE001
+                    intervals_bp.logger.warning(f'the pending Intervals key could not be named after the load: {exc}')
 
             # Update user preferences
             prefs = intervals_bp.user_preferences.get(session_id, {
@@ -541,7 +639,8 @@ def status():
         return jsonify({
             'enabled': True,
             'authenticated': status.get('has_api_key', False),
-            'has_api_key': status.get('has_api_key', False)
+            'has_api_key': status.get('has_api_key', False),
+            'athletes': [{'id': a['athlete_id'], 'name': a['athlete_name']} for a in status.get('athletes') or []]      # with a key (2026-10-30)
         }), 200
         
     except Exception as e:

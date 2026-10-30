@@ -75,6 +75,15 @@ def set_window(page, start, end):
     page.evaluate("([s, e]) => { const a = document.getElementById('intervalsStartDate'), b = document.getElementById('intervalsEndDate'); a.min = ''; b.min = ''; a.value = s; b.value = e; }", [start.isoformat(), end.isoformat()])
 
 
+def pick_athlete(page, athlete_id):
+    """The load dialog's athlete (2026-10-30): wait for the picker to be filled, choose when there is a choice; the mode shown."""
+    page.wait_for_function("() => !!(document.querySelector('#intervalsModal .int-athlete') || {}).dataset.mode", timeout=15000)
+    mode = page.evaluate("() => document.querySelector('#intervalsModal .int-athlete').dataset.mode")
+    if mode == "pick":
+        page.select_option("#intervalsAthlete", athlete_id)
+    return mode
+
+
 def calls_of(st, kind):
     """How many calls the fake APIs have seen whose path carries `kind` (fit-file, messages...), from their log."""
     return len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if kind in c[1]])
@@ -118,9 +127,32 @@ def main():
                   re.fullmatch(r"[0-9a-f]{12}", str((st_["json"] or {}).get("page_build") or "")) is not None and bar["n"] == 1 and bar["afterTop"] and "BambooAI was updated" in bar["text"] and bar["reload"] and bar["gone"] and bar["stillGone"] and bar["again"], (st_["json"], bar))
             # the key, as the settings dialog stores it; then the Data tab's Intervals dialog loads the original window
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
-            check("the Intervals.icu key is stored through its route (the stack's store)", r["status"] == 200, r)
+            check("the Intervals.icu key is stored through its route (the stack's store), and Intervals.icu was asked whose it is (2026-10-30): the athlete named in the answer, the list of one",
+                  r["status"] == 200 and r["json"].get("athlete") == {"id": "i0", "name": "The subject"} and r["json"].get("message") == "The subject's key added" and [a["id"] for a in r["json"].get("athletes") or []] == ["i0"], r)
+            # Settings -> Intervals ICU (2026-10-30): the athletes with a key, a key added through the page (named by Intervals.icu), one removed
+            page.evaluate("showIntervalsConfigModal()")
+            page.wait_for_function("() => document.getElementById('intervalsConfigModal').style.display === 'flex' && document.querySelectorAll('#intervalsAthletes .row').length === 1", timeout=15000)
+            cfg1 = page.evaluate("() => ({ rows: [...document.querySelectorAll('#intervalsAthletes .row')].map(r => [r.dataset.athlete, r.querySelector('b').textContent, r.querySelector('.id').textContent, r.querySelector('.when').textContent]), status: document.getElementById('intervalsApiKeyStatus').textContent.trim(), cls: document.getElementById('intervalsApiKeyStatus').className, add: document.getElementById('saveIntervalsApiKey').textContent, remove: !!document.getElementById('removeIntervalsApiKey') })")
+            page.fill("#intervalsApiKeyInput", "stack-key-two")
+            page.evaluate("() => { window.__page_mark = 'same page'; }")
+            page.click("#saveIntervalsApiKey")
+            page.wait_for_function("() => document.querySelectorAll('#intervalsAthletes .row').length === 2", timeout=15000)
+            page.wait_for_timeout(1800)                                             # past the moment a first key would reload the page
+            cfg2 = page.evaluate("() => ({ rows: [...document.querySelectorAll('#intervalsAthletes .row')].map(r => [r.dataset.athlete, r.querySelector('b').textContent]), status: document.getElementById('intervalsApiKeyStatus').textContent.trim(), msg: document.getElementById('intervals-config-message').textContent, mark: window.__page_mark, open: document.getElementById('intervalsConfigModal').style.display, input: document.getElementById('intervalsApiKeyInput').value })")
+            check("the settings dialog lists the athlete with a key - the name, the id, added today - under 'One athlete with a key', with Add (no single Remove button); a second athlete's key typed and added: Intervals.icu names them, the row joins (the new one first), the status says two keys, the input is cleared, the page is not reloaded and the dialog stays",
+                  cfg1["rows"] == [["i0", "The subject", "i0", "added today \u00b7 used today"]] and cfg1["status"] == "One athlete with a key" and "has-key" in cfg1["cls"] and cfg1["add"] == "Add" and not cfg1["remove"]
+                  and cfg2["rows"] == [["i1", "The other subject"], ["i0", "The subject"]] and cfg2["status"] == "2 keys stored" and "The other subject's key added" in cfg2["msg"] and cfg2["mark"] == "same page" and cfg2["open"] == "flex" and cfg2["input"] == "", (cfg1, cfg2))
+            page.once("dialog", lambda d: d.accept())
+            page.click("#intervalsAthletes .row[data-athlete='i1'] button.remove")
+            page.wait_for_function("() => document.querySelectorAll('#intervalsAthletes .row').length === 1", timeout=15000)
+            cfg3 = page.evaluate("() => ({ rows: [...document.querySelectorAll('#intervalsAthletes .row')].map(r => r.dataset.athlete), status: document.getElementById('intervalsApiKeyStatus').textContent.trim() })")
+            r_bad = fetch_json(page, "/intervals/store_api_key", {"api_key": ""})
+            check("Remove on the second athlete's row (confirmed) takes their key off: one row again; an empty key is refused by the route", cfg3["rows"] == ["i0"] and cfg3["status"] == "One athlete with a key" and r_bad["status"] == 400, (cfg3, r_bad))
+            page.evaluate("() => { const m = document.getElementById('intervalsConfigModal'); if (m) m.style.display = 'none'; }")
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            mode1 = pick_athlete(page, "i0")
+            check("the load dialog with one athlete names them in its first row, no choice", mode1 == "one" and page.evaluate("() => document.getElementById('intervalsAthleteOne').textContent") == "The subject", mode1)
             set_window(page, a_start, a_end)
             rd_default = page.evaluate("() => document.getElementById('rider-checkbox').checked")
             page.evaluate("() => { ['summary-checkbox', 'wellness-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; }); ['context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); if (c) c.checked = false; }); }")   # the context and the rider profile (both on by default) are walked at the end
@@ -435,23 +467,43 @@ def main():
             # the coach changes the key (another subject: the fake's /athlete/0 answers "i1" to a key ending in -two): the cached
             # windows are the first subject's and must not be served; the new key has loaded nothing yet, so it is only "another key"
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key-two"})
-            check("another Intervals.icu key stored", r["status"] == 200, r)
-            # a load asked for one athlete under another athlete's key is refused (2026-10-29, executor v74): the cache dialog's Load
-            # Wellness to today for the first subject, with the other subject's key stored - the loader used to fetch the key's athlete
-            # under the asked athlete's window, two athletes on the Data tab - says whose key is stored and what to do; nothing written
+            check("another Intervals.icu key stored - the other subject's, named by Intervals.icu, beside the first's", r["status"] == 200 and r["json"].get("athlete") == {"id": "i1", "name": "The other subject"} and [a["id"] for a in r["json"].get("athletes") or []] == ["i1", "i0"], r)
+            page.evaluate("showIntervalsModal()")
+            page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            mode2 = pick_athlete(page, "i0")
+            picker = page.evaluate("() => ({ options: [...document.querySelectorAll('#intervalsAthlete option')].map(o => [o.value, o.textContent]), value: document.getElementById('intervalsAthlete').value })")
+            page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
+            check("with two athletes the load dialog offers a choice, the last used first, and keeps the one picked", mode2 == "pick" and picker["options"] == [["i1", "The other subject"], ["i0", "The subject"]] and picker["value"] == "i0", picker)
+            # whose key a load runs on (2026-10-30): the cache dialog's loads name the athlete's folder and the app takes that athlete's own
+            # key - so with both keys stored, Load Wellness to today for the first subject is the first subject's; without a key for them
+            # the app refuses before anything starts; and a request that names one athlete's folder with another athlete's key (nothing
+            # on the page sends that) is still refused by the executor (0248) before anything is written
             pills_k = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim())")
             files_k = sorted(os.listdir(exec_views))
+            r = fetch_json(page, "/intervals/remove_api_key", {"athlete_id": "i0"})
             page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
             page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-feed[data-feed=\"wellness\"]').length >= 1", timeout=15000)
+            page.wait_for_timeout(500)
             page.evaluate("() => document.querySelector('#datasetTree .ds-feed[data-feed=\"wellness\"]').click()")
             page.wait_for_function("() => !!document.querySelector('#datasetDetails [data-act=\"today\"]') && /Wellness/.test(document.getElementById('datasetDetails').textContent)", timeout=10000)
             page.click("#datasetDetails [data-act='today']")
-            page.wait_for_function("() => /Failed|Loaded /.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=120000)
+            page.wait_for_function("() => /Could not start|Failed|Loaded /.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=120000)
             refused = page.evaluate("() => ({ line: document.getElementById('dsLoadStatus').textContent, cls: document.getElementById('dsLoadStatus').className, pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim()) })")
             page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
-            check("Load Wellness to today for the first subject while the other subject's key is stored: refused with whose key it is and what to do, nothing written for either subject (no folder for the other yet, the first's files as they were), the Data tab untouched",
-                  "Failed: The Intervals.icu key stored is The other subject's, not The subject's: put The subject's key in the Intervals.icu dialog, then load again" in refused["line"] and "error" in refused["cls"]
-                  and not os.path.exists(os.path.join(workdir, "executor", "datasets", USER, "intervals", "i1")) and refused["pills"] == pills_k and sorted(os.listdir(exec_views)) == files_k, (refused, pills_k, files_k))
+            r2 = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
+            check("Load Wellness to today for the first subject with their key removed (the other subject's stored): refused by the app before anything starts, naming the athlete and where to add the key; nothing written, the Data tab untouched; their key put back is 'replaced' (the row kept) and both athletes listed again",
+                  r["status"] == 200 and "Could not start the load: No Intervals.icu key stored for The subject: add it under Settings \u2192 Intervals ICU" in refused["line"] and "error" in refused["cls"]
+                  and refused["pills"] == pills_k and sorted(os.listdir(exec_views)) == files_k and r2["json"].get("message") == "The subject's key added" and sorted(a["id"] for a in r2["json"]["athletes"]) == ["i0", "i1"], (refused, r2))
+            job = fetch_json(page, "/intervals/load_data", {"start_date": a_start.isoformat(), "end_date": today.isoformat(), "metrics": [], "aux_datasets": ["wellness"], "folder": "intervals/i0", "athlete": "i1", "with_frame": False})
+            err = None
+            for _ in range(60):
+                js = fetch_json(page, "/intervals/job/" + str((job["json"] or {}).get("job_id")), None, "GET")
+                if (js["json"] or {}).get("status") in ("error", "completed"):
+                    err = js["json"]; break
+                page.wait_for_timeout(500)
+            check("a request naming one athlete's folder with another athlete's key - nothing on the page sends one - is refused by the executor before anything is written (0248 stands as the guard): the job errors with whose key it is, no folder for the other subject, the first's files as they were",
+                  job["status"] == 202 and err and err.get("status") == "error" and "The Intervals.icu key stored is The other subject's, not The subject's" in str(err.get("error"))
+                  and not os.path.exists(os.path.join(workdir, "executor", "datasets", USER, "intervals", "i1")) and sorted(os.listdir(exec_views)) == files_k, (job, err))
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => { const t = (document.querySelector('#routinesModal .rt-right .title') || {}).textContent || ''; return t.length > 0 && !/Again on the cached window/.test(t); }", timeout=15000)     # the manager re-opens on the routine it last showed - the deleted one - until the list's first has loaded
@@ -571,6 +623,7 @@ def main():
             r = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            pick_athlete(page, "i0")                                            # the first subject's key, whichever was used last (2026-10-30)
             set_window(page, a_start, a_end)
             cx_default = page.evaluate("() => document.getElementById('context-checkbox').checked")
             page.evaluate("() => ['summary-checkbox', 'wellness-checkbox', 'context-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
@@ -811,6 +864,7 @@ def main():
             fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            pick_athlete(page, "i0")                                            # the first subject's key, whichever was used last (2026-10-30)
             set_window(page, a_start, a_end)
             page.evaluate("() => ['summary-checkbox', 'wellness-checkbox', 'context-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
             msgs_before_r = calls_of(st, "/messages")
@@ -904,6 +958,7 @@ def main():
             page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            pick_athlete(page, "i0")                                            # the first subject's key, whichever was used last (2026-10-30)
             set_window(page, a_start, a_end)
             page.evaluate("() => ['summary-checkbox', 'intervals-checkbox', 'wellness-checkbox', 'context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
             page.click("#connectIntervals")

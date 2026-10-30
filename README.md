@@ -577,10 +577,12 @@ requests to their respective services.
 - **Auxiliary datasets**: additional files uploaded alongside the primary dataset, available to
   the cells by path.
 - **Intervals.icu** and **Endura**: an API key entered in the app (stored encrypted in the working
-  folder's database). Choose a date range; the data is loaded into the executor and described to
-  the analyst - the frame's schema and the heads of the files that came with it. An Intervals.icu
-  load can add the activity summary, the wellness log, the activity intervals and, with the Context
-  option, the words and the planned workouts.
+  folder's database). For Intervals.icu a coach keeps one key per athlete: Settings → Intervals ICU
+  lists the athletes with a key (Intervals.icu is asked whose a key is when it is saved), and the
+  load dialog names the athlete first. Choose a date range; the data is loaded into the executor and
+  described to the analyst - the frame's schema and the heads of the files that came with it. An
+  Intervals.icu load can add the activity summary, the wellness log, the activity intervals and, with
+  the Context option, the words and the planned workouts.
 - **SweatStack**: OAuth; needs your own app registration with SweatStack (`SWEATSTACK_CLIENT_ID`,
   `SWEATSTACK_CLIENT_SECRET`).
 - **Web search**: `GEMINI_API_KEY`.
@@ -676,8 +678,8 @@ after asking); the athlete's line has the same for everything held. Loading one 
 frame as it is; loading Activities brings the datasets on the Data tab with it, to the same window; the
 Data tab holds one athlete at a time (a load for another athlete lets the first's pills go, after
 asking; the thread stays, the kernel starts fresh on the new data, and the model's ledger marks the
-earlier chains as on another subject's data); a *to today* load for an athlete whose key is not the
-one in the Intervals.icu dialog is refused, with whose key it is; a pill's × takes a dataset off the
+earlier chains as on another subject's data); a *to today* load runs on the athlete's own key, and one
+for an athlete without a key is refused, saying so; a pill's × takes a dataset off the
 Data tab without deleting it. Uploads and generated files keep their own groups. A routine whose window lies inside a
 load the executor still holds runs from the cache without a download.
 

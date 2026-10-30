@@ -76,7 +76,8 @@ def main():
 
             key = api(page, "POST", "/intervals/store_api_key", {"api_key": "test-key-123"})
             key_ok = key["status"] in (200, 201)
-            check("integration: an Intervals key is stored (encrypted) through the same route as the hosted edition", key_ok, key)
+            check("integration: an Intervals key is stored (encrypted) through the same route as the hosted edition; Intervals.icu could not be asked whose it is here (no service in this edition's test), so it is kept pending - named at the next load - and listed without an athlete (2026-10-30)",
+                  key_ok and "could not be reached" in str((key["body"] or {}).get("message")) and [a.get("id") for a in (key["body"] or {}).get("athletes") or []] == [""], key)
 
             usage = api(page, "GET", "/usage_tracking?period=30_days")
             total = (usage["body"] or {}).get("summary", {}).get("total_cost") if usage["body"] else None
@@ -105,6 +106,8 @@ def main():
             st_ = api(page, "POST", "/api/user/initialize", {})
             iv = ((st_["body"] or {}).get("intervals") or {})
             check("after restart: the Intervals key is still stored (the initialise call reports it)", st_["status"] == 200 and iv.get("intervals_authenticated") is True, st_["body"] and st_["body"].get("intervals"))
+            ath = api(page, "GET", "/intervals/athletes")
+            check("after restart: the pending key is still listed, still unnamed (the file upgraded in place keeps it as the one pending row)", ath["status"] == 200 and [a.get("id") for a in (ath["body"] or {}).get("athletes") or []] == [""], ath)
             usage = api(page, "GET", "/usage_tracking?period=30_days")
             check("after restart: the Usage dashboard shows the same records", usage["status"] == 200 and usage["body"] == usage_first, (str(usage["body"])[:160], str(usage_first)[:160]))
             b.close()

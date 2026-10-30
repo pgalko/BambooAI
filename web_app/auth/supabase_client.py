@@ -534,8 +534,26 @@ def get_sweatstack_integration_status(bamboo_user_id: str, auth0_id: str) -> dic
 # INTERVALS INTEGRATION FUNCTIONS  
 # =============================================================================
 
-def store_intervals_api_key(bamboo_user_id: str, auth0_id: str, api_key: str) -> bool:
-    """Store Intervals API key in database (encrypted)"""
+# The Intervals.icu keys (2026-10-30, docs/DATASETS_DESIGN.md §17): one row per coach and athlete - a key is an athlete.
+# `athlete_id` is the id Intervals.icu gives the key's owner and `athlete_name` their name, learned when the key is saved;
+# a row with athlete_id '' is a key stored before the athlete could be named (the single key from before this design,
+# or one saved while Intervals.icu was unreachable) and is named at the first chance (name_pending_intervals_key). The
+# hosted table needs docs/sql/intervals_keys_per_athlete.sql once; the local store upgrades itself.
+
+def _intervals_rows(service_client, bamboo_user_id: str, athlete_id=None):
+    q = service_client.table('intervals_integration').select('id, api_key, athlete_id, athlete_name, created_at, updated_at, last_used_at').eq('bamboo_user_id', bamboo_user_id)
+    if athlete_id is not None:
+        q = q.eq('athlete_id', str(athlete_id))
+    return [r for r in (q.execute().data or []) if r.get('api_key')]
+
+
+def _last_used_first(rows):
+    return sorted(rows, key=lambda r: str(r.get('last_used_at') or r.get('updated_at') or ''), reverse=True)
+
+
+def store_intervals_api_key(bamboo_user_id: str, auth0_id: str, api_key: str, athlete_id: str = '', athlete_name: str = '') -> bool:
+    """Store an Intervals API key (encrypted) for an athlete: the athlete's row replaced when one exists (a rotated key),
+    made otherwise. athlete_id '' is the one pending row - a key whose athlete is not named yet."""
     
     # Security validation
     if not validate_user_access(auth0_id):
@@ -550,22 +568,24 @@ def store_intervals_api_key(bamboo_user_id: str, auth0_id: str, api_key: str) ->
             logger.error(f"Error: Missing API key for user {bamboo_user_id}")
             return False
         
-        created_at = datetime.utcnow()
-        
-        key_record = {
-            'bamboo_user_id': bamboo_user_id,
-            'auth0_id': auth0_id,
+        now = datetime.utcnow().isoformat()
+        athlete_id = str(athlete_id or '')
+        record = {
             'api_key': _encrypt_value(api_key),  # Encrypt the API key
+            'athlete_id': athlete_id,
+            'athlete_name': str(athlete_name or ''),
             'token_type': 'api_key',
-            'created_at': created_at.isoformat(),
-            'updated_at': created_at.isoformat(),
-            'last_used_at': created_at.isoformat()
+            'updated_at': now,
+            'last_used_at': now
         }
-        
-        result = service_client.table('intervals_integration').upsert(key_record).execute()
+        rows = _intervals_rows(service_client, bamboo_user_id, athlete_id)
+        if rows:
+            result = service_client.table('intervals_integration').update(record).eq('id', rows[0]['id']).execute()
+        else:
+            result = service_client.table('intervals_integration').insert(dict(record, bamboo_user_id=bamboo_user_id, auth0_id=auth0_id, created_at=now)).execute()
         
         if result.data:
-            logger.info(f'Intervals API key stored in DB for user: {bamboo_user_id}')
+            logger.info(f'Intervals API key stored in DB for user: {bamboo_user_id}' + (f' (athlete {athlete_id})' if athlete_id else ' (athlete not named yet)'))
             return True
         else:
             logger.warning(f'Failed to store Intervals API key for user: {bamboo_user_id}')
@@ -576,8 +596,9 @@ def store_intervals_api_key(bamboo_user_id: str, auth0_id: str, api_key: str) ->
         return False
 
 
-def get_intervals_api_key(bamboo_user_id: str, auth0_id: str) -> str:
-    """Retrieve Intervals API key from database"""
+def get_intervals_api_key(bamboo_user_id: str, auth0_id: str, athlete_id=None) -> str:
+    """Retrieve an Intervals API key: the athlete's with `athlete_id` ('' the pending key); without one, the named athlete
+    last used (with one athlete, theirs), the pending key only when no athlete is named. The row read is marked used."""
     
     # Security validation
     if not validate_user_access(auth0_id):
@@ -586,20 +607,19 @@ def get_intervals_api_key(bamboo_user_id: str, auth0_id: str) -> str:
     
     try:
         service_client = get_service_client()
-        result = service_client.table('intervals_integration').select(
-            'api_key, updated_at'
-        ).eq('bamboo_user_id', bamboo_user_id).execute()
-        
-        if not result.data:
+        rows = _last_used_first(_intervals_rows(service_client, bamboo_user_id, athlete_id))
+        if athlete_id is None:
+            rows = [r for r in rows if r.get('athlete_id')] or rows      # a named athlete's before the pending key
+        if not rows:
             return None
         
-        key_data = result.data[0]
+        key_data = rows[0]
         
         # Update last used timestamp
         try:
             service_client.table('intervals_integration').update({
                 'last_used_at': datetime.utcnow().isoformat()
-            }).eq('bamboo_user_id', bamboo_user_id).execute()
+            }).eq('id', key_data['id']).execute()
         except Exception as e:
             logger.error(f'Warning: Could not update last_used_at for user {bamboo_user_id}: {e}')
         
@@ -617,8 +637,48 @@ def get_intervals_api_key(bamboo_user_id: str, auth0_id: str) -> str:
         return None
 
 
-def remove_intervals_api_key(bamboo_user_id: str, auth0_id: str) -> bool:
-    """Remove Intervals integration from database"""
+def list_intervals_athletes(bamboo_user_id: str, auth0_id: str) -> list:
+    """The athletes with a key, last used first: [{athlete_id, athlete_name, created_at, last_used_at}]; a pending row
+    (athlete_id '') last, with no name. Never the keys."""
+    if not validate_user_access(auth0_id):
+        return []
+    try:
+        service_client = get_service_client()
+        rows = _last_used_first(_intervals_rows(service_client, bamboo_user_id))
+        named = [r for r in rows if r.get('athlete_id')] + [r for r in rows if not r.get('athlete_id')]
+        return [{'athlete_id': str(r.get('athlete_id') or ''), 'athlete_name': str(r.get('athlete_name') or ''),
+                 'created_at': r.get('created_at'), 'last_used_at': r.get('last_used_at')} for r in named]
+    except Exception as e:
+        logger.error(f"Error listing Intervals athletes for user {bamboo_user_id}: {str(e)}")
+        return []
+
+
+def name_pending_intervals_key(bamboo_user_id: str, auth0_id: str, athlete_id: str, athlete_name: str) -> bool:
+    """A load has told whose the pending key is: the row gets the athlete's id and name. When that athlete already has a
+    row, the pending key is their rotated key - it replaces theirs and the pending row goes. False when nothing was pending."""
+    if not validate_user_access(auth0_id) or not athlete_id:
+        return False
+    try:
+        service_client = get_service_client()
+        pending = _intervals_rows(service_client, bamboo_user_id, '')
+        if not pending:
+            return False
+        now = datetime.utcnow().isoformat()
+        have = _intervals_rows(service_client, bamboo_user_id, str(athlete_id))
+        if have:
+            service_client.table('intervals_integration').update({'api_key': pending[0]['api_key'], 'athlete_name': str(athlete_name or have[0].get('athlete_name') or ''), 'updated_at': now, 'last_used_at': now}).eq('id', have[0]['id']).execute()
+            service_client.table('intervals_integration').delete().eq('id', pending[0]['id']).execute()
+        else:
+            service_client.table('intervals_integration').update({'athlete_id': str(athlete_id), 'athlete_name': str(athlete_name or ''), 'updated_at': now}).eq('id', pending[0]['id']).execute()
+        logger.info(f'Intervals API key named for user {bamboo_user_id}: athlete {athlete_id}')
+        return True
+    except Exception as e:
+        logger.error(f"Error naming the pending Intervals key for user {bamboo_user_id}: {str(e)}")
+        return False
+
+
+def remove_intervals_api_key(bamboo_user_id: str, auth0_id: str, athlete_id=None) -> bool:
+    """Remove an athlete's Intervals key (the pending one with athlete_id ''); every key without an athlete named."""
     
     # Security validation
     if not validate_user_access(auth0_id):
@@ -627,8 +687,11 @@ def remove_intervals_api_key(bamboo_user_id: str, auth0_id: str) -> bool:
     
     try:
         service_client = get_service_client()
-        result = service_client.table('intervals_integration').delete().eq('bamboo_user_id', bamboo_user_id).execute()
-        logger.info(f'Intervals API key removed from DB for user: {bamboo_user_id}')
+        q = service_client.table('intervals_integration').delete().eq('bamboo_user_id', bamboo_user_id)
+        if athlete_id is not None:
+            q = q.eq('athlete_id', str(athlete_id))
+        q.execute()
+        logger.info(f'Intervals API key removed from DB for user: {bamboo_user_id}' + (f' (athlete {athlete_id!r})' if athlete_id is not None else ''))
         return True
         
     except Exception as e:
@@ -637,34 +700,28 @@ def remove_intervals_api_key(bamboo_user_id: str, auth0_id: str) -> bool:
 
 
 def get_intervals_integration_status(bamboo_user_id: str, auth0_id: str) -> dict:
-    """Get Intervals integration status for a user"""
+    """Get Intervals integration status for a user: whether any key is stored, and the athletes with one."""
     
     # Security validation
     if not validate_user_access(auth0_id):
-        return {'authenticated': False, 'has_api_key': False}
+        return {'authenticated': False, 'has_api_key': False, 'athletes': []}
     
     try:
-        service_client = get_service_client()
-        result = service_client.table('intervals_integration').select(
-            'api_key, last_used_at, created_at, updated_at'
-        ).eq('bamboo_user_id', bamboo_user_id).execute()
-        
-        if not result.data or not result.data[0].get('api_key'):
-            return {'authenticated': False, 'has_api_key': False}
-        
-        integration = result.data[0]
+        athletes = list_intervals_athletes(bamboo_user_id, auth0_id)
+        if not athletes:
+            return {'authenticated': False, 'has_api_key': False, 'athletes': []}
         
         return {
             'authenticated': True,  # Has API key
             'has_api_key': True,
-            'last_used_at': integration.get('last_used_at'),
-            'created_at': integration.get('created_at'),
-            'updated_at': integration.get('updated_at')
+            'athletes': athletes,
+            'last_used_at': athletes[0].get('last_used_at'),
+            'created_at': athletes[0].get('created_at')
         }
         
     except Exception as e:
         logger.error(f"Error getting Intervals integration status for user {bamboo_user_id}: {str(e)}")
-        return {'authenticated': False, 'has_api_key': False}
+        return {'authenticated': False, 'has_api_key': False, 'athletes': []}
     
 
 # =============================================================================

@@ -260,7 +260,7 @@ window.DatasetManager = (function() {
         };
         try {
             const response = await window.authService.fetch('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start_date: from, end_date: to, metrics: [], aux_datasets: kinds, refresh: false, from_store: !online, folder: folder, with_frame: withFrame }) });
+                body: JSON.stringify({ start_date: from, end_date: to, metrics: [], aux_datasets: kinds, refresh: false, from_store: !online, folder: folder, with_frame: withFrame, athlete_name: subject.name || '' }) });     // the folder names the athlete, so the app takes their key (2026-10-30); the name is for its messages
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
             if (withFrame) {

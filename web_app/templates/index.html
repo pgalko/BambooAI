@@ -538,6 +538,8 @@
                  the rides, the days, the settings the data is read against (the rider profile, on by default), the words spanning the row beneath;
                  Download as a two-sided choice (the hidden box keeps the state the script reads); the status in the foot -->
             <div class="ui-dlg-b modal-sections-container">
+                <!-- whose data (2026-10-30): the athletes with a key, last used first; one athlete is named, not chosen; none sends the coach to Settings -->
+                <div class="modal-section int-athlete-section"><h4>Athlete</h4><div class="int-athlete ui-field"><select id="intervalsAthlete" class="ui-input int-athlete-select"></select><span id="intervalsAthleteOne" class="int-athlete-one"></span><span id="intervalsAthleteNone" class="int-athlete-none">No athlete yet: add an athlete's API key under Settings → Intervals ICU</span></div></div>
                 <div class="modal-section"><h4>Window</h4><div class="date-range-selection ui-row2">
                     <div class="date-input-group ui-field"><label for="intervalsStartDate">From</label><input type="date" id="intervalsStartDate" name="intervalsStartDate" class="date-input"></div>
                     <div class="date-input-group ui-field"><label for="intervalsEndDate">To</label><input type="date" id="intervalsEndDate" name="intervalsEndDate" class="date-input"></div>
@@ -559,16 +561,17 @@
         </div>
     </div>
 
-    <!-- Intervals ICU Configuration Modal with API Key Management -->
+    <!-- Intervals ICU Configuration Modal: the athletes with a key, and a key added (2026-10-30: one key per athlete) -->
     <div id="intervalsConfigModal" class="modal ui-modal integration-dialog">
         <div class="modal-content ui-dlg sm">
-            <div class="ui-dlg-h"><img src="/static/image/intervals-favicon.png" alt="" class="int-logo"><div class="title">Intervals ICU</div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
+            <div class="ui-dlg-h"><img src="/static/image/intervals-favicon.png" alt="" class="int-logo"><div><div class="title">Intervals ICU</div><div class="sub">one API key per athlete; every load names the athlete</div></div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
             <div class="ui-dlg-b modal-section">
                 <div id="intervalsApiKeyStatus" class="api-key-status"></div>
-                <div class="api-key-section ui-field"><label for="intervalsApiKeyInput">API key</label><div class="api-key-input-wrapper"><input type="password" id="intervalsApiKeyInput" class="api-key-input" placeholder="Your Intervals.icu API key" autocomplete="off"></div><p class="api-key-help help">From your <a href="https://intervals.icu/settings" target="_blank" rel="noopener noreferrer">Intervals.icu settings</a>, near the bottom. Stored encrypted; used only to fetch your activities.</p></div>
+                <div id="intervalsAthletes" class="int-athletes"></div>
+                <div class="api-key-section ui-field"><label for="intervalsApiKeyInput">Add an athlete's API key</label><div class="api-key-input-wrapper"><input type="password" id="intervalsApiKeyInput" class="api-key-input" placeholder="The athlete's Intervals.icu API key" autocomplete="off"></div><p class="api-key-help help">From the athlete's <a href="https://intervals.icu/settings" target="_blank" rel="noopener noreferrer">Intervals.icu settings</a>, near the bottom. Stored encrypted; Intervals.icu is asked whose it is, and an athlete's new key replaces their old one.</p></div>
                 <div id="intervals-config-message" class="intervals-status-message int-message" style="display: none;"></div>
             </div>
-            <div class="modal-footer ui-dlg-f"><div class="button-group"><button id="removeIntervalsApiKey" class="secondary-button ui-btn danger" style="display: none;">Remove</button></div><span class="sp"></span><button id="saveIntervalsApiKey" class="primary-button ui-btn primary">Save</button></div>
+            <div class="modal-footer ui-dlg-f"><span class="sp"></span><button id="saveIntervalsApiKey" class="primary-button ui-btn primary">Add</button></div>
         </div>
     </div>
 

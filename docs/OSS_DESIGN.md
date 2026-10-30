@@ -68,7 +68,10 @@ statement by statement against the code.
   call's tokens, time and cost both to the `usage` table and to the run log; the dashboard's
   aggregation runs unchanged over the local table. "Total Compute Cost" becomes zero or is hidden.
 - **D13. The three integration tables carry an `auth0_id` column.** Locally it holds the local user
-  id or stays empty — the one place the identity seam reaches the data.
+  id or stays empty — the one place the identity seam reaches the data. Since 2026-10-30
+  `intervals_integration` is one row per user *and athlete* (`athlete_id`, `athlete_name`;
+  docs/DATASETS_DESIGN.md §17): the hosted table takes `docs/sql/intervals_keys_per_athlete.sql`
+  once, the local file rebuilds the table on its first opening.
 - **D14. The schema file stays on the box, untracked.** `web_app/db_schema.sql` (the dump shipped in
   v72) is added to `.gitignore` and removed from tracking (`git rm --cached`); neither remote
   receives it from then on. The SQLite schema for the open-source edition is generated from it once

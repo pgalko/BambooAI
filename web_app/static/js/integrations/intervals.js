@@ -351,17 +351,6 @@ function removeIntervalsPill() {
 //  API KEY MANAGEMENT
 //--------------------
 
-async function checkIntervalsApiKey() {
-    try {
-        const response = await window.authService.fetch('/intervals/status');
-        const data = await response.json();
-        return data.has_api_key || false;
-    } catch (error) {
-        console.error('Error checking Intervals API key:', error);
-        return false;
-    }
-}
-
 async function saveIntervalsApiKey(apiKey) {
     try {
         const response = await window.authService.fetch('/intervals/store_api_key', {
@@ -375,18 +364,19 @@ async function saveIntervalsApiKey(apiKey) {
             throw new Error(error.error || 'Failed to save API key');
         }
         
-        return true;
+        return await response.json();                          // the athlete named, the list (2026-10-30)
     } catch (error) {
         console.error('Error saving Intervals API key:', error);
         throw error;
     }
 }
 
-async function removeIntervalsApiKey() {
+async function removeIntervalsApiKey(athleteId) {
     try {
         const response = await window.authService.fetch('/intervals/remove_api_key', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ athlete_id: String(athleteId == null ? '' : athleteId) })      // one athlete's key ('' the one not named yet)
         });
         
         if (!response.ok) {
@@ -394,7 +384,7 @@ async function removeIntervalsApiKey() {
             throw new Error(error.error || 'Failed to remove API key');
         }
         
-        return true;
+        return await response.json();
     } catch (error) {
         console.error('Error removing Intervals API key:', error);
         throw error;
@@ -463,7 +453,8 @@ function initializeIntervalsMainModal() {
                     end_date: dateRange.end,
                     metrics: [],
                     aux_datasets: auxDatasets,
-                    refresh: refresh
+                    refresh: refresh,
+                    athlete: intervalsAthleteId()                   // whose data (2026-10-30): the dialog's pick, its key the app's to find
                 })
             });
         })
@@ -599,8 +590,6 @@ function initializeIntervalsConfigModal() {
     const closeButton = modal?.querySelector('.close');
     const apiKeyInput = document.getElementById('intervalsApiKeyInput');
     const saveButton = document.getElementById('saveIntervalsApiKey');
-    const removeButton = document.getElementById('removeIntervalsApiKey');
-    const statusIndicator = document.getElementById('intervalsApiKeyStatus');
 
     if (!modal || !closeButton) {
         console.warn('Intervals config modal elements not found');
@@ -615,133 +604,107 @@ function initializeIntervalsConfigModal() {
     // Initialize API key status when modal opens
     modal.addEventListener('show', updateApiKeyStatus);
     
-    // Save API key
+    // a key added (2026-10-30): Intervals.icu names its athlete; the list follows; the page reloads only when this is the first key
+    // (the paperclip appears with it)
     if (saveButton) {
         saveButton.addEventListener('click', async function() {
             const apiKey = apiKeyInput?.value?.trim();
             
             if (!apiKey) {
-                showIntervalsConfigMessage('Please enter your API key', 'error');
+                showIntervalsConfigMessage("Please enter the athlete's API key", 'error');
                 return;
             }
             
             // Show loading state
             saveButton.disabled = true;
-            saveButton.textContent = 'Saving...';
+            saveButton.textContent = 'Asking Intervals.icu…';
+            const first = !intervalsAthleteCountIn(document.getElementById('intervalsAthletes'));
             
             try {
-                await saveIntervalsApiKey(apiKey);
-                showIntervalsConfigMessage('API key saved successfully!', 'success');
-                
-                // Update status indicator
-                await updateApiKeyStatus();
+                const data = await saveIntervalsApiKey(apiKey);
+                showIntervalsConfigMessage(data.message || 'API key saved successfully!', 'success');
+                renderIntervalsAthletes(data.athletes || []);
                 
                 // Clear input for security
                 apiKeyInput.value = '';
                 
-                // Close modal after success
-                setTimeout(() => {
-                    modal.style.display = 'none';
-                    // Reload to update button visibility
-                    window.location.reload();
-                }, 1500);
+                if (first) setTimeout(() => { modal.style.display = 'none'; window.location.reload(); }, 1500);     // the paperclip appears
                 
             } catch (error) {
                 showIntervalsConfigMessage(`Failed to save API key: ${error.message}`, 'error');
             } finally {
                 saveButton.disabled = false;
-                saveButton.textContent = 'Save';
+                saveButton.textContent = 'Add';
             }
         });
     }
     
-    // Remove API key
-    if (removeButton) {
-        removeButton.addEventListener('click', async function() {
-            if (!confirm('Are you sure you want to remove your Intervals.icu API key?')) {
-                return;
-            }
-            
-            // Show loading state
-            removeButton.disabled = true;
-            removeButton.textContent = 'Removing...';
-            
+    // an athlete's key removed, from their row
+    const list = document.getElementById('intervalsAthletes');
+    if (list) {
+        list.addEventListener('click', async function(e) {
+            const b = e.target.closest('button.remove');
+            if (!b) return;
+            const row = b.closest('.row');
+            const who = row ? row.dataset.name || 'this key' : 'this key';
+            if (!confirm("Remove " + who + "'s Intervals.icu key? Their data in the cache stays.")) return;
+            b.disabled = true;
             try {
-                await removeIntervalsApiKey();
-                showIntervalsConfigMessage('API key removed successfully', 'success');
-                
-                // Update status indicator
-                await updateApiKeyStatus();
-                
-                // Close modal after success
-                setTimeout(() => {
-                    modal.style.display = 'none';
-                    // Reload to update button visibility
-                    window.location.reload();
-                }, 1500);
-                
+                const data = await removeIntervalsApiKey(row ? row.dataset.athlete : '');
+                showIntervalsConfigMessage('Key removed', 'success');
+                renderIntervalsAthletes(data.athletes || []);
+                if (!(data.athletes || []).length) setTimeout(() => { modal.style.display = 'none'; window.location.reload(); }, 1500);     // the paperclip goes
             } catch (error) {
-                showIntervalsConfigMessage(`Failed to remove API key: ${error.message}`, 'error');
-            } finally {
-                removeButton.disabled = false;
-                removeButton.textContent = 'Remove';
+                showIntervalsConfigMessage(`Failed to remove the key: ${error.message}`, 'error');
+                b.disabled = false;
             }
         });
     }
 }
 
+function intervalsAthleteCountIn(list) { return list ? list.querySelectorAll('.row[data-athlete]:not([data-athlete=""])').length : 0; }
+function intervalsWhen(iso) {
+    const raw = String(iso || '').trim();
+    const t = Date.parse(/[zZ]$|[+-]\d\d:?\d\d$/.test(raw) ? raw : raw.replace(' ', 'T') + 'Z');      // the stores write UTC without a zone
+    if (!Number.isFinite(t)) return '';
+    const d = Math.floor((Date.now() - t) / 86400000);
+    return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? d + ' days ago' : (typeof localIsoDay === 'function' ? localIsoDay(new Date(t)) : new Date(t).toDateString());      // the local day, as every dialog's (test_local_day.js)
+}
+// the athletes with a key, one row each: the name, the id, added and last used, Remove; a key not named yet says so
+function renderIntervalsAthletes(list) {
+    const host = document.getElementById('intervalsAthletes');
+    const status = document.getElementById('intervalsApiKeyStatus');
+    const named = (list || []).filter(a => a.id), pending = (list || []).filter(a => !a.id);
+    if (host) {
+        host.innerHTML = (list || []).map(a => '<div class="row' + (a.id ? '' : ' pending') + '" data-athlete="' + contextPillEsc(a.id || '') + '" data-name="' + contextPillEsc(a.name || a.id || '') + '">'
+            + '<b>' + contextPillEsc(a.id ? (a.name || a.id) : 'a key stored earlier - its athlete is named at the next load') + '</b>'
+            + (a.id ? '<span class="id">' + contextPillEsc(a.id) + '</span>' : '')
+            + '<span class="when">' + contextPillEsc([a.added ? 'added ' + intervalsWhen(a.added) : '', a.last_used ? 'used ' + intervalsWhen(a.last_used) : ''].filter(Boolean).join(' \u00b7 ')) + '</span>'
+            + '<button type="button" class="remove" title="Remove this key">Remove</button></div>').join('');
+    }
+    if (status) {
+        const n = named.length + pending.length;
+        status.innerHTML = n ? '<svg class="status-icon success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg><span>' + (named.length === 1 && !pending.length ? 'One athlete with a key' : n + ' keys stored' + (pending.length ? ', one not named yet' : '')) + '</span>'
+                         : '<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg><span>No athlete yet: add the first key below</span>';
+        status.className = 'api-key-status ' + (n ? 'has-key' : 'no-key');
+    }
+    const input = document.getElementById('intervalsApiKeyInput');
+    if (input) input.placeholder = n_placeholder(named.length + pending.length);
+    renderIntervalsAthletePicker(list || []);                  // the load dialog's picker follows the list
+}
+function n_placeholder(n) { return n ? "Another athlete's API key" : "The athlete's Intervals.icu API key"; }
+
 async function updateApiKeyStatus() {
     const statusIndicator = document.getElementById('intervalsApiKeyStatus');
-    const apiKeyInput = document.getElementById('intervalsApiKeyInput');
-    const removeButton = document.getElementById('removeIntervalsApiKey');
-    
     if (!statusIndicator) return;
-    
     try {
-        const hasKey = await checkIntervalsApiKey();
-        
-        if (hasKey) {
-            statusIndicator.innerHTML = `
-                <svg class="status-icon success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-                <span>API key is configured</span>
-            `;
-            statusIndicator.className = 'api-key-status has-key';
-            
-            // Show masked placeholder
-            if (apiKeyInput) {
-                apiKeyInput.placeholder = '••••••••••••••••••••••••••••••••';
-            }
-            
-            // Show remove button
-            if (removeButton) {
-                removeButton.style.display = 'inline-block';
-            }
-        } else {
-            statusIndicator.innerHTML = `
-                <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-                <span>No API key configured</span>
-            `;
-            statusIndicator.className = 'api-key-status no-key';
-            
-            // Show regular placeholder
-            if (apiKeyInput) {
-                apiKeyInput.placeholder = 'Enter your Intervals.icu API key';
-            }
-            
-            // Hide remove button
-            if (removeButton) {
-                removeButton.style.display = 'none';
-            }
-        }
+        const response = await window.authService.fetch('/intervals/athletes');
+        const data = response.ok ? await response.json() : null;
+        if (!data) throw new Error('HTTP ' + response.status);
+        renderIntervalsAthletes(data.athletes || []);
     } catch (error) {
         console.error('Error updating API key status:', error);
-        statusIndicator.innerHTML = '<span>Unable to check API key status</span>';
+        statusIndicator.innerHTML = '<span>Unable to read the athletes with a key</span>';
         statusIndicator.className = 'api-key-status error';
     }
 }
@@ -783,11 +746,51 @@ function showIntervalsConfigMessage(message, type = 'default') {
 //  MODAL DISPLAY FUNCTIONS
 //--------------------
 
+// The athlete (2026-10-30, docs/DATASETS_DESIGN.md §17): the athletes with a key, last used first, in the load dialog's first
+// row - a choice when there are several, the name alone with one, a line to Settings with none. The id goes with the load;
+// the app picks that athlete's key.
+let intervalsAthletes = [];
+function intervalsAthleteId() {
+    const sel = document.getElementById('intervalsAthlete');
+    const named = intervalsAthletes.filter(a => a.id);
+    if (named.length === 1) return named[0].id;
+    return sel && sel.value ? sel.value : '';
+}
+function intervalsAthleteCount() { return intervalsAthletes.filter(a => a.id).length; }
+function renderIntervalsAthletePicker(list) {
+    intervalsAthletes = Array.isArray(list) ? list : [];
+    const host = document.querySelector('#intervalsModal .int-athlete');
+    const sel = document.getElementById('intervalsAthlete'), one = document.getElementById('intervalsAthleteOne');
+    if (!host || !sel) return;
+    const named = intervalsAthletes.filter(a => a.id);
+    const pending = intervalsAthletes.some(a => !a.id);
+    const keep = sel.value;
+    sel.innerHTML = named.map(a => '<option value="' + contextPillEsc(a.id) + '">' + contextPillEsc(a.name || a.id) + '</option>').join('');
+    if (keep && named.some(a => a.id === keep)) sel.value = keep;
+    if (named.length > 1) host.dataset.mode = 'pick';
+    else if (named.length === 1) { host.dataset.mode = 'one'; if (one) one.textContent = named[0].name || named[0].id; }
+    else if (pending) { host.dataset.mode = 'one'; if (one) one.textContent = 'the key stored (its athlete is named by the load)'; }
+    else host.dataset.mode = 'none';
+    const btn = document.getElementById('connectIntervals');
+    if (btn) btn.disabled = !(named.length || pending);
+}
+async function fillIntervalsAthletes() {
+    if (!window.authService || typeof window.authService.fetch !== 'function') return;
+    const host = document.querySelector('#intervalsModal .int-athlete');
+    if (host) delete host.dataset.mode;                        // nothing shown until the list has come (a stale choice must not stand)
+    try {
+        const r = await window.authService.fetch('/intervals/athletes');
+        const d = r.ok ? await r.json() : null;
+        renderIntervalsAthletePicker(d && d.athletes ? d.athletes : []);
+    } catch (e) { renderIntervalsAthletePicker([]); }
+}
+
 function showIntervalsModal() {
     const modal = document.getElementById('intervalsModal');
     if (modal) {
         modal.style.display = 'flex';
         showIntervalsMessage('', 'default');
+        fillIntervalsAthletes();
         initializeIntervalsDatePickers();
         initializeAuxDatasetOptions();
         initializeDownloadChoice();

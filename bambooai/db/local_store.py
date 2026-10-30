@@ -76,10 +76,12 @@ CREATE TABLE IF NOT EXISTS sweatstack_integration (
     created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')), last_used_at TEXT DEFAULT (datetime('now')));
 CREATE TABLE IF NOT EXISTS intervals_integration (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    bamboo_user_id TEXT NOT NULL UNIQUE, auth0_id TEXT NOT NULL,
+    bamboo_user_id TEXT NOT NULL, auth0_id TEXT NOT NULL,
+    athlete_id TEXT NOT NULL DEFAULT '', athlete_name TEXT DEFAULT '',
     api_key TEXT NOT NULL, access_token TEXT, refresh_token TEXT, id_token TEXT, token_type TEXT DEFAULT 'api_key',
     expires_in INTEGER, scope TEXT, expires_at TEXT,
-    created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')), last_used_at TEXT DEFAULT (datetime('now')));
+    created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')), last_used_at TEXT DEFAULT (datetime('now')),
+    UNIQUE (bamboo_user_id, athlete_id));
 CREATE TABLE IF NOT EXISTS endura_integration (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bamboo_user_id TEXT NOT NULL UNIQUE, auth0_id TEXT NOT NULL,
@@ -92,7 +94,7 @@ CREATE INDEX IF NOT EXISTS chains_label ON chains (label_id);
 
 # the key a row is matched on when upserted (Supabase matches on the unique constraint)
 _UPSERT_KEYS = {"users": ("auth0_id",), "threads": ("thread_id",), "chains": ("chain_id",), "labels": ("bamboo_user_id", "label"),
-                "llm_config": ("auth0_id",), "sweatstack_integration": ("bamboo_user_id",), "intervals_integration": ("bamboo_user_id",),
+                "llm_config": ("auth0_id",), "sweatstack_integration": ("bamboo_user_id",), "intervals_integration": ("bamboo_user_id", "athlete_id"),
                 "endura_integration": ("bamboo_user_id",)}
 # the embedded selects the code makes: relation name -> (local column, target table, target column)
 _EMBEDS = {("chains", "threads"): ("thread_id", "threads", "id"), ("chains", "labels"): ("label_id", "labels", "id")}
@@ -168,6 +170,14 @@ class _Query:
 
     def execute(self):
         with self.s.lock:
+            try:
+                return self._execute()
+            except Exception:
+                self.s.conn.rollback()          # a refused statement (a duplicate, say) must not leave the file locked (2026-10-30)
+                raise
+
+    def _execute(self):
+        if True:
             if self.op == "select":
                 return self._select()
             if self.op == "insert":
@@ -263,9 +273,28 @@ class LocalStore:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(_DDL)
         self._cols = {}
+        self._upgrade()
         if local_sub and bamboo_user_id:
             self._upsert("users", {"auth0_id": local_sub, "bamboo_user_id": bamboo_user_id, "email": f"{bamboo_user_id}@local", "name": bamboo_user_id})
             self.conn.commit()
+
+    def _upgrade(self):
+        """A file made before the keys were kept per athlete (2026-10-30): intervals_integration was one row per user with
+        bamboo_user_id unique. SQLite cannot drop a constraint, so the table is rebuilt - the rows kept, each as the
+        pending key (athlete_id '') the first load names - and the index is one per user and athlete."""
+        cols = [r[1] for r in self.conn.execute('PRAGMA table_info("intervals_integration")')]
+        if "athlete_id" in cols:
+            return
+        ddl = _DDL[_DDL.index("CREATE TABLE IF NOT EXISTS intervals_integration"):]
+        ddl = ddl[:ddl.index(";") + 1]
+        keep = ", ".join(f'"{c}"' for c in cols)
+        self.conn.executescript(f'''
+            ALTER TABLE intervals_integration RENAME TO intervals_integration_old;
+            {ddl}
+            INSERT INTO intervals_integration ({keep}) SELECT {keep} FROM intervals_integration_old;
+            DROP TABLE intervals_integration_old;''')
+        self.conn.commit()
+        self._cols.pop("intervals_integration", None)
 
     # ---- the client surface
     def table(self, name):

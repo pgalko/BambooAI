@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.11 (2026-10-29; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0248)
+# Datasets by athlete — design v1.12 (2026-10-29/30; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0248, keys per athlete from 0249)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -176,10 +176,7 @@ rotates); the unit suites cover the store's merge and span, the migration, the t
 - Whether the tree shows the store's size per athlete on the hosted service (it is the coach's own disk on the single
   edition; on the hosted boxes it is a quota question).
 - The name in `run.data` (section 6): on screen only, or in the record as proposed.
-- A key per athlete (2026-10-29, after 0248): the Intervals.icu dialog holds one key, and a coach with two athletes
-  switches it by hand; the cache dialog's *to today* loads for an athlete whose key is not the one stored are refused
-  since v74. With a key kept per athlete folder (stored as the dialog's key is, under the user), the dialog's loads
-  would take the right key themselves and the switch would go.
+- A key per athlete (2026-10-29, after 0248): agreed and built from 0249 - section 17.
 
 ## 13. Step 1 as built (patch 0237, executor image v67)
 
@@ -501,3 +498,57 @@ every pill was the key's athlete's own, so nothing was taken off. Three changes:
 Tests: test_routines.py 145 (the helper), test_app_path.py 198 (the cache routes with a mark-folder file),
 test_dialogs.js (the rule's tokens), test_shell.js 72 (the bar), the stamp checks v74; the integrations walk 122
 (the refusal with its line, nothing written, the tab untouched; the bar).
+
+## 17. Keys per athlete (agreed 2026-10-30; step 1 built in patch 0249)
+
+**The ask.** A coach has several athletes. One key at a time meant switching it by hand before every load, and
+(0248) a load for one athlete under the other's key. The coach should keep a key per athlete; the Intervals.icu
+dialog, the Dataset cache and the routines should name the athlete; a routine's history and comparisons should stay
+within one athlete's runs.
+
+**The design, in one line: a key is an athlete.** The coach keeps a list of keys; each entry carries the athlete's
+Intervals.icu id and name, learned the moment the key is saved (one call to `/athlete/0` with it). Everything that
+loads data names an athlete, and the app picks that athlete's key itself.
+
+**Storage.** `intervals_integration` goes from one row per coach to one row per coach and athlete: `athlete_id` and
+`athlete_name` added, the uniqueness now on (`bamboo_user_id`, `athlete_id`). Hosted and local editions go through
+the same functions (`web_app/auth/supabase_client.py`) and the same encryption; the hosted table takes
+`docs/sql/intervals_keys_per_athlete.sql` once, the local SQLite file rebuilds the table on its first opening
+(`LocalStore._upgrade`). The row each coach has today keeps its key as the one *pending* row (`athlete_id ''`),
+named at the next load from the loader's own record of whom it fetched (`name_pending_intervals_key`), or when the
+Settings dialog lists it and Intervals.icu answers. A key Intervals.icu refuses is not kept; one it could not be
+asked about (the service unreachable) is kept pending and named later. An athlete's new key replaces their old one
+(rotation); a second pending key replaces the first. The functions: `store_intervals_api_key(user, auth, key,
+athlete_id, name)`, `get_intervals_api_key(user, auth, athlete_id=None)` (without an athlete: the named athlete
+last used, the pending key only when no athlete is named; the row read is marked used), `list_intervals_athletes`,
+`name_pending_intervals_key`, `remove_intervals_api_key(user, auth, athlete_id=None)`. The executor keeps nothing
+new: it still gets one key per request and keeps its fingerprint.
+
+**Where athletes show up (step 1, 0249).**
+
+- *Settings → Intervals ICU:* the athletes with a key - name, id, added, last used - each with Remove, and Add for
+  a key; the answer names the athlete (*X's key added* / *replaced*); the first key added reloads the page (the
+  paperclip appears), the last removed too. `INTERVALS_API_BASE_URL` points the app's one call elsewhere (the
+  stack's fake; a proxy).
+- *The Intervals.icu dialog:* the athlete first - a choice when there are several (last used first), the name
+  alone with one, a line to Settings with none; the load carries `athlete`.
+- *The loader's key:* `/intervals/load_data` takes the athlete's key by `athlete`, or by the `folder` the Dataset
+  cache dialog names, else the key last used - so the cache dialog's *to today* loads run on the right key and
+  0248's refusal cannot trigger in normal use; a load from the store alone needs no key at all (an athlete whose
+  key was removed still loads from the cache).
+- *The Data tab, the ledger, the model:* unchanged - names stay on the page.
+
+**Steps 2 and 3 (to build).** The Dataset cache lists athletes with a key but nothing held yet. Routines: the run
+dialog takes the athlete beside the window; the cached-window match and the download use that athlete; the history
+filters by athlete; *previous* is the previous run on the same athlete; run zero counts as its athlete's.
+
+**Decided with the product owner:** one athlete per routine run (a loop over athletes can come later). Noted for
+later: Intervals.icu lets a coach read linked athletes' data with the coach's own key, which would remove key
+collection but needs every loader call addressed to the athlete's id instead of the key's owner.
+
+Tests (0249): test_keys.py 26 (the functions over the local store and over the stack's Supabase stand-in - the
+same answers; the old file upgraded in place), test_dialogs.js (the dialogs' ids and the Athlete row), the
+integrations walk 127 (the key named by the fake Intervals.icu; the settings dialog listing, adding through the
+page and removing; the picker with one and with two athletes; the first subject picked for every later load), the
+local-store walk 17 (a key kept pending where Intervals.icu cannot be asked, listed unnamed, still there after a
+restart).

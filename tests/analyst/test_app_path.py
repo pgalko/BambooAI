@@ -261,7 +261,7 @@ for rid_ in [made["routine"]["id"], made2["routine"]["id"]]:
 import types as _types, importlib as _il
 sys.path.insert(0, os.path.join(ROOT, "web_app"))
 _fa = _types.ModuleType("auth"); _fa.requires_auth = lambda f: f; _fa.get_current_user_id = lambda: "auth0|u1"; sys.modules["auth"] = _fa
-_fs = _types.ModuleType("auth.supabase_client"); _fs.can_execute_chain = lambda a: {"ok": True, "data": {"allowed": True}}; _fs.increment_queries_counter = lambda a: {"ok": True}; _fs.get_intervals_api_key = lambda u, a: "key-one"; sys.modules["auth.supabase_client"] = _fs
+_fs = _types.ModuleType("auth.supabase_client"); _fs.can_execute_chain = lambda a: {"ok": True, "data": {"allowed": True}}; _fs.increment_queries_counter = lambda a: {"ok": True}; _fs.get_intervals_api_key = lambda u, a, athlete_id=None: "key-one"; _fs.list_intervals_athletes = lambda u, a: []; _fs.name_pending_intervals_key = lambda u, a, i, n: False; sys.modules["auth.supabase_client"] = _fs
 _fapp = _types.ModuleType("app"); _fapp.user_path = lambda root, *p: os.path.join(os.getcwd(), root, "u1", *p); _fapp.get_bamboo_ai = lambda sid: BAMBOO; _fapp.get_user_id = lambda: "u1"; _fapp.update_user_activity = lambda u: None
 sys.modules["app"] = _fapp
 import routines_routes as RR
@@ -317,10 +317,10 @@ try:
     _cc2 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10"}).get_json()
     _cc3 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-01", "end": "2026-10-10"}).get_json()
     _cc4 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-13", "end": "2026-10-10"}).get_json()
-    _fs.get_intervals_api_key = lambda u, a: "key-two"                                                                # the coach changed the key: another subject
+    _fs.get_intervals_api_key = lambda u, a, athlete_id=None: "key-two"                                               # the coach changed the key: another subject
     _cc5 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10"}).get_json()
 finally:
-    _fs.get_intervals_api_key = lambda u, a: "key-one"
+    _fs.get_intervals_api_key = lambda u, a, athlete_id=None: "key-one"
     _rq.get = _real_get
     del _fapp.get_dynamic_executor_urls
     _rt_["versions"][0]["manifest"]["data"].pop("load", None); _st.save(_rt_)

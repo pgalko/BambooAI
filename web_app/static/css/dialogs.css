@@ -811,6 +811,23 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 .integration-dialog .api-key-input:focus { outline: none; border-color: var(--text-tertiary); }
 .integration-dialog .api-key-help { margin: 6px 0 0; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.5; }
 .integration-dialog .button-group { display: flex; gap: 8px; }
+/* the athletes with a key (2026-10-30): one row each in the settings dialog - the name, the id, when added and last used, Remove;
+   a key whose athlete is not named yet reads so; in the load dialog the athlete is picked first (one athlete is named, not chosen) */
+.integration-dialog .int-athletes { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.integration-dialog .int-athletes:empty { display: none; }
+.integration-dialog .int-athletes .row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); font-size: var(--fs-meta); }
+.integration-dialog .int-athletes .row b { font-weight: 600; color: var(--text-primary); }
+.integration-dialog .int-athletes .row .id { color: var(--text-quaternary); font-family: var(--font-mono); font-size: var(--fs-small); }
+.integration-dialog .int-athletes .row .when { flex: 1 1 auto; min-width: 0; color: var(--text-tertiary); font-size: var(--fs-small); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.integration-dialog .int-athletes .row.pending b { color: var(--text-tertiary); font-weight: 400; font-style: italic; }
+.integration-dialog .int-athletes .row .remove { font: inherit; font-size: var(--fs-small); cursor: pointer; border: 1px solid var(--border-color); border-radius: 6px; padding: 2px 8px; background: transparent; color: var(--text-tertiary); }
+.integration-dialog .int-athletes .row .remove:hover { border-color: var(--c-fail); color: var(--c-fail); }
+.integration-dialog .int-athlete { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.integration-dialog .int-athlete .int-athlete-select { max-width: 100%; min-width: 220px; }
+.integration-dialog .int-athlete .int-athlete-one { font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); }
+.integration-dialog .int-athlete .int-athlete-none { font-size: var(--fs-meta); color: var(--c-fail); }
+.integration-dialog .int-athlete > * { display: none; }
+.integration-dialog .int-athlete[data-mode="pick"] .int-athlete-select, .integration-dialog .int-athlete[data-mode="one"] .int-athlete-one, .integration-dialog .int-athlete[data-mode="none"] .int-athlete-none { display: inline-block; }
 
 /* ---- the label editor (#labelModal, built by labels.js): labels.css is retired ---- */
 #labelModal.label-modal-container { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--scrim); }
