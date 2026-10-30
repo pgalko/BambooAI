@@ -308,9 +308,11 @@ are listed with what the store holds for them - or a file from the Dataset cache
 the routine - the columns fit, the auxiliary files are bound by kind, the chosen values are in the
 data, what differs is said in sentences - and the script runs. Every RESULT line is compared with
 the run before on the same athlete (or run zero, when it is theirs): moved beyond its interval,
-within it, or not reached; the first run on an athlete has nothing to compare with yet. Runs are
+within it, or not reached; the first run on an athlete has nothing to compare with yet, and runs are
+never compared across athletes. The Comparison tab names the athlete and both runs' windows. Runs are
 recorded with their data, inputs, results, figures and differences, and can be stepped through like
-chains; the manager shows one athlete's runs at a time when a routine has run on several. A window
+chains - the arrows within one athlete's runs; the manager shows one athlete's runs at a time when a
+routine has run on several. Data without an athlete (an upload, a race) behaves as one group. A window
 inside a load the executor still holds is cut from that load rather than downloaded again.
 
 The contract's rule that makes this possible is that a value read off the data - a date in it, an

@@ -248,12 +248,15 @@
 /* the Comparison tab (S4): the right pane's own padding, a table, the legend */
 #content-comparison .rt-cmp { padding: 16px 20px; font-family: var(--font-ui); }
 .rt-cmp-table { table-layout: fixed; }
-.rt-cmp-table th:first-child { width: 34%; }
-.rt-cmp-table th.num { width: 15%; }
+.rt-cmp-table th:first-child { width: 30%; }           /* the labels wrap (2026-10-30); the run columns hold a window each */
+.rt-cmp-table th.num { width: 16%; }
 .rt-cmp-table th:last-child { width: 14%; }
 .rt-cmp-table td:last-child { white-space: nowrap; }
 #content-comparison .rt-cmp .rt-sec > .h { margin-bottom: 4px; }
 .rt-cmp-table td.change { color: var(--text-primary); }
+/* whose and when (2026-10-30): the window under each run's header; the result labels whole, wrapped, not cut */
+.rt-cmp-table th.num .when { display: block; font-family: var(--font-ui); font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-quaternary); font-size: var(--fs-small); white-space: normal; line-height: 1.3; }
+.rt-cmp-table td.label { white-space: normal; overflow: visible; text-overflow: clip; max-width: none; line-height: 1.35; }
 .rt-cmp-table .ci { color: var(--text-quaternary); font-size: var(--fs-small); white-space: nowrap; }
 .rt-cmp-table tr.up td, .rt-cmp-table tr.down td { color: var(--text-primary); }
 .rt-cmp .ui-code { margin-top: 6px; }

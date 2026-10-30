@@ -359,8 +359,10 @@ version's data record, `load`), and offers the data loaded now beside it.
    **Since 2026-10-30 (docs/DATASETS_DESIGN.md §17, step 3) the run dialog names the athlete**: a select above the
    window (the athletes with a key, the original's picked); the cache question and the download carry `athlete`,
    so the match is that athlete's cached windows under their own key; each run's summary carries `data.subject`,
-   and the comparison (`reference_run(…, subject_id)`) and the manager's history stay within one athlete's runs -
-   run zero counts as its athlete's (or as everyone's when it names none).
+   and the comparison (`reference_run(…, subject_id)`), the manager's history and the arrows (`run_numbers(…,
+   subject_id)`) stay within one athlete's runs - run zero counts as its athlete's; one naming none (from before the
+   subject was kept) is nobody's but the subject-less runs' (0252). The Comparison tab names the athlete and each
+   run's window (`against_data`, the reference run's light record, rides on the view and the run's answer).
    The kinds a run's load can ask for are summary, wellness, intervals, context and, since 2026-10-15, plan - the
    planned workouts table written with the context (docs/CONTEXT_DESIGN.md §3.1a), cut to a window by its `date`.
    **Below the cache, the store** (2026-10-15, docs/INCREMENTAL_LOADS_DESIGN.md): a miss no longer downloads the

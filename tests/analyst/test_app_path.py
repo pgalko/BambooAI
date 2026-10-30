@@ -368,7 +368,8 @@ _msgs = _lines(_r)
 _types = [m.get("type") or next(iter(m)) for m in _msgs]
 check("route run: the pane's rows (check, run, compare), the tabs (Data, Results), the closing card, then routine_run",
       _types[:2] == ["pane_lookup_start", "pane_lookup"] and "pane_routine_end" in _types and "dataframe" in _types and "code_exec_results" in _types and "routine_run" in _msgs[-1]
-      and _msgs[-1]["routine_run"]["run"]["number"] == 1 and _msgs[-1]["routine_run"]["run"]["status"] == "ran" and "no result lines to compare" in _msgs[-1]["routine_run"]["run"]["line"] and _msgs[-1]["routine_run"]["numbers"] == [0, 1], (_types, _msgs[-1].get("routine_error")))
+      and _msgs[-1]["routine_run"]["run"]["number"] == 1 and _msgs[-1]["routine_run"]["run"]["status"] == "ran" and "no result lines to compare" in _msgs[-1]["routine_run"]["run"]["line"] and _msgs[-1]["routine_run"]["numbers"] == [0, 1]
+      and _msgs[-1]["routine_run"]["subject"] == {} and "against_data" in _msgs[-1]["routine_run"], (_types, _msgs[-1].get("routine_error")))      # whose, and the reference's data, ride with the answer (2026-10-30)
 check("the run's record names its own folder on the executor's side (datasets/<user>/routines/<id>/<tag>), where its files and datasets go, and the fit it ran under",
       _msgs[-1]["routine_run"]["run"]["run_dir"] == f"datasets/u1/routines/{_rid}/v1_1" and _msgs[-1]["routine_run"]["run"]["fit"]["missing"] == [] and _msgs[-1]["routine_run"]["run"]["bindings"] == [], _msgs[-1]["routine_run"]["run"].get("run_dir"))
 # a routine row's text reaches the page whole up to LOOKUP_PEEK_CHARS (2026-10-16: at 600 a run with seven files lost its closing

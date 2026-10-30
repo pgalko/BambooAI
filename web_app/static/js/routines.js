@@ -36,7 +36,8 @@
         const src = sourceKind(ld.source);
         const from = ld.cached ? (ld.cached_from && ld.cached_from.length === 2 ? ' · cut from the cached load ' + ld.cached_from[0] + ' → ' + ld.cached_from[1] : ' · from the cache') : '';
         const store = ld.store && typeof storeLine === 'function' ? storeLine(ld.store) : '';          // what the store held of the window (2026-10-15)
-        if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '') + from + (store ? ' · ' + store : '');
+        const who = ld.subject && (ld.subject.name || ld.subject.id) ? ' · ' + (ld.subject.name || ld.subject.id) + ' ·' : '';      // whose (2026-10-30)
+        if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + who + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '') + from + (store ? ' · ' + store : '');
         if (src === 'endura') return 'Endura · ' + (ld.race_title || ('race ' + (ld.race_id || ''))) + from;
         return ld.name ? 'File · ' + ld.name + (ld.cached ? ' · from the Dataset cache' : '') : '';
     }
@@ -191,21 +192,20 @@
             const athletes = build.runAthletes(r);
             const picked = athletes.find(a => a.id === managerState.athlete) ? managerState.athlete : (athletes[0] ? athletes[0].id : '');
             const many = athletes.length > 1;
-            const pick = many ? '<select class="ui-input rt-athlete-pick" data-pick="athlete" title="whose runs">' + athletes.map(a => '<option value="' + esc(a.id) + '"' + (a.id === picked ? ' selected' : '') + '>' + esc(a.name || a.id || 'no athlete recorded') + ' · ' + a.n + ' run' + (a.n === 1 ? '' : 's') + '</option>').join('') + '</select>' : '';
-            const whose = many ? ' · ' + esc((athletes.find(a => a.id === picked) || {}).name || picked || 'no athlete recorded') : '';
+            const pick = many ? '<select class="ui-input rt-athlete-pick" data-pick="athlete" title="whose runs">' + athletes.map(a => '<option value="' + esc(a.id) + '"' + (a.id === picked ? ' selected' : '') + '>' + esc(a.name || a.id || 'athlete not recorded') + ' · ' + a.n + ' run' + (a.n === 1 ? '' : 's') + '</option>').join('') + '</select>' : '';
+            const whose = many ? ' · ' + esc((athletes.find(a => a.id === picked) || {}).name || picked || 'athlete not recorded') : '';
             h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">— each run against the one before it</span>' + pick + '</div>' + build.runsTable(r, many ? picked : null) + '</div>';
             h += '<div class="rt-sec"><div class="h">Runs <span class="n">— a run opens in the main panes' + whose + '</span></div>' + build.runsList(r, many ? picked : null) + '</div>';
             return h;
         },
-        // the athletes the routine has run on (2026-10-30): id, name, how many runs, the latest run's first; run zero's athlete
-        // counts when it names one (a run zero from before the athlete was kept belongs to every athlete's history)
+        // the athletes the routine has run on (2026-10-30): id, name, how many runs, the latest run's first; run zero counts for
+        // its athlete - a run zero or a run recorded before the athlete was kept makes the "athlete not recorded" group
         runAthletes(r) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
             const out = [];
             const add = (id, name) => { let a = out.find(x => x.id === id); if (!a) { a = { id, name: name || '', n: 0 }; out.push(a); } if (name && !a.name) a.name = name; a.n += 1; };
             (r.runs || []).slice().reverse().forEach(x => add(build.subjectId(x), (((x.data || {}).subject) || {}).name || ''));
-            const z = build.zeroSubject(v);
-            if (v.run_zero && v.run_zero.verified && (z || !out.length)) add(z, ((((v.manifest || {}).data || {}).load || {}).subject || {}).name || '');
+            if (v.run_zero && v.run_zero.verified) add(build.zeroSubject(v), ((((v.manifest || {}).data || {}).load || {}).subject || {}).name || '');
             return out;
         },
         // run zero's verdict as a status chip (2026-10-15: run zero runs behind the dialog, so a routine can be verifying)
@@ -269,7 +269,7 @@
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from ' + label + '</label>' +
                     // whose data (2026-10-30, docs/DATASETS_DESIGN.md §17): the athlete first - the roster, filled once the dialog is up
                     // (fillAthletes); the original's athlete is the default, the cache line and the comparison follow the choice
-                    (src === 'intervals' ? '<div class="rt-field rt-athlete"><label>Athlete</label><select class="ui-input" data-load="athlete"><option value="">loading the athletes…</option></select><div class="rt-athlete-help"></div></div>' : '') +
+                    (src === 'intervals' ? '<div class="rt-field rt-athlete"><label>Athlete</label><select class="ui-input" data-load="athlete" data-state="loading"><option value="">loading the athletes…</option></select><div class="rt-athlete-help"></div></div>' : '') +
                     '<div class="rt-window rt-loadwin"><input type="date" class="ui-input" data-load="start" value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end" value="' + build.isoDay(today) + '"></div>' +
                     '<div class="help">the original’s ' + esc(days) + ' days, ending today' + (maxDays && days > maxDays ? ' (your plan allows ' + esc(maxDays) + ')' : '') +
                     (withWhat ? ' · with ' + esc(withWhat) : '') + (src === 'intervals' ? ' · metrics as the original' : (plan.users && plan.users.length ? ' · ' + esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')) + '</div>' +
@@ -320,7 +320,7 @@
         // ran on that athlete's; the first run on an athlete has nothing to compare with yet. Re-rendered as the athlete changes.
         subjectId(x) { return String((((x || {}).data || {}).subject || {}).id || ''); },
         zeroSubject(v) { return String((((((v || {}).manifest || {}).data || {}).load || {}).subject || {}).id || ''); },
-        zeroFits(v, athleteId) { const z = build.zeroSubject(v); return athleteId == null || z === '' || z === String(athleteId); },   // run zero is the athlete's, or names none (from before 2026-10-30)
+        zeroFits(v, athleteId) { return athleteId == null || build.zeroSubject(v) === String(athleteId); },   // run zero is that athlete's alone; one naming none (before 2026-10-30) is nobody's but the subject-less runs'
         compareSection(r, v, athleteId, athleteName) {
             const mine = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && build.subjectId(x) === String(athleteId || ''));
             const last = mine.length ? mine[mine.length - 1] : null;
@@ -341,11 +341,29 @@
             if (row.overlap === false) return 'moved';
             return row.mark === 'same' ? 'same' : 'changed';
         },
+        // whose data a record is on, and when: the athlete's name (the subject on a summary, or the load's on a full record), and the
+        // window asked for - else the file or the race (2026-10-30: the Comparison tab says what is compared with what)
+        whoOf(d) { const sub = (d || {}).subject || ((d || {}).load || {}).subject || {}; return String(sub.name || sub.id || ''); },
+        whenOf(d) {
+            d = d || {}; const ld = d.load || {};
+            if (Array.isArray(d.window) && d.window.length === 2 && d.window[0] && d.window[1]) return d.window[0] + ' → ' + d.window[1];
+            if (ld.start_date && ld.end_date) return ld.start_date + ' → ' + ld.end_date;
+            const m = /^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-|→)\s*(\d{4}-\d{2}-\d{2})\s*$/.exec(String(d.date_range || ''));
+            if (m) return m[1] + ' → ' + m[2];
+            return String((d.extra || {}).race_title || ld.race_title || d.name || '');
+        },
         comparisonTab(view) {
             const run = view.run || {}, c = run.comparison || {};
-            const d = run.data || {};
-            const head = run.number === 0 ? 'Run 0 — the original data' : ('Run ' + esc(run.number) + (d.name ? ' (' + esc(d.name) + ')' : '') + (run.against != null ? ' against run ' + esc(run.against) : ''));
-            let h = '<div class="rt-cmp"><div class="rt-sec"><div class="h">' + head + ' <span class="n">— v' + esc(run.version) + (run.against != null ? ' · ' + esc(c.line || '') : '') + '</span></div>';
+            const d = run.data || {}, ref = view.against_data || null;
+            // the heading: both runs and, when the athletes are known, whose - one name when it is the same athlete, each run's when not
+            const who = build.whoOf(d), whoRef = ref ? build.whoOf(ref) : '';
+            const same = run.against != null && who === whoRef;
+            const named = n => n || 'athlete not recorded';
+            const head = run.number === 0 ? 'Run 0 — the original data'
+                : ('Run ' + esc(run.number) + (run.against != null && !same ? ' (' + esc(named(who)) + ')' : '') + (run.against != null ? ' against run ' + esc(run.against) + (!same ? ' (' + esc(named(whoRef)) + ')' : '') : ''));
+            const whose = (run.against == null || same) && who ? esc(who) + ' · ' : '';
+            let h = '<div class="rt-cmp"><div class="rt-sec"><div class="h">' + head + ' <span class="n">— ' + whose + 'v' + esc(run.version) + (run.against != null ? ' · ' + esc(c.line || '') : '') + '</span></div>';
+            const th = (n, data) => { const when = build.whenOf(data); return '<th class="num">Run ' + esc(n) + (when ? '<span class="when">' + esc(when) + '</span>' : '') + '</th>'; };
             if (run.status === 'failed' || run.status === 'timed_out') {
                 // the failed cell's code beside the traceback (step 4, 2026-10-11): what ran, and where it stopped
                 const fc = run.failed_cell || null;
@@ -357,10 +375,12 @@
             if (!rows.length) {
                 h += '<div class="rt-line">' + (run.number === 0 || run.against == null ? 'Nothing to compare with: the first run of this version. Its results are on the Results tab.' : 'No result line to compare.') + '</div>';
             } else if (run.against == null) {
-                h += '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th><th class="num">Run ' + esc(run.number) + '</th></tr></thead><tbody>' +
+                // nothing to compare with - the first run on this athlete, or of the version: the record's own line says which
+                h += (run.number !== 0 && c.line ? '<div class="rt-line muted">' + esc(c.line) + '</div>' : '') +
+                    '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th>' + th(run.number, d) + '</tr></thead><tbody>' +
                     rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(x.label) + '</td><td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td></tr>').join('') + '</tbody></table>';
             } else {
-                h += '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th><th class="num">Run ' + esc(run.against) + '</th><th class="num">Run ' + esc(run.number) + '</th><th class="num">Change</th><th>Intervals</th></tr></thead><tbody>' +
+                h += '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th>' + th(run.against, ref) + th(run.number, d) + '<th class="num">Change</th><th>Intervals</th></tr></thead><tbody>' +
                     rows.map(x => '<tr class="' + esc(x.mark) + '"><td class="label" title="' + esc(x.label) + '">' + esc(x.label) + '</td>' +
                         '<td class="num">' + esc(build.num((x.before || {}).estimate)) + '<div class="ci">' + build.ivl(x.before) + '</div></td>' +
                         '<td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' +
@@ -891,11 +911,13 @@
             const rows = typeof intervalsRosterOf === 'function' ? intervalsRosterOf(keyed, tree) : keyed.map(a => ({ id: String(a.id), name: a.name || '', count: 0 }));
             const mine = (plan && plan.subject) || {};
             if (mine.id && !rows.some(a => a.id === mine.id)) rows.push({ id: mine.id, name: mine.name || '', count: 0, nokey: true });
-            if (!rows.length) { sel.innerHTML = '<option value="">no athlete: add an athlete’s API key under Settings → Intervals ICU</option>'; athleteChanged(); return; }
+            if (!rows.length) { sel.innerHTML = '<option value="">no athlete: add an athlete’s API key under Settings → Intervals ICU</option>'; sel.setAttribute('data-state', 'none'); athleteChanged(); updateRunButton(); return; }
             const pick = rows.some(a => a.id === mine.id) ? mine.id : rows[0].id;
             sel.innerHTML = rows.map(a => '<option value="' + esc(a.id) + '" data-name="' + esc(a.name || a.id) + '"' + (a.id === pick ? ' selected' : '') + (a.nokey ? ' data-nokey="1"' : '') + '>' + esc(a.name || a.id) + ' · ' + esc(athleteFacts(a)) + '</option>').join('');
+            sel.setAttribute('data-state', 'ready');              // Run waits for this: a load before the athletes are listed would take whichever key was used last
             athleteChanged();
-        }).catch(() => { if (runState === st) sel.innerHTML = '<option value="">the athletes could not be listed</option>'; });
+            updateRunButton();
+        }).catch(() => { if (runState === st) { sel.innerHTML = '<option value="">the athletes could not be listed</option>'; sel.setAttribute('data-state', 'failed'); updateRunButton(); } });
     }
     function athleteFacts(a) {
         if (a.nokey) return 'no key: a window the cache holds only';
@@ -996,7 +1018,7 @@
         const p = runParts();
         const c = dataChoice();
         let on = false;
-        if (c === 'load') on = true;
+        if (c === 'load') { const a = p.d.querySelector('select[data-load="athlete"]'); on = !a || a.getAttribute('data-state') === 'ready'; }     // an Intervals load waits for the athletes (2026-10-30)
         else if (c === 'upload') { const f = p.d.querySelector('input[data-load="file"]'); on = !!(f && f.files && f.files.length); }
         else if (c === 'cache') { const pick = p.d.querySelector('select[data-load="cached"]'); on = !!(pick && pick.value); }
         else on = !!(st.pre && st.pre.ok);
@@ -1070,7 +1092,7 @@
                 if (typeof createIntervalsAuxiliaryPills === 'function' && (cached.files || []).length) createIntervalsAuxiliaryPills(cached.files, info);
                 dfTab(res.json);
                 return { source: 'intervals', start: asked.start_date, end: asked.end_date, aux: cached.files || [], load,
-                         loaded: 'Intervals.icu ' + asked.start_date + ' → ' + asked.end_date + (cached.cut ? ' · cut from the cache' : ' · from the cache') + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
+                         loaded: 'Intervals.icu' + (asked.subject && asked.subject.name ? ' · ' + asked.subject.name + ' ·' : '') + ' ' + asked.start_date + ' → ' + asked.end_date + (cached.cut ? ' · cut from the cache' : ' · from the cache') + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') };
             }
             if (typeof createOrUpdateDatasetPill === 'function') {
                 createOrUpdateDatasetPill('endura-pill-' + Date.now(), 'Endura (' + (asked.race_title || asked.race_id) + ') loaded', 'endura', 'success', false, null);
@@ -1110,7 +1132,7 @@
                     // the store's part (docs/INCREMENTAL_LOADS_DESIGN.md): on the record and in the LOAD row's fold, not in its clipped text
                     const st_ = job.result && job.result.store;
                     const store = st_ && st_.window ? { window: st_.window, held: st_.held || 0, fetched: st_.fetched || 0, refresh: !!st_.refresh } : null;
-                    return { source: 'intervals', start, end, aux: files, load: Object.assign({}, asked, store ? { store } : {}), store, loaded: 'Intervals.icu ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') + (coding && coding.line ? ' · ' + coding.line : '') };
+                    return { source: 'intervals', start, end, aux: files, load: Object.assign({}, asked, store ? { store } : {}), store, loaded: 'Intervals.icu' + (who.name ? ' · ' + who.name + ' ·' : '') + ' ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') + (coding && coding.line ? ' · ' + coding.line : '') };
                 }
                 if (job.status === 'error' || job.status === 'not_found') throw new Error(job.error || 'the load failed');
                 progress((job.message || 'Loading…') + (job.percent != null ? ' (' + job.percent + '%)' : ''), 'loading');
@@ -1220,8 +1242,10 @@
             const routine = st.routine;
             p.d.style.display = 'none'; runState = null;
             closeManager();                                   // the run shows in the main panes; the manager would cover them
-            const numbers = runNumbers(routine);
-            enterRunView(summaryOf(routine), numbers.concat([numbers.length ? Math.max.apply(null, numbers) + 1 : 1]), numbers.length, { pending: true, version: routine.current_version });
+            const all = runNumbers(routine), next = all.length ? Math.max.apply(null, all) + 1 : 1;
+            const subject = (choice === 'now' ? ((st.pre && st.pre.data) || {}).subject : (loadDone || {}).subject) || {};      // whose runs the view will step through (2026-10-30)
+            const numbers = runNumbers(routine, subjectIdOf(subject));
+            enterRunView(summaryOf(routine), numbers.concat([next]), numbers.length, { pending: true, version: routine.current_version, subject });
             if (loaded && typeof paneLookup === 'function') paneLookup({ kind: 'load', query: loaded.loaded || '', peek: [typeof storeLine === 'function' ? storeLine(loaded.store) : '', (pr.json && pr.json.line) || ''].filter(Boolean).join(' · '), sources: [], passages: [] });
             stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with, aux: auxLoaded, load: loadDone }, true, data => {
                 if (data.type === 'pane_routine_end' && typeof paneRoutineEnd === 'function') { paneRoutineEnd(data); chipIdle(); return true; }
@@ -1235,40 +1259,46 @@
                 chipIdle();
                 if (typeof paneSystem === 'function') paneSystem(err.message || String(err), 'error');
                 toast('The run did not go through: ' + (err.message || err));
-                if (viewState) { viewState.numbers = runNumbers(routine); viewState.index = Math.max(0, viewState.numbers.length - 1); viewState.pending = false; updateRunNav(); }
+                if (viewState) { viewState.numbers = runNumbers(routine, subjectIdOf(viewState.subject)); viewState.index = Math.max(0, viewState.numbers.length - 1); viewState.pending = false; updateRunNav(); }
             });
         });
     }
     function summaryOf(r) { return { id: r.id, name: r.name, current_version: r.current_version, source: r.source }; }
     function chipIdle() { if (window.containerStatus && typeof window.containerStatus.setExecuting === 'function') window.containerStatus.setExecuting(false); }   // the executor chip back to its polled status (a run sets it as a cell does)
-    function runNumbers(r) {
+    function runNumbers(r, athleteId) {
+        // the runs the arrows step through: run zero then every run - of one athlete when asked (2026-10-30: run zero when it is theirs)
         const v = (r.versions || []).find(x => x.number === r.current_version) || {};
-        const out = (v.run_zero && v.run_zero.verified) ? [0] : [];
-        return out.concat((r.runs || []).map(x => x.number));
+        const out = (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId == null ? null : athleteId)) ? [0] : [];
+        return out.concat((r.runs || []).filter(x => athleteId == null || build.subjectId(x) === String(athleteId)).map(x => x.number));
     }
+    function subjectName(sub) { return sub && (sub.name || sub.id) ? String(sub.name || sub.id) : ''; }
+    function subjectIdOf(sub) { return sub && sub.id ? String(sub.id) : ''; }
 
     // ------------------------------------------------------------ a run in the main panes (S4): one run per view, the arrows between runs
     let viewState = null;
     function inRunView() { return !!viewState; }
     function enterRunView(routine, numbers, index, meta) {
-        viewState = { routine, numbers: numbers || [], index: index || 0, pending: !!(meta && meta.pending), version: meta && meta.version };
+        // meta.subject (2026-10-30): whose runs the view steps through - the id line and the position name them
+        viewState = { routine, numbers: numbers || [], index: index || 0, pending: !!(meta && meta.pending), version: meta && meta.version, subject: (meta && meta.subject) || {} };
         const so = document.getElementById('streamOutput'); if (so) so.innerHTML = '';
         if (typeof clearAllTabs === 'function') clearAllTabs();
         const number = viewState.numbers[viewState.index];
-        if (typeof paneRunIds === 'function') paneRunIds({ name: routine.name, run: (number != null ? number : '…') + ' · v' + (viewState.version || routine.current_version), df_id: (typeof currentData !== 'undefined' && currentData.df_id) || '' });
+        if (typeof paneRunIds === 'function') paneRunIds({ name: routine.name, run: (number != null ? number : '…') + ' · v' + (viewState.version || routine.current_version) + whoLine(), df_id: (typeof currentData !== 'undefined' && currentData.df_id) || '' });
         if (typeof paneRunStrip === 'function') paneRunStrip({ mode: 'Routine', run: number != null ? number : '…', version: viewState.version || routine.current_version, estimate: '' });
         composerLock();
         if (typeof updateRankButtonVisibility === 'function') updateRankButtonVisibility();
         updateRunNav();
     }
+    function whoLine() { const n = viewState ? subjectName(viewState.subject) : ''; return n ? ' · ' + n : ''; }
     function finishRunView(out) {
         if (!viewState) return;
         const run = out.run, numbers = out.numbers || viewState.numbers;
         viewState.numbers = numbers; viewState.index = Math.max(0, numbers.indexOf(run.number)); viewState.pending = false; viewState.routine = out.routine || viewState.routine;
-        if (typeof paneRunIds === 'function') paneRunIds({ name: viewState.routine.name, run: run.number + ' · v' + run.version, df_id: (run.data || {}).df_id || '' });
+        if (out.subject) viewState.subject = out.subject;
+        if (typeof paneRunIds === 'function') paneRunIds({ name: viewState.routine.name, run: run.number + ' · v' + run.version + whoLine(), df_id: (run.data || {}).df_id || '' });
         const c = run.comparison || {};
         if (typeof paneRunStrip === 'function') paneRunStrip({ mode: 'Routine', run: run.number, version: run.version, idle: true, estimate: run.against != null ? 'run ' + run.against + ' — ' + (c.line || '') : (c.line || '') });
-        if (typeof createOrUpdateTab === 'function') createOrUpdateTab('comparison', build.comparisonTab({ run }));
+        if (typeof createOrUpdateTab === 'function') createOrUpdateTab('comparison', build.comparisonTab({ run, against_data: out.against_data || null }));
         updateRunNav();
         toast('Run ' + run.number + ' recorded · ' + (run.line || run.status));
     }
@@ -1278,7 +1308,7 @@
             if (!res.ok) { toast('This run could not be opened: ' + ((res.json && res.json.error) || res.status), 'error'); return; }
             const view = res.json, run = view.run;
             const numbers = view.numbers || [number];
-            enterRunView(view.routine, numbers, Math.max(0, numbers.indexOf(run.number)), { version: run.version });
+            enterRunView(view.routine, numbers, Math.max(0, numbers.indexOf(run.number)), { version: run.version, subject: view.subject || {} });
             const d = run.data || {};
             const cells = run.cells != null ? run.cells + ' cell' + (run.cells === 1 ? '' : 's') : '';
             if (typeof paneLookup === 'function') {
@@ -1287,7 +1317,7 @@
                 // a stored run's CHECK row says what the live one said (the record's line, step 4, 2026-10-11); run 0 and older records the size
                 paneLookup({ kind: 'check', query: d.name || sourceLabel(d.source), peek: run.check || ((d.rows != null ? Number(d.rows).toLocaleString() + ' rows · ' : '') + ((d.columns || []).length || d.columns || 0) + ' columns' + (run.number === 0 ? ' · the analysis\u2019s own data' : '')), sources: [], passages: [] });
                 paneLookup({ kind: run.number === 0 ? 'routine' : 'run', query: 'run ' + run.number + ' · v' + run.version + (cells ? ' · ' + cells : ''), peek: (run.line || run.status) + ' · ' + (run.figures || 0) + ' figure' + (run.figures === 1 ? '' : 's') + (run.elapsed != null ? ' · ' + run.elapsed + ' s' : ''), sources: [], passages: [] });
-                if (run.against != null) paneLookup({ kind: 'compare', query: 'with run ' + run.against, peek: (run.comparison || {}).line || '', sources: [], passages: [] });
+                if (run.against != null) { const w = build.whenOf(view.against_data); paneLookup({ kind: 'compare', query: 'with run ' + run.against + (w ? ' (' + w + ')' : ''), peek: (run.comparison || {}).line || '', sources: [], passages: [] }); }
             }
             const c = run.comparison || {};
             if (typeof paneRoutineEnd === 'function') paneRoutineEnd({ number: run.number, name: view.name, version: run.version, status: run.status, line: run.line, results: (run.results || []).length, compared: c.compared || 0, moved: c.moved || 0, changed: c.changed || 0, missing: c.missing || 0, figures: run.figures || 0, elapsed: run.elapsed, against: run.against, comparison_line: c.line });
@@ -1298,7 +1328,7 @@
                 createOrUpdateTab('dataframe', build.dataTab(d, run));
                 if (typeof activateTab === 'function') activateTab('comparison');
             }
-            if (typeof paneRunIds === 'function') paneRunIds({ name: view.name, run: run.number + ' · v' + run.version, df_id: d.df_id || '' });
+            if (typeof paneRunIds === 'function') paneRunIds({ name: view.name, run: run.number + ' · v' + run.version + whoLine(), df_id: d.df_id || '' });
             updateRunNav();
         });
     }
@@ -1317,7 +1347,7 @@
         if (!viewState || !nav) return;
         nav.style.display = 'flex';
         const n = viewState.numbers.length, i = viewState.index;
-        if (pos) pos.textContent = viewState.pending ? 'run ' + viewState.numbers[i] + ' · running' : 'run ' + viewState.numbers[i] + ' of ' + (n ? viewState.numbers[n - 1] : 0);
+        if (pos) pos.textContent = (viewState.pending ? 'run ' + viewState.numbers[i] + ' · running' : 'run ' + viewState.numbers[i] + ' of ' + (n ? viewState.numbers[n - 1] : 0)) + whoLine();
         if (prev) prev.disabled = viewState.pending || i <= 0;
         if (next) next.disabled = viewState.pending || i >= n - 1;
     }

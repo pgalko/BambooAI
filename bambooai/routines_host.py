@@ -423,9 +423,11 @@ def run_tag(version: int, number: int) -> str:
 
 def light_data(data: Optional[dict]) -> dict:
     d = data or {}
+    start, end = _dates_of(d)
     return {"df_id": d.get("df_id"), "name": d.get("name", ""), "source": d.get("source", ""), "rows": d.get("rows"), "columns": len(d.get("columns") or []),
             "date_range": d.get("date_range"), "aux": [str(a).split("/")[-1] for a in (d.get("aux") or [])], "extra": d.get("extra") or {},
-            "subject": rt.subject_of_record(d)}          # whose data (2026-10-30): the history and the comparisons stay within one subject's runs
+            "subject": rt.subject_of_record(d),          # whose data (2026-10-30): the history and the comparisons stay within one subject's runs
+            "window": [start, end] if start and end else None}      # and when: the window the run asked for (a cut run's, not the cached load's)
 
 
 def _dates_of(d: dict) -> Tuple[Optional[str], Optional[str]]:
@@ -571,11 +573,12 @@ def reference_run(routine: dict, version: dict, compare_with="previous", subject
     """(run number, its result lines) this run is compared with: the preceding run of the version, else run zero;
     'zero' for run zero; a number for that run. None when there is nothing to compare with. With `subject_id` (2026-10-30:
     a coach's athletes), 'previous' is the preceding run on that subject's data, and run zero stands in only when it
-    ran on that subject's, or names none (from before the subject was kept) - the trend never crosses athletes."""
+    ran on that subject's - the trend never crosses athletes, and a run zero whose subject was not recorded (before
+    the subject was kept) is nobody's but the subject-less runs' (an upload's, a race's)."""
     runs = [r for r in routine.get("runs", []) if r.get("version") == version.get("number")]
     rz = version.get("run_zero") or {}
     zero = (0, rz.get("results") or []) if rz.get("verified") else None
-    zero_own = zero if subject_id is None or zero_subject(version) in ("", str(subject_id)) else None
+    zero_own = zero if subject_id is None or zero_subject(version) == str(subject_id) else None
     if compare_with == "zero":
         return zero_own if zero_own else (None, None)
     if isinstance(compare_with, int) or (isinstance(compare_with, str) and compare_with.isdigit()):
@@ -740,7 +743,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     if emit and ref_results is not None:
         ref_run = next((x for x in routine.get("runs", []) if x.get("number") == ref_number), None)
         when = _when(ref_run.get("created") if ref_run else rz.get("created"))
-        emit({"type": "lookup", "kind": "compare", "query": f"with run {ref_number}" + (f" ({when})" if when else ""), "peek": cmp["line"]})
+        window = window_text(ref_run.get("data") if ref_run else manifest.get("data"))      # and its window, so the coach sees what is compared (2026-10-30)
+        emit({"type": "lookup", "kind": "compare", "query": f"with run {ref_number}" + (f" ({', '.join(x for x in (when, window) if x)})" if when or window else ""), "peek": cmp["line"]})
     now = time.time()
     record = {"number": number, "version": vnum, "created": t0, "finished": now, "elapsed": elapsed, "status": status, "line": line,
               "data": d, "inputs": vals, "results": got, "figures": len(figs or []), "stdout_chars": len(stdout or ""), "cells": n_cells,
@@ -759,7 +763,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         store.save_run_files(routine["id"], tag, stdout or "", figs or [])
     except OSError:
         pass
-    return {"run": record, "summary": summary, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, vnum), "stdout": stdout or "", "figures": figs or [], "name": routine.get("name")}
+    return {"run": record, "summary": summary, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, vnum, subject_id), "subject": rt.subject_of_record(d),
+            "against_data": reference_data(routine, ver, ref_number), "stdout": stdout or "", "figures": figs or [], "name": routine.get("name")}
 
 
 def _call_runner(runner: Callable, script: str, timeout: int, run_dir: str = ""):
@@ -779,12 +784,38 @@ def _when(ts) -> str:
         return ""
 
 
-def run_numbers(routine: dict, version: Optional[int] = None) -> List[int]:
-    """The runs a person can step through with the arrows: run zero of the current version, then every run."""
+def window_text(data: Optional[dict]) -> str:
+    """When a run's data is from: its window (`start → end`), else the file or the race it was; '' when nothing says."""
+    d = data or {}
+    if d.get("window") and len(d["window"]) == 2 and all(d["window"]):
+        start, end = d["window"]
+    else:
+        start, end = _dates_of(d)
+    if start and end:
+        return f"{start} → {end}"
+    extra = d.get("extra") or {}
+    return str(extra.get("race_title") or (d.get("load") or {}).get("race_title") or d.get("name") or "")
+
+
+def run_numbers(routine: dict, version: Optional[int] = None, subject_id: Optional[str] = None) -> List[int]:
+    """The runs a person can step through with the arrows: run zero of the current version, then every run - with
+    `subject_id` (2026-10-30), only that subject's: run zero when it is theirs, the runs on their data."""
     ver = version or routine.get("current_version") or 1
     v = next((x for x in routine.get("versions", []) if x.get("number") == ver), None)
-    out = [0] if v and (v.get("run_zero") or {}).get("verified") else []
-    return out + [r["number"] for r in routine.get("runs", [])]
+    own = subject_id is None or (v is not None and zero_subject(v) == str(subject_id))
+    out = [0] if v and (v.get("run_zero") or {}).get("verified") and own else []
+    return out + [r["number"] for r in routine.get("runs", []) if subject_id is None or same_subject(r, subject_id)]
+
+
+def reference_data(routine: dict, version: dict, number) -> Optional[dict]:
+    """The light data record of the run a run was compared with (`against`): run zero's is the version's own, a run's
+    its summary's - so the Comparison tab can say whose and when both sides are. None without a reference."""
+    if number is None:
+        return None
+    if int(number) == 0:
+        return light_data((version.get("manifest") or {}).get("data"))
+    ref = next((x for x in routine.get("runs", []) if x.get("number") == int(number)), None)
+    return dict(ref.get("data") or {}) if ref else None
 
 
 def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
@@ -807,5 +838,7 @@ def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
         tag = run_tag(summary.get("version", 1), summary["number"])
         record = store.load_run(routine["id"], tag) or dict(summary)
     stdout, figs = store.run_files(routine["id"], tag)
-    return {"run": record, "stdout": stdout, "figures": figs, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine), "name": routine.get("name"),
+    subject = rt.subject_of_record(record.get("data"))                   # whose run: the arrows step through this subject's runs alone (2026-10-30)
+    return {"run": record, "stdout": stdout, "figures": figs, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, subject_id=str(subject.get("id") or "")),
+            "subject": subject, "against_data": reference_data(routine, version_of(routine, record.get("version")), record.get("against")), "name": routine.get("name"),
             "manifest_results": [x for x in (version_of(routine, record.get("version")).get("manifest") or {}).get("results", []) if not x.get("dropped")]}

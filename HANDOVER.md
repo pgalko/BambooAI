@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0251 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time, a load under another athlete's key refused, keys per athlete with the roster, routines by athlete; **executor image v74** - rebuild and roll out; **the hosted table takes docs/sql/intervals_keys_per_athlete.sql once**). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0252 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time, a load under another athlete's key refused, keys per athlete with the roster, routines by athlete with the Comparison tab saying whose and when; **executor image v74** - rebuild and roll out; **the hosted table takes docs/sql/intervals_keys_per_athlete.sql once**). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,10 +95,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/199/31/27/18/49/44/72/33/152/60/93/26/37/15/88/1/1 Python; 58/7/47/72/24/80/14/25/4/14/67 JS; 1,602 on 2026-10-30; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/199/31/27/18/49/44/72/33/157/60/93/26/37/15/88/1/1 Python; 58/7/47/72/24/86/14/25/4/14/67 JS; 1,613 on 2026-10-30; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (131; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (135; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -477,6 +477,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines by athlete, amended (2026-10-30, patch 0252; page and app, image v74 stands).** Palo found the
+  Comparison tab hard to read (two run numbers, nothing else) and wanted no comparison across athletes at this
+  stage. The Comparison tab now says whose and when: the athlete in the heading (once when both runs are theirs,
+  each run's when not, *athlete not recorded* for a run from before the subject was kept), each run's window under
+  its column header (`build.whoOf`/`whenOf`; the host sends `against_data`, the reference run's light record, and
+  `light_data.window`, the asked window), the labels wrapped. The run view's position and id line name the athlete
+  (*run 3 of 4 · First Athlete*), the LOAD row and *Loaded as* too (`loadLabel`), the COMPARE row carries the
+  reference's window (`window_text`). The arrows stay within the athlete (`run_numbers(…, subject_id)`; the view and
+  the run's answer carry `subject`). A run zero or run without a subject on record is nobody's: never compared with
+  an athlete's run (`reference_run` strict), the manager's *athlete not recorded* group; the subject-less sources
+  (uploads, Endura, SweatStack) are unchanged - one group, as before. Run waits until the athletes are listed
+  (`data-state` on the select). docs/DATASETS_DESIGN.md §17. Tests: test_routines.py 157, test_routines.js 86,
+  the integrations walk 135.
 - **Keys per athlete, step 3: routines by athlete (2026-10-30, patch 0251; page and app, image v74 stands).** Whose
   data a run is on comes from its record's load (`subject_of_record`), kept on each run's summary (`light_data`;
   older summaries filled in from their records once, in `RoutineStore.load`) and on the plan (`load_plan`). The run

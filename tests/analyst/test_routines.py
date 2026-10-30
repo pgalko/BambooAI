@@ -397,9 +397,19 @@ check("reference_run by subject: 'previous' is the last run that ran on that sub
       and host.reference_run(RS, V1, "previous", subject_id="i2") == (None, None) and host.reference_run(RS, V1, "previous")[0] == 3,
       [host.reference_run(RS, V1, "previous", subject_id=s_)[0] for s_ in ("i0", "i1", "i2", None)])
 V0 = {"number": 1, "run_zero": {"verified": True, "results": [{"estimate": "+0"}]}, "manifest": {"data": {}}}
-check("reference_run: a run zero that names no subject (from before the subject was kept) stands in for any subject; 'zero' asked outright is run 0 for its own subject and nothing for another",
-      host.reference_run({"runs": [], "versions": [V0]}, V0, "previous", subject_id="i1") == (0, [{"estimate": "+0"}]) and host.reference_run(RS, V1, "zero", subject_id="i0") == (0, [{"estimate": "+0"}])
-      and host.reference_run(RS, V1, "zero", subject_id="i1") == (None, None) and host.reference_run(RS, V1, "zero") == (0, [{"estimate": "+0"}]))
+check("reference_run: a run zero that names no subject (from before the subject was kept) is nobody's - nothing for a subject, run 0 for the subject-less (an upload's runs); 'zero' asked outright is run 0 for its own subject and nothing for another",
+      host.reference_run({"runs": [], "versions": [V0]}, V0, "previous", subject_id="i1") == (None, None) and host.reference_run({"runs": [], "versions": [V0]}, V0, "previous", subject_id="") == (0, [{"estimate": "+0"}])
+      and host.reference_run(RS, V1, "zero", subject_id="i0") == (0, [{"estimate": "+0"}]) and host.reference_run(RS, V1, "zero", subject_id="i1") == (None, None) and host.reference_run(RS, V1, "zero") == (0, [{"estimate": "+0"}]))
+check("run_numbers by subject: run 0 when it is theirs, then their runs (the failed one too - it opens); a subject with no runs has none; a run zero naming none is the subject-less group's; without a subject, every run",
+      host.run_numbers(RS, subject_id="i0") == [0, 1, 3] and host.run_numbers(RS, subject_id="i1") == [2, 4] and host.run_numbers(RS, subject_id="i2") == [] and host.run_numbers({"runs": [], "versions": [V0], "current_version": 1}, subject_id="") == [0]
+      and host.run_numbers({"runs": [], "versions": [V0], "current_version": 1}, subject_id="i0") == [] and host.run_numbers(RS) == [0, 1, 2, 3, 4])
+check("window_text: the summary's window first, else the load's dates, else the date range, else the race or the file; reference_data: run 0's is the version's own data (light), a run's its summary's, none without a reference",
+      host.window_text({"window": ["2026-01-01", "2026-02-01"], "date_range": "2025-01-01 to 2025-06-01"}) == "2026-01-01 → 2026-02-01" and host.window_text({"load": {"start_date": "2026-01-01", "end_date": "2026-02-01"}}) == "2026-01-01 → 2026-02-01"
+      and host.window_text({"date_range": "2026-01-01 to 2026-02-01"}) == "2026-01-01 → 2026-02-01" and host.window_text({"extra": {"race_title": "Spring classic"}}) == "Spring classic" and host.window_text({"name": "a.csv"}) == "a.csv" and host.window_text(None) == ""
+      and host.reference_data(RS, V1, 0)["subject"] == {"id": "i0", "name": "x"} and host.reference_data(RS, V1, 2)["subject"] == {"id": "i1", "name": "x"} and host.reference_data(RS, V1, None) is None and host.reference_data(RS, V1, 99) is None)
+check("light_data carries the window the run asked for (a cut run's, not the cached load's), from the load's dates else the date range; none without either",
+      host.light_data({"df_id": "d", "load": {"source": "intervals", "start_date": "2026-02-01", "end_date": "2026-05-31", "cached_from": ["2026-01-13", "2026-06-11"]}, "date_range": "2026-01-13 to 2026-06-11"})["window"] == ["2026-02-01", "2026-05-31"]
+      and host.light_data({"df_id": "d", "date_range": "2026-01-13 to 2026-06-11"})["window"] == ["2026-01-13", "2026-06-11"] and host.light_data({"df_id": "d", "name": "a.csv"})["window"] is None)
 check("light_data and load_plan carry the subject: the summary of a run on a subject's load names them; the plan of a routine made on one names them for the run dialog; neither for an upload",
       host.light_data({"df_id": "d", "load": {"source": "intervals", "subject": _sub("i1", "The other subject")}})["subject"] == {"id": "i1", "name": "The other subject"} and host.light_data({"df_id": "d", "load": {"source": "file"}})["subject"] == {}
       and host.load_plan({"current_version": 1, "versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "subject": _sub("i0", "The subject")}}}}]})["subject"] == {"id": "i0", "name": "The subject"}
@@ -410,10 +420,15 @@ _R7 = store.load(rid4); _R7["id"] = "r7sub"; host.version_of(_R7)["manifest"]["d
 _on = lambda sid, name: dict(data_now, load={"source": "intervals", "subject": _sub(sid, name)})
 _o7a = host.run(store.load("r7sub"), {}, _on("i1", "The other subject"), runner_on(df), store)
 _o7b = host.run(store.load("r7sub"), {}, _on("i0", "The subject"), runner_on(df), store)
-_o7c = host.run(store.load("r7sub"), {}, _on("i1", "The other subject"), runner_on(df), store)
+_ev7 = []
+_o7c = host.run(store.load("r7sub"), {}, _on("i1", "The other subject"), runner_on(df), store, emit=_ev7.append)
 check("host.run by subject: the other subject's first run has no reference (run zero is the first subject's) and says it is the first run on this subject; the first subject's run is against run 0 (theirs; the other's run skipped); the other's second run is against their first",
       _o7a["run"]["against"] is None and _o7a["run"]["comparison"]["line"] == "nothing to compare with: the first run on this subject" and _o7a["summary"]["data"]["subject"] == {"id": "i1", "name": "The other subject"}
       and _o7b["run"]["against"] == 0 and _o7c["run"]["against"] == _o7a["run"]["number"] and _o7c["run"]["status"] in ("ran", "reproduced"), (_o7a["run"]["against"], _o7a["run"]["comparison"]["line"], _o7b["run"]["against"], _o7c["run"]["against"], _o7c["run"]["line"]))
+_cmp7 = next((e for e in _ev7 if e.get("kind") == "compare"), {})
+check("the run's answer carries whose it is, the numbers the arrows step through (that subject's alone) and the reference run's data for the Comparison tab; the COMPARE row names the reference run with its date (no window on an upload's record)",
+      _o7c["subject"] == {"id": "i1", "name": "The other subject"} and _o7c["numbers"] == [_o7a["run"]["number"], _o7c["run"]["number"]] and _o7c["against_data"]["subject"] == {"id": "i1", "name": "The other subject"}
+      and _o7a["against_data"] is None and _o7b["against_data"]["subject"] == {"id": "i0", "name": "The subject"} and _cmp7.get("query", "").startswith(f"with run {_o7a['run']['number']} (") and _cmp7.get("peek") == _o7c["run"]["comparison"]["line"], (_o7c.get("numbers"), _cmp7))
 # the summaries of runs recorded before 2026-10-30 get their subject from each run's own record, once, as the routine is loaded
 _tmp_s = tempfile.mkdtemp(); _st2 = rt.RoutineStore(_tmp_s)
 _st2.save({"id": "rold", "name": "n", "current_version": 1, "versions": [V0], "runs": [{"number": 1, "version": 1, "status": "ran", "data": {"name": "", "source": "intervals"}}, {"number": 2, "version": 1, "status": "ran", "data": {"name": "", "source": "intervals"}}]})
@@ -1016,6 +1031,8 @@ view2 = host.run_view(store.load(rid4), store, 2)
 check("run_view: run zero from the version's record with its files; run 2 from its record with the comparison, the output and the numbers to step through",
       view0["run"]["number"] == 0 and view0["run"]["zero"] and view0["run"]["results"][0]["estimate"] == "+3.00" and "RESULT:" in view0["stdout"]
       and view2["run"]["number"] == 2 and view2["run"]["comparison"]["rows"][0]["mark"] == "down" and "RESULT: rows above the line: +2.00" in view2["stdout"] and view2["numbers"][:3] == [0, 1, 2] and view2["manifest_results"][0]["label"] == "rows above the line", (view0["run"].get("results"), view2.get("numbers")))
+check("run_view says whose the run is (none for an upload's) and carries the reference run's data: run 2's reference is run 1's summary, run zero has none",
+      view2["subject"] == {} and view0["subject"] == {} and view2["against_data"] is not None and view2["against_data"].get("name") == "small.csv" and view0["against_data"] is None, (view2.get("subject"), view2.get("against_data")))
 try:
     host.run_view(store.load(rid4), store, 99); nope = ""
 except host.RoutineRefused as exc:

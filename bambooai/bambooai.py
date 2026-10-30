@@ -727,7 +727,7 @@ class BambooAI:
                    results=len(r["results"]), compared=c["compared"], moved=c["moved"], changed=c["changed"], missing=c["missing"], figures=r["figures"],
                    elapsed=r["elapsed"], against=r["against"], comparison_line=c["line"])
         logger.info("Routine %s run %d (v%d): %s; %s", routine_id, r["number"], r["version"], r["line"], c["line"])
-        return {k: out[k] for k in ("run", "summary", "routine", "numbers", "name")}
+        return {k: out[k] for k in ("run", "summary", "routine", "numbers", "name", "subject", "against_data")}     # whose, and the reference run's data (2026-10-30)
 
     def create_routine(self, proposal_id, choices, routine_id=None):
         """Save as routine, step two: the person's choices, run zero on the chain's data through the executor, the

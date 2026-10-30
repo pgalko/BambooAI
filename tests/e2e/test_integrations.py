@@ -280,6 +280,8 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_selector("#routineRunModal .rt-load", timeout=30000)
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=15000)
+            run_wait = page.evaluate("() => ({ state: (document.querySelector('#routineRunModal select[data-load=\"athlete\"]') || {}).getAttribute('data-state'), runOn: !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
+            page.wait_for_function("() => (document.querySelector('#routineRunModal select[data-load=\"athlete\"]') || {}).getAttribute('data-state') === 'ready'", timeout=15000)
             rd = page.evaluate("""() => ({ choice: (document.querySelector('#routineRunModal input[name="rt-data"]:checked') || {}).value, start: document.querySelector('#routineRunModal input[data-load="start"]').value, end: document.querySelector('#routineRunModal input[data-load="end"]').value,
                 help: document.querySelector('#routineRunModal .rt-load .help').textContent, now: !!document.querySelector('#routineRunModal input[name="rt-data"][value="now"]'), runOn: !document.querySelector('#routineRunModal [data-act="run"]').disabled, band: document.querySelector('#routineRunModal [data-key="band"]').value,
                 span: (document.querySelector('#routineRunModal .rt-derived-row') || {}).textContent || '', spanPickers: document.querySelectorAll('#routineRunModal [data-key="span"]').length,
@@ -288,6 +290,8 @@ def main():
             local_today = page.evaluate("() => ({ today: localIsoDay(new Date()), dataTabMax: (document.getElementById('intervalsEndDate') || {}).max || '', utc: new Date().toISOString().slice(0, 10) })")
             check("the run dialog's window ends on the page's local calendar day - the same day the Data tab's dialog offers as its latest (2026-10-15: both had taken the UTC day, a day apart before 11:00 in Melbourne)",
                   rd["end"] == local_today["today"] and local_today["dataTabMax"] == local_today["today"], (rd["end"], local_today))
+            check("Run waits for the athletes (2026-10-30): off while the select says loading (a load before the list would take whichever key was used last), on once the athletes are listed",
+                  (run_wait["state"] != "loading" or run_wait["runOn"] is False) and not page.evaluate("() => document.querySelector('#routineRunModal [data-act=\"run\"]').disabled"), run_wait)
             check("the run dialog of an Intervals routine: Load from Intervals.icu on, the window of the original's 59 days ending today, with summary, wellness and the metrics as the original; the data loaded now as the other choice; the band at its default; Run on",
                   rd["choice"] == "load" and rd["start"] == b_start.isoformat() and rd["end"] == b_end.isoformat() and "the original\u2019s 59 days, ending today" in rd["help"] and "summary" in rd["help"] and "wellness" in rd["help"] and "metrics as the original" in rd["help"] and rd["now"] and rd["runOn"] and rd["band"] == "9, 11", rd)
             check("the session types (a choice over the summary file's column, not the frame's) are checked where they live: the data loaded now passes, nothing missing",
@@ -317,11 +321,17 @@ def main():
             check("run 1's load fetched only the days the store lacked: 41 FIT files for the 60-day window (19 of its days are the original's, held under the same signature); the LOAD row's fold says 19 of 60 activities from the store, 41 downloaded",
                   fits_run1 == 41 and load_row is not None and "19 of 60 activities from the store, 41 downloaded" in load_row["fold"], (fits_run1, load_row))
             check("the run view: a LOAD row naming the window and its auxiliaries, a CHECK row saying power is empty in this window, the wellness file absent and one of the chosen session types not in this window's summary (the method keeps the other), a RUN row, a COMPARE row; the closing card ran against run 0; the composer locked, the chip back to Ready",
-                  any("LOAD" in r and f"Intervals.icu {b_start.isoformat()} → {b_end.isoformat()}" in r and "summary" in r and "wellness" in r for r in rv["rows"])
+                  any("LOAD" in r and f"Intervals.icu · The subject · {b_start.isoformat()} → {b_end.isoformat()}" in r and "summary" in r and "wellness" in r for r in rv["rows"])
                   and any("CHECK" in r and "columns empty in this data: power" in r and "wellness absent in this data" in r and "'Ride' is not in column type of the summary file - the method keeps the other value" in r for r in rv["rows"])
                   and any("RUN" in r and "run 1" in r for r in rv["rows"]) and any("COMPARE" in r and "run 0" in r for r in rv["rows"])
                   and "Run 1 complete" in rv["done"] and ("ran: 3 result lines" in rv["done"] or "reproduced" in rv["done"]) and "against run 0" in rv["done"] and not rv["warn"] and rv["locked"] and rv["chip"] == "Ready", (rv["rows"], rv["done"][:240], rv["chip"]))
             check("the Comparison tab opened with the three lines against run 0, each marked", "tab-comparison" in rv["tabs"] and rv["cmp"].count("sessions") >= 1 and "against run 0" in rv["cmp"] and ("within" in rv["cmp"] or "same" in rv["cmp"] or "moved" in rv["cmp"]), rv["cmp"][:300])
+            # whose and when (2026-10-30): the heading names the athlete once (both runs are theirs), each column its window; the position names them
+            cmp1 = page.evaluate("() => ({ head: (document.querySelector('#content-comparison .rt-sec .h') || {}).textContent || '', when: [...document.querySelectorAll('#content-comparison thead th .when')].map(e => e.textContent), labels: [...document.querySelectorAll('#content-comparison td.label')].map(e => [e.textContent, getComputedStyle(e).whiteSpace]), position: document.getElementById('chainPosition').textContent, compare: ([...document.querySelectorAll('.sp-row.tool')].find(e => /COMPARE/.test(e.textContent)) || {}).textContent || '' })")
+            if shots: page.query_selector("#content-comparison").screenshot(path=os.path.join(shots, "comparison_tab_run1.png"))
+            check("the Comparison tab says whose and when: 'Run 1 against run 0 — The subject · v1 · …', the original window under Run 0 and the run's under Run 1, the result labels whole (wrapped, not cut); the position reads 'run 1 of 1 · The subject'; the COMPARE row names run 0 with its window",
+                  cmp1["head"].startswith("Run 1 against run 0 — The subject · v1 · ") and cmp1["when"] == [f"{a_start.isoformat()} → {a_end.isoformat()}", f"{b_start.isoformat()} → {b_end.isoformat()}"] and cmp1["labels"] and all(ws == "normal" for _, ws in cmp1["labels"])
+                  and cmp1["position"] == "run 1 of 1 · The subject" and f", {a_start.isoformat()} → {a_end.isoformat()})" in cmp1["compare"], cmp1)
             # what differs, said in sentences (step 4, 2026-10-11): the frame's rows and the summary file's rows against the original's
             _chk1 = next((r for r in rv["rows"] if "CHECK" in r), "")
             check("the CHECK row says what differs from the original in sentences: the frame's rows against the original's, the summary file's rows against the original's and its columns added empty",
@@ -341,7 +351,7 @@ def main():
             page.wait_for_timeout(200)
             dtab = page.inner_text("#content-dataframe")
             check("the stored run's Data tab: loaded as Intervals.icu with the window, the method's summary name bound to this window's file, the wellness file absent",
-                  "Loaded as" in dtab and f"Intervals.icu {b_start.isoformat()} → {b_end.isoformat()}" in dtab and f"activity_summary_{tag_a}.csv → activity_summary_{tag_b}.csv" in dtab and "wellness: absent in this data" in dtab, dtab[:400])
+                  "Loaded as" in dtab and f"Intervals.icu · The subject · {b_start.isoformat()} → {b_end.isoformat()}" in dtab and f"activity_summary_{tag_a}.csv → activity_summary_{tag_b}.csv" in dtab and "wellness: absent in this data" in dtab, dtab[:400])
             run1 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "run.json")))
             run_dir = os.path.join(workdir, "executor", run1["run_dir"])
             check("the run's record carries the store's part of its load (window, held, fetched, refresh) and the stored run's Data tab says it", run1["data"]["load"].get("store") == {"window": 60, "held": 19, "fetched": 41, "refresh": False} and "19 of 60 activities from the store, 41 downloaded" in dtab, (run1["data"]["load"].get("store"), dtab[:300]))
@@ -392,7 +402,7 @@ def main():
             fits_after = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
             run3 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_3", "run.json")))
             check("run 3 took the original window from the cache: the LOAD row says so, nothing was downloaded (no new FIT requests at the fake API), the record's load says cached with the window, the frame is the original load's, the summary and wellness files bound, the pills show the window with both auxiliaries",
-                  any("LOAD" in r and f"Intervals.icu {a_start.isoformat()} → {a_end.isoformat()}" in r and "from the cache" in r for r in r3["rows"]) and "Run 3 complete" in r3["done"] and fits_after == fits_before
+                  any("LOAD" in r and f"Intervals.icu · The subject · {a_start.isoformat()} → {a_end.isoformat()}" in r and "from the cache" in r for r in r3["rows"]) and "Run 3 complete" in r3["done"] and fits_after == fits_before
                   and run3["data"]["load"].get("cached") is True and run3["data"]["load"]["start_date"] == a_start.isoformat() and run3["data"]["df_id"] == rec.get("df_id") and run3["aux_absent"] == [] and run3["status"] in ("ran", "reproduced")
                   and sum(1 for p in r3["pills"] if "Intervals ICU" in p) == 1 and any("Wellness" in p for p in r3["pills"]) and any("Activity Summary" in p for p in r3["pills"]), (r3["rows"], r3["done"][:160], (fits_before, fits_after), run3["data"].get("load"), run3.get("aux_absent"), r3["pills"]))
 
@@ -418,7 +428,7 @@ def main():
             got4 = {x.get("what", ""): x.get("estimate") for x in (run4.get("results") or [])}
             sessions4 = next((v for k, v in got4.items() if k.startswith("sessions in the window")), None)
             check("run 4 was cut from the cached load: the LOAD and CHECK rows say so, nothing downloaded, the record's load names the window and the cached load it was cut from, the data record says the window and fewer rows than the cached load, the file the method names is bound to its cut copy under the window's name, the session count is the window's days (one a day in the fake data) and the dates input is the cut frame's first and last",
-                  any("LOAD" in r and f"Intervals.icu {c_start.isoformat()} → {c_end.isoformat()}" in r and "cut from the cache" in r for r in r4["rows"]) and any("CHECK" in r and f"cut to {c_start.isoformat()} → {c_end.isoformat()} from the cached load {a_start.isoformat()} → {a_end.isoformat()}" in r for r in r4["rows"])
+                  any("LOAD" in r and f"Intervals.icu · The subject · {c_start.isoformat()} → {c_end.isoformat()}" in r and "cut from the cache" in r for r in r4["rows"]) and any("CHECK" in r and f"cut to {c_start.isoformat()} → {c_end.isoformat()} from the cached load {a_start.isoformat()} → {a_end.isoformat()}" in r for r in r4["rows"])
                   and "Run 4 complete" in r4["done"] and fits_after4 == fits_after and run4["data"]["load"].get("cached_from") == [a_start.isoformat(), a_end.isoformat()] and run4["data"]["load"]["start_date"] == c_start.isoformat()
                   and run4["data"]["date_range"] == f"{c_start.isoformat()} to {c_end.isoformat()}" and run4["data"]["rows"] < run3["data"]["rows"] and all(b[2] == "cut" for b in run4["bindings"])
                   and [os.path.basename(b[1]) for b in run4["bindings"]] == [f"activity_summary_{tag_a}.csv"] and run4["bindings"][0][1] == aux_mirror(run4["run_dir"], run4["bindings"][0][0])   # the method names the summary only, at its mirror path; the wellness file is cut beside it, unnamed
@@ -576,6 +586,11 @@ def main():
             probe5 = fetch_json(page, "/remove_auxiliary_dataset", {"file_path": first5[0]}) if first5 else None       # a file no longer in the session's list is 404 here
             check("the routine's load for the other subject, with the first subject's window on the Data tab: the first's pills went as the other's were made - one frame pill, the other's folder on it, the other's files under the pills and none of the first's - and the first's files are out of the session",
                   first5 and tab5["frames"] == 1 and tab5["folder"] == "intervals/i1" and not any("/intervals/i0/views/" in i_ for i_ in tab5["ids"]) and sum(1 for i_ in tab5["ids"] if "/intervals/i1/views/" in i_) >= 1 and probe5["status"] == 404, (pills_before5, tab5, probe5))
+            view5 = page.evaluate("() => ({ position: document.getElementById('chainPosition').textContent, prev: document.getElementById('prevResponse').disabled, next: document.getElementById('nextResponse').disabled, head: (document.querySelector('#content-comparison .rt-sec .h') || {}).textContent || '', line: (document.querySelector('#content-comparison .rt-line.muted') || {}).textContent || '', when: [...document.querySelectorAll('#content-comparison thead th .when')].map(e => e.textContent), load: ([...document.querySelectorAll('.sp-row.tool')].find(e => /LOAD/.test(e.textContent)) || {}).textContent || '' })")
+            if shots: page.query_selector("#content-comparison").screenshot(path=os.path.join(shots, "comparison_tab_run5.png")); page.screenshot(path=os.path.join(shots, "run_view_run5.png"))
+            check("the run view after run 5 (the other subject's first): the position 'run 5 of 5 · The other subject' with both arrows off (their one run); the Comparison tab's heading names them, its line says nothing to compare with - the first run on this subject - over one column with the window; the LOAD row names them",
+                  view5["position"] == "run 5 of 5 · The other subject" and view5["prev"] is True and view5["next"] is True and view5["head"] == "Run 5 — The other subject · v1" and view5["line"] == "nothing to compare with: the first run on this subject"
+                  and view5["when"] == [f"{a_start.isoformat()} → {a_end.isoformat()}"] and f"Intervals.icu · The other subject · {a_start.isoformat()} → {a_end.isoformat()}" in view5["load"], view5)
             fits_after5 = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
             run5 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_5", "run.json")))
             check("run 5 downloaded the window afresh under the new key (new FIT requests, no 'from the cache'), and its record carries the new key's mark - never the key - and the other subject the profile named",
@@ -606,8 +621,18 @@ def main():
             check("the manager's history by athlete: a pick in the Results heading - the other subject (the latest run's) selected with 1 run, the first subject with 5 (run 0 counted) - the table and the list the other subject's run alone, the Runs heading naming them; the first subject picked: run 0 and runs 1 to 4 with the trend",
                   mg5["a"]["picked"] == "i1" and mg5["a"]["options"] == ["The other subject \u00b7 1 run", "The subject \u00b7 5 runs"] and mg5["a"]["cols"] == ["Result", "Run 5"] and mg5["a"]["runs"] == ["5"] and any(h.endswith("\u00b7 The other subject") for h in mg5["a"]["heads"])
                   and mg5["b"]["picked"] == "i0" and mg5["b"]["cols"] == ["Result", "Run 0", "Run 1", "Run 2", "Run 3", "Run 4", "Trend"] and mg5["b"]["runs"] == ["4", "3", "2", "1", "0"], mg5)
-            page.evaluate("RoutinesUI.closeManager()")
-            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
+            # the arrows stay within the athlete (2026-10-30): run 4 opened from the manager steps back through the first subject's runs only
+            page.click("#routinesModal .rt-run[data-run='4']")
+            wait_text(page, "#chainPosition", "run 4 of 4 · The subject", 30000)
+            nav4 = page.evaluate("() => ({ prev: document.getElementById('prevResponse').disabled, next: document.getElementById('nextResponse').disabled, head: (document.querySelector('#content-comparison .rt-sec .h') || {}).textContent || '' })")
+            page.click("#prevResponse")
+            wait_text(page, "#chainPosition", "run 3 of 4 · The subject", 30000)
+            page.click("#prevResponse"); wait_text(page, "#chainPosition", "run 2 of 4 · The subject", 30000)
+            page.click("#prevResponse"); wait_text(page, "#chainPosition", "run 1 of 4 · The subject", 30000)
+            page.click("#prevResponse"); wait_text(page, "#chainPosition", "run 0 of 4 · The subject", 30000)
+            nav0 = page.evaluate("() => ({ prev: document.getElementById('prevResponse').disabled, next: document.getElementById('nextResponse').disabled, head: (document.querySelector('#content-comparison .rt-sec .h') || {}).textContent || '' })")
+            check("run 4 opened from the manager: 'run 4 of 4 · The subject', the previous arrow on and the next off (run 5 is the other subject's); the arrows step 3, 2, 1, 0 - never run 5 - and run 0 names the athlete; run 4's heading names the athlete once",
+                  nav4["prev"] is False and nav4["next"] is True and nav4["head"].startswith("Run 4 against run 3 — The subject · v1") and nav0["prev"] is True and nav0["next"] is False and nav0["head"] == "Run 0 — the original data — The subject · v1", (nav4, nav0))
             # the new key has loaded now, so the records say whose it is: the next window (run 1's, the first subject's) is another subject's
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
@@ -1106,7 +1131,7 @@ def main():
             res1_n = {r_.get("what"): rt_number(r_.get("estimate")) for r_ in run1_n.get("results") or []}
             check("run 1 on the next window: the LOAD row names the window with context; the pass ran behind the load and the run waited for it (the codes file bound, no 'codes absent'); "
                   "the CHECK row says the context file's rows against the original's; the count printed is the fake calendar's for that window; the Comparison tab sets it against run 0",
-                  any("LOAD" in r and f"Intervals.icu {b_start_n} → {b_end_n}" in r for r in rv_n["rows"]) and "the context file:" in _chk_n and "rows where the original had" in _chk_n.split("the context file:")[1] and "the codes file:" in _chk_n
+                  any("LOAD" in r and f"Intervals.icu · The subject · {b_start_n} → {b_end_n}" in r for r in rv_n["rows"]) and "the context file:" in _chk_n and "rows where the original had" in _chk_n.split("the context file:")[1] and "the codes file:" in _chk_n
                   and "codes absent" not in _chk_n and "no passages in this window" not in _chk_n and run1_n["status"] in ("ran", "reproduced") and "codes" not in run1_n.get("aux_absent", [])
                   and {aux_kind(f_) for f_ in ((run1_n.get("shape") or {}).get("files") or {})} >= {"context", "codes"} and not run1_n.get("bindings")      # the method reads CTX: no literal path to rebind
                   and res1_n.get("of them read as fatigue by the coding pass") == exp_b and "against run 0" in rv_n["cmp"] and "fatigue" in rv_n["cmp"] and "Run 1 complete" in rv_n["done"] and not rv_n["warn"],

@@ -166,7 +166,8 @@
             const right = l.kind === 'search' && l.sources && l.sources.length ? l.sources.length + ' source' + (l.sources.length === 1 ? '' : 's')
                         : (l.kind === 'read' ? (l.passages && l.passages.length ? l.passages.length + ' passage' + (l.passages.length === 1 ? '' : 's') : 'no passage') : '');
             // the row's text whole on hover: a CHECK row's sentences run past the row (step 4, 2026-10-11)
-            let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
+            const room = l.kind === 'load' || l.kind === 'compare' ? 120 : 60;       // a LOAD row names the athlete and the window (2026-10-30), a COMPARE row the reference's window
+            let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, room) : '') + '</span>' +
                 '<span class="out" title="' + esc(l.peek || '') + '">' + esc(l.peek || '') + '</span><span class="t">' + esc(right) + '</span></div>';
             if (l.sources && l.sources.length) {
                 h += '<div class="sp-pills">' + l.sources.map(s =>

@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.14 (2026-10-29/30; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0248, keys per athlete from 0249, the roster in 0250, routines by athlete in 0251)
+# Datasets by athlete — design v1.15 (2026-10-29/30; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0248, keys per athlete from 0249, the roster in 0250, routines by athlete in 0251-0252)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -499,7 +499,7 @@ Tests: test_routines.py 145 (the helper), test_app_path.py 198 (the cache routes
 test_dialogs.js (the rule's tokens), test_shell.js 72 (the bar), the stamp checks v74; the integrations walk 122
 (the refusal with its line, nothing written, the tab untouched; the bar).
 
-## 17. Keys per athlete (agreed 2026-10-30; built in patches 0249-0251)
+## 17. Keys per athlete (agreed 2026-10-30; built in patches 0249-0252)
 
 **The ask.** A coach has several athletes. One key at a time meant switching it by hand before every load, and
 (0248) a load for one athlete under the other's key. The coach should keep a key per athlete; the Intervals.icu
@@ -580,13 +580,41 @@ once, as the routine is loaded) and on the plan (`load_plan`: the original's ath
   their count of runs, run zero counted for its athlete; the latest run's athlete selected) filters the table and
   the runs list to them, and the *Runs* heading names them; the list's rows name their athlete.
 
-One athlete per run, as decided; the executor is untouched (image v74 stands). Tests: test_routines.py 152
-(`subject_of_record`, `zero_subject`, `same_subject`, `reference_run` by subject, the plan's and the summary's
-subject, a run through the host on each subject, the backfill at load), test_routines.js 80 (the select above the
-window, the comparison per athlete, run zero naming none, `runAthletes`, the table, the list and the manager's pick, the cache line keeping the latest answer),
-test_app_path.py 199 (the cached route with the athlete named: their key, their frames), the integrations walk 131
-(the dialog's athletes and comparison, the other subject picked for run 5 - *loaded for another subject*, the
-download under their key - the summaries' subjects, run 5 compared with nothing, the manager's pick).
+**Step 3, amended after the product owner's look (patch 0252).** The Comparison tab was hard to read: it named two
+run numbers and nothing else, and the comparison and the arrows crossed athletes. Now: *the Comparison tab says whose
+and when* - the heading names the athlete once when both runs are theirs (*Run 2 against run 1 — First Athlete · v1
+· 0 of 7 moved…*), each run's athlete when they differ (and *athlete not recorded* for a run from before the
+subject was kept); each run's window sits under its column header (a file's name or a race's title for the other
+sources), and the result labels wrap instead of being cut. The run view's id line, its position (*run 3 of 4 ·
+First Athlete*), the LOAD row (*Intervals.icu · First Athlete · window · …*), the Data tab's *Loaded as* and the
+COMPARE row (*with run 3 (30 Oct, window)*) name the athlete or the window too. *The arrows stay within the
+athlete*: a run opens with its athlete's runs alone (`run_numbers(…, subject_id)` on the host; run zero when it is
+theirs); the other athletes' runs are reached through the manager's pick. *An unrecorded athlete is nobody's*: a run
+zero or a run without a subject on record (made before 2026-10-29) is never compared with an athlete's run and makes
+the manager's *athlete not recorded* group; the subject-less runs - an upload's, a race's, SweatStack's - still
+compare among themselves, step through together and show the file or the race where the athlete would be, so
+nothing changes for them. The summaries carry the asked window (`light_data.window`: a cut run's, not the cached
+load's); the view and the run's answer carry `subject` and `against_data` (the reference run's light data) for the
+tab. Run waits until the athletes are listed (a load before would take whichever key was used last). Cross-athlete comparison, later, needs none of this undone: every run names its athlete and window, and the
+comparison can be told which run to compare with (`compare_with` takes a number); it is a new choice in the dialog
+and a side-by-side view in the manager.
+
+One athlete per run, as decided; the executor is untouched (image v74 stands).
+
+Tests (0251): test_routines.py 152 (`subject_of_record`, `zero_subject`, `same_subject`, `reference_run` by subject,
+the plan's and the summary's subject, a run through the host on each subject, the backfill at load),
+test_routines.js 80 (the select above the window, the comparison per athlete, `runAthletes`, the table, the list
+and the manager's pick, the cache line keeping the latest answer), test_app_path.py 199 (the cached route with the
+athlete named: their key, their frames), the integrations walk 131 (the dialog's athletes and comparison, the other
+subject picked for run 5 - *loaded for another subject*, the download under their key - the summaries' subjects,
+run 5 compared with nothing, the manager's pick). Tests (0252): test_routines.py 157 (the strict rule for a run zero
+naming none, `run_numbers` by subject, `window_text`, `reference_data`, the summary's window, the run's answer and
+the view with their subject and reference data), test_routines.js 86 (the Comparison tab's heading and windows by
+athlete, the *athlete not recorded* group, the Data tab's athlete, `runNumbers` by athlete, the run view's position
+and id line, Run waiting for the athletes), the integrations walk 135 (Run off until the athletes are listed; the
+Comparison tab after run 1 with the athlete and both windows, the
+position; after run 5 the other subject's view alone with its first-run line; run 4 from the manager stepping back
+to run 0 within the first subject).
 
 **Decided with the product owner:** one athlete per routine run (a loop over athletes can come later). Noted for
 later: Intervals.icu lets a coach read linked athletes' data with the coach's own key, which would remove key
