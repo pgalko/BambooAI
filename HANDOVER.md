@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Nothing unreleased: 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.7.0: patch 0255 (the usage records; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**; image v74 stands). 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
   athlete with the roster; routines by athlete with the Comparison tab saying whose and when - patches 0237-0252, the release 0253;
@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/199/31/27/18/49/44/72/33/157/60/93/27/37/15/88/1/1 Python; 58/7/47/72/24/86/14/25/4/14/67 JS; 1,614 on 2026-10-30; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/199/31/27/18/49/44/72/33/157/60/93/27/8/37/15/88/1/1 Python; 58/7/47/72/24/86/14/25/4/14/67 JS; 1,622 on 2026-10-31; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (135; hosted only - the loaders need the executor; the
@@ -481,6 +481,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Usage dialog rebuilt, step 1: the records (2026-10-31, patch 0255; app and migration, image v74 stands).**
+  Palo found the Usage dialog subpar (two Plotly charts in a mid-size dialog, the legend over the bars, four
+  totals) and chose, from three mockups, the tabs with the ledger-and-detail Analyses tab; the dollars shown are
+  the same for coach and operator (the model cost is passed on; his margin is the compute). docs/USAGE_DESIGN.md
+  is the design. Step 1: each usage row keeps the cache split, the savings and the fees the logger already computed
+  (`cached_tokens`, `cache_write_tokens`, `cache_savings`, `search_fee`, `image_fee`; NULL on rows from before -
+  "not recorded"): `log_manager._write_to_database`, `LocalStore` (DDL and `_upgrade`), the stand-in's
+  `insert_usage_with_chain` now keeping the rows as the hosted function does (threads, chains, usage - the stack's
+  dialog will have data), `docs/sql/usage_cache_fields.sql` (the columns and the function replaced), proved on a
+  scratch Postgres loaded with the project's dump. The dump brought current by hand (`complete_schema_2026-10-31.sql`,
+  with Palo; untracked, D14) loads to the same schema as the dump plus the two migrations. Steps 2 (the route and the
+  dialog) and 3 (the walks and the notes) to come. Tests: test_usage.py 8 (new), the battery 1,622.
 - **The hosted table's second uniqueness (2026-10-30, patch 0254; the SQL, the stack's stand-in, a log line).** On dev
   the second athlete's key was refused: `duplicate key value violates unique constraint
   "intervals_integration_auth0_id_key"` - the hosted table keeps a uniqueness on `auth0_id` (one row per coach) that

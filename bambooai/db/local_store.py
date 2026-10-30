@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS usage (
     bamboo_user_id TEXT NOT NULL, agent TEXT, chain_id TEXT, timestamp TEXT, model TEXT,
     prompt_tokens INTEGER, completion_tokens INTEGER, elapsed_time REAL, tokens_per_second REAL, cost REAL,
     created_at TEXT DEFAULT (datetime('now')),
-    compute_tier TEXT DEFAULT 'local', query_cost REAL DEFAULT 0, charges_processed INTEGER DEFAULT 1);
+    compute_tier TEXT DEFAULT 'local', query_cost REAL DEFAULT 0, charges_processed INTEGER DEFAULT 1,
+    cached_tokens INTEGER, cache_write_tokens INTEGER, cache_savings REAL, search_fee REAL, image_fee REAL);
 CREATE TABLE IF NOT EXISTS llm_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL, auth0_id TEXT NOT NULL UNIQUE,
@@ -278,10 +279,21 @@ class LocalStore:
             self._upsert("users", {"auth0_id": local_sub, "bamboo_user_id": bamboo_user_id, "email": f"{bamboo_user_id}@local", "name": bamboo_user_id})
             self.conn.commit()
 
+    # the columns a usage row gained on 2026-10-31 (docs/USAGE_DESIGN.md): NULL on rows from before - "not recorded", never zero
+    _USAGE_SINCE = (("cached_tokens", "INTEGER"), ("cache_write_tokens", "INTEGER"), ("cache_savings", "REAL"), ("search_fee", "REAL"), ("image_fee", "REAL"))
+
     def _upgrade(self):
-        """A file made before the keys were kept per athlete (2026-10-30): intervals_integration was one row per user with
-        bamboo_user_id unique. SQLite cannot drop a constraint, so the table is rebuilt - the rows kept, each as the
-        pending key (athlete_id '') the first load names - and the index is one per user and athlete."""
+        """A file from before: usage rows gain the cache split, the savings and the fees (2026-10-31; added as columns,
+        NULL on the rows that predate them). A file made before the keys were kept per athlete (2026-10-30):
+        intervals_integration was one row per user with bamboo_user_id unique. SQLite cannot drop a constraint, so the
+        table is rebuilt - the rows kept, each as the pending key (athlete_id '') the first load names - and the index is
+        one per user and athlete."""
+        have = [r[1] for r in self.conn.execute('PRAGMA table_info("usage")')]
+        for col, typ in self._USAGE_SINCE:
+            if col not in have:
+                self.conn.execute(f'ALTER TABLE usage ADD COLUMN {col} {typ}')
+                self._cols.pop("usage", None)
+        self.conn.commit()
         cols = [r[1] for r in self.conn.execute('PRAGMA table_info("intervals_integration")')]
         if "athlete_id" in cols:
             return
@@ -387,7 +399,10 @@ class LocalStore:
                                      "timestamp": u.get("timestamp"), "model": u.get("model"), "prompt_tokens": u.get("prompt_tokens"),
                                      "completion_tokens": u.get("completion_tokens"), "elapsed_time": u.get("elapsed_time"),
                                      "tokens_per_second": u.get("tokens_per_second"), "cost": u.get("cost"),
-                                     "compute_tier": "local", "query_cost": 0.0, "charges_processed": 1})
+                                     "compute_tier": "local", "query_cost": 0.0, "charges_processed": 1,
+                                     # the cache split, the savings and the fees (2026-10-31): NULL when the payload has none, as the hosted function leaves them
+                                     "cached_tokens": u.get("cached_tokens"), "cache_write_tokens": u.get("cache_write_tokens"), "cache_savings": u.get("cache_savings"),
+                                     "search_fee": u.get("search_fee"), "image_fee": u.get("image_fee")})
         return {"success": True, "usage_id": row["id"], "thread_id": t["id"], "chain_id": c["id"]}
 
     def rpc_insert_dataset_metadata(self, p_bamboo_user_id, p_thread_id, p_chain_id, p_metadata_records):

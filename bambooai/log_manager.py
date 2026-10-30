@@ -143,8 +143,10 @@ class LogAndCallManager:
         output_manager.display_call_summary(summary_text)
 
     def _write_to_database(self, agent, chain_id, timestamp, model, prompt_tokens, 
-                          completion_tokens, elapsed_time, tokens_per_second, cost):
-        """Write usage data to Supabase database with chain/thread support"""
+                          completion_tokens, elapsed_time, tokens_per_second, cost,
+                          cached_tokens=0, cache_write_tokens=0, cache_savings=0.0, search_fee=0.0, image_fee=0.0):
+        """Write usage data to Supabase database with chain/thread support. Since 2026-10-31 (docs/USAGE_DESIGN.md) the
+        row keeps what this call computed and had only logged: the cache split, what the cache saved, the fees in the cost."""
         if not self.supabase_client or not self.supabase_client.is_available():
             return False
         
@@ -162,7 +164,12 @@ class LogAndCallManager:
             'completion_tokens': completion_tokens,
             'elapsed_time': round(elapsed_time, 4),
             'tokens_per_second': round(tokens_per_second, 4),
-            'cost': round(cost, 4)
+            'cost': round(cost, 4),
+            'cached_tokens': int(cached_tokens or 0),
+            'cache_write_tokens': int(cache_write_tokens or 0),
+            'cache_savings': round(float(cache_savings or 0.0), 6),
+            'search_fee': round(float(search_fee or 0.0), 6),
+            'image_fee': round(float(image_fee or 0.0), 6),
         }
         
         # Use the new method that handles chain/thread creation
@@ -347,7 +354,9 @@ class LogAndCallManager:
                 print(f"thread_id not available, skipping DB write for chain: {chain_id}")
             else:
                 self._write_to_database(agent, chain_id, timestamp, model, prompt_tokens, 
-                                    completion_tokens, elapsed_time, tokens_per_second, cost)
+                                    completion_tokens, elapsed_time, tokens_per_second, cost,
+                                    cached_tokens=cached_tokens, cache_write_tokens=cache_write_tokens, cache_savings=cache_savings,
+                                    search_fee=grounding_fee, image_fee=image_fee)
 
         # Build log entry outside the lock (no shared state)
         json_entry = {

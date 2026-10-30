@@ -32,7 +32,7 @@ TABLES = {
     ],
     "user_funds": [{"user_id": 1, "balance": 0.0, "last_updated": None}],
     "usage_counters": [{"user_id": 1, "queries_used": 0, "period_start": "2026-09-01", "period_end": "2026-10-01"}],
-    "labels": [], "chains": [], "llm_config": [], "usage": [], "dataset_metadata": [],
+    "labels": [], "threads": [], "chains": [], "llm_config": [], "usage": [], "dataset_metadata": [],
     "sweatstack_integration": [], "intervals_integration": [], "endura_integration": [],
 }
 RPC = {
@@ -43,7 +43,7 @@ RPC = {
     "get_compute_tier": lambda p: TIER,
     "charge_query_completion": lambda p: {"ok": True, "charged": 0.0},
     "can_continue_exploration": lambda p: {"allowed": True},
-    "insert_usage_with_chain": lambda p: {"ok": True},
+    "insert_usage_with_chain": lambda p: _insert_usage(p),
     "check_grounding_search_quota": lambda p: {"allowed": True, "remaining": 100},
     "insert_dataset_metadata": lambda p: {"ok": True},
     "upsert_subscription": lambda p: {"ok": True},
@@ -53,6 +53,31 @@ RPC = {
 
 def _counter():
     return TABLES["usage_counters"][0]["queries_used"]
+
+
+def _insert_usage(p):
+    """As the hosted function does (2026-10-31, so the stack's usage dialog has rows): the thread and the chain made
+    when absent, the usage row kept with the cache split, the savings and the fees - NULL when the payload has none."""
+    u = dict((p or {}).get("p_usage_data") or {})
+    thread_id = (p or {}).get("p_thread_id")
+    if not (u.get("bamboo_user_id") and u.get("chain_id") and thread_id):
+        return {"success": False, "error": "missing_required_fields"}
+    with _lock:
+        t = next((r for r in TABLES["threads"] if r.get("thread_id") == thread_id), None)
+        if t is None:
+            t = {"id": next(_ids), "thread_id": thread_id, "bamboo_user_id": u["bamboo_user_id"], "created_at": datetime.now().isoformat()}
+            TABLES["threads"].append(t)
+        c = next((r for r in TABLES["chains"] if r.get("chain_id") == str(u["chain_id"])), None)
+        if c is None:
+            c = {"id": next(_ids), "chain_id": str(u["chain_id"]), "thread_id": t["id"], "bamboo_user_id": u["bamboo_user_id"], "created_at": datetime.now().isoformat()}
+            TABLES["chains"].append(c)
+        row = {"id": next(_ids), "created_at": datetime.now().isoformat(), "compute_tier": TIER, "query_cost": 0.03 if TIER == "pro" else 0.0, "charges_processed": False}
+        for k in ("bamboo_user_id", "agent", "chain_id", "timestamp", "model", "prompt_tokens", "completion_tokens", "elapsed_time", "tokens_per_second", "cost",
+                  "cached_tokens", "cache_write_tokens", "cache_savings", "search_fee", "image_fee"):
+            row[k] = u.get(k)
+        row["chain_id"] = str(row["chain_id"])
+        TABLES["usage"].append(row)
+    return {"success": True, "usage_id": row["id"], "chain_id": row["chain_id"], "thread_id": thread_id, "message": "Usage record inserted successfully"}
 
 
 def _bump():

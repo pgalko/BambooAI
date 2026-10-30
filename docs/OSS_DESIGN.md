@@ -75,7 +75,9 @@ statement by statement against the code.
 - **D14. The schema file stays on the box, untracked.** `web_app/db_schema.sql` (the dump shipped in
   v72) is added to `.gitignore` and removed from tracking (`git rm --cached`); neither remote
   receives it from then on. The SQLite schema for the open-source edition is generated from it once
-  and is public.
+  and is public. A migration (`docs/sql/`) is proved on a scratch Postgres loaded with that dump before
+  it touches a project; the dump is brought current by hand with each migration (2026-10-31:
+  `complete_schema_2026-10-31.sql`, with the per-athlete keys and the usage records).
 
 ## 4. Repositories, history and delivery
 

@@ -804,8 +804,9 @@ to PyPI (`.github/workflows/release.yml`).
 Design notes: `docs/DESIGN_CHECKLIST.md` (what every change must keep true),
 `docs/OSS_DESIGN.md` (the decisions behind this edition), `docs/ROUTINES_DESIGN.md`,
 `docs/CONTEXT_DESIGN.md` and `docs/INCREMENTAL_LOADS_DESIGN.md` (routines, the words, the store),
-`docs/CODEMAP_DESIGN.md` (the code map), `docs/REACH_DESIGN.md` (the reach record), `HANDOVER.md`
-(the state of the code).
+`docs/CODEMAP_DESIGN.md` (the code map), `docs/REACH_DESIGN.md` (the reach record),
+`docs/DATASETS_DESIGN.md` (the store and the keys per athlete), `docs/USAGE_DESIGN.md` (the usage records and
+the dialog), `HANDOVER.md` (the state of the code).
 
 ## Contributing
 
