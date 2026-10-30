@@ -319,11 +319,20 @@ try:
     _cc4 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-13", "end": "2026-10-10"}).get_json()
     _fs.get_intervals_api_key = lambda u, a, athlete_id=None: "key-two"                                               # the coach changed the key: another subject
     _cc5 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10"}).get_json()
+    # the athlete named (2026-10-30): the key asked for is theirs, the match is their frames whatever key loaded them
+    _keys_asked = []
+    _fs.get_intervals_api_key = lambda u, a, athlete_id=None: (_keys_asked.append(athlete_id), "key-two")[1]
+    _inspect["cached_dataframes"][0]["subject"] = {"source": "intervals", "id": "i0", "name": "The subject"}
+    _cc6 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10", "athlete": "i0"}).get_json()
+    _cc7 = _wc.post(f"/routines/{_rid}/cached", json={"start": "2026-08-12", "end": "2026-10-10", "athlete": "i1"}).get_json()
+    _inspect["cached_dataframes"][0].pop("subject")
 finally:
     _fs.get_intervals_api_key = lambda u, a, athlete_id=None: "key-one"
     _rq.get = _real_get
     del _fapp.get_dynamic_executor_urls
     _rt_["versions"][0]["manifest"]["data"].pop("load", None); _st.save(_rt_)
+check("route cached with the athlete named: their key is the one asked for; the frame the loader recorded as theirs is a hit under it whatever key loaded it (the mark on the record is theirs); for another athlete the same window is theirs, not used - said",
+      _keys_asked == ["i0", "i1"] and _cc6["hit"] and _cc6["df_id"] == "dfc" and _cc6.get("key") == _kf("key-two") and not _cc7["hit"] and "loaded for another subject" in _cc7["line"], (_keys_asked, _cc6, _cc7))
 check("route cached with an executor: the executor's cache inspected for the user; under the key the loader marked the frame with, the window with its summary (in that key's folder) is a hit - the frame's id, the file, the line, the key's mark for the record; a wider window is not; a window inside it is a hit to be cut; under another key the same window is not used - said",
       _seen and _seen[0][0] == "http://executor/cache/inspect" and _seen[0][1] == {"user_id": "u1"} and _cc2["hit"] and _cc2["df_id"] == "dfc" and _cc2["files"] == [f"datasets/u1/{_kf('key-one')}/activity_summary_20260812_to_20261010.csv"] and "no download" in _cc2["line"] and _cc2.get("key") == _kf("key-one")
       and not _cc3["hit"] and "not in the cache" in _cc3["line"] and _cc4["hit"] and _cc4.get("cut") == ["2026-08-12", "2026-10-10"] and "cut to the window" in _cc4["line"]

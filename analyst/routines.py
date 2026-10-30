@@ -524,6 +524,14 @@ def kind_prefix(kind: str) -> str:
 INTERVALS_KINDS = ("summary", "wellness", "intervals", "context", "plan", "rider", "codes", "zones")
 
 
+def subject_of_record(data: Optional[dict]) -> dict:
+    """Whose data a record is (2026-10-30): {id, name} from its load's subject; {} when the load names none (an upload,
+    a race, a record from before the subject was kept)."""
+    load = (data or {}).get("load") or {}
+    sub = load.get("subject") if isinstance(load.get("subject"), dict) else {}
+    return {"id": str(sub.get("id") or ""), "name": str(sub.get("name") or "")} if sub.get("id") else {}
+
+
 def loader_file(path: str) -> bool:
     """Whether a file is one the Intervals loader writes for a subject, by its name; an upload or a race file is not."""
     return aux_kind(path) in INTERVALS_KINDS
@@ -1469,7 +1477,23 @@ class RoutineStore:
         if not os.path.exists(f):
             return None
         with open(f, encoding="utf-8") as fh:
-            return json.load(fh)
+            routine = json.load(fh)
+        if self._name_subjects(routine):            # runs recorded before 2026-10-30: whose data, from each run's own record, once
+            self.save(routine)
+        return routine
+
+    def _name_subjects(self, routine: dict) -> bool:
+        """Put the subject (the load's, by id and name) on each run's summary that lacks it, from the run's record; True
+        when any changed. A summary from before 2026-10-30 has none; a record without a load's subject gives {}."""
+        changed = False
+        for run in routine.get("runs") or []:
+            d = run.get("data")
+            if not isinstance(d, dict) or "subject" in d:
+                continue
+            rec = self.load_run(routine.get("id", ""), f"v{run.get('version', 1)}_{run.get('number')}") or {}
+            d["subject"] = subject_of_record(rec.get("data"))
+            changed = True
+        return changed
 
     def save(self, routine: dict) -> dict:
         rid = routine["id"]

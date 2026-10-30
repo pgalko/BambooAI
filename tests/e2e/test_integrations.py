@@ -545,10 +545,25 @@ def main():
             page.wait_for_function("() => { const t = (document.querySelector('#routinesModal .rt-right .title') || {}).textContent || ''; return t.length > 0 && !/Again on the cached window/.test(t); }", timeout=15000)     # the manager re-opens on the routine it last showed - the deleted one - until the list's first has loaded
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
+            # whose data a routine runs on (2026-10-30, docs/DATASETS_DESIGN.md §17 step 3): the athletes with a key in the run dialog,
+            # the original's picked; the comparison offered stays within the picked athlete's runs; the other subject picked here
+            page.wait_for_function("() => { const s = document.querySelector('#routineRunModal select[data-load=\"athlete\"]'); return !!s && s.options.length >= 2 && s.value === 'i0'; }", timeout=15000)
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-compare-sec input[name=\"rt-compare\"]')", timeout=10000)
+            dlg5 = page.evaluate("""() => { const s = document.querySelector('#routineRunModal select[data-load="athlete"]'); return { picked: s.value, options: [...s.options].map(o => o.textContent), help: document.querySelector('#routineRunModal .rt-athlete-help').textContent,
+                compare: [...document.querySelectorAll('#routineRunModal .rt-compare-sec label')].map(l => l.textContent.trim()), checked: (document.querySelector('#routineRunModal input[name="rt-compare"]:checked') || {}).value }; }""")
+            if shots: page.query_selector("#routineRunModal .modal-content").screenshot(path=os.path.join(shots, "run_dialog_athlete.png"))
+            page.select_option("#routineRunModal select[data-load='athlete']", "i1")
+            page.wait_for_function("() => /the first run on The other subject/.test((document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '')", timeout=10000)
+            if shots: page.query_selector("#routineRunModal .modal-content").screenshot(path=os.path.join(shots, "run_dialog_other_athlete.png"))
+            dlg5b = page.evaluate("""() => ({ help: document.querySelector('#routineRunModal .rt-athlete-help').textContent, compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '', radios: document.querySelectorAll('#routineRunModal input[name="rt-compare"]').length })""")
+            check("the run dialog lists the athletes with a key - the first subject first (the last loaded, with their activities), the other after (nothing held yet) - the original's athlete picked, and the comparison within their runs: run 4 (the run before on them, on) and run 0; the other subject picked: the help says whose data the method was made on, the comparison says it is the first run on them with nothing to compare with yet, no choice",
+                  dlg5["picked"] == "i0" and len(dlg5["options"]) == 2 and dlg5["options"][0].startswith("The subject \u00b7 ") and "activities to" in dlg5["options"][0] and dlg5["options"][1] == "The other subject \u00b7 nothing held yet" and dlg5["help"] == ""
+                  and dlg5["checked"] == "previous" and any(c.startswith("run 4 (") and c.endswith("the run before on The subject)") for c in dlg5["compare"]) and any(c.startswith("run 0 (") for c in dlg5["compare"])
+                  and dlg5b["help"] == "the method was made on The subject\u2019s data" and "the first run on The other subject: nothing to compare with yet" in dlg5b["compare"] and dlg5b["radios"] == 0, (dlg5, dlg5b))
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
-            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /another key/.test(c.textContent); }", timeout=15000)
+            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /another subject/.test(c.textContent); }", timeout=15000)
             cl5 = page.inner_text("#routineRunModal .rt-cache")
-            check("under another key the original window, though cached, is not used: the line says it was loaded under another key and will be downloaded", "loaded under another key" in cl5 and "will be downloaded" in cl5, cl5)
+            check("for the other subject the original window, though cached, is not used: the line says it was loaded for another subject and will be downloaded", "loaded for another subject" in cl5 and "will be downloaded" in cl5, cl5)
             pills_before5 = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim())")
             page.click("#routineRunModal [data-act='run']")
             wait_text(page, "#chainPosition", "run 5 of 5", 300000)
@@ -572,15 +587,40 @@ def main():
                   and json.load(open(os.path.join(exec_ds2, "subject.json"))).get("marks") == [_kf("stack-key-two")], (sorted(os.listdir(exec_ds2)), sorted(os.listdir(exec_ds))))
             check("the other subject has a store of its own, with the window just fetched; the first subject's store was not consulted for it (the whole window was downloaded) and holds its 101 activities still",
                   len(json.load(open(os.path.join(exec_ds2, "store", "activities.json")))) == 60 and len(json.load(open(os.path.join(exec_ds, "store", "activities.json")))) == 101, None)
+            # the history by athlete (2026-10-30): the summaries name whose data each run was on; run 5, the first on the other subject,
+            # was compared with nothing (run 0 is the first subject's); the manager shows one athlete's runs at a time
+            rj5 = (fetch_json(page, "/routines/" + str(rj.get("id")), None, "GET")["json"] or {}).get("routine") or {}
+            runs5 = {x["number"]: x for x in rj5.get("runs") or []}
+            check("the routine's summaries name whose data each run was on - runs 1 to 4 the first subject's (the dialog's load, the data loaded now, the cached window and the cut one), run 5 the other's - and run 5, the first on the other subject, was compared with nothing: its line says so",
+                  all((runs5.get(n) or {}).get("data", {}).get("subject") == {"id": "i0", "name": "The subject"} for n in (1, 2, 3, 4)) and (runs5.get(5) or {}).get("data", {}).get("subject") == {"id": "i1", "name": "The other subject"}
+                  and (runs5.get(5) or {}).get("against") is None and run5.get("comparison", {}).get("line") == "nothing to compare with: the first run on this subject", {n: (x.get("data", {}).get("subject"), x.get("against")) for n, x in runs5.items()})
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => !!document.querySelector('#routinesModal select[data-pick=\"athlete\"]')", timeout=15000)
+            if shots: page.wait_for_timeout(300); page.query_selector("#routinesModal .rt-mgr").screenshot(path=os.path.join(shots, "manager_by_athlete.png"))
+            mg5 = page.evaluate("""() => { const s = document.querySelector('#routinesModal select[data-pick="athlete"]'); const cols = () => [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \\d+$/, '').trim()).filter(Boolean); const runs = () => [...document.querySelectorAll('#routinesModal .rt-run')].map(e => e.getAttribute('data-run'));
+                const a = { picked: s.value, options: [...s.options].map(o => o.textContent), cols: cols(), runs: runs(), heads: [...document.querySelectorAll('#routinesModal .rt-sec > .h')].map(h => h.textContent.trim()) };
+                s.value = 'i0'; s.dispatchEvent(new Event('change', { bubbles: true }));
+                const b = { picked: document.querySelector('#routinesModal select[data-pick="athlete"]').value, cols: cols(), runs: runs() };
+                return { a, b }; }""")
+            check("the manager's history by athlete: a pick in the Results heading - the other subject (the latest run's) selected with 1 run, the first subject with 5 (run 0 counted) - the table and the list the other subject's run alone, the Runs heading naming them; the first subject picked: run 0 and runs 1 to 4 with the trend",
+                  mg5["a"]["picked"] == "i1" and mg5["a"]["options"] == ["The other subject \u00b7 1 run", "The subject \u00b7 5 runs"] and mg5["a"]["cols"] == ["Result", "Run 5"] and mg5["a"]["runs"] == ["5"] and any(h.endswith("\u00b7 The other subject") for h in mg5["a"]["heads"])
+                  and mg5["b"]["picked"] == "i0" and mg5["b"]["cols"] == ["Result", "Run 0", "Run 1", "Run 2", "Run 3", "Run 4", "Trend"] and mg5["b"]["runs"] == ["4", "3", "2", "1", "0"], mg5)
+            page.evaluate("RoutinesUI.closeManager()")
+            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
             # the new key has loaded now, so the records say whose it is: the next window (run 1's, the first subject's) is another subject's
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => { const t = (document.querySelector('#routinesModal .rt-right .title') || {}).textContent || ''; return t.length > 0 && !/Again on the cached window/.test(t); }", timeout=15000)     # the manager re-opens on the routine it last showed - the deleted one - until the list's first has loaded
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
-            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /subject|key|cache/.test(c.textContent); }", timeout=15000)
+            page.wait_for_function("() => { const s = document.querySelector('#routineRunModal select[data-load=\"athlete\"]'); return !!s && s.options.length >= 2 && s.value === 'i0'; }", timeout=15000)
+            roster5b = page.evaluate("() => [...document.querySelector('#routineRunModal select[data-load=\"athlete\"]').options].map(o => o.textContent)")
+            page.select_option("#routineRunModal select[data-load='athlete']", "i1")
+            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /another subject/.test(c.textContent); }", timeout=15000)
             cl5b = page.inner_text("#routineRunModal .rt-cache")
-            check("under the other subject's key, once it has loaded, a window the cache holds for the first subject only is said to be another subject's and will be downloaded", "loaded for another subject" in cl5b and "will be downloaded" in cl5b, cl5b)
+            check("the dialog's roster now puts the other subject first (the last loaded, their 60 activities), the original's athlete still picked; the other subject picked, a window the cache holds for the first subject only is said to be another subject's and will be downloaded",
+                  roster5b[0].startswith("The other subject \u00b7 60 activities to ") and roster5b[1].startswith("The subject \u00b7 ") and "loaded for another subject" in cl5b and "will be downloaded" in cl5b, (roster5b, cl5b))
             page.click("#routineRunModal [data-act='cancel']")
             page.evaluate("RoutinesUI.closeManager()")
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)

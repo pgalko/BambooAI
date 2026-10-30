@@ -378,6 +378,51 @@ check("a timeout: status timed_out", out6["run"]["status"] == "timed_out" and ou
 R6 = store.load(rid4)
 ref_after_failures = host.reference_run(R6, host.version_of(R6), "previous")
 check("the reference skips failed and timed-out runs: the last run that ran", ref_after_failures[0] == 5, ref_after_failures[0])
+# ---- whose runs (2026-10-30, docs/DATASETS_DESIGN.md §17 step 3): the comparison and the history stay within one subject's runs ----
+check("subject_of_record: the load's subject by id and name; {} without one (an upload, a race, a record from before the subject was kept)",
+      rt.subject_of_record({"load": {"source": "intervals", "subject": {"source": "intervals", "id": "i0", "name": "The subject"}}}) == {"id": "i0", "name": "The subject"}
+      and rt.subject_of_record({"load": {"source": "file"}}) == {} and rt.subject_of_record(None) == {} and rt.subject_of_record({"load": {"subject": "i0"}}) == {})
+_sub = lambda sid, name: {"source": "intervals", "id": sid, "name": name}
+_r = lambda n, sid, est, status="ran": {"number": n, "version": 1, "status": status, "data": {"subject": ({"id": sid, "name": "x"} if sid else {})}, "results": [{"estimate": est}]}
+RS = {"runs": [_r(1, "i0", "+1"), _r(2, "i1", "+2"), _r(3, "i0", "+3"), _r(4, "i1", "+4", "failed")],
+      "versions": [{"number": 1, "run_zero": {"verified": True, "results": [{"estimate": "+0"}]}, "manifest": {"data": {"load": {"source": "intervals", "subject": _sub("i0", "x")}}}}]}
+V1 = RS["versions"][0]
+check("zero_subject / same_subject: run zero's subject from the version's data record; a run matches by id, a run without one matches '' alone",
+      host.zero_subject(V1) == "i0" and host.zero_subject({"manifest": {"data": {}}}) == "" and host.same_subject(_r(1, "i0", "+1"), "i0") and not host.same_subject(_r(1, "i0", "+1"), "i1")
+      and host.same_subject(_r(1, "", "+1"), "") and not host.same_subject(_r(1, "", "+1"), "i0"))
+check("reference_run by subject: 'previous' is the last run that ran on that subject (3 for the first, 2 for the second - the failed one skipped); run 0 stands in for the first subject (its own), not for the second; a third subject has nothing; without a subject, as before",
+      host.reference_run(RS, V1, "previous", subject_id="i0")[0] == 3 and host.reference_run(RS, V1, "previous", subject_id="i1")[0] == 2
+      and host.reference_run({"runs": [_r(2, "i1", "+2")], "versions": RS["versions"]}, V1, "previous", subject_id="i0") == (0, [{"estimate": "+0"}])
+      and host.reference_run({"runs": [_r(1, "i0", "+1")], "versions": RS["versions"]}, V1, "previous", subject_id="i1") == (None, None)
+      and host.reference_run(RS, V1, "previous", subject_id="i2") == (None, None) and host.reference_run(RS, V1, "previous")[0] == 3,
+      [host.reference_run(RS, V1, "previous", subject_id=s_)[0] for s_ in ("i0", "i1", "i2", None)])
+V0 = {"number": 1, "run_zero": {"verified": True, "results": [{"estimate": "+0"}]}, "manifest": {"data": {}}}
+check("reference_run: a run zero that names no subject (from before the subject was kept) stands in for any subject; 'zero' asked outright is run 0 for its own subject and nothing for another",
+      host.reference_run({"runs": [], "versions": [V0]}, V0, "previous", subject_id="i1") == (0, [{"estimate": "+0"}]) and host.reference_run(RS, V1, "zero", subject_id="i0") == (0, [{"estimate": "+0"}])
+      and host.reference_run(RS, V1, "zero", subject_id="i1") == (None, None) and host.reference_run(RS, V1, "zero") == (0, [{"estimate": "+0"}]))
+check("light_data and load_plan carry the subject: the summary of a run on a subject's load names them; the plan of a routine made on one names them for the run dialog; neither for an upload",
+      host.light_data({"df_id": "d", "load": {"source": "intervals", "subject": _sub("i1", "The other subject")}})["subject"] == {"id": "i1", "name": "The other subject"} and host.light_data({"df_id": "d", "load": {"source": "file"}})["subject"] == {}
+      and host.load_plan({"current_version": 1, "versions": [{"number": 1, "manifest": {"data": {"source": "intervals", "load": {"source": "intervals", "start_date": "2026-08-12", "end_date": "2026-10-10", "subject": _sub("i0", "The subject")}}}}]})["subject"] == {"id": "i0", "name": "The subject"}
+      and host.load_plan({"current_version": 1, "versions": [{"number": 1, "manifest": {"data": {"source": "csv", "name": "a.csv"}}}]})["subject"] == {})
+# a run through the host on a subject's data: the summary names them; against the run before on them, else run zero when it is theirs
+# (or names none), else nothing - the line then says it is the first run on this subject, not of the version
+_R7 = store.load(rid4); _R7["id"] = "r7sub"; host.version_of(_R7)["manifest"]["data"]["load"] = {"source": "intervals", "subject": _sub("i0", "The subject")}; store.save(_R7)
+_on = lambda sid, name: dict(data_now, load={"source": "intervals", "subject": _sub(sid, name)})
+_o7a = host.run(store.load("r7sub"), {}, _on("i1", "The other subject"), runner_on(df), store)
+_o7b = host.run(store.load("r7sub"), {}, _on("i0", "The subject"), runner_on(df), store)
+_o7c = host.run(store.load("r7sub"), {}, _on("i1", "The other subject"), runner_on(df), store)
+check("host.run by subject: the other subject's first run has no reference (run zero is the first subject's) and says it is the first run on this subject; the first subject's run is against run 0 (theirs; the other's run skipped); the other's second run is against their first",
+      _o7a["run"]["against"] is None and _o7a["run"]["comparison"]["line"] == "nothing to compare with: the first run on this subject" and _o7a["summary"]["data"]["subject"] == {"id": "i1", "name": "The other subject"}
+      and _o7b["run"]["against"] == 0 and _o7c["run"]["against"] == _o7a["run"]["number"] and _o7c["run"]["status"] in ("ran", "reproduced"), (_o7a["run"]["against"], _o7a["run"]["comparison"]["line"], _o7b["run"]["against"], _o7c["run"]["against"], _o7c["run"]["line"]))
+# the summaries of runs recorded before 2026-10-30 get their subject from each run's own record, once, as the routine is loaded
+_tmp_s = tempfile.mkdtemp(); _st2 = rt.RoutineStore(_tmp_s)
+_st2.save({"id": "rold", "name": "n", "current_version": 1, "versions": [V0], "runs": [{"number": 1, "version": 1, "status": "ran", "data": {"name": "", "source": "intervals"}}, {"number": 2, "version": 1, "status": "ran", "data": {"name": "", "source": "intervals"}}]})
+_st2.save_run("rold", "v1_1", {"number": 1, "data": {"load": {"source": "intervals", "subject": _sub("i0", "The subject")}}})
+_got = _st2.load("rold")
+with open(_st2.file("rold"), encoding="utf-8") as _fh:
+    _saved = json.load(_fh)
+check("RoutineStore.load names the subject on an older run's summary from its record ({} for one whose record names none, or is missing) and saves it, once: the file carries it after",
+      _got["runs"][0]["data"]["subject"] == {"id": "i0", "name": "The subject"} and _got["runs"][1]["data"]["subject"] == {} and _saved["runs"][0]["data"]["subject"]["id"] == "i0" and not _st2._name_subjects(_saved), _got["runs"])
 # ---- the data made to fit the recorded shape (2026-10-10): a method that reads a loader's auxiliary file by its dated name ----
 aux_dir = os.path.join(tempfile.mkdtemp(), "datasets", "local")
 os.makedirs(aux_dir)

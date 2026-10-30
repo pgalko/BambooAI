@@ -187,9 +187,26 @@
             h += '<div class="rt-sec"><div class="h">Results <span class="n">— compared run to run' + (m.figures && m.figures.count ? ' · ' + m.figures.count + ' figure' + (m.figures.count === 1 ? '' : 's') : '') + '</span></div>' +
                 (res.length ? '<div class="rt-results">' + res.map(x => '<div class="r"><span class="g">✓</span><span class="l" title="' + esc(x.label) + '">' + esc(x.label) + '</span><span class="c">cell ' + esc(x.cell) + '</span></div>').join('') + '</div>' : '<div class="rt-line">None recorded: runs keep their printed output and figures.</div>') + '</div>';
             h += '<div class="rt-sec"><div class="h">Versions</div><div class="rt-vers">' + (r.versions || []).slice().reverse().map(x => '<div class="v"><b>v' + esc(x.number) + '</b><span>' + esc(fmtDate(x.created)) + ' · from the analysis of ' + esc(chainDate((x.promoted_from || {}).chain_id) || (x.promoted_from || {}).chain_id) + (x.change_note ? ' · “' + esc(x.change_note) + '”' : '') + '</span></div>').join('') + '</div></div>';
-            h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">— each run against the one before it</span></div>' + build.runsTable(r) + '</div>';
-            h += '<div class="rt-sec"><div class="h">Runs <span class="n">— a run opens in the main panes</span></div>' + build.runsList(r) + '</div>';
+            // the runs by athlete (2026-10-30): a choice when the runs span more than one; the latest run's athlete first
+            const athletes = build.runAthletes(r);
+            const picked = athletes.find(a => a.id === managerState.athlete) ? managerState.athlete : (athletes[0] ? athletes[0].id : '');
+            const many = athletes.length > 1;
+            const pick = many ? '<select class="ui-input rt-athlete-pick" data-pick="athlete" title="whose runs">' + athletes.map(a => '<option value="' + esc(a.id) + '"' + (a.id === picked ? ' selected' : '') + '>' + esc(a.name || a.id || 'no athlete recorded') + ' · ' + a.n + ' run' + (a.n === 1 ? '' : 's') + '</option>').join('') + '</select>' : '';
+            const whose = many ? ' · ' + esc((athletes.find(a => a.id === picked) || {}).name || picked || 'no athlete recorded') : '';
+            h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">— each run against the one before it</span>' + pick + '</div>' + build.runsTable(r, many ? picked : null) + '</div>';
+            h += '<div class="rt-sec"><div class="h">Runs <span class="n">— a run opens in the main panes' + whose + '</span></div>' + build.runsList(r, many ? picked : null) + '</div>';
             return h;
+        },
+        // the athletes the routine has run on (2026-10-30): id, name, how many runs, the latest run's first; run zero's athlete
+        // counts when it names one (a run zero from before the athlete was kept belongs to every athlete's history)
+        runAthletes(r) {
+            const v = (r.versions || []).find(x => x.number === r.current_version) || {};
+            const out = [];
+            const add = (id, name) => { let a = out.find(x => x.id === id); if (!a) { a = { id, name: name || '', n: 0 }; out.push(a); } if (name && !a.name) a.name = name; a.n += 1; };
+            (r.runs || []).slice().reverse().forEach(x => add(build.subjectId(x), (((x.data || {}).subject) || {}).name || ''));
+            const z = build.zeroSubject(v);
+            if (v.run_zero && v.run_zero.verified && (z || !out.length)) add(z, ((((v.manifest || {}).data || {}).load || {}).subject || {}).name || '');
+            return out;
         },
         // run zero's verdict as a status chip (2026-10-15: run zero runs behind the dialog, so a routine can be verifying)
         zeroStatus(rz) {
@@ -250,6 +267,9 @@
                 const label = src === 'intervals' ? 'Intervals.icu' : 'SweatStack';
                 const withWhat = (src === 'intervals' ? (plan.aux_kinds || []) : (plan.sports || [])).join(', ');
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from ' + label + '</label>' +
+                    // whose data (2026-10-30, docs/DATASETS_DESIGN.md §17): the athlete first - the roster, filled once the dialog is up
+                    // (fillAthletes); the original's athlete is the default, the cache line and the comparison follow the choice
+                    (src === 'intervals' ? '<div class="rt-field rt-athlete"><label>Athlete</label><select class="ui-input" data-load="athlete"><option value="">loading the athletes…</option></select><div class="rt-athlete-help"></div></div>' : '') +
                     '<div class="rt-window rt-loadwin"><input type="date" class="ui-input" data-load="start" value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end" value="' + build.isoDay(today) + '"></div>' +
                     '<div class="help">the original’s ' + esc(days) + ' days, ending today' + (maxDays && days > maxDays ? ' (your plan allows ' + esc(maxDays) + ')' : '') +
                     (withWhat ? ' · with ' + esc(withWhat) : '') + (src === 'intervals' ? ' · metrics as the original' : (plan.users && plan.users.length ? ' · ' + esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')) + '</div>' +
@@ -286,16 +306,30 @@
             h += '</div>';
             const runs = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status));
             const last = runs.length ? runs[runs.length - 1] : null;
-            const zero = v.run_zero && v.run_zero.verified;
             // what a run will take, from the last one (or run zero): the method's own cost, said before the person presses Run (2026-10-15)
             const took = Number((last && last.elapsed) || (v.run_zero && v.run_zero.elapsed) || 0);
             if (took >= 30) h += '<div class="rt-line rt-eta">the ' + (last ? 'last run' : 'check on the original data') + ' took ' + esc(fmtTook(took)) + ' — expect about as long</div>';
-            if (last || zero) {
-                h += '<div class="rt-sec"><div class="h">Compare with</div><div class="rt-choices">' +
-                    (last ? '<label class="rt-check"><input type="radio" name="rt-compare" value="previous" checked> run ' + esc(last.number) + ' (' + esc(fmtDate(last.created)) + ', the run before)</label>' : '') +
-                    (zero ? '<label class="rt-check"><input type="radio" name="rt-compare" value="zero"' + (last ? '' : ' checked') + '> run 0 (the original data)</label>' : '') + '</div></div>';
-            }
+            // whose runs to compare with, as the dialog opens: the original's athlete for a load (the select follows), the data
+            // loaded now's for a file routine with data loaded; the section is re-rendered as the choice or the athlete changes
+            const src0 = (pre && pre.plan && pre.plan.source) || '';
+            const s0 = (src0 === 'intervals' || src0 === 'endura' || src0 === 'sweatstack') ? ((pre.plan || {}).subject || {}) : (pre && pre.loaded ? (((pre.data || {}).subject) || {}) : {});
+            h += '<div class="rt-compare-sec">' + build.compareSection(r, v, s0.id || '', s0.name || '') + '</div>';
             return h;
+        },
+        // whose runs a run is compared with (2026-10-30): the previous run on the same athlete's data, and run zero only when it
+        // ran on that athlete's; the first run on an athlete has nothing to compare with yet. Re-rendered as the athlete changes.
+        subjectId(x) { return String((((x || {}).data || {}).subject || {}).id || ''); },
+        zeroSubject(v) { return String((((((v || {}).manifest || {}).data || {}).load || {}).subject || {}).id || ''); },
+        zeroFits(v, athleteId) { const z = build.zeroSubject(v); return athleteId == null || z === '' || z === String(athleteId); },   // run zero is the athlete's, or names none (from before 2026-10-30)
+        compareSection(r, v, athleteId, athleteName) {
+            const mine = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && build.subjectId(x) === String(athleteId || ''));
+            const last = mine.length ? mine[mine.length - 1] : null;
+            const zero = v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId || '');
+            const who = athleteName ? ' on ' + esc(athleteName) : '';
+            if (!last && !zero) return (r.runs || []).length || (v.run_zero && v.run_zero.verified) ? '<div class="rt-sec"><div class="h">Compare with</div><div class="rt-line muted">the first run' + who + ': nothing to compare with yet</div></div>' : '';
+            return '<div class="rt-sec"><div class="h">Compare with</div><div class="rt-choices">' +
+                (last ? '<label class="rt-check"><input type="radio" name="rt-compare" value="previous" checked> run ' + esc(last.number) + ' (' + esc(fmtDate(last.created)) + ', the run before' + who + ')</label>' : '') +
+                (zero ? '<label class="rt-check"><input type="radio" name="rt-compare" value="zero"' + (last ? '' : ' checked') + '> run 0 (the original data)</label>' : '') + '</div></div>';
         },
         num(x) { return x == null || x === '' ? '' : String(x); },
         ivl(s) { return s && s.low != null && s.high != null ? '[' + esc(s.low) + ', ' + esc(s.high) + ']' : ''; },
@@ -371,12 +405,13 @@
             if (isNaN(a) || isNaN(b)) return now.estimate === before.estimate ? 'same' : 'changed';
             return a === b ? 'same' : (a > b ? 'up' : 'down');
         },
-        runsTable(r) {
+        runsTable(r, athleteId) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
             const lines = ((v.manifest || {}).results || []).filter(x => !x.dropped && x.estimate != null);
             const cols = [];
-            if (v.run_zero && v.run_zero.verified) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [] });
-            (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status)).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [] }));
+            const own = x => athleteId == null || build.subjectId(x) === String(athleteId);        // one athlete's runs when asked (2026-10-30)
+            if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [] });
+            (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && own(x)).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [] }));
             if (!lines.length || !cols.length) return '<div class="rt-line muted">' + (!lines.length ? 'This routine records no result lines; its runs keep their output and figures.' : 'No run yet.') + '</div>';
             const all = ((v.manifest || {}).results || []);
             // the mark sits between the two numbers it compares, in a column of its own (2026-10-10: beside the second
@@ -399,16 +434,17 @@
             }).join('');
             return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table><div class="rt-legend">Between two runs: ↑ ↓ when the intervals do not overlap, = when they do; · a line the run did not print. Hover a number for its interval.' + (cols.length > 2 ? ' Trend: the numbers across the runs.' : '') + '</div>';
         },
-        runsList(r) {
-            const items = (r.runs || []).slice().reverse().map(x => {
+        runsList(r, athleteId) {
+            const items = (r.runs || []).slice().reverse().filter(x => athleteId == null || build.subjectId(x) === String(athleteId)).map(x => {
                 const d = x.data || {};
                 const inputs = Object.keys(x.inputs || {}).length ? Object.entries(x.inputs).map(([k, val]) => esc(k) + ' = ' + esc(Array.isArray(val) ? val.join(', ') : val)).join(' · ') : '';
                 const status = x.status === 'reproduced' ? 'reproduced' : (x.status === 'ran' ? ((x.comparison || {}).moved ? 'ran · ' + x.comparison.moved + ' of ' + x.comparison.compared + ' moved' : 'ran') : x.status.replace('_', ' '));
-                return '<div class="ui-item rt-run" data-run="' + esc(x.number) + '"><span class="n">run ' + esc(x.number) + '</span><span class="w"><b>' + esc(fmtDate(x.created)) + '</b> ' + esc(sourceLabel(d.source)) + (d.name ? ': ' + esc(d.name) : '') + (d.date_range ? ' · ' + esc(d.date_range) : '') + ' · v' + esc(x.version) + (inputs ? ' · ' + inputs : '') + '</span>' +
+                const who = (d.subject || {}).name || (d.subject || {}).id || '';
+                return '<div class="ui-item rt-run" data-run="' + esc(x.number) + '"><span class="n">run ' + esc(x.number) + '</span><span class="w"><b>' + esc(fmtDate(x.created)) + '</b> ' + esc(sourceLabel(d.source)) + (who ? ' · ' + esc(who) : '') + (d.name ? ': ' + esc(d.name) : '') + (d.date_range ? ' · ' + esc(d.date_range) : '') + ' · v' + esc(x.version) + (inputs ? ' · ' + inputs : '') + '</span>' +
                     '<span class="rt-status ' + esc(x.status) + '">' + status + '</span><span class="open">open →</span></div>';
             });
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
-            if (v.run_zero && v.run_zero.verified) items.push('<div class="ui-item rt-run" data-run="0"><span class="n">run 0</span><span class="w"><b>' + esc(fmtDate(v.run_zero.created)) + '</b> the analysis\u2019s own data · v' + esc(v.number) + '</span><span class="rt-status reproduced">reproduced</span><span class="open">open →</span></div>');
+            if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) items.push('<div class="ui-item rt-run" data-run="0"><span class="n">run 0</span><span class="w"><b>' + esc(fmtDate(v.run_zero.created)) + '</b> the analysis\u2019s own data · v' + esc(v.number) + '</span><span class="rt-status reproduced">reproduced</span><span class="open">open →</span></div>');
             return items.length ? '<div class="ui-list rt-runlist">' + items.join('') + '</div>' : '<div class="rt-line muted">None yet.</div>';
         },
         // the favourites' cards' button
@@ -422,7 +458,7 @@
     const originCache = {};            // "thread/chain" -> [{id, name, version}]; "thread" -> [...]
     let menuEl = null, menuTimer = null, menuState = { saved: false, own: [], thread: [] };
     let dialog = null, dialogState = null;
-    let manager = null, managerState = { list: [], current: null };
+    let manager = null, managerState = { list: [], current: null, athlete: '' };     // athlete: the runs shown in the manager (2026-10-30)
 
     function fetchJson(url, opts) {
         const f = (window.authService && window.authService.fetch) ? window.authService.fetch.bind(window.authService) : fetch;
@@ -723,6 +759,11 @@
                 if (res.ok) { forgetOrigins(); loadManager(r.id); }
             }
         });
+        manager.addEventListener('change', e => {                // whose runs (2026-10-30): the table and the list follow the pick
+            const pick = e.target.closest('select[data-pick="athlete"]'); if (!pick || !managerState.current) return;
+            managerState.athlete = pick.value;
+            manager.querySelector('.rt-body').innerHTML = build.routineBody(managerState.current);
+        });
         return manager;
     }
     function openManager(routineId) {
@@ -779,7 +820,9 @@
                 if (e.target.matches('input[data-load="file"]')) { const up = runDlg.querySelector('input[name="rt-data"][value="upload"]'); if (up) up.checked = true; }
                 if (e.target.matches('select[data-load="cached"]')) { const ck = runDlg.querySelector('input[name="rt-data"][value="cache"]'); if (ck) ck.checked = true; }
                 updateRunButton();
+                renderCompare();                                  // whose runs to compare with follows the data choice (2026-10-30)
             }
+            if (e.target.matches('select[data-load="athlete"]')) athleteChanged();
             if (e.target.matches('input[data-load="start"], input[data-load="end"], select[data-load="race"]')) { clearTimeout(cacheTimer); cacheTimer = setTimeout(checkCache, 250); }
         });
         runDlg.addEventListener('input', e => {             // a date being typed (Safari commits it on blur only): the line follows the typing
@@ -809,6 +852,7 @@
                 if (!runState || runState.id !== routineId) return;
                 runState.limits = limits || null;
                 p.body.innerHTML = build.runDialog(r, runState.pre, limits);
+                if (src === 'intervals') fillAthletes(p, runState.plan);
                 if (src === 'endura') fillRaces(p, runState.plan);
                 if (src !== 'intervals' && src !== 'endura' && src !== 'sweatstack') fillCachePick(p);
                 updateRunButton();
@@ -823,13 +867,77 @@
     function loadAsked(plan, p) {
         const q = sel => p.d.querySelector(sel);
         const src = (plan || {}).source;
-        if (src === 'intervals') return { source: 'intervals', start_date: q('input[data-load="start"]').value, end_date: q('input[data-load="end"]').value, metrics: plan.metrics || [], aux_kinds: plan.aux_kinds || [] };
+        if (src === 'intervals') {
+            const a = athletePicked(p);                           // whose data (2026-10-30): on the load, the cache question and the record
+            return Object.assign({ source: 'intervals', start_date: q('input[data-load="start"]').value, end_date: q('input[data-load="end"]').value, metrics: plan.metrics || [], aux_kinds: plan.aux_kinds || [] }, a.id ? { subject: { source: 'intervals', id: a.id, name: a.name } } : {});
+        }
         if (src === 'endura') { const race = q('select[data-load="race"]'); return { source: 'endura', race_id: race ? race.value : '', race_title: race && race.selectedIndex >= 0 ? race.options[race.selectedIndex].textContent : '', aux_kinds: plan.aux_kinds || [] }; }
         if (src === 'sweatstack') return { source: 'sweatstack', start_date: q('input[data-load="start"]').value, end_date: q('input[data-load="end"]').value, sports: plan.sports || [], metrics: plan.metrics || [], users: plan.users || [] };
         const pick = q('select[data-load="cached"]');
         if (dataChoice() === 'cache' && pick && pick.value) return { source: 'file', name: pick.options[pick.selectedIndex].getAttribute('data-name') || '', cached: true };
         const f = q('input[data-load="file"]');
         return { source: 'file', name: f && f.files && f.files.length ? f.files[0].name : '' };
+    }
+    // the athletes a run can load (2026-10-30, docs/DATASETS_DESIGN.md §17 step 3): those with a key, as the paperclip's
+    // roster (the last loaded first), each with what the store holds for them; the original's athlete picked when listed -
+    // listed even without a key, since a window the cache holds still runs - else the first
+    function fillAthletes(p, plan) {
+        const sel = p.d.querySelector('select[data-load="athlete"]'); if (!sel) return;
+        const st = runState;
+        Promise.all([fetchJson('/intervals/athletes'), fetchJson('/cache/inspect').catch(() => ({ ok: false }))]).then(([ra, rc]) => {
+            if (runState !== st || !p.d.contains(sel)) return;
+            const keyed = ((ra.ok && ra.json && ra.json.athletes) || []).filter(a => a.id);
+            const tree = rc && rc.ok && rc.json ? rc.json.tree : null;
+            const rows = typeof intervalsRosterOf === 'function' ? intervalsRosterOf(keyed, tree) : keyed.map(a => ({ id: String(a.id), name: a.name || '', count: 0 }));
+            const mine = (plan && plan.subject) || {};
+            if (mine.id && !rows.some(a => a.id === mine.id)) rows.push({ id: mine.id, name: mine.name || '', count: 0, nokey: true });
+            if (!rows.length) { sel.innerHTML = '<option value="">no athlete: add an athlete’s API key under Settings → Intervals ICU</option>'; athleteChanged(); return; }
+            const pick = rows.some(a => a.id === mine.id) ? mine.id : rows[0].id;
+            sel.innerHTML = rows.map(a => '<option value="' + esc(a.id) + '" data-name="' + esc(a.name || a.id) + '"' + (a.id === pick ? ' selected' : '') + (a.nokey ? ' data-nokey="1"' : '') + '>' + esc(a.name || a.id) + ' · ' + esc(athleteFacts(a)) + '</option>').join('');
+            athleteChanged();
+        }).catch(() => { if (runState === st) sel.innerHTML = '<option value="">the athletes could not be listed</option>'; });
+    }
+    function athleteFacts(a) {
+        if (a.nokey) return 'no key: a window the cache holds only';
+        if (a.count) return Number(a.count).toLocaleString() + ' activit' + (Number(a.count) === 1 ? 'y' : 'ies') + ' to ' + (a.to || '');
+        return 'nothing held yet';
+    }
+    // the athlete picked for a load, as the load and the record name them: {id, name}; {} when none is listed or the plan is not Intervals
+    function athletePicked(p) {
+        const sel = p.d.querySelector('select[data-load="athlete"]');
+        if (!sel || !sel.value) return {};
+        const o = sel.options[sel.selectedIndex];
+        return { id: sel.value, name: (o && o.getAttribute('data-name')) || sel.value };
+    }
+    // whose data the run will be on, by the data choice: the athlete picked for a load, the data loaded now's subject, none for a file
+    function runSubject(p) {
+        const c = dataChoice();
+        if (c === 'load') return athletePicked(p);
+        if (c === 'now') return (((runState && runState.pre && runState.pre.data) || {}).subject) || {};
+        return {};
+    }
+    function athleteChanged() {
+        // the athlete changed (or came): the help line under the select, the comparison offered and the cache line follow
+        const st = runState; if (!st || !st.routine) return;
+        const p = runParts();
+        const help = p.d.querySelector('.rt-athlete-help');
+        if (help) {
+            const a = athletePicked(p), mine = (st.plan || {}).subject || {};
+            const sel = p.d.querySelector('select[data-load="athlete"]');
+            const o = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+            help.textContent = o && o.getAttribute('data-nokey') ? 'no key stored for them: a window the cache holds runs; anything else needs the key under Settings → Intervals ICU'
+                : (mine.id && a.id && a.id !== mine.id ? 'the method was made on ' + (mine.name || mine.id) + '’s data' : '');
+        }
+        renderCompare();
+        showCache(p, null);                                   // the line was the athlete before's; blank until the cache answers for this one
+        checkCache();
+    }
+    function renderCompare() {
+        const st = runState; if (!st || !st.routine) return;
+        const p = runParts(); const box = p.d.querySelector('.rt-compare-sec'); if (!box) return;
+        const r = st.routine, v = (r.versions || []).find(x => x.number === r.current_version) || {};
+        const s = runSubject(p);
+        box.innerHTML = build.compareSection(r, v, s.id || '', s.name || '');
     }
     // the files the Dataset cache holds, for a file routine's dialog (step 4, 2026-10-11): the frames the executor keeps
     // that came from a file (an upload, or a file loaded from the cache before), newest first; nothing without an executor
@@ -850,10 +958,10 @@
     // whether the load asked for is already in the executor's cache with every file the routine wants (2026-10-11: a run
     // re-downloaded a window loaded minutes before): asked once the dialog is up and again as the window or the race
     // changes; the answer under the window, and the load takes the cached frame and files instead of downloading
-    let cacheTimer = null;
+    let cacheTimer = null, cacheSeq = 0;
     function cacheAsk(asked) {
         // what to ask the cache about, or null when the dialog has no complete window or event yet
-        if (asked.source === 'intervals') return asked.start_date && asked.end_date ? { start: asked.start_date, end: asked.end_date } : null;
+        if (asked.source === 'intervals') return asked.start_date && asked.end_date ? Object.assign({ start: asked.start_date, end: asked.end_date }, asked.subject ? { athlete: asked.subject.id } : {}) : null;
         if (asked.source === 'endura') return asked.race_id ? { race_id: asked.race_id } : null;
         return null;
     }
@@ -874,7 +982,8 @@
         const p = runParts();
         const asked = loadAsked(st.plan, p);
         if (!cacheAsk(asked)) { showCache(p, null); return; }
-        askCache(st, asked).then(c => { if (runState === st) showCache(p, c); });
+        const seq = ++cacheSeq;                               // the latest question's answer stands: an earlier one arriving late is dropped (2026-10-30: the athlete's answer came after the window's)
+        askCache(st, asked).then(c => { if (runState === st && seq === cacheSeq) showCache(p, c); });
     }
     function dataChoice() {
         const p = runParts();
@@ -937,6 +1046,7 @@
         const refresh = !!(q('input[data-load="refresh"]') && q('input[data-load="refresh"]').checked);
         if (src === 'intervals' || src === 'endura') {
             progress('Asking the cache…', 'loading');
+            cacheSeq++;                                       // the previews in flight are stale now
             const c = await askCache(runState, asked);
             cached = c && c.hit ? c : null;
             showCache(p, c);
@@ -973,7 +1083,8 @@
             const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
             if (!start || !end || start >= end) throw new Error('the window needs a start before its end');
             progress('Starting the load from Intervals.icu…', 'loading');
-            const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [], refresh }) });
+            const who = asked.subject || {};                      // whose key (2026-10-30): the app refuses, naming them, when none is stored
+            const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [], refresh }, who.id ? { athlete: who.id, athlete_name: who.name || '' } : {})) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load could not start');
             const jobId = res.json.job_id;
             const t0 = Date.now();

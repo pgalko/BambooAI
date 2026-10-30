@@ -303,12 +303,15 @@ threshold - as inputs, at most five; everything else stays as written. The routi
 once a *run zero* on the original data reproduces every RESULT line the chain recorded.
 
 A run is then a dialog with the inputs and the load, and no model: the data is loaded the way the
-original was (a window from Intervals.icu, a file from the Dataset cache), checked against the
-routine - the columns fit, the auxiliary files are bound by kind, the chosen values are in the data,
-what differs is said in sentences - and the script runs. Every RESULT line is compared with the run
-before (or run zero): moved beyond its interval, within it, or not reached. Runs are recorded with
-their data, inputs, results, figures and differences, and can be stepped through like chains. A
-window inside a load the executor still holds is cut from that load rather than downloaded again.
+original was (a window from Intervals.icu for the athlete picked in the dialog - a coach's athletes
+are listed with what the store holds for them - or a file from the Dataset cache), checked against
+the routine - the columns fit, the auxiliary files are bound by kind, the chosen values are in the
+data, what differs is said in sentences - and the script runs. Every RESULT line is compared with
+the run before on the same athlete (or run zero, when it is theirs): moved beyond its interval,
+within it, or not reached; the first run on an athlete has nothing to compare with yet. Runs are
+recorded with their data, inputs, results, figures and differences, and can be stepped through like
+chains; the manager shows one athlete's runs at a time when a routine has run on several. A window
+inside a load the executor still holds is cut from that load rather than downloaded again.
 
 The contract's rule that makes this possible is that a value read off the data - a date in it, an
 identifier, a count - is computed into a variable, never typed as a literal, so the method holds

@@ -195,6 +195,13 @@
 .rt-load .rt-cachepick .rt-field { margin: 0 0 4px 22px; }     /* the Dataset cache's pick (step 4, 2026-10-11) */
 .rt-load .rt-race { grid-template-columns: 1fr; }
 .rt-load .rt-race select { max-width: 100%; }
+/* whose data (2026-10-30, docs/DATASETS_DESIGN.md §17): the athlete above the window, the help under the select */
+.rt-load .rt-athlete { grid-template-columns: auto 1fr; margin: 0 0 4px 22px; }
+.rt-load .rt-athlete select { max-width: 100%; min-width: 0; }
+.rt-load .rt-athlete-help { grid-column: 2; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; margin-top: -2px; }
+.rt-load .rt-athlete-help:empty { display: none; }
+/* the manager's runs by athlete: the pick at the right of the heading */
+.rt-sec > .h .rt-athlete-pick { margin-left: auto; height: 24px; font-size: var(--fs-small); text-transform: none; letter-spacing: 0; max-width: 60%; }
 .rt-load .help { margin: 0 0 6px 22px; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }
 .rt-load .rt-check .n { font-weight: 400; color: var(--text-quaternary); }
 .rt-load .rt-refresh { margin: 2px 0 6px 22px; }                                       /* Refresh everything (2026-10-15), under the window */

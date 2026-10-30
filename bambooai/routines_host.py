@@ -424,7 +424,8 @@ def run_tag(version: int, number: int) -> str:
 def light_data(data: Optional[dict]) -> dict:
     d = data or {}
     return {"df_id": d.get("df_id"), "name": d.get("name", ""), "source": d.get("source", ""), "rows": d.get("rows"), "columns": len(d.get("columns") or []),
-            "date_range": d.get("date_range"), "aux": [str(a).split("/")[-1] for a in (d.get("aux") or [])], "extra": d.get("extra") or {}}
+            "date_range": d.get("date_range"), "aux": [str(a).split("/")[-1] for a in (d.get("aux") or [])], "extra": d.get("extra") or {},
+            "subject": rt.subject_of_record(d)}          # whose data (2026-10-30): the history and the comparisons stay within one subject's runs
 
 
 def _dates_of(d: dict) -> Tuple[Optional[str], Optional[str]]:
@@ -455,6 +456,7 @@ def load_plan(routine: dict, version_number: Optional[int] = None) -> dict:
         except ValueError:
             pass
         plan["start"], plan["end"] = start, end
+    plan["subject"] = rt.subject_of_record(d)             # the origin's subject (2026-10-30): the run dialog's default athlete
     if src == "intervals":
         plan["metrics"] = list(load.get("metrics") or extra.get("metrics") or [])
         # the kinds a load can be asked for: the codes are never asked, the pass behind a load with context makes them
@@ -554,24 +556,38 @@ def aux_line(binding: dict, shape: Optional[dict] = None) -> str:
     return f"{names} absent in this data - the method will see {'an empty table' if len(absent) == 1 else 'empty tables'} there"
 
 
-def reference_run(routine: dict, version: dict, compare_with="previous") -> Tuple[Optional[int], Optional[List[dict]]]:
+def zero_subject(version: dict) -> str:
+    """Whose data run zero ran on: the version's own data record's subject id ('' when it names none)."""
+    return str(rt.subject_of_record((version.get("manifest") or {}).get("data")).get("id") or "")
+
+
+def same_subject(run: dict, subject_id: str) -> bool:
+    """Whether a run's summary is on this subject's data: by id; a run without a subject matches no subject and the
+    subject-less (an upload's runs compare among themselves)."""
+    return str(((run.get("data") or {}).get("subject") or {}).get("id") or "") == str(subject_id or "")
+
+
+def reference_run(routine: dict, version: dict, compare_with="previous", subject_id: Optional[str] = None) -> Tuple[Optional[int], Optional[List[dict]]]:
     """(run number, its result lines) this run is compared with: the preceding run of the version, else run zero;
-    'zero' for run zero; a number for that run. None when there is nothing to compare with."""
+    'zero' for run zero; a number for that run. None when there is nothing to compare with. With `subject_id` (2026-10-30:
+    a coach's athletes), 'previous' is the preceding run on that subject's data, and run zero stands in only when it
+    ran on that subject's, or names none (from before the subject was kept) - the trend never crosses athletes."""
     runs = [r for r in routine.get("runs", []) if r.get("version") == version.get("number")]
     rz = version.get("run_zero") or {}
     zero = (0, rz.get("results") or []) if rz.get("verified") else None
+    zero_own = zero if subject_id is None or zero_subject(version) in ("", str(subject_id)) else None
     if compare_with == "zero":
-        return zero if zero else (None, None)
+        return zero_own if zero_own else (None, None)
     if isinstance(compare_with, int) or (isinstance(compare_with, str) and compare_with.isdigit()):
         want = int(compare_with)
         if want == 0:
             return zero if zero else (None, None)
         r = next((x for x in routine.get("runs", []) if x.get("number") == want), None)
         return (r["number"], r.get("results") or []) if r else (None, None)
-    done = [r for r in runs if r.get("status") in ("ran", "reproduced", "differed")]
+    done = [r for r in runs if r.get("status") in ("ran", "reproduced", "differed") and (subject_id is None or same_subject(r, subject_id))]
     if done:
         return done[-1]["number"], done[-1].get("results") or []
-    return zero if zero else (None, None)
+    return zero_own if zero_own else (None, None)
 
 
 def zero_holds(ver: dict) -> str:
@@ -687,7 +703,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         check_line += "; " + prep["note"]
     if emit:
         emit({"type": "lookup", "kind": "check", "query": name, "peek": check_line})
-    ref_number, ref_results = reference_run(routine, ver, compare_with)
+    subject_id = str(rt.subject_of_record(d).get("id") or "")
+    ref_number, ref_results = reference_run(routine, ver, compare_with, subject_id=subject_id)     # within this subject's runs (2026-10-30)
     cells = (manifest.get("figures") or {}).get("cells")
     n_cells = len(re.findall(r"^# --- cell \d+ ---$", ver.get("script") or "", re.M))
     rz = ver.get("run_zero") or {}
@@ -716,6 +733,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         emit({"type": "lookup", "kind": "run", "query": f"run {number} · v{vnum} · {n_cells} cell{'s' if n_cells != 1 else ''}",
               "peek": f"{line} · {len(figs or [])} figure{'s' if len(figs or []) != 1 else ''} · {elapsed} s"})
     cmp = rt.compare_runs(expected, got, ref_results, failed=bool(err))     # the lines printed before a failure compared, the rest said as not reached
+    if ref_results is None and subject_id and any(x.get("version") == vnum and x.get("status") in ("ran", "reproduced", "differed") for x in routine.get("runs", [])):
+        cmp["line"] = cmp["line"].replace("the first run of this version", "the first run on this subject")       # the version's other runs are other subjects' (2026-10-30)
     cell_no = rt.failed_cell(script, str(err)) if err else None
     failed_cell = {"number": cell_no, "code": rt.cell_text(script, cell_no)} if cell_no else None       # beside the traceback on the Comparison tab (step 4)
     if emit and ref_results is not None:

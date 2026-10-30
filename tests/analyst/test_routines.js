@@ -241,6 +241,47 @@ check('markOf: intervals apart move, overlapping ones are within, no intervals c
   b.markOf({ estimate: '+2', low: '+1.6', high: '+2.4' }, { estimate: '+1', low: '+0.5', high: '+1.5' }) === 'up' && b.markOf({ estimate: '+1.1', low: '+0.6', high: '+1.6' }, { estimate: '+1', low: '+0.5', high: '+1.5' }) === 'same'
   && b.markOf({ estimate: '+2' }, { estimate: '+3' }) === 'down' && b.markOf({ estimate: '+1,234' }, { estimate: '+1234' }) === 'same' && b.markOf(null, { estimate: '+1' }) === 'missing');
 
+// ---- whose runs (2026-10-30, docs/DATASETS_DESIGN.md §17 step 3): the athlete in the run dialog; the comparison and the history within one athlete's runs ----
+const two = JSON.parse(JSON.stringify(rt));
+two.versions[1].manifest.data = { columns: [{ name: 'v' }], load: { source: 'intervals', subject: { source: 'intervals', id: 'i0', name: 'First Athlete' } } };
+const onRun = (n, created, id, name, est) => ({ number: n, version: 2, created, status: 'ran', data: { name: '', source: 'intervals', subject: id ? { id, name } : {} }, inputs: {}, comparison: { moved: 0, compared: 1 }, results: [{ estimate: est, low: null, high: null }, { estimate: '+9', low: null, high: null }] });
+two.runs = [onRun(1, 1791700000, 'i0', 'First Athlete', '+3.00'), onRun(2, 1791800000, 'i1', 'Second Athlete', '+5.00'), onRun(3, 1791900000, 'i0', 'First Athlete', '+3.50')];
+rd = el(b.runDialog(two, { loaded: false, ok: false, line: '', plan: { source: 'intervals', window_days: 30, aux_kinds: ['summary'], metrics: [], subject: { id: 'i0', name: 'First Athlete' } } }));
+check('run dialog (an Intervals routine): the athlete above the window - a select to fill, with its help line - and the comparison for the original\'s athlete: the run before on them (run 3, on) and run 0',
+  rd.querySelector('.rt-load .rt-athlete select[data-load="athlete"]') && rd.querySelector('.rt-load').elements.map(e => e.className).join('|').includes('rt-field rt-athlete|rt-window rt-loadwin') && rd.querySelector('.rt-athlete .rt-athlete-help')
+  && rd.querySelector('.rt-compare-sec input[name="rt-compare"][value="previous"]').hasAttribute('checked') && rd.querySelector('.rt-compare-sec').textContent.includes('run 3 (') && rd.querySelector('.rt-compare-sec').textContent.includes('the run before on First Athlete')
+  && rd.querySelector('.rt-compare-sec input[name="rt-compare"][value="zero"]'), rd.querySelector('.rt-compare-sec') && rd.querySelector('.rt-compare-sec').textContent);
+const v2 = two.versions[1];
+const cmp = (id, name) => el(b.compareSection(two, v2, id, name));
+check('compareSection: the second athlete - their one run before (run 2), no run 0 (it ran on the first athlete\'s data); a third athlete - the first run on them, nothing to compare with yet, no radios',
+  cmp('i1', 'Second Athlete').textContent.includes('run 2 (') && cmp('i1', 'Second Athlete').textContent.includes('the run before on Second Athlete') && !cmp('i1', 'Second Athlete').querySelector('input[value="zero"]')
+  && cmp('i2', 'Third Athlete').textContent.includes('the first run on Third Athlete: nothing to compare with yet') && !cmp('i2', 'Third Athlete').querySelector('input[name="rt-compare"]'), cmp('i2', 'Third Athlete').textContent);
+const noZero = JSON.parse(JSON.stringify(two)); noZero.versions[1].manifest.data = { columns: [] };
+check('compareSection: a run 0 that names no athlete (from before the athlete was kept) stands in for every athlete - offered to the second athlete under run 2, and to a third athlete alone (on)',
+  el(b.compareSection(noZero, noZero.versions[1], 'i1', 'Second Athlete')).querySelector('input[value="zero"]') && !el(b.compareSection(noZero, noZero.versions[1], 'i1', 'Second Athlete')).querySelector('input[value="zero"]').hasAttribute('checked')
+  && el(b.compareSection(noZero, noZero.versions[1], 'i2', 'Third Athlete')).querySelector('input[value="zero"]').hasAttribute('checked') && !el(b.compareSection(noZero, noZero.versions[1], 'i2', 'Third Athlete')).querySelector('input[value="previous"]'));
+check('runAthletes: the athletes the routine ran on, the latest run\'s first, with their counts (run 0 counted for its athlete); a run 0 naming none is counted only when no run names one',
+  b.runAthletes(two).map(a => a.id + ':' + a.name + ':' + a.n).join('|') === 'i0:First Athlete:3|i1:Second Athlete:1' && b.runAthletes(noZero).map(a => a.id + ':' + a.n).join('|') === 'i0:2|i1:1' && b.runAthletes(Object.assign({}, noZero, { runs: [] })).map(a => a.id + ':' + a.n).join('|') === ':1', b.runAthletes(two));
+const tb0 = el(b.runsTable(two, 'i0')), tb1 = el(b.runsTable(two, 'i1')), tbAll = el(b.runsTable(two));
+check('runs table by athlete: the first athlete\'s columns are run 0, 1 and 3; the second\'s run 2 alone (no run 0); unfiltered, every run',
+  [...tb0.querySelectorAll('thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \d+$/, '').trim()).filter(Boolean).join('|') === 'Result|Run 0|Run 1|Run 3|Trend' && [...tb1.querySelectorAll('thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \d+$/, '').trim()).filter(Boolean).join('|') === 'Result|Run 2'
+  && [...tbAll.querySelectorAll('thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \d+$/, '').trim()).filter(Boolean).join('|') === 'Result|Run 0|Run 1|Run 2|Run 3|Trend', [tb0.textContent, tb1.textContent]);
+const ls1 = el(b.runsList(two, 'i1')), lsAll = el(b.runsList(two));
+check('runs list by athlete: the second athlete\'s run alone, named with the athlete; unfiltered, every run and run 0, each naming its athlete',
+  [...ls1.querySelectorAll('.rt-run')].map(e => e.getAttribute('data-run')).join(',') === '2' && ls1.querySelector('.rt-run').textContent.includes('Intervals.icu · Second Athlete')
+  && [...lsAll.querySelectorAll('.rt-run')].map(e => e.getAttribute('data-run')).join(',') === '3,2,1,0' && lsAll.querySelector('.rt-run[data-run="1"]').textContent.includes('· First Athlete'));
+const mb2 = el(b.routineBody(Object.assign({}, two, { summary_card: {}, origin: {} })));
+check('the manager with runs on two athletes: a pick in the Results heading (the latest run\'s athlete selected, each with its count), the table and the list filtered to them, the Runs heading naming them; one athlete - no pick',
+  mb2.querySelector('.rt-sec .h select[data-pick="athlete"]') && mb2.querySelector('select[data-pick="athlete"] option[selected]').getAttribute('value') === 'i0' && mb2.querySelector('select[data-pick="athlete"] option[selected]').textContent === 'First Athlete · 3 runs'
+  && [...mb2.querySelectorAll('.rt-runs thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \d+$/, '').trim()).filter(Boolean).join('|') === 'Result|Run 0|Run 1|Run 3|Trend' && [...mb2.querySelectorAll('.rt-run')].map(e => e.getAttribute('data-run')).join(',') === '3,1,0'
+  && [...mb2.querySelectorAll('.rt-sec .h')].some(h => h.textContent.includes('a run opens in the main panes · First Athlete')) && !el(b.routineBody(Object.assign({}, rt, { summary_card: {}, origin: {} }))).querySelector('select[data-pick="athlete"]'), mb2.querySelector('select[data-pick="athlete"]') && mb2.querySelector('select[data-pick="athlete"]').outerHTML);
+const rtSrc1 = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
+check('the page fills the athletes once the dialog is up (the keys and the cache\'s tree, the paperclip\'s roster order), re-renders the comparison and asks the cache as the athlete changes, names the athlete on the cache question, the load (with their name, for the refusal) and the record, and the manager\'s pick re-renders the body',
+  rtSrc1.includes("if (src === 'intervals') fillAthletes(p, runState.plan);") && rtSrc1.includes("fetchJson('/intervals/athletes'), fetchJson('/cache/inspect')") && rtSrc1.includes("intervalsRosterOf(keyed, tree)")
+  && rtSrc1.includes("if (e.target.matches('select[data-load=\"athlete\"]')) athleteChanged();") && rtSrc1.includes("asked.subject ? { athlete: asked.subject.id } : {}") && rtSrc1.includes("who.id ? { athlete: who.id, athlete_name: who.name || '' } : {}")
+  && rtSrc1.includes("a.id ? { subject: { source: 'intervals', id: a.id, name: a.name } } : {}") && rtSrc1.includes("managerState.athlete = pick.value;") && rtSrc1.includes("if (c === 'now') return (((runState && runState.pre && runState.pre.data) || {}).subject) || {};"));
+check('the cache line shows the latest question\'s answer only: an earlier answer arriving late is dropped (the athlete\'s question and the window\'s race)', rtSrc1.includes("const seq = ++cacheSeq;") && rtSrc1.includes("if (runState === st && seq === cacheSeq) showCache(p, c);") && rtSrc1.includes("cacheSeq++;"));
+
 // ---- step 2: the run view's state - the arrows, the position, the composer, the Save pill ----
 w.RoutinesUI.enterRunView({ id: 'r1', name: 'Rows above a line', current_version: 2 }, [0, 1, 2], 2, { version: 2 });
 const pos = doc.querySelector('#chainPosition');

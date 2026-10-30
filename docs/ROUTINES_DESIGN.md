@@ -356,6 +356,11 @@ version's data record, `load`), and offers the data loaded now beside it.
    by those records (`subject_of_key`) and matches frames by the subject's id, so a rotated key is served its
    subject's cached windows once it has loaded; a key that has not loaded yet is still *another key*, and a window
    the cache holds for another subject is said so (*loaded for another subject - it will be downloaded*).
+   **Since 2026-10-30 (docs/DATASETS_DESIGN.md §17, step 3) the run dialog names the athlete**: a select above the
+   window (the athletes with a key, the original's picked); the cache question and the download carry `athlete`,
+   so the match is that athlete's cached windows under their own key; each run's summary carries `data.subject`,
+   and the comparison (`reference_run(…, subject_id)`) and the manager's history stay within one athlete's runs -
+   run zero counts as its athlete's (or as everyone's when it names none).
    The kinds a run's load can ask for are summary, wellness, intervals, context and, since 2026-10-15, plan - the
    planned workouts table written with the context (docs/CONTEXT_DESIGN.md §3.1a), cut to a window by its `date`.
    **Below the cache, the store** (2026-10-15, docs/INCREMENTAL_LOADS_DESIGN.md): a miss no longer downloads the

@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0250 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time, a load under another athlete's key refused, keys per athlete with the roster; **executor image v74** - rebuild and roll out; **the hosted table takes docs/sql/intervals_keys_per_athlete.sql once**). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0251 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time, a load under another athlete's key refused, keys per athlete with the roster, routines by athlete; **executor image v74** - rebuild and roll out; **the hosted table takes docs/sql/intervals_keys_per_athlete.sql once**). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,10 +95,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/198/31/27/18/49/44/72/33/145/60/93/26/37/15/88/1/1 Python; 58/7/47/72/24/71/14/25/4/14/67 JS; 1,585 on 2026-10-30; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/199/31/27/18/49/44/72/33/152/60/93/26/37/15/88/1/1 Python; 58/7/47/72/24/80/14/25/4/14/67 JS; 1,602 on 2026-10-30; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (128; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (131; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -477,6 +477,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Keys per athlete, step 3: routines by athlete (2026-10-30, patch 0251; page and app, image v74 stands).** Whose
+  data a run is on comes from its record's load (`subject_of_record`), kept on each run's summary (`light_data`;
+  older summaries filled in from their records once, in `RoutineStore.load`) and on the plan (`load_plan`). The run
+  dialog of an Intervals routine has an Athlete select above the window (`fillAthletes`: the keys and the cache's
+  tree in the paperclip's order; the original's athlete picked, listed even without a key); the cache question and
+  the download carry `athlete` (`routine_cached` takes that athlete's key and `cache_match(subject=…)`), the load on
+  the record carries `subject`. *Compare with* is within the picked athlete's runs (`compareSection`; run zero only
+  when it is theirs or names none; a first run says nothing to compare with yet) and follows the data choice; the
+  host agrees (`reference_run(…, subject_id)`, `zero_subject`, `same_subject`; the line *the first run on this
+  subject*). The manager filters the table and the list by athlete when the runs span more than one
+  (`runAthletes`, a pick in the Results heading, the latest run's athlete first). docs/DATASETS_DESIGN.md §17.
+  Tests: test_routines.py 152, test_routines.js 80, test_app_path.py 199, the integrations walk 131.
 - **Keys per athlete, step 2: the roster (2026-10-30, patch 0250; page only, image v74 stands).** Palo found 0249's
   bare select ugly and picked the list from three mockups. The Intervals.icu dialog's Athlete section is a roster:
   one row per athlete with a key - initials, name, id, what the store holds (`intervalsRosterOf` over
@@ -497,7 +509,7 @@
   last used first); `/intervals/load_data` takes the athlete's key by `athlete` or by the cache dialog's `folder`,
   so *to today* loads run on the right key and a load from the store needs none. The local SQLite file rebuilds
   the table on opening (`LocalStore._upgrade`; a refused statement now rolls back). docs/DATASETS_DESIGN.md §17.
-  Steps 2 and 3 to come: the cache dialog listing athletes with a key but nothing held; routines by athlete.
+  Steps 2 and 3 followed in 0250 and 0251.
   Tests: test_keys.py 26 (new; both back ends), test_dialogs.js 45, the integrations walk 127, the local-store
   walk 17.
 - **A load for one athlete under another athlete's key is refused; the one-athlete rule by the file's name; the
