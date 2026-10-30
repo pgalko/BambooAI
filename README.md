@@ -579,7 +579,8 @@ requests to their respective services.
 - **Intervals.icu** and **Endura**: an API key entered in the app (stored encrypted in the working
   folder's database). For Intervals.icu a coach keeps one key per athlete: Settings → Intervals ICU
   lists the athletes with a key (Intervals.icu is asked whose a key is when it is saved), and the
-  load dialog names the athlete first. Choose a date range; the data is loaded into the executor and
+  load dialog opens on the roster - each athlete with what the store holds for them, the last loaded
+  first; picking one proposes the window from their last held day. Choose a date range; the data is loaded into the executor and
   described to the analyst - the frame's schema and the heads of the files that came with it. An
   Intervals.icu load can add the activity summary, the wellness log, the activity intervals and, with
   the Context option, the words and the planned workouts.

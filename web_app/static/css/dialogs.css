@@ -375,6 +375,9 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #datasetManagerModal .ds-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-color); flex-shrink: 0; }
 #datasetManagerModal .ds-row { display: flex; gap: 8px; align-items: center; }
 #datasetManagerModal .ds-row .hint { font-size: var(--fs-small); color: var(--text-quaternary); }
+#datasetManagerModal .ds-actions.ds-actions-more { margin-top: 0; border-top: none; padding-top: 0; }     /* the way into the Intervals.icu dialog, under the athlete's actions (2026-10-30) */
+#datasetManagerModal .ds-caret-none { visibility: hidden; }                                              /* an athlete with a key and nothing held: no lines to fold */
+#datasetManagerModal .ds-keyed .ds-subj-meta { font-style: italic; }
 #datasetManagerModal .ds-file { font-size: var(--fs-small); color: var(--text-tertiary); margin: 10px 0 5px; }     /* a second file's label among the columns */
 #datasetManagerModal .ds-file:first-child { margin-top: 0; }
 #datasetManagerModal .ds-file .mono { font-family: var(--font-mono); color: var(--text-secondary); }
@@ -822,12 +825,31 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 .integration-dialog .int-athletes .row.pending b { color: var(--text-tertiary); font-weight: 400; font-style: italic; }
 .integration-dialog .int-athletes .row .remove { font: inherit; font-size: var(--fs-small); cursor: pointer; border: 1px solid var(--border-color); border-radius: 6px; padding: 2px 8px; background: transparent; color: var(--text-tertiary); }
 .integration-dialog .int-athletes .row .remove:hover { border-color: var(--c-fail); color: var(--c-fail); }
-.integration-dialog .int-athlete { display: flex; align-items: center; gap: 10px; min-height: 32px; }
-.integration-dialog .int-athlete .int-athlete-select { max-width: 100%; min-width: 220px; }
-.integration-dialog .int-athlete .int-athlete-one { font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); }
-.integration-dialog .int-athlete .int-athlete-none { font-size: var(--fs-meta); color: var(--c-fail); }
-.integration-dialog .int-athlete > * { display: none; }
-.integration-dialog .int-athlete[data-mode="pick"] .int-athlete-select, .integration-dialog .int-athlete[data-mode="one"] .int-athlete-one, .integration-dialog .int-athlete[data-mode="none"] .int-athlete-none { display: inline-block; }
+/* the load dialog's roster (2026-10-30): one row per athlete with a key - the initials, the name and id, what the store holds for them -
+   the picked row lit; six rows in view and the rest by scrolling, a fade at the edge saying so; the find box from seven athletes up */
+.integration-dialog .int-athlete-section .int-athlete-find { display: none; align-items: center; gap: 10px; margin-bottom: 8px; }
+.integration-dialog .int-athlete-section[data-find="1"] .int-athlete-find { display: flex; }
+.integration-dialog .int-athlete-find input { flex: 0 1 280px; height: 30px; }
+.integration-dialog .int-athlete-find .count { font-size: var(--fs-small); color: var(--text-quaternary); }
+.integration-dialog .int-athlete-wrap { position: relative; }
+.integration-dialog .int-athlete-wrap.more::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 28px; pointer-events: none; background: linear-gradient(to bottom, transparent, var(--modal-bg)); }
+.integration-dialog .int-athlete-list { display: flex; flex-direction: column; gap: 4px; max-height: 276px; overflow: auto; scrollbar-width: thin; }
+.integration-dialog .int-athlete-list .row { display: grid; grid-template-columns: 26px 1fr auto; gap: 12px; align-items: center; padding: 6px 10px 6px 8px; border: 1px solid transparent; border-radius: var(--r-2); cursor: pointer; margin: 0; }
+.integration-dialog .int-athlete-list .row:hover { background: var(--bg-tertiary); }
+.integration-dialog .int-athlete-list .row.on { border-color: var(--chip-model-border); background: var(--accent-bg); }
+.integration-dialog .int-athlete-list .row.hidden { display: none; }
+.integration-dialog .int-athlete-list .row input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+.integration-dialog .int-athlete-list .ini { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; letter-spacing: .02em; background: var(--bg-tertiary); color: var(--text-tertiary); }
+.integration-dialog .int-athlete-list .row.on .ini { background: var(--c-model); color: #000; }
+.integration-dialog .int-athlete-list .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.integration-dialog .int-athlete-list .who b { font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); }
+.integration-dialog .int-athlete-list .who .id { color: var(--text-quaternary); font-size: var(--fs-small); margin-left: 6px; font-family: var(--font-mono); }
+.integration-dialog .int-athlete-list .facts { font-size: var(--fs-small); color: var(--text-quaternary); white-space: nowrap; }
+.integration-dialog .int-athlete-list .row.on .facts { color: var(--text-tertiary); }
+.integration-dialog .int-athlete-list .facts b { color: inherit; font-weight: 600; }
+.integration-dialog .int-athlete-none { display: none; font-size: var(--fs-meta); color: var(--c-fail); }
+.integration-dialog .int-athlete-section[data-mode="none"] .int-athlete-none { display: block; }
+.integration-dialog .int-athlete-section[data-mode="none"] .int-athlete-wrap { display: none; }
 
 /* ---- the label editor (#labelModal, built by labels.js): labels.css is retired ---- */
 #labelModal.label-modal-container { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--scrim); }

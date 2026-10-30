@@ -1,4 +1,4 @@
-# Datasets by athlete — design v1.12 (2026-10-29/30; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0248, keys per athlete from 0249)
+# Datasets by athlete — design v1.13 (2026-10-29/30; v1.0 agreed the same day; steps 1-3 built in patches 0237-0241, the dialog redesigned in 0242-0248, keys per athlete from 0249, the roster in 0250)
 
 The Dataset cache lists files: one per load, per feed, per window, named by feed and dates, with the athlete nowhere.
 Every load adds files and nothing merges, so a coach who works with two athletes, or with one athlete over a growing
@@ -538,9 +538,29 @@ new: it still gets one key per request and keeps its fingerprint.
   key was removed still loads from the cache).
 - *The Data tab, the ledger, the model:* unchanged - names stay on the page.
 
-**Steps 2 and 3 (to build).** The Dataset cache lists athletes with a key but nothing held yet. Routines: the run
-dialog takes the athlete beside the window; the cached-window match and the download use that athlete; the history
-filters by athlete; *previous* is the previous run on the same athlete; run zero counts as its athlete's.
+**Step 2 (patch 0250): the roster, and the Dataset cache's part.** The product owner found the bare select of
+0249 "kind of ugly" and chose, from three mockups (chips; cards with facts; a list), the list. The Intervals.icu
+dialog's first section is now a roster: one row per athlete with a key - the initials in a disc, the name and id,
+and what the store holds for them (*640 activities · 2025-10-31 → 2026-10-29 · loaded today*; *key added yesterday
+· nothing held yet*; a key not named yet says so) - the last loaded first, the picked row lit. Six rows are in view
+and the rest scroll, a fade at the edge saying there is more; from seven athletes a find box above the list narrows
+it by name or id, the count reads *n of m*, Enter picks the first match. One athlete is the single row, named; none
+is the line to Settings. Picking an athlete (a click) sets the window to the day after their last held day → today;
+a window typed by hand stays until the next click. The foot's store line is the picked athlete's (*Store · name ·
+activities · span · only what the window lacks is fetched*, or *Nothing in the store for name yet*). The rows come
+from `/intervals/athletes` and the cache's tree (`intervalsRosterOf`); `intervalsAthleteId` is the lit row's. In the
+Dataset cache: an athlete with a key and nothing held is listed under Intervals.icu (*a key, nothing held yet*) with
+a pane whose one action, *Load from Intervals.icu…*, opens the Intervals.icu dialog with that athlete picked
+(`showIntervalsModal(athleteId)`); an athlete's pane shows whether their key is stored, offers *Load a new window
+from Intervals.icu…* when it is, and has the *to today* loads disabled with the hint to add the key when it is not
+(loads from the store still work). Tests: test_dialogs.js 47 (the roster rendered on the mini DOM: the order, the
+initials, the facts, the picked row and the foot line, a click, the find box; the cache dialog's tokens), the
+integrations walk (the roster with one and with two athletes, the window default, the foot line; the keyed athlete
+in the cache dialog and the way into the Intervals.icu dialog; the no-key pane).
+
+**Step 3 (to build).** Routines: the run dialog takes the athlete beside the window; the cached-window match and
+the download use that athlete; the history filters by athlete; *previous* is the previous run on the same athlete;
+run zero counts as its athlete's.
 
 **Decided with the product owner:** one athlete per routine run (a loop over athletes can come later). Noted for
 later: Intervals.icu lets a coach read linked athletes' data with the coach's own key, which would remove key

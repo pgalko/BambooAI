@@ -109,6 +109,7 @@ window.DatasetManager = (function() {
             if (d.act === 'load') startLoad(d.folder, d.feed, false);             // the span held, from the store alone
             else if (d.act === 'today') startLoad(d.folder, d.feed, true);       // through Intervals.icu: the missing days come down
             else if (d.act === 'forget') forgetDataset(d.folder, d.feed, d.name);   // off the Data tab and out of the cache, after asking
+            else if (d.act === 'dialog') { hideModal(); if (typeof showIntervalsModal === 'function') showIntervalsModal(d.athlete); }   // the Intervals.icu dialog for this athlete (2026-10-30)
         });
     }
 
@@ -121,6 +122,7 @@ window.DatasetManager = (function() {
             return;
         }
         const head = e.target.closest('.ds-subj-head');
+        if (head && subj && subj.dataset.athlete) { selectLine(head); showKeyedDetails(subj.dataset.athlete); return; }    // a key, nothing held (2026-10-30)
         if (head && subj) { selectLine(head); showSubjectDetails(subj.dataset.folder); return; }
         const feed = e.target.closest('.ds-feed');
         if (feed && subj) { selectLine(feed); showFeedDetails(subj.dataset.folder, feed.dataset.feed); return; }
@@ -434,12 +436,14 @@ window.DatasetManager = (function() {
         // Show loading state
         showLoadingState();
         
-        // Fetch cache data from backend
-        window.authService.fetch('/cache/inspect', { method: 'GET' })
-        .then(cacheResponse => {
+        // Fetch cache data from backend - and the athletes with a key (2026-10-30), for those with nothing held yet and for the key on each pane
+        Promise.all([window.authService.fetch('/cache/inspect', { method: 'GET' }),
+                     window.authService.fetch('/intervals/athletes').then(r => r.ok ? r.json() : null).catch(() => null)])
+        .then(([cacheResponse, keyed]) => {
             if (!cacheResponse.ok) {
                 throw new Error(`Failed to fetch datasets: ${cacheResponse.status}`);
             }
+            currentDatasets.keys = (keyed && keyed.athletes) || [];
             return cacheResponse.json();
         })
         .then(cacheData => {
@@ -560,6 +564,40 @@ window.DatasetManager = (function() {
         }
         return block;
     }
+    // the athletes with a key (2026-10-30): whether this athlete has one, and those with a key but nothing held yet
+    function keyOf(id) { return (currentDatasets.keys || []).find(a => a.id && String(a.id) === String(id)) || null; }
+    function keyedWithoutData() {
+        const held = new Set();
+        ((currentDatasets.tree || {}).sources || []).forEach(src => (src.subjects || []).forEach(sb => held.add(String(sb.id))));
+        return (currentDatasets.keys || []).filter(a => a.id && !held.has(String(a.id)));
+    }
+    function keyedBlock(a) {
+        const block = document.createElement('div');
+        block.className = 'ds-subj ds-keyed';
+        block.dataset.athlete = a.id;
+        const head = document.createElement('div');
+        head.className = 'ds-subj-head' + (shown && shown.athlete === a.id ? ' active' : '');
+        head.title = 'A key, nothing held yet: the first load from the Intervals.icu dialog fills the store';
+        head.innerHTML = `<span class="ds-caret ds-caret-none"></span><span class="ds-subj-name" title="${esc(a.id)}">${esc(a.name || a.id)}</span><span class="ds-subj-meta">a key, nothing held yet</span>`;
+        block.appendChild(head);
+        return block;
+    }
+    function showKeyedDetails(id) {
+        const panel = document.getElementById('datasetDetails');
+        const a = keyOf(id);
+        if (!panel || !a) return;
+        shown = { athlete: id };
+        panel.classList.remove('dataset-details-empty');
+        panel.innerHTML = `<div class="dataset-details-content">
+            <div class="dataset-info-section"><h3>${esc(a.name || a.id)}</h3><div class="ds-kv">
+                <span class="k">Intervals.icu id</span><span>${esc(a.id)}</span>
+                <span class="k">Key</span><span>stored${a.added ? ' · added ' + esc(ago(Date.parse(String(a.added).replace(' ', 'T') + (/[zZ]$|[+-]\d\d:?\d\d$/.test(String(a.added)) ? '' : 'Z')) / 1000)) : ''}</span>
+                <span class="k">Held</span><span>nothing yet: the first load fills the store</span>
+            </div></div>
+            <div class="ds-actions">
+                <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="dialog" data-athlete="${esc(a.id)}">Load from Intervals.icu…</button><span class="hint">opens the Intervals.icu dialog with this athlete picked: choose the window and what to load beside the activities</span></div>
+            </div></div>`;
+    }
     function group(title, hint) {
         const g = document.createElement('div');
         g.className = 'dataset-category ds-group';
@@ -583,8 +621,10 @@ window.DatasetManager = (function() {
             const frames = (src.frames || []).filter(f => matches(q, f.date_range, f.race_title, f.original_filename, src.title));
             const files = (src.files || []).filter(f => matches(q, f.filename));
             if (src.source !== 'intervals' && !frames.length && !files.length) return;
-            const g = group(src.title, (src.source === 'intervals' && !subjects.length && !frames.length) ? (q ? 'nothing matches' : 'nothing held yet — a load fills it') : '');
+            const keyed = src.source === 'intervals' ? keyedWithoutData().filter(a => matches(q, a.name, a.id)) : [];
+            const g = group(src.title, (src.source === 'intervals' && !subjects.length && !frames.length && !keyed.length) ? (q ? 'nothing matches' : 'nothing held yet — a load fills it') : '');
             subjects.forEach(sb => g.appendChild(subjectBlock(sb, q)));
+            keyed.forEach(a => g.appendChild(keyedBlock(a)));
             frames.forEach(f => g.appendChild(frameLine(f)));
             files.forEach(f => g.appendChild(fileLine(f)));
             root.appendChild(g);
@@ -602,6 +642,7 @@ window.DatasetManager = (function() {
         return entry ? `<span class="ds-on" title="on the Data tab now">● ${esc(entry.span)}</span>${files ? ' &nbsp;' + esc(entry.files.join(', ')) : ''}` : '<span class="ds-off">○ not loaded</span>';
     }
     function actionRows(folder, feed, name, loaded, held) {
+        const key = !!keyOf(String(folder).split('/')[1]);              // the athlete's own key (2026-10-30): a load through Intervals.icu needs it
         const what = feed ? FEED_NAMES[feed] : 'everything';
         const from = feed ? 'the span held, from the store alone' : 'every dataset held, from the store alone - nothing fetched';
         const replaces = feed === 'activities' ? 'replaces the frame, and the datasets on the Data tab come with it to the same window' : feed ? 'replaces the ' + what + ' pill' : 'replaces what is on the Data tab';
@@ -610,7 +651,7 @@ window.DatasetManager = (function() {
                          : feed ? 'off the Data tab and out of the cache; a later load downloads it again' : 'every pill off the Data tab and the athlete out of the cache; a later load downloads it all again';
         return `<div class="ds-actions">
             <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="load" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held ? '' : 'disabled'}>Load ${esc(what)}</button><span class="hint">${held ? from + '; ' + replaces : 'nothing held yet: load from the Intervals.icu dialog first'}</span></div>
-            <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="today" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held ? '' : 'disabled'}>Load ${esc(what)} to today</button><span class="hint">through Intervals.icu: only the missing days come down${feed === 'activities' ? '; the datasets on the Data tab come with it' : ''}</span></div>
+            <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="today" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held && key ? '' : 'disabled'}>Load ${esc(what)} to today</button><span class="hint">${key ? 'through Intervals.icu: only the missing days come down' + (feed === 'activities' ? '; the datasets on the Data tab come with it' : '') : 'no key stored for this athlete - add it under Settings \u2192 Intervals ICU; loads from the store still work'}</span></div>
             <div class="ds-row"><button class="dataset-action-btn dataset-remove-btn wide" data-act="forget" data-folder="${esc(folder)}" data-feed="${esc(feed)}" data-name="${esc(name)}" ${forgetOn ? '' : 'disabled'}>Forget ${esc(what)}</button><span class="hint">${forgetHint}</span></div>
         </div>`;
     }
@@ -632,12 +673,14 @@ window.DatasetManager = (function() {
                 <span class="k">Intervals.icu id</span><span>${esc(subject.id)}</span>
                 <span class="k">Held since</span><span>${esc(dayOf(subject.held_since))}${subject.last_load ? ' · last load ' + esc(ago(subject.last_load)) : ''} · ${mb(null, Number(subject.size_mb || 0)) || '0 KB'}</span>
                 <span class="k">Span held</span><span>${whole ? esc(whole.from) + ' → ' + esc(whole.to) : 'nothing yet'}</span>
+                <span class="k">Key</span><span>${keyOf(subject.id) ? 'stored' : '<span class="ds-off">none</span> · loads from the store only; add it under Settings → Intervals ICU'}</span>
                 <span class="k">On the Data tab</span><span>${onNames.length ? `<span class="ds-on">● ${esc(spans[0])}</span> &nbsp;${esc(onNames.join(', '))}` : '<span class="ds-off">○ nothing of this athlete</span>'}</span>
                 ${offNames.length && onNames.length ? `<span class="k">Not loaded</span><span>${esc(offNames.join(', '))}</span>` : ''}
             </div></div>
             <div class="dataset-info-section dataset-info-columns"><h3>Held</h3><div class="dataset-columns"><table class="dataset-preview-table ds-feeds"><thead><tr><th></th><th>Dataset</th><th>Span</th><th>Held</th></tr></thead><tbody>${rows || '<tr><td colspan="4">nothing held yet</td></tr>'}</tbody></table></div></div>
             <div id="dsLoadStatus" class="ds-load-status" style="display:none"></div>
             ${actionRows(folder, '', subject.name || subject.id, onNames.length > 0, feeds.length > 0)}
+            ${keyOf(subject.id) ? `<div class="ds-actions ds-actions-more"><div class="ds-row"><button class="dataset-action-btn wide" data-act="dialog" data-athlete="${esc(subject.id)}">Load a new window from Intervals.icu…</button><span class="hint">the Intervals.icu dialog with this athlete picked: any window, anything beside the activities</span></div></div>` : ''}
         </div>`;
     }
 

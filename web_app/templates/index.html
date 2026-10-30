@@ -538,8 +538,14 @@
                  the rides, the days, the settings the data is read against (the rider profile, on by default), the words spanning the row beneath;
                  Download as a two-sided choice (the hidden box keeps the state the script reads); the status in the foot -->
             <div class="ui-dlg-b modal-sections-container">
-                <!-- whose data (2026-10-30): the athletes with a key, last used first; one athlete is named, not chosen; none sends the coach to Settings -->
-                <div class="modal-section int-athlete-section"><h4>Athlete</h4><div class="int-athlete ui-field"><select id="intervalsAthlete" class="ui-input int-athlete-select"></select><span id="intervalsAthleteOne" class="int-athlete-one"></span><span id="intervalsAthleteNone" class="int-athlete-none">No athlete yet: add an athlete's API key under Settings → Intervals ICU</span></div></div>
+                <!-- whose data (2026-10-30, docs/DATASETS_DESIGN.md §17): the athletes with a key as a roster - one row each with the initials, the
+                     name and id, and what the store holds for them - the last loaded first; six rows in view, the rest by scrolling; a find box
+                     from seven athletes up; one athlete is the single row, named; none sends the coach to Settings -->
+                <div class="modal-section int-athlete-section" data-mode="none"><h4>Athlete <span class="h-note" id="intervalsAthleteNote"></span></h4>
+                    <div class="int-athlete-find"><input type="text" id="intervalsAthleteFind" class="ui-input" placeholder="Find an athlete…" autocomplete="off"><span class="count" id="intervalsAthleteCount"></span></div>
+                    <div class="int-athlete-wrap"><div class="int-athlete-list" id="intervalsRoster"></div></div>
+                    <span id="intervalsAthleteNone" class="int-athlete-none">No athlete yet: add an athlete's API key under Settings → Intervals ICU</span>
+                </div>
                 <div class="modal-section"><h4>Window</h4><div class="date-range-selection ui-row2">
                     <div class="date-input-group ui-field"><label for="intervalsStartDate">From</label><input type="date" id="intervalsStartDate" name="intervalsStartDate" class="date-input"></div>
                     <div class="date-input-group ui-field"><label for="intervalsEndDate">To</label><input type="date" id="intervalsEndDate" name="intervalsEndDate" class="date-input"></div>

@@ -76,12 +76,20 @@ def set_window(page, start, end):
 
 
 def pick_athlete(page, athlete_id):
-    """The load dialog's athlete (2026-10-30): wait for the picker to be filled, choose when there is a choice; the mode shown."""
-    page.wait_for_function("() => !!(document.querySelector('#intervalsModal .int-athlete') || {}).dataset.mode", timeout=15000)
-    mode = page.evaluate("() => document.querySelector('#intervalsModal .int-athlete').dataset.mode")
+    """The load dialog's athlete (2026-10-30): wait for the roster to be filled, click the athlete's row when there is a choice;
+    the mode shown (pick / one / none)."""
+    page.wait_for_function("() => !!(document.querySelector('#intervalsModal .int-athlete-section') || {}).dataset.mode", timeout=15000)
+    mode = page.evaluate("() => document.querySelector('#intervalsModal .int-athlete-section').dataset.mode")
     if mode == "pick":
-        page.select_option("#intervalsAthlete", athlete_id)
+        page.click(f'#intervalsRoster .row[data-athlete="{athlete_id}"]')
     return mode
+
+
+def roster(page):
+    """The rows of the load dialog's roster: [id, lit, initials, name, facts], and the foot's store line."""
+    return page.evaluate("() => ({ rows: [...document.querySelectorAll('#intervalsRoster .row')].map(r => [r.dataset.athlete, r.classList.contains('on'), r.querySelector('.ini').textContent, r.querySelector('.who b').textContent, r.querySelector('.facts').textContent]), "
+                         "mode: document.querySelector('#intervalsModal .int-athlete-section').dataset.mode, find: document.querySelector('#intervalsModal .int-athlete-section').dataset.find, note: document.getElementById('intervalsAthleteNote').textContent, "
+                         "foot: document.getElementById('intervals-modal-message').textContent, from: document.getElementById('intervalsStartDate').value, to: document.getElementById('intervalsEndDate').value })")
 
 
 def calls_of(st, kind):
@@ -152,7 +160,11 @@ def main():
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
             mode1 = pick_athlete(page, "i0")
-            check("the load dialog with one athlete names them in its first row, no choice", mode1 == "one" and page.evaluate("() => document.getElementById('intervalsAthleteOne').textContent") == "The subject", mode1)
+            page.wait_for_function("() => /Nothing in the store for The subject yet/.test(document.getElementById('intervals-modal-message').textContent)", timeout=10000)
+            r1 = roster(page)
+            check("the load dialog with one athlete: the single row, lit, with the initials and the name, 'key added today · nothing held yet' as its facts, no find box, the note 'the one with a key'; the foot says nothing is in the store for them yet",
+                  mode1 == "one" and r1["rows"] == [["i0", True, "TS", "The subject", "key added today \u00b7 nothing held yet"]] and r1["find"] == "0" and r1["note"] == "\u00b7 the one with a key"
+                  and r1["foot"] == "Nothing in the store for The subject yet \u00b7 the first load fills it; later loads fetch only what they lack", r1)
             set_window(page, a_start, a_end)
             rd_default = page.evaluate("() => document.getElementById('rider-checkbox').checked")
             page.evaluate("() => { ['summary-checkbox', 'wellness-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; }); ['context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); if (c) c.checked = false; }); }")   # the context and the rider profile (both on by default) are walked at the end
@@ -185,11 +197,11 @@ def main():
             page.click("#datasetTree .ds-subj-head .ds-subj-name")
             page.wait_for_selector("#datasetDetails [data-act='load']", timeout=10000)
             det = page.evaluate("() => ({ text: document.getElementById('datasetDetails').textContent.replace(/\\s+/g, ' '), feeds: [...document.querySelectorAll('#datasetTree .ds-feed')].map(e => e.dataset.feed), dots: [...document.querySelectorAll('#datasetTree .ds-feed')].map(e => e.querySelector('.ds-dot').classList.contains('on')), acts: [...document.querySelectorAll('#datasetDetails [data-act]')].map(b => b.dataset.act + (b.disabled ? '-' : '')), labels: [...document.querySelectorAll('#datasetDetails button[data-act]')].map(b => b.textContent.trim()), filter: getComputedStyle(document.getElementById('datasetFilter')).display, uploads: [...document.querySelectorAll('#datasetTree .ds-group')].map(g => g.textContent.replace(/\\s+/g, ' ').trim()).filter(x => /^Uploads/.test(x)) })")
-            check("the athlete's line opens the details on the right (the dialog redesigned, 2026-10-29): the name and id the profile gave, held since, the span held, what is on the Data tab now (Activities, Activity summary, Wellness - the first load's) and what is not (the Rider profile the load fetched for the id), the table of datasets held with their dots, the actions Load everything / Load everything to today / Forget everything (off the tab and out of the cache); the lines are the dialog's datasets - Activities, Activity summary, Wellness, Rider profile - each with its dot, three on, the profile's off; no window file in the text; one athlete, so no filter box; the upload planted before the start listed under Uploads",
-                  "The subject" in det["text"] and "i0" in det["text"] and "Held since" in det["text"] and "Span held" in det["text"] and f"{a_start.isoformat()} → {a_end.isoformat()}" in det["text"]
+            check("the athlete's line opens the details on the right (the dialog redesigned, 2026-10-29): the name and id the profile gave, held since, the span held, what is on the Data tab now (Activities, Activity summary, Wellness - the first load's) and what is not (the Rider profile the load fetched for the id), the table of datasets held with their dots, the key stored (2026-10-30), the actions Load everything / Load everything to today / Forget everything (off the tab and out of the cache) and the way into the Intervals.icu dialog; the lines are the dialog's datasets - Activities, Activity summary, Wellness, Rider profile - each with its dot, three on, the profile's off; no window file in the text; one athlete, so no filter box; the upload planted before the start listed under Uploads",
+                  "The subject" in det["text"] and "i0" in det["text"] and "Held since" in det["text"] and "Span held" in det["text"] and f"{a_start.isoformat()} → {a_end.isoformat()}" in det["text"] and "Keystored" in det["text"]
                   and det["feeds"] == ["activities", "summary", "wellness", "profile"] and det["dots"] == [True, True, True, False]
                   and re.search(r"On the Data tab● \S+ → \S+ Activities, Activity summary, Wellness", det["text"]) and "Not loadedRider profile" in det["text"]
-                  and det["acts"] == ["load", "today", "forget"] and det["labels"] == ["Load everything", "Load everything to today", "Forget everything"] and "out of the cache" in det["text"] and "Delete from the store" not in det["text"]
+                  and det["acts"] == ["load", "today", "forget", "dialog"] and det["labels"] == ["Load everything", "Load everything to today", "Forget everything", "Load a new window from Intervals.icu\u2026"] and "out of the cache" in det["text"] and "Delete from the store" not in det["text"]
                   and "wellness_data_" not in det["text"] and det["filter"] == "none" and any("my_notes.txt" in u for u in det["uploads"]), det)
             if shots: page.screenshot(path=os.path.join(shots, "cache_dialog_athlete.png"))
             page.click("#datasetTree .ds-feed[data-feed='wellness']")
@@ -471,9 +483,28 @@ def main():
             page.evaluate("showIntervalsModal()")
             page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
             mode2 = pick_athlete(page, "i0")
-            picker = page.evaluate("() => ({ options: [...document.querySelectorAll('#intervalsAthlete option')].map(o => [o.value, o.textContent]), value: document.getElementById('intervalsAthlete').value })")
+            page.wait_for_function("() => /Store \u00b7 The subject/.test(document.getElementById('intervals-modal-message').textContent)", timeout=10000)
+            r2 = roster(page)
+            held_to = page.evaluate("() => (window.Intervals && window.Intervals.state.dataInfo || {}).end_date || ''")
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
-            check("with two athletes the load dialog offers a choice, the last used first, and keeps the one picked", mode2 == "pick" and picker["options"] == [["i1", "The other subject"], ["i0", "The subject"]] and picker["value"] == "i0", picker)
+            check("with two athletes the load dialog offers the roster: the one with data first (loaded today, the activities and the span as facts), the one with a key and nothing held after it; the row picked lit; the window set to the day after the picked athlete's last held day -> today (the last week when they are held to today already); the foot's store line the picked athlete's",
+                  mode2 == "pick" and [r[0] for r in r2["rows"]] == ["i0", "i1"] and r2["rows"][0][1] is True and r2["rows"][1][1] is False and r2["rows"][0][2] == "TS" and r2["rows"][1][2] == "TO"
+                  and re.fullmatch(r"\d+ activities \u00b7 \d{4}-\d{2}-\d{2} \u2192 \d{4}-\d{2}-\d{2} \u00b7 loaded today", r2["rows"][0][4]) is not None and r2["rows"][1][4] == "key added today \u00b7 nothing held yet"
+                  and r2["note"] == "\u00b7 2 with a key, the last loaded first" and r2["find"] == "0" and r2["foot"].startswith("Store \u00b7 The subject \u00b7 ") and r2["foot"].endswith("only what the window lacks is fetched")
+                  and r2["from"] == (lambda nxt: (today - timedelta(days=7)) if nxt >= today else nxt)(date.fromisoformat(r2["rows"][0][4].split(" \u2192 ")[1].split(" ")[0]) + timedelta(days=1)).isoformat() and r2["to"] == today.isoformat(), (r2, held_to))
+            # the Dataset cache (2026-10-30): an athlete with a key and nothing held is listed under Intervals.icu with a way into the Intervals.icu dialog
+            page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj.ds-keyed').length === 1", timeout=15000)
+            keyed = page.evaluate("() => { const b = document.querySelector('#datasetTree .ds-subj.ds-keyed'); return { athlete: b.dataset.athlete, name: b.querySelector('.ds-subj-name').textContent, meta: b.querySelector('.ds-subj-meta').textContent }; }")
+            page.click("#datasetTree .ds-subj.ds-keyed .ds-subj-head")
+            page.wait_for_function("() => !!document.querySelector('#datasetDetails [data-act=\"dialog\"]')", timeout=10000)
+            keyed_pane = page.evaluate("() => [...document.querySelectorAll('#datasetDetails .ds-kv .k')].map(k => k.textContent + ': ' + k.nextElementSibling.textContent).join(' | ')")
+            page.click("#datasetDetails [data-act='dialog']")
+            page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none' && document.getElementById('intervalsModal').style.display === 'flex' && !!document.querySelector('#intervalsRoster .row.on')", timeout=15000)
+            opened_for = page.evaluate("() => document.querySelector('#intervalsRoster .row.on').dataset.athlete")
+            page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
+            check("the Dataset cache lists the athlete with a key and nothing held under Intervals.icu ('a key, nothing held yet'); their pane names the id, the key and that nothing is held, with 'Load from Intervals.icu…' - which closes the cache dialog and opens the Intervals.icu dialog with that athlete picked",
+                  keyed == {"athlete": "i1", "name": "The other subject", "meta": "a key, nothing held yet"} and "Intervals.icu id: i1" in keyed_pane and "Key: stored \u00b7 added today" in keyed_pane and "Held: nothing yet: the first load fills the store" in keyed_pane and opened_for == "i1", (keyed, keyed_pane, opened_for))
             # whose key a load runs on (2026-10-30): the cache dialog's loads name the athlete's folder and the app takes that athlete's own
             # key - so with both keys stored, Load Wellness to today for the first subject is the first subject's; without a key for them
             # the app refuses before anything starts; and a request that names one athlete's folder with another athlete's key (nothing
@@ -486,14 +517,19 @@ def main():
             page.wait_for_timeout(500)
             page.evaluate("() => document.querySelector('#datasetTree .ds-feed[data-feed=\"wellness\"]').click()")
             page.wait_for_function("() => !!document.querySelector('#datasetDetails [data-act=\"today\"]') && /Wellness/.test(document.getElementById('datasetDetails').textContent)", timeout=10000)
-            page.click("#datasetDetails [data-act='today']")
-            page.wait_for_function("() => /Could not start|Failed|Loaded /.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=120000)
-            refused = page.evaluate("() => ({ line: document.getElementById('dsLoadStatus').textContent, cls: document.getElementById('dsLoadStatus').className, pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim()) })")
+            nokey_feed = page.evaluate("() => ({ today: document.querySelector('#datasetDetails [data-act=\"today\"]').disabled, hint: document.querySelector('#datasetDetails [data-act=\"today\"] + .hint').textContent, load: document.querySelector('#datasetDetails [data-act=\"load\"]').disabled })")
+            page.click("#datasetTree .ds-subj-head .ds-subj-name")
+            page.wait_for_function("() => !!document.querySelector('#datasetDetails [data-act=\"today\"]') && [...document.querySelectorAll('#datasetDetails .ds-kv .k')].some(k => k.textContent === 'Key')", timeout=10000)
+            nokey_subj = page.evaluate("() => ({ key: [...document.querySelectorAll('#datasetDetails .ds-kv .k')].filter(k => k.textContent === 'Key').map(k => k.nextElementSibling.textContent)[0], today: document.querySelector('#datasetDetails [data-act=\"today\"]').disabled, dialog: !!document.querySelector('#datasetDetails [data-act=\"dialog\"]') })")
+            refused = fetch_json(page, "/intervals/load_data", {"start_date": a_start.isoformat(), "end_date": today.isoformat(), "metrics": [], "aux_datasets": ["wellness"], "folder": "intervals/i0", "athlete_name": "The subject", "with_frame": False})
             page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
             r2 = fetch_json(page, "/intervals/store_api_key", {"api_key": "stack-key"})
-            check("Load Wellness to today for the first subject with their key removed (the other subject's stored): refused by the app before anything starts, naming the athlete and where to add the key; nothing written, the Data tab untouched; their key put back is 'replaced' (the row kept) and both athletes listed again",
-                  r["status"] == 200 and "Could not start the load: No Intervals.icu key stored for The subject: add it under Settings \u2192 Intervals ICU" in refused["line"] and "error" in refused["cls"]
-                  and refused["pills"] == pills_k and sorted(os.listdir(exec_views)) == files_k and r2["json"].get("message") == "The subject's key added" and sorted(a["id"] for a in r2["json"]["athletes"]) == ["i0", "i1"], (refused, r2))
+            check("the first subject's key removed (the other's stored): in the Dataset cache their Wellness pane has Load Wellness to today disabled with the hint to add the key (Load from the store still on), their own pane says the key is none and offers no way into the Intervals.icu dialog; a load through Intervals.icu asked for them by hand is refused by the app, naming them and where to add the key; nothing written, the Data tab untouched; the key put back is 'added' and both athletes are listed again",
+                  r["status"] == 200 and nokey_feed["today"] is True and "no key stored for this athlete" in nokey_feed["hint"] and nokey_feed["load"] is False
+                  and str(nokey_subj["key"]).startswith("none") and nokey_subj["today"] is True and nokey_subj["dialog"] is False
+                  and refused["status"] == 401 and refused["json"].get("error") == "No Intervals.icu key stored for The subject: add it under Settings \u2192 Intervals ICU"
+                  and page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim())") == pills_k and sorted(os.listdir(exec_views)) == files_k
+                  and r2["json"].get("message") == "The subject's key added" and sorted(a["id"] for a in r2["json"]["athletes"]) == ["i0", "i1"], (nokey_feed, nokey_subj, refused, r2))
             job = fetch_json(page, "/intervals/load_data", {"start_date": a_start.isoformat(), "end_date": today.isoformat(), "metrics": [], "aux_datasets": ["wellness"], "folder": "intervals/i0", "athlete": "i1", "with_frame": False})
             err = None
             for _ in range(60):
@@ -950,7 +986,7 @@ def main():
             page.wait_for_function("() => /The other subject/.test(document.getElementById('datasetDetails').textContent) && !!document.querySelector('#datasetDetails [data-act=\"forget\"]')", timeout=10000)
             page.once("dialog", lambda d: d.accept())
             page.click("#datasetDetails [data-act='forget']")
-            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1 && document.querySelectorAll('.dataset-status-pill').length === 0", timeout=15000)
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj:not(.ds-keyed)').length === 1 && document.querySelectorAll('#datasetTree .ds-subj.ds-keyed').length === 1 && document.querySelectorAll('.dataset-status-pill').length === 0", timeout=15000)     # the other subject's key stays: listed with nothing held (2026-10-30)
             check("Forget everything in the athlete's details (confirmed) takes the other subject's pills off the Data tab and drops everything held for them - the folder with its store and files - and the first subject stands with its store; the details pane is cleared",
                   not os.path.exists(exec_ds2) and os.path.isdir(os.path.join(exec_ds, "store")) and len(json.load(open(os.path.join(exec_ds, "store", "activities.json")))) == 101
                   and page.evaluate("() => document.querySelector('#datasetTree .ds-subj .ds-subj-name').textContent") == "The subject" and not page.evaluate("() => !!document.querySelector('#datasetDetails [data-act]')"), (os.path.exists(exec_ds2), sorted(os.listdir(os.path.join(workdir, "executor", "datasets", USER, "intervals")))))
@@ -966,7 +1002,7 @@ def main():
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
             page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
-            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
+            page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj:not(.ds-keyed)').length === 1", timeout=15000)
             # Load to today from the details while the Data tab holds a window: asked whether to let it go; declined, nothing moves
             page.click("#datasetTree .ds-subj-head .ds-subj-name")
             page.wait_for_selector("#datasetDetails [data-act='today']", timeout=10000)
@@ -1130,7 +1166,7 @@ def main():
             # ---- the Dataset cache dialog's loads (2026-10-29, as the product owner asked): everything from the store, one dataset alone, to today ----
             def open_cache(feed=None):
                 page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
-                page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj').length === 1", timeout=15000)
+                page.wait_for_function("() => document.querySelectorAll('#datasetTree .ds-subj:not(.ds-keyed)').length === 1", timeout=15000)
                 if feed:
                     page.click(f"#datasetTree .ds-feed[data-feed='{feed}']")
                     page.wait_for_function("(f) => (document.querySelector('#datasetDetails [data-act=\"load\"]') || {}).dataset && document.querySelector('#datasetDetails [data-act=\"load\"]').dataset.feed === f", arg=feed, timeout=10000)
@@ -1243,10 +1279,11 @@ def main():
             open_cache()
             page.once("dialog", lambda d: d.accept())
             page.click("#datasetDetails [data-act='forget']")
-            page.wait_for_function("() => /nothing held yet/.test(document.getElementById('datasetTree').textContent) && document.querySelectorAll('.dataset-status-pill').length === 0", timeout=15000)     # the tree redrawn after the refresh, not its Loading… state
-            fe = { "pills": pills_now(), "loaded": page.evaluate("() => !!(window.Intervals && window.Intervals.state.isLoaded)"), "tree": page.evaluate("() => document.getElementById('datasetTree').textContent.replace(/\\s+/g, ' ')") }
-            check("Forget everything (confirmed) takes every pill off the Data tab - the frame's and the files' - and the athlete out of the cache: the folder is gone, the tree says nothing is held",
-                  fe["pills"] == [] and not fe["loaded"] and not os.path.exists(exec_ds) and "nothing held yet" in fe["tree"], (fe, os.path.exists(exec_ds)))
+            page.wait_for_function("() => !document.querySelector('#datasetTree .ds-subj:not(.ds-keyed)') && !/Loading/.test(document.getElementById('datasetTree').textContent) && document.querySelectorAll('.dataset-status-pill').length === 0", timeout=15000)     # the tree redrawn after the refresh, not its Loading… state
+            fe = { "pills": pills_now(), "loaded": page.evaluate("() => !!(window.Intervals && window.Intervals.state.isLoaded)"), "tree": page.evaluate("() => document.getElementById('datasetTree').textContent.replace(/\\s+/g, ' ')"),
+                   "keyed": page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-subj.ds-keyed')].map(b => b.dataset.athlete + ':' + b.querySelector('.ds-subj-meta').textContent)") }
+            check("Forget everything (confirmed) takes every pill off the Data tab - the frame's and the files' - and the athlete out of the cache: the folder is gone; both athletes keep their keys, so the tree lists them with nothing held (2026-10-30)",
+                  fe["pills"] == [] and not fe["loaded"] and not os.path.exists(exec_ds) and "nothing held yet" in fe["tree"] and sorted(fe["keyed"]) == ["i0:a key, nothing held yet", "i1:a key, nothing held yet"], (fe, os.path.exists(exec_ds)))
             errs = page.evaluate("window.__stackErrors || []")
             b.close()
         apis = __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"]

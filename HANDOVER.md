@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.6.1: patches 0237-0249 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time, a load under another athlete's key refused, keys per athlete; **executor image v74** - rebuild and roll out; **the hosted table takes docs/sql/intervals_keys_per_athlete.sql once**). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.6.1: patches 0237-0250 (datasets by subject, steps 1-3, the tree as rebuilt, Load from the store alone, the dialog redesigned and amended, one athlete at a time, a load under another athlete's key refused, keys per athlete with the roster; **executor image v74** - rebuild and roll out; **the hosted table takes docs/sql/intervals_keys_per_athlete.sql once**). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.0.0 (2026-09-17), 2.0.1 (the Ollama work), 2.0.2 (the vLLM work, 2026-10-02), 2.1.0
   (2026-10-06: documents in the analysis, the Markdown contract, results recorded by the kernel, the reviewer's
   evidence and perspectives, generated datasets - patches 0057-0096), 2.1.1 (2026-10-07: the configuration template
@@ -95,10 +95,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/198/31/27/18/49/44/72/33/145/60/93/26/37/15/88/1/1 Python; 58/7/45/72/24/71/14/25/4/14/67 JS; 1,583 on 2026-10-30; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/198/31/27/18/49/44/72/33/145/60/93/26/37/15/88/1/1 Python; 58/7/47/72/24/71/14/25/4/14/67 JS; 1,585 on 2026-10-30; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (127; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (128; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -477,6 +477,17 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Keys per athlete, step 2: the roster (2026-10-30, patch 0250; page only, image v74 stands).** Palo found 0249's
+  bare select ugly and picked the list from three mockups. The Intervals.icu dialog's Athlete section is a roster:
+  one row per athlete with a key - initials, name, id, what the store holds (`intervalsRosterOf` over
+  `/intervals/athletes` and the cache's tree) - the last loaded first, the picked row lit; six rows in view then a
+  scroll with a fade; a find box from seven athletes (`INTERVALS_FIND_FROM`), Enter picks the first match; one
+  athlete is the single row, none the line to Settings. A click sets the window to the day after the athlete's last
+  held day → today (a typed window stays; `intervalsWindowTyped`); the foot's store line is the picked athlete's.
+  The Dataset cache lists athletes with a key and nothing held (`keyedBlock`, *Load from Intervals.icu…* →
+  `showIntervalsModal(athleteId)` preselects), shows the key on an athlete's pane with a way into the dialog, and
+  disables *to today* without a key. docs/DATASETS_DESIGN.md §17. Tests: test_dialogs.js 47, the integrations walk
+  128.
 - **Keys per athlete, step 1 (2026-10-30, patch 0249; page and app, image v74 stands; the hosted table takes
   `docs/sql/intervals_keys_per_athlete.sql` once, before the app starts).** A key is an athlete: `intervals_integration`
   is one row per coach and athlete (`athlete_id`, `athlete_name`), the athlete learned when the key is saved

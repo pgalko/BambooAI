@@ -297,7 +297,7 @@ function pollContextCoding(jobId, dataInfo, onDone) {
     };
     setTimeout(tick, 2000);
 }
-if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, contextPillProposals, contextPillProposalsText, contextCodebookOpen, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, showIntervalsStoreLine, intervalsOtherAthletePills, intervalsOneAthlete }); }
+if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, contextPillProposals, contextPillProposalsText, contextCodebookOpen, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, showIntervalsStoreLine, intervalsOtherAthletePills, intervalsOneAthlete, intervalsRosterOf, renderIntervalsAthletePicker, intervalsAthleteId, intervalsPickAthlete, intervalsFilterRoster, intervalsFactsOf, intervalsInitials }); }
 
 // One athlete at a time on the Data tab (2026-10-29, the product owner: another athlete's Load everything added its pills to the
 // first's). The file pills of the other athletes and the frame pill when it is another athlete's: `intervalsOtherAthletePills`
@@ -690,7 +690,6 @@ function renderIntervalsAthletes(list) {
     }
     const input = document.getElementById('intervalsApiKeyInput');
     if (input) input.placeholder = n_placeholder(named.length + pending.length);
-    renderIntervalsAthletePicker(list || []);                  // the load dialog's picker follows the list
 }
 function n_placeholder(n) { return n ? "Another athlete's API key" : "The athlete's Intervals.icu API key"; }
 
@@ -746,55 +745,154 @@ function showIntervalsConfigMessage(message, type = 'default') {
 //  MODAL DISPLAY FUNCTIONS
 //--------------------
 
-// The athlete (2026-10-30, docs/DATASETS_DESIGN.md §17): the athletes with a key, last used first, in the load dialog's first
-// row - a choice when there are several, the name alone with one, a line to Settings with none. The id goes with the load;
-// the app picks that athlete's key.
-let intervalsAthletes = [];
+// The athlete (2026-10-30, docs/DATASETS_DESIGN.md §17): the athletes with a key as a roster in the load dialog's first section -
+// one row each with the initials, the name and id, and what the store holds for them (the activities, the span, when they were
+// last loaded; a key with nothing held yet says so) - the last loaded first, the picked row lit. Six rows are in view and the rest
+// scroll (a fade at the edge says there is more); from seven athletes a find box narrows the list, Enter picks the first match.
+// One athlete is the single row, named; none sends the coach to Settings. The picked id goes with the load; the app picks that
+// athlete's key. Picking an athlete sets the window to the day after their last held day -> today; a window typed by hand stays.
+let intervalsAthletes = [];          // the roster rows: { id, name, pending, count, from, to, last, added }
+let intervalsPreselect = '';         // the athlete the Dataset cache dialog opened the dialog for
+let intervalsWindowTyped = false;    // a window typed by hand stays (2026-10-14) until an athlete is picked by a click
+const INTERVALS_FIND_FROM = 7;
 function intervalsAthleteId() {
-    const sel = document.getElementById('intervalsAthlete');
-    const named = intervalsAthletes.filter(a => a.id);
-    if (named.length === 1) return named[0].id;
-    return sel && sel.value ? sel.value : '';
+    const on = document.querySelector('#intervalsRoster .row.on');
+    return on ? String(on.dataset.athlete || '') : '';
 }
 function intervalsAthleteCount() { return intervalsAthletes.filter(a => a.id).length; }
+function intervalsAgo(t) {
+    const ms = typeof t === 'number' ? t * 1000 : Date.parse(/[zZ]$|[+-]\d\d:?\d\d$/.test(String(t || '')) ? String(t) : String(t || '').replace(' ', 'T') + 'Z');
+    if (!Number.isFinite(ms)) return '';
+    const d = Math.floor((Date.now() - ms) / 86400000);
+    return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? d + ' days ago' : d < 365 ? Math.round(d / 30) + ' months ago' : 'over a year ago';
+}
+function intervalsInitials(name, id) {
+    const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+    return (words.length ? words.slice(0, 2).map(w => w[0]).join('') : String(id || '?').slice(0, 2)).toUpperCase();
+}
+// the roster from the athletes with a key and what the store holds for each (the Dataset cache's tree): last loaded first
+function intervalsRosterOf(athletes, tree) {
+    const held = {};
+    (((tree || {}).sources || []).find(s => s.source === 'intervals') || { subjects: [] }).subjects.forEach(sb => {
+        const act = (sb.feeds || []).find(f => f.feed === 'activities') || {};
+        held[String(sb.id)] = { count: Number(act.count || 0), from: act.from || '', to: act.to || '', last: sb.last_load || 0 };
+    });
+    const rows = (athletes || []).map(a => Object.assign({ id: String(a.id || ''), name: a.name || '', pending: !a.id, added: a.added || '', last_used: a.last_used || '' }, held[String(a.id || '')] || { count: 0, from: '', to: '', last: 0 }));
+    rows.sort((a, b) => (b.last || 0) - (a.last || 0) || String(b.last_used || '').localeCompare(String(a.last_used || '')));
+    return rows;
+}
+function intervalsFactsOf(a) {
+    if (a.pending) return 'its athlete is named by the next load';
+    if (a.count) return '<b>' + a.count.toLocaleString() + ' activit' + (a.count === 1 ? 'y' : 'ies') + '</b> · ' + contextPillEsc(a.from) + ' → ' + contextPillEsc(a.to) + (a.last ? ' · loaded ' + intervalsAgo(a.last) : '');
+    return (a.added ? 'key added ' + intervalsAgo(a.added) + ' · ' : '') + 'nothing held yet';
+}
 function renderIntervalsAthletePicker(list) {
     intervalsAthletes = Array.isArray(list) ? list : [];
-    const host = document.querySelector('#intervalsModal .int-athlete');
-    const sel = document.getElementById('intervalsAthlete'), one = document.getElementById('intervalsAthleteOne');
-    if (!host || !sel) return;
-    const named = intervalsAthletes.filter(a => a.id);
-    const pending = intervalsAthletes.some(a => !a.id);
-    const keep = sel.value;
-    sel.innerHTML = named.map(a => '<option value="' + contextPillEsc(a.id) + '">' + contextPillEsc(a.name || a.id) + '</option>').join('');
-    if (keep && named.some(a => a.id === keep)) sel.value = keep;
-    if (named.length > 1) host.dataset.mode = 'pick';
-    else if (named.length === 1) { host.dataset.mode = 'one'; if (one) one.textContent = named[0].name || named[0].id; }
-    else if (pending) { host.dataset.mode = 'one'; if (one) one.textContent = 'the key stored (its athlete is named by the load)'; }
-    else host.dataset.mode = 'none';
+    const section = document.querySelector('#intervalsModal .int-athlete-section');
+    const host = document.getElementById('intervalsRoster');
+    const note = document.getElementById('intervalsAthleteNote');
+    if (!section || !host) return;
+    const named = intervalsAthletes.filter(a => a.id), pending = intervalsAthletes.filter(a => !a.id);
+    const before = intervalsAthleteId();
+    const pick = (intervalsPreselect && named.some(a => a.id === intervalsPreselect)) ? intervalsPreselect : (before && named.some(a => a.id === before)) ? before : (named[0] ? named[0].id : '');
+    intervalsPreselect = '';
+    host.innerHTML = intervalsAthletes.map(a => {
+        const on = a.id ? a.id === pick : !named.length;
+        return '<label class="row' + (on ? ' on' : '') + '" data-athlete="' + contextPillEsc(a.id) + '" data-name="' + contextPillEsc((a.name || a.id || '').toLowerCase()) + '">'
+            + '<input type="radio" name="intervalsAthlete" value="' + contextPillEsc(a.id) + '"' + (on ? ' checked' : '') + '>'
+            + '<span class="ini">' + contextPillEsc(a.id ? intervalsInitials(a.name, a.id) : '?') + '</span>'
+            + '<span class="who"><b>' + contextPillEsc(a.id ? (a.name || a.id) : 'a key stored earlier') + '</b>' + (a.id ? '<span class="id">' + contextPillEsc(a.id) + '</span>' : '') + '</span>'
+            + '<span class="facts">' + intervalsFactsOf(a) + '</span></label>';
+    }).join('');
+    section.dataset.mode = named.length > 1 ? 'pick' : (named.length || pending.length) ? 'one' : 'none';
+    section.dataset.find = intervalsAthletes.length >= INTERVALS_FIND_FROM ? '1' : '0';
+    if (note) note.textContent = intervalsAthletes.length > 1 ? '· ' + intervalsAthletes.length + ' with a key, the last loaded first' : intervalsAthletes.length === 1 ? '· the one with a key' : '';
+    const find = document.getElementById('intervalsAthleteFind');
+    if (find) { find.value = ''; intervalsFilterRoster(); }
+    intervalsRosterFade();
+    const lit = host.querySelector('.row.on');
+    if (lit && typeof lit.scrollIntoView === 'function') lit.scrollIntoView({ block: 'nearest' });
     const btn = document.getElementById('connectIntervals');
-    if (btn) btn.disabled = !(named.length || pending);
+    if (btn) btn.disabled = !(named.length || pending.length);
+    intervalsWindowForPick();
+    showIntervalsStoreLine();
+}
+function intervalsPicked() { return intervalsAthletes.find(a => a.id && a.id === intervalsAthleteId()) || null; }
+// the window an athlete's row proposes: the day after their last held day, to today; typed dates stand
+function intervalsWindowForPick(force) {
+    if (intervalsWindowTyped && !force) return;
+    const a = intervalsPicked();
+    const start = document.getElementById('intervalsStartDate'), end = document.getElementById('intervalsEndDate');
+    if (!a || !start || !end || typeof localIsoDay !== 'function') return;
+    const today = localIsoDay(new Date());
+    let from = '';
+    if (a.to) { const d = new Date(a.to + 'T00:00:00'); d.setDate(d.getDate() + 1); from = localIsoDay(d); }
+    if (from && from >= today) { const d = new Date(); d.setDate(d.getDate() - 7); from = localIsoDay(d); }     // held to today already: the last week, served from the store
+    if (from && start.min && from < start.min) from = start.min;
+    if (from) start.value = from;
+    end.value = today;
+}
+function intervalsFilterRoster() {
+    const find = document.getElementById('intervalsAthleteFind'), count = document.getElementById('intervalsAthleteCount');
+    const q = String((find || {}).value || '').trim().toLowerCase();
+    const rows = [...document.querySelectorAll('#intervalsRoster .row')];
+    let shown = 0;
+    rows.forEach(r => { const hit = !q || (r.dataset.name || '').includes(q) || (r.dataset.athlete || '').toLowerCase().includes(q); r.classList.toggle('hidden', !hit); if (hit) shown += 1; });
+    if (count) count.textContent = q ? shown + ' of ' + rows.length + (shown ? ' · Enter picks the first' : '') : 'type a name to narrow the list';
+    intervalsRosterFade();
+}
+function intervalsRosterFade() {
+    const host = document.getElementById('intervalsRoster'), wrap = host && host.parentElement;
+    if (!host || !wrap) return;
+    wrap.classList.toggle('more', host.scrollHeight - host.clientHeight > 1 && host.scrollTop + host.clientHeight < host.scrollHeight - 1);
+}
+function intervalsPickAthlete(id) {
+    const row = document.querySelector('#intervalsRoster .row[data-athlete="' + String(id).replace(/"/g, '') + '"]');
+    if (!row) return false;
+    document.querySelectorAll('#intervalsRoster .row').forEach(r => r.classList.toggle('on', r === row));
+    const input = row.querySelector('input'); if (input) input.checked = true;
+    intervalsWindowForPick(true);
+    showIntervalsStoreLine();
+    return true;
+}
+function initializeIntervalsRoster() {
+    const host = document.getElementById('intervalsRoster');
+    if (!host || host._bound) return;
+    host._bound = true;
+    host.addEventListener('click', e => { const row = e.target.closest('.row[data-athlete]'); if (row && row.dataset.athlete) { e.preventDefault(); intervalsPickAthlete(row.dataset.athlete); } });
+    host.addEventListener('scroll', intervalsRosterFade, { passive: true });
+    const find = document.getElementById('intervalsAthleteFind');
+    if (find) {
+        find.addEventListener('input', intervalsFilterRoster);
+        find.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const first = document.querySelector('#intervalsRoster .row:not(.hidden)'); if (first) intervalsPickAthlete(first.dataset.athlete); } });
+    }
+    ['intervalsStartDate', 'intervalsEndDate'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('input', () => { intervalsWindowTyped = true; }); });
 }
 async function fillIntervalsAthletes() {
     if (!window.authService || typeof window.authService.fetch !== 'function') return;
-    const host = document.querySelector('#intervalsModal .int-athlete');
-    if (host) delete host.dataset.mode;                        // nothing shown until the list has come (a stale choice must not stand)
+    const section = document.querySelector('#intervalsModal .int-athlete-section');
+    const host = document.getElementById('intervalsRoster');
+    if (section) delete section.dataset.mode;                 // nothing shown until the roster has come (a stale choice must not stand)
+    if (host) host.innerHTML = '';
     try {
-        const r = await window.authService.fetch('/intervals/athletes');
-        const d = r.ok ? await r.json() : null;
-        renderIntervalsAthletePicker(d && d.athletes ? d.athletes : []);
+        const [ra, rc] = await Promise.all([window.authService.fetch('/intervals/athletes'), window.authService.fetch('/cache/inspect').catch(() => null)]);
+        const da = ra && ra.ok ? await ra.json() : null;
+        const dc = rc && rc.ok ? await rc.json().catch(() => null) : null;
+        renderIntervalsAthletePicker(intervalsRosterOf(da && da.athletes ? da.athletes : [], dc && dc.tree));
     } catch (e) { renderIntervalsAthletePicker([]); }
 }
 
-function showIntervalsModal() {
+function showIntervalsModal(athleteId) {
     const modal = document.getElementById('intervalsModal');
     if (modal) {
         modal.style.display = 'flex';
         showIntervalsMessage('', 'default');
-        fillIntervalsAthletes();
+        intervalsPreselect = String(athleteId || '');          // the Dataset cache dialog opens it for an athlete (2026-10-30)
+        initializeIntervalsRoster();
         initializeIntervalsDatePickers();
+        fillIntervalsAthletes();
         initializeAuxDatasetOptions();
         initializeDownloadChoice();
-        showIntervalsStoreLine();
         if (window.CodebookUI && typeof window.CodebookUI.badge === 'function') window.CodebookUI.badge();   // the Context card's codebook line, current
     }
 }
@@ -815,21 +913,19 @@ function initializeDownloadChoice() {
         if (b) setIntervalsRefresh(b.getAttribute('data-refresh') === '1');
     });
 }
-// the foot's line while nothing is happening: what the store holds for this account (the Dataset cache panel's figures), so a
-// person sees before loading that the window will come mostly from the store; a message of the load replaces it
+// the foot's line while nothing is happening (2026-10-30: the picked athlete's): what the store holds for them, so a person sees
+// before loading that the window will come mostly from the store; a message of the load replaces it, and the line never
+// replaces a message
 function showIntervalsStoreLine() {
     const el = document.getElementById('intervals-modal-message');
-    if (!el || !window.authService || typeof window.authService.fetch !== 'function') return;
-    window.authService.fetch('/cache/inspect').then(r => r.ok ? r.json() : null).then(d => {
-        if (!el || el.textContent.trim() !== '' || !d) return;
-        const stores = d.stores || [];
-        if (!stores.length) { el.innerHTML = 'Nothing in the store yet \u00b7 the first load fills it; later loads fetch only what they lack'; return; }
-        const n = stores.reduce((a, st) => a + (Number(st.activities) || 0), 0);
-        const froms = stores.map(st => st.from).filter(Boolean).sort(), tos = stores.map(st => st.to).filter(Boolean).sort();
-        const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-        const names = stores.map(st => st.subject && (st.subject.name || st.subject.id)).filter(Boolean);     // whose (2026-10-29)
-        el.innerHTML = 'Store' + (names.length === 1 ? ' \u00b7 ' + esc(names[0]) : names.length > 1 ? ' \u00b7 ' + names.length + ' athletes' : '') + ' \u00b7 <b>' + n + ' activit' + (n === 1 ? 'y' : 'ies') + '</b>' + (froms.length ? ' \u00b7 ' + esc(froms[0]) + ' \u2192 ' + esc(tos[tos.length - 1]) : '') + ' \u00b7 only what the window lacks is fetched';
-    }).catch(() => {});
+    if (!el) return;
+    if (el.textContent.trim() !== '' && !el.hasAttribute('data-store')) return;
+    const a = intervalsPicked();
+    const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    if (!a) { el.innerHTML = ''; el.removeAttribute('data-store'); return; }
+    el.setAttribute('data-store', '1');
+    el.innerHTML = a.count ? 'Store \u00b7 ' + esc(a.name || a.id) + ' \u00b7 <b>' + a.count.toLocaleString() + ' activit' + (a.count === 1 ? 'y' : 'ies') + '</b> \u00b7 ' + esc(a.from) + ' \u2192 ' + esc(a.to) + ' \u00b7 only what the window lacks is fetched'
+                            : 'Nothing in the store for ' + esc(a.name || a.id) + ' yet \u00b7 the first load fills it; later loads fetch only what they lack';
 }
 
 async function showIntervalsConfigModal() {
@@ -948,6 +1044,7 @@ function showIntervalsMessage(message, type = 'default') {
     if (!messageElement) return;
     
     messageElement.classList.remove('success-message', 'error-message', 'loading-message');
+    messageElement.removeAttribute('data-store');            // a message is not the store line (which never replaces a message)
     
     switch(type) {
         case 'loading':
