@@ -4,17 +4,17 @@
 
 <img src="docs/images/logo.png" alt="BambooAI" width="150">
 
-**Hosted version:** [bambooai.org](https://bambooai.org)
+**Hosted version:** [bambooai.org](https://bambooai.org/)
 
-BambooAI is an LLM-driven data analysis environment built around a persistent Python kernel, an explicit analysis protocol, and a fully inspectable computational record.
+BambooAI is an AI-powered data analysis workbench designed to make the analytical process transparent, reproducible and open to scrutiny. It gives you visibility into how an AI reaches its conclusions, along with the tools to inspect, challenge and refine its work.
 
-A primary Analyst model works through a question iteratively. Each turn has one action: run a Python cell, inspect earlier output, search or read supporting material, ask for clarification, or write the report. Executed cells remain in a persistent workspace, so later steps and follow-up questions can build directly on earlier computation.
+At its core is an LLM Analyst working in a persistent Python environment. Given a dataset and a question, the Analyst explores the data, writes and executes code, examines results and develops its analysis iteratively. You can follow the investigation as it unfolds, ask follow-up questions, revisit earlier steps or branch into a different line of enquiry without losing the previous work.
 
-The aim is to keep the analytical process visible rather than hiding it behind a final answer. The code that ran, its outputs, figures, intermediate results, working notes and model calls remain available for inspection. Numerical results reported by the Analyst are tied to the cells that produced them, making it possible to trace a conclusion back through the computation that supports it.
+BambooAI preserves the complete computational record: executed code, outputs, figures, intermediate results, working notes and model interactions. Numerical findings are linked to the code that produced them, while a code map helps trace how results were derived. At the end of an analysis, the supporting computation is replayed in a fresh Python kernel to check reproducibility.
 
-At the end of a run, the relevant analysis is assembled and executed again against the original data in a fresh kernel. The replay checks whether the numerical results cited by the report can be reproduced from the recorded computation.
+You retain control over the models, the depth of analysis and the direction of the investigation. Adaptive mode introduces a separate Reviewer model that can challenge assumptions, question the evidence and request further tests. Completed analyses can also be turned into reusable routines and applied to new datasets.
 
-Adaptive runs can additionally use a separate Reviewer model, with its own instructions, to inspect the evidence during the analysis and challenge the method, request another test, narrow a conclusion or end the investigation.
+The underlying principle is simple: AI-generated analysis should be open to the same scrutiny as any other analytical work. Reproducible calculations are an important part of that, but the choice of methods, assumptions and interpretation must also remain open to examination.
 
 ![BambooAI: a run beside its data and the report's figures; the chain's code map and the recipe of one of its numbers](docs/images/bambooai_app.jpg)
 
@@ -27,6 +27,11 @@ Adaptive runs can additionally use a separate Reviewer model, with its own instr
 ## Table of Contents
 
 * [Overview](#overview)
+
+  * [How the analysis works](#how-the-analysis-works)
+  * [Inspecting and verifying the work](#inspecting-and-verifying-the-work)
+  * [Review and user control](#review-and-user-control)
+  * [From exploration to reusable analysis](#from-exploration-to-reusable-analysis)
 * [Installation](#installation)
 * [Quick Start](#quick-start)
 * [Features](#features)
@@ -60,27 +65,39 @@ Adaptive runs can additionally use a separate Reviewer model, with its own instr
 
 ## Overview
 
-BambooAI separates the analytical process into an LLM-controlled workflow and an executable computational record. The design is intended to make an AI analysis transparent and interpretable: not only what conclusion was reached, but what was computed, what evidence supports it, and how the analysis developed along the way.
+BambooAI is built around the idea that an AI-generated analysis should be something you can examine, reproduce and build upon. Rather than treating the final report as the only output, it preserves the analytical work that led to it.
 
-* **Iterative analysis.** One primary Analyst works through the problem turn by turn in a persistent Python workspace. Each computation can inform the next decision rather than requiring the model to plan and generate the entire analysis in one response.
+### How the analysis works
 
-* **Transactional execution.** The kernel keeps a checkpoint after every committed cell. If a cell fails, the attempted changes are discarded and the previous namespace is restored.
+A primary Analyst model investigates a question through a series of steps, using a persistent Python kernel. It can explore datasets, write and execute code, examine results, consult documents and external sources, and decide what to investigate next. Each step builds on what has already been learned.
 
-* **Evidence-linked results.** Numerical estimates are recorded when they are computed and remain associated with the cells that produced them. The report cites those cells rather than treating generated prose as the source of the result.
+The Python environment retains variables, dataframes and intermediate calculations throughout the investigation. Successful code executions are committed to the workspace; failed executions are rolled back to the previous state. Follow-up questions can reuse earlier work, while branching allows alternative approaches to be explored without losing the original analysis.
 
-* **Full visibility.** Executed code, outputs, figures, intermediate results, working notes, prompts, model usage, timing and cost remain available through the application. A reported result can therefore be followed back through the analysis that produced it.
+### Inspecting and verifying the work
 
-* **Reproduction.** Before completion, the successful computation through the report's supporting cells is rerun against the original data in a fresh kernel. The resulting output is compared with the numerical evidence from the original run. A successful replay establishes computational reproducibility, not that the chosen method or interpretation is necessarily correct.
+BambooAI records the analytical process as it happens. The user can inspect executed code, outputs, figures, intermediate results, working notes and model interactions, including token usage, execution time and cost.
 
-* **Independent review.** Adaptive mode introduces a separate Reviewer role with its own prompt and model configuration. It receives the current evidence at defined intervals and can require another test, narrow the supported conclusion, or determine that the analysis is ready to report.
+Numerical estimates are recorded alongside the computations that produced them. Reports reference those calculations, and an automatically generated code map helps trace results through the underlying data transformations and intermediate steps.
 
-* **Model-independent orchestration.** Analyst, Reviewer, Figures, Rewriter, Reader and the other workflow roles can use different models and reasoning settings. BambooAI supports OpenRouter, OpenAI, Anthropic, Google, Groq, Mistral, xAI and DeepSeek, as well as locally served open-weight models through Ollama and vLLM.
+Once an analysis is complete, BambooAI reconstructs the supporting computation in a fresh Python kernel and runs it again against the original data. This replay verification checks whether the reported numerical results can be reproduced.
 
-* **Isolated execution.** Model-generated Python runs in a dedicated executor container by default. Model inference is configured separately and can use either remote providers or models hosted on the local network.
+Reproducibility is an important safeguard, but it does not establish that a statistical method was appropriate or that a conclusion was justified. BambooAI makes the underlying evidence available so those questions can be examined independently.
 
-BambooAI originated in sports-science and physiological data analysis, where repeated observations, uncertainty, confounding and the provenance of reported results matter. Intervals.icu, Endura and SweatStack integrations grew from that use case, but the analysis workflow itself is general and works with ordinary tabular datasets, supporting documents and external sources.
+### Review and user control
 
-Completed analyses can also be saved as routines. A routine extracts the small set of inputs that may change, verifies the original run, and can then execute the same recorded method against new data without another LLM analysis.
+The analytical workflow is configurable. Users can select models, reasoning settings and analysis depth, and intervene as an investigation develops.
+
+In Adaptive mode, a separate Reviewer model examines the available evidence at regular intervals. It can challenge the Analyst's approach, request additional tests, question assumptions or recommend narrowing a conclusion. The Analyst and Reviewer operate under separate instructions and can use different models.
+
+Other specialised roles handle supporting tasks such as document reading, figure generation and report rewriting. These roles can be configured independently.
+
+### From exploration to reusable analysis
+
+An investigation does not have to end with a report. BambooAI can turn completed analyses into reusable routines, preserving the recorded method while allowing selected inputs to change. The original computation can be used to check the routine before applying it to new datasets, without requiring another LLM-driven investigation.
+
+The application supports a range of commercial and open-weight models, including locally hosted models served through Ollama or vLLM. Python execution runs in an isolated container by default, independently of model inference. BambooAI can be deployed locally or used through the hosted service.
+
+BambooAI originated in sports science and physiological data analysis, where repeated measurements, statistical uncertainty and the ability to trace results back to their source are particularly important. Its integrations with Intervals.icu, Endura and SweatStack reflect those origins, but the underlying analytical environment is general-purpose and works with ordinary tabular data, supporting documents and external sources.
 
 ## Installation
 
