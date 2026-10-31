@@ -310,6 +310,13 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-10-31: 2.7.1 (patches 0255-0258).** The Usage dialog rebuilt (docs/USAGE_DESIGN.md): each model call's row
+  keeps the cache split, what the cache saved and the fees (the hosted table takes `docs/sql/usage_cache_fields.sql`
+  once; the local file upgrades itself); one `/usage` answer and a dialog of four tabs - the tiles with their deltas,
+  a stacked column chart by seat, model or mode, the seats and models with list prices, the ledger of analyses with a
+  detail pane, the raw calls, Export CSV - the page's own SVG, Plotly left to the figures; the usage ledger
+  (`storage/<user>/usage_ledger.jsonl`, one line per run as it ends) so an analysis keeps its question, mode and
+  outcome after its unsaved thread file is discarded; the stack walk checks the dialog against the rows. Image v74 stands.
 - **Status 2026-10-30: 2.7.0 (patches 0237-0253).** Keys per athlete (docs/DATASETS_DESIGN.md §17): one Intervals.icu
   key per athlete, named by the service when saved, the hosted table migrated once by `docs/sql/intervals_keys_per_athlete.sql`
   and the local SQLite file by itself; the Intervals.icu dialog opens on a roster of the athletes; the Dataset cache
