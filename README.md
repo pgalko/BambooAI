@@ -20,6 +20,10 @@ Adaptive runs can additionally use a separate Reviewer model, with its own instr
 
 *1 · a run: the turns and cells on the left, the data on the right · 2 · the report's figures · 3 · the chain's code map · 4 · the recipe of one of its numbers.*
 
+![BambooAI: the Usage dialog - a month of analyses by day and by seat; one analysis's seats, calls in time and models](docs/images/bambooai_usage.jpg)
+
+*5 · Usage: what a month of analyses cost and where the money and the time went, by day and by seat · 6 · one analysis: its seats, its calls in time, its models.*
+
 ## Table of Contents
 
 * [Overview](#overview)
