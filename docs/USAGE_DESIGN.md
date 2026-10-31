@@ -1,4 +1,4 @@
-# The Usage dialog — design v1.1 (2026-10-31; step 1 built in patch 0255, step 2 in 0256)
+# The Usage dialog — design v1.2 (2026-10-31; step 1 built in patch 0255, step 2 in 0256, step 3 in 0257)
 
 The Usage dialog is where a coach, or the operator, sees what the analyses cost and where the money and the time
 went. The version from the first redesign (two Plotly charts in a mid-size dialog, four totals, three pre-aggregated
@@ -51,9 +51,17 @@ with an old payload and a new one through the function.
 
 What is *not* recorded per call, and where it comes from instead: the question, the mode (Quick / Deep / Adaptive),
 the cells and the outcome of an analysis live in the thread store (`storage/<user>/threads/`), keyed by the chain
-id the usage rows carry; the route joins them (step 2). A routine's run is a chain like any other, named by its
-routine. What the call was *for* (a cell, the report, the review, the replay) is not kept and not needed yet: the
-seat says most of it.
+id the usage rows carry; the route joins them (step 2). **The thread file does not last**: a thread that is not
+saved as a favourite is deleted at the next sign-in (`web_app/cleanup.py`, the app's standing behaviour), which is
+why the product owner's dialog named 15 of his 334 analyses (2026-10-31). So since 0257 the host also writes the
+**usage ledger**, `storage/<user>/usage_ledger.jsonl`: one line per run as it ends (`NotebookStore.record`, from
+`pd_agent_converse`'s closing block and the ideas run) - the chain, the thread, and `run_facts(run)`: the question,
+the title, the mode, the status and the replay's verdict, the cells and figures, when it started and how long it
+took wall to wall. A few hundred bytes a run, never touched by the cleanup; the route reads the thread file when
+it is there and the line when it is not. Analyses from before the ledger whose thread is gone show as *An analysis
+that was not saved*, mode *not recorded*, no outcome. A routine's run makes no model call and has no row; the
+Promoter's Save-as-routine call has its own billing chain. What the call was *for* (a cell, the report, the
+review, the replay) is not kept and not needed yet: the seat says most of it.
 
 ## 3. The route (step 2, built in 0256: `web_app/usage_routes.py`)
 
@@ -83,12 +91,15 @@ immediately before it. The answer:
   cost, compute, the cost per seat, and `saved` - whether the chain's favourite file exists, since the page opens a
   chain from it (an unsaved analysis shows "not saved" instead of the link);
 - `stands_out`: three computed lines - the heaviest day (its share, its analyses, its top seat, its dearest
-  question), the cache (the share and the savings over the calls that recorded it; the seats with the highest and
-  the lowest share among those with 10k recorded input tokens), the failures (and the refusals, the stops).
+  question - or that the dearest was not saved), the cache (the share and the savings over the calls that
+  recorded it; the seats with the highest and the lowest share among those with 10k recorded input tokens), the
+  failures among the analyses whose ending is on record (the refusals, the stops), and how many have none.
 
 The thread store is read through the `chains` and `threads` tables (two plain selects by id, in batches; no embed,
 so the SQLite file, the hosted service and the stack's stand-in answer alike) and one thread file per thread of
-the period, its facts cached per file by modification time. `GET /usage/analysis/<chain>` answers one chain: its
+the period, its facts cached per file by modification time; a chain whose thread file is gone takes its facts from
+the usage ledger's line (§2). A chain's mode label (`mode_label`, the same rule on the page) is the run's own,
+*not recorded* for an analysis without one, *Other* for a chain that is not an analysis. `GET /usage/analysis/<chain>` answers one chain: its
 ledger entry, totals, seats ranked, models, and the calls in time (seconds from the first, the elapsed, the model,
 the tokens, the cache, the cost, the fees) with the span. `GET /usage/calls?period=…&page=n&size=100` pages the raw
 rows newest first; `GET /usage/export.csv?period=…` is the rows of the period as recorded, one per call, as an
@@ -118,7 +129,13 @@ compare-with-the-period-before toggle (it names the length), Export CSV. The tab
   time, cache savings, the compute charge), the seats ranked with bars, the calls laid out in time (one row per
   seat, a mark per call at its second and as wide as it took; hover for the model, tokens, cache, cost and fees),
   the models.
-- *Calls*: the raw rows of the period, 100 a page, newest first; a chain is a link into the ledger.
+- *Calls*: the raw rows of the period, 100 a page, newest first, in a scroll box of their own under a frozen header
+  (the product owner, 2026-10-31: the header scrolled away); a chain is a link into the ledger.
+
+The outcome words carry their meaning with them (2026-10-31, after the product owner read "answered" as the general
+success and missed the rest): every chip's tooltip, the detail pane's line and the filter's options say that a
+finished analysis is *answered*, and that its replay then re-ran the cells and checked the cited numbers -
+*reproduced*, *differed*, or *replay failed* - so "answered" alone means no replay on record.
 
 The charts are the page's own SVG. A series colour is a class (`us-s1`…`us-s7`, `us-s0` for Other) over the
 `--viz-1`…`--viz-7`/`--viz-other` tokens in `tokens.css` (the validated palette, a set per theme), so the fills and
@@ -137,8 +154,13 @@ stopped at its row limit.
 2. **The route and the dialog** - built (0256): sections 3 and 4; the old route, its aggregation and `usage-tracking.js`
    retired; Plotly left to the analyst's figures; `tools/usage_fixture.py` (a synthetic month through the route, made
    when the gallery misses it) feeds the gallery's `dlg_usage` and `dlg_usage_analyses` states.
-3. **The walks and the notes** - the stack walk opens the dialog after its runs and checks the figures against the
-   rows; the plain-words doc; the handover.
+3. **The walks and the notes** - built (0257): the stack walk (`tests/e2e/test_stack.py`, both editions) opens the
+   dialog from the gear menu after its eight runs and the routine, and checks what it shows against the rows the
+   logger wrote - read from outside the app: the stand-in's journal (`STACK_USAGE_JOURNAL`, one JSON line per row,
+   hosted) or the SQLite file (local) - the tiles, the chart's columns and legend, the ledger entry by entry (the
+   question, the outcome, the cost), the detail's calls one for one, the Calls page, the CSV, *open the analysis*
+   on a saved chain and "not saved" on another; `HOW_USAGE_WORKS.md`, the plain-words doc for the coach; the
+   handover.
 
 ## 6. Decisions
 
@@ -157,3 +179,6 @@ stopped at its row limit.
   own billing chain, and the ledger names it. The deltas carry no colour: more analyses is not better or worse.
 - What the call was *for* (a cell, the report, the review) is still not recorded; the seat says most of it, and
   the detail pane's timeline shows the order.
+- The usage ledger is a line per run, not a copy of the thread: the thread files stay ephemeral unless saved (the
+  cleanup is deliberate - a thread is megabytes with its figures), and the dialog needs only the facts. Whether to
+  keep the thread files too is the product owner's call, asked on 2026-10-31.

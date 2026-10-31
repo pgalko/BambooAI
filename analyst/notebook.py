@@ -504,12 +504,59 @@ class Notebook:
         return nb
 
 
+def run_facts(run) -> dict:
+    """What the usage ledger shows of a run (docs/USAGE_DESIGN.md §3): the question and the title, the mode, how it
+    ended, its cells and figures, when it started and how long it took wall to wall. From a Run, or from its dict in
+    the thread file - never the cells' outputs or figures."""
+    if isinstance(run, dict):
+        g = run.get
+        tg = lambda t, k, d=None: t.get(k, d)                                        # noqa: E731
+    else:
+        g = lambda k, d=None: getattr(run, k, d)                                     # noqa: E731
+        tg = lambda t, k, d=None: getattr(t, k, d)                                   # noqa: E731
+    turns = g("turns") or []
+    cells = [t for t in turns if tg(t, "kind") == "cell" and tg(t, "cell_no") is not None]
+    failed_at = next((tg(t, "cell_no") for t in reversed(cells) if tg(t, "error")), None)
+    created = float(g("created") or 0)
+    last = max([float(tg(t, "created") or 0) + float(tg(t, "elapsed") or 0) for t in turns] + [created])
+    return {"question": g("question") or "", "title": g("title") or "", "mode": g("mode") or "", "status": g("status") or "", "replay": g("replay_status") or "",
+            "cells": len(cells), "figures": sum(len(tg(t, "figures") or []) for t in cells), "created": created, "wall": round(max(0.0, last - created), 1),
+            "failed_at": failed_at, "refused": any(tg(t, "refused") for t in turns)}
+
+
 class NotebookStore:
-    """One JSON file per thread under <storage_dir>/threads/."""
+    """One JSON file per thread under <storage_dir>/threads/, and the usage ledger beside them: one line per run as it
+    ended (<storage_dir>/usage_ledger.jsonl), which outlives the thread file - a thread that is not saved as a
+    favourite is discarded at the next sign-in (web_app/cleanup.py), and the Usage dialog still names its analyses."""
 
     def __init__(self, storage_dir: str):
         self.dir = os.path.join(storage_dir, "threads")
+        self.ledger_path = os.path.join(storage_dir, "usage_ledger.jsonl")
         os.makedirs(self.dir, exist_ok=True)
+
+    def record(self, nb: "Notebook", run: Run) -> None:
+        """One line for the run as it stands now (its facts, the thread, the chain); the last line per chain wins."""
+        line = {"chain": str(run.id), "thread": str(nb.thread_id), "at": _now(), **run_facts(run)}
+        with open(self.ledger_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line, ensure_ascii=False) + "\n")
+
+    def ledger(self) -> Dict[str, dict]:
+        """chain id -> the facts of its last line; {} without a ledger."""
+        out: Dict[str, dict] = {}
+        if not os.path.exists(self.ledger_path):
+            return out
+        with open(self.ledger_path, encoding="utf-8") as fh:
+            for ln in fh:
+                ln = ln.strip()
+                if not ln:
+                    continue
+                try:
+                    d = json.loads(ln)
+                except ValueError:
+                    continue
+                if d.get("chain"):
+                    out[str(d["chain"])] = d
+        return out
 
     def _file(self, thread_id: str) -> str:
         safe = re.sub(r"[^A-Za-z0-9_-]", "", str(thread_id))

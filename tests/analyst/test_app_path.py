@@ -93,6 +93,14 @@ check("the report's head rides before the answer as a top-level key (no tab for 
       and "lead" not in _head and _head.get("question") == "q" and _head.get("mode") in ("deep", "quick", "adaptive")
       and _head.get("replay") in ("reproduced", "differed", "failed", "") and isinstance(_head.get("cells"), int) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(_head.get("prepared"))) and isinstance(_head.get("data"), str)
       and "lineage" not in _head, (_head, [e.get("type") or next(iter(e)) for e in events][:12]))
+# the usage ledger (2026-10-31, docs/USAGE_DESIGN.md): one line per run as it ended, beside the thread files, so the Usage dialog names an
+# analysis after its thread file is discarded (a thread not saved as a favourite goes at the next sign-in)
+_ledger_path = os.path.join(work, "storage", "u1", "usage_ledger.jsonl")
+_lines = [json.loads(x) for x in open(_ledger_path, encoding="utf-8")] if os.path.exists(_ledger_path) else []
+check("the usage ledger: the run's line written at its end - the chain and the thread, the question, the mode, how it ended, its cells, when it started and how long it took; no outputs or figures",
+      len(_lines) == 1 and _lines[0]["chain"] == str(BAMBOO.chain_id) and _lines[0]["thread"] == "1001" and _lines[0]["question"] == "Is B higher than A?" and _lines[0]["mode"] in ("Deep", "Quick", "Adaptive")
+      and _lines[0]["status"] == "answered" and _lines[0]["replay"] == "reproduced" and _lines[0]["cells"] == 2 and _lines[0]["created"] > 0 and _lines[0]["wall"] >= 0
+      and set(_lines[0]) == {"chain", "thread", "at", "question", "title", "mode", "status", "replay", "cells", "figures", "created", "wall", "failed_at", "refused"}, _lines)
 check("the plain-language version opens with the report's title line (the Rewriter forgot it; it is put there), then its text - the same anchor in both versions",
       any(str(e.get("data", "")).startswith("# B exceeds A\n\nPlain: B is higher") for e in events if e.get("type") == "simplified_answer"))
 pane_types = [e.get("type") for e in events if str(e.get("type", "")).startswith("pane_")]

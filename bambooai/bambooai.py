@@ -1052,6 +1052,10 @@ class BambooAI:
         session = Session(None, self.notebook, self._llm, store=self.store, emit=self._emit, recall=None, search=None,
                           data_description=self._data_description())
         run = session.ideas(int(level), parent=parent, run_id=str(self.chain_id), question=question or "", mode="Ideas")
+        try:
+            self.store.record(self.notebook, run)                # the usage ledger's line (2026-10-31)
+        except Exception:                                      # noqa: BLE001
+            logger.warning("The ideas run's ledger line was not kept", exc_info=True)
         self._pane('pane_run_end', status=run.status, turns=1, of=1, cells=0, failed=0, cost=self._chain_cost(), seconds=0,
                    replay_status='', replay_line='', plots=0, files=[])
         self.output_manager.display_results(chain_id=self.chain_id, answer=run.report, explore=True)
@@ -1261,6 +1265,8 @@ class BambooAI:
                 if _run is not None and not _run.data:
                     _run.data = data_record
                     self.store.save(self.notebook)
+                if _run is not None:
+                    self.store.record(self.notebook, _run)      # the usage ledger's line (2026-10-31): the run's facts outlive its thread file
             except Exception:                                  # noqa: BLE001
                 logger.warning("The run's data record was not kept", exc_info=True)
         self._kernel_tip = run.id

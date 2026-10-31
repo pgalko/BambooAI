@@ -52,6 +52,16 @@ def wait_text(page, selector, text, timeout=180000):
                            arg=[selector, text], timeout=timeout)
 
 
+def usage_rows(wa, edition, user):
+    """The usage rows the logger wrote, read from outside the app: the stand-in's journal (hosted) or the SQLite file (local)."""
+    if edition == "hosted":
+        p = os.path.join(wa, "usage_rows.jsonl")
+        return [json.loads(ln) for ln in open(p, encoding="utf-8")] if os.path.exists(p) else []
+    import sqlite3
+    c = sqlite3.connect(os.path.join(wa, "bambooai.sqlite")); c.row_factory = sqlite3.Row
+    return [dict(r) for r in c.execute("select * from usage where bamboo_user_id = ?", (user,))]
+
+
 def main():
     edition = "local" if "--edition" in sys.argv and sys.argv[sys.argv.index("--edition") + 1] == "local" else "hosted"
     compute = sys.argv[sys.argv.index("--compute") + 1] if "--compute" in sys.argv else "orchestrator"
@@ -847,6 +857,91 @@ def main():
             pack = os.path.join(wa, "memory", USER, "memory_pack.yaml")
             check("Save at 7 ran the write pass: the memory pack holds the distilled candidate card",
                   os.path.exists(pack) and "within_soil_plot_level_contrast" in open(pack).read(), pack)
+
+            # ---- the Usage dialog (docs/USAGE_DESIGN.md, step 3): what it shows against the rows the logger wrote ----
+            rows = usage_rows(wa, edition, USER)
+            by_chain = {}
+            for r in rows:
+                by_chain.setdefault(str(r["chain_id"]), []).append(r)
+            exp = {"calls": len(rows), "chains": len(by_chain), "cost": sum(float(r["cost"] or 0) for r in rows), "tokens_in": sum(int(r["prompt_tokens"] or 0) for r in rows),
+                   "tokens_out": sum(int(r["completion_tokens"] or 0) for r in rows), "time": sum(float(r["elapsed_time"] or 0) for r in rows)}
+            seat_cost = {}
+            for r in rows:
+                seat_cost[r["agent"]] = seat_cost.get(r["agent"], 0.0) + float(r["cost"] or 0)
+            run_ids = [r["id"] for r in runs]
+            check("usage rows: the logger wrote one per model call - every run's chain among them and the Promoter's billing chain, the cache fields recorded (zeros when nothing was cached, never NULL)",
+                  all(rid in by_chain for rid in run_ids) and any(r["agent"] == "Promoter" for r in rows) and exp["calls"] > 20
+                  and all(r.get("cached_tokens") is not None and r.get("cache_savings") is not None for r in rows), (exp, sorted(by_chain)[:3], [r["agent"] for r in rows][:5]))
+            page.hover(".settings-button"); page.wait_for_timeout(300)
+            page.click(".usage-option")
+            page.wait_for_selector("#usageModal .us-tile", timeout=20000)
+            data = page.evaluate("() => UsageUI.state.data")
+            tot = data["totals"]
+            check("Usage opens from the gear menu; its answer agrees with the rows: calls, chains, cost, tokens in and out, model time; every call recorded the cache; the hosted edition's tier in the header",
+                  tot["calls"] == exp["calls"] and tot["chains"] == exp["chains"] and abs(tot["cost"] - exp["cost"]) < 1e-6 and tot["tokens_in"] == exp["tokens_in"] and tot["tokens_out"] == exp["tokens_out"]
+                  and abs(tot["time"] - exp["time"]) < 1e-3 and tot["recorded_calls"] == exp["calls"] and data["period"]["edition"] == ("hosted" if edition == "hosted" else "self-hosted")
+                  and (data["period"]["tier"] == "free" if edition == "hosted" else data["period"]["tier"] == "local"), (tot, exp, data["period"]))
+            ui = page.evaluate("""() => { const m = document.getElementById('usageModal');
+                return { sub: m.querySelector('[data-sub]').textContent, tiles: [...m.querySelectorAll('.us-tile')].map(t => [t.querySelector('.l').textContent, t.querySelector('.v').textContent.trim()]),
+                         cols: m.querySelectorAll('.us-chart rect.col').length,
+                         filled: new Set([...m.querySelectorAll('.us-chart rect'), ...m.querySelectorAll('.us-chart path')].filter(e => (e.getAttribute('class') || '').startsWith('us-s')).map(e => e.getAttribute('x') || e.getAttribute('d').slice(1).split(',')[0])).size,
+                         legend: [...m.querySelectorAll('.us-legend .r[data-series]')].map(r => [r.querySelector('.n').textContent, r.querySelector('.v').textContent]),
+                         total: m.querySelector('.us-legend .r.sum .v').textContent, standout: [...m.querySelectorAll('.us-kv b')].map(b => b.textContent) }; }""")
+            # the page rounds dollars from the shortest decimal (0.015 -> $0.02), Python from the binary value ($0.01): compare to half a cent
+            close = lambda text, value: abs(float(str(text).lstrip("$").replace(",", "")) - value) < 0.0051
+            top_seats = sorted(seat_cost, key=lambda k: -seat_cost[k])
+            exp_legend = top_seats if len(top_seats) <= 7 else top_seats[:6] + ["Other"]
+            check("the Overview: the tiles say the rows' figures (model cost, analyses, model calls; Compute on the hosted edition only, free: nothing charged); the chart has a column per day of the window and today's is the one filled; the legend ranks the seats by cost with the rows' totals; three lines stand out",
+                  ui["tiles"][0][0] == "Model cost" and close(ui["tiles"][0][1], exp["cost"]) and ui["tiles"][1] == ["Analyses", str(exp["chains"])] and ui["tiles"][2] == ["Model calls", format(exp["calls"], ",")]
+                  and (ui["tiles"][6][0] == "Compute" and ui["tiles"][6][1] == "$0.00" if edition == "hosted" else len(ui["tiles"]) == 6)
+                  and ui["cols"] == data["period"]["buckets"] == 30 and ui["filled"] == 1 and [n for n, v in ui["legend"]] == exp_legend and close(ui["legend"][0][1], seat_cost[top_seats[0]])
+                  and close(ui["total"], exp["cost"]) and ui["sub"].endswith("hosted, Free compute" if edition == "hosted" else "the self-hosted edition") and ui["standout"] == [data["days"][-1]["label"], "Cache", "Failures"], ui)
+            page.click("#usageModal .us-tabs [data-tab=analyses]")
+            page.wait_for_selector("#usageModal .us-list .it", timeout=10000)
+            led = page.evaluate("""() => [...document.querySelectorAll('#usageModal .us-list .it')].map(it => ({ chain: it.getAttribute('data-chain'), q: it.querySelector('.q').textContent, cost: it.querySelector('.c').textContent,
+                                           outcome: (it.querySelector('.rt-status') || {}).textContent || '', meta: it.querySelector('.m').textContent }))""")
+            led_by = {e["chain"]: e for e in led}
+            saved_chains = {os.path.basename(f)[:-5] for f in favs}
+            check("the Analyses ledger: every chain of the rows once, newest first; each run under its own question with its outcome (reproduced where it had cells, answered where not) and its cost from its rows; the Promoter's chain named Save as routine",
+                  len(led) == exp["chains"] and set(led_by) == set(by_chain) and all(led_by[r["id"]]["q"] == r["question"] for r in runs)
+                  and all(led_by[r["id"]]["outcome"] == ("reproduced" if any(t_["kind"] == "cell" for t_ in r["turns"]) else "answered") for r in runs)
+                  and all(close(led_by[r["id"]]["cost"], sum(float(x["cost"] or 0) for x in by_chain[r["id"]])) for r in runs)
+                  and any(e["q"] == "Save as routine: the proposal" for e in led) and [e["chain"] for e in led] == sorted(led_by, key=lambda c: min(str(x["timestamp"]) for x in by_chain[c]), reverse=True),
+                  (len(led), exp["chains"], [(e["chain"], e["q"][:40], e["outcome"], e["cost"]) for e in led][:4], [(r["id"], r["question"][:40]) for r in runs][:4]))
+            first = runs[0]["id"]
+            page.click(f"#usageModal .us-list .it[data-chain='{first}']")
+            page.wait_for_selector("#usageModal .us-detail-h", timeout=10000)
+            det = page.evaluate("() => UsageUI.state.detail")
+            pane = page.evaluate("""() => { const d = document.querySelector('#usageModal .us-detail'); return { q: d.querySelector('.us-detail-h .q').textContent, open: !!d.querySelector('.open'), notsaved: !!d.querySelector('.us-detail-h .muted'),
+                                   marks: d.querySelectorAll('.us-tl rect.call').length, ranks: [...d.querySelectorAll('.us-rank .r .n')].map(x => x.textContent.split(' ·')[0]), models: d.querySelectorAll('.us-kv.models b').length }; }""")
+            chain_rows = by_chain[first]
+            chain_seats = sorted({r["agent"] for r in chain_rows}, key=lambda a: -sum(float(r["cost"] or 0) for r in chain_rows if r["agent"] == a))
+            check("the first run's detail: its calls one for one with its rows, in time; the seats ranked by cost as the rows have them; a mark per call on the timeline; its models; 'open the analysis' since it is saved as a favourite",
+                  det["analysis"]["chain"] == first and len(det["calls"]) == len(chain_rows) and abs(det["totals"]["cost"] - sum(float(r["cost"] or 0) for r in chain_rows)) < 1e-6
+                  and [s["seat"] for s in det["seats"]] == chain_seats and pane["marks"] == len(chain_rows) and pane["ranks"] == chain_seats and pane["q"] == runs[0]["question"]
+                  and det["analysis"]["mode"] == "Deep" and det["analysis"]["cells"] == sum(1 for t_ in runs[0]["turns"] if t_["kind"] == "cell" and t_.get("cell_no")) and det["analysis"]["saved"] is True and pane["open"] and not pane["notsaved"]
+                  and (first in saved_chains), (pane, [s["seat"] for s in det["seats"]], chain_seats, len(det["calls"]), len(chain_rows)))
+            unsaved = next((r["id"] for r in runs if r["id"] not in saved_chains), None)
+            if unsaved:
+                page.click(f"#usageModal .us-list .it[data-chain='{unsaved}']")
+                page.wait_for_function("(c) => UsageUI.state.detail && UsageUI.state.detail.analysis.chain === c", arg=unsaved, timeout=10000)
+                pane2 = page.evaluate("() => { const d = document.querySelector('#usageModal .us-detail'); return { open: !!d.querySelector('.open'), notsaved: (d.querySelector('.us-detail-h .muted') || {}).textContent || '' }; }")
+                check("a run not saved as a favourite: no 'open the analysis' (the page opens a chain from its saved file), 'not saved' in its place", not pane2["open"] and pane2["notsaved"] == "· not saved", pane2)
+            page.click("#usageModal .us-tabs [data-tab=calls]")
+            page.wait_for_selector("#usageModal [data-table=calls] tbody tr", timeout=10000)
+            calls_ui = page.evaluate("() => ({ n: document.querySelectorAll('#usageModal [data-table=calls] tbody tr').length, first: document.querySelector('#usageModal [data-table=calls] tbody tr td.link a').textContent, pager: document.querySelector('#usageModal .us-pager span').textContent, header_sticky: getComputedStyle(document.querySelector('#usageModal .us-scroll thead th')).position })")
+            newest = max(rows, key=lambda r: (str(r["timestamp"]), int(r["id"])))
+            csv = page.evaluate("async () => { const r = await window.authService.fetch('/usage/export.csv?period=30d&tz=' + (-new Date().getTimezoneOffset())); const t = await r.text(); return [r.status, r.headers.get('Content-Disposition'), t.split('\\n').filter(Boolean).length]; }")
+            check("the Calls tab: the rows a hundred a page, newest first, under a frozen header; Export CSV answers an attachment with one line per row",
+                  calls_ui["n"] == min(100, exp["calls"]) and calls_ui["first"] == str(newest["chain_id"]) and calls_ui["pager"].startswith("rows 1 – ") and calls_ui["header_sticky"] == "sticky"
+                  and csv[0] == 200 and "attachment; filename=\"usage_30d_" in (csv[1] or "") and csv[2] == exp["calls"] + 1, (calls_ui, csv))
+            page.click("#usageModal .us-tabs [data-tab=analyses]")
+            page.click(f"#usageModal .us-list .it[data-chain='{first}']")
+            page.wait_for_selector("#usageModal .us-detail-h .open", timeout=10000)
+            page.click("#usageModal .us-detail-h .open")
+            page.wait_for_function("() => document.getElementById('usageModal').style.display === 'none' && String(currentData.thread_id) === %r" % str(nb["thread_id"]), timeout=15000)
+            page.wait_for_timeout(500)
+            check("'open the analysis' closes the dialog and loads the saved thread at that chain", "chain 1 of" in page.inner_text("#chainPosition"), page.inner_text("#chainPosition"))
 
             # the thread's documents go with the thread (D35): the last thing, since deleting it tombstones the memory card
             tid = str(page.evaluate("() => currentData.thread_id"))

@@ -23,7 +23,7 @@
   to the public remote last. Order: dev box first for anything the hosted edition runs; the Mac first
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
-- **Published.** Unreleased since 2.7.0: patches 0255 (the usage records; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**) and 0256 (the Usage dialog rebuilt: the route and the page; no migration); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
+- **Published.** Unreleased since 2.7.0: patches 0255 (the usage records; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), 0256 (the Usage dialog rebuilt: the route and the page) and 0257 (the usage ledger, the walk, the notes); no migration beyond 0255's; image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
   athlete with the roster; routines by athlete with the Comparison tab saying whose and when - patches 0237-0252, the release 0253;
@@ -99,8 +99,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/199/31/27/18/49/44/72/33/157/60/93/27/29/37/15/88/1/1 Python; 58/7/45/72/24/86/14/25/4/14/67/40 JS; 1,681 on 2026-10-31; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (126 hosted on 2026-10-28; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (244/200/31/27/18/49/44/72/33/157/60/93/27/30/37/15/88/1/1 Python; 58/7/45/72/24/86/14/25/4/14/67/41 JS; 1,684 on 2026-10-31; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (135; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -481,6 +481,27 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Usage dialog rebuilt, step 3: the walk, the usage ledger, the notes (2026-10-31, patch 0257; app and page, image
+  v74 stands; no migration).** Palo's first look at 0256 on his Mac: the Calls header scrolled away; "Deep" showed 1 of
+  387; one "answered" against a few "reproduced"/"differed". His rows (shared for the check: 5,379 calls, 387 chains,
+  $70.22) proved the arithmetic right and the record missing: `storage/local/threads` held 10 files for 268 threads,
+  because `web_app/cleanup.py` deletes every unsaved thread file at each sign-in (the app's standing behaviour), so
+  319 analyses had no question, mode or outcome left. Now: the **usage ledger**, `storage/<user>/usage_ledger.jsonl`
+  - `NotebookStore.record(nb, run)` writes one line per run as it ends (`pd_agent_converse`'s closing block, the ideas
+  run): the chain, the thread, `run_facts(run)` (question, title, mode, status, replay, cells, figures, created, wall);
+  the route reads the thread file when it is there and the line when it is not; the cleanup never touches it. Old
+  unsaved analyses show as *An analysis that was not saved*, mode *not recorded*, the foot counting them; *what stands
+  out* counts failures among the analyses whose ending is on record and says how many have none. The Calls tab scrolls
+  on its own under a frozen header; every outcome chip, the filter's options and the detail pane carry the gloss
+  (reproduced / differed / replay failed are answered analyses graded by the replay; "answered" alone = no replay on
+  record). The stack walk opens Usage from the gear menu after its runs and checks it against the rows read from
+  outside the app - the stand-in's journal (`STACK_USAGE_JOURNAL`, hosted) or the SQLite file (local): the tiles, the
+  chart's columns and legend, the ledger entry by entry, the first run's detail call for call, the Calls page, the
+  CSV, *open the analysis* on a saved chain, "not saved" on another (dollars compared to half a cent: the page rounds
+  from the shortest decimal, Python from the binary value). HOW_USAGE_WORKS.md is the plain-words doc. Open with
+  Palo: whether to keep the thread files themselves (megabytes each) or the light ledger alone. Tests: test_usage.py
+  30, test_usage_page.js 41, test_app_path.py 200 (the ledger line), the stack walk 134 hosted; the local walk still
+  stops at the reach checks in this sandbox (root, no seccomp), the local dialog probed by hand instead.
 - **The Usage dialog rebuilt, step 2: the route and the dialog (2026-10-31, patch 0256; app and page, image v74
   stands; no migration).** `web_app/usage_routes.py` answers `/usage?period=24h|7d|30d|90d|month|last_month&compare=1&tz=…`
   from the usage rows of the period and the period before (the days in the person's own time - the page sends its

@@ -192,9 +192,17 @@
 .us-tl rect.call { cursor: default; }
 .us-tlkey { display: flex; gap: 12px; font-size: var(--fs-small); color: var(--text-quaternary); flex-wrap: wrap; } .us-tlkey .us-sw { width: 8px; height: 8px; margin-right: 5px; }
 .us-kv.models { grid-template-columns: 170px 1fr; }
-/* the calls */
+/* the calls: the tab scrolls on its own under a frozen header (the dialog's body does not scroll while it shows) */
+#usageModal .ui-dlg-b:has(.us-body.calls) { overflow: hidden; }
+.us-body.calls { flex: 1 1 auto; min-height: 0; }
+.us-sec.calls { flex: 1; min-height: 0; }
+.us-scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--r-2); }
+.us-scroll .us-table thead th { position: sticky; top: 0; z-index: 1; background: var(--bg-secondary); box-shadow: inset 0 -1px 0 var(--border-color); border-bottom: none; }
+.us-scroll .us-table th, .us-scroll .us-table td { padding-left: 10px; padding-right: 10px; }
 .us-pager { display: flex; align-items: center; gap: 8px; font-size: var(--fs-small); color: var(--text-quaternary); }
 .us-pager .sp { flex: 1; }
+.us-list .day { position: sticky; top: 0; background: var(--bg-secondary); z-index: 1; }     /* the ledger's day headers stay while its list scrolls */
+.us-detail-h .gloss { color: var(--text-quaternary); }
 @media (max-width: 1100px) { .us-chartrow { grid-template-columns: 1fr; } .us-split { grid-template-columns: 1fr; } .us-list { border-right: none; border-bottom: 1px solid var(--border-color); max-height: 320px; } }
 
 /* ---- routines (2026-10-10, routines.js; docs/ROUTINES_DESIGN.md): the Save-as-routine dialog (#routineMakeModal), the

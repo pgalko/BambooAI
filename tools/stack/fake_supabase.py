@@ -77,7 +77,22 @@ def _insert_usage(p):
             row[k] = u.get(k)
         row["chain_id"] = str(row["chain_id"])
         TABLES["usage"].append(row)
+        _journal(row)
     return {"success": True, "usage_id": row["id"], "chain_id": row["chain_id"], "thread_id": thread_id, "message": "Usage record inserted successfully"}
+
+
+def _journal(row):
+    """The usage rows as written, one JSON line each, in the file STACK_USAGE_JOURNAL names (the launcher sets it under the
+    stack's logs): the walk reads the dialog's figures against them from outside the app's process (2026-10-31)."""
+    path = os.environ.get("STACK_USAGE_JOURNAL")
+    if not path:
+        return
+    try:
+        import json
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, default=str) + "\n")
+    except OSError:
+        pass
 
 
 def _bump():

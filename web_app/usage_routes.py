@@ -209,6 +209,7 @@ def _thread_of(client, user, chain_ids):
 
 def _facts_of(store_dir, thread_id):
     """The runs of one thread as the ledger needs them, from the thread's file (read once per change)."""
+    from analyst.notebook import run_facts
     f = os.path.join(store_dir, "threads", re.sub(r"[^A-Za-z0-9_-]", "", str(thread_id)) + ".json")
     try:
         m = os.path.getmtime(f)
@@ -223,17 +224,25 @@ def _facts_of(store_dir, thread_id):
     except Exception:                                          # noqa: BLE001
         logger.warning("usage: thread file unreadable: %s", f)
         return {}
-    out = {}
-    for rid, r in (d.get("runs") or {}).items():
-        turns = r.get("turns") or []
-        cells = [t for t in turns if t.get("kind") == "cell" and t.get("cell_no") is not None]
-        failed_at = next((t.get("cell_no") for t in reversed(cells) if t.get("error")), None)
-        created = float(r.get("created") or 0)
-        last = max([float(t.get("created") or 0) + float(t.get("elapsed") or 0) for t in turns] + [created])
-        out[str(rid)] = {"question": r.get("question") or "", "title": r.get("title") or "", "mode": r.get("mode") or "", "status": r.get("status") or "",
-                         "replay": r.get("replay_status") or "", "cells": len(cells), "figures": sum(len(t.get("figures") or []) for t in cells),
-                         "created": created, "wall": round(max(0.0, last - created), 1), "failed_at": failed_at, "refused": any(t.get("refused") for t in turns)}
+    out = {str(rid): run_facts(r) for rid, r in (d.get("runs") or {}).items()}
     _FACTS[f] = (m, out)
+    return out
+
+
+def _ledger_lines(store_dir):
+    """The usage ledger the host writes at every run's end (analyst/notebook.py NotebookStore.record): the facts of a run
+    whose thread file was discarded - a thread not saved as a favourite goes at the next sign-in (web_app/cleanup.py)."""
+    from analyst.notebook import NotebookStore
+    path = os.path.join(store_dir, "usage_ledger.jsonl")
+    try:
+        m = os.path.getmtime(path)
+    except OSError:
+        return {}
+    hit = _FACTS.get(path)
+    if hit and hit[0] == m:
+        return hit[1]
+    out = NotebookStore(store_dir).ledger()
+    _FACTS[path] = (m, out)
     return out
 
 
@@ -252,11 +261,21 @@ def outcome(f):
     return "answered" if s == "answered" else s
 
 
+def mode_label(entry):
+    """The mode the chart and the filter group a chain under: the run's own; "not recorded" for an analysis without one
+    (from before 2026-10-20, or one whose thread was discarded before the ledger kept it); Other for a chain that is
+    not an analysis (the Promoter's, the Coder's…)."""
+    if entry.get("mode"):
+        return entry["mode"]
+    return "not recorded" if entry.get("kind") in ("analysis", "ideas") else "Other"
+
+
 def _ledger(calls, threads, store_dir):
-    """One entry per chain of the period: what it was (the thread store), what it cost (the rows)."""
+    """One entry per chain of the period: what it was (the thread file, else the usage ledger's line), what it cost (the rows)."""
     by_chain = {}
     for c in calls:
         by_chain.setdefault(c["chain"], []).append(c)
+    lines = _ledger_lines(store_dir)
     out = []
     for chain, rows in by_chain.items():
         t = _totals(rows)
@@ -268,17 +287,20 @@ def _ledger(calls, threads, store_dir):
                  "outcome": "", "wall": None, "saved": False, "calls": t["calls"], "tokens_in": t["tokens_in"], "cached": t["cached"], "recorded_in": t["recorded_in"], "tokens_out": t["tokens_out"],
                  "time": t["time"], "cost": t["cost"], "savings": t["savings"], "compute": t["compute"], "seats": {k: round(v, 6) for k, v in seats.most_common()}}
         f = _facts_of(store_dir, threads[chain]).get(chain) if threads.get(chain) else None
+        if f is None and chain in lines:                       # the thread file is gone: the line the host wrote when the run ended
+            f = lines[chain]
+            entry["thread"] = entry["thread"] or f.get("thread")
         if f:
             entry.update({"kind": "ideas" if f["mode"] == "Ideas" else "analysis", "question": f["question"], "title": f["title"], "mode": f["mode"], "cells": f["cells"],
                           "figures": f["figures"], "outcome": outcome(f), "wall": f["wall"],
-                          "saved": os.path.exists(os.path.join(store_dir, "favourites", str(threads[chain]), f"{chain}.json"))})      # the page opens a saved chain only
+                          "saved": bool(entry["thread"]) and os.path.exists(os.path.join(store_dir, "favourites", str(entry["thread"]), f"{chain}.json"))})   # the page opens a saved chain only
         else:
             top = seats.most_common(1)[0][0] if seats else ""
             kind, name = _OTHER.get(top, ("", ""))
             if kind:
                 entry.update({"kind": kind, "question": name})
             elif threads.get(chain):
-                entry.update({"kind": "analysis", "question": "An analysis whose thread is gone"})
+                entry.update({"kind": "analysis", "question": "An analysis that was not saved"})       # its thread was discarded before the ledger kept the facts (2026-10-31)
             else:
                 entry.update({"kind": "other", "question": f"{top} calls" if top else "Calls"})
         out.append(entry)
@@ -329,7 +351,9 @@ def stands_out(totals, days, ledger, seats, bucket, tz=0):
         line = f"${top['cost']:.2f}, {_share(share)} of the period, in {top['chains']} {'analysis' if top['chains'] == 1 else 'analyses'}"
         if seat:
             line += f" — the {seat}'s calls were ${seat_cost[0]:.2f} of it"
-        if dear:
+        if dear and dear[0]["kind"] in ("analysis", "ideas") and not dear[0]["mode"] and dear[0]["question"].startswith("An analysis that was not saved"):
+            line += f"; the dearest (${dear[0]['cost']:.2f}) was not saved, so its question is not on record"
+        elif dear:
             q = dear[0]["title"] or dear[0]["question"]
             line += f"; the dearest: “{q[:90]}{'…' if len(q) > 90 else ''}” (${dear[0]['cost']:.2f})"
         out.append({"head": top["label"], "text": line + "."})
@@ -344,20 +368,26 @@ def stands_out(totals, days, ledger, seats, bucket, tz=0):
             line += f"; the {hi['seat']}'s share is {round(100 * hi['cached_share'])}%, the {lo['seat']}'s {round(100 * lo['cached_share'])}%"
         out.append({"head": "Cache", "text": line + "."})
     else:
-        out.append({"head": "Cache", "text": "The cache is recorded per call since patch 0255: no call of this period carries it yet."})
-    runs = [e for e in ledger if e["kind"] in ("analysis", "ideas")]
+        out.append({"head": "Cache", "text": "The cache split is recorded per call since this dialog's release: no call of this period carries it yet."})
+    analyses = [e for e in ledger if e["kind"] in ("analysis", "ideas")]
+    runs = [e for e in analyses if e["outcome"]]                        # those whose ending is on record
+    unknown = len(analyses) - len(runs)
     bad = [e for e in runs if e["outcome"].startswith("failed") or e["outcome"] == "refused"]
     stopped = [e for e in runs if e["outcome"] == "stopped"]
-    if runs:
+    if analyses:
         if bad:
             line = f"{len(bad)} of {len(runs)} {'analysis' if len(runs) == 1 else 'analyses'} failed ({round(100 * len(bad) / len(runs))}%), ${sum(e['cost'] for e in bad):.2f} {'between them' if len(bad) > 1 else 'spent on it'}"
             refused = sum(1 for e in bad if e["outcome"] == "refused")
             if refused:
                 line += f"; {refused} {'was' if refused == 1 else 'were'} refused by the executor at a restricted operation"
-        else:
+        elif runs:
             line = "The one analysis did not fail" if len(runs) == 1 else f"None of the {len(runs)} analyses failed"
+        else:
+            line = "No analysis of this period has its ending on record"
         if stopped:
             line += f"; {len(stopped)} {'was' if len(stopped) == 1 else 'were'} stopped"
+        if unknown:
+            line += f"; {unknown} {'was' if unknown == 1 else 'were'} not saved, so how {'it' if unknown == 1 else 'they'} ended is not on record"
         out.append({"head": "Failures", "text": line + "."})
     return out[:3]
 
@@ -414,7 +444,7 @@ def usage():
         threads = _thread_of(client, user, [c["chain"] for c in now_calls])
         store_dir = _app().user_path('storage')
         ledger = _ledger(now_calls, threads, store_dir)
-        modes = {e["chain"]: (e["mode"] or ("Routine" if e["kind"] == "routine" else "Other")) for e in ledger}
+        modes = {e["chain"]: mode_label(e) for e in ledger}
         # the days: each with its totals and its split by seat, model and mode as [cost, tokens, calls, time]
         keys = _buckets(start, end, bucket)
         days = {k: {"key": k, "label": lb, "cost": 0.0, "tokens_in": 0, "tokens_out": 0, "calls": 0, "time": 0.0, "chains": set(), "seats": {}, "models": {}, "modes": {}} for k, lb in keys}

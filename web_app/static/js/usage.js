@@ -63,7 +63,24 @@
         if (o === 'differed' || o === 'stopped') return 'differed';
         return '';
     }
-    function chip(o) { return o ? '<span class="rt-status ' + statusClass(o) + '">' + esc(o) + '</span>' : ''; }
+    // what an outcome means (the plain-words doc says the same): a finished analysis is answered; its replay then re-runs the
+    // cells and checks the cited numbers - reproduced, differed, or replay failed; "answered" alone means no replay on record
+    function gloss(o) {
+        o = String(o || '');
+        if (o === 'reproduced') return 'answered; the replay re-ran the cells and the cited numbers matched';
+        if (o === 'differed') return 'answered; the replay re-ran the cells and some cited numbers differed';
+        if (o === 'replay failed') return 'answered; the replay could not re-run the cells';
+        if (o === 'answered') return 'answered; no replay on record';
+        if (o.startsWith('failed at cell')) return 'the run failed; the last error was in ' + o.slice(10);
+        if (o === 'failed') return 'the run failed';
+        if (o === 'refused') return 'the executor refused a cell at a restricted operation and the run ended';
+        if (o === 'stopped') return 'stopped before it answered';
+        if (o === 'asked') return 'the analyst asked a question and waited';
+        if (o === 'running') return 'still running when last saved';
+        return '';
+    }
+    function chip(o) { return o ? '<span class="rt-status ' + statusClass(o) + '" title="' + esc(gloss(o)) + '">' + esc(o) + '</span>' : ''; }
+    const OUTCOME_WORDS = { reproduced: 'reproduced — replay matched', answered: 'answered — no replay on record', differed: 'differed — replay disagreed', 'replay failed': 'replay failed', failed: 'failed', refused: 'refused', stopped: 'stopped', asked: 'asked', running: 'running' };
     function fetchJson(url, opts) {
         const f = (window.authService && window.authService.fetch) ? window.authService.fetch.bind(window.authService) : fetch;
         return f(url, opts).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j })).catch(() => ({ ok: r.ok, status: r.status, json: {} })));
@@ -267,7 +284,7 @@
         },
         // the ledger: every chain of the period with what it cost, grouped by day; pick one for its breakdown
         ledgerItem(e, mx, on) {
-            const meta = [timeLabel(e.when), e.mode || (e.kind === 'routine' ? 'Routine' : e.kind === 'other' ? '' : ''), e.cells != null ? e.cells + ' cell' + (e.cells === 1 ? '' : 's') : '', e.wall != null && e.wall > 0 ? dur(e.wall) : dur(e.time)].filter(Boolean).map(esc).join(' · ');
+            const meta = [timeLabel(e.when), e.mode || '', e.cells != null ? e.cells + ' cell' + (e.cells === 1 ? '' : 's') : '', e.wall != null && e.wall > 0 ? dur(e.wall) : dur(e.time)].filter(Boolean).map(esc).join(' · ');
             return '<div class="it' + (on ? ' on' : '') + '" data-chain="' + esc(e.chain) + '"><span class="q" title="' + esc(e.question) + '">' + esc(e.question || '(no question recorded)') + '</span><span class="c">' + money(e.cost) + '</span>'
                 + '<span class="m">' + meta + (e.outcome ? ' · ' + chip(e.outcome) : '') + '</span><span class="bar"><span style="width:' + Math.round(e.cost / mx * 100) + '%"></span></span></div>';
         },
@@ -289,7 +306,7 @@
         },
         filterLedger(entries, st) {
             const q = (st.find || '').trim().toLowerCase();
-            let out = entries.filter(e => (!q || (e.question + ' ' + e.title).toLowerCase().includes(q)) && (st.mode === 'all' || (e.mode || (e.kind === 'routine' ? 'Routine' : 'Other')) === st.mode)
+            let out = entries.filter(e => (!q || (e.question + ' ' + e.title).toLowerCase().includes(q)) && (st.mode === 'all' || modeLabel(e) === st.mode)
                 && (st.outcome === 'all' || outcomeGroup(e.outcome) === st.outcome));
             if (st.ledgerSort === 'cost') out = out.slice().sort((a, b) => b.cost - a.cost || (a.when < b.when ? 1 : -1));
             else if (st.ledgerSort === 'time') out = out.slice().sort((a, b) => ((b.wall || b.time) - (a.wall || a.time)) || (a.when < b.when ? 1 : -1));
@@ -297,7 +314,7 @@
         },
         analysesTab(data, st) {
             const all = data.analyses || [];
-            const modes = Array.from(new Set(all.map(e => e.mode || (e.kind === 'routine' ? 'Routine' : 'Other')))).sort();
+            const modes = Array.from(new Set(all.map(modeLabel))).sort();
             const groups = Array.from(new Set(all.map(e => outcomeGroup(e.outcome)))).filter(Boolean).sort();
             const shown = build.filterLedger(all, st);
             const opt = (v, label, on) => '<option value="' + esc(v) + '"' + (on ? ' selected' : '') + '>' + esc(label) + '</option>';
@@ -306,7 +323,7 @@
             return '<div class="us-sec"><div class="h">Analyses <span class="n">— every question with what it cost; pick one for its breakdown</span><span class="sp"></span><span class="us-note">' + esc(note) + '</span></div>'
                 + '<div class="us-filters"><input class="ui-input find" data-find placeholder="Find a question…" value="' + esc(st.find || '') + '">'
                 + '<select class="ui-input" data-mode>' + opt('all', 'Every mode', st.mode === 'all') + modes.map(m => opt(m, m, st.mode === m)).join('') + '</select>'
-                + '<select class="ui-input" data-outcome>' + opt('all', 'Every outcome', st.outcome === 'all') + groups.map(g => opt(g, g, st.outcome === g)).join('') + '</select>'
+                + '<select class="ui-input" data-outcome>' + opt('all', 'Every outcome', st.outcome === 'all') + groups.map(g => opt(g, OUTCOME_WORDS[g] || g, st.outcome === g)).join('') + '</select>'
                 + '<span class="ui-seg"><span class="' + (st.ledgerSort === 'date' ? 'on' : '') + '" data-lsort="date">By date</span><span class="' + (st.ledgerSort === 'cost' ? 'on' : '') + '" data-lsort="cost">By cost</span><span class="' + (st.ledgerSort === 'time' ? 'on' : '') + '" data-lsort="time">By time</span></span>'
                 + '<span class="us-note">' + (shown.length === all.length ? '' : esc(shown.length + ' of ' + all.length + ' shown')) + '</span></div>'
                 + '<div class="us-split"><div class="us-list" data-list>' + build.ledger(shown, st) + '</div><div class="us-detail" data-detail>' + (st.pick ? build.wait('Loading the analysis…') : '<div class="pick">Pick an analysis on the left for its breakdown: its seats, its calls in time, its models.</div>') + '</div></div></div>';
@@ -343,7 +360,7 @@
             const rank = (det.seats || []).map(s => '<div class="r"><i class="us-sw ' + (cls[s.seat] || 'us-s0') + '"></i><span class="n">' + esc(s.seat) + ' <small>· ' + s.calls + ' call' + (s.calls === 1 ? '' : 's') + '</small></span><span class="b"><span class="' + (cls[s.seat] || 'us-s0') + '" style="width:' + Math.round(s.cost / mx * 100) + '%"></span></span><span class="v">' + money(s.cost) + '</span></div>').join('');
             const models = (det.models || []).map(m => '<b>' + esc(m.model) + '</b><span>' + m.calls + ' call' + (m.calls === 1 ? '' : 's') + ' · ' + compact(m.tokens_in) + ' in' + (m.recorded_in ? ' (' + pct(m.cached_share) + ' cached)' : '') + ' · ' + compact(m.tokens_out) + ' out · ' + money(m.cost) + '</span>').join('');
             return '<div class="us-detail-h"><div class="q">' + esc(a.question || '(no question recorded)') + '</div>' + (a.title ? '<div class="t">' + esc(a.title) + '</div>' : '')
-                + '<div class="m">' + meta + (a.outcome ? ' · ' + chip(a.outcome) : '') + (canOpen ? ' <a class="open" data-act="open" data-thread="' + esc(a.thread) + '" data-chain="' + esc(a.chain) + '">open the analysis →</a>' : (run ? ' <span class="muted" title="save the analysis as a favourite to open it from here">· not saved</span>' : '')) + '</div></div>'
+                + '<div class="m">' + meta + (a.outcome ? ' · ' + chip(a.outcome) + ' <span class="gloss">' + esc(gloss(a.outcome)) + '</span>' : '') + (canOpen ? ' <a class="open" data-act="open" data-thread="' + esc(a.thread) + '" data-chain="' + esc(a.chain) + '">open the analysis →</a>' : (run ? ' <span class="muted" title="save the analysis as a favourite to open it from here">· not saved</span>' : '')) + '</div></div>'
                 + '<div class="us-kpis">' + kpis.map(([v, l]) => '<div><b>' + v + '</b><span>' + esc(l) + '</span></div>').join('') + '</div>'
                 + '<div class="us-sec"><div class="h">By seat <span class="n">— the cost of this analysis, who spent it</span></div><div class="us-rank">' + rank + '</div></div>'
                 + '<div class="us-sec"><div class="h">The calls in time <span class="n">— one row per seat, left to right; hover a call for its model, tokens and cost</span></div><div class="us-tlbox" data-tl>' + build.timeline(det) + '</div>'
@@ -358,19 +375,24 @@
                 + '<td class="num muted">' + esc(dur(c.elapsed)) + '</td><td class="num muted">' + (c.tps ? Math.round(c.tps) : '—') + '</td><td class="num">' + money(c.cost) + '</td><td class="num muted">' + (c.savings == null ? '—' : money(c.savings)) + '</td>'
                 + '<td class="num muted">' + ((c.search_fee || c.image_fee) ? money((c.search_fee || 0) + (c.image_fee || 0)) : '—') + '</td></tr>').join('');
             const from = (st.callsPage - 1) * st.callsSize + 1, to = from + rows.length - 1;
-            return '<div class="us-sec"><div class="h">Calls <span class="n">— one row per model call, newest first, as recorded; a dash where the cache was not recorded</span><span class="sp"></span>'
+            return '<div class="us-sec calls"><div class="h">Calls <span class="n">— one row per model call, newest first, as recorded; a dash where the cache was not recorded</span><span class="sp"></span>'
                 + '<span class="us-pager"><span>' + (rows.length ? 'rows ' + num(from) + ' – ' + num(to) : 'no rows') + '</span><button class="ui-btn sm" data-act="newer"' + (st.callsPage > 1 ? '' : ' disabled') + '>Newer</button><button class="ui-btn sm" data-act="older"' + (st.callsMore ? '' : ' disabled') + '>Older</button></span></div>'
-                + '<table class="ui-table us-table" data-table="calls"><thead><tr><th>When</th><th>Chain</th><th>Seat</th><th>Model</th><th class="num">Tokens in</th><th class="num">cached</th><th class="num">written</th><th class="num">Tokens out</th><th class="num">Time</th><th class="num">tok/s</th><th class="num">Cost</th><th class="num">Savings</th><th class="num">Fees</th></tr></thead>'
-                + '<tbody>' + (body || '<tr><td colspan="13" class="muted">No calls in this period.</td></tr>') + '</tbody></table></div>';
+                + '<div class="us-scroll"><table class="ui-table us-table" data-table="calls"><thead><tr><th>When</th><th>Chain</th><th>Seat</th><th>Model</th><th class="num">Tokens in</th><th class="num">cached</th><th class="num">written</th><th class="num">Tokens out</th><th class="num">Time</th><th class="num">tok/s</th><th class="num">Cost</th><th class="num">Savings</th><th class="num">Fees</th></tr></thead>'
+                + '<tbody>' + (body || '<tr><td colspan="13" class="muted">No calls in this period.</td></tr>') + '</tbody></table></div></div>';
         },
         foot(data) {
             const t = data && data.totals;
             let line = FOOT;
             if (t && t.calls && t.recorded_calls < t.calls) line += ' The cache split is recorded on calls made since this dialog’s release (' + num(t.recorded_calls) + ' of ' + num(t.calls) + ' calls in this period); earlier calls show no cache figures.';
             if (data && data.period && data.period.truncated) line += ' This period has more rows than one answer aggregates: the figures stop at the first ' + num(data.period.rows) + ' calls.';
+            const unsaved = ((data && data.analyses) || []).filter(e => e.kind === 'analysis' && !e.mode && e.question === 'An analysis that was not saved').length;
+            if (unsaved) line += ' ' + num(unsaved) + (unsaved === 1 ? ' analysis of this period was' : ' analyses of this period were') + ' not saved as favourites before this release, so their questions, modes and endings are not on record; from now on every analysis keeps them, saved or not.';
             return esc(line);
         }
     };
+    // the mode a chain is grouped under, as the route groups the chart (usage_routes.mode_label): the run's own; "not recorded"
+    // for an analysis without one; Other for a chain that is not an analysis
+    function modeLabel(e) { return e.mode || ((e.kind === 'analysis' || e.kind === 'ideas') ? 'not recorded' : 'Other'); }
     function outcomeGroup(o) {
         o = String(o || '');
         if (!o) return '';
@@ -436,6 +458,7 @@
     function render() {
         const m = ensure(), body = m.querySelector('[data-body]');
         m.querySelectorAll('.us-tabs [data-tab]').forEach(t => t.classList.toggle('on', t.getAttribute('data-tab') === st.tab));
+        body.classList.toggle('calls', st.tab === 'calls' && !!st.data && !st.error);           // the Calls tab scrolls on its own, its header frozen
         if (st.error) { body.innerHTML = build.error(st.error); return; }
         if (!st.data) { body.innerHTML = build.wait(); return; }
         const d = st.data;

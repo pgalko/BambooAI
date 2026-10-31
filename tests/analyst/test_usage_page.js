@@ -11,6 +11,7 @@ const doc = makeDocument(); global.document = doc; global.window = { innerWidth:
 require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'usage.js'));
 const w = window; const b = w.__usageBuild; const results = []; const check = (n, c, d) => results.push([n, !!c, d]);
 const el = html => { const d = doc.createElement('div'); d.innerHTML = html; return d; };
+const chip_ = o => b.ledgerItem({ chain: 'x', when: '2026-10-18T04:00:00', question: 'q', cost: 1, outcome: o, time: 1 }, 1, false);      // the chip as the ledger draws it
 const txt = (root, sel) => (root.querySelector(sel) || { textContent: '' }).textContent;
 
 // ---- one answer of /usage, as the route shapes it (tests/analyst/test_usage.py has the route; this is its shape) ----
@@ -117,18 +118,19 @@ check('seats tab: both sections with their notes', (() => { const x = el(b.seats
 // ---- the analyses: the ledger with a detail pane ----
 let at = el(b.analysesTab(DATA, ST));
 check('analyses tab: the note counts the analyses and the other chains with the cost and the model time; the find box, the mode and outcome selects from what the period holds, the three sorts; the split with the list and the empty detail',
-  txt(at, '.h .us-note') === '3 analyses and 1 other chain · $5.50 · 9 m 10 s of model time' && at.querySelector('[data-find]') && [...at.querySelectorAll('[data-mode] option')].map(o => o.getAttribute('value')).join(',') === 'all,Deep,Ideas,Quick,Routine'
+  txt(at, '.h .us-note') === '3 analyses and 1 other chain · $5.50 · 9 m 10 s of model time' && at.querySelector('[data-find]') && [...at.querySelectorAll('[data-mode] option')].map(o => o.getAttribute('value')).join(',') === 'all,Deep,Ideas,Other,Quick'
   && [...at.querySelectorAll('[data-outcome] option')].map(o => o.getAttribute('value')).join(',') === 'all,answered,failed,reproduced' && at.querySelectorAll('[data-lsort]').length === 3 && at.querySelector('[data-lsort="date"]').className === 'on'
   && at.querySelectorAll('.us-list .it').length === 4 && txt(at, '[data-detail] .pick').startsWith('Pick an analysis'), at.innerHTML.slice(0, 600));
 check('ledger by date: grouped by local day with the day\'s count and cost; each item with the question, the cost, the time, mode, cells, the wall time and the outcome chip; the bar against the dearest',
   at.querySelectorAll('.us-list .day').length === 2 && txt(at, '.us-list .day') === '18 Oct · 3 analyses · $4.00' && [...at.querySelectorAll('.us-list .it')].map(x => x.getAttribute('data-chain')).join(',') === 'c5,c2,c1,c0'
   && txt(at, '.it[data-chain="c1"] .q') === 'Does the second regime raise the yield?' && txt(at, '.it[data-chain="c1"] .c') === '$3.00' && txt(at, '.it[data-chain="c1"] .m').startsWith('04:00 · Deep · 14 cells · 4 m 12 s · ') && txt(at, '.it[data-chain="c1"] .rt-status') === 'reproduced'
   && at.querySelector('.it[data-chain="c2"] .rt-status').className === 'rt-status failed' && at.querySelector('.it[data-chain="c1"] .bar span').getAttribute('style') === 'width:100%' && at.querySelector('.it[data-chain="c2"] .bar span').getAttribute('style') === 'width:30%'
-  && txt(at, '.it[data-chain="c5"] .m') === '17:05 · Routine · 3 s' && !at.querySelector('.it[data-chain="c5"] .rt-status', at.innerHTML.slice(0, 400)));
+  && txt(at, '.it[data-chain="c5"] .m') === '17:05 · 3 s' && !at.querySelector('.it[data-chain="c5"] .rt-status', at.innerHTML.slice(0, 400)));
 let shown = b.filterLedger(AN, Object.assign({}, ST, { find: 'regime' }));
 check('filterLedger: a word of the question or the title; a mode; an outcome group (every failure under failed); by cost and by time', shown.map(e => e.chain).join(',') === 'c2,c1'
   && b.filterLedger(AN, Object.assign({}, ST, { find: 'yield by 12' })).map(e => e.chain).join(',') === 'c1' && b.filterLedger(AN, Object.assign({}, ST, { mode: 'Quick' })).map(e => e.chain).join(',') === 'c2'
-  && b.filterLedger(AN, Object.assign({}, ST, { mode: 'Routine' })).map(e => e.chain).join(',') === 'c5' && b.filterLedger(AN, Object.assign({}, ST, { outcome: 'failed' })).map(e => e.chain).join(',') === 'c2'
+  && b.filterLedger(AN, Object.assign({}, ST, { mode: 'Other' })).map(e => e.chain).join(',') === 'c5' && b.filterLedger(AN, Object.assign({}, ST, { outcome: 'failed' })).map(e => e.chain).join(',') === 'c2'
+  && b.filterLedger(AN.concat([{ chain: 'c9', when: '2026-10-17T04:00:00', kind: 'analysis', question: 'An analysis that was not saved', title: '', mode: '', outcome: '', cost: 0.1, time: 1 }]), Object.assign({}, ST, { mode: 'not recorded' })).map(e => e.chain).join(',') === 'c9'
   && b.filterLedger(AN, Object.assign({}, ST, { ledgerSort: 'cost' })).map(e => e.chain).join(',') === 'c1,c0,c2,c5' && b.filterLedger(AN, Object.assign({}, ST, { ledgerSort: 'time' })).map(e => e.chain).join(',') === 'c1,c2,c0,c5');
 check('ledger by cost: flat, no day groups; the picked one marked', (() => { const l = el(b.ledger(b.filterLedger(AN, Object.assign({}, ST, { ledgerSort: 'cost' })), Object.assign({}, ST, { ledgerSort: 'cost', pick: 'c0' }))); return !l.querySelector('.day') && l.querySelector('.it.on').getAttribute('data-chain') === 'c0'; })()
   && el(b.ledger([], ST)).textContent === 'No analyses match.');
@@ -153,6 +155,10 @@ check('timeline: one row per seat in rank order, a mark per call at its second a
   && [...tl.querySelectorAll('text.tick')].map(x => x.textContent).join(',') === '0:00,3:02', marks.map(m => m.outerHTML));
 check('callTip: the seat and model, when and how long, the tokens with the cache, the cost and the fees inside it', (() => { const x = el(b.callTip(DET.calls[3])); return txt(x, '.h') === 'Reader · m-small' && x.textContent.includes('at 3:00 for 2 s') && x.textContent.includes('2.0K in · 0 cached') && x.textContent.includes('fees inside it$0.01'); })()
   && el(b.callTip(Object.assign({}, DET.calls[0], { cached: null }))).textContent.includes('cache not recorded'));
+check('the outcome words (2026-10-31, from the product owner reading "answered" as the general success): every chip carries its gloss, the detail pane spells it out, the filter\'s options say what each word means',
+  el(chip_('reproduced')).querySelector('.rt-status').getAttribute('title') === 'answered; the replay re-ran the cells and the cited numbers matched' && el(chip_('answered')).querySelector('.rt-status').getAttribute('title') === 'answered; no replay on record'
+  && el(chip_('failed at cell 4')).querySelector('.rt-status').getAttribute('title') === 'the run failed; the last error was in cell 4' && txt(d, '.us-detail-h .gloss') === 'answered; the replay re-ran the cells and the cited numbers matched'
+  && [...el(b.analysesTab(DATA, ST)).querySelectorAll('[data-outcome] option')].map(o => o.textContent).join('|') === 'Every outcome|answered — no replay on record|failed|reproduced — replay matched');
 d = el(b.detail(Object.assign({}, DET, { analysis: AN[0] })));
 check('detail of a chain the thread store does not know (Save as routine): no title, no "open the analysis"', !d.querySelector('.open') && txt(d, '.us-detail-h .q') === 'Save as routine: the proposal' && !d.querySelector('.us-detail-h .muted'));
 d = el(b.detail(Object.assign({}, DET, { analysis: Object.assign({}, AN[2], { saved: false }) })));
@@ -162,8 +168,8 @@ check('detail of an analysis not saved as a favourite: no link (the page opens a
 const ROWS = [{ id: 9, t: '2026-10-18T04:03:00', chain: 'c1', seat: 'Reader', model: 'm-small', tokens_in: 2000, cached: null, written: null, tokens_out: 100, elapsed: 2, tps: 50, cost: 0.3, savings: null, search_fee: 0.01, image_fee: 0, tier: 'pro', query_cost: 0.03 },
               { id: 8, t: '2026-10-18T04:00:00', chain: 'c1', seat: 'Analyst', model: 'm-big', tokens_in: 10000, cached: 6000, written: 1000, tokens_out: 500, elapsed: 10, tps: 50, cost: 1.0, savings: 0.012, search_fee: 0, image_fee: 0, tier: 'pro', query_cost: 0.03 }];
 let ct = el(b.callsTab(Object.assign({}, ST, { calls: ROWS, callsPage: 2, callsSize: 100, callsMore: true })));
-check('calls: a row per call with the chain as a link into the ledger, dashes where the cache was not recorded, the fees; the pager says the rows and offers newer and older',
-  ct.querySelectorAll('tbody tr').length === 2 && ct.querySelector('tbody tr td.link a').getAttribute('data-chain') === 'c1' && [...ct.querySelectorAll('tbody tr')[0].querySelectorAll('td')].map(x => x.textContent).join('|') === '18 Oct 04:03|c1|Reader|m-small|2,000|—|—|100|2 s|50|$0.30|—|$0.01'
+check('calls: the table in its own scroll box under the section (the header frozen by the stylesheet); a row per call with the chain as a link into the ledger, dashes where the cache was not recorded, the fees; the pager says the rows and offers newer and older',
+  ct.querySelector('.us-sec.calls .us-scroll [data-table="calls"]') && ct.querySelectorAll('tbody tr').length === 2 && ct.querySelector('tbody tr td.link a').getAttribute('data-chain') === 'c1' && [...ct.querySelectorAll('tbody tr')[0].querySelectorAll('td')].map(x => x.textContent).join('|') === '18 Oct 04:03|c1|Reader|m-small|2,000|—|—|100|2 s|50|$0.30|—|$0.01'
   && [...ct.querySelectorAll('tbody tr')[1].querySelectorAll('td')].map(x => x.textContent).join('|') === '18 Oct 04:00|c1|Analyst|m-big|10,000|6,000|1,000|500|10 s|50|$1.00|$0.01|—' && txt(ct, '.us-pager span') === 'rows 101 – 102'
   && !ct.querySelector('[data-act="newer"]').hasAttribute('disabled') && !ct.querySelector('[data-act="older"]').hasAttribute('disabled'), ct.innerHTML.slice(0, 600));
 ct = el(b.callsTab(Object.assign({}, ST, { calls: [], callsPage: 1, callsMore: false })));
@@ -171,7 +177,9 @@ check('calls, none: says so; both pager buttons off', txt(ct, 'tbody td') === 'N
 
 // ---- the foot ----
 check('foot: the standing line; a note when some calls of the period predate the cache fields; a note when the answer stopped at its row limit', b.foot(DATA).includes('The cache split is recorded on calls made since this dialog’s release (40 of 45 calls in this period)')
-  && !b.foot(Object.assign({}, DATA, { totals: Object.assign({}, TOTALS, { recorded_calls: 45 }) })).includes('recorded on calls') && b.foot(Object.assign({}, DATA, { period: Object.assign({}, DATA.period, { truncated: true }) })).includes('the figures stop at the first 45 calls'));
+  && !b.foot(Object.assign({}, DATA, { totals: Object.assign({}, TOTALS, { recorded_calls: 45 }) })).includes('recorded on calls') && b.foot(Object.assign({}, DATA, { period: Object.assign({}, DATA.period, { truncated: true }) })).includes('the figures stop at the first 45 calls')
+  && b.foot(Object.assign({}, DATA, { analyses: AN.concat([{ chain: 'c9', kind: 'analysis', question: 'An analysis that was not saved', mode: '' }, { chain: 'c8', kind: 'analysis', question: 'An analysis that was not saved', mode: '' }]) })).includes('2 analyses of this period were not saved as favourites before this release')
+  && !b.foot(DATA).includes('not saved as favourites'));
 check('wait and error states', el(b.wait()).querySelector('.us-wait .spin') && el(b.error('no')).querySelector('.us-error [data-act="retry"]') && txt(el(b.error('the server answered 500')), '.us-error div') === 'the server answered 500');
 
 // ---- the page's hooks ----
@@ -183,7 +191,8 @@ check('the page: usage.js linked, the settings entry is .usage-option, the old m
   html.includes("filename='js/usage.js'") && html.includes('settings-option usage-option') && !html.includes('usageTrackingModal') && !html.includes('usage-tracking.js') && !fs.existsSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'usage-tracking.js'))
   && core.includes('window.UsageUI.initialize()') && !core.includes('initializeUsageTracking') && html.includes('plotly'));
 check('the stylesheets: the series tokens in both themes, the dialog\'s rules (the slots over the tokens, the tiles, the chart, the legend, the ledger, the detail, the timeline, the pager), the old #usageTrackingModal rules gone',
-  /--viz-1: #3987e5;[\s\S]*--viz-other: #6b6b6b;/.test(tokens) && /--viz-1: #2a78d6;[\s\S]*--viz-other: #9a9a9a;/.test(tokens) && ['.us-s1 { fill: var(--viz-1); background: var(--viz-1); }', '.us-s0 { fill: var(--viz-other)', '.us-tile', '.us-chart .grid', '.us-legend .r', '.us-list .it', '.us-detail-h', '.us-tl ', '.us-pager', '#usageModal .ui-dlg.us-dlg { width: min(1240px, 100%)'].every(x => css.includes(x))
+  /--viz-1: #3987e5;[\s\S]*--viz-other: #6b6b6b;/.test(tokens) && /--viz-1: #2a78d6;[\s\S]*--viz-other: #9a9a9a;/.test(tokens) && ['.us-s1 { fill: var(--viz-1); background: var(--viz-1); }', '.us-s0 { fill: var(--viz-other)', '.us-tile', '.us-chart .grid', '.us-legend .r', '.us-list .it', '.us-detail-h', '.us-tl ', '.us-pager', '#usageModal .ui-dlg.us-dlg { width: min(1240px, 100%)',
+      '.us-scroll .us-table thead th { position: sticky; top: 0;', '#usageModal .ui-dlg-b:has(.us-body.calls) { overflow: hidden; }', '.us-list .day { position: sticky; top: 0;'].every(x => css.includes(x))
   && !css.includes('#usageTrackingModal'));
 
 const n_fail = results.filter(r => !r[1]).length;

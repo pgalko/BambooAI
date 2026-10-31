@@ -127,7 +127,8 @@ The working folder:
 ├── LLM_CONFIG_template.json      the seats per preset: model, provider, reasoning effort, max_tokens, prices
 ├── bambooai.sqlite               chains, labels, usage, the saved preset, integration credentials (encrypted)
 ├── config/<user>/LLM_CONFIG.json the configuration built from the template for the chosen preset
-├── storage/<user>/threads/       one JSON per thread: runs, cells, reports, reproduction results
+├── storage/<user>/threads/       one JSON per thread: runs, cells, reports, reproduction results (a thread not saved is discarded at the next start)
+├── storage/<user>/usage_ledger.jsonl  one line per analysis as it ended - question, mode, outcome - for the Usage dialog; kept
 ├── storage/<user>/favourites/    saved chains
 ├── storage/<user>/routines/      saved routines: versions, runs and their records
 ├── storage/<user>/context/       the codebook and the coded passages of each Intervals.icu subject

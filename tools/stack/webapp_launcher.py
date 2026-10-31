@@ -99,7 +99,8 @@ def main():
     if a.edition == "hosted":
         # the Supabase stand-in (tools/stack/fake_supabase.py): the app's own client code builds it from these
         os.environ.update({"SUPABASE_URL": "http://supabase.local", "SUPABASE_KEY": "local", "SUPABASE_SERVICE_ROLE_KEY": "local",
-                           "LLM_CONFIG_ENCRYPTION_KEY": "local-stack"})
+                           "LLM_CONFIG_ENCRYPTION_KEY": "local-stack",
+                           "STACK_USAGE_JOURNAL": os.path.join(a.workdir, "usage_rows.jsonl")})     # the stand-in's usage rows as written, for the walk (2026-10-31)
         import fake_supabase
         sys.modules["supabase"] = fake_supabase
     else:
