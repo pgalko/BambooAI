@@ -312,38 +312,35 @@ def main():
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
             page.click("#routinesModal [data-act='run']")
-            page.wait_for_selector("#routineRunModal .rt-load", timeout=30000)
+            page.wait_for_selector("#routineRunModal .rt-row[data-row='data']", timeout=30000)
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=15000)
             run_wait = page.evaluate("() => ({ state: (document.querySelector('#routineRunModal select[data-load=\"athlete\"]') || {}).getAttribute('data-state'), runOn: !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
             page.wait_for_function("() => (document.querySelector('#routineRunModal select[data-load=\"athlete\"]') || {}).getAttribute('data-state') === 'ready'", timeout=15000)
             rd = page.evaluate("""() => ({ choice: (document.querySelector('#routineRunModal input[name="rt-data"]:checked') || {}).value, start: document.querySelector('#routineRunModal input[data-load="start"]').value, end: document.querySelector('#routineRunModal input[data-load="end"]').value,
-                help: document.querySelector('#routineRunModal .rt-load .help').textContent, now: !!document.querySelector('#routineRunModal input[name="rt-data"][value="now"]'), runOn: !document.querySelector('#routineRunModal [data-act="run"]').disabled, band: document.querySelector('#routineRunModal [data-key="band"]').value,
+                rows: [...document.querySelectorAll('#routineRunModal .rt-row')].map(r => r.dataset.row), text: document.querySelector('#routineRunModal .ui-dlg-b').textContent, now: !!document.querySelector('#routineRunModal input[name="rt-data"][value="now"]'), runOn: !document.querySelector('#routineRunModal [data-act="run"]').disabled, band: document.querySelector('#routineRunModal [data-key="band"]').value, bandTitle: document.querySelector('#routineRunModal .rt-inputs-grid .k').title,
                 span: (document.querySelector('#routineRunModal .rt-derived-row') || {}).textContent || '', spanPickers: document.querySelectorAll('#routineRunModal [data-key="span"]').length,
-                kinds: document.querySelector('#routineRunModal [data-key="kinds"]').value, fit: (document.querySelector('#routineRunModal .rt-fit') || {}).textContent || '' })""")
+                kinds: document.querySelector('#routineRunModal [data-key="kinds"]').value, fit: (document.querySelector('#routineRunModal .rt-fit') || {}).textContent || '', refresh: !!document.querySelector('#routineRunModal [data-load="refresh"]'), cache: !!document.querySelector('#routineRunModal .rt-cache'), note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })""")
             b_start, b_end = today - timedelta(days=59), today
             local_today = page.evaluate("() => ({ today: localIsoDay(new Date()), dataTabMax: (document.getElementById('intervalsEndDate') || {}).max || '', utc: new Date().toISOString().slice(0, 10) })")
             check("the run dialog's window ends on the page's local calendar day - the same day the Data tab's dialog offers as its latest (2026-10-15: both had taken the UTC day, a day apart before 11:00 in Melbourne)",
                   rd["end"] == local_today["today"] and local_today["dataTabMax"] == local_today["today"], (rd["end"], local_today))
             check("Run waits for the athletes (2026-10-30): off while the select says loading (a load before the list would take whichever key was used last), on once the athletes are listed",
                   (run_wait["state"] != "loading" or run_wait["runOn"] is False) and not page.evaluate("() => document.querySelector('#routineRunModal [data-act=\"run\"]').disabled"), run_wait)
-            check("the run dialog of an Intervals routine: Load from Intervals.icu on, the window of the original's 59 days ending today, with summary, wellness and the metrics as the original; the data loaded now as the other choice; the band at its default; Run on",
-                  rd["choice"] == "load" and rd["start"] == b_start.isoformat() and rd["end"] == b_end.isoformat() and "the original\u2019s 59 days, ending today" in rd["help"] and "summary" in rd["help"] and "wellness" in rd["help"] and "metrics as the original" in rd["help"] and rd["now"] and rd["runOn"] and rd["band"] == "9, 11", rd)
-            check("the session types (a choice over the summary file's column, not the frame's) are checked where they live: the data loaded now passes, nothing missing",
-                  rd["kinds"] == "Ride, Run" and rd["fit"].startswith("✓ fits the routine") and "is not in" not in rd["fit"] and "not in this data" not in rd["fit"], rd["fit"])
+            check("the run dialog of an Intervals routine (§16.1): the rows Data, Athlete, Interval, Inputs; Load from Intervals.icu on, the data loaded now as the other choice; the window of the original's 59 days ending today in the pickers, nothing said about it, the kinds, the metrics, the cache or fetching everything again; the band at its default, its origin on the label's hover; the footer the check's time; Run on",
+                  rd["rows"] == ["data", "athlete", "interval", "inputs"] and rd["choice"] == "load" and rd["start"] == b_start.isoformat() and rd["end"] == b_end.isoformat() and rd["now"] and rd["runOn"] and rd["band"] == "9, 11" and rd["bandTitle"] == "the analysis counted 9 to 11"
+                  and "ending today" not in rd["text"] and "metrics as the original" not in rd["text"] and "with summary" not in rd["text"] and "Everything again" not in rd["text"] and not rd["refresh"] and not rd["cache"] and re.fullmatch(r"(the check on the original data took .+)?", rd["note"]), rd)     # the footer's time: run zero's, or nothing when it took under a second (the stack's does)
+            check("the session types (a choice over the summary file's column, not the frame's) are checked where they live: the data loaded now passes, so no line stands under Data",
+                  rd["kinds"] == "Ride, Run" and rd["fit"] == "", rd["fit"])
             check("the dates input is not asked: no pickers, a line saying it follows the data, the original's dates for the record",
                   rd["spanPickers"] == 0 and "follows the data: its first and last dates" in rd["span"] and f"the original: {a_start.isoformat()} → {a_end.isoformat()}" in rd["span"], rd["span"])
-            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && c.textContent.length > 0; }", timeout=15000)
-            cl = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-cache').textContent, cls: document.querySelector('#routineRunModal .rt-cache').className })")
-            check("the dialog asked the executor's cache about the window: the next window is not there, so it says it will be downloaded", "miss" in cl["cls"] and "not in the cache" in cl["text"] and "will be downloaded" in cl["text"], cl)
-            refresh_box = page.evaluate("() => { const b = document.querySelector('#routineRunModal input[data-load=\"refresh\"]'); return b ? { on: b.checked, text: b.closest('label').textContent } : null; }")
-            check("the run dialog offers Everything again under the window, off (the store below the cache, 2026-10-15)", refresh_box and refresh_box["on"] is False and "fetch every file and message of the window afresh" in refresh_box["text"], refresh_box)
             fits_before_run1 = calls_of(st, "fit-file")
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && p.style.display !== 'none' && p.textContent.length > 0; }", timeout=30000)
             first = page.inner_text("#routineRunModal .rt-progress")
             page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && /Intervals|Download|Pars|Load/.test(p.textContent); }", timeout=30000)
-            prog = page.inner_text("#routineRunModal .rt-progress")
-            check("the dialog first clears the data loaded now, then shows the loader's progress", (first.startswith("Clearing") or "Intervals" in first) and ("Intervals" in prog or "Download" in prog or "Pars" in prog or "Load" in prog), (first, prog))
+            band = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-progress .t').textContent, live: !!document.querySelector('#routineRunModal .rt-progress .live'), bar: !!document.querySelector('#routineRunModal .rt-progress .bar'), busy: document.querySelector('#routineRunModal .ui-dlg-b').classList.contains('rt-busy'), runOff: document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
+            prog = band["text"]
+            check("the dialog first clears the data loaded now, then the band (§16.2) shows the loader's words with the dot and a bar, the rows dimmed and Run off", (first.startswith("Clearing") or "Intervals" in first) and ("Intervals" in prog or "Download" in prog or "Pars" in prog or "Load" in prog) and band["live"] and band["bar"] and band["busy"] and band["runOff"], (first, band))
             wait_text(page, "#chainPosition", "run 1 of 1", 300000)
             page.wait_for_timeout(800)
             rv = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
@@ -426,10 +423,7 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
-            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && /hit/.test(c.className); }", timeout=15000)
-            cl3 = page.inner_text("#routineRunModal .rt-cache")
-            check("the window set back to the original's: the line says it is in the cache with summary and wellness - no download", "in the cache" in cl3 and "no download" in cl3 and "summary" in cl3 and "wellness" in cl3, cl3)
-            page.click("#routineRunModal [data-act='run']")
+            page.click("#routineRunModal [data-act='run']")              # no preview line any more (§16.1): the load asks the cache itself, and the LOAD row says what it found
             wait_text(page, "#chainPosition", "run 3 of 3", 300000)
             page.wait_for_timeout(800)
             r3 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()) })")
@@ -449,9 +443,6 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [c_start.isoformat(), c_end.isoformat()])
-            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && /hit/.test(c.className) && /cut/.test(c.textContent); }", timeout=15000)
-            cl4 = page.inner_text("#routineRunModal .rt-cache")
-            check("a window inside the original's: the line says it is inside the cached load and will be cut to the window - no download", f"inside the cached load {a_start.isoformat()} → {a_end.isoformat()}" in cl4 and "cut to the window, no download" in cl4, cl4)
             page.click("#routineRunModal [data-act='run']")
             wait_text(page, "#chainPosition", "run 4 of 4", 300000)
             page.wait_for_timeout(800)
@@ -511,9 +502,9 @@ def main():
             page.wait_for_function("() => /Again on the cached window/.test((document.querySelector('#routinesModal .rt-right .title') || {}).textContent)", timeout=15000)
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]') || !!document.querySelector('#routineRunModal input[data-load=\"file\"]')", timeout=30000)
-            rd_c = page.evaluate("() => ({ window: !!document.querySelector('#routineRunModal input[data-load=\"start\"]'), file: !!document.querySelector('#routineRunModal input[data-load=\"file\"]'), help: (document.querySelector('#routineRunModal .help') || {}).textContent || '' })")
-            check("its run dialog: Load from Intervals.icu with the original's window (59 days ending today, summary and wellness) - no file upload",
-                  rd_c["window"] and not rd_c["file"] and "59 days, ending today" in rd_c["help"] and "summary" in rd_c["help"], rd_c)
+            rd_c = page.evaluate("() => ({ window: !!document.querySelector('#routineRunModal input[data-load=\"start\"]'), file: !!document.querySelector('#routineRunModal input[data-load=\"file\"]'), load: document.querySelector('#routineRunModal .rt-row[data-row=\"data\"]').textContent, start: document.querySelector('#routineRunModal input[data-load=\"start\"]').value })")
+            check("its run dialog: Load from Intervals.icu with the original's window in the pickers (59 days ending today) - no file upload",
+                  rd_c["window"] and not rd_c["file"] and "Load from Intervals.icu" in rd_c["load"] and rd_c["start"] == (today - timedelta(days=59)).isoformat(), rd_c)
             page.click("#routineRunModal [data-act='cancel']")
             page.evaluate("RoutinesUI.closeManager()")
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
@@ -594,20 +585,17 @@ def main():
             page.wait_for_function("() => { const s = document.querySelector('#routineRunModal select[data-load=\"athlete\"]'); return !!s && s.options.length >= 2 && s.value === 'i0'; }", timeout=15000)
             page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-compare-sec input[name=\"rt-compare\"]')", timeout=10000)
             dlg5 = page.evaluate("""() => { const s = document.querySelector('#routineRunModal select[data-load="athlete"]'); return { picked: s.value, options: [...s.options].map(o => o.textContent), help: document.querySelector('#routineRunModal .rt-athlete-help').textContent,
-                compare: [...document.querySelectorAll('#routineRunModal .rt-compare-sec label')].map(l => l.textContent.trim()), checked: (document.querySelector('#routineRunModal input[name="rt-compare"]:checked') || {}).value }; }""")
+                compare: [...document.querySelectorAll('#routineRunModal .rt-compare-sec .rt-check')].map(l => l.textContent.trim()), checked: (document.querySelector('#routineRunModal input[name="rt-compare"]:checked') || {}).value }; }""")
             if shots: page.query_selector("#routineRunModal .modal-content").screenshot(path=os.path.join(shots, "run_dialog_athlete.png"))
             page.select_option("#routineRunModal select[data-load='athlete']", "i1")
-            page.wait_for_function("() => /the first run on The other subject/.test((document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '')", timeout=10000)
+            page.wait_for_function("() => !document.querySelector('#routineRunModal .rt-compare-sec input[name=\"rt-compare\"]')", timeout=10000)
             if shots: page.query_selector("#routineRunModal .modal-content").screenshot(path=os.path.join(shots, "run_dialog_other_athlete.png"))
             dlg5b = page.evaluate("""() => ({ help: document.querySelector('#routineRunModal .rt-athlete-help').textContent, compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '', radios: document.querySelectorAll('#routineRunModal input[name="rt-compare"]').length })""")
-            check("the run dialog lists the athletes with a key - the first subject first (the last loaded, with their activities), the other after (nothing held yet) - the original's athlete picked, and the comparison within their runs: run 4 (the run before on them, on) and run 0; the other subject picked: the help says whose data the method was made on, the comparison says it is the first run on them with nothing to compare with yet, no choice",
+            check("the run dialog lists the athletes with a key - the first subject first (the last loaded, with their activities), the other after (nothing held yet) - the original's athlete picked, and the Compare row within their runs: run 4 (the run before, on) and run 0; the other subject picked: no help line (nothing is wrong) and no Compare row - the first run on them has nothing to compare with, and that is said nowhere (§16.1)",
                   dlg5["picked"] == "i0" and len(dlg5["options"]) == 2 and dlg5["options"][0].startswith("The subject \u00b7 ") and "activities to" in dlg5["options"][0] and dlg5["options"][1] == "The other subject \u00b7 nothing held yet" and dlg5["help"] == ""
-                  and dlg5["checked"] == "previous" and any(c.startswith("run 4 (") and c.endswith("the run before on The subject)") for c in dlg5["compare"]) and any(c.startswith("run 0 (") for c in dlg5["compare"])
-                  and dlg5b["help"] == "the method was made on The subject\u2019s data" and "the first run on The other subject: nothing to compare with yet" in dlg5b["compare"] and dlg5b["radios"] == 0, (dlg5, dlg5b))
+                  and dlg5["checked"] == "previous" and dlg5["compare"] == ["run 4 (the run before)", "run 0 (the original data)"]
+                  and dlg5b["help"] == "" and dlg5b["compare"] == "" and dlg5b["radios"] == 0, (dlg5, dlg5b))
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
-            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /another subject/.test(c.textContent); }", timeout=15000)
-            cl5 = page.inner_text("#routineRunModal .rt-cache")
-            check("for the other subject the original window, though cached, is not used: the line says it was loaded for another subject and will be downloaded", "loaded for another subject" in cl5 and "will be downloaded" in cl5, cl5)
             pills_before5 = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim())")
             page.click("#routineRunModal [data-act='run']")
             wait_text(page, "#chainPosition", "run 5 of 5", 300000)
@@ -677,10 +665,9 @@ def main():
             page.wait_for_function("() => { const s = document.querySelector('#routineRunModal select[data-load=\"athlete\"]'); return !!s && s.options.length >= 2 && s.value === 'i0'; }", timeout=15000)
             roster5b = page.evaluate("() => [...document.querySelector('#routineRunModal select[data-load=\"athlete\"]').options].map(o => o.textContent)")
             page.select_option("#routineRunModal select[data-load='athlete']", "i1")
-            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /another subject/.test(c.textContent); }", timeout=15000)
-            cl5b = page.inner_text("#routineRunModal .rt-cache")
-            check("the dialog's roster now puts the other subject first (the last loaded, their 60 activities), the original's athlete still picked; the other subject picked, a window the cache holds for the first subject only is said to be another subject's and will be downloaded",
-                  roster5b[0].startswith("The other subject \u00b7 60 activities to ") and roster5b[1].startswith("The subject \u00b7 ") and "loaded for another subject" in cl5b and "will be downloaded" in cl5b, (roster5b, cl5b))
+            cl5b = fetch_json(page, "/routines/" + str(rj.get("id")) + "/cached", {"start": b_start.isoformat(), "end": b_end.isoformat(), "athlete": "i1"})["json"] or {}     # what the load would ask for the dialog's window (the preview went, §16.1)
+            check("the dialog's roster now puts the other subject first (the last loaded, their 60 activities), the original's athlete still picked; asked for the other subject, the window the cache holds for the first subject only (run 1's) is another subject's - not a hit, to be downloaded",
+                  roster5b[0].startswith("The other subject \u00b7 60 activities to ") and roster5b[1].startswith("The subject \u00b7 ") and cl5b.get("hit") is False and "loaded for another subject" in cl5b.get("line", ""), (roster5b, cl5b))
             page.click("#routineRunModal [data-act='cancel']")
             page.evaluate("RoutinesUI.closeManager()")
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
@@ -692,9 +679,8 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
-            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && /hit|another key/.test(c.className + ' ' + c.textContent); }", timeout=15000)
-            cl6 = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-cache').textContent, cls: document.querySelector('#routineRunModal .rt-cache').className })")
-            check("back under the first key, the original window is a hit again (the first subject's, by its id) - the other subject's load did not overwrite it", "hit" in cl6["cls"] and "no download" in cl6["text"], cl6)
+            cl6 = fetch_json(page, "/routines/" + str(rj.get("id")) + "/cached", {"start": a_start.isoformat(), "end": a_end.isoformat(), "athlete": "i0"})["json"] or {}
+            check("back under the first key, the original window is a hit again (the first subject's, by its id) - the other subject's load did not overwrite it", cl6.get("hit") is True and "no download" in cl6.get("line", ""), cl6)
             page.click("#routineRunModal [data-act='cancel']")
             page.evaluate("RoutinesUI.closeManager()")
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
@@ -714,20 +700,19 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-interval')", timeout=30000)
             page.wait_for_function("() => { const s = document.querySelector('#routineRunModal select[data-load=\"athlete\"]'); return !!s && s.getAttribute('data-state') === 'ready' && s.value === 'i0'; }", timeout=15000)
-            dlg_c = page.evaluate("() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), segs: [...document.querySelectorAll('#routineRunModal .rt-interval [data-interval]')].map(e => e.textContent), pickers: document.querySelector('#routineRunModal .rt-loadwin').style.display, plan: !!document.querySelector('#routineRunModal .rt-plan'), label: document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent })")
+            dlg_c = page.evaluate("() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), segs: [...document.querySelectorAll('#routineRunModal .rt-interval [data-interval]')].map(e => e.textContent), pickers: document.querySelector('#routineRunModal .rt-loadwin').style.display, plan: (document.querySelector('#routineRunModal .rt-plan') || {}).textContent || '', label: document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent })")
             page.click("#routineRunModal .rt-interval [data-interval='week']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-plan') && /Run \\d+ weeks/.test(document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent)", timeout=15000)
-            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && c.textContent.length > 0; }", timeout=15000)
-            dlg_w = page.evaluate("""() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), plan: document.querySelector('#routineRunModal .rt-plan').textContent, box: (document.querySelector('#routineRunModal .rt-fillbox .txt') || {}).textContent || '', boxOn: !!(document.querySelector('#routineRunModal input[data-load="fill"]') || {}).checked,
-                pickers: document.querySelector('#routineRunModal .rt-loadwin').style.display, help: (() => { const h = document.querySelector('#routineRunModal .rt-load .help').cloneNode(true); h.querySelectorAll('.rt-custom').forEach(e => e.remove()); return h.textContent; })(), helpHidden: document.querySelector('#routineRunModal .rt-load .help .rt-custom').style.display,
+            dlg_w = page.evaluate("""() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), plan: document.querySelector('#routineRunModal .rt-plan').textContent, box: (document.querySelector('#routineRunModal .rt-fillbox') || {}).textContent || '', boxOn: !!(document.querySelector('#routineRunModal input[data-load="fill"]') || {}).checked,
+                pickers: document.querySelector('#routineRunModal .rt-loadwin').style.display, text: document.querySelector('#routineRunModal .ui-dlg-b').textContent,
                 compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '', radios: document.querySelectorAll('#routineRunModal input[name="rt-compare"]').length,
-                label: document.querySelector('#routineRunModal [data-act="run"] span').textContent, cache: document.querySelector('#routineRunModal .rt-cache').textContent, note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })""")
+                label: document.querySelector('#routineRunModal [data-act="run"] span').textContent, cache: !!document.querySelector('#routineRunModal .rt-cache'), note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })""")
             if shots: page.query_selector("#routineRunModal .modal-content").screenshot(path=os.path.join(shots, "run_dialog_week.png"))
-            check("the run dialog opens on Custom (no set interval run yet) with the pickers; Week picked: the Interval row's segments, the last complete week named (Monday to Sunday, this week left out), the fill box on counting the weeks back to the horizon's first Monday, the pickers gone and the help reduced to what is loaded with it, Compare with one sentence and no radios, the button 'Run N weeks', the cache asked about the span, the foot saying the fill runs in the background",
-                  dlg_c["on"] == "custom" and dlg_c["segs"] == ["Day", "Week", "Month", "Year", "Custom"] and dlg_c["pickers"] == "" and not dlg_c["plan"] and dlg_c["label"] == "Run"
-                  and dlg_w["on"] == "week" and dlg_w["plan"] == f"The last complete week: {_wtext(*weeks[-1])} (this week is not complete, so it is not run)" and dlg_w["boxOn"] and dlg_w["box"].startswith(f"Fill the weeks back to {weeks[0][0].day} {weeks[0][0]:%b} {weeks[0][0].year} — {len(weeks) - 1} more weeks not run yet, from one download")
-                  and dlg_w["pickers"] == "none" and re.fullmatch(r"with (summary, wellness|wellness, summary) · metrics as the original", dlg_w["help"]) and dlg_w["helpHidden"] == "none" and dlg_w["compare"].startswith("Compare witheach week with the week before it on The subject — a set interval is always compared") and dlg_w["radios"] == 0
-                  and dlg_w["label"] == f"Run {len(weeks)} weeks" and f"{weeks[0][0].isoformat()} → {weeks[-1][1].isoformat()}" in dlg_w["cache"] and dlg_w["note"].startswith("The method runs as it was saved on each week, oldest first, in the background"), (weeks, dlg_c, dlg_w))
+            check("the run dialog opens on Custom (no set interval run yet) with the pickers and the one note that matters (the plan clamps the original's 59 days to 35); Week picked (§16.1): the Interval row's segments, the last complete week named in one line (not run yet), the fill box on counting the weeks back to the horizon's first Monday, the pickers gone; no Compare row (a set interval compares by rule, nothing is said), no cache line; Run says how many weeks; the footer the time",
+                  dlg_c["on"] == "custom" and dlg_c["segs"] == ["Day", "Week", "Month", "Year", "Custom"] and dlg_c["pickers"] == "" and dlg_c["plan"] == "your plan allows 35 days" and dlg_c["label"] == "Run"
+                  and dlg_w["on"] == "week" and dlg_w["plan"] == f"Last complete week: {_wshort(*weeks[-1])} — not run yet" and dlg_w["boxOn"] and dlg_w["box"].strip() == f"Fill the weeks back to {weeks[0][0].day} {weeks[0][0]:%b} {weeks[0][0].year} — {len(weeks) - 1} not run yet"
+                  and dlg_w["pickers"] == "none" and dlg_w["compare"] == "" and dlg_w["radios"] == 0 and not dlg_w["cache"] and "metrics as the original" not in dlg_w["text"] and "background" not in dlg_w["text"]
+                  and dlg_w["label"] == f"Run {len(weeks)} weeks" and re.fullmatch(r"(about .+|the last run took .+)?", dlg_w["note"]), (weeks, dlg_c, dlg_w))
             n_before_fill = len((fetch_json(page, "/routines/" + str(rj.get("id")), None, "GET")["json"] or {}).get("routine", {}).get("runs") or [])
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_selector("#routinesModal .rt-fillbar", timeout=240000)                     # the span loaded (the store holds it), the fill started, the Summary open on it
@@ -771,9 +756,9 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-interval .on') && document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval') === 'week' && /Run again/.test(document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent)", timeout=30000)
             dlg_again = page.evaluate("() => ({ plans: [...document.querySelectorAll('#routineRunModal .rt-plan')].map(e => e.textContent), box: !!document.querySelector('#routineRunModal input[data-load=\"fill\"]'), label: document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent, compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '' })")
-            check("the run dialog opens on Week now (the interval last run): the last week is said to be run already and that Run runs it again, every week back to the horizon run already - no box - the button 'Run again', the comparison the week before by number",
-                  dlg_again["plans"][0] == f"The last complete week: {_wtext(*weeks[-1])} — run already; Run runs it again" and dlg_again["plans"][1] == f"Every week back to {weeks[0][0].day} {weeks[0][0]:%b} {weeks[0][0].year} is run already ({len(weeks)} weeks)." and not dlg_again["box"] and dlg_again["label"] == "Run again"
-                  and f"the week before ({_wshort(*weeks[-2])}), run {wk_runs[-2]['number']}" in dlg_again["compare"], dlg_again)
+            check("the run dialog opens on Week now (the interval last run): the last week is said to be run already and that Run runs it again, every week back to the horizon run already - no box - the button 'Run again'; nothing about the comparison (the rule)",
+                  dlg_again["plans"][0] == f"Last complete week: {_wshort(*weeks[-1])} — run already; Run runs it again" and dlg_again["plans"][1] == f"Every week back to {weeks[0][0].day} {weeks[0][0]:%b} {weeks[0][0].year} is run already ({len(weeks)} weeks)." and not dlg_again["box"] and dlg_again["label"] == "Run again"
+                  and dlg_again["compare"] == "", dlg_again)
             page.click("#routineRunModal [data-act='cancel']")
             page.evaluate("RoutinesUI.closeManager()")
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
@@ -854,8 +839,8 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_selector("#routineRunModal select[data-load='race']", timeout=30000)
             page.wait_for_function("() => document.querySelectorAll('#routineRunModal select[data-load=\"race\"] option').length >= 3", timeout=15000)
-            ed = page.evaluate("() => ({ options: [...document.querySelectorAll('#routineRunModal select[data-load=\"race\"] option')].map(o => [o.value, o.textContent, o.selected]), help: document.querySelector('#routineRunModal .rt-race .help').textContent })")
-            check("the run dialog of an Endura routine: the race list from Endura with the original race (Spring classic) selected, its auxiliaries named", [o[0] for o in ed["options"]] == ["1", "2", "3"] and ed["options"][0][2] and "the original: Spring classic" in ed["help"] and "profile, climbs" in ed["help"], ed)
+            ed = page.evaluate("() => ({ options: [...document.querySelectorAll('#routineRunModal select[data-load=\"race\"] option')].map(o => [o.value, o.textContent, o.selected]), rows: [...document.querySelectorAll('#routineRunModal .rt-row')].map(r => r.dataset.row), text: document.querySelector('#routineRunModal .ui-dlg-b').textContent })")
+            check("the run dialog of an Endura routine (§16.1): the Data and Race rows, the race list from Endura with the original race (Spring classic) selected; nothing said about the original or its auxiliaries", [o[0] for o in ed["options"]] == ["1", "2", "3"] and ed["options"][0][2] and ed["rows"][:2] == ["data", "race"] and "the original:" not in ed["text"] and "profile, climbs" not in ed["text"], ed)
             page.select_option("#routineRunModal select[data-load='race']", "2")
             page.click("#routineRunModal [data-act='run']")
             wait_text(page, "#chainPosition", "run 1 of 1", 300000)
@@ -1268,11 +1253,11 @@ def main():
             page.evaluate("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); if (it) it.click(); }", [rid_n])
             page.wait_for_function("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); return !!it && it.classList.contains('on'); }", arg=[rid_n], timeout=15000)
             page.click("#routinesModal [data-act='run']")
-            page.wait_for_selector("#routineRunModal .rt-load", timeout=30000)
+            page.wait_for_selector("#routineRunModal .rt-row[data-row='data']", timeout=30000)
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=15000)
-            help_n = page.evaluate("() => document.querySelector('#routineRunModal .rt-load .help').textContent")
-            check("the run dialog of the context routine: the load asks for the summary, the wellness log and the context - the codes are the pass's, not asked for",
-                  all(k_ in help_n for k_ in ("summary", "wellness", "context")) and "codes" not in help_n, help_n)
+            plan_n = ((fetch_json(page, "/routines/" + str(rid_n) + "/precheck", {})["json"] or {}).get("plan") or {}).get("aux_kinds") or []       # what the dialog's load asks for (said nowhere on the dialog since §16.1)
+            check("the run dialog of the context routine loads as the original did: the summary, the wellness log and the context - the codes are the pass's, not asked for",
+                  {"summary", "wellness", "context"} <= set(plan_n) and "codes" not in plan_n, plan_n)
             b_start_n, b_end_n = page.evaluate("() => [document.querySelector('#routineRunModal input[data-load=\"start\"]').value, document.querySelector('#routineRunModal input[data-load=\"end\"]').value]")
             page.click("#routineRunModal [data-act='run']")
             seen_coding = page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && /Coding the context|run 1 of/.test(p.textContent + ' ' + ((document.querySelector('#chainPosition') || {}).textContent || '')); }", timeout=300000)
@@ -1321,7 +1306,7 @@ def main():
             page.evaluate("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); if (it) it.click(); }", [rid_n])
             page.wait_for_function("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); return !!it && it.classList.contains('on'); }", arg=[rid_n], timeout=15000)
             page.click("#routinesModal [data-act='run']")
-            page.wait_for_selector("#routineRunModal .rt-load", timeout=30000)
+            page.wait_for_selector("#routineRunModal .rt-row[data-row='data']", timeout=30000)
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=15000)
             page.fill("#routineRunModal input[data-load='start']", c_start.isoformat())
             page.fill("#routineRunModal input[data-load='end']", c_end.isoformat())
@@ -1355,14 +1340,13 @@ def main():
             page.evaluate("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); if (it) it.click(); }", [rid_n])
             page.wait_for_function("([id]) => { const it = document.querySelector('#routinesModal .rt-side .it[data-id=\"' + id + '\"]'); return !!it && it.classList.contains('on'); }", arg=[rid_n], timeout=15000)
             page.click("#routinesModal [data-act='run']")
-            page.wait_for_selector("#routineRunModal .rt-load", timeout=30000)
+            page.wait_for_selector("#routineRunModal .rt-row[data-row='data']", timeout=30000)
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=15000)
             page.fill("#routineRunModal input[data-load='start']", d_start.isoformat())
             page.fill("#routineRunModal input[data-load='end']", d_end.isoformat())
-            page.wait_for_function("([s]) => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && c.textContent.includes('(' + s + ' '); }", arg=[d_start.isoformat()], timeout=15000)   # the typed window's answer, not the default's
-            cl_d = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-cache').textContent, cls: document.querySelector('#routineRunModal .rt-cache').className })")
-            check("the context routine on a window inside the original load: the line says it is inside the cached load, with summary, wellness, context, codes - it will be cut, no download",
-                  "hit" in cl_d["cls"] and f"inside the cached load {a_start.isoformat()} → {a_end.isoformat()}" in cl_d["text"] and all(k_ in cl_d["text"] for k_ in ("summary", "wellness", "context", "codes")) and "no download" in cl_d["text"], cl_d)
+            cl_d = fetch_json(page, "/routines/" + str(rid_n) + "/cached", {"start": d_start.isoformat(), "end": d_end.isoformat(), "athlete": "i0"})["json"] or {}     # what the load will find (the dialog's preview went, §16.1)
+            check("the context routine on a window inside the original load: the cache says it is inside the cached load, with summary, wellness, context, codes - to be cut, no download",
+                  cl_d.get("hit") is True and f"inside the cached load {a_start.isoformat()} → {a_end.isoformat()}" in cl_d.get("line", "") and all(k_ in cl_d.get("line", "") for k_ in ("summary", "wellness", "context", "codes")) and "no download" in cl_d.get("line", ""), cl_d)
             fits_before_d = calls_of(st, "fit-file")
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_function("() => /run 3 of 3/.test((document.querySelector('#chainPosition') || {}).textContent || '') || /Maximum|could not be loaded|failed/.test(((document.querySelector('#routineRunModal .rt-progress') || {}).textContent) || '')", timeout=300000)

@@ -264,7 +264,6 @@
 .rt-status.unverified { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
 .rt-status.verifying { color: var(--c-kernel); border-color: var(--chip-kernel-border); animation: rt-verifying 1.4s ease-in-out infinite; }   /* run zero behind the dialog (2026-10-15) */
 @keyframes rt-verifying { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-.rt-eta { color: var(--text-tertiary); font-size: var(--fs-small); margin: 4px 0 2px; }
 /* the manager: the shape of the saved-workflows dialog, a list on the left and one routine on the right */
 #routinesModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
 #routinesModal .ui-dlg.rt-mgr { width: min(1240px, 100%); height: min(90vh, 900px); flex-direction: row; overflow: hidden; }     /* a set height (2026-11-06): the body scrolls, the box does not follow its content */
@@ -287,35 +286,37 @@
 .rt-empty { padding: 24px; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.6; max-width: 560px; }
 .rt-empty b { color: var(--text-primary); }
 /* a run (step 2): the run dialog's fields, the runs table in the manager, the Comparison tab in the right pane, the runs list */
-#routineRunModal .ui-dlg.run-dlg { width: min(640px, 100%); height: min(80vh, 720px); }     /* a set height (2026-11-06): the plan, the pickers and the lines come and go inside it */
+#routineRunModal .ui-dlg.run-dlg { width: min(640px, 100%); height: min(80vh, 520px); }     /* a set height (2026-11-06): the plan, the pickers and the lines come and go inside it */
 #routineRunModal .ui-dlg-b { display: flex; flex-direction: column; gap: 14px; }
 #routineRunModal .ui-dlg-f .note { max-width: 420px; line-height: 1.4; }
 .rt-fit { font-size: var(--fs-small); color: var(--c-model); display: flex; align-items: center; gap: 6px; line-height: 1.4; }
 .rt-fit.bad { color: var(--c-fail); }
 .rt-fit.note { color: var(--c-kernel); }
-/* the run dialog's Data section (2026-10-10): the load as the original did, or the data loaded now; the load's progress */
-.rt-load { gap: 6px; }
-.rt-load .rt-loadwin, .rt-load .rt-race, .rt-load .rt-upload, .rt-load .rt-now { margin: 0 0 4px 22px; }
-.rt-load .rt-cachepick .rt-field { margin: 0 0 4px 22px; }     /* the Dataset cache's pick (step 4, 2026-10-11) */
-.rt-load .rt-race { grid-template-columns: 1fr; }
-.rt-load .rt-race select { max-width: 100%; }
-/* whose data (2026-10-30, docs/DATASETS_DESIGN.md §17): the athlete above the window, the help under the select */
-.rt-load .rt-athlete { grid-template-columns: auto 1fr; margin: 0 0 4px 22px; }
-.rt-load .rt-athlete select { max-width: 100%; min-width: 0; }
-.rt-load .rt-athlete-help { grid-column: 2; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; margin-top: -2px; }
-.rt-load .rt-athlete-help:empty { display: none; }
-/* the interval (docs/ROUTINES_DESIGN.md §14.2): the row under the athlete, the plan under the row, the fill box with its cost */
-.rt-load .rt-interval { grid-template-columns: auto 1fr; margin: 0 0 4px 22px; }
-.rt-load .rt-interval .ui-seg > span { padding: 4px 10px; font-size: var(--fs-small); }
-.rt-load .rt-interval-plan:empty { display: none; }
-.rt-plan { margin: 0 0 4px 22px; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.5; }
+/* the run dialog's rows (docs/ROUTINES_DESIGN.md §16.1): a label column and the content; the athlete and the interval greyed when
+   the data loaded now is picked; the plan under the interval; the inputs as a grid of label and widget */
+.rt-row { display: grid; grid-template-columns: 76px 1fr; gap: 8px 14px; align-items: start; font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-row > label { color: var(--text-primary); padding-top: 5px; }
+.rt-row .ui-input { height: 28px; max-width: 100%; min-width: 0; }
+.rt-row .rt-choices { flex-direction: row; flex-wrap: wrap; gap: 6px 18px; min-height: 28px; align-items: center; }
+.rt-row .rt-check { font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-row .rt-check .n { font-weight: 400; color: var(--text-quaternary); font-size: var(--fs-small); }
+.rt-row.off > label, .rt-row.off > div { opacity: .4; pointer-events: none; }
+.rt-row .rt-athlete-help { font-size: var(--fs-small); color: var(--c-kernel); line-height: 1.4; margin-top: 4px; }
+.rt-row .rt-athlete-help:empty { display: none; }
+.rt-row .rt-interval { display: inline-flex; margin-bottom: 6px; }
+.rt-row .rt-interval > span { padding: 4px 10px; font-size: var(--fs-small); }
+.rt-row .rt-interval-plan:empty { display: none; }
+.rt-row .rt-loadwin { max-width: 360px; }
+.rt-row .rt-fit { margin-top: 6px; }
+.rt-row .rt-files { display: flex; flex-direction: column; gap: 6px; }
+.rt-inputs-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; align-items: center; }
+.rt-inputs-grid .k { color: var(--text-secondary); }
+.rt-inputs-grid .ui-input, .rt-inputs-grid .rt-window { max-width: 260px; }
+.rt-plan { margin: 0 0 4px; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.5; }
 .rt-plan b { color: var(--text-primary); font-weight: 600; }
 .rt-plan .n { font-size: var(--fs-small); color: var(--text-quaternary); }
 .rt-plan.warn { color: var(--c-kernel); }
-.rt-load .rt-fillbox { align-items: flex-start; margin: 2px 0 6px 22px; }
-.rt-load .rt-fillbox input { margin-top: 3px; }
-.rt-load .rt-fillbox .txt { display: block; color: var(--text-secondary); font-size: var(--fs-meta); line-height: 1.45; }
-.rt-load .rt-fillbox .n { display: block; margin-top: 2px; font-size: var(--fs-small); }
+.rt-fillbox { margin: 2px 0 0; }
 /* the Summary's line while a fill runs (§14.3) */
 .rt-fillbar { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-secondary); }
 .rt-fillbar .live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); flex-shrink: 0; animation: rt-pulse 1.2s ease-in-out infinite; }
@@ -325,20 +326,21 @@
 .rt-fillbar.done.warn .mark { color: var(--c-kernel); }
 /* the manager's runs by athlete: the pick at the right of the heading */
 .rt-sec > .h .rt-athlete-pick { margin-left: auto; height: 24px; font-size: var(--fs-small); text-transform: none; letter-spacing: 0; max-width: 60%; }
-.rt-load .help { margin: 0 0 6px 22px; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }
-.rt-load .rt-check .n { font-weight: 400; color: var(--text-quaternary); }
-.rt-load .rt-refresh { margin: 2px 0 6px 22px; }                                       /* Refresh everything (2026-10-15), under the window */
-.rt-load .rt-fit { margin-left: 22px; }
-.rt-progress { margin: 6px 0 0 22px; font-size: var(--fs-small); color: var(--text-secondary); line-height: 1.4; }
-.rt-progress.loading::before { content: '…'; margin-right: 6px; }
-.rt-progress.bad { color: var(--c-fail); }
+/* the load's band (§16.2): under the body, in view whatever the body scrolls, while a load runs - the dot, the loader's words, a
+   bar filled to the job's percent or sweeping without one; a failure in its place in red; the rows dimmed meanwhile */
+#routineRunModal .rt-progress { margin: 0 16px 12px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-primary); line-height: 1.4; display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
+.rt-progress .live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); animation: rt-pulse 1.2s ease-in-out infinite; }
+.rt-progress .bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--bg-tertiary); overflow: hidden; }
+.rt-progress .bar i { display: block; height: 100%; width: 0; background: var(--c-model); border-radius: 2px; transition: width .4s ease; }
+.rt-progress .bar.sweep i { width: 30%; animation: rt-sweep 1.4s ease-in-out infinite; }
+@keyframes rt-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
+.rt-progress.bad { grid-template-columns: 1fr; color: var(--c-fail); border-color: var(--chip-fail-border); }
+#routineRunModal .ui-dlg-b.rt-busy > .rt-row { opacity: .45; pointer-events: none; }
 .rt-field { display: grid; grid-template-columns: 220px 1fr; gap: 4px 10px; align-items: center; font-size: var(--fs-meta); color: var(--text-secondary); }
 .rt-field > label { color: var(--text-primary); }
 .rt-field .ui-input { height: 28px; }
 .rt-field .help { grid-column: 2; font-size: var(--fs-small); color: var(--text-quaternary); margin-top: -2px; }
 .rt-derived { color: var(--c-model); font-size: var(--fs-small); }
-.rt-cache { font-size: var(--fs-small); color: var(--text-quaternary); margin: 2px 0 0 22px; }
-.rt-cache.hit { color: var(--c-model); }
 .rt-inputs .rt-derived { display: block; margin-top: 2px; }
 .rt-derived-row { display: flex; flex-direction: column; gap: 2px; min-height: 28px; justify-content: center; }
 .rt-derived-row .n { font-size: var(--fs-small); color: var(--text-quaternary); }

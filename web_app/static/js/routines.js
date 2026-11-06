@@ -468,41 +468,34 @@
             const last = runs.length ? runs[runs.length - 1] : null;
             return Number((last && last.elapsed) || (v.run_zero && v.run_zero.elapsed) || 0);
         },
+        // the footer's time (§16.1): a fill's is the units times the last run's time; one run's the last run's (or the check on the
+        // original data's); nothing when unknown
+        tookLine(r, units) {
+            const took = build.tookOf(r);
+            if (!(took >= 1)) return '';
+            if (units > 1) return 'about ' + fmtTook(units * took);
+            const runs = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status));
+            return 'the ' + (runs.length ? 'last run' : 'check on the original data') + ' took ' + fmtTook(took);
+        },
         lastInterval(r) {    // the interval the routine was last run on under the current version: the dialog opens on it
             const runs = (r.runs || []).filter(x => x.version === r.current_version);
             return runs.length && runs[runs.length - 1].interval ? runs[runs.length - 1].interval : 'custom';
         },
         intervalRow(kind) {
             const names = { day: 'Day', week: 'Week', month: 'Month', year: 'Year', custom: 'Custom' };
-            return '<div class="rt-field rt-interval"><label>Interval</label><span class="ui-seg">' + Object.keys(names).map(k => '<span' + (k === kind ? ' class="on"' : '') + ' data-interval="' + k + '">' + names[k] + '</span>').join('') + '</span></div>';
+            return '<span class="ui-seg rt-interval">' + Object.keys(names).map(k => '<span' + (k === kind ? ' class="on"' : '') + ' data-interval="' + k + '">' + names[k] + '</span>').join('') + '</span>';
         },
-        // under the row: the last complete unit (never the one under way), the fill box with its count and cost, or why nothing runs
-        intervalPlan(plan, took, maxDays, fill) {
+        // under the row (§16.1): the last complete unit (never the one under way) and whether it is run, then the box to fill the
+        // units not run yet - or that every unit is run already, or that the horizon holds no complete unit
+        intervalPlan(plan, maxDays, fill) {
             const one = plan.kind, many = plan.kind + 's';
             if (!plan.last) return '<div class="rt-plan warn">No complete ' + one + ' within the last ' + esc(Math.min(maxDays, 365)) + ' days.</div>';
-            let h = '<div class="rt-plan">The last complete ' + one + ': <b>' + esc(build.unitText(one, plan.last)) + '</b> <span class="n">' +
-                (plan.lastRun ? '— run already' + (plan.toRun.length ? '' : '; Run runs it again') : '(this ' + one + ' is not complete, so it is not run)') + '</span></div>';
+            const more = plan.toRun.filter(w => w !== plan.last).length;
+            let h = '<div class="rt-plan">Last complete ' + one + ': <b>' + esc(build.unitText(one, plan.last, true)) + '</b> <span class="n">— ' + (plan.lastRun ? 'run already' + (more ? '' : '; Run runs it again') : 'not run yet') + '</span></div>';
             if (plan.units.length < 2) return h;
-            const more = plan.toRun.filter(w => w !== plan.last).length, n = build.fillWindows(plan, true).length;
             const back = 'back to ' + esc(build.dateText(plan.units[0][0]));
             if (!more) return h + '<div class="rt-plan"><span class="n">Every ' + one + ' ' + back + ' is run already (' + plan.kept + ' ' + many + ').</span></div>';
-            const horizon = maxDays > 365 ? 'A year back is the horizon.' : 'The ' + esc(maxDays) + '-day limit of the plan is the horizon.';
-            return h + '<label class="rt-check rt-fillbox"><input type="checkbox" data-load="fill"' + (fill ? ' checked' : '') + '><span class="txt">Fill the ' + many + ' ' + back + ' — ' + more + (plan.lastRun ? '' : ' more') + ' ' + (more === 1 ? one : many) +
-                ' not run yet, from one download' + (plan.kept ? '; the ' + plan.kept + ' already run are kept' : '') +
-                '<span class="n">' + (took >= 30 ? 'about ' + esc(fmtTook(n * took)) + ', ' : '') + 'in the background; the Summary shows the progress and each ' + one + ' appears as it lands. ' + horizon + '</span></span></label>';
-        },
-        // Compare with, for a set interval (§14.1): one sentence, no choice
-        compareSentence(plan, fill, athleteName) {
-            const ws = build.fillWindows(plan, fill), one = plan.kind;
-            if (!ws.length) return '';
-            let line;
-            if (ws.length > 1) line = 'each ' + one + ' with the ' + one + ' before it' + (athleteName ? ' on ' + esc(athleteName) : '');
-            else {
-                const b = build.before(plan, ws[0]);
-                line = b ? 'the ' + (build.nextDay(b.data.window[1]) === ws[0][0] ? one + ' before' : 'latest earlier ' + one) + ' (' + esc(build.unitText(one, b.data.window, true)) + '), run ' + esc(b.number)
-                    : 'the first ' + one + (athleteName ? ' on ' + esc(athleteName) : '') + ': nothing to compare with yet';
-            }
-            return '<div class="rt-sec"><div class="h">Compare with</div><div class="rt-line">' + line + ' <span class="ui-muted">— a set interval is always compared with the one before it on the same athlete</span></div></div>';
+            return h + '<label class="rt-check rt-fillbox"><input type="checkbox" data-load="fill"' + (fill ? ' checked' : '') + '> Fill the ' + many + ' ' + back + ' — ' + more + ' not run yet</label>';
         },
         runLabel(plan, fill) {
             const ws = build.fillWindows(plan, fill);
@@ -533,93 +526,73 @@
         // how a line is named where it is shown (§15.3): the promoter's name when the manifest has one, else the recorded
         // label trimmed; the recorded label stays on hover
         lineName(line) { return (line && line.name) || build.metricLabel((line || {}).label); },
-        loadSection(plan, pre, limits, kind) {
-            // the data: loaded as the original load asked for it (the window shifted to end today, the race picked, the
-            // file uploaded), or the data loaded now; the fit line for the data loaded now - a load's is checked after it
+        // the Data, Athlete and Interval rows (§16.1): the data on one line - the load, or the data loaded now with its dates; for
+        // an Intervals routine the athlete and the interval under it (greyed when the data loaded now is picked), the pickers
+        // for a custom window; a problem with the data loaded now under the choice, never the green line; nothing else
+        dataRows(plan, pre, limits, kind) {
             const d = (pre && pre.data) || {};
             const loaded = !!(pre && pre.loaded);
             const src = (plan && plan.source) || sourceKind(d.source);
-            const nowLine = loaded ? '<span class="ui-chip model"><span class="t">' + esc(sourceLabel(d.source)) + '</span></span>' + (d.name ? '<span class="name">' + esc(d.name) + '</span>' : '') +
-                '<span class="meta">' + [d.rows != null ? Number(d.rows).toLocaleString() + ' rows' : '', d.columns ? d.columns + ' columns' : '', d.date_range ? esc(d.date_range) : ''].filter(Boolean).join(' · ') + '</span>' : '';
-            // the line under the data loaded now: green when nothing differs from the data the method was made on; a note when a
-            // column will be empty or a file absent (the run goes ahead, the coach decides); bad when there is nothing to run on
+            const isLoad = src === 'intervals' || src === 'endura' || src === 'sweatstack';
             const differs = !!(pre && pre.ok && (((pre.fit || {}).missing || []).length || ((pre.aux || {}).absent || []).length || ((pre.fit || {}).retyped || []).length || (pre.values_notes || []).length));
-            const fitLine = loaded ? '<div class="rt-fit' + (pre.ok ? (differs ? ' note' : '') : ' bad') + '" data-for="now">' + (pre.ok ? (differs ? '△ ' : '✓ ') : '! ') + esc(pre.line || '') + '</div>' : '';
+            const fitLine = loaded && (!pre.ok || differs) ? '<div class="rt-fit' + (pre.ok ? ' note' : ' bad') + '" data-for="now"' + (isLoad ? ' style="display:none"' : '') + '>' + (pre.ok ? '△ ' : '! ') + esc(pre.line || '') + '</div>' : '';     // the frame's problems, shown while it is the choice
+            const nowWhen = build.windowOf(d).join(' → ') || d.name || '';
+            const nowChoice = loaded ? '<label class="rt-check"><input type="radio" name="rt-data" value="now"' + (isLoad ? '' : ' checked') + '> The data loaded now' + (nowWhen ? ' <span class="n">· ' + esc(nowWhen) + '</span>' : '') + '</label>' : '';
             const today = new Date();
-            let h = '<div class="rt-sec" data-source="' + esc(src) + '"><div class="h">Data</div><div class="rt-choices rt-load">';
+            let choices = '', rows = '';
             if (src === 'intervals' || src === 'sweatstack') {
                 const days = Math.max(1, Number((plan && plan.window_days) || 28));
                 const maxDays = limits && limits.max_days ? Number(limits.max_days) : null;
                 const span = maxDays ? Math.min(days, maxDays) : days;
                 const start = new Date(today); start.setDate(today.getDate() - span);       // calendar days back, not 24-hour steps (a clock change would shift the day)
-                const label = src === 'intervals' ? 'Intervals.icu' : 'SweatStack';
-                const withWhat = (src === 'intervals' ? (plan.aux_kinds || []) : (plan.sports || [])).join(', ');
                 const custom = !kind || kind === 'custom', hide = custom ? '' : ' style="display:none"';
-                const asOriginal = [withWhat ? 'with ' + esc(withWhat) : '', src === 'intervals' ? 'metrics as the original' : (plan.users && plan.users.length ? esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')].filter(Boolean).join(' · ');
-                h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from ' + label + '</label>' +
-                    // whose data (2026-10-30, docs/DATASETS_DESIGN.md §17): the athlete first - the roster, filled once the dialog is up
-                    // (fillAthletes); the original's athlete is the default, the cache line and the comparison follow the choice
-                    (src === 'intervals' ? '<div class="rt-field rt-athlete"><label>Athlete</label><select class="ui-input" data-load="athlete" data-state="loading"><option value="">loading the athletes…</option></select><div class="rt-athlete-help"></div></div>' : '') +
-                    // the interval (§14.2): a set unit has no pickers - the plan under the row says what runs (renderInterval); custom is the window as typed
-                    (src === 'intervals' ? build.intervalRow(kind || 'custom') + '<div class="rt-interval-plan"></div>' : '') +
+                choices = '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from ' + (src === 'intervals' ? 'Intervals.icu' : 'SweatStack') + '</label>' + nowChoice;
+                if (src === 'intervals') rows += '<div class="rt-row" data-row="athlete"><label>Athlete</label><div><select class="ui-input" data-load="athlete" data-state="loading"><option value="">loading the athletes…</option></select><div class="rt-athlete-help"></div></div></div>';
+                rows += '<div class="rt-row" data-row="interval"><label>' + (src === 'intervals' ? 'Interval' : 'Window') + '</label><div>' + (src === 'intervals' ? build.intervalRow(kind || 'custom') + '<div class="rt-interval-plan"></div>' : '') +
                     '<div class="rt-window rt-loadwin rt-custom"' + hide + '><input type="date" class="ui-input" data-load="start" value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end" value="' + build.isoDay(today) + '"></div>' +
-                    '<div class="help"><span class="rt-custom"' + hide + '>the original’s ' + esc(days) + ' days, ending today' + (maxDays && days > maxDays ? ' (your plan allows ' + esc(maxDays) + ')' : '') + (asOriginal ? ' · ' : '') + '</span>' + asOriginal + '</div>' +
-                    (src === 'intervals' ? '<div class="rt-cache" style="display:none"></div>' +
-                        // the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): only what the window lacks is downloaded; the box fetches it all again
-                        '<label class="rt-check rt-refresh"><input type="checkbox" data-load="refresh"> Everything again <span class="n">— fetch every file and message of the window afresh, not only what the store lacks</span></label>' : '');
+                    (maxDays && days > maxDays ? '<div class="rt-plan warn rt-custom"' + hide + '>your plan allows ' + esc(maxDays) + ' days</div>' : '') + '</div></div>';
             } else if (src === 'endura') {
-                h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from Endura</label>' +
-                    '<div class="rt-field rt-race"><select class="ui-input" data-load="race"><option value="">loading the races…</option></select>' +
-                    '<div class="help">the original: ' + esc(plan.race_title || plan.race_id || 'a race') + (plan.aux_kinds && plan.aux_kinds.length ? ' · with ' + esc(plan.aux_kinds.join(', ')) : '') + '</div>' +
-                    '<div class="rt-cache" style="display:none"></div></div>';
+                choices = '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from Endura</label>' + nowChoice;
+                rows += '<div class="rt-row" data-row="race"><label>Race</label><select class="ui-input" data-load="race"><option value="">loading the races…</option></select></div>';
             } else {
-                h += '<label class="rt-check"><input type="radio" name="rt-data" value="upload"' + (loaded ? '' : ' checked') + '> Upload a file' + (plan.name ? ' <span class="n">(the original: ' + esc(plan.name) + ')</span>' : '') + '</label>' +
-                    '<div class="rt-field rt-upload"><input type="file" class="ui-input" data-load="file" accept=".csv,.parquet,.json,.xlsx,.xls,.txt,.tsv"></div>' +
-                    // a file the Dataset cache holds (step 4, 2026-10-11): the choice shows once the cache has answered with files; gone when it has none
-                    '<div class="rt-cachepick" style="display:none"><label class="rt-check"><input type="radio" name="rt-data" value="cache"> A file from the Dataset cache</label>' +
-                    '<div class="rt-field"><select class="ui-input" data-load="cached"><option value="">choose a file</option></select></div></div>';
+                // a file the Dataset cache holds (step 4, 2026-10-11): the choice and its pick show once the cache has answered with files
+                choices = '<label class="rt-check"><input type="radio" name="rt-data" value="upload"' + (loaded ? '' : ' checked') + '> Upload a file</label>' +
+                    '<label class="rt-check rt-cachepick" style="display:none"><input type="radio" name="rt-data" value="cache"> A file from the Dataset cache</label>' + nowChoice;
+                rows += '<div class="rt-row" data-row="file"><label>File</label><div class="rt-files"><input type="file" class="ui-input" data-load="file" accept=".csv,.parquet,.json,.xlsx,.xls,.txt,.tsv">' +
+                    '<select class="ui-input rt-cachepick" data-load="cached" style="display:none"><option value="">choose a file</option></select>' +
+                    (loaded ? '' : '<div class="rt-plan"><span class="n">Nothing is loaded now; upload the file to run on.</span></div>') + '</div></div>';
             }
-            if (loaded) {
-                h += '<label class="rt-check"><input type="radio" name="rt-data" value="now"' + (src !== 'intervals' && src !== 'endura' && src !== 'sweatstack' ? ' checked' : '') + '> The data loaded now</label><div class="rt-data rt-now">' + nowLine + '</div>' + fitLine;
-            } else if (src !== 'intervals' && src !== 'endura' && src !== 'sweatstack') {
-                h += '<div class="rt-line muted">Nothing is loaded now; upload the file to run on.</div>';
-            }
-            h += '<div class="rt-progress" style="display:none"></div></div></div>';
-            return h;
+            return '<div class="rt-row" data-row="data" data-source="' + esc(src) + '"><label>Data</label><div><div class="rt-choices">' + choices + '</div>' + fitLine + '</div></div>' + rows;
         },
+        // the dialog (§16.1): the rows, the Inputs row when the routine has any (the origin on the label's hover), the Compare
+        // row when there is a choice
         runDialog(r, pre, limits, kind) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const params = (v.manifest || {}).parameters || [];
-            let h = build.loadSection((pre && pre.plan) || {}, pre, limits, kind);
-            h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— the only things that change; the method runs as it was saved</span></div>';
-            if (!params.length) h += '<div class="rt-line">None: the method runs as it is.</div>';
-            else h += params.map(p => '<div class="rt-field"><label>' + esc(p.label) + '</label>' + build.inputWidget(p) + (p.origin ? '<div class="help">' + esc(p.origin) + '</div>' : '') + '</div>').join('');
-            h += '</div>';
-            const runs = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status));
-            // what a run will take, from the last one (or run zero): the method's own cost, said before the person presses Run (2026-10-15)
-            const took = build.tookOf(r);
-            if (took >= 30) h += '<div class="rt-line rt-eta">the ' + (runs.length ? 'last run' : 'check on the original data') + ' took ' + esc(fmtTook(took)) + ' — expect about as long</div>';
-            // whose runs to compare with, as the dialog opens: the original's athlete for a load (the select follows), the data
-            // loaded now's for a file routine with data loaded; the section is re-rendered as the choice or the athlete changes
+            let h = build.dataRows((pre && pre.plan) || {}, pre, limits, kind);
+            if (params.length) h += '<div class="rt-row" data-row="inputs"><label>Inputs</label><div class="rt-inputs-grid">' +
+                params.map(p => '<span class="k"' + (p.origin ? ' title="' + esc(p.origin) + '"' : '') + '>' + esc(p.label) + '</span>' + build.inputWidget(p)).join('') + '</div></div>';
+            // whose runs to compare with, as the dialog opens: the original's athlete for a load, the data loaded now's for a file
+            // routine with data loaded; the row is re-rendered as the choice or the athlete changes
             const src0 = (pre && pre.plan && pre.plan.source) || '';
             const s0 = (src0 === 'intervals' || src0 === 'endura' || src0 === 'sweatstack') ? ((pre.plan || {}).subject || {}) : (pre && pre.loaded ? (((pre.data || {}).subject) || {}) : {});
-            h += '<div class="rt-compare-sec">' + build.compareSection(r, v, s0.id || '', s0.name || '') + '</div>';
-            return h;
+            return h + '<div class="rt-compare-sec">' + build.compareSection(r, v, s0.id || '') + '</div>';
         },
         // whose runs a run is compared with (2026-10-30): the previous run on the same athlete's data, and run zero only when it
         // ran on that athlete's; the first run on an athlete has nothing to compare with yet. Re-rendered as the athlete changes.
         subjectId(x) { return String((((x || {}).data || {}).subject || {}).id || ''); },
         zeroSubject(v) { return String((((((v || {}).manifest || {}).data || {}).load || {}).subject || {}).id || ''); },
         zeroFits(v, athleteId) { return athleteId == null || build.zeroSubject(v) === String(athleteId); },   // run zero is that athlete's alone; one naming none (before 2026-10-30) is nobody's but the subject-less runs'
-        compareSection(r, v, athleteId, athleteName) {
+        // the Compare row (§16.1): custom and the data loaded now only, and only with two runs to choose from - the run before
+        // on the athlete and run 0 on their data; one choice is no choice and nothing is shown
+        compareSection(r, v, athleteId) {
             const mine = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && build.subjectId(x) === String(athleteId || ''));
             const last = mine.length ? mine[mine.length - 1] : null;
             const zero = v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId || '');
-            const who = athleteName ? ' on ' + esc(athleteName) : '';
-            if (!last && !zero) return (r.runs || []).length || (v.run_zero && v.run_zero.verified) ? '<div class="rt-sec"><div class="h">Compare with</div><div class="rt-line muted">the first run' + who + ': nothing to compare with yet</div></div>' : '';
-            return '<div class="rt-sec"><div class="h">Compare with</div><div class="rt-choices">' +
-                (last ? '<label class="rt-check"><input type="radio" name="rt-compare" value="previous" checked> run ' + esc(last.number) + ' (' + esc(fmtDate(last.created)) + ', the run before' + who + ')</label>' : '') +
-                (zero ? '<label class="rt-check"><input type="radio" name="rt-compare" value="zero"' + (last ? '' : ' checked') + '> run 0 (the original data)</label>' : '') + '</div></div>';
+            if (!last || !zero) return '';
+            return '<div class="rt-row" data-row="compare"><label>Compare</label><div class="rt-choices">' +
+                '<label class="rt-check"><input type="radio" name="rt-compare" value="previous" checked> run ' + esc(last.number) + ' (the run before)</label>' +
+                '<label class="rt-check"><input type="radio" name="rt-compare" value="zero"> run 0 (the original data)</label></div></div>';
         },
         num(x) { return x == null || x === '' ? '' : String(x); },
         ivl(s) { return s && s.low != null && s.high != null ? '[' + esc(s.low) + ', ' + esc(s.high) + ']' : ''; },
@@ -1228,8 +1201,8 @@
         runDlg = document.createElement('div'); runDlg.id = 'routineRunModal'; runDlg.className = 'modal ui-modal'; runDlg.style.display = 'none';
         runDlg.innerHTML = '<div class="modal-content ui-dlg routine-dlg run-dlg">' +
             '<div class="ui-dlg-h"><div><div class="title">Run</div><div class="sub"></div></div><span class="sp"></span><button class="x" aria-label="Close">×</button></div>' +
-            '<div class="ui-dlg-b"></div>' +
-            '<div class="ui-dlg-f"><span class="note">The method runs as it was saved; only the inputs change. The run is recorded as it completes.</span><span class="sp"></span><button class="ui-btn" data-act="cancel">Cancel</button><button class="ui-btn primary" data-act="run">' + ICON_ROUTINE + '<span>Run</span></button></div></div>';
+            '<div class="ui-dlg-b"></div><div class="rt-progress" style="display:none"></div>' +         // the load's band (§16.2): under the body, in view whatever the body scrolls
+            '<div class="ui-dlg-f"><span class="note"></span><span class="sp"></span><button class="ui-btn" data-act="cancel">Cancel</button><button class="ui-btn primary" data-act="run">' + ICON_ROUTINE + '<span>Run</span></button></div></div>';
         document.body.appendChild(runDlg);
         runDlg.addEventListener('click', e => {
             if (e.target === runDlg || e.target.closest('.ui-dlg-h .x')) { closeRun(); return; }
@@ -1247,12 +1220,8 @@
                 updateRunButton();
                 renderCompare();                                  // whose runs to compare with follows the data choice (2026-10-30)
             }
-            if (e.target.matches('input[data-load="fill"]')) { renderCompare(); checkCache(); updateRunButton(); }     // the span, the comparison and the button follow the fill
+            if (e.target.matches('input[data-load="fill"]')) updateRunButton();                 // the units to run follow the box: the button and the time
             if (e.target.matches('select[data-load="athlete"]')) athleteChanged();
-            if (e.target.matches('input[data-load="start"], input[data-load="end"], select[data-load="race"]')) { clearTimeout(cacheTimer); cacheTimer = setTimeout(checkCache, 250); }
-        });
-        runDlg.addEventListener('input', e => {             // a date being typed (Safari commits it on blur only): the line follows the typing
-            if (e.target.matches('input[data-load="start"], input[data-load="end"]')) { clearTimeout(cacheTimer); cacheTimer = setTimeout(checkCache, 400); }
         });
         return runDlg;
     }
@@ -1266,6 +1235,7 @@
         runState = { id: routineId, routine: null, pre: null, busy: false, interval: 'custom' };
         const p = runParts();
         p.d.style.display = 'flex'; p.title.textContent = 'Run'; p.sub.textContent = ''; p.body.innerHTML = build.loading('', '').replace('The analyst is reading the chain and naming its inputs…', 'Reading the routine and checking the data loaded now…');
+        progress('');
         p.runBtn.disabled = true; p.cancelBtn.disabled = false;             // Cancel was held while the last run started
         Promise.all([fetchJson('/routines/' + encodeURIComponent(routineId)), fetchJson('/routines/' + encodeURIComponent(routineId) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })]).then(([rr, pr]) => {
             if (!runState || runState.id !== routineId) return;
@@ -1284,7 +1254,6 @@
                 if (src === 'endura') fillRaces(p, runState.plan);
                 if (src !== 'intervals' && src !== 'endura' && src !== 'sweatstack') fillCachePick(p);
                 updateRunButton();
-                checkCache();
             };
             // the window a plan allows (Intervals): the dialog's default window is clamped to it, as the Data tab's is
             if (src === 'intervals') fetchJson('/intervals/get_data_limits').then(res => after(res.ok ? res.json : null)).catch(() => after(null));
@@ -1353,16 +1322,12 @@
         const p = runParts();
         const help = p.d.querySelector('.rt-athlete-help');
         if (help) {
-            const a = athletePicked(p), mine = (st.plan || {}).subject || {};
             const sel = p.d.querySelector('select[data-load="athlete"]');
             const o = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
-            help.textContent = o && o.getAttribute('data-nokey') ? 'no key stored for them: a window the cache holds runs; anything else needs the key under Settings → Intervals ICU'
-                : (mine.id && a.id && a.id !== mine.id ? 'the method was made on ' + (mine.name || mine.id) + '’s data' : '');
+            help.textContent = o && o.getAttribute('data-nokey') ? 'no key stored for them: a window the cache holds runs; anything else needs the key under Settings → Intervals ICU' : '';
         }
         renderInterval();                                     // the units not run yet are this athlete's
         renderCompare();
-        showCache(p, null);                                   // the line was the athlete before's; blank until the cache answers for this one
-        checkCache();
     }
     function renderCompare() {
         const st = runState; if (!st || !st.routine) return;
@@ -1370,7 +1335,7 @@
         const r = st.routine, v = (r.versions || []).find(x => x.number === r.current_version) || {};
         const s = runSubject(p);
         const plan = intervalPlan();
-        box.innerHTML = plan ? build.compareSentence(plan, fillOn(p), s.name || '') : build.compareSection(r, v, s.id || '', s.name || '');
+        box.innerHTML = plan ? '' : build.compareSection(r, v, s.id || '');
     }
     // ---- the interval (§14.2): the plan under the row follows the kind, the athlete and the fill box; the load, the cache
     // question, the comparison and the button follow the plan
@@ -1386,26 +1351,31 @@
         const ws = build.fillWindows(plan, fillOn(p));
         return ws.length ? { start: ws[0][0], end: ws[ws.length - 1][1], windows: ws } : { start: '', end: '', windows: [] };
     }
+    // the rows that follow the data choice (§16.1): the frame's problems show while the frame is the choice; for an Intervals
+    // routine the plan under the interval follows the kind, the athlete and the fill box, and the Athlete and Interval rows grey
+    // out when the data loaded now is picked (it runs as it is: the athlete and the interval are the load's)
     function renderInterval() {
         const st = runState; if (!st || !st.routine) return;
-        const p = runParts(); const box = p.d.querySelector('.rt-interval-plan'); if (!box) return;
+        const p = runParts(), choice = dataChoice();
+        p.d.querySelectorAll('.rt-fit[data-for="now"]').forEach(el => { el.style.display = choice === 'now' ? '' : 'none'; });
+        const box = p.d.querySelector('.rt-interval-plan'); if (!box) return;
         const plan = intervalPlan();
-        box.innerHTML = plan ? build.intervalPlan(plan, build.tookOf(st.routine), Number((st.limits || {}).max_days) || 365, fillOn(p)) : '';
+        box.innerHTML = plan ? build.intervalPlan(plan, Number((st.limits || {}).max_days) || 365, fillOn(p)) : '';
         p.d.querySelectorAll('.rt-custom').forEach(el => { el.style.display = st.interval && st.interval !== 'custom' ? 'none' : ''; });
+        p.d.querySelectorAll('.rt-row[data-row="athlete"], .rt-row[data-row="interval"]').forEach(el => el.classList.toggle('off', choice !== 'load'));
     }
     function intervalChanged(kind) {
         const st = runState; if (!st || !st.routine || st.busy) return;
         st.interval = kind;
         const p = runParts();
         p.d.querySelectorAll('.rt-interval [data-interval]').forEach(el => el.classList.toggle('on', el.getAttribute('data-interval') === kind));
-        renderInterval(); renderCompare(); checkCache(); updateRunButton();
+        renderInterval(); renderCompare(); updateRunButton();
     }
     // the files the Dataset cache holds, for a file routine's dialog (step 4, 2026-10-11): the frames the executor keeps
     // that came from a file (an upload, or a file loaded from the cache before), newest first; nothing without an executor
     // (the local edition) or with nothing cached - the choice stays hidden
     function fillCachePick(p) {
-        const box = p.d.querySelector('.rt-cachepick'); if (!box) return;
-        const sel = box.querySelector('select[data-load="cached"]');
+        const sel = p.d.querySelector('select[data-load="cached"]'); if (!sel) return;
         fetchJson('/routines/cache_files').then(res => {
             const files = (res.ok && res.json && res.json.files) || [];
             if (!files.length || !runState) return;
@@ -1413,13 +1383,12 @@
                 const rows = f.rows != null ? ' · ' + Number(f.rows).toLocaleString() + ' rows' : '';
                 const when = f.cached_at ? ' · ' + fmtDate(Date.parse(f.cached_at) / 1000) : '';
                 return '<option value="' + esc(f.df_id) + '" data-name="' + esc(f.name) + '">' + esc(f.name) + esc(rows + when) + '</option>'; }).join('');
-            box.style.display = '';
+            p.d.querySelectorAll('.rt-cachepick').forEach(el => { el.style.display = ''; });
         }).catch(() => { /* no cache to pick from */ });
     }
     // whether the load asked for is already in the executor's cache with every file the routine wants (2026-10-11: a run
-    // re-downloaded a window loaded minutes before): asked once the dialog is up and again as the window or the race
-    // changes; the answer under the window, and the load takes the cached frame and files instead of downloading
-    let cacheTimer = null, cacheSeq = 0;
+    // re-downloaded a window loaded minutes before): asked by the load when Run is pressed; the cached frame and files are
+    // taken instead of downloading. (The preview under the window went with the slimmed dialog, §16.1.)
     function cacheAsk(asked) {
         // what to ask the cache about, or null when the dialog has no complete window or event yet
         if (asked.source === 'intervals') return asked.start_date && asked.end_date ? Object.assign({ start: asked.start_date, end: asked.end_date }, asked.subject ? { athlete: asked.subject.id } : {}) : null;
@@ -1431,20 +1400,6 @@
         if (!body) return Promise.resolve(null);
         return fetchJson('/routines/' + encodeURIComponent(st.id) + '/cached', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
             .then(res => (res.ok && res.json) || { hit: false, line: '' }).catch(() => ({ hit: false, line: '' }));
-    }
-    function showCache(p, c) {
-        const el = p.d.querySelector('.rt-cache'); if (!el) return;
-        if (!c || !c.line) { el.style.display = 'none'; el.textContent = ''; el.className = 'rt-cache'; return; }
-        el.style.display = ''; el.className = 'rt-cache ' + (c.hit ? 'hit' : 'miss'); el.textContent = (c.hit ? '✓ ' : '') + c.line;
-    }
-    function checkCache() {
-        // the line under the window: a preview as the dates are set; the load asks again for itself when Run is pressed
-        const st = runState; if (!st || !st.plan) return;
-        const p = runParts();
-        const asked = loadAsked(st.plan, p);
-        if (!cacheAsk(asked)) { showCache(p, null); return; }
-        const seq = ++cacheSeq;                               // the latest question's answer stands: an earlier one arriving late is dropped (2026-10-30: the athlete's answer came after the window's)
-        askCache(st, asked).then(c => { if (runState === st && seq === cacheSeq) showCache(p, c); });
     }
     function dataChoice() {
         const p = runParts();
@@ -1465,8 +1420,7 @@
         p.runBtn.disabled = st.busy || !on;
         p.runBtn.querySelector('span').textContent = plan ? build.runLabel(plan, fillOn(p)) : 'Run';       // Run · Run 41 weeks · Run again
         const note = p.d.querySelector('.ui-dlg-f .note');
-        if (note) note.textContent = windows.length > 1 ? 'The method runs as it was saved on each ' + plan.kind + ', oldest first, in the background; each run is recorded as it completes, and the fill can be stopped from the Summary.'
-            : 'The method runs as it was saved; only the inputs change. The run is recorded as it completes.';
+        if (note) note.textContent = build.tookLine(st.routine, windows.length);
     }
     function fillRaces(p, plan) {
         const sel = p.d.querySelector('select[data-load="race"]'); if (!sel) return;
@@ -1475,13 +1429,18 @@
             if (!races.length) { sel.innerHTML = '<option value="">no races (is the Endura key set?)</option>'; updateRunButton(); return; }
             sel.innerHTML = races.map(x => { const id = x.race_id != null ? x.race_id : (x.id != null ? x.id : x.raceid); const title = x.race_title || x.title || x.name || ('race ' + id);
                 return '<option value="' + esc(id) + '"' + (String(id) === String(plan.race_id) ? ' selected' : '') + '>' + esc(title) + (x.race_date ? ' · ' + esc(x.race_date) : '') + '</option>'; }).join('');
-            checkCache();
+            updateRunButton();
         }).catch(() => { sel.innerHTML = '<option value="">the races could not be listed</option>'; });
     }
-    function progress(text, kind) {
+    function progress(text, kind, percent) {
         const p = runParts(); const el = p.d.querySelector('.rt-progress'); if (!el) return;
-        if (!text) { el.style.display = 'none'; el.textContent = ''; return; }
-        el.style.display = ''; el.className = 'rt-progress' + (kind ? ' ' + kind : ''); el.textContent = text;
+        const busy = !!text && kind === 'loading';
+        p.body.classList.toggle('rt-busy', busy);
+        if (!text) { el.style.display = 'none'; el.innerHTML = ''; return; }
+        el.style.display = ''; el.className = 'rt-progress' + (kind ? ' ' + kind : '');
+        const n = percent != null && isFinite(Number(percent)) ? Math.max(0, Math.min(100, Number(percent))) : null;
+        el.innerHTML = (busy ? '<span class="live"></span>' : '') + '<span class="t">' + esc(text) + '</span>' +
+            (busy ? '<div class="bar' + (n == null ? ' sweep' : '') + '"><i' + (n != null ? ' style="width:' + n + '%"' : '') + '></i></div>' : '');
     }
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     // a load clears what it replaces (2026-10-11: a run's pills used to stack beside the old ones): a load from Intervals,
@@ -1509,15 +1468,12 @@
         // which can lag behind a date typed and committed by the click on Run itself (2026-10-11: a window loaded minutes
         // before was downloaded again)
         let cached = null;
-        const refresh = !!(q('input[data-load="refresh"]') && q('input[data-load="refresh"]').checked);
         if (src === 'intervals' || src === 'endura') {
             progress('Asking the cache…', 'loading');
-            cacheSeq++;                                       // the previews in flight are stale now
             const c = await askCache(runState, asked);
             cached = c && c.hit ? c : null;
-            showCache(p, c);
         }
-        if (cached && !refresh) {
+        if (cached) {
             // the load is in the cache with every file the routine wants: the cached frame and files are taken through the
             // Dataset cache's own routes, the pills as a load's, no download
             progress('Taking it from the cache…', 'loading');
@@ -1550,7 +1506,7 @@
             if (!start || !end || start > end) throw new Error('the window needs a start before its end');
             progress('Starting the load from Intervals.icu…', 'loading');
             const who = asked.subject || {};                      // whose key (2026-10-30): the app refuses, naming them, when none is stored
-            const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [], refresh }, who.id ? { athlete: who.id, athlete_name: who.name || '' } : {})) });
+            const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [] }, who.id ? { athlete: who.id, athlete_name: who.name || '' } : {})) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load could not start');
             const jobId = res.json.job_id;
             const t0 = Date.now();
@@ -1564,7 +1520,7 @@
                     // the coding pass behind the load (2026-10-14): a routine's counts depend on the codes, so the run waits for it here
                     let coding = job.result && job.result.context && job.result.context.coding;
                     while (coding && coding.status === 'running' && Date.now() - t0 < 600000) {
-                        progress(coding.message || 'Coding the context…' + (coding.percent != null ? ' (' + coding.percent + '%)' : ''), 'loading');
+                        progress(coding.message || 'Coding the context…', 'loading', coding.percent);
                         await sleep(2000);
                         const cr = await fetchJson('/intervals/context_coding/' + encodeURIComponent(jobId));
                         coding = cr.json || null;
@@ -1579,7 +1535,7 @@
                     return { source: 'intervals', start, end, aux: files, load: Object.assign({}, asked, store ? { store } : {}), store, loaded: 'Intervals.icu' + (who.name ? ' · ' + who.name + ' ·' : '') + ' ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') + (coding && coding.line ? ' · ' + coding.line : '') };
                 }
                 if (job.status === 'error' || job.status === 'not_found') throw new Error(job.error || 'the load failed');
-                progress((job.message || 'Loading…') + (job.percent != null ? ' (' + job.percent + '%)' : ''), 'loading');
+                progress(job.message || 'Loading…', 'loading', job.total > 0 ? job.percent : null);
             }
             throw new Error('the load did not finish in ten minutes');
         }

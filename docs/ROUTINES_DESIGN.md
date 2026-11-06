@@ -1020,3 +1020,62 @@ waits for a simulation on chains of several kinds.
   and the Trend tab by name; the stack walk's chain records one line, so nothing changes there), and the screens tool
   (the dialog with lines set aside, closed and open; the manifest on the pick in the manager, the run view and the
   Summary).
+
+## 16. The Run dialog, slimmed (2026-11-06)
+
+Palo on the first live Week run (the Run dialog of 14.2 with the cache line, the kinds line, *Everything again*, the
+frame's chip and its green fit line, *Inputs — None*, the comparison sentence and the footer's sentence): "there is too
+much detail and it is confusing; pretty much all of it should go". And: the load's progress was a small line - "hard
+to see that something is happening". The rule since: **the dialog shows what the coach decides, and problems speak
+only when they occur, in place.** It supersedes the layout in 14.2 and S3; the mechanics are unchanged.
+
+### 16.1 The rows
+
+A label column and the content (`.rt-row`); the body is these rows and nothing else:
+
+- **Data** - the choice on one line: *Load from Intervals.icu* · *The data loaded now · 2025-11-10 → 2026-11-01* (the
+  frame's dates; the second choice only when something is loaded). A file routine: *Upload a file* [the file input],
+  *A file from the Dataset cache* [the pick, once the cache has answered with files], *The data loaded now · name*.
+  Endura: *Load from Endura* with the race pick; SweatStack: the load with its window.
+- **Athlete** (Intervals) - the pick. Under it a line only when it matters: *no key stored for them: a window the cache
+  holds runs; anything else needs the key under Settings → Intervals ICU*.
+- **Interval** (Intervals) - *Day · Week · Month · Year · Custom*, and under it one line: *Last complete week:
+  **26 Oct – 1 Nov** — not run yet* (or *— run already; Run runs it again*), then the box *Fill the weeks back to 3 Nov
+  2025 — 40 not run yet* when there are units to fill, or *Every week back to 3 Nov 2025 is run already (12 weeks)*;
+  *No complete month within the last 14 days* when the horizon holds none. *Custom*: the two pickers, and a note only
+  when the plan clamps the window (*your plan allows 182 days*). With *The data loaded now* picked, the Athlete and
+  Interval rows grey out (the box keeps its layout) and the frame's problems, if any, stand under Data: *△ 2 of 17
+  columns are empty in this data: power, temperature …*, *! nothing to run on: …* (the precheck's line, never the
+  green one).
+- **Inputs** - only when the routine has any: the label (its origin on hover) and the widget, a derived one its line.
+- **Compare** - Custom and the data loaded now only, and only with two runs to choose from: *run 14 (the run before)*
+  · *run 0 (the original data)*. One choice is no choice: nothing shown, it applies. A set interval compares with the
+  unit before it by rule (14.1); nothing is said.
+- The footer is the time alone: *about 20 min* for a fill (the units times the last run's time), *the last run took 2
+  min* (or *the check on the original data took …*) for one run, nothing when unknown. Cancel · *Run* / *Run 41 weeks*
+  / *Run again*.
+
+Gone from the dialog: *Everything again* (its home is the Intervals.icu dialog: *Only what's new / Everything again*;
+the store re-fetches changed files on its own), the cache preview (the load asks the cache itself when Run is pressed,
+and the LOAD row says *from the cache* after), *with summary, wellness · metrics as the original*, *the original's N
+days, ending today*, the frame's chip with rows and columns, the green *fits the routine* line, *Inputs — None: the
+method runs as it is*, the comparison sentence and its explanation, the footer's two sentences, the ETA line (the
+footer has it). Nothing of the record changes: the run's data tab, the LOAD row and the record still carry all of it.
+
+### 16.2 The load's progress
+
+Run pressed: the rows dim (`.rt-busy`) and a band stands at the foot of the body - a live dot, the loader's message
+(*Downloading 12 of 40 activities…*, *Coding the context… (40%)*) in the body's size, and a bar filled to the job's
+percent when it has one, sweeping when it has none. A failure takes the band's place in red, the rows back for another
+go. The band goes as the dialog closes (the run shows in the main panes, a fill in the Summary). The dialog's set
+height comes down to what the rows need (520px / 80vh).
+
+### 16.3 Build order and acceptance
+
+- **Patch 0269 — the slimmed dialog and the progress band**: 16.1–16.2. Accepted by: the markup on the mini DOM (the
+  rows and their order per source; the plan's lines at known dates; the fill box and its count; the Inputs row only
+  with inputs; the Compare row only with two choices; the data-loaded-now line only when something is off; the
+  footer's time; nothing of what went), the page's source (the band with its bar and percent, the rows dimmed while
+  busy, the cache preview and the refresh box gone from the dialog and the load), the stylesheet, the screens tool
+  (the dialog on Week, on Custom, on the data loaded now, and while a load runs), the stack walk (the file routine's
+  dialog) and the integrations walk (the Intervals dialog on Week, the fill, the load's band seen while it runs).

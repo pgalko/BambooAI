@@ -493,12 +493,12 @@ def main():
             check("the manager before any run: the runs list holds run 0 only", runs_before == ["0"], runs_before)
             page.click("#routinesModal [data-act='run']")
             page.wait_for_selector("#routineRunModal", state="visible", timeout=10000)
-            page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
-            rd = page.evaluate("""() => ({ title: document.querySelector('#routineRunModal .ui-dlg-h .title').textContent, fit: document.querySelector('#routineRunModal .rt-fit').textContent, bad: document.querySelector('#routineRunModal .rt-fit').classList.contains('bad'),
-                data: document.querySelector('#routineRunModal .rt-data').textContent, regime: (document.querySelector('#routineRunModal [data-key="regime"]') || {}).value,
-                compare: [...document.querySelectorAll('#routineRunModal input[name="rt-compare"]')].map(i => [i.value, i.checked]), runOn: !document.querySelector('#routineRunModal [data-act="run"]').disabled })""")
-            check("the run dialog: the data loaded now (field_trial.csv) fits the routine, the regime input carries its default B, the comparison offers run 0 (the only run so far), Run is enabled",
-                  "Regime contrast" in rd["title"] and "fits the routine" in rd["fit"] and not rd["bad"] and "field_trial.csv" in rd["data"] and rd["regime"] == "B" and rd["compare"] == [["zero", True]] and rd["runOn"], rd)
+            page.wait_for_selector("#routineRunModal .rt-row[data-row='data']", timeout=30000)
+            rd = page.evaluate("""() => ({ title: document.querySelector('#routineRunModal .ui-dlg-h .title').textContent, fit: (document.querySelector('#routineRunModal .rt-fit') || {}).textContent || null,
+                data: document.querySelector('#routineRunModal .rt-row[data-row="data"]').textContent, rows: [...document.querySelectorAll('#routineRunModal .rt-row')].map(r => r.dataset.row), regime: (document.querySelector('#routineRunModal [data-key="regime"]') || {}).value,
+                compare: [...document.querySelectorAll('#routineRunModal input[name="rt-compare"]')].map(i => [i.value, i.checked]), runOn: !document.querySelector('#routineRunModal [data-act="run"]').disabled, note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })""")
+            check("the run dialog (§16.1): the rows Data, File, Inputs - the data loaded now (field_trial.csv) the choice, nothing said about its fit since it fits, the regime input with its default B; no Compare row with run 0 the only run (one choice is no choice); the footer the time of the check; Run enabled",
+                  "Regime contrast" in rd["title"] and rd["fit"] is None and "The data loaded now · field_trial.csv" in rd["data"] and rd["rows"] == ["data", "file", "inputs"] and rd["regime"] == "B" and rd["compare"] == [] and rd["runOn"] and rd["note"].startswith("the check on the original data took "), rd)
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_function("() => document.getElementById('routineRunModal').style.display === 'none' && /run 1/.test(document.getElementById('chainPosition').textContent)", timeout=30000)
             live = page.evaluate("() => ({ pos: document.getElementById('chainPosition').textContent, locked: document.getElementById('queryInput').disabled, pill: getComputedStyle(document.getElementById('rankButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled] })")
@@ -555,9 +555,9 @@ def main():
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
             page.click("#routinesModal [data-act='run']")
-            page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
-            cmp_choices = page.evaluate("() => [...document.querySelectorAll('#routineRunModal input[name=\"rt-compare\"]')].map(i => [i.value, i.checked])")
-            check("the run dialog after run 1 offers the run before (on) and run 0", cmp_choices == [["previous", True], ["zero", False]], cmp_choices)
+            page.wait_for_selector("#routineRunModal .rt-row[data-row='compare']", timeout=30000)
+            cmp_choices = page.evaluate("() => ({ choices: [...document.querySelectorAll('#routineRunModal input[name=\"rt-compare\"]')].map(i => [i.value, i.checked]), note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })")
+            check("the run dialog after run 1 has the Compare row - the run before (on) and run 0 - and the footer the last run's time", cmp_choices["choices"] == [["previous", True], ["zero", False]] and cmp_choices["note"].startswith("the last run took "), cmp_choices)
             page.fill("#routineRunModal [data-key='regime']", "C")
             page.click("#routineRunModal [data-act='run']")
             wait_text(page, "#chainPosition", "run 2 of 2", 180000)
@@ -592,7 +592,7 @@ def main():
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
             page.click("#routinesModal [data-act='run']")
-            page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
+            page.wait_for_selector("#routineRunModal .rt-row[data-row='data']", timeout=30000)
             choices = page.evaluate("() => [...document.querySelectorAll('#routineRunModal input[name=\"rt-data\"]')].map(i => [i.value, i.checked])")
             check("the run dialog of a file routine offers an upload and a file from the Dataset cache beside the data loaded now (on)", choices == [["upload", False], ["cache", False], ["now", True]], choices)
             page.set_input_files("#routineRunModal input[data-load='file']", st.dataset)
@@ -626,9 +626,9 @@ def main():
             page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
             page.click("#routinesModal [data-act='run']")
             page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
-            nofit = page.evaluate("() => ({ fit: document.querySelector('#routineRunModal .rt-fit').textContent, bad: document.querySelector('#routineRunModal .rt-fit').classList.contains('bad'), data: document.querySelector('#routineRunModal .rt-data').textContent, runOn: !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
-            check("with no_soil.csv loaded the run dialog says soil will be empty in this data - not a refusal: the run adds the column empty and the coach decides; Run stays on",
-                  not nofit["bad"] and "1 of 6 columns empty in this data: soil" in nofit["fit"] and "no_soil.csv" in nofit["data"] and nofit["runOn"], nofit)
+            nofit = page.evaluate("() => ({ fit: document.querySelector('#routineRunModal .rt-fit').textContent, bad: document.querySelector('#routineRunModal .rt-fit').classList.contains('bad'), shown: document.querySelector('#routineRunModal .rt-fit').style.display !== 'none', data: document.querySelector('#routineRunModal .rt-row[data-row=\"data\"]').textContent, runOn: !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
+            check("with no_soil.csv loaded the run dialog says under Data that soil will be empty in this data (the frame being the choice, the line shows) - not a refusal: the run adds the column empty and the coach decides; Run stays on",
+                  not nofit["bad"] and nofit["shown"] and "1 of 6 columns empty in this data: soil" in nofit["fit"] and "no_soil.csv" in nofit["data"] and nofit["runOn"], nofit)
             page.click("#routineRunModal [data-act='run']")
             wait_text(page, "#chainPosition", "run 4 of 4", 240000)
             page.wait_for_timeout(600)
@@ -660,10 +660,10 @@ def main():
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
             page.click("#routinesModal [data-act='run']")
-            page.wait_for_selector("#routineRunModal .rt-fit", timeout=30000)
+            page.wait_for_selector("#routineRunModal .rt-row[data-row='data']", timeout=30000)
             page.wait_for_timeout(1200)
-            pick = page.evaluate("""() => { const box = document.querySelector('#routineRunModal .rt-cachepick'); const sel = box && box.querySelector('select[data-load="cached"]');
-                return { shown: !!box && box.style.display !== 'none', options: sel ? [...sel.options].map(o => o.textContent) : [] }; }""")
+            pick = page.evaluate("""() => { const picks = [...document.querySelectorAll('#routineRunModal .rt-cachepick')]; const sel = document.querySelector('#routineRunModal select[data-load="cached"]');
+                return { shown: picks.length === 2 && picks.every(e => e.style.display !== 'none'), options: sel ? [...sel.options].map(o => o.textContent) : [] }; }""")
             if edition == "hosted":
                 check("the file routine's dialog offers a file from the Dataset cache: the walk's uploads, newest first, with their rows and the day",
                       pick["shown"] and len(pick["options"]) >= 3 and any("no_soil.csv" in o for o in pick["options"]) and any("field_trial.csv" in o and "720 rows" in o for o in pick["options"]), pick)

@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/174/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/126/14/25/4/14/67/41 JS; 1,749 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/174/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/127/14/25/4/14/67/41 JS; 1,750 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,27 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Run dialog, slimmed; the load's band (2026-11-06, patch 0269; page only; docs/ROUTINES_DESIGN.md §16).** Palo on
+  the first live Week run: "too much detail and it is confusing; pretty much all of it should go", and the load's
+  progress "hard to see". The dialog is rows now (`.rt-row`, `build.dataRows` + `build.runDialog`): Data (the load,
+  or the data loaded now with its dates, on one line), Athlete, Interval (the segments; one line *Last complete week:
+  26 Oct – 1 Nov — not run yet*; the box *Fill the weeks back to … — 40 not run yet*; the pickers for Custom with a
+  note only when the plan clamps the window), Inputs only when there are any (the origin on the label's hover),
+  Compare only for custom with two runs to choose from (`compareSection(r, v, athleteId)`; a set interval says
+  nothing - `compareSentence` is gone). The footer is the time alone (`build.tookLine`). Gone: *Everything again*
+  (its home is the Intervals.icu dialog), the cache preview (`checkCache`/`showCache`/`cacheSeq`/`cacheTimer`; the
+  load still asks the cache itself), the kinds and metrics line, "the original's N days", the frame's chip and the
+  green fit line (the frame's problems show under Data only while the frame is the choice), *Inputs — None*, the
+  footer's sentences, the ETA line. With the data loaded now picked the Athlete and Interval rows grey out
+  (`renderInterval` toggles `.off`). The load's band (`progress(text, kind, percent)`): under the body (the shell's
+  `.rt-progress`, in view whatever the body scrolls) with a live dot, the loader's words and a bar filled to the
+  job's percent when `total > 0`, sweeping otherwise; the body's rows dimmed (`.rt-busy`); a failure in its place in
+  red. The dialog's set height is 520px/80vh. Tests: test_routines.js 127 (the rows per source, the plan's lines,
+  the Compare row's rule, tookLine, the hidden fit line, the band's source, the stylesheet), the screens tool (22
+  states: s4e the data loaded now with the rows greyed, s4f a load under way with the band at 30%), the stack walk
+  (the file routine's rows, no Compare row with run 0 alone, the footer's time, the cache pick in two places), the
+  integrations walk (the Intervals dialog's rows and footer, the band while the load runs, the Week dialog's one-line
+  plan and box, the cache's answers read from its route instead of the preview).
 - **The Summary during and after a fill; the dialogs' size (2026-11-06, patch 0268; page, plus `routine_name` on the
   fill's status).** Palo after the first live fill: no sign in the modal that it had finished (the bar vanished, only a
   toast), and Run stayed clickable during it. Now the header's Run and Delete are greyed with the reason while a fill
@@ -548,7 +569,7 @@
   stream-pane.js; the tab's id `comparison` stays): a run on a set interval gets the units as heads and a last
   column of thumbnails from the routine's runs (`withSeries` after the first render; `comparisonTab(view,
   series)`). Tests: test_routines.js 116, the screens tool (s6c the Summary on Weekly, s6d the enlarged chart, s5c
-  the Trend tab of a week; s5 / s5b expect the tab named Trend), the stack walk 134, the integrations walk 149 (0267).
+  the Trend tab of a week; s5 / s5b expect the tab named Trend), the stack walk 134, the integrations walk 144 (0269: the dialog's preview checks folded into the cache route's answers).
 - **Routines by the calendar, step 1: the interval and the fill (2026-11-06, patch 0264; app and page, image v74
   stands; no migration). docs/ROUTINES_DESIGN.md §14.** Palo's rethink after the set-aside 0261-0263 (branch
   `set-aside/routines-for-a-coach`): the trend followed the run order and the windows differed in length. A run now
