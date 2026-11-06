@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/162/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/117/14/25/4/14/67/41 JS; 1,728 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/173/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/123/14/25/4/14/67/41 JS; 1,745 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,29 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The lines a run compares, and their names (2026-11-06, patch 0267; docs/ROUTINES_DESIGN.md §15).** The first
+  live power-curve routine compared ten lines from four cells - the chain had computed the same quantity in cell 2, 3
+  and 4 and the routine carried every version, each under that cell's wording. Root cause: the ledger is append-only
+  by design and promotion took the whole ledger as the lines to compare, with a choice only on a typed line. Now the
+  promoter's one call also picks and names: its ledger is numbered (`_ledger`: `7. [cell 4] …`) and its reply carries
+  `"compare": [{"line": 7, "name": "…"}]` - the final form of each quantity the answer rests on, named as a table head
+  reads, without counts, periods or dates; every other line is dropped on the manifest (printed and checked by
+  position still, left out of the comparison; `rt.pick_results`, `MAX_NAME` 60). A reply without a usable pick keeps
+  every line, as before. The decision with Palo: trust the model's pick, keep the coach in charge without asking
+  anything of them - the Create dialog lists the compared lines by name (the recorded wording on hover, *drop* on
+  hover), the lines set aside behind one muted line *N more lines recorded, not compared* that opens on a click, each
+  with *keep*; a typed line keeps its flag and its choice, its default following the pick; the page keeps the state
+  on the proposal and sends the whole set of dropped lines (`drop_results`); `create` without the key takes the
+  proposal's pick. The name shows wherever a line is shown (`build.lineName`: the Summary's heads and prefix, the
+  custom table, the enlarged chart's title, key and PNG name, the Trend tab's rows, the manager's list);
+  `compare_runs` rows carry it. Not built: a RESULT that carries a list (a quantity over a fixed short set of points,
+  compared point by point) - what a curve wants; it changes what the analyst writes and waits for a simulation
+  (§15.3). Tests: test_routines.py 173 (pick_results, the numbered ledger, create with and without the page's set,
+  the row's name), test_routines.js 123 (the two groups, the counts, lineName, the names in the table, key, Trend tab
+  and manager), the screens tool (s1 with lines set aside, s1d the group opened, the fixture's manifest on the pick),
+  the integrations walk (the scripted promoter picks two of three lines and names them: the dialog's groups, keep and
+  drop live, the manifest stored, the Summary's two named columns, the enlarged chart's title and keys, the Trend
+  tab's rows).
 - **The enlarged chart's key (2026-11-06, patch 0266; page only).** Palo, on the first chart with two lines: nothing
   said which line was which, and the footer explained the dots and the gaps, which the picture shows. Under the title
   a key names each line with its scale (`trendKeys`: the line in its colour, the second dashed, *· left / right
@@ -512,7 +535,7 @@
   stream-pane.js; the tab's id `comparison` stays): a run on a set interval gets the units as heads and a last
   column of thumbnails from the routine's runs (`withSeries` after the first render; `comparisonTab(view,
   series)`). Tests: test_routines.js 116, the screens tool (s6c the Summary on Weekly, s6d the enlarged chart, s5c
-  the Trend tab of a week; s5 / s5b expect the tab named Trend), the stack walk 134, the integrations walk 143.
+  the Trend tab of a week; s5 / s5b expect the tab named Trend), the stack walk 134, the integrations walk 149 (0267).
 - **Routines by the calendar, step 1: the interval and the fill (2026-11-06, patch 0264; app and page, image v74
   stands; no migration). docs/ROUTINES_DESIGN.md §14.** Palo's rethink after the set-aside 0261-0263 (branch
   `set-aside/routines-for-a-coach`): the trend followed the run order and the windows differed in length. A run now

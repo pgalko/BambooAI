@@ -109,12 +109,27 @@
             return '<table class="ui-table rt-inputs"><thead><tr><th>Input</th><th>Value now</th><th>Where it comes from</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
                 (kept && kept.length ? '<div class="rt-line muted">Left as they are: ' + kept.map(esc).join(' · ') + '</div>' : '');
         },
-        resultsList(results) {
+        // the lines a run will compare (§15.2): the lines kept, each named, with drop on hover; the lines the promoter set aside
+        // behind one muted line that opens on a click, each with keep; a typed line keeps its flag and its choice, visible, the
+        // default following the pick. `open` is whether the set-aside group is unfolded.
+        resultsList(results, open) {
             if (!results || !results.length) return '<div class="rt-line">This analysis recorded no RESULT lines, so runs will not be compared number by number; the routine still keeps its printed output and figures.</div>';
-            return '<div class="rt-results">' + results.map(r => r.typed
-                ? '<div class="r flag" data-cell="' + esc(r.cell) + '" data-index="' + esc(r.index) + '"><span class="g">!</span><span class="l">cell ' + esc(r.cell) + ': the numbers were typed into the call, not computed — this line will not change with new data</span>' +
-                  '<span class="ui-seg"><span class="on" data-keep="1">keep as a constant</span><span data-keep="0">drop</span></span></div>'
-                : '<div class="r"><span class="g">✓</span><span class="l" title="' + esc(r.label) + '">' + esc(r.label) + '</span><span class="c">cell ' + esc(r.cell) + '</span></div>').join('') + '</div>';
+            const row = (r, i) => r.typed
+                ? '<div class="r flag' + (r.dropped ? ' off' : '') + '" data-line="' + i + '" data-cell="' + esc(r.cell) + '" data-index="' + esc(r.index) + '"><span class="g">!</span><span class="l">cell ' + esc(r.cell) + ': the numbers were typed into the call, not computed — this line will not change with new data</span>' +
+                  '<span class="ui-seg"><span' + (r.dropped ? '' : ' class="on"') + ' data-keep="1">keep as a constant</span><span' + (r.dropped ? ' class="on"' : '') + ' data-keep="0">drop</span></span></div>'
+                : r.dropped
+                    ? '<div class="r off" data-line="' + i + '"><span class="g">○</span><span class="l" title="' + esc(r.label) + '">' + esc(r.label) + '</span><span class="c">cell ' + esc(r.cell) + '</span><button type="button" class="act" data-line-act="keep">keep</button></div>'
+                    : '<div class="r" data-line="' + i + '"><span class="g">✓</span><span class="l" title="' + esc(r.label) + '">' + esc(build.lineName(r)) + '</span><span class="c">cell ' + esc(r.cell) + '</span><button type="button" class="act" data-line-act="drop">drop</button></div>';
+            const aside = results.map((r, i) => [r, i]).filter(([r]) => r.dropped && !r.typed), setAside = new Set(aside.map(([, i]) => i));
+            return '<div class="rt-results">' + results.map((r, i) => setAside.has(i) ? '' : row(r, i)).join('') +
+                (aside.length ? '<div class="more' + (open ? ' open' : '') + '"><button type="button" class="t" data-line-act="more">' + (open ? '▾' : '▸') + ' ' + aside.length + ' more line' + (aside.length === 1 ? '' : 's') + ' recorded, not compared</button>' +
+                    (open ? '<div class="aside">' + aside.map(([r, i]) => row(r, i)).join('') + '</div>' : '') + '</div>' : '') + '</div>';
+        },
+        // the dialog's Results section, rebuilt on its own when a line moves (§15.2)
+        resultsSection(p, open) {
+            const all = (p.results || []), kept = all.filter(r => !r.dropped).length;
+            const count = kept === all.length ? kept + ' kept' : kept + ' of ' + all.length + ' kept';
+            return '<div class="h">Results <span class="n">— the lines the runs will compare, ' + count + (p.figures && p.figures.count ? ' · ' + p.figures.count + ' figure' + (p.figures.count === 1 ? '' : 's') : '') + '</span></div>' + build.resultsList(all, open);
         },
         // the routine a chain's proposal stands under (2026-10-12): the one made from this very chain, else the thread's
         // first; and which it is, since the offer and its default differ - this chain's own routine defaults to its next
@@ -149,8 +164,7 @@
             h += '<div class="ui-field"><label>Purpose <span class="ui-muted">— one line for the card and for the note written after each run</span></label><input class="ui-input" data-field="purpose" value="' + esc(p.purpose || p.question || '') + '" maxlength="300"></div>';
             h += '<div class="rt-sec"><div class="h">Data</div>' + build.dataLine(p) + '</div>';
             h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— what you can change each run; everything else stays as the analysis had it</span></div>' + build.inputsTable(p.inputs, p.kept) + '</div>';
-            const kept = (p.results || []).filter(r => !r.dropped).length;
-            h += '<div class="rt-sec"><div class="h">Results <span class="n">— the lines the runs will compare, ' + kept + ' kept' + (p.figures && p.figures.count ? ' · ' + p.figures.count + ' figure' + (p.figures.count === 1 ? '' : 's') : '') + '</span></div>' + build.resultsList(p.results) + '</div>';
+            h += '<div class="rt-sec" data-sec="results">' + build.resultsSection(p, false) + '</div>';
             if (p.notes && p.notes.length) h += '<div class="rt-sec"><div class="h">Notes</div><div class="rt-line muted">' + p.notes.map(esc).join('<br>') + '</div></div>';
             return h;
         },
@@ -189,7 +203,7 @@
                 : '<div class="rt-line">None: the method runs as it is on data of the same shape.</div>') + '</div>';
             const res = (m.results || []).filter(x => !x.dropped);
             h += '<div class="rt-sec"><div class="h">Results <span class="n">— compared run to run' + (m.figures && m.figures.count ? ' · ' + m.figures.count + ' figure' + (m.figures.count === 1 ? '' : 's') : '') + '</span></div>' +
-                (res.length ? '<div class="rt-results">' + res.map(x => '<div class="r"><span class="g">✓</span><span class="l" title="' + esc(x.label) + '">' + esc(build.metricLabel(x.label)) + '</span><span class="c">cell ' + esc(x.cell) + '</span></div>').join('') + '</div>' : '<div class="rt-line">None recorded: runs keep their printed output and figures.</div>') + '</div>';
+                (res.length ? '<div class="rt-results">' + res.map(x => '<div class="r"><span class="g">✓</span><span class="l" title="' + esc(x.label) + '">' + esc(build.lineName(x)) + '</span><span class="c">cell ' + esc(x.cell) + '</span></div>').join('') + '</div>' : '<div class="rt-line">None recorded: runs keep their printed output and figures.</div>') + '</div>';
             h += '<div class="rt-sec"><div class="h">Versions</div><div class="rt-vers">' + (r.versions || []).slice().reverse().map(x => '<div class="v"><b>v' + esc(x.number) + '</b><span>' + esc(fmtDate(x.created)) + ' · from the analysis of ' + esc(chainDate((x.promoted_from || {}).chain_id) || (x.promoted_from || {}).chain_id) + (x.change_note ? ' · “' + esc(x.change_note) + '”' : '') + '</span></div>').join('') + '</div></div>';
             // the runs by athlete (2026-10-30): a choice when the runs span more than one; the latest run's athlete first
             const athletes = build.runAthletes(r);
@@ -204,7 +218,7 @@
             const kind = counts[managerState.interval] ? managerState.interval : build.openInterval(r, athleteId);
             const o = opts || {};
             const series = kind === 'custom' ? null : build.series(r, kind, athleteId, build.units(kind, o.today || new Date(), o.horizon || 365));
-            const prefix = series ? build.sharedPrefix(series.lines.map(l => build.metricLabel(l.label))) : '';
+            const prefix = series ? build.sharedPrefix(series.lines.map(l => build.lineName(l))) : '';
             const unit = series && series.lines.length && series.lines.every(l => (l.unit || '') === (series.lines[0].unit || '')) ? (series.lines[0].unit || '') : '';
             const headNote = series ? '— by ' + kind + ', the latest at the top' + (prefix ? ' · ' + esc(prefix) + (unit && unit !== 'n/a' ? ', ' + esc(unit) : '') : '') : '— each run against the one before it';
             h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">' + headNote + '</span>' + build.filterBar(counts, kind) + pick + '</div>' + build.fillBar(fill) + (series ? build.byIntervalTable(series, prefix) : build.runsTable(r, athleteId)) + '</div>';
@@ -259,7 +273,7 @@
             if (!s.lines.length) return '<div class="rt-line muted">This routine records no result lines; its runs keep their output and figures.</div>';
             const one = s.kind, many = one + 's';
             if (!s.rows.length) return '<div class="rt-line muted">No ' + one + ' run within the last year.</div>';
-            const heads = s.lines.map(l => { const t = build.metricLabel(l.label); return prefix && t.startsWith(prefix) ? t.slice(prefix.length).replace(/^,\s*/, '') || t : t; });
+            const heads = s.lines.map(l => { const t = build.lineName(l); return prefix && t.startsWith(prefix) ? t.slice(prefix.length).replace(/^,\s*/, '') || t : t; });
             const th = '<th>' + one.charAt(0).toUpperCase() + one.slice(1) + '</th>' + s.lines.map((l, i) => '<th class="m" title="' + esc(l.label) + '"><span class="lab">' + esc(heads[i]) + '</span>' + build.thumb(s, i) + '</th>').join('');
             const body = s.rows.map((p, ri) => {
                 const below = s.rows[ri + 1] || null;              // the unit before it in the calendar: the row below
@@ -286,7 +300,7 @@
             const segs = [[pts[0]]];
             pts.slice(1).forEach((p, j) => { if (p.k === pts[j].k + 1) segs[segs.length - 1].push(p); else segs.push([p]); });
             const last = pts[pts.length - 1];
-            return '<svg class="rt-thumb" viewBox="0 0 112 24" data-line="' + i + '" role="img"><g><title>' + esc(build.metricLabel(s.lines[i].label)) + ' over the ' + s.kind + 's - click for the full chart</title></g>' +
+            return '<svg class="rt-thumb" viewBox="0 0 112 24" data-line="' + i + '" role="img"><g><title>' + esc(build.lineName(s.lines[i])) + ' over the ' + s.kind + 's - click for the full chart</title></g>' +
                 segs.filter(sg => sg.length > 1).map(sg => '<polyline points="' + sg.map(p => x(p.k) + ',' + y(p.v)).join(' ') + '"/>').join('') +
                 pts.map(p => '<circle cx="' + x(p.k) + '" cy="' + y(p.v) + '" r="1.6"/>').join('') + '<circle class="last" cx="' + x(last.k) + '" cy="' + y(last.v) + '" r="3"/></svg>';
         },
@@ -295,7 +309,7 @@
         // the key to the enlarged chart's lines (0266): each line named with its scale, in its colour; the second one dashed
         trendKeys(s, i, also, colors) {
             const c = Object.assign({ line: '#2ecc71', also: '#5dade2' }, colors || {});
-            const key = (li, color, dashed, side) => '<span class="rt-key"><i class="sw' + (dashed ? ' dashed' : '') + '" style="' + (dashed ? 'border-color:' : 'background:') + esc(color) + '"></i>' + esc(build.metricLabel(s.lines[li].label)) + ' · ' + side + ' scale</span>';
+            const key = (li, color, dashed, side) => '<span class="rt-key"><i class="sw' + (dashed ? ' dashed' : '') + '" style="' + (dashed ? 'border-color:' : 'background:') + esc(color) + '"></i>' + esc(build.lineName(s.lines[li])) + ' · ' + side + ' scale</span>';
             return key(i, c.line, false, 'left') + (also != null && also >= 0 && also !== i && s.lines[also] ? key(also, c.also, true, 'right') : '');
         },
         // the enlarged chart (§14.6): a calendar axis over the span, one dot per unit at its place, the line broken where a unit is
@@ -511,6 +525,9 @@
             while (parts.length > 1 && tail(parts[parts.length - 1])) parts.pop();
             return parts.join(', ');
         },
+        // how a line is named where it is shown (§15.3): the promoter's name when the manifest has one, else the recorded
+        // label trimmed; the recorded label stays on hover
+        lineName(line) { return (line && line.name) || build.metricLabel((line || {}).label); },
         loadSection(plan, pre, limits, kind) {
             // the data: loaded as the original load asked for it (the window shifted to end today, the race picked, the
             // file uploaded), or the data loaded now; the fit line for the data loaded now - a load's is checked after it
@@ -656,10 +673,10 @@
                 // nothing to compare with - the first run on this athlete, or of the version: the record's own line says which
                 h += (run.number !== 0 && c.line ? '<div class="rt-line muted">' + esc(c.line) + '</div>' : '') +
                     '<table class="ui-table rt-cmp-table' + (kind ? ' with-trend' : '') + '"><thead><tr><th>Result</th>' + th(run.number, d) + trendTh + '</tr></thead><tbody>' +
-                    rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(build.metricLabel(x.label)) + '</td><td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' + trendTd(x) + '</tr>').join('') + '</tbody></table>';
+                    rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(build.lineName(x)) + '</td><td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' + trendTd(x) + '</tr>').join('') + '</tbody></table>';
             } else {
                 h += '<table class="ui-table rt-cmp-table' + (kind ? ' with-trend' : '') + '"><thead><tr><th>Result</th>' + th(run.against, ref) + th(run.number, d) + '<th class="num">Change</th><th>Intervals</th>' + trendTh + '</tr></thead><tbody>' +
-                    rows.map(x => '<tr class="' + esc(x.mark) + '"><td class="label" title="' + esc(x.label) + '">' + esc(build.metricLabel(x.label)) + '</td>' +
+                    rows.map(x => '<tr class="' + esc(x.mark) + '"><td class="label" title="' + esc(x.label) + '">' + esc(build.lineName(x)) + '</td>' +
                         '<td class="num">' + esc(build.num((x.before || {}).estimate)) + '<div class="ci">' + build.ivl(x.before) + '</div></td>' +
                         '<td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' +
                         '<td class="num change">' + (x.change == null ? '' : esc((x.change > 0 ? '+' : '') + Number(x.change.toPrecision(3)))) + '</td>' +
@@ -712,7 +729,7 @@
             const body = lines.map(line => {
                 const pos = all.indexOf(line);
                 const cells = cols.map(c => c.results[pos] || null);
-                let tds = '<td class="label" title="' + esc(line.label) + '">' + esc(build.metricLabel(line.label)) + '</td>';
+                let tds = '<td class="label" title="' + esc(line.label) + '">' + esc(build.lineName(line)) + '</td>';
                 cells.forEach((x, i) => {
                     if (i) {
                         const mark = build.markOf(x, cells[i - 1]);
@@ -913,10 +930,29 @@
         dialog.addEventListener('click', e => {
             const ch = e.target.closest('.rt-version .ui-choice');
             if (ch) { dialog.querySelectorAll('.rt-version .ui-choice').forEach(x => x.classList.toggle('on', x === ch)); syncVersionChoice(); return; }
+            const act = e.target.closest('.rt-results [data-line-act]');
+            if (act) { lineAct(act.getAttribute('data-line-act'), act.closest('.r')); return; }
             const seg = e.target.closest('.rt-results .ui-seg > span');
-            if (seg) { seg.parentNode.querySelectorAll('span').forEach(x => x.classList.toggle('on', x === seg)); }
+            if (seg) {
+                seg.parentNode.querySelectorAll('span').forEach(x => x.classList.toggle('on', x === seg));
+                const line = lineOf(seg.closest('.r'));
+                if (line) line.dropped = seg.getAttribute('data-keep') === '0';
+            }
         });
         return dialog;
+    }
+    // the proposal's line a row of the Results list stands for
+    function lineOf(row) {
+        const st = dialogState;
+        return st && st.proposal && row ? (st.proposal.results || [])[Number(row.getAttribute('data-line'))] : null;
+    }
+    // keep / drop move a line between the compared list and the set-aside group; more unfolds the group (§15.2)
+    function lineAct(act, row) {
+        const st = dialogState; if (!st || !st.proposal || st.busy) return;
+        if (act === 'more') st.asideOpen = !st.asideOpen;
+        else { const line = lineOf(row); if (!line) return; line.dropped = act === 'drop'; }
+        const sec = dialogParts().d.querySelector('.rt-sec[data-sec="results"]');
+        if (sec) sec.innerHTML = build.resultsSection(st.proposal, !!st.asideOpen);
     }
     function dialogParts() {
         const d = ensureDialog();
@@ -990,7 +1026,7 @@
         return {
             proposal_id: st.proposal.proposal_id, name: field('name') || (nextOn ? under.routine.name : st.proposal.name), purpose: field('purpose'),
             drop_inputs: Array.from(p.d.querySelectorAll('input[data-drop]:checked')).map(x => x.getAttribute('data-drop')),
-            drop_results: Array.from(p.d.querySelectorAll('.rt-results .r.flag')).filter(r => { const on = r.querySelector('.ui-seg .on'); return on && on.getAttribute('data-keep') === '0'; }).map(r => [Number(r.getAttribute('data-cell')), Number(r.getAttribute('data-index'))]),
+            drop_results: (st.proposal.results || []).filter(r => r.dropped).map(r => [r.cell, r.index]),     // the whole set left out of the comparison: the pick with the person's changes (§15.2)
             change_note: nextOn ? field('change_note') : '', routine_id: nextOn ? under.routine.id : null
         };
     }
@@ -1153,14 +1189,14 @@
         trendState = { series: ms.series, athlete: ms.athlete, line, months: 12, also: -1 };
         const d = ensureTrendDialog();
         d.querySelectorAll('.rt-months [data-months]').forEach(el => el.classList.toggle('on', el.getAttribute('data-months') === '12'));
-        d.querySelector('.rt-also').innerHTML = '<option value="-1">also show: none</option>' + ms.series.lines.map((l, i) => (i === line ? '' : '<option value="' + i + '">' + esc(build.metricLabel(l.label)) + '</option>')).join('');
+        d.querySelector('.rt-also').innerHTML = '<option value="-1">also show: none</option>' + ms.series.lines.map((l, i) => (i === line ? '' : '<option value="' + i + '">' + esc(build.lineName(l)) + '</option>')).join('');
         d.style.display = 'flex';
         renderTrend();
     }
     function renderTrend() {
         const st = trendState; if (!st) return;
         const d = ensureTrendDialog(), s = st.series, one = s.kind;
-        d.querySelector('.title').textContent = build.metricLabel(s.lines[st.line].label);
+        d.querySelector('.title').textContent = build.lineName(s.lines[st.line]);
         d.querySelector('.sub').textContent = 'by ' + one + (st.athlete ? ' · ' + st.athlete : '') + ' · the latest ' + st.months + ' months';
         d.querySelectorAll('.rt-months [data-months]').forEach(el => el.classList.toggle('on', Number(el.getAttribute('data-months')) === st.months));
         const colors = chartColors(), two = st.also != null && st.also >= 0 && st.also !== st.line;
@@ -1175,7 +1211,7 @@
         img.onload = () => {
             const c = document.createElement('canvas'); c.width = 2360; c.height = 720;
             const ctx = c.getContext('2d'); ctx.fillStyle = (getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary') || '#fff').trim() || '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
-            const a = document.createElement('a'); a.download = (trendState ? build.metricLabel(trendState.series.lines[trendState.line].label).replace(/[^A-Za-z0-9]+/g, '_') : 'trend') + '.png'; a.href = c.toDataURL('image/png'); a.click();
+            const a = document.createElement('a'); a.download = (trendState ? build.lineName(trendState.series.lines[trendState.line]).replace(/[^A-Za-z0-9]+/g, '_') : 'trend') + '.png'; a.href = c.toDataURL('image/png'); a.click();
         };
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
     }

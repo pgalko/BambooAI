@@ -73,6 +73,24 @@ for t, why in (("no object here", "no JSON"), ("{\"inputs\": 3}", "not a list"),
     except ValueError as exc:
         ok = why.split()[0].lower() in str(exc).lower()
     check(f"parse_promoter: {t[:12]!r} -> ValueError mentioning {why!r}", ok)
+check("parse_promoter: 'compare' is read as a list and defaults to an empty one",
+      rt.parse_promoter('{"compare": [{"line": 2, "name": "x"}]}')["compare"] == [{"line": 2, "name": "x"}] and rt.parse_promoter('{"inputs": []}')["compare"] == [])
+try:
+    rt.parse_promoter('{"compare": 3}'); _cmp_bad = False
+except ValueError as exc:
+    _cmp_bad = "not a list" in str(exc)
+check("parse_promoter: a 'compare' that is not a list is refused", _cmp_bad)
+# ---- the promoter's pick (§15.1): the lines a run compares, named; every other line dropped; no usable pick keeps all ----
+_exp_pick = [{"cell": 2, "index": 0, "label": "a, first form", "estimate": "1", "dropped": False}, {"cell": 3, "index": 0, "label": "a, second form", "estimate": "2", "dropped": False},
+             {"cell": 3, "index": 1, "label": "a check", "estimate": "3", "dropped": False}, {"cell": 4, "index": 0, "label": "a, final form, 21 rows", "estimate": "4", "dropped": False}]
+_picked = rt.pick_results(_exp_pick, [{"line": 4, "name": "  a  "}, {"line": "3", "name": "the check"}, {"line": 9, "name": "none"}, {"line": "x"}, "junk", {"line": 4, "name": "again"}])
+check("pick_results: the lines named are kept with their names (whitespace folded, the first entry of a line standing), the rest dropped; a number out of range, a non-number and a non-object are ignored",
+      [(r["dropped"], r.get("name")) for r in _picked] == [(True, None), (True, None), (False, "the check"), (False, "a")] and [r["label"] for r in _picked] == [r["label"] for r in _exp_pick], _picked)
+check("pick_results: a name longer than 60 characters is cut; an empty name leaves the line kept without one",
+      len(rt.pick_results(_exp_pick, [{"line": 1, "name": "n" * 80}])[0]["name"]) == 60 and "name" not in rt.pick_results(_exp_pick, [{"line": 1, "name": "   "}])[0] and not rt.pick_results(_exp_pick, [{"line": 1, "name": "   "}])[0]["dropped"])
+check("pick_results: no usable pick (absent, empty, nothing valid) keeps every line, without names",
+      all(not r["dropped"] and "name" not in r for c in (None, [], [{"line": 0}, {"line": 99}], ["x"]) for r in rt.pick_results(_exp_pick, c)))
+check("pick_results: the input rows are not changed", all(not r["dropped"] and "name" not in r for r in _exp_pick))
 edited, applied, failed_groups = rt.apply_edits(body, obj["edits"])
 check("apply_edits: a unique fragment in the named cell is replaced; nothing else moves", "threshold = INPUTS['threshold']" in edited and "threshold = 155" not in edited and len(applied) == 1 and not failed_groups and edited.replace("INPUTS['threshold']", "155") == body)
 inputs, notes = rt.finish_inputs(obj["inputs"], edited, failed_groups)
@@ -178,7 +196,7 @@ def runner(script, timeout):
 events = []
 p = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, emit=events.append)
 check("propose: the promoter is called with the question, the cells and the ledger; the proposal carries the inputs, the results, the figures and the edited script",
-      prompts and prompts[0][0] == rt.PROMOTER_SYSTEM and "How many rows" in prompts[0][1] and "- [cell 2] rows above the line: +3" in prompts[0][1]
+      prompts and prompts[0][0] == rt.PROMOTER_SYSTEM and "How many rows" in prompts[0][1] and "1. [cell 2] rows above the line: +3" in prompts[0][1]
       and p["name"] == "Rows above a line" and p["inputs"][0]["key"] == "threshold" and p["results"][0]["label"] == "rows above the line" and "INPUTS['threshold']" in p["script"] and p["data"]["name"] == "small.csv" and p["data_state"] == "same", (p.get("inputs"), p.get("data_state"), [e.get("type") for e in events]))
 check("propose: the pane saw a quiet turn start and its end", [e.get("type") for e in events] == ["turn_start", "turn_end"] and events[0].get("quiet"))
 made = host.create(nb4, p, {"name": "Rows above a line", "purpose": "count the rows above a line", "drop_inputs": [], "drop_results": []}, runner, store, emit=events.append)
@@ -247,6 +265,24 @@ p6 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "other"})
 made6 = host.create(nb4, p6, {"name": "Unverified", "purpose": "", "drop_inputs": [], "drop_results": []}, None, store)
 check("the analysis's data gone: the proposal says 'gone', run zero is skipped and the routine is created unverified, saying so",
       p6["data_state"] == "gone" and made6["run_zero"]["status"] == "unverified" and not made6["run_zero"]["verified"] and "not verified" in made6["run_zero"]["line"], (p6.get("data_state"), made6.get("run_zero")))
+# the promoter's pick (§15): the proposal carries it; create without the page's set takes it, with the set takes the set
+def picking_promoter(system, user):
+    return reply.replace('"kept": ["nothing else"]', '"kept": ["nothing else"], "compare": [{"line": 1, "name": "rows above"}]'), {"cost": 0.0}
+p7 = host.propose(nb4, run4.id, picking_promoter, current_data={"df_id": "other"})
+p7["results"].append({"cell": p7["results"][0]["cell"], "index": 1, "label": "a draft the chain superseded", "estimate": "9", "dropped": True})     # as a second ledger line the pick left out
+made7 = host.create(nb4, p7, {"name": "Picked"}, None, store)
+_m7 = store.load(made7["routine"]["id"])["versions"][0]["manifest"]["results"]
+check("propose: the ledger is numbered and the pick lands on the proposal - the line named is kept with its name",
+      p7["results"][0].get("name") == "rows above" and not p7["results"][0]["dropped"], p7["results"])
+check("create without 'drop_results': the proposal's pick stands (the second line dropped, the first named)",
+      [(r["dropped"], r.get("name")) for r in _m7] == [(False, "rows above"), (True, None)], _m7)
+made7b = host.create(nb4, p7, {"name": "Picked, all kept", "drop_results": []}, None, store)
+_m7b = store.load(made7b["routine"]["id"])["versions"][0]["manifest"]["results"]
+check("create with the page's set: it is the whole set left out - an empty one keeps every line, the names staying",
+      [(r["dropped"], r.get("name")) for r in _m7b] == [(False, "rows above"), (False, None)], _m7b)
+made7c = host.create(nb4, p7, {"name": "Picked, the first dropped", "drop_results": [[p7["results"][0]["cell"], 0]]}, None, store)
+check("create with the page's set: a line the person dropped is dropped, one they kept is kept",
+      [r["dropped"] for r in store.load(made7c["routine"]["id"])["versions"][0]["manifest"]["results"]] == [True, False])
 # a promoter whose reply cannot be read: one retry, then refusal
 calls = {"n": 0}
 def mute_promoter(system, user):
@@ -364,6 +400,8 @@ def half_runner(script, timeout):
 _m4 = store.load(rid4)
 _exp4 = host.version_of(_m4)["manifest"]["results"]
 _cmp_half = rt.compare_runs(_exp4 + [dict(_exp4[0], index=1, label="a second line", estimate="4")], [{"estimate": "3", "low": None, "high": None}], [{"estimate": "3", "low": None, "high": None}, {"estimate": "4", "low": None, "high": None}], failed=True)
+check("compare_runs: a row carries the manifest's name for the line (empty without one)",
+      rt.compare_runs([dict(_exp4[0], name="the count")], [{"estimate": "3"}], None)["rows"][0]["name"] == "the count" and rt.compare_runs(_exp4, [{"estimate": "3"}], None)["rows"][0]["name"] == "")
 check("compare_runs of a failed run: the line printed before the failure compared (same), the one after it not reached; the line says so",
       [r["mark"] for r in _cmp_half["rows"]] == ["same", "unreached"] and _cmp_half["compared"] == 1 and _cmp_half["unreached"] == 1 and _cmp_half["missing"] == 0
       and _cmp_half["line"] == "0 of 1 changed before the failure, 1 not reached", _cmp_half)

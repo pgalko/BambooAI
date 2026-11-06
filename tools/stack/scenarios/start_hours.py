@@ -27,6 +27,12 @@ COUNT_QUESTION = "How many of the rider's own passages in this window were read 
 DATASET_NAME = "start_hours_stub.csv"          # the stack wants a file; the walk loads from Intervals instead
 
 
+def _ledger_no(user, text):
+    """The number of the promoter's ledger line that starts with `text` (the ledger is numbered since §15.1), else None."""
+    m = re.search(r"^(\d+)\. \[cell \d+\] " + re.escape(text), user, re.M)
+    return int(m.group(1)) if m else None
+
+
 def make_dataset(path):
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("a,b\n1,2\n")
@@ -195,9 +201,13 @@ class Scenario:
         if d:
             inputs.append({"key": "span", "label": "The dates in the label", "type": "date_window", "default": [d.group(1), d.group(2)], "origin": "the first and last session dates, written into the label"})
             edits.append({"cell": cell, "find": f"'sessions in the window {d.group(1)} to {d.group(2)}'", "replace": "f\"sessions in the window {INPUTS['span'][0]} to {INPUTS['span'][1]}\""})
+        # the pick (docs/ROUTINES_DESIGN.md §15.1): the peak hour and the share are compared, under table-head names; the
+        # session count stands on the data alone and is set aside - printed and checked still, left out of the comparison
+        compare = [{"line": n, "name": name} for n, name in ((_ledger_no(user, "the local hour most sessions start"), "Peak start hour"),
+                                                             (_ledger_no(user, "share of sessions starting in the hour band"), "Share in the band")) if n]
         return json.dumps({
             "name": "Session start hours", "inputs": inputs, "edits": edits,
-            "kept": ["the home offset is read off the data, not typed", "the Wilson interval's z is the method's"]})
+            "kept": ["the home offset is read off the data, not typed", "the Wilson interval's z is the method's"], "compare": compare})
 
     # ------------------------------------------------------------ the Reader seat (the context, step 2)
     def reader(self, user):

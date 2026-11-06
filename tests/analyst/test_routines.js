@@ -47,6 +47,30 @@ check('dialog body: the results - a tick per computed line with its cell; the ty
   && p.querySelector('.rt-results .r.flag .ui-seg .on').getAttribute('data-keep') === '1' && p.querySelector('.rt-results .r.flag .ui-seg span[data-keep="0"]').textContent === 'drop'
   && [...p.querySelectorAll('.rt-sec .h')].some(h => h.textContent.includes('2 kept · 1 figure')));
 check('dialog body: without a routine on the thread there is no version choice', !p.querySelector('.rt-version'));
+// the promoter's pick (§15.2): the lines kept listed by name with the recorded wording on hover and drop at hand; the lines set
+// aside behind one muted line that opens; a typed line visible with its choice following the pick; the head counting
+const picked = Object.assign({}, proposal, { results: [
+  { cell: 2, index: 0, label: 'the count, first form, 21 rows', typed: false, dropped: true, estimate: '3' },
+  { cell: 3, index: 0, label: 'the count, a check with the rows dropped', typed: false, dropped: true, estimate: '2' },
+  { cell: 4, index: 0, label: 'the count, final form, 21 rows', typed: false, dropped: false, estimate: '3', name: 'The count' },
+  { cell: 4, index: 1, label: 'a typed one', typed: true, dropped: true, estimate: '9' }] });
+let ps = el('<div class="rt-sec">' + b.resultsSection(picked, false) + '</div>');
+check('dialog, a pick: the head counts "1 of 4 kept"; the compared line by its name with the recorded label as its title, its cell and a drop button; the typed line in place, its choice on drop; the set-aside lines folded behind "2 more lines recorded, not compared"',
+  ps.querySelector('.h').textContent.includes('1 of 4 kept · 1 figure') && [...ps.querySelectorAll('.rt-results .r')].map(r => r.getAttribute('data-line')).join(',') === '2,3'
+  && ps.querySelector('.rt-results .r[data-line="2"] .l').textContent === 'The count' && ps.querySelector('.rt-results .r[data-line="2"] .l').getAttribute('title') === 'the count, final form, 21 rows'
+  && ps.querySelector('.rt-results .r[data-line="2"] .c').textContent === 'cell 4' && ps.querySelector('.rt-results .r[data-line="2"] .act[data-line-act="drop"]').textContent === 'drop'
+  && ps.querySelector('.rt-results .r.flag[data-line="3"] .ui-seg .on').getAttribute('data-keep') === '0'
+  && ps.querySelector('.rt-results .more .t[data-line-act="more"]').textContent === '▸ 2 more lines recorded, not compared' && !ps.querySelector('.rt-results .more.open') && !ps.querySelector('.rt-results .aside'), ps.innerHTML);
+ps = el('<div class="rt-sec">' + b.resultsSection(picked, true) + '</div>');
+check('dialog, the group opened: the set-aside lines greyed under the line, each with its recorded wording, its cell and a keep button; the compared list unchanged',
+  ps.querySelector('.rt-results .more.open .t').textContent === '▾ 2 more lines recorded, not compared' && [...ps.querySelectorAll('.rt-results .aside .r')].map(r => r.getAttribute('data-line')).join(',') === '0,1'
+  && ps.querySelectorAll('.rt-results .aside .r.off').length === 2 && ps.querySelector('.rt-results .aside .r[data-line="0"] .l').textContent === 'the count, first form, 21 rows' && ps.querySelector('.rt-results .aside .r[data-line="1"] .c').textContent === 'cell 3'
+  && ps.querySelectorAll('.rt-results .aside .act[data-line-act="keep"]').length === 2 && [...ps.querySelectorAll('.rt-results .r')].filter(r => !r.closest('.aside')).map(r => r.getAttribute('data-line')).join(',') === '2,3', ps.innerHTML);
+check('dialog, no pick (every line kept, as before the pick): the head counts "2 kept", no muted line, every computed line ticked with a drop button; one line set aside reads "1 more line"',
+  el(b.resultsSection(proposal, false)).textContent.includes('2 kept · 1 figure') && !el(b.resultsList(proposal.results, false)).querySelector('.more') && el(b.resultsList(proposal.results, false)).querySelectorAll('.r .act[data-line-act="drop"]').length === 1
+  && el(b.resultsList([picked.results[0], picked.results[2]], false)).querySelector('.more .t').textContent === '▸ 1 more line recorded, not compared');
+check('lineName: the promoter\'s name when there is one, else the label trimmed of its trailing date range and count',
+  b.lineName({ name: 'The count', label: 'the count, final form, 21 rows' }) === 'The count' && b.lineName({ label: 'the count, final form, all 21 rows, 2026-10-05..2026-11-06' }) === 'the count, final form' && b.lineName({}) === '');
 // the version choice (2026-10-12): the chain's own routine defaults to its next version, the name field holding the routine's name;
 // a routine made from an earlier chain of the thread defaults to a new routine, the name the proposal's; the foot follows the choice
 const ownP = Object.assign({}, proposal, { chain_id: 'c9' });
@@ -485,7 +509,21 @@ const tt = el(b.comparisonTab({ run: wrun, against_data: { subject: { id: 'i0', 
 check('the Trend tab of a run on a set interval, with the series: the two heads name the weeks with the run number under them, a last column "Weekly trend" with each line\'s thumbnail, the legend saying what the trend is; without the series (the first render, or a custom run) the tab is as it was',
   [...tt.querySelectorAll('thead th')].map(e => e.textContent).join('|') === 'Result|19 – 25 Octrun 46|26 Oct – 1 Novrun 47|Change|Intervals|Weekly trend' && tt.querySelectorAll('td.trend .rt-thumb').length === 2 && tt.querySelector('.rt-legend').textContent.includes('The trend is each line over the weeks run on this athlete')
   && [...tc.querySelectorAll('thead th')].map(e => e.textContent).join('|') === 'Result|Run 46' + wk[49][0] + ' → ' + wk[49][1] + '|Run 47' + wk[50][0] + ' → ' + wk[50][1] + '|Change|Intervals' && !tc.querySelector('.rt-thumb'), [[...tt.querySelectorAll('thead th')].map(e => e.textContent), [...tc.querySelectorAll('thead th')].map(e => e.textContent)]);
+// the names where a line is shown (§15.3): the Summary's heads and prefix, the enlarged chart's key, the Trend tab's rows
+const wk3 = JSON.parse(JSON.stringify(wk2));
+wk3.versions[1].manifest.results[0].name = 'Best 5 s'; wk3.versions[1].manifest.results[1].name = 'Best 60 s';
+const s3 = b.series(wk3, 'week', 'i0', wk), bt3 = el(b.byIntervalTable(s3, b.sharedPrefix(s3.lines.map(l => b.lineName(l)))));
+const tt3 = el(b.comparisonTab({ run: Object.assign({}, wrun, { comparison: { rows: wrun.comparison.rows.map((r, i) => Object.assign({}, r, { name: ['Best 5 s', 'Best 60 s'][i] })) } }), against_data: { subject: { id: 'i0', name: 'First Athlete' }, window: wk[49] } }, s3));
+check('with names on the manifest: the table by week heads the columns with them (the recorded label still the title), the key names the line by it, the Trend tab\'s rows read it; the manager\'s results list too',
+  [...bt3.querySelectorAll('thead th.m .lab')].map(e => e.textContent).join('|') === 'Best 5 s|Best 60 s' && bt3.querySelector('thead th.m .rt-thumb title').textContent.startsWith('Best 5 s over the weeks') && bt3.querySelector('thead th.m').getAttribute('title').startsWith('mean maximal power, best continuous 5s average, all 380')
+  && el(b.trendKeys(s3, 1, -1, colors)).querySelector('.rt-key').textContent === 'Best 60 s · left scale' && [...tt3.querySelectorAll('tbody td.label')].map(e => e.textContent).join('|') === 'Best 5 s|Best 60 s'
+  && [...el(b.routineBody(Object.assign({}, wk3, { summary_card: {}, origin: {} }), null, { today: fri, horizon: 365 })).querySelectorAll('.rt-sec .rt-results .r .l')].map(e => e.textContent).join('|') === 'Best 5 s|Best 60 s', [bt3.innerHTML.slice(0, 300), tt3.innerHTML.slice(0, 300)]);
 const rtSrcS = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
+check('the page (§15.2): keep and drop move a line on the proposal and rebuild the Results section alone, more unfolds the group, a typed line\'s choice lands on the proposal, and Create sends the whole set left out; the stylesheet shows drop on hover and greys the lines set aside',
+  rtSrcS.includes("const act = e.target.closest('.rt-results [data-line-act]');") && rtSrcS.includes("if (act === 'more') st.asideOpen = !st.asideOpen;") && rtSrcS.includes("line.dropped = act === 'drop'; }")
+  && rtSrcS.includes("sec.innerHTML = build.resultsSection(st.proposal, !!st.asideOpen);") && rtSrcS.includes("if (line) line.dropped = seg.getAttribute('data-keep') === '0';")
+  && rtSrcS.includes("drop_results: (st.proposal.results || []).filter(r => r.dropped).map(r => [r.cell, r.index])") && !rtSrcS.includes("querySelectorAll('.rt-results .r.flag')).filter(")
+  && dlgCss0().includes('.rt-results .r .act {') && dlgCss0().includes('.rt-results .r:hover .act, .rt-results .r .act:focus-visible { opacity: 1; }') && dlgCss0().includes('.rt-results .r.off {') && dlgCss0().includes('.rt-results .more .aside {'));
 const crSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'content-rendering.js'), 'utf8'), spSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'stream-pane.js'), 'utf8');
 check('the page: the filter bar\'s pick re-renders the body (a greyed interval is inert), a thumbnail opens the enlarged chart over the manager\'s series, the horizon asked once from the limits route (a year at most), the dialog with 3 m / 6 m / 12 m, also show and PNG; the run view draws the Trend tab\'s series from the routine\'s runs, live and stored; the tab is named Trend and the closing card links to it; the old sparkline is gone',
   rtSrcS.includes("const filter = e.target.closest('.rt-filter [data-filter]');") && rtSrcS.includes("if (!filter.classList.contains('off') && managerState.current) { managerState.interval = filter.getAttribute('data-filter'); renderManagerBody(); }")

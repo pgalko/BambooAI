@@ -171,11 +171,13 @@ What to do:
 2. Where a date literal is the data's own first or last date, make it the data's range (the column's .min() or .max()) so the period chosen at load time is the only period there is. Where it is a boundary inside the data, make it an input. Where a number is a count the data determines - the rows of a table, the periods in it, the groups - and the code uses it as a loop bound, an index or a divisor, make it that count (len(...)), not an input: the next data has its own.
 3. Propose each remaining constant as an input: at most five, each of one type - number, numbers (a short list of numbers), date_window (two dates), choice (one value of a column, or several when "multiple" is true), toggle. Keep a constant a constant when unsure; fewer inputs is better than more.
 4. Rewrite the code as find/replace edits, never by retyping it: each edit's "find" is a verbatim fragment that occurs exactly once in the cell it names, and "replace" is the same fragment with the constant replaced by INPUTS["key"]. A label written into a RESULT call that carries a constant (a count, an identifier) may read the input through an f-string. Leave the method, the cell markers, the order of the cells and every RESULT call otherwise untouched. The block INPUTS = {...} is written at the top of the script before each run; do not write it yourself.
-5. Reply with exactly this object:
+5. Say which RESULT lines a run should compare with the runs before it, by their numbers in the ledger, and name each. A line is compared when it is the final form of a quantity the answer rests on. Not compared: an earlier cell's version of a quantity that a later cell computed again, re-specified or extended; a check or a trial the answer does not rest on. Every line is still printed and checked; only the comparison leaves the others out. A name reads as a table head: the quantity and what tells it from the other compared lines, at most 40 characters, without the counts, periods and dates that vary with the data.
+6. Reply with exactly this object:
 {"name": "a short title for the method, at most 60 characters",
  "inputs": [{"key": "snake_case", "label": "what the person sees", "type": "number | numbers | date_window | choice | toggle", "default": "the value the analysis used, in the type's form", "origin": "one short clause: where the value came from in the analysis", "column": "for a choice over values of a column the data has (the frame or a loaded file): that column; none for words the script matches or computes", "multiple": false}],
  "edits": [{"cell": 3, "find": "verbatim fragment", "replace": "the same fragment reading INPUTS[...]"}],
- "kept": ["one clause per constant left as it is, and why"]}
+ "kept": ["one clause per constant left as it is, and why"],
+ "compare": [{"line": 7, "name": "the quantity, as a table head"}]}
 With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape.
 Keep the object short: each "find" the shortest fragment that still occurs once in its cell, the clauses brief, nothing outside the object."""
 
@@ -190,7 +192,7 @@ def promoter_user(question: str, summary: str, data_text: str, cells: str, ledge
     parts = [f"QUESTION:\n{(question or '').strip()}", f"ANSWER SUMMARY:\n{(summary or '(none)').strip()}",
              f"DATA (the frame `df` the script ran on):\n{(data_text or '(no description)').strip()}",
              "THE SCRIPT (the cells in execution order; `df` is loaded before the first cell):\n" + (cells or "").strip(),
-             "RESULT LINES THE CELLS RECORDED (the method's outputs, which must still be produced, in this order):\n" + ("\n".join(ledger) or "(none)")]
+             "RESULT LINES THE CELLS RECORDED (numbered; the method's outputs, which must still be produced, in this order):\n" + ("\n".join(ledger) or "(none)")]
     if manifest and manifest.get("parameters"):
         parts.append("THE CURRENT VERSION'S INPUTS (keep the keys, labels and defaults that still apply):\n" + json.dumps(manifest["parameters"], indent=1))
     return "\n\n".join(parts)
@@ -214,11 +216,40 @@ def parse_promoter(text: str) -> dict:
         raise ValueError(f"invalid JSON: {exc}") from exc
     if not isinstance(obj, dict):
         raise ValueError("the reply is not a JSON object")
-    for k, typ in (("inputs", list), ("edits", list)):
+    for k, typ in (("inputs", list), ("edits", list), ("compare", list)):
         if k in obj and not isinstance(obj[k], typ):
             raise ValueError(f"'{k}' is not a list")
-    obj.setdefault("inputs", []); obj.setdefault("edits", []); obj.setdefault("kept", [])
+    obj.setdefault("inputs", []); obj.setdefault("edits", []); obj.setdefault("kept", []); obj.setdefault("compare", [])
     return obj
+
+
+MAX_NAME = 60
+
+
+def pick_results(expected: List[dict], compare: Optional[Iterable]) -> List[dict]:
+    """The promoter's pick applied to the expected lines (docs/ROUTINES_DESIGN.md §15.1): each entry of `compare` names a
+    ledger line by its 1-based number and gives it a short name; the lines named are compared, every other line is
+    dropped - still printed and checked by position, left out of the comparison. A pick with no valid line keeps every
+    line, without names: the pick is a proposal, never a refusal."""
+    picked = {}
+    for e in compare or []:
+        if not isinstance(e, dict):
+            continue
+        try:
+            n = int(e.get("line"))
+        except (TypeError, ValueError):
+            continue
+        if 1 <= n <= len(expected):
+            picked.setdefault(n, " ".join(str(e.get("name") or "").split())[:MAX_NAME])
+    if not picked:
+        return [dict(r, dropped=False) for r in expected]
+    out = []
+    for i, r in enumerate(expected, 1):
+        row = dict(r, dropped=i not in picked)
+        if picked.get(i):
+            row["name"] = picked[i]
+        out.append(row)
+    return out
 
 
 def _coerce_default(typ: str, v, multiple: bool):
@@ -1406,7 +1437,7 @@ def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional
             continue
         a = now[i] if i < len(now or []) else None
         b = before[i] if before is not None and i < len(before) else None
-        row = {"cell": m.get("cell"), "index": m.get("index"), "label": m.get("label", ""), "unit": m.get("unit", ""), "direction": m.get("direction", ""), "typed": bool(m.get("typed")),
+        row = {"cell": m.get("cell"), "index": m.get("index"), "label": m.get("label", ""), "name": m.get("name", ""), "unit": m.get("unit", ""), "direction": m.get("direction", ""), "typed": bool(m.get("typed")),
                "now": {"estimate": a.get("estimate"), "low": a.get("low"), "high": a.get("high")} if a else None,
                "before": {"estimate": b.get("estimate"), "low": b.get("low"), "high": b.get("high")} if b else None,
                "change": None, "overlap": None, "mark": "missing"}

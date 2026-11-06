@@ -71,8 +71,9 @@ def _timeout(cells) -> int:
 
 
 def _ledger(expected: List[dict]) -> List[str]:
+    """The expected lines as the promoter reads them, numbered from 1: its pick names a line by this number (§15.1)."""
     out = []
-    for e in expected:
+    for n, e in enumerate(expected, 1):
         line = e.get("label", "")
         if e.get("estimate") is not None:
             line += f": {e['estimate']}"
@@ -82,7 +83,7 @@ def _ledger(expected: List[dict]) -> List[str]:
                 line += f" {e['unit']}"
             if e.get("direction"):
                 line += f", {e['direction']}"
-        out.append(f"- [cell {e['cell']}] " + line + (" - typed, not computed" if e.get("typed") else ""))
+        out.append(f"{n}. [cell {e['cell']}] " + line + (" - typed, not computed" if e.get("typed") else ""))
     return out
 
 
@@ -296,9 +297,10 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     if unknown:
         raise RoutineRefused("could not make a routine from this chain - the script reads an input that was not declared (" + ", ".join(unknown) + ")")
     name = str(obj.get("name") or "").strip()[:60] or (run.question or "").strip()[:60]
+    results = rt.pick_results(expected, obj.get("compare"))      # the lines a run compares, named (§15.1); every line without a usable pick
     return {"proposal_id": rt.new_id(), "thread_id": nb.thread_id, "chain_id": run.id, "name": name, "purpose": "", "question": run.question,
             "summary": summary, "data": data, "data_state": state, "source": rt.source_kind(data), "inputs": inputs, "notes": notes,
-            "kept": [str(k) for k in (obj.get("kept") or [])][:12], "results": expected, "figures": {"count": sum(len(c.figures) for c in run.cells() if c.cell_no in figures), "cells": figures},
+            "kept": [str(k) for k in (obj.get("kept") or [])][:12], "results": results, "figures": {"count": sum(len(c.figures) for c in run.cells() if c.cell_no in figures), "cells": figures},
             "cells": len(order), "script": rt.join_script(header, edited, tail), "header": header, "tail": tail, "cells_text": edited, "cells_original": body,
             "applied": applied, "timeout": _timeout(path), "cost": round(cost, 4), "routine_id": routine.get("id") if routine else None,
             "routine_name": routine.get("name") if routine else None, "next_version": (routine.get("current_version", 1) + 1) if routine else None}
@@ -323,7 +325,10 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     name = (choices.get("name") or proposal.get("name") or "").strip()[:80] or "Routine"
     purpose = (choices.get("purpose") or "").strip()[:300]
     drop_inputs = {str(k) for k in (choices.get("drop_inputs") or [])}
-    drop_results = {(int(r[0]), int(r[1])) for r in (choices.get("drop_results") or []) if isinstance(r, (list, tuple)) and len(r) == 2}
+    # the lines left out of the comparison: the whole set as the page sends it (the promoter's pick with the person's
+    # changes, §15.2); without the key, the proposal's pick stands
+    drop_results = ({(int(r[0]), int(r[1])) for r in choices["drop_results"] if isinstance(r, (list, tuple)) and len(r) == 2}
+                    if isinstance(choices.get("drop_results"), (list, tuple)) else {(r["cell"], r["index"]) for r in proposal["results"] if r.get("dropped")})
     inputs = [p for p in proposal["inputs"] if p["key"] not in drop_inputs]
     cells = rt.strip_keys(proposal["cells_text"], proposal["cells_original"], proposal["applied"], drop_inputs) if drop_inputs else proposal["cells_text"]
     unknown = rt.unknown_keys(cells, inputs)

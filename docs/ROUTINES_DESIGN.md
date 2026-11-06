@@ -107,9 +107,10 @@ version"; later the coach's one line), run_zero (status, line, verified, results
   reads `INPUTS[key]`; the runner writes the `INPUTS = {...}` block at the mark before each run. A derived input is
   not asked: the run writes it from the data (§4.8).
 - `results`: the expected RESULT lines in order, each `{cell, index, label, typed, dropped, estimate, low, high,
-  unit, direction}` — the identity of a line is `(cell, index)`, never the label. `typed` comes from the kernel's
+  unit, direction, name?}` — the identity of a line is `(cell, index)`, never the label. `typed` comes from the kernel's
   records; a dropped line stays in the manifest, so the check by position still maps the chain's lines to the
-  routine's.
+  routine's. `name` is the promoter's short name for a compared line (§15), shown wherever the line is; `label` stays
+  the wording the chain recorded.
 - `figures`: how many the script draws, and which cells. Since 2026-10-11 a chain draws in one cell, the figures
   step's after the report (a cell that draws during the analysis is not run), so a routine's figures are that
   cell's; the report's *Figures* section cites it as `[fig n]`, which is how the assembly reaches it.
@@ -252,7 +253,8 @@ as routine; the first item then reads "Saved as favourite".
    would change on other data of the same shape; make the data's own range the data's range; propose each remaining
    constant as an input of one of the five types, at most five, fewer is better; leave a loader's file name exactly
    as it is and never make the loaded period an input (§4.7); rewrite as find/replace edits; leave the method, the
-   markers and every RESULT call otherwise untouched; return JSON, kept short. A reply that cannot be
+   markers and every RESULT call otherwise untouched; say which RESULT lines a run compares and name them (§15);
+   return JSON, kept short. A reply that cannot be
    read is asked for once more, then refused ("the script was not understood"); a reply cut at the seat's token limit
    is asked for once more, shorter — one with nothing but reasoning too, with the note that reasoning took the
    allowance (2026-10-12: the same prompt, sent again by the person, came back whole; the reasoning's length varies
@@ -545,8 +547,10 @@ from, "made from this chain: <name> v1 · again, or as a next version".
 │ Inputs  Hard-effort threshold   155       the exploration …  ☐ keep fixed │
 │         HR bands   130, 145, 155, 165, 175   the exploration's bands  ☐  │
 │         Left as they are: the 1-km lap window · the bootstrap …  │
-│ Results ✓ log speed, abroad vs Ethiopia, athlete FE …   cell 2   │
+│ Results — the lines the runs will compare, 2 of 6 kept · 1 figure │
+│         ✓ log speed, abroad vs Ethiopia, athlete FE …   cell 2   │
 │         ! cell 4: typed, not computed   [keep as a constant] [drop] │
+│         ▸ 4 more lines recorded, not compared                     │
 │ The routine is checked once on this chain's own data before it  │
 │ is created; the chain is saved as a favourite, and the routine  │
 │ links to it.                        [Cancel] [Create routine]   │
@@ -950,3 +954,59 @@ under the new name.
   custom table without a trend, the Trend tab's heads and column, the tab's name), the screens tool (the Summary on
   *Weekly*, the enlarged chart, the Trend tab of a week), and the walks (the stack walk's custom Summary; the
   integrations walk's filled routine - the Summary by week, the enlarge over it, the Trend tab of the latest week).
+
+## 15. The lines a run compares, and their names (2026-11-06)
+
+The first live power-curve routine compared ten lines from four cells: the chain had computed the same quantity in
+cell 2, cell 3 and cell 4, and the routine kept all three versions, each under the wording the analyst gave it in
+that cell. Two facts of the design meet here. The ledger is append-only (the contract's *Results*: a revised estimate
+gets a new line, the earlier one stays), and promotion took the whole ledger of the path's cells as the lines to
+compare, with a choice only on a typed line. Neither is specific to one kind of analysis: every chain that iterated
+carried its drafts into its routine, and compared them run after run.
+
+### 15.1 The promoter picks, and names
+
+The promoter's one call (F1 step 2) already reads the script and the ledger. Its ledger is numbered now
+(`7. [cell 4] …`), and its reply carries `"compare": [{"line": 7, "name": "…"}, …]`: the lines a run should compare —
+the final form of each quantity the answer rests on; not an earlier cell's version that a later cell computed again,
+re-specified or extended, nor a check or a trial the answer does not rest on — each with a name as a table head reads
+it: the quantity and what tells it from the other lines, without the counts, periods and dates that vary with the data.
+Every other line is *dropped* in the manifest (§3: a dropped line stays, is printed and checked by position, and is
+left out of the comparison). A reply without a usable `compare` — absent, empty, no valid line — keeps every line, as
+before, without names: the pick is a proposal, never a refusal. The name goes on the manifest as `results[i].name`, at
+most 60 characters; `label` stays the recorded wording. The prompt stays domain-free (DESIGN_CHECKLIST C5).
+
+### 15.2 The dialog (S1)
+
+The coach is not asked to pick. The Results section lists the lines a run will compare — the name, the recorded wording
+on hover, the cell — under *the lines the runs will compare, 5 of 10 kept · 2 figures*; a kept line shows *drop* when
+hovered. The lines set aside are one muted line, *5 more lines recorded, not compared*, that opens on a click into the
+greyed lines with their recorded wording and *keep* on each. A typed line keeps its flag and its *keep as a constant /
+drop* choice, visible as before (a warning is not hidden), the default following the pick. The page keeps the state on
+the proposal and sends the whole set of dropped lines on Create; the library's `create` without choices takes the
+proposal's. The decision (2026-11-06): trust the model's pick, keep the coach in charge without asking anything of
+them, and show the set-aside lines only on a click, so they neither clutter the dialog nor read as something to decide.
+
+### 15.3 Where the name shows
+
+Wherever a line is shown by its label — the dialog, the manager's results list, the Summary (the table by interval's
+heads, the custom table, the enlarged chart's title and key), a run's Trend tab — the page shows `name` when the
+manifest has one, else the label trimmed as §14.4 says (`build.lineName`); the full recorded label stays on hover.
+`compare_runs` rows carry the name, so a run's record reads the same way.
+
+Not here: a RESULT that carries a list (a quantity over a fixed short set of points — durations, zones, groups —
+recorded in one call and compared point by point), which is what a curve wants; it changes what the analyst writes and
+waits for a simulation on chains of several kinds.
+
+### 15.4 Build order and acceptance
+
+- **Patch 0267 — the pick and the names**: 15.1–15.3. Accepted by: the pure module (the numbered ledger; `pick_results`
+  with a valid, a partial, an empty and an absent `compare`, names cut at 60; `create` without `drop_results` taking the
+  proposal's drops, with them the page's; `compare_runs` rows naming the line), the markup on the mini DOM (the kept
+  list with names and their titles, the muted line and the group it opens, *keep* and *drop* moving a line and the
+  head's count following, the typed row's choice following the pick, the name used by the Summary's heads and the
+  Trend tab), the integrations walk (its scripted promoter picks two of the chain's three lines and names them: the
+  dialog's two groups, keep and drop live, the manifest stored, the Summary's two named columns, the enlarged chart
+  and the Trend tab by name; the stack walk's chain records one line, so nothing changes there), and the screens tool
+  (the dialog with lines set aside, closed and open; the manifest on the pick in the manager, the run view and the
+  Summary).

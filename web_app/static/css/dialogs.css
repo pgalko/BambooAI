@@ -236,6 +236,17 @@
 .rt-results .r .l { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rt-results .r.flag .l { white-space: normal; }
 .rt-results .r .c { color: var(--text-quaternary); font-size: var(--fs-small); white-space: nowrap; }
+/* the lines a run compares (§15.2): drop shows on hover; the lines set aside are greyed behind one muted line that unfolds */
+.rt-results .r .act { background: none; border: 0; padding: 0 2px; font: inherit; font-size: var(--fs-small); color: var(--text-quaternary); cursor: pointer; opacity: 0; }
+.rt-results .r:hover .act, .rt-results .r .act:focus-visible { opacity: 1; }
+.rt-results .r .act:hover { color: var(--text-primary); text-decoration: underline; }
+.rt-results .r.off { color: var(--text-quaternary); }
+.rt-results .r.off .g { color: var(--text-quaternary); }
+.rt-results .more { margin-top: 4px; }
+.rt-results .more .t { background: none; border: 0; padding: 2px 0; font: inherit; font-size: var(--fs-small); color: var(--text-quaternary); cursor: pointer; }
+.rt-results .more .t:hover { color: var(--text-primary); }
+.rt-results .more .aside { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 0 20px; }
+.rt-results .more .aside .r .act { opacity: 1; }
 .rt-wait { display: flex; align-items: center; gap: 10px; padding: 18px 4px; font-size: var(--fs-meta); color: var(--text-secondary); }
 .rt-wait .live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); flex-shrink: 0; animation: rt-pulse 1.2s ease-in-out infinite; }
 @keyframes rt-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
