@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -19,6 +20,8 @@ from analyst.notebook import Notebook, Run, split_sentences
 from analyst.replay import assemble
 
 logger = logging.getLogger(__name__)
+
+INTERVALS = ("day", "week", "month", "year")      # a run's calendar unit (docs/ROUTINES_DESIGN.md §14.1); none recorded is custom
 
 
 class RoutineRefused(Exception):
@@ -569,13 +572,24 @@ def same_subject(run: dict, subject_id: str) -> bool:
     return str(((run.get("data") or {}).get("subject") or {}).get("id") or "") == str(subject_id or "")
 
 
-def reference_run(routine: dict, version: dict, compare_with="previous", subject_id: Optional[str] = None) -> Tuple[Optional[int], Optional[List[dict]]]:
+def reference_run(routine: dict, version: dict, compare_with="previous", subject_id: Optional[str] = None,
+                  interval: Optional[str] = None, window: Optional[Tuple[str, str]] = None) -> Tuple[Optional[int], Optional[List[dict]]]:
     """(run number, its result lines) this run is compared with: the preceding run of the version, else run zero;
     'zero' for run zero; a number for that run. None when there is nothing to compare with. With `subject_id` (2026-10-30:
     a coach's athletes), 'previous' is the preceding run on that subject's data, and run zero stands in only when it
     ran on that subject's - the trend never crosses athletes, and a run zero whose subject was not recorded (before
-    the subject was kept) is nobody's but the subject-less runs' (an upload's, a race's)."""
+    the subject was kept) is nobody's but the subject-less runs' (an upload's, a race's). A run on a set interval
+    (§14.1) is compared with the one before it: the latest earlier run of the same interval on the same subject, by
+    its window's end - never a custom run, nor run zero; the first on a subject has nothing before it."""
     runs = [r for r in routine.get("runs", []) if r.get("version") == version.get("number")]
+    done_states = ("ran", "reproduced", "differed")
+    if interval:
+        before = [r for r in runs if r.get("status") in done_states and r.get("interval") == interval and same_subject(r, subject_id or "")
+                  and (((r.get("data") or {}).get("window") or [None, None])[1] or "") < (window or ("", ""))[0]]
+        if not before:
+            return None, None
+        last = max(before, key=lambda r: (((r.get("data") or {}).get("window") or ["", ""])[1], int(r.get("number") or 0)))
+        return last["number"], last.get("results") or []
     rz = version.get("run_zero") or {}
     zero = (0, rz.get("results") or []) if rz.get("verified") else None
     zero_own = zero if subject_id is None or zero_subject(version) == str(subject_id) else None
@@ -587,7 +601,7 @@ def reference_run(routine: dict, version: dict, compare_with="previous", subject
             return zero if zero else (None, None)
         r = next((x for x in routine.get("runs", []) if x.get("number") == want), None)
         return (r["number"], r.get("results") or []) if r else (None, None)
-    done = [r for r in runs if r.get("status") in ("ran", "reproduced", "differed") and (subject_id is None or same_subject(r, subject_id))]
+    done = [r for r in runs if r.get("status") in done_states and not r.get("interval") and (subject_id is None or same_subject(r, subject_id))]
     if done:
         return done[-1]["number"], done[-1].get("results") or []
     return zero_own if zero_own else (None, None)
@@ -648,10 +662,11 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
 
 
 def run(routine: dict, values: Optional[dict], current_data: Optional[dict], runner: Callable, store: rt.RoutineStore, emit: Optional[Callable] = None,
-        compare_with="previous", version_number: Optional[int] = None, run_dir: str = "") -> dict:
+        compare_with="previous", version_number: Optional[int] = None, run_dir: str = "", interval: Optional[str] = None) -> dict:
     """One run of the routine's version on the data loaded now: the checks (refused before anything runs), the
     script with the INPUTS block, the lines read by position, the status against the reference run, the comparison,
-    the record stored (a failed run too). Returns the record with the printed output and the figures for the tabs."""
+    the record stored (a failed run too). Returns the record with the printed output and the figures for the tabs.
+    `interval` (§14.1): the calendar unit the window is - the record keeps it and the reference is the one before."""
     ver = version_of(routine, version_number)
     held = zero_holds(ver)
     if held:
@@ -707,7 +722,9 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     if emit:
         emit({"type": "lookup", "kind": "check", "query": name, "peek": check_line})
     subject_id = str(rt.subject_of_record(d).get("id") or "")
-    ref_number, ref_results = reference_run(routine, ver, compare_with, subject_id=subject_id)     # within this subject's runs (2026-10-30)
+    dates = _dates_of(d)
+    interval = interval if interval in INTERVALS and all(dates) else None        # a set interval is a window; without one the run is custom
+    ref_number, ref_results = reference_run(routine, ver, compare_with, subject_id=subject_id, interval=interval, window=dates)     # within this subject's runs (2026-10-30)
     cells = (manifest.get("figures") or {}).get("cells")
     n_cells = len(re.findall(r"^# --- cell \d+ ---$", ver.get("script") or "", re.M))
     rz = ver.get("run_zero") or {}
@@ -736,7 +753,9 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         emit({"type": "lookup", "kind": "run", "query": f"run {number} · v{vnum} · {n_cells} cell{'s' if n_cells != 1 else ''}",
               "peek": f"{line} · {len(figs or [])} figure{'s' if len(figs or []) != 1 else ''} · {elapsed} s"})
     cmp = rt.compare_runs(expected, got, ref_results, failed=bool(err))     # the lines printed before a failure compared, the rest said as not reached
-    if ref_results is None and subject_id and any(x.get("version") == vnum and x.get("status") in ("ran", "reproduced", "differed") for x in routine.get("runs", [])):
+    if ref_results is None and interval:
+        cmp["line"] = f"nothing to compare with: no earlier {interval} on record" + (" for this subject" if subject_id else "")
+    elif ref_results is None and subject_id and any(x.get("version") == vnum and x.get("status") in ("ran", "reproduced", "differed") for x in routine.get("runs", [])):
         cmp["line"] = cmp["line"].replace("the first run of this version", "the first run on this subject")       # the version's other runs are other subjects' (2026-10-30)
     cell_no = rt.failed_cell(script, str(err)) if err else None
     failed_cell = {"number": cell_no, "code": rt.cell_text(script, cell_no)} if cell_no else None       # beside the traceback on the Comparison tab (step 4)
@@ -746,13 +765,13 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         window = window_text(ref_run.get("data") if ref_run else manifest.get("data"))      # and its window, so the coach sees what is compared (2026-10-30)
         emit({"type": "lookup", "kind": "compare", "query": f"with run {ref_number}" + (f" ({', '.join(x for x in (when, window) if x)})" if when or window else ""), "peek": cmp["line"]})
     now = time.time()
-    record = {"number": number, "version": vnum, "created": t0, "finished": now, "elapsed": elapsed, "status": status, "line": line,
+    record = {"number": number, "version": vnum, "created": t0, "finished": now, "elapsed": elapsed, "status": status, "line": line, "interval": interval,
               "data": d, "inputs": vals, "results": got, "figures": len(figs or []), "stdout_chars": len(stdout or ""), "cells": n_cells,
               "against": ref_number, "comparison": cmp, "narrative": "", "error": (str(err).strip()[-2000:] if err else ""),
               "fit": {k: fit[k] for k in ("missing", "extra", "retyped", "line")}, "bindings": prep["subs"], "sources": prep["sources"], "aux_absent": [rt.aux_kind(p) for p in prep["binding"]["absent"]],
               "differences": differences, "check": check_line, "failed_cell": failed_cell,
               "shape": prep["shape"], "run_dir": run_dir, "generated": list(generated or []) if isinstance(generated, (list, tuple)) else []}
-    summary = {k: record[k] for k in ("number", "version", "created", "finished", "elapsed", "status", "line", "inputs", "results", "figures", "against", "cells")}
+    summary = {k: record[k] for k in ("number", "version", "created", "finished", "elapsed", "status", "line", "interval", "inputs", "results", "figures", "against", "cells")}
     summary["data"] = light_data(d)
     summary["comparison"] = {k: cmp[k] for k in ("moved", "within", "changed", "missing", "unreached", "compared", "line")}
     routine.setdefault("runs", []).append(summary)
@@ -842,3 +861,76 @@ def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
     return {"run": record, "stdout": stdout, "figures": figs, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, subject_id=str(subject.get("id") or "")),
             "subject": subject, "against_data": reference_data(routine, version_of(routine, record.get("version")), record.get("against")), "name": routine.get("name"),
             "manifest_results": [x for x in (version_of(routine, record.get("version")).get("manifest") or {}).get("results", []) if not x.get("dropped")]}
+
+
+class Fill:
+    """A fill (docs/ROUTINES_DESIGN.md §14.3): the routine run on each window of a set interval, oldest first, in a
+    thread on the session's instance - every window a cut of the span the page loaded once (the load's dates become
+    the window's, `cached_from` the span: what cut_window cuts by), each run recorded as it completes, quiet (nothing
+    on the pane's queue).
+    It stops when asked (the window under way finishes) and when the Data tab no longer holds the span."""
+
+    def __init__(self, instance, routine_id: str, interval: str, windows: List, values: Optional[dict] = None, aux: Optional[List[str]] = None, load: Optional[dict] = None):
+        if interval not in INTERVALS:
+            raise RoutineRefused(f"the interval must be one of {', '.join(INTERVALS)}")
+        self.windows = [(str(w[0]), str(w[1])) for w in (windows or []) if isinstance(w, (list, tuple)) and len(w) == 2]
+        if not self.windows or len(self.windows) != len(windows) or any(not re.fullmatch(r"\d{4}-\d{2}-\d{2}", x) for w in self.windows for x in w) or any(a > b for a, b in self.windows):
+            raise RoutineRefused("the windows must be [start, end] pairs of dates, the start not after the end")
+        self.instance, self.routine_id, self.interval = instance, str(routine_id), str(interval)
+        self.values, self.aux, self.load = dict(values or {}), aux, dict(load or {})
+        self.df_id = getattr(instance, "df_id", None)                  # the span: the fill stops when the Data tab holds something else
+        span = self.load.get("cached_from")
+        self.span = [str(span[0]), str(span[1])] if isinstance(span, (list, tuple)) and len(span) == 2 else [self.windows[0][0], self.windows[-1][1]]
+        self.done = self.failed = 0
+        self.current: Optional[Tuple[str, str]] = None
+        self.started, self.finished = time.time(), None
+        self.stopped, self.error, self.last = False, "", ""
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def start(self) -> "Fill":
+        self._thread = threading.Thread(target=self._work, name=f"fill-{self.routine_id}", daemon=True)
+        self._thread.start()
+        return self
+
+    @property
+    def running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def status(self) -> dict:
+        now = self.finished or time.time()
+        return {"running": self.running, "routine_id": self.routine_id, "interval": self.interval, "total": len(self.windows), "done": self.done, "failed": self.failed,
+                "current": list(self.current) if self.current else None, "stopped": self.stopped, "error": self.error, "last": self.last,
+                "started": self.started, "finished": self.finished, "elapsed": round(now - self.started, 1),
+                "left": round((now - self.started) / self.done * (len(self.windows) - self.done), 0) if self.done and self.running else None}
+
+    def _work(self) -> None:
+        logger.info("fill of routine %s: %d %s window(s), the span %s → %s", self.routine_id, len(self.windows), self.interval, self.span[0], self.span[1])
+        for start, end in self.windows:
+            if self._stop.is_set():
+                self.stopped = True
+                break
+            if str(getattr(self.instance, "df_id", None)) != str(self.df_id):
+                self.stopped, self.error = True, "the data on the Data tab changed"
+                break
+            self.current = (start, end)
+            load = dict(self.load, start_date=start, end_date=end, cached_from=list(self.span))
+            try:
+                out = self.instance.run_routine(self.routine_id, self.values, aux=self.aux, load=load, interval=self.interval, quiet=True)
+                self.last = str((out.get("run") or {}).get("line") or "")
+                if (out.get("run") or {}).get("status") in ("failed", "timed_out"):
+                    self.failed += 1
+            except RoutineRefused as exc:                                  # a window the checks refuse (a value not in it): counted, the fill goes on
+                self.failed += 1
+                self.last = str(exc)
+                logger.info("fill of routine %s: %s → %s refused: %s", self.routine_id, start, end, exc)
+            except Exception as exc:                                       # noqa: BLE001
+                self.failed += 1
+                self.last = f"the run could not start: {exc}"
+                logger.exception("fill of routine %s: %s → %s failed", self.routine_id, start, end)
+            self.done += 1
+        self.current, self.finished = None, time.time()
+        logger.info("fill of routine %s %s: %d of %d done, %d failed, %.0f s", self.routine_id, "stopped" if self.stopped else "finished", self.done, len(self.windows), self.failed, self.finished - self.started)

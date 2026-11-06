@@ -698,10 +698,11 @@ class BambooAI:
                 out[k] = dict(v)                              # the store's counts (2026-10-15): window, held, fetched, refresh; whose data (2026-10-30)
         return out
 
-    def run_routine(self, routine_id, values=None, compare_with="previous", aux=None, load=None):
+    def run_routine(self, routine_id, values=None, compare_with="previous", aux=None, load=None, interval=None, quiet=False):
         """One run of the routine on the data loaded now (F2): the checks, the script with its INPUTS block through the
         executor, the lines read by position, the comparison with the run before, the record stored; then the tabs as an
-        analysis has them (Data, Results, Plots) and the closing card for the pane."""
+        analysis has them (Data, Results, Plots) and the closing card for the pane. `interval` (docs/ROUTINES_DESIGN.md
+        §14.1): the calendar unit the window is. `quiet` (a fill's runs): the record alone - no rows, tabs or card."""
         from bambooai import routines_host
         routine = self.routine_store().load(routine_id)
         if routine is None:
@@ -716,18 +717,41 @@ class BambooAI:
         logger.info("Routine %s run %d: data %s (%s rows, %d columns, %d auxiliary file(s): %s)", routine_id, number, data.get("source"), data.get("rows"),
                     len(data.get("columns") or []), len(data.get("aux") or []), ", ".join(os.path.basename(str(p)) for p in (data.get("aux") or [])) or "-")
         out = routines_host.run(routine, values, data, lambda script, timeout, d=None: self.run_script(script, timeout, what=f"Routine {routine_id}", generated_dir=d),
-                                self.routine_store(), emit=self._emit_routine, compare_with=compare_with, run_dir=run_dir)
-        try:
-            self.output_manager.display_results(chain_id=None, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df, api_client=self.api_client,
-                                                code_exec_results=out["stdout"] or None, plot_jsons=out["figures"] or None)
-        except Exception:                                          # noqa: BLE001
-            logger.warning("The run's tabs could not be sent", exc_info=True)
+                                self.routine_store(), emit=None if quiet else self._emit_routine, compare_with=compare_with, run_dir=run_dir, interval=interval)
         r, c = out["run"], out["run"]["comparison"]
-        self._pane('pane_routine_end', number=r["number"], name=routine.get("name", ""), version=r["version"], status=r["status"], line=r["line"],
-                   results=len(r["results"]), compared=c["compared"], moved=c["moved"], changed=c["changed"], missing=c["missing"], figures=r["figures"],
-                   elapsed=r["elapsed"], against=r["against"], comparison_line=c["line"])
-        logger.info("Routine %s run %d (v%d): %s; %s", routine_id, r["number"], r["version"], r["line"], c["line"])
+        if not quiet:
+            try:
+                self.output_manager.display_results(chain_id=None, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df, api_client=self.api_client,
+                                                    code_exec_results=out["stdout"] or None, plot_jsons=out["figures"] or None)
+            except Exception:                                      # noqa: BLE001
+                logger.warning("The run's tabs could not be sent", exc_info=True)
+            self._pane('pane_routine_end', number=r["number"], name=routine.get("name", ""), version=r["version"], status=r["status"], line=r["line"],
+                       results=len(r["results"]), compared=c["compared"], moved=c["moved"], changed=c["changed"], missing=c["missing"], figures=r["figures"],
+                       elapsed=r["elapsed"], against=r["against"], comparison_line=c["line"])
+        logger.info("Routine %s run %d (v%d%s): %s; %s", routine_id, r["number"], r["version"], f", {interval}" if interval else "", r["line"], c["line"])
         return {k: out[k] for k in ("run", "summary", "routine", "numbers", "name", "subject", "against_data")}     # whose, and the reference run's data (2026-10-30)
+
+    def fill_routine(self, routine_id, interval, windows, values=None, aux=None, load=None):
+        """A fill (docs/ROUTINES_DESIGN.md §14.3): the routine on each window of a set interval, oldest first, in a
+        thread; every window a cut of the span loaded now. One at a time per session; the status is read back."""
+        from bambooai import routines_host
+        fill = getattr(self, "_fill", None)
+        if fill is not None and fill.running:
+            raise routines_host.RoutineRefused("a fill is already running: wait for it, or stop it in the Summary")
+        if self.routine_store().load(routine_id) is None:
+            raise routines_host.RoutineRefused("no such routine")
+        self._fill = routines_host.Fill(self, routine_id, interval, windows, values, aux, load).start()
+        return self._fill.status()
+
+    def fill_status(self):
+        fill = getattr(self, "_fill", None)
+        return fill.status() if fill is not None else {"running": False}
+
+    def fill_stop(self):
+        fill = getattr(self, "_fill", None)
+        if fill is not None:
+            fill.stop()
+        return self.fill_status()
 
     def create_routine(self, proposal_id, choices, routine_id=None):
         """Save as routine, step two: the person's choices, run zero on the chain's data through the executor, the

@@ -463,9 +463,9 @@ def main():
             page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
             mgr = page.evaluate("""() => ({ items: [...document.querySelectorAll('#routinesModal .rt-side .it b')].map(e => e.textContent), title: document.querySelector('#routinesModal .rt-right .title').textContent,
                 sub: document.querySelector('#routinesModal .rt-right .sub').textContent, origin: !!document.querySelector('#routinesModal .rt-origin'), checked: (document.querySelector('#routinesModal .rt-status') || {}).textContent,
-                inputs: document.querySelectorAll('#routinesModal .rt-inputs tbody tr').length, badge: document.getElementById('routinesBadge').textContent })""")
-            check("the Routines manager lists the routine, verified, with its one input and the link to the analysis it was made from; the rail badge counts 1",
-                  mgr["items"] == ["Regime contrast within soil, plot means"] and mgr["origin"] and mgr["checked"] == "verified" and mgr["inputs"] == 1 and "a favourite" in mgr["sub"] and mgr["badge"] == "1", mgr)
+                inputs: document.querySelectorAll('#routinesModal .rt-inputs tbody tr').length, badge: !!document.getElementById('routinesBadge') || !!document.querySelector('#routinesPill .rb-badge') })""")
+            check("the Routines manager lists the routine, verified, with its one input and the link to the analysis it was made from; the rail entry carries no count badge (gone 2026-11-06)",
+                  mgr["items"] == ["Regime contrast within soil, plot means"] and mgr["origin"] and mgr["checked"] == "verified" and mgr["inputs"] == 1 and "a favourite" in mgr["sub"] and mgr["badge"] is False, mgr)
             script_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes(\"'regime': 'B'\"))", rj["id"])
             check("the .py download carries the INPUTS block with the default", script_status is True, script_status)
             page.click("#routinesModal .rt-origin")

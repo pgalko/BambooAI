@@ -260,15 +260,54 @@ def precheck_routine(rid):
 @requires_auth
 def run_routine(rid):
     """A run on the data loaded now: the pane's rows and the tabs stream as an analysis's do; the closing message is
-    routine_run (the record, the comparison, the numbers to step through) or routine_error."""
+    routine_run (the record, the comparison, the numbers to step through) or routine_error. `interval` (§14.1) names
+    the calendar unit the load's window is; refused while a fill runs on the session."""
+    a = _app()
+    data = request.json or {}
+    instance = a.get_bamboo_ai(session['session_id'])
+    if instance.fill_status().get('running'):
+        return jsonify({'error': 'a fill is running: wait for it, or stop it in the Summary'}), 409
+    a.update_user_activity(a.get_user_id())
+
+    def work():
+        return {"routine_run": instance.run_routine(rid, data.get('values') or {}, data.get('compare_with') or 'previous', aux=data.get('aux'), load=data.get('load'), interval=data.get('interval') or None)}
+    return _stream(instance, work)
+
+
+@routines_bp.route('/routines/<rid>/fill', methods=['POST'])
+@requires_auth
+def fill_routine(rid):
+    """A fill (docs/ROUTINES_DESIGN.md §14.3): the routine on each window of a set interval, oldest first, in a thread
+    on the session's instance; the span was loaded by the page. Answers at once with the fill's status (202); 409
+    while one runs."""
+    from bambooai.routines_host import RoutineRefused
     a = _app()
     data = request.json or {}
     instance = a.get_bamboo_ai(session['session_id'])
     a.update_user_activity(a.get_user_id())
+    try:
+        status = instance.fill_routine(rid, data.get('interval'), data.get('windows') or [], data.get('values') or {}, aux=data.get('aux'), load=data.get('load'))
+    except RoutineRefused as exc:
+        reason = str(exc)
+        return jsonify({'error': reason}), 409 if 'already running' in reason else (404 if 'no such routine' in reason else 400)
+    logger.info("routines: a fill of %s started: %d %s window(s)", rid, status.get('total', 0), status.get('interval'))
+    return jsonify({'fill': status}), 202
 
-    def work():
-        return {"routine_run": instance.run_routine(rid, data.get('values') or {}, data.get('compare_with') or 'previous', aux=data.get('aux'), load=data.get('load'))}
-    return _stream(instance, work)
+
+@routines_bp.route('/routines/fill', methods=['GET'])
+@requires_auth
+def fill_status():
+    """The session's fill, running or last: what the Summary's progress line reads every few seconds."""
+    a = _app()
+    return jsonify({'fill': a.get_bamboo_ai(session['session_id']).fill_status()}), 200
+
+
+@routines_bp.route('/routines/fill/stop', methods=['POST'])
+@requires_auth
+def fill_stop():
+    """Stop the session's fill: the window under way finishes, nothing more starts."""
+    a = _app()
+    return jsonify({'fill': a.get_bamboo_ai(session['session_id']).fill_stop()}), 200
 
 
 @routines_bp.route('/routines/<rid>/runs/<int:number>', methods=['GET'])

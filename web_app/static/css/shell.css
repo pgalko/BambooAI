@@ -88,7 +88,7 @@
 .rail .rb > span { display: contents; }
 .rail .rb .workflow-manager-text, .rail .rb .dataset-manager-text { display: none; }
 .rail .rb .memory-review-text { display: contents; font-size: 0; }
-.rail .rb .memory-review-badge, .rail .rb .rb-badge { position: absolute; top: -3px; right: -3px; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: var(--c-model); color: #000; font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; box-shadow: 0 0 0 2px var(--bg-primary); }
+.rail .rb .memory-review-badge { position: absolute; top: -3px; right: -3px; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: var(--c-model); color: #000; font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; box-shadow: 0 0 0 2px var(--bg-primary); }
 .rail .rb[data-tip]:hover::after { content: attr(data-tip); position: absolute; left: 40px; top: 6px; padding: 3px 8px; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-tertiary); color: var(--text-primary); font-size: var(--fs-small); white-space: nowrap; z-index: 1003; pointer-events: none; }
 .rail #memoryReviewPill.rb { display: grid; }
 .rail #memoryReviewPill.rb[style*="display: none"], .rail #memoryReviewPill.rb[style*="display:none"] { display: none; }

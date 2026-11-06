@@ -795,3 +795,145 @@ position; on a later window every change stayed within its interval, on a shifte
 overlap test right each time; a file without one column was refused by name; the script must carry no values (the
 first attempt's defaults overrode a run's values); the typed mark comes from the kernel's records, not from the
 replay's output; chains that printed their result lines by hand have no records and nothing to key by position.
+
+## 14. Trends by the calendar (2026-11-06): the interval, the fill, the Summary by interval
+
+**What was wrong.** The runs table and its sparkline follow the order the runs were made in, not the calendar: a run
+on May–November made first and a run on January–June made second draw a rising athlete as a falling line. And the
+windows differ in length - six months, three, a year - so even in calendar order the numbers are not a series. Both
+modals do their jobs otherwise (the Summary: the routines left, the details and the runs right; the Run dialog), so
+nothing is replaced: the Run dialog gains an interval, the runs their calendar place, the Summary a view by interval.
+
+### 14.1 The interval
+
+A run has an **interval**: *day*, *week*, *month*, *year*, or *custom*. A set interval is a calendar unit - a week is
+Monday to Sunday, a month and a year are the calendar's, a day is one date - and a run on it has exactly that window
+(the cut's end is inclusive: the Sunday, the last day of the month). The record and the summary carry `interval`
+("week" …); none recorded is custom, so every run before this section is custom, run zero included. The dates are
+where they were (`data.window`).
+
+A set interval is compared with **the one before it**: the latest earlier run of the same interval and the same
+athlete (by its window's end), which is the week before when the weeks are filled; the first one on an athlete has
+nothing before it and says so. Custom runs are compared as before (the run before on the athlete, or run 0, the
+dialog's choice) and are never the reference of a set interval, nor it theirs. Runs of different intervals are
+different series.
+
+### 14.2 The Run dialog (S3): the Interval row
+
+For an Intervals.icu routine, under *Athlete*: **Interval** - *Day · Week · Month · Year · Custom* (the segmented
+control); the dialog opens on the interval the routine was last run on, custom when it has no run. *Custom* is the
+dialog as it was: the two date pickers, any window. A set interval has no pickers (the auxiliary kinds and the
+metrics are still said under the plan):
+
+- a line naming the last complete unit: *The last complete week: Mon 26 Oct – Sun 1 Nov 2026 (this week is not
+  complete, so it is not run)*; *The last complete month: October 2026*. The current, incomplete unit is never run.
+- a box, on by default: *Fill the weeks back to 3 Nov 2025 — 40 weeks not run yet, from one download; the 12 already
+  run are kept*, and under it the cost in words: *about 20 minutes, in the background; the Summary shows the
+  progress and each week appears as it lands. The 365-day limit of the plan is the horizon.* The time is the units
+  to run times the last run's time (or run zero's). Off, only the last complete unit runs.
+- the cache line, asked about the span to load; *Everything again* as before.
+- *Compare with* is one sentence, no radios: *the week before (19 – 25 Oct), run 14 — a set interval is always
+  compared with the one before it on the same athlete*; *the month before (September 2026) once it is filled*.
+- the button says what it will do: *Run*, *Run 41 weeks*, *Run 12 months*.
+
+Which units: the complete units whose whole window lies within the plan's horizon - today minus `max_days`
+(`/intervals/get_data_limits`), the same bound the loader clamps a window to silently, which is why a unit outside it
+is never asked (the clamp would hand the cut an empty frame), and at most a year back, the span the Summary's charts
+cover. A complete year fits within 365 days on 1 January alone (after a common year); otherwise the dialog says *No
+complete year within the last 365 days* and Run stays off. Already run: a run on record with the same
+athlete, interval and window whose status is ran, reproduced or differed - a failed one is run again. Coming back
+after three months, the three missing months are what the fill runs; the rest are kept. The arithmetic is the
+page's, in pure functions the tests read (`build.units`, `build.fillPlan`); the server runs the windows it is given,
+checked against the span.
+
+A file routine and an Endura routine (a race is an event, not a window) have no row: custom. SweatStack: custom for
+now; the same mechanism would serve once its limits are asked by the dialog.
+
+### 14.3 The fill
+
+One unit to run (the box off, or nothing missing but the latest) goes the way a run goes today: `/routines/<id>/run`
+with `interval`, the main panes, the Comparison tab. More than one is a **fill**:
+
+1. The page loads the span once - from the first window's start to the last window's end - through the dialog's own
+   load (`loadData`: the cache, the store, the download, its progress in the dialog). The Data tab then holds the
+   span, as after any run's load.
+2. `POST /routines/<id>/fill {interval, windows: [[start, end] …], values, aux, load}` - `load` being the span's load
+   as the page did it. The route answers at once; the work is a thread on the session's instance, one at a time. The
+   dialog closes and the Summary opens on the routine.
+3. Each window, oldest first, is `run_routine` with the window's dates over the span's load and `cached_from` the
+   span - the cut mechanics of a cached run (`cut_window`, the probe, the prelude: the frame and each file cut to the
+   window, the record saying the window) - with `interval` and the reference of 14.1, and *quiet*: no rows to the
+   pane, no tabs, no closing card (the output queue is drained only by a stream; rows left on it would land on the
+   next). Each run is recorded as it completes; a window that fails is a failed run and the fill goes on.
+4. `GET /routines/fill` (the session's one fill) → `{running, routine_id, interval, total, done, failed, current,
+   stopped, error, left}`; the page puts it in words (`fillLine`); the Summary
+   polls it every three seconds while it runs, as it watches a verification, and re-reads the routine as runs land:
+   *Filling the weeks · 12 of 41 done · 26 Oct – 1 Nov running · about 15 min left* with **Stop**
+   (`POST /routines/fill/stop`: the window under way finishes, nothing more starts). A toast when it ends.
+5. Guards: the fill stops itself when the Data tab's frame is no longer the span (`df_id` changed: the line says *the
+   data on the Data tab changed*); while one runs the composer is locked with the reason (*A fill is running (12 of
+   41 weeks) — the composer comes back when it ends; stop it in the Summary*), Run and Delete refuse with a toast, and
+   the server answers 409 to a second `/fill` and to `/run`; a fill is not started while a query runs (Run refuses
+   then, as it did). Reloading the page loses nothing: the state is the instance's; the page asks for it as it loads.
+
+A daily fill is 365 runs; the dialog says the count and the time before Run, and that is the whole of the protection.
+
+### 14.4 The labels
+
+A result line's label often ends in what was true of the original data - *mean maximal power, best continuous 5s
+average, all 380 activities, 2025-11-01..2026-11-04*. Wherever results are listed or tabulated (the Summary's Results
+and runs table, the Comparison tab, the table by interval), the label is trimmed by one rule, no model: trailing
+comma-separated segments are dropped while a segment is a date range or a count (*all 380 activities*, *380 rows*,
+*n = 380*). The full label stays on hover. The record is not changed.
+
+### 14.5 The badge
+
+The count under the rail's Routines entry is removed (barely visible in the dark theme, no information the entry
+does not give): the span in the template, `refreshBadge` and its calls, the `.rb-badge` rule.
+
+### 14.6 The Summary (S2) by interval
+
+*Results across runs* gets a filter bar: **Daily · Weekly · Monthly · Yearly · Custom**, each with its count on the
+athlete picked; an interval never run is greyed with *no run with this interval yet*; the pick opens on the latest
+run's interval. The athlete pick stays beside it.
+
+A set interval shows **a table by interval**: a row per unit, the latest at the top (tinted), its run number beside the
+dates (*26 Oct – 1 Nov · run 15*); a column per result line, its label trimmed (14.4) and, when every label shares a
+prefix, the prefix said once in the section's head and the rest in the column; in each column head a **thumbnail**
+of the metric over the units in calendar order, oldest left, the latest dot ringed, a unit not run a gap; each cell
+the estimate with its mark against the row below (↑ ↓ when the intervals do not overlap, = when they do; the interval
+on hover). The table scrolls in a box with its head fixed. Under it the legend and, when units are missing, *40
+weeks back to 3 Nov 2025 are not run yet: Run → Week → fill the weeks back*. *Custom* is today's table - a column per
+run in run order, the head *Run 1 · 5 Nov · 186 days* with the window on hover - and its legend says custom windows
+are not a series and no trend is drawn across them.
+
+**Enlarge.** A thumbnail opens the chart at full size, in a dialog of the Summary's: a calendar axis over the
+horizon, one dot per unit, the gaps empty with the words above (*40 weeks not run yet · Run → Week → fill*), the
+values written at the latest, the highest and the lowest only and the rest on hover (the run, the dates, the
+estimate with its interval), *3 m · 6 m · 12 m*, *also show* another metric, a PNG. Nothing is computed there that
+the thumbnail does not have.
+
+**Runs** shows the latest five of the interval and athlete picked, the rest by scrolling in a box; each line names the
+unit (*week 26 Oct – 1 Nov*); the custom runs and run 0 under Custom.
+
+**The Trend tab.** The run view's *Comparison* tab is renamed **Trend**; for a set interval its two head cells are
+the units (*19 – 25 Oct*, *26 Oct – 1 Nov*), and a last column *Weekly trend* carries the thumbnail of each line over
+the athlete's units, drawn from the routine's runs list. A custom run's tab is as it was, under the new name.
+
+### 14.7 Build order and acceptance
+
+- **Patch 0264 — the interval and the fill**: 14.1–14.5. The record's `interval`; `reference_run` by interval; the
+  `/run` route taking `interval`; the fill route, its thread, status and stop, the guards; the Run dialog's row, the
+  units and the plan (pure functions), the sentence, the button; the labels trimmed where they are shown today; the
+  badge gone. Accepted by: the pure module (the reference by interval; a run recording its interval; the trimmed
+  label is the page's, read on the mini DOM), the instance and the routes over the fake model layer (a fill of three
+  windows: three runs oldest first, each against the one before, nothing on the pane's queue; stopped when the
+  frame changes; the 409s), the markup (the row, the plan's sentences at known dates, the button, the badge gone
+  from the template and the stylesheet), the screens tool (the dialog on *Week* with its fill), and the
+  integrations walk (an Intervals routine run on *Week* with the fill over the fake Intervals: the runs land with
+  their interval, the Summary shows the progress and then the runs).
+- **Patch 0265 — the Summary by interval**: 14.6. The filter bar, the table by interval with its thumbnails, the
+  enlarge, Runs in a box, the Trend tab. Accepted by: the markup on the mini DOM (the bar's counts and greying, the
+  rows newest first, the marks against the row below, the gaps in a thumbnail and the enlarged chart, the prefix
+  said once, the Trend column), the screens tool (the Summary on *Weekly*, the enlarged chart, the Trend tab), and
+  the walks (the filled routine's Summary by week; the custom view unchanged).

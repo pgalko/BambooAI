@@ -293,6 +293,22 @@
 .rt-load .rt-athlete select { max-width: 100%; min-width: 0; }
 .rt-load .rt-athlete-help { grid-column: 2; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; margin-top: -2px; }
 .rt-load .rt-athlete-help:empty { display: none; }
+/* the interval (docs/ROUTINES_DESIGN.md §14.2): the row under the athlete, the plan under the row, the fill box with its cost */
+.rt-load .rt-interval { grid-template-columns: auto 1fr; margin: 0 0 4px 22px; }
+.rt-load .rt-interval .ui-seg > span { padding: 4px 10px; font-size: var(--fs-small); }
+.rt-load .rt-interval-plan:empty { display: none; }
+.rt-plan { margin: 0 0 4px 22px; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.5; }
+.rt-plan b { color: var(--text-primary); font-weight: 600; }
+.rt-plan .n { font-size: var(--fs-small); color: var(--text-quaternary); }
+.rt-plan.warn { color: var(--c-kernel); }
+.rt-load .rt-fillbox { align-items: flex-start; margin: 2px 0 6px 22px; }
+.rt-load .rt-fillbox input { margin-top: 3px; }
+.rt-load .rt-fillbox .txt { display: block; color: var(--text-secondary); font-size: var(--fs-meta); line-height: 1.45; }
+.rt-load .rt-fillbox .n { display: block; margin-top: 2px; font-size: var(--fs-small); }
+/* the Summary's line while a fill runs (§14.3) */
+.rt-fillbar { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-fillbar .live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); flex-shrink: 0; animation: rt-pulse 1.2s ease-in-out infinite; }
+.rt-fillbar .t { flex: 1; min-width: 0; }
 /* the manager's runs by athlete: the pick at the right of the heading */
 .rt-sec > .h .rt-athlete-pick { margin-left: auto; height: 24px; font-size: var(--fs-small); text-transform: none; letter-spacing: 0; max-width: 60%; }
 .rt-load .help { margin: 0 0 6px 22px; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }

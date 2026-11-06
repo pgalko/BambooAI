@@ -81,7 +81,13 @@ def pick_athlete(page, athlete_id):
     page.wait_for_function("() => !!(document.querySelector('#intervalsModal .int-athlete-section') || {}).dataset.mode", timeout=15000)
     mode = page.evaluate("() => document.querySelector('#intervalsModal .int-athlete-section').dataset.mode")
     if mode == "pick":
-        page.click(f'#intervalsRoster .row[data-athlete="{athlete_id}"]')
+        try:
+            page.click(f'#intervalsRoster .row[data-athlete="{athlete_id}"]')
+        except Exception:
+            if os.environ.get("SHOTS"):                                         # the page as it stood when the row could not be clicked
+                page.screenshot(path=os.path.join(os.environ["SHOTS"], "pick_athlete_failed.png"))
+                open(os.path.join(os.environ["SHOTS"], "pick_athlete_failed.html"), "w").write(page.content())
+            raise
     return mode
 
 
@@ -663,6 +669,76 @@ def main():
             page.click("#routineRunModal [data-act='cancel']")
             page.evaluate("RoutinesUI.closeManager()")
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
+            # ---- the interval and the fill (2026-11-06, docs/ROUTINES_DESIGN.md §14): Week picked in the run dialog, the weeks not run yet filled from one load ----
+            # the page's horizon comes from the limits route: answered as 35 days here, so the fill is a handful of weeks inside the window the store holds
+            page.route("**/intervals/get_data_limits", lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps({"max_days": 35, "compute_tier": "pro"})))
+            _earliest = today - timedelta(days=35)
+            _end = today - timedelta(days=today.weekday() + 1)                        # the Sunday before this week's Monday
+            weeks = []
+            while _end - timedelta(days=6) >= _earliest:
+                weeks.insert(0, (_end - timedelta(days=6), _end)); _end = _end - timedelta(days=7)
+            _wtext = lambda a_, b_: f"Mon {a_.day} {a_:%b} – Sun {b_.day} {b_:%b} {b_.year}" if a_.year == b_.year else f"Mon {a_.day} {a_:%b} {a_.year} – Sun {b_.day} {b_:%b} {b_.year}"
+            _wshort = lambda a_, b_: f"{a_.day} – {b_.day} {b_:%b}" if a_.month == b_.month else f"{a_.day} {a_:%b} – {b_.day} {b_:%b}"
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => { const t = (document.querySelector('#routinesModal .rt-right .title') || {}).textContent || ''; return t.length > 0 && !/Again on the cached window/.test(t); }", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-interval')", timeout=30000)
+            page.wait_for_function("() => { const s = document.querySelector('#routineRunModal select[data-load=\"athlete\"]'); return !!s && s.getAttribute('data-state') === 'ready' && s.value === 'i0'; }", timeout=15000)
+            dlg_c = page.evaluate("() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), segs: [...document.querySelectorAll('#routineRunModal .rt-interval [data-interval]')].map(e => e.textContent), pickers: document.querySelector('#routineRunModal .rt-loadwin').style.display, plan: !!document.querySelector('#routineRunModal .rt-plan'), label: document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent })")
+            page.click("#routineRunModal .rt-interval [data-interval='week']")
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-plan') && /Run \\d+ weeks/.test(document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent)", timeout=15000)
+            page.wait_for_function("() => { const c = document.querySelector('#routineRunModal .rt-cache'); return !!c && c.style.display !== 'none' && c.textContent.length > 0; }", timeout=15000)
+            dlg_w = page.evaluate("""() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), plan: document.querySelector('#routineRunModal .rt-plan').textContent, box: (document.querySelector('#routineRunModal .rt-fillbox .txt') || {}).textContent || '', boxOn: !!(document.querySelector('#routineRunModal input[data-load="fill"]') || {}).checked,
+                pickers: document.querySelector('#routineRunModal .rt-loadwin').style.display, help: (() => { const h = document.querySelector('#routineRunModal .rt-load .help').cloneNode(true); h.querySelectorAll('.rt-custom').forEach(e => e.remove()); return h.textContent; })(), helpHidden: document.querySelector('#routineRunModal .rt-load .help .rt-custom').style.display,
+                compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '', radios: document.querySelectorAll('#routineRunModal input[name="rt-compare"]').length,
+                label: document.querySelector('#routineRunModal [data-act="run"] span').textContent, cache: document.querySelector('#routineRunModal .rt-cache').textContent, note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })""")
+            if shots: page.query_selector("#routineRunModal .modal-content").screenshot(path=os.path.join(shots, "run_dialog_week.png"))
+            check("the run dialog opens on Custom (no set interval run yet) with the pickers; Week picked: the Interval row's segments, the last complete week named (Monday to Sunday, this week left out), the fill box on counting the weeks back to the horizon's first Monday, the pickers gone and the help reduced to what is loaded with it, Compare with one sentence and no radios, the button 'Run N weeks', the cache asked about the span, the foot saying the fill runs in the background",
+                  dlg_c["on"] == "custom" and dlg_c["segs"] == ["Day", "Week", "Month", "Year", "Custom"] and dlg_c["pickers"] == "" and not dlg_c["plan"] and dlg_c["label"] == "Run"
+                  and dlg_w["on"] == "week" and dlg_w["plan"] == f"The last complete week: {_wtext(*weeks[-1])} (this week is not complete, so it is not run)" and dlg_w["boxOn"] and dlg_w["box"].startswith(f"Fill the weeks back to {weeks[0][0].day} {weeks[0][0]:%b} {weeks[0][0].year} — {len(weeks) - 1} more weeks not run yet, from one download")
+                  and dlg_w["pickers"] == "none" and re.fullmatch(r"with (summary, wellness|wellness, summary) · metrics as the original", dlg_w["help"]) and dlg_w["helpHidden"] == "none" and dlg_w["compare"].startswith("Compare witheach week with the week before it on The subject — a set interval is always compared") and dlg_w["radios"] == 0
+                  and dlg_w["label"] == f"Run {len(weeks)} weeks" and f"{weeks[0][0].isoformat()} → {weeks[-1][1].isoformat()}" in dlg_w["cache"] and dlg_w["note"].startswith("The method runs as it was saved on each week, oldest first, in the background"), (weeks, dlg_c, dlg_w))
+            n_before_fill = len((fetch_json(page, "/routines/" + str(rj.get("id")), None, "GET")["json"] or {}).get("routine", {}).get("runs") or [])
+            page.click("#routineRunModal [data-act='run']")
+            page.wait_for_selector("#routinesModal .rt-fillbar", timeout=240000)                     # the span loaded (the store holds it), the fill started, the Summary open on it
+            bar0 = page.evaluate("() => ({ bar: document.querySelector('#routinesModal .rt-fillbar .t').textContent, stop: !!document.querySelector('#routinesModal [data-act=\"stop-fill\"]'), dlg: document.getElementById('routineRunModal').style.display, locked: document.getElementById('queryInput').disabled, placeholder: document.getElementById('queryInput').placeholder })")
+            if shots: page.query_selector("#routinesModal .rt-mgr").screenshot(path=os.path.join(shots, "manager_fill_running.png"))
+            t_fill = time.time()
+            while time.time() - t_fill < 300 and (fetch_json(page, "/routines/fill", None, "GET")["json"] or {}).get("fill", {}).get("running"):
+                time.sleep(1)
+            fill_end = (fetch_json(page, "/routines/fill", None, "GET")["json"] or {}).get("fill") or {}
+            page.wait_for_function("() => !document.querySelector('#routinesModal .rt-fillbar')", timeout=30000)
+            page.wait_for_timeout(500)
+            after_fill = page.evaluate("""() => ({ bar: !!document.querySelector('#routinesModal .rt-fillbar'), placeholder: document.getElementById('queryInput').placeholder, locked: document.getElementById('queryInput').disabled, cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \\d+$/, '').trim()).filter(Boolean),
+                runs: [...document.querySelectorAll('#routinesModal .rt-run')].map(e => [e.getAttribute('data-run'), e.querySelector('.w').textContent]), picked: (document.querySelector('#routinesModal select[data-pick="athlete"]') || {}).value })""")
+            rj_f = (fetch_json(page, "/routines/" + str(rj.get("id")), None, "GET")["json"] or {}).get("routine") or {}
+            wk_runs = [x for x in rj_f.get("runs") or [] if x.get("interval") == "week"]
+            check("Run on Week with the fill: the dialog closes once the span is loaded, the Summary opens on the routine with the fill's line ('Filling the weeks · 0 of N done …') and Stop, the composer locked with the fill as its reason; the fill ends not running, N of N done, none failed",
+                  bar0["dlg"] == "none" and bar0["bar"].startswith("Filling the weeks · ") and f"of {len(weeks)} done" in bar0["bar"] and bar0["stop"] and bar0["locked"] and bar0["placeholder"].startswith("A fill is running (Filling the weeks")
+                  and fill_end.get("running") is False and fill_end.get("done") == len(weeks) and fill_end.get("total") == len(weeks) and fill_end.get("failed") == 0 and fill_end.get("stopped") is False and fill_end.get("interval") == "week", (bar0, fill_end))
+            check("the weeks landed as runs, oldest first, each with interval 'week' and its calendar window on the summary, the first against nothing and each next against the week before; all ran; the Summary, re-read, lists them with their units and the composer is the run view's again (the fill's reason gone)",
+                  len(rj_f.get("runs") or []) == n_before_fill + len(weeks) and [tuple(x["data"]["window"]) for x in wk_runs] == [(a_.isoformat(), b_.isoformat()) for a_, b_ in weeks] and all(x["status"] in ("ran", "reproduced", "differed") and x["data"]["subject"] == {"id": "i0", "name": "The subject"} for x in wk_runs)
+                  and wk_runs[0]["against"] is None and all(wk_runs[i]["against"] == wk_runs[i - 1]["number"] for i in range(1, len(wk_runs))) and wk_runs[0]["comparison"]["line"] == "nothing to compare with: no earlier week on record for this subject"
+                  and not after_fill["bar"] and after_fill["locked"] and after_fill["placeholder"] == "A run is a record: to go further, open the analysis it was made from" and after_fill["picked"] == "i0"
+                  and after_fill["cols"][-1] == "Trend" and all(f"Run {x['number']}" in after_fill["cols"] for x in wk_runs) and after_fill["runs"][0][0] == str(wk_runs[-1]["number"]) and f"week {weeks[-1][0].day} " in after_fill["runs"][0][1],
+                  ([(x["number"], x.get("interval"), x["against"], x["data"].get("window"), x["status"], x["comparison"]["line"]) for x in wk_runs], after_fill))
+            rec_w = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", f"v1_{wk_runs[1]['number']}", "run.json")))
+            check("a filled week's record: cut to its week from the span's load, the interval on it, its CHECK line saying the cut and the week's rows; its summary file bound to the span's and cut",
+                  rec_w["interval"] == "week" and rec_w["data"]["load"]["start_date"] == weeks[1][0].isoformat() and rec_w["data"]["load"]["end_date"] == weeks[1][1].isoformat() and rec_w["data"]["load"]["cached_from"] == [weeks[0][0].isoformat(), weeks[-1][1].isoformat()]
+                  and f"cut to {weeks[1][0].isoformat()} → {weeks[1][1].isoformat()} from the cached load {weeks[0][0].isoformat()} → {weeks[-1][1].isoformat()}" in rec_w["check"] and rec_w["status"] in ("ran", "reproduced", "differed") and 0 < int(rec_w["data"]["rows"] or 0)
+                  and any(k == "cut" for _, _, k in rec_w.get("bindings") or []), (rec_w.get("check"), rec_w.get("bindings"), rec_w["data"].get("rows")))
+            # the dialog opens on the interval last run, with nothing left to fill: Run runs the latest week again
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-interval .on') && document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval') === 'week' && /Run again/.test(document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent)", timeout=30000)
+            dlg_again = page.evaluate("() => ({ plans: [...document.querySelectorAll('#routineRunModal .rt-plan')].map(e => e.textContent), box: !!document.querySelector('#routineRunModal input[data-load=\"fill\"]'), label: document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent, compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '' })")
+            check("the run dialog opens on Week now (the interval last run): the last week is said to be run already and that Run runs it again, every week back to the horizon run already - no box - the button 'Run again', the comparison the week before by number",
+                  dlg_again["plans"][0] == f"The last complete week: {_wtext(*weeks[-1])} — run already; Run runs it again" and dlg_again["plans"][1] == f"Every week back to {weeks[0][0].day} {weeks[0][0]:%b} {weeks[0][0].year} is run already ({len(weeks)} weeks)." and not dlg_again["box"] and dlg_again["label"] == "Run again"
+                  and f"the week before ({_wshort(*weeks[-2])}), run {wk_runs[-2]['number']}" in dlg_again["compare"], dlg_again)
+            page.click("#routineRunModal [data-act='cancel']")
+            page.evaluate("RoutinesUI.closeManager()")
+            page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
+            page.unroute("**/intervals/get_data_limits")
 
             # Endura: a routine made on one race, run on another picked in the dialog (the flat crit has no power channel, no climbs)
             page.click("#routinesPill")

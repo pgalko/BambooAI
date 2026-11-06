@@ -1,7 +1,7 @@
 """Routines (docs/ROUTINES_DESIGN.md): the pure module, the promoter's prompt under the standing rule, the records a
 run keeps, the host's propose/create path over a real kernel with a scripted promoter, and the store.
 Run: python3 tests/analyst/test_routines.py"""
-import os, sys, json, re, tempfile, shutil, glob
+import os, sys, json, re, tempfile, shutil, glob, time
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.dirname(os.path.abspath(__file__)), ROOT, os.path.join(ROOT, "delve")]
 import _stubs  # noqa: F401
@@ -438,6 +438,68 @@ with open(_st2.file("rold"), encoding="utf-8") as _fh:
     _saved = json.load(_fh)
 check("RoutineStore.load names the subject on an older run's summary from its record ({} for one whose record names none, or is missing) and saves it, once: the file carries it after",
       _got["runs"][0]["data"]["subject"] == {"id": "i0", "name": "The subject"} and _got["runs"][1]["data"]["subject"] == {} and _saved["runs"][0]["data"]["subject"]["id"] == "i0" and not _st2._name_subjects(_saved), _got["runs"])
+# ---- the interval (2026-11-06, docs/ROUTINES_DESIGN.md §14): a run's calendar unit on the record, the reference the one before it, the fill ----
+_w = lambda n, sid, kind, win, status="ran", est="+1": {"number": n, "version": 1, "status": status, "interval": kind, "data": {"subject": ({"id": sid, "name": "x"} if sid else {}), "window": win}, "results": [{"estimate": est}]}
+RI = {"versions": RS["versions"], "runs": [_w(1, "i0", None, ["2026-01-01", "2026-06-30"], est="+5"), _w(2, "i0", "week", ["2026-10-12", "2026-10-18"], est="+6"), _w(3, "i0", "week", ["2026-10-19", "2026-10-25"], "failed"),
+                                          _w(4, "i1", "week", ["2026-10-19", "2026-10-25"], est="+9"), _w(5, "i0", "month", ["2026-09-01", "2026-09-30"], est="+7")]}
+check("reference_run by interval: a week is compared with the latest earlier week on the same subject by its window's end (run 2: the failed week skipped, the other subject's and the month ignored); the first week has nothing - not run 0, not a custom run; a custom run's 'previous' skips the set intervals (run 1); a number asked outright is that run",
+      host.reference_run(RI, V1, "previous", subject_id="i0", interval="week", window=("2026-10-26", "2026-11-01")) == (2, [{"estimate": "+6"}])
+      and host.reference_run(RI, V1, "previous", subject_id="i0", interval="week", window=("2026-10-05", "2026-10-11")) == (None, None) and host.reference_run(RI, V1, "previous", subject_id="i1", interval="week", window=("2026-10-26", "2026-11-01")) == (4, [{"estimate": "+9"}])
+      and host.reference_run(RI, V1, "previous", subject_id="i0") == (1, [{"estimate": "+5"}]) and host.reference_run(RI, V1, "previous", subject_id="i1") == (None, None)
+      and host.reference_run(RI, V1, "previous", subject_id="i0", interval="month", window=("2026-10-01", "2026-10-31")) == (5, [{"estimate": "+7"}]) and host.reference_run(RI, V1, 2, subject_id="i0", interval="week", window=("2026-10-26", "2026-11-01")) == (2, [{"estimate": "+6"}]),
+      [host.reference_run(RI, V1, "previous", subject_id="i0", interval=k, window=("2026-10-26", "2026-11-01"))[0] for k in ("week", "month", None)])
+# a run through the host with an interval: the record and the summary carry it, the window is the load's dates, the reference the week before
+_R8 = store.load(rid4); _R8["id"] = "r8int"; host.version_of(_R8)["manifest"]["data"]["load"] = {"source": "intervals", "subject": _sub("i0", "The subject")}; store.save(_R8)
+_wk = lambda a, b_: dict(data_now, load={"source": "intervals", "subject": _sub("i0", "The subject"), "start_date": a, "end_date": b_, "cached": True, "cached_from": ["2026-10-05", "2026-11-01"]})
+_o8a = host.run(store.load("r8int"), {}, _wk("2026-10-19", "2026-10-25"), runner_on(df), store, interval="week")
+_o8b = host.run(store.load("r8int"), {}, _wk("2026-10-26", "2026-11-01"), runner_on(df), store, interval="week")
+_o8c = host.run(store.load("r8int"), {}, dict(data_now, load={"source": "intervals", "subject": _sub("i0", "The subject")}), runner_on(df), store)
+_o8d = host.run(store.load("r8int"), {}, dict(data_now, load={"source": "intervals", "subject": _sub("i0", "The subject")}), runner_on(df), store, interval="week")
+_o8e = host.run(store.load("r8int"), {}, _wk("2026-10-12", "2026-10-18"), runner_on(df), store, interval="fortnight")
+check("host.run with an interval: the first week on the subject has no reference and the line says no earlier week is on record; the next week is against it; both records and summaries carry interval='week' and the window; a custom run after them is against run 0 (theirs), never a week; an interval without a window, or one not of the four, is custom",
+      _o8a["run"]["interval"] == "week" and _o8a["summary"]["interval"] == "week" and _o8a["run"]["against"] is None and _o8a["run"]["comparison"]["line"] == "nothing to compare with: no earlier week on record for this subject"
+      and _o8a["summary"]["data"]["window"] == ["2026-10-19", "2026-10-25"] and _o8b["run"]["against"] == _o8a["run"]["number"] and _o8b["run"]["status"] in ("ran", "reproduced")
+      and _o8c["run"]["against"] == 0 and _o8c["run"]["interval"] is None and _o8d["run"]["interval"] is None and _o8e["run"]["interval"] is None and _o8e["summary"]["interval"] is None,
+      (_o8a["run"].get("interval"), _o8a["run"]["against"], _o8a["run"]["comparison"]["line"], _o8b["run"]["against"], _o8c["run"]["against"], _o8d["run"].get("interval")))
+# the fill: a thread over the instance's run_routine, oldest first, every window cut from the span, quiet; refusals counted; stopped when asked or when the frame changed
+class _Inst:
+    df_id = "span-1"
+    def __init__(self): self.calls = []
+    def run_routine(self, rid, values, aux=None, load=None, interval=None, quiet=False, compare_with="previous"):
+        self.calls.append((load["start_date"], load["end_date"], load.get("cached_from"), load.get("cached"), interval, quiet, values, aux))
+        time.sleep(0.03)
+        if load["start_date"] == "2026-10-12":
+            raise host.RoutineRefused("'x' is not in column c")
+        return {"run": {"status": "failed" if load["start_date"] == "2026-10-19" else "ran", "line": "ran: 1 line"}}
+_inst = _Inst()
+_fill = host.Fill(_inst, "r1", "week", [["2026-10-05", "2026-10-11"], ["2026-10-12", "2026-10-18"], ["2026-10-19", "2026-10-25"], ["2026-10-26", "2026-11-01"]], {"a": 1}, ["f.csv"], {"source": "intervals", "start_date": "2026-10-05", "end_date": "2026-11-01", "subject": _sub("i0", "x")})
+_st0 = _fill.status(); _fill.start(); time.sleep(0.05); _st1 = _fill.status(); _fill._thread.join(5); _st2 = _fill.status()
+check("Fill: not started - nothing done; running - the window under way and the count; ended - 4 of 4 done, 2 failed (a failed run and a refused window), the last line; every window ran oldest first over the span's load with its own dates, cached_from the span (the load not called cached: the span may have been downloaded), quiet, with the values and the files",
+      _st0 == dict(_st0, running=False, done=0, total=4, current=None) and _st1["running"] and _st1["current"] in (["2026-10-05", "2026-10-11"], ["2026-10-12", "2026-10-18"], ["2026-10-19", "2026-10-25"])
+      and not _st2["running"] and _st2["done"] == 4 and _st2["failed"] == 2 and not _st2["stopped"] and _st2["left"] is None and _st2["interval"] == "week" and _st2["routine_id"] == "r1"
+      and [c[0] for c in _inst.calls] == ["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"] and all(c[2] == ["2026-10-05", "2026-11-01"] and c[3] is None and c[4] == "week" and c[5] is True and c[6] == {"a": 1} and c[7] == ["f.csv"] for c in _inst.calls), (_st1, _st2, _inst.calls))
+_bad = []
+for _args in (("fortnight", [["2026-10-05", "2026-10-11"]]), ("week", []), ("week", [["2026-10-12", "2026-10-11"]]), ("week", [["2026-10-5", "2026-10-11"]]), ("week", [["2026-10-05"]])):
+    try:
+        host.Fill(_inst, "r1", *_args)
+        _bad.append("made")
+    except host.RoutineRefused as exc:
+        _bad.append(str(exc).split(" must be")[0])
+check("Fill refuses an interval not of the four and windows that are not dated [start, end] pairs in order", _bad == ["the interval", "the windows", "the windows", "the windows", "the windows"], _bad)
+class _Inst2(_Inst):
+    def run_routine(self, *a, **k):
+        self.df_id = "other"
+        return super().run_routine(*a, **k)
+_f2 = host.Fill(_Inst2(), "r1", "day", [["2026-11-01", "2026-11-01"], ["2026-11-02", "2026-11-02"], ["2026-11-03", "2026-11-03"]]).start(); _f2._thread.join(5)
+class _Inst3(_Inst):
+    def run_routine(self, *a, **k):
+        time.sleep(0.2)
+        return super().run_routine(*a, **k)
+_f3 = host.Fill(_Inst3(), "r1", "day", [["2026-11-01", "2026-11-01"], ["2026-11-02", "2026-11-02"], ["2026-11-03", "2026-11-03"]]).start(); time.sleep(0.05); _f3.stop(); _f3._thread.join(5)
+_f4 = host.Fill(_Inst(), "r1", "week", [["2026-10-05", "2026-10-11"]], load={"cached_from": ["2026-09-01", "2026-11-01"]}).start(); _f4._thread.join(5)
+check("Fill stops when the Data tab's frame is no longer the span (after the window under way, with the reason) and when asked (the window under way finishes); the span is the load's cached_from when the page loaded a wider frame",
+      _f2.status()["stopped"] and _f2.status()["done"] == 1 and _f2.status()["error"] == "the data on the Data tab changed" and _f3.status()["stopped"] and _f3.status()["done"] == 1 and _f3.status()["error"] == ""
+      and _f4.instance.calls[0][2] == ["2026-09-01", "2026-11-01"], (_f2.status(), _f3.status()))
 # ---- the data made to fit the recorded shape (2026-10-10): a method that reads a loader's auxiliary file by its dated name ----
 aux_dir = os.path.join(tempfile.mkdtemp(), "datasets", "local")
 os.makedirs(aux_dir)

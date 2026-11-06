@@ -6,7 +6,8 @@
 // Server routes (web_app/routines_routes.py): GET /routines, GET /routines/<id>, DELETE /routines/<id>,
 // POST /routines/<id>/rename, GET /routines/<id>/script, GET /routines/by_origin/<thread>[/<chain>],
 // POST /routines/propose and POST /routines/create - the last two stream the pane's rows and end with one of
-// routine_proposal | routine_made | routine_error.
+// routine_proposal | routine_made | routine_error; POST /routines/<id>/run streams a run; a fill (§14.3) is
+// POST /routines/<id>/fill, read at GET /routines/fill and stopped at POST /routines/fill/stop.
 
 (function () {
     'use strict';
@@ -34,7 +35,7 @@
     function loadLabel(ld) {
         if (!ld || !ld.source) return '';
         const src = sourceKind(ld.source);
-        const from = ld.cached ? (ld.cached_from && ld.cached_from.length === 2 ? ' · cut from the cached load ' + ld.cached_from[0] + ' → ' + ld.cached_from[1] : ' · from the cache') : '';
+        const from = ld.cached_from && ld.cached_from.length === 2 ? ' · cut from the ' + (ld.cached ? 'cached ' : '') + 'load ' + ld.cached_from[0] + ' → ' + ld.cached_from[1] : (ld.cached ? ' · from the cache' : '');     // a set interval's unit is cut from the span loaded (§14.3)
         const store = ld.store && typeof storeLine === 'function' ? storeLine(ld.store) : '';          // what the store held of the window (2026-10-15)
         const who = ld.subject && (ld.subject.name || ld.subject.id) ? ' · ' + (ld.subject.name || ld.subject.id) + ' ·' : '';      // whose (2026-10-30)
         if (src === 'intervals' || src === 'sweatstack') return sourceLabel(src) + who + (ld.start_date ? ' ' + ld.start_date + ' → ' + ld.end_date : '') + (ld.aux_kinds && ld.aux_kinds.length ? ' · ' + ld.aux_kinds.join(', ') : '') + (ld.sports && ld.sports.length ? ' · ' + ld.sports.join(', ') : '') + from + (store ? ' · ' + store : '');
@@ -174,7 +175,7 @@
                 : '<span class="ui-muted">made from the analysis of ' + esc(chainDate(o.chain_id) || o.chain_id) + ' — no longer in Saved workflows</span>';
             return { title: esc(r.name), sub: esc(sourceLabel(r.source)) + (cols ? ' · ' + cols + ' columns' : '') + ' · v' + esc(r.current_version) + ' · ' + link };
         },
-        routineBody(r) {
+        routineBody(r, fill) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const m = v.manifest || {};
             const rz = v.run_zero || {};
@@ -186,7 +187,7 @@
                 : '<div class="rt-line">None: the method runs as it is on data of the same shape.</div>') + '</div>';
             const res = (m.results || []).filter(x => !x.dropped);
             h += '<div class="rt-sec"><div class="h">Results <span class="n">— compared run to run' + (m.figures && m.figures.count ? ' · ' + m.figures.count + ' figure' + (m.figures.count === 1 ? '' : 's') : '') + '</span></div>' +
-                (res.length ? '<div class="rt-results">' + res.map(x => '<div class="r"><span class="g">✓</span><span class="l" title="' + esc(x.label) + '">' + esc(x.label) + '</span><span class="c">cell ' + esc(x.cell) + '</span></div>').join('') + '</div>' : '<div class="rt-line">None recorded: runs keep their printed output and figures.</div>') + '</div>';
+                (res.length ? '<div class="rt-results">' + res.map(x => '<div class="r"><span class="g">✓</span><span class="l" title="' + esc(x.label) + '">' + esc(build.metricLabel(x.label)) + '</span><span class="c">cell ' + esc(x.cell) + '</span></div>').join('') + '</div>' : '<div class="rt-line">None recorded: runs keep their printed output and figures.</div>') + '</div>';
             h += '<div class="rt-sec"><div class="h">Versions</div><div class="rt-vers">' + (r.versions || []).slice().reverse().map(x => '<div class="v"><b>v' + esc(x.number) + '</b><span>' + esc(fmtDate(x.created)) + ' · from the analysis of ' + esc(chainDate((x.promoted_from || {}).chain_id) || (x.promoted_from || {}).chain_id) + (x.change_note ? ' · “' + esc(x.change_note) + '”' : '') + '</span></div>').join('') + '</div></div>';
             // the runs by athlete (2026-10-30): a choice when the runs span more than one; the latest run's athlete first
             const athletes = build.runAthletes(r);
@@ -194,7 +195,7 @@
             const many = athletes.length > 1;
             const pick = many ? '<select class="ui-input rt-athlete-pick" data-pick="athlete" title="whose runs">' + athletes.map(a => '<option value="' + esc(a.id) + '"' + (a.id === picked ? ' selected' : '') + '>' + esc(a.name || a.id || 'athlete not recorded') + ' · ' + a.n + ' run' + (a.n === 1 ? '' : 's') + '</option>').join('') + '</select>' : '';
             const whose = many ? ' · ' + esc((athletes.find(a => a.id === picked) || {}).name || picked || 'athlete not recorded') : '';
-            h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">— each run against the one before it</span>' + pick + '</div>' + build.runsTable(r, many ? picked : null) + '</div>';
+            h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">— each run against the one before it</span>' + pick + '</div>' + build.fillBar(fill) + build.runsTable(r, many ? picked : null) + '</div>';
             h += '<div class="rt-sec"><div class="h">Runs <span class="n">— a run opens in the main panes' + whose + '</span></div>' + build.runsList(r, many ? picked : null) + '</div>';
             return h;
         },
@@ -245,7 +246,127 @@
             return '<input class="ui-input" data-key="' + k + '" data-type="' + esc(p.type) + '" value="' + esc(text) + '"' + (p.type === 'number' ? ' inputmode="decimal"' : '') + (help ? ' title="' + help + '"' : '') + '>';
         },
         isoDay(d) { const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); },   // the local calendar day, as core.js's localIsoDay (2026-10-15: the UTC day put the run a day past the Data tab's load)
-        loadSection(plan, pre, limits) {
+        // ---- the interval (docs/ROUTINES_DESIGN.md §14): a run's calendar unit - a day, a week (Monday to Sunday), a month, a
+        // year - or custom, the window as typed. The arithmetic lives here, in pure functions the tests read at known dates.
+        MONTHS: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        MONTHS_LONG: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+        DAYS: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        dayOf(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null; },   // a local day from an ISO date (Date.parse would read it as UTC)
+        // the complete units of a kind within the horizon (the last `horizonDays` days), oldest first, as [start, end] ISO days;
+        // the unit under way is never complete, so never in
+        units(kind, today, horizonDays) {
+            const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()), out = [];
+            const earliest = new Date(t.getFullYear(), t.getMonth(), t.getDate() - horizonDays);
+            let end;
+            if (kind === 'day') end = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1);
+            else if (kind === 'week') end = new Date(t.getFullYear(), t.getMonth(), t.getDate() - ((t.getDay() + 6) % 7) - 1);     // the Sunday before this week's Monday
+            else if (kind === 'month') end = new Date(t.getFullYear(), t.getMonth(), 0);                                           // the last day of the month before
+            else if (kind === 'year') end = new Date(t.getFullYear() - 1, 11, 31);
+            else return out;
+            for (;;) {
+                const start = kind === 'day' ? new Date(end) : (kind === 'week' ? new Date(end.getFullYear(), end.getMonth(), end.getDate() - 6)
+                    : (kind === 'month' ? new Date(end.getFullYear(), end.getMonth(), 1) : new Date(end.getFullYear(), 0, 1)));
+                if (start < earliest) break;
+                out.unshift([build.isoDay(start), build.isoDay(end)]);
+                end = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1);
+            }
+            return out;
+        },
+        dateText(iso) { const d = build.dayOf(iso); return d ? d.getDate() + ' ' + build.MONTHS[d.getMonth()] + ' ' + d.getFullYear() : ''; },
+        // a unit in words: Thu 5 Nov 2026 · Mon 26 Oct – Sun 1 Nov 2026 · October 2026 · 2026; short, for a table or a line: 5 Nov · 26 Oct – 1 Nov · 19 – 25 Oct · Oct 2026
+        unitText(kind, w, short) {
+            const a = build.dayOf(w && w[0]), b = build.dayOf(w && w[1]);
+            if (!a || !b) return '';
+            const day = (d, year) => (short ? '' : build.DAYS[d.getDay()] + ' ') + d.getDate() + ' ' + build.MONTHS[d.getMonth()] + (year ? ' ' + d.getFullYear() : '');
+            if (kind === 'day') return day(a, !short);
+            if (kind === 'week') return (short && a.getMonth() === b.getMonth() ? a.getDate() : day(a, !short && a.getFullYear() !== b.getFullYear())) + ' – ' + day(b, !short);
+            if (kind === 'month') return (short ? build.MONTHS : build.MONTHS_LONG)[a.getMonth()] + ' ' + a.getFullYear();
+            return String(a.getFullYear());
+        },
+        nextDay(iso) { const d = build.dayOf(iso); return d ? build.isoDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) : ''; },
+        // what Run would do on the interval (§14.2): the units in the horizon, those not run yet on this athlete under the current
+        // version (a failed run counts as not run), how many are kept, the last complete unit and whether it is run already
+        fillPlan(r, kind, athleteId, units) {
+            const done = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && x.interval === kind && build.subjectId(x) === String(athleteId || ''));
+            const has = w => done.some(x => { const win = (x.data || {}).window || []; return win[0] === w[0] && win[1] === w[1]; });
+            const toRun = units.filter(w => !has(w));
+            const last = units.length ? units[units.length - 1] : null;
+            return { kind, units, toRun, kept: units.length - toRun.length, last, lastRun: !!(last && has(last)), done };
+        },
+        // the windows one press of Run runs: with the fill, every unit not run yet (the last again when nothing is missing); without, the last alone
+        fillWindows(plan, fill) { if (!plan || !plan.last) return []; return fill && plan.toRun.length ? plan.toRun : [plan.last]; },
+        // the run a set interval is compared with (§14.1): the latest earlier run of the kind on the athlete, by its window's end
+        before(plan, w) {
+            const earlier = plan.done.filter(x => (((x.data || {}).window || [])[1] || '') < w[0]);
+            return earlier.length ? earlier.reduce((a, x) => (x.data.window[1] > a.data.window[1] || (x.data.window[1] === a.data.window[1] && x.number > a.number) ? x : a)) : null;
+        },
+        tookOf(r) {          // what a run takes, from the last one that ran (or run zero): said before Run, and the fill's cost
+            const v = (r.versions || []).find(x => x.number === r.current_version) || {};
+            const runs = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status));
+            const last = runs.length ? runs[runs.length - 1] : null;
+            return Number((last && last.elapsed) || (v.run_zero && v.run_zero.elapsed) || 0);
+        },
+        lastInterval(r) {    // the interval the routine was last run on under the current version: the dialog opens on it
+            const runs = (r.runs || []).filter(x => x.version === r.current_version);
+            return runs.length && runs[runs.length - 1].interval ? runs[runs.length - 1].interval : 'custom';
+        },
+        intervalRow(kind) {
+            const names = { day: 'Day', week: 'Week', month: 'Month', year: 'Year', custom: 'Custom' };
+            return '<div class="rt-field rt-interval"><label>Interval</label><span class="ui-seg">' + Object.keys(names).map(k => '<span' + (k === kind ? ' class="on"' : '') + ' data-interval="' + k + '">' + names[k] + '</span>').join('') + '</span></div>';
+        },
+        // under the row: the last complete unit (never the one under way), the fill box with its count and cost, or why nothing runs
+        intervalPlan(plan, took, maxDays, fill) {
+            const one = plan.kind, many = plan.kind + 's';
+            if (!plan.last) return '<div class="rt-plan warn">No complete ' + one + ' within the last ' + esc(Math.min(maxDays, 365)) + ' days.</div>';
+            let h = '<div class="rt-plan">The last complete ' + one + ': <b>' + esc(build.unitText(one, plan.last)) + '</b> <span class="n">' +
+                (plan.lastRun ? '— run already' + (plan.toRun.length ? '' : '; Run runs it again') : '(this ' + one + ' is not complete, so it is not run)') + '</span></div>';
+            if (plan.units.length < 2) return h;
+            const more = plan.toRun.filter(w => w !== plan.last).length, n = build.fillWindows(plan, true).length;
+            const back = 'back to ' + esc(build.dateText(plan.units[0][0]));
+            if (!more) return h + '<div class="rt-plan"><span class="n">Every ' + one + ' ' + back + ' is run already (' + plan.kept + ' ' + many + ').</span></div>';
+            const horizon = maxDays > 365 ? 'A year back is the horizon.' : 'The ' + esc(maxDays) + '-day limit of the plan is the horizon.';
+            return h + '<label class="rt-check rt-fillbox"><input type="checkbox" data-load="fill"' + (fill ? ' checked' : '') + '><span class="txt">Fill the ' + many + ' ' + back + ' — ' + more + (plan.lastRun ? '' : ' more') + ' ' + (more === 1 ? one : many) +
+                ' not run yet, from one download' + (plan.kept ? '; the ' + plan.kept + ' already run are kept' : '') +
+                '<span class="n">' + (took >= 30 ? 'about ' + esc(fmtTook(n * took)) + ', ' : '') + 'in the background; the Summary shows the progress and each ' + one + ' appears as it lands. ' + horizon + '</span></span></label>';
+        },
+        // Compare with, for a set interval (§14.1): one sentence, no choice
+        compareSentence(plan, fill, athleteName) {
+            const ws = build.fillWindows(plan, fill), one = plan.kind;
+            if (!ws.length) return '';
+            let line;
+            if (ws.length > 1) line = 'each ' + one + ' with the ' + one + ' before it' + (athleteName ? ' on ' + esc(athleteName) : '');
+            else {
+                const b = build.before(plan, ws[0]);
+                line = b ? 'the ' + (build.nextDay(b.data.window[1]) === ws[0][0] ? one + ' before' : 'latest earlier ' + one) + ' (' + esc(build.unitText(one, b.data.window, true)) + '), run ' + esc(b.number)
+                    : 'the first ' + one + (athleteName ? ' on ' + esc(athleteName) : '') + ': nothing to compare with yet';
+            }
+            return '<div class="rt-sec"><div class="h">Compare with</div><div class="rt-line">' + line + ' <span class="ui-muted">— a set interval is always compared with the one before it on the same athlete</span></div></div>';
+        },
+        runLabel(plan, fill) {
+            const ws = build.fillWindows(plan, fill);
+            if (ws.length > 1) return 'Run ' + ws.length + ' ' + plan.kind + 's';
+            return ws.length && plan.lastRun && !plan.toRun.length ? 'Run again' : 'Run';
+        },
+        // the Summary's line while a fill runs (§14.3), and its last word once it has ended
+        fillLine(st) {
+            if (!st || !st.total) return '';
+            const one = st.interval, many = one + 's';
+            if (st.running) return 'Filling the ' + many + ' · ' + st.done + ' of ' + st.total + ' done' + (st.failed ? ' (' + st.failed + ' failed)' : '') + (st.current ? ' · ' + build.unitText(one, st.current, true) + ' running' : '') + (st.left != null && st.done ? ' · about ' + fmtTook(st.left) + ' left' : '');
+            if (st.stopped) return 'Stopped after ' + st.done + ' of ' + st.total + ' ' + many + (st.error ? ': ' + st.error : '') + (st.failed ? ' · ' + st.failed + ' failed' : '');
+            return 'Filled ' + st.total + ' ' + (st.total === 1 ? one : many) + ' in ' + fmtTook(st.elapsed) + (st.failed ? ' · ' + st.failed + ' failed' : '');
+        },
+        fillBar(st) {
+            return st && st.running ? '<div class="rt-fillbar"><span class="live"></span><span class="t">' + esc(build.fillLine(st)) + '</span><button class="ui-btn sm" data-act="stop-fill">Stop</button></div>' : '';
+        },
+        // a result's label without what was true of the original data (§14.4): trailing segments that are a date range or a count
+        // ("all 380 activities", "n = 380") are dropped; the full label stays on hover
+        metricLabel(label) {
+            const parts = String(label || '').split(/,\s+/);
+            const tail = s => /^\d{4}-\d{2}-\d{2}\s*(?:\.\.|to|→|->|–|-)\s*\d{4}-\d{2}-\d{2}$/.test(s) || /^(?:all\s+\d[\d,]*(?:\s+\S+)?|n\s*=\s*\d[\d,]*)$/i.test(s);
+            while (parts.length > 1 && tail(parts[parts.length - 1])) parts.pop();
+            return parts.join(', ');
+        },
+        loadSection(plan, pre, limits, kind) {
             // the data: loaded as the original load asked for it (the window shifted to end today, the race picked, the
             // file uploaded), or the data loaded now; the fit line for the data loaded now - a load's is checked after it
             const d = (pre && pre.data) || {};
@@ -266,13 +387,16 @@
                 const start = new Date(today); start.setDate(today.getDate() - span);       // calendar days back, not 24-hour steps (a clock change would shift the day)
                 const label = src === 'intervals' ? 'Intervals.icu' : 'SweatStack';
                 const withWhat = (src === 'intervals' ? (plan.aux_kinds || []) : (plan.sports || [])).join(', ');
+                const custom = !kind || kind === 'custom', hide = custom ? '' : ' style="display:none"';
+                const asOriginal = [withWhat ? 'with ' + esc(withWhat) : '', src === 'intervals' ? 'metrics as the original' : (plan.users && plan.users.length ? esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')].filter(Boolean).join(' · ');
                 h += '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from ' + label + '</label>' +
                     // whose data (2026-10-30, docs/DATASETS_DESIGN.md §17): the athlete first - the roster, filled once the dialog is up
                     // (fillAthletes); the original's athlete is the default, the cache line and the comparison follow the choice
                     (src === 'intervals' ? '<div class="rt-field rt-athlete"><label>Athlete</label><select class="ui-input" data-load="athlete" data-state="loading"><option value="">loading the athletes…</option></select><div class="rt-athlete-help"></div></div>' : '') +
-                    '<div class="rt-window rt-loadwin"><input type="date" class="ui-input" data-load="start" value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end" value="' + build.isoDay(today) + '"></div>' +
-                    '<div class="help">the original’s ' + esc(days) + ' days, ending today' + (maxDays && days > maxDays ? ' (your plan allows ' + esc(maxDays) + ')' : '') +
-                    (withWhat ? ' · with ' + esc(withWhat) : '') + (src === 'intervals' ? ' · metrics as the original' : (plan.users && plan.users.length ? ' · ' + esc(plan.users.length) + ' subject' + (plan.users.length === 1 ? '' : 's') + ' as the original' : '')) + '</div>' +
+                    // the interval (§14.2): a set unit has no pickers - the plan under the row says what runs (renderInterval); custom is the window as typed
+                    (src === 'intervals' ? build.intervalRow(kind || 'custom') + '<div class="rt-interval-plan"></div>' : '') +
+                    '<div class="rt-window rt-loadwin rt-custom"' + hide + '><input type="date" class="ui-input" data-load="start" value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end" value="' + build.isoDay(today) + '"></div>' +
+                    '<div class="help"><span class="rt-custom"' + hide + '>the original’s ' + esc(days) + ' days, ending today' + (maxDays && days > maxDays ? ' (your plan allows ' + esc(maxDays) + ')' : '') + (asOriginal ? ' · ' : '') + '</span>' + asOriginal + '</div>' +
                     (src === 'intervals' ? '<div class="rt-cache" style="display:none"></div>' +
                         // the store below the cache (docs/INCREMENTAL_LOADS_DESIGN.md, 2026-10-15): only what the window lacks is downloaded; the box fetches it all again
                         '<label class="rt-check rt-refresh"><input type="checkbox" data-load="refresh"> Everything again <span class="n">— fetch every file and message of the window afresh, not only what the store lacks</span></label>' : '');
@@ -296,19 +420,18 @@
             h += '<div class="rt-progress" style="display:none"></div></div></div>';
             return h;
         },
-        runDialog(r, pre, limits) {
+        runDialog(r, pre, limits, kind) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const params = (v.manifest || {}).parameters || [];
-            let h = build.loadSection((pre && pre.plan) || {}, pre, limits);
+            let h = build.loadSection((pre && pre.plan) || {}, pre, limits, kind);
             h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— the only things that change; the method runs as it was saved</span></div>';
             if (!params.length) h += '<div class="rt-line">None: the method runs as it is.</div>';
             else h += params.map(p => '<div class="rt-field"><label>' + esc(p.label) + '</label>' + build.inputWidget(p) + (p.origin ? '<div class="help">' + esc(p.origin) + '</div>' : '') + '</div>').join('');
             h += '</div>';
             const runs = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status));
-            const last = runs.length ? runs[runs.length - 1] : null;
             // what a run will take, from the last one (or run zero): the method's own cost, said before the person presses Run (2026-10-15)
-            const took = Number((last && last.elapsed) || (v.run_zero && v.run_zero.elapsed) || 0);
-            if (took >= 30) h += '<div class="rt-line rt-eta">the ' + (last ? 'last run' : 'check on the original data') + ' took ' + esc(fmtTook(took)) + ' — expect about as long</div>';
+            const took = build.tookOf(r);
+            if (took >= 30) h += '<div class="rt-line rt-eta">the ' + (runs.length ? 'last run' : 'check on the original data') + ' took ' + esc(fmtTook(took)) + ' — expect about as long</div>';
             // whose runs to compare with, as the dialog opens: the original's athlete for a load (the select follows), the data
             // loaded now's for a file routine with data loaded; the section is re-rendered as the choice or the athlete changes
             const src0 = (pre && pre.plan && pre.plan.source) || '';
@@ -378,10 +501,10 @@
                 // nothing to compare with - the first run on this athlete, or of the version: the record's own line says which
                 h += (run.number !== 0 && c.line ? '<div class="rt-line muted">' + esc(c.line) + '</div>' : '') +
                     '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th>' + th(run.number, d) + '</tr></thead><tbody>' +
-                    rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(x.label) + '</td><td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td></tr>').join('') + '</tbody></table>';
+                    rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(build.metricLabel(x.label)) + '</td><td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td></tr>').join('') + '</tbody></table>';
             } else {
                 h += '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th>' + th(run.against, ref) + th(run.number, d) + '<th class="num">Change</th><th>Intervals</th></tr></thead><tbody>' +
-                    rows.map(x => '<tr class="' + esc(x.mark) + '"><td class="label" title="' + esc(x.label) + '">' + esc(x.label) + '</td>' +
+                    rows.map(x => '<tr class="' + esc(x.mark) + '"><td class="label" title="' + esc(x.label) + '">' + esc(build.metricLabel(x.label)) + '</td>' +
                         '<td class="num">' + esc(build.num((x.before || {}).estimate)) + '<div class="ci">' + build.ivl(x.before) + '</div></td>' +
                         '<td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' +
                         '<td class="num change">' + (x.change == null ? '' : esc((x.change > 0 ? '+' : '') + Number(x.change.toPrecision(3)))) + '</td>' +
@@ -441,7 +564,7 @@
                 const pos = all.indexOf(line);
                 const cells = cols.map(c => c.results[pos] || null);
                 const vals = cells.map(x => x ? parseFloat(String(x.estimate).replace(/,/g, '')) : null);
-                let tds = '<td class="label" title="' + esc(line.label) + '">' + esc(line.label) + '</td>';
+                let tds = '<td class="label" title="' + esc(line.label) + '">' + esc(build.metricLabel(line.label)) + '</td>';
                 cells.forEach((x, i) => {
                     if (i) {
                         const mark = build.markOf(x, cells[i - 1]);
@@ -460,7 +583,8 @@
                 const inputs = Object.keys(x.inputs || {}).length ? Object.entries(x.inputs).map(([k, val]) => esc(k) + ' = ' + esc(Array.isArray(val) ? val.join(', ') : val)).join(' · ') : '';
                 const status = x.status === 'reproduced' ? 'reproduced' : (x.status === 'ran' ? ((x.comparison || {}).moved ? 'ran · ' + x.comparison.moved + ' of ' + x.comparison.compared + ' moved' : 'ran') : x.status.replace('_', ' '));
                 const who = (d.subject || {}).name || (d.subject || {}).id || '';
-                return '<div class="ui-item rt-run" data-run="' + esc(x.number) + '"><span class="n">run ' + esc(x.number) + '</span><span class="w"><b>' + esc(fmtDate(x.created)) + '</b> ' + esc(sourceLabel(d.source)) + (who ? ' · ' + esc(who) : '') + (d.name ? ': ' + esc(d.name) : '') + (d.date_range ? ' · ' + esc(d.date_range) : '') + ' · v' + esc(x.version) + (inputs ? ' · ' + inputs : '') + '</span>' +
+                const when = x.interval ? x.interval + ' ' + build.unitText(x.interval, d.window, true) : (d.date_range || '');      // a set interval names its unit (§14.1)
+                return '<div class="ui-item rt-run" data-run="' + esc(x.number) + '"><span class="n">run ' + esc(x.number) + '</span><span class="w"><b>' + esc(fmtDate(x.created)) + '</b> ' + esc(sourceLabel(d.source)) + (who ? ' · ' + esc(who) : '') + (d.name ? ': ' + esc(d.name) : '') + (when ? ' · ' + esc(when) : '') + ' · v' + esc(x.version) + (inputs ? ' · ' + inputs : '') + '</span>' +
                     '<span class="rt-status ' + esc(x.status) + '">' + status + '</span><span class="open">open →</span></div>';
             });
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
@@ -733,7 +857,6 @@
             if (rz.status === 'verifying' && made.routine && made.routine.id) watchVerification(made.routine.id, name, made.version);
             if (!st.fromCard) await ensureFavourite(st.chain_id);
             if (typeof updateRankButtonVisibility === 'function') updateRankButtonVisibility();
-            refreshBadge();
             if (manager && manager.style.display !== 'none') loadManager(made.routine && made.routine.id);
             if (window.WorkflowModal && typeof window.WorkflowModal.refresh === 'function') window.WorkflowModal.refresh();
         }).catch(err => {
@@ -768,10 +891,17 @@
             const b = e.target.closest('[data-act]'); if (!b || !managerState.current) return;
             const r = managerState.current;
             if (b.getAttribute('data-act') === 'run') { openRun(r.id); return; }
+            if (b.getAttribute('data-act') === 'stop-fill') {            // the unit under way finishes, nothing more starts (§14.3)
+                b.disabled = true;
+                const res = await fetchJson('/routines/fill/stop', { method: 'POST' });
+                if (res.ok && res.json.fill && res.json.fill.running) toast('Stopping after the ' + res.json.fill.interval + ' under way…');
+                return;
+            }
             if (b.getAttribute('data-act') === 'delete') {
+                if (fillRunning() && fillFor(r.id)) { toast('A fill is running on this routine; stop it first.'); return; }
                 if (!confirm('Delete the routine “' + r.name + '” and its runs? The analysis it was made from stays in Saved workflows.')) return;
                 const res = await fetchJson('/routines/' + encodeURIComponent(r.id), { method: 'DELETE' });
-                if (res.ok) { forgetOrigins(); toast('Routine deleted'); loadManager(); refreshBadge(); if (window.WorkflowModal && typeof window.WorkflowModal.refresh === 'function') window.WorkflowModal.refresh(); }
+                if (res.ok) { forgetOrigins(); toast('Routine deleted'); loadManager(); if (window.WorkflowModal && typeof window.WorkflowModal.refresh === 'function') window.WorkflowModal.refresh(); }
             } else if (b.getAttribute('data-act') === 'rename') {
                 const name = prompt('Rename the routine', r.name);
                 if (!name || name.trim() === r.name) return;
@@ -782,7 +912,7 @@
         manager.addEventListener('change', e => {                // whose runs (2026-10-30): the table and the list follow the pick
             const pick = e.target.closest('select[data-pick="athlete"]'); if (!pick || !managerState.current) return;
             managerState.athlete = pick.value;
-            manager.querySelector('.rt-body').innerHTML = build.routineBody(managerState.current);
+            manager.querySelector('.rt-body').innerHTML = build.routineBody(managerState.current, fillFor(managerState.current.id));
         });
         return manager;
     }
@@ -815,7 +945,7 @@
             if (!res.ok) { body.innerHTML = build.error('This routine could not be loaded.', false); return; }
             const r = res.json.routine; managerState.current = r;
             const hd = build.routineHeader(r);
-            title.innerHTML = hd.title; sub.innerHTML = hd.sub; actions.innerHTML = build.actions(r); body.innerHTML = build.routineBody(r);
+            title.innerHTML = hd.title; sub.innerHTML = hd.sub; actions.innerHTML = build.actions(r); body.innerHTML = build.routineBody(r, fillFor(r.id));
         });
     }
 
@@ -831,6 +961,8 @@
         document.body.appendChild(runDlg);
         runDlg.addEventListener('click', e => {
             if (e.target === runDlg || e.target.closest('.ui-dlg-h .x')) { closeRun(); return; }
+            const seg = e.target.closest('.rt-interval [data-interval]');
+            if (seg) { intervalChanged(seg.getAttribute('data-interval')); return; }
             const b = e.target.closest('[data-act]'); if (!b) return;
             if (b.getAttribute('data-act') === 'cancel') closeRun();
             else if (b.getAttribute('data-act') === 'run') startRun();
@@ -839,9 +971,11 @@
             if (e.target.matches('input[name="rt-data"]') || e.target.matches('input[data-load="file"]') || e.target.matches('select[data-load="cached"]')) {
                 if (e.target.matches('input[data-load="file"]')) { const up = runDlg.querySelector('input[name="rt-data"][value="upload"]'); if (up) up.checked = true; }
                 if (e.target.matches('select[data-load="cached"]')) { const ck = runDlg.querySelector('input[name="rt-data"][value="cache"]'); if (ck) ck.checked = true; }
+                renderInterval();                                 // a set interval belongs to the load; the data loaded now is custom
                 updateRunButton();
                 renderCompare();                                  // whose runs to compare with follows the data choice (2026-10-30)
             }
+            if (e.target.matches('input[data-load="fill"]')) { renderCompare(); checkCache(); updateRunButton(); }     // the span, the comparison and the button follow the fill
             if (e.target.matches('select[data-load="athlete"]')) athleteChanged();
             if (e.target.matches('input[data-load="start"], input[data-load="end"], select[data-load="race"]')) { clearTimeout(cacheTimer); cacheTimer = setTimeout(checkCache, 250); }
         });
@@ -856,7 +990,8 @@
     }
     function openRun(routineId) {
         if (typeof queryRunning !== 'undefined' && queryRunning) { toast('An analysis is running; run the routine when it has finished.'); return; }
-        runState = { id: routineId, routine: null, pre: null, busy: false };
+        if (fillRunning()) { toast('A fill is running (' + build.fillLine(fillState) + '); run the routine when it has ended, or stop it in the Summary.'); return; }
+        runState = { id: routineId, routine: null, pre: null, busy: false, interval: 'custom' };
         const p = runParts();
         p.d.style.display = 'flex'; p.title.textContent = 'Run'; p.sub.textContent = ''; p.body.innerHTML = build.loading('', '').replace('The analyst is reading the chain and naming its inputs…', 'Reading the routine and checking the data loaded now…');
         p.runBtn.disabled = true; p.cancelBtn.disabled = false;             // Cancel was held while the last run started
@@ -868,11 +1003,12 @@
             const r = runState.routine;
             p.title.textContent = 'Run: ' + r.name; p.sub.textContent = 'v' + r.current_version + ' · ' + (r.runs || []).length + ' run' + ((r.runs || []).length === 1 ? '' : 's') + ' so far';
             const src = runState.plan.source || 'file';
+            if (src === 'intervals') runState.interval = build.lastInterval(r);       // the dialog opens on the interval the routine was last run on (§14.2)
             const after = limits => {
                 if (!runState || runState.id !== routineId) return;
                 runState.limits = limits || null;
-                p.body.innerHTML = build.runDialog(r, runState.pre, limits);
-                if (src === 'intervals') fillAthletes(p, runState.plan);
+                p.body.innerHTML = build.runDialog(r, runState.pre, limits, runState.interval);
+                if (src === 'intervals') { renderInterval(); fillAthletes(p, runState.plan); }
                 if (src === 'endura') fillRaces(p, runState.plan);
                 if (src !== 'intervals' && src !== 'endura' && src !== 'sweatstack') fillCachePick(p);
                 updateRunButton();
@@ -889,7 +1025,8 @@
         const src = (plan || {}).source;
         if (src === 'intervals') {
             const a = athletePicked(p);                           // whose data (2026-10-30): on the load, the cache question and the record
-            return Object.assign({ source: 'intervals', start_date: q('input[data-load="start"]').value, end_date: q('input[data-load="end"]').value, metrics: plan.metrics || [], aux_kinds: plan.aux_kinds || [] }, a.id ? { subject: { source: 'intervals', id: a.id, name: a.name } } : {});
+            const span = intervalSpan(p);                         // a set interval (§14.2): the span its windows cover, loaded once; custom: the window as typed
+            return Object.assign({ source: 'intervals', start_date: span ? span.start : q('input[data-load="start"]').value, end_date: span ? span.end : q('input[data-load="end"]').value, metrics: plan.metrics || [], aux_kinds: plan.aux_kinds || [] }, a.id ? { subject: { source: 'intervals', id: a.id, name: a.name } } : {});
         }
         if (src === 'endura') { const race = q('select[data-load="race"]'); return { source: 'endura', race_id: race ? race.value : '', race_title: race && race.selectedIndex >= 0 ? race.options[race.selectedIndex].textContent : '', aux_kinds: plan.aux_kinds || [] }; }
         if (src === 'sweatstack') return { source: 'sweatstack', start_date: q('input[data-load="start"]').value, end_date: q('input[data-load="end"]').value, sports: plan.sports || [], metrics: plan.metrics || [], users: plan.users || [] };
@@ -950,6 +1087,7 @@
             help.textContent = o && o.getAttribute('data-nokey') ? 'no key stored for them: a window the cache holds runs; anything else needs the key under Settings → Intervals ICU'
                 : (mine.id && a.id && a.id !== mine.id ? 'the method was made on ' + (mine.name || mine.id) + '’s data' : '');
         }
+        renderInterval();                                     // the units not run yet are this athlete's
         renderCompare();
         showCache(p, null);                                   // the line was the athlete before's; blank until the cache answers for this one
         checkCache();
@@ -959,7 +1097,36 @@
         const p = runParts(); const box = p.d.querySelector('.rt-compare-sec'); if (!box) return;
         const r = st.routine, v = (r.versions || []).find(x => x.number === r.current_version) || {};
         const s = runSubject(p);
-        box.innerHTML = build.compareSection(r, v, s.id || '', s.name || '');
+        const plan = intervalPlan();
+        box.innerHTML = plan ? build.compareSentence(plan, fillOn(p), s.name || '') : build.compareSection(r, v, s.id || '', s.name || '');
+    }
+    // ---- the interval (§14.2): the plan under the row follows the kind, the athlete and the fill box; the load, the cache
+    // question, the comparison and the button follow the plan
+    function intervalPlan() {
+        const st = runState; if (!st || !st.routine || dataChoice() !== 'load' || !st.interval || st.interval === 'custom') return null;
+        const p = runParts();
+        const maxDays = Math.min(365, Number((st.limits || {}).max_days) || 365);       // the plan's horizon, at most a year back
+        return build.fillPlan(st.routine, st.interval, athletePicked(p).id || '', build.units(st.interval, new Date(), maxDays));
+    }
+    function fillOn(p) { const b = p.d.querySelector('input[data-load="fill"]'); return !b || b.checked; }
+    function intervalSpan(p) {
+        const plan = intervalPlan(); if (!plan) return null;
+        const ws = build.fillWindows(plan, fillOn(p));
+        return ws.length ? { start: ws[0][0], end: ws[ws.length - 1][1], windows: ws } : { start: '', end: '', windows: [] };
+    }
+    function renderInterval() {
+        const st = runState; if (!st || !st.routine) return;
+        const p = runParts(); const box = p.d.querySelector('.rt-interval-plan'); if (!box) return;
+        const plan = intervalPlan();
+        box.innerHTML = plan ? build.intervalPlan(plan, build.tookOf(st.routine), Number((st.limits || {}).max_days) || 365, fillOn(p)) : '';
+        p.d.querySelectorAll('.rt-custom').forEach(el => { el.style.display = st.interval && st.interval !== 'custom' ? 'none' : ''; });
+    }
+    function intervalChanged(kind) {
+        const st = runState; if (!st || !st.routine || st.busy) return;
+        st.interval = kind;
+        const p = runParts();
+        p.d.querySelectorAll('.rt-interval [data-interval]').forEach(el => el.classList.toggle('on', el.getAttribute('data-interval') === kind));
+        renderInterval(); renderCompare(); checkCache(); updateRunButton();
     }
     // the files the Dataset cache holds, for a file routine's dialog (step 4, 2026-10-11): the frames the executor keeps
     // that came from a file (an upload, or a file loaded from the cache before), newest first; nothing without an executor
@@ -1017,12 +1184,17 @@
         const st = runState; if (!st) return;
         const p = runParts();
         const c = dataChoice();
+        const plan = intervalPlan(), windows = build.fillWindows(plan, fillOn(p));
         let on = false;
-        if (c === 'load') { const a = p.d.querySelector('select[data-load="athlete"]'); on = !a || a.getAttribute('data-state') === 'ready'; }     // an Intervals load waits for the athletes (2026-10-30)
+        if (c === 'load') { const a = p.d.querySelector('select[data-load="athlete"]'); on = (!a || a.getAttribute('data-state') === 'ready') && (!plan || windows.length > 0); }     // an Intervals load waits for the athletes (2026-10-30); a set interval needs a complete unit
         else if (c === 'upload') { const f = p.d.querySelector('input[data-load="file"]'); on = !!(f && f.files && f.files.length); }
         else if (c === 'cache') { const pick = p.d.querySelector('select[data-load="cached"]'); on = !!(pick && pick.value); }
         else on = !!(st.pre && st.pre.ok);
         p.runBtn.disabled = st.busy || !on;
+        p.runBtn.querySelector('span').textContent = plan ? build.runLabel(plan, fillOn(p)) : 'Run';       // Run · Run 41 weeks · Run again
+        const note = p.d.querySelector('.ui-dlg-f .note');
+        if (note) note.textContent = windows.length > 1 ? 'The method runs as it was saved on each ' + plan.kind + ', oldest first, in the background; each run is recorded as it completes, and the fill can be stopped from the Summary.'
+            : 'The method runs as it was saved; only the inputs change. The run is recorded as it completes.';
     }
     function fillRaces(p, plan) {
         const sel = p.d.querySelector('select[data-load="race"]'); if (!sel) return;
@@ -1102,8 +1274,8 @@
             return { source: 'endura', aux: cached.files || [], load, loaded: 'Endura · ' + (asked.race_title || asked.race_id) + ' · from the cache' };
         }
         if (src === 'intervals') {
-            const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
-            if (!start || !end || start >= end) throw new Error('the window needs a start before its end');
+            const start = asked.start_date, end = asked.end_date;          // the window as typed, or a set interval's span (§14.2; a day's start is its end)
+            if (!start || !end || start > end) throw new Error('the window needs a start before its end');
             progress('Starting the load from Intervals.icu…', 'loading');
             const who = asked.subject || {};                      // whose key (2026-10-30): the app refuses, naming them, when none is stored
             const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [], refresh }, who.id ? { athlete: who.id, athlete_name: who.name || '' } : {})) });
@@ -1206,6 +1378,8 @@
         const st = runState; if (!st || !st.routine || st.busy) return;
         const p = runParts();
         const { values, compare_with } = readRunValues();
+        const plan = intervalPlan(), windows = build.fillWindows(plan, fillOn(p));       // a set interval (§14.2): the units to run; [] for custom
+        if (plan && !windows.length) return;
         st.busy = true; p.runBtn.disabled = true; p.cancelBtn.disabled = true;
         const choice = dataChoice();
         let loaded = null;
@@ -1228,6 +1402,8 @@
         // the checks with the values as typed: what differs from the data the method was made on is said here, before the view changes
         const auxLoaded = loaded && loaded.aux ? loaded.aux : undefined;   // the files this load produced, as the page saw them (an empty list when it produced none)
         const loadDone = loaded && loaded.load ? loaded.load : undefined;   // the load as the page did it (from the cache, or downloaded)
+        // one unit of a set interval: the run is cut to it from what was loaded (§14.3) - the loader makes a day's load two days, a cache hit may be wider
+        if (plan && windows.length === 1 && loadDone) Object.assign(loadDone, { start_date: windows[0][0], end_date: windows[0][1], cached_from: loadDone.cached_from || [loaded.start, loaded.end] });
         fetchJson('/routines/' + encodeURIComponent(st.id) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values, aux: auxLoaded, load: loadDone }) }).then(pr => {
             if (runState !== st) return;
             if (!pr.ok || !pr.json.ok) {
@@ -1238,6 +1414,7 @@
                 updateRunButton();
                 return;
             }
+            if (windows.length > 1) { startFill(st, plan, windows, values, auxLoaded, loadDone, p); return; }
             progress('');
             const routine = st.routine;
             p.d.style.display = 'none'; runState = null;
@@ -1247,13 +1424,12 @@
             const numbers = runNumbers(routine, subjectIdOf(subject));
             enterRunView(summaryOf(routine), numbers.concat([next]), numbers.length, { pending: true, version: routine.current_version, subject });
             if (loaded && typeof paneLookup === 'function') paneLookup({ kind: 'load', query: loaded.loaded || '', peek: [typeof storeLine === 'function' ? storeLine(loaded.store) : '', (pr.json && pr.json.line) || ''].filter(Boolean).join(' · '), sources: [], passages: [] });
-            stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with, aux: auxLoaded, load: loadDone }, true, data => {
+            stream('/routines/' + encodeURIComponent(routine.id) + '/run', { values, compare_with, aux: auxLoaded, load: loadDone, interval: plan ? plan.kind : undefined }, true, data => {
                 if (data.type === 'pane_routine_end' && typeof paneRoutineEnd === 'function') { paneRoutineEnd(data); chipIdle(); return true; }
                 return false;
             }).then(msg => {
                 const out = msg.routine_run;
                 finishRunView(out);
-                refreshBadge();
                 if (manager && manager.style.display !== 'none') loadManager(routine.id);
             }).catch(err => {
                 chipIdle();
@@ -1262,6 +1438,49 @@
                 if (viewState) { viewState.numbers = runNumbers(routine, subjectIdOf(viewState.subject)); viewState.index = Math.max(0, viewState.numbers.length - 1); viewState.pending = false; updateRunNav(); }
             });
         });
+    }
+    // a fill (§14.3): the span is loaded; the server runs the units, oldest first, in the background; the Summary shows them land
+    function startFill(st, plan, windows, values, aux, load, p) {
+        fetchJson('/routines/' + encodeURIComponent(st.id) + '/fill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ interval: plan.kind, windows, values, aux, load }) }).then(res => {
+            if (runState !== st) return;
+            if (!res.ok) { st.busy = false; p.cancelBtn.disabled = false; progress('! ' + ((res.json && res.json.error) || 'the fill could not start'), 'bad'); updateRunButton(); return; }
+            progress('');
+            const routine = st.routine;
+            p.d.style.display = 'none'; runState = null;
+            fillState = res.json.fill || { running: true, routine_id: routine.id, interval: plan.kind, total: windows.length, done: 0, failed: 0 };
+            watchFill();
+            openManager(routine.id);
+        }).catch(err => { if (runState === st) { st.busy = false; p.cancelBtn.disabled = false; progress('! ' + (err.message || err), 'bad'); updateRunButton(); } });
+    }
+    let fillState = null, fillTimer = null;
+    function fillRunning() { return !!(fillState && fillState.running); }
+    function fillFor(routineId) { return fillState && fillState.routine_id === routineId ? fillState : null; }
+    function fillReason() { return 'A fill is running (' + build.fillLine(fillState) + ') — the composer comes back when it ends; stop it in the Summary'; }
+    // the fill's status every three seconds while it runs: the Summary's line, the composer's reason, the routine re-read as a unit lands;
+    // when it ends, the last word, the Summary re-read and the composer back - unless a run's view holds it
+    function watchFill() {
+        clearTimeout(fillTimer);
+        const tick = () => fetchJson('/routines/fill').then(res => {
+            const was = fillState, st = (res.json && res.json.fill) || { running: false };
+            fillState = st;
+            const landed = !was || was.done !== st.done;
+            if (st.running) {
+                composerLock(fillReason());
+                const bar = manager && manager.querySelector('.rt-fillbar .t'); if (bar) bar.textContent = build.fillLine(st);
+                if (landed && manager && manager.style.display !== 'none' && managerState.current && managerState.current.id === st.routine_id) showRoutine(st.routine_id);
+                fillTimer = setTimeout(tick, 3000);
+                return;
+            }
+            if (was && was.running) {
+                toast(build.fillLine(st));
+                if (manager && manager.style.display !== 'none') loadManager(st.routine_id);
+                if (viewState) composerLock(); else composerUnlock();
+            }
+        }).catch(() => { fillTimer = setTimeout(tick, 5000); });
+        tick();
+    }
+    function probeFill() {          // a fill from before this page was loaded (a reload): the lock and the line come back
+        fetchJson('/routines/fill').then(res => { const st = res.json && res.json.fill; if (st && st.running) { fillState = st; watchFill(); } }).catch(() => {});
     }
     function summaryOf(r) { return { id: r.id, name: r.name, current_version: r.current_version, source: r.source }; }
     function chipIdle() { if (window.containerStatus && typeof window.containerStatus.setExecuting === 'function') window.containerStatus.setExecuting(false); }   // the executor chip back to its polled status (a run sets it as a cell does)
@@ -1352,7 +1571,7 @@
         if (next) next.disabled = viewState.pending || i >= n - 1;
     }
 
-    // ------------------------------------------------------------ the rail entry and its badge
+    // ------------------------------------------------------------ the rail entry
     // run zero behind the dialog (2026-10-15): the page follows the verdict and says it when it lands; the manager, open on
     // the routine, shows the chip change and the Run button come alive
     const watching = {};
@@ -1381,13 +1600,6 @@
         const m = Math.round(s / 60);
         return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min';
     }
-    function refreshBadge() {
-        const badge = document.getElementById('routinesBadge'); if (!badge) return;
-        fetchJson('/routines').then(res => {
-            const n = ((res.json && res.json.routines) || []).length;
-            badge.textContent = n ? String(n) : ''; badge.style.display = n ? '' : 'none';
-        }).catch(() => {});
-    }
     function bindRail() {
         const pill = document.getElementById('routinesPill'); if (!pill) return;
         pill.addEventListener('click', e => { e.stopPropagation(); openManager(); });
@@ -1408,7 +1620,7 @@
         });
     }
 
-    // ------------------------------------------------------------ the composer lock (a run's view: nothing to ask)
+    // ------------------------------------------------------------ the composer lock (a run's view: nothing to ask; a fill: the kernel is taken)
     function composerLock(reason) {
         const input = document.getElementById('queryInput'), send = document.getElementById('submitQuery');
         if (input) { input.disabled = true; if (input.getAttribute('data-placeholder') == null) input.setAttribute('data-placeholder', input.placeholder || input.getAttribute('placeholder') || ''); input.placeholder = reason || 'A run is a record: to go further, open the analysis it was made from'; }
@@ -1416,6 +1628,7 @@
         document.body.classList.add('composer-locked');
     }
     function composerUnlock() {
+        if (fillRunning()) { composerLock(fillReason()); return; }           // a fill still holds the kernel: the lock stays, with its reason
         const input = document.getElementById('queryInput'), send = document.getElementById('submitQuery');
         if (input) { input.disabled = false; const was = input.getAttribute('data-placeholder'); if (was != null) { input.placeholder = was; input.removeAttribute('data-placeholder'); } }
         if (send) send.disabled = false;
@@ -1424,12 +1637,12 @@
 
     function initialize() {
         bindPill(); bindRail();
-        setTimeout(refreshBadge, 1500);
+        setTimeout(probeFill, 1500);
     }
 
-    window.RoutinesUI = { initialize, openMake, openManager, closeManager, toggleSaveMenu: toggleMenu, hideSaveMenu: hideMenu, refreshBadge, forgetOrigins,
+    window.RoutinesUI = { initialize, openMake, openManager, closeManager, toggleSaveMenu: toggleMenu, hideSaveMenu: hideMenu, forgetOrigins,
                           cardButton: build.cardButton, cardCount, bindCardButton, composerLock, composerUnlock, build,
-                          openRun, viewRun, exitRunView, inRunView, navigateRuns, updateRunNav, enterRunView, runNumbers, clearLoaded };
+                          openRun, viewRun, exitRunView, inRunView, navigateRuns, updateRunNav, enterRunView, runNumbers, clearLoaded, fillRunning };
     window.composerLock = composerLock; window.composerUnlock = composerUnlock;
     window.__routinesBuild = build;
 })();

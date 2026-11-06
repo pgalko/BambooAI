@@ -99,10 +99,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/200/31/27/18/49/44/72/33/157/60/93/27/30/37/15/88/1/1 Python; 58/7/45/72/24/86/14/25/4/14/67/41 JS; 1,684 on 2026-10-31; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/162/60/93/27/30/37/15/88/1/1 Python; 58/7/45/72/24/105/14/25/4/14/67/41 JS; 1,715 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (135; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (140; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -481,6 +481,34 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines by the calendar, step 1: the interval and the fill (2026-11-06, patch 0264; app and page, image v74
+  stands; no migration). docs/ROUTINES_DESIGN.md §14.** Palo's rethink after the set-aside 0261-0263 (branch
+  `set-aside/routines-for-a-coach`): the trend followed the run order and the windows differed in length. A run now
+  has an `interval` - day, week (Monday to Sunday), month, year, or custom (none recorded: every run before this) -
+  on its record and summary (`routines_host.run(interval=)`, `INTERVALS`); a set interval is compared with the latest
+  earlier run of the same interval on the same subject by its window's end, never a custom run or run zero
+  (`reference_run(interval, window)`; a custom run's *previous* skips set intervals). The Intervals run dialog has
+  an *Interval* row under the athlete (`intervalRow`; the dialog opens on the interval last run, `lastInterval`):
+  a set unit hides the pickers and shows the plan (`units(kind, today, horizon)` - the complete units within the
+  plan's `max_days`, at most a year; `fillPlan` - those not run yet on the athlete under the current version, a
+  failed run counting as not run; `intervalPlan` - the last complete unit, the fill box with the count and the cost,
+  *Every week back to … is run already*; `compareSentence`; `runLabel` *Run 41 weeks* / *Run again*). One unit runs
+  through `/run` with `interval` and the load cut to the unit (`cached_from` the frame loaded: the loader makes a
+  day's window two days). More than one is a **fill**: the page loads the span once through `loadData`, then `POST
+  /routines/<id>/fill {interval, windows, values, aux, load}` → `BambooAI.fill_routine` → `routines_host.Fill`, a
+  thread of quiet `run_routine` calls (no rows, tabs or card: the pane's queue is drained only by a stream), oldest
+  first, each window a cut of the span; `GET /routines/fill` is the session's status (the manager polls it every
+  three seconds, `watchFill`, and shows the line with Stop, `fillBar`/`fillLine`; the composer is locked with the
+  reason while it runs and `composerUnlock` keeps the lock); `POST /routines/fill/stop` (the window under way
+  finishes); the fill stops itself when the Data tab's frame is no longer the span; `/run` and a second `/fill` are
+  409 while one runs, `openRun` and Delete refuse on the page; a reload probes for a running fill (`probeFill`).
+  Result labels are trimmed where listed (`metricLabel`: trailing date-range and count segments dropped, the full
+  label on hover). The rail's count badge is gone (`routinesBadge`, `refreshBadge`, `.rb-badge`). Tests:
+  test_routines.py 162, test_app_path.py 207, test_routines.js 105, the screens tool (s4c fixed - the athletes and
+  the cache faked; s4d the dialog on Week, s6b the manager with a fill), the stack walk 134, the integrations walk
+  140 (Week with the fill over the fake Intervals under a 35-day horizon answered by the page's limits route).
+  Step 2 (0265) is the Summary by interval: the filter bar, the table by interval with thumbnails, the enlarge, the
+  Trend tab.
 - **The Usage dialog rebuilt, step 3: the walk, the usage ledger, the notes (2026-10-31, patch 0257; app and page, image
   v74 stands; no migration).** Palo's first look at 0256 on his Mac: the Calls header scrolled away; "Deep" showed 1 of
   387; one "answered" against a few "reproduced"/"differed". His rows (shared for the check: 5,379 calls, 387 chains,

@@ -412,6 +412,71 @@ check("what the loader route noted on the instance (the key's mark) stays under 
 _r3 = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "Z"}})
 check("route run with a value the data lacks: refused by the value check, routine_error names it", "routine_error" in _lines(_r3)[-1] and "'Z' is not in column arm" in _lines(_r3)[-1]["routine_error"], _lines(_r3)[-1])
 while not q.empty(): q.get()
+# ---- the fill (2026-11-06, docs/ROUTINES_DESIGN.md §14.3): a thread of quiet runs over the span's load, oldest first; the status read back; stop; the guards ----
+import time as _time, threading as _thr
+class _Busy:
+    running = True
+    def status(self): return {"running": True, "routine_id": _rid, "interval": "week", "total": 3, "done": 1, "failed": 0}
+BAMBOO._fill = _Busy()
+_f409, _r409, _fst_busy = _wc.post(f"/routines/{_rid}/fill", json={"interval": "week", "windows": [["2026-08-17", "2026-08-23"]]}), _wc.post(f"/routines/{_rid}/run", json={"values": {}}), _wc.get("/routines/fill").get_json()
+BAMBOO._fill = None
+check("while a fill runs on the session: a second fill and a run are refused with 409 and the reason; the status route says so; without one, GET /routines/fill says not running",
+      _f409.status_code == 409 and "already running" in _f409.get_json()["error"] and _r409.status_code == 409 and "a fill is running" in _r409.get_json()["error"] and _fst_busy["fill"]["running"] is True and _wc.get("/routines/fill").get_json() == {"fill": {"running": False}}, (_f409.get_json(), _r409.get_json()))
+_fbad = [_wc.post(f"/routines/{_rid}/fill", json={"interval": "fortnight", "windows": [["2026-08-17", "2026-08-23"]]}).status_code, _wc.post(f"/routines/{_rid}/fill", json={"interval": "week", "windows": []}).status_code, _wc.post("/routines/nope/fill", json={"interval": "week", "windows": [["2026-08-17", "2026-08-23"]]}).status_code]
+check("route fill refuses an interval not of the four and no windows (400), and a routine that is not there (404)", _fbad == [400, 400, 404], _fbad)
+while not q.empty(): q.get()
+_wins = [["2026-08-17", "2026-08-23"], ["2026-08-24", "2026-08-30"], ["2026-08-31", "2026-09-06"]]
+_span = {"source": "intervals", "start_date": "2026-08-17", "end_date": "2026-09-06", "metrics": [], "aux_kinds": ["summary"], "subject": {"source": "intervals", "id": "i0", "name": "The subject"}}
+_n_before = len(_wc.get(f"/routines/{_rid}").get_json()["routine"]["runs"])
+_rf = _wc.post(f"/routines/{_rid}/fill", json={"interval": "week", "windows": _wins, "values": {"arm_b": "A"}, "aux": [], "load": _span})
+_fst0 = (_rf.get_json() or {}).get("fill") or {}
+_t0 = _time.time()
+while _time.time() - _t0 < 90 and _wc.get("/routines/fill").get_json()["fill"].get("running"):
+    _time.sleep(0.2)
+_fst = _wc.get("/routines/fill").get_json()["fill"]
+_rj_f = _wc.get(f"/routines/{_rid}").get_json()["routine"]
+_wk_runs = [x for x in _rj_f["runs"] if x.get("interval") == "week"]
+_qd = []
+while not q.empty(): _qd.append(q.get())
+check("route fill: 202 with the status (3 weeks, nothing done yet); the fill ends not running, 3 of 3 done, none failed, in order",
+      _rf.status_code == 202 and _fst0.get("total") == 3 and _fst0.get("done") == 0 and _fst0.get("interval") == "week" and _fst["running"] is False and _fst["done"] == 3 and _fst["failed"] == 0 and _fst["stopped"] is False and _fst["error"] == "" and _fst["finished"], (_rf.status_code, _fst0, _fst))
+check("the three runs landed oldest first, each with interval 'week', its window and the subject on the summary, the first against nothing (no earlier week), the next two each against the week before; the values given; nothing went to the pane's queue (quiet)",
+      len(_rj_f["runs"]) == _n_before + 3 and [x["data"]["window"] for x in _wk_runs] == _wins and all(x["data"]["subject"] == {"id": "i0", "name": "The subject"} and x["inputs"] == {"arm_b": "A"} and x["status"] in ("ran", "reproduced") for x in _wk_runs)
+      and _wk_runs[0]["against"] is None and _wk_runs[1]["against"] == _wk_runs[0]["number"] and _wk_runs[2]["against"] == _wk_runs[1]["number"] and _wk_runs[0]["comparison"]["line"] == "nothing to compare with: no earlier week on record for this subject" and not _qd,
+      ([(x["number"], x.get("interval"), x["against"], x["data"].get("window"), x["status"]) for x in _wk_runs], _qd[:2]))
+_rec_f = _wc.get(f"/routines/{_rid}/runs/{_wk_runs[1]['number']}").get_json()
+check("a filled run's record: cut to its week from the span's load (cached_from the span), the interval on the record, the CHECK line saying the cut; it opens as any run, among the subject's numbers",
+      _rec_f["run"]["interval"] == "week" and _rec_f["run"]["data"]["load"]["cached_from"] == ["2026-08-17", "2026-09-06"] and _rec_f["run"]["data"]["load"]["start_date"] == "2026-08-24" and "cut to 2026-08-24 → 2026-08-30 from the cached load 2026-08-17 → 2026-09-06" in _rec_f["run"]["check"]
+      and _rec_f["numbers"] == [x["number"] for x in _wk_runs], (_rec_f["run"].get("check"), _rec_f.get("numbers")))
+# a run on a set interval through /run (one unit, the page's path): the record carries it; the reference is the week before (the fill's last)
+_r1w = _wc.post(f"/routines/{_rid}/run", json={"values": {"arm_b": "A"}, "interval": "week", "load": dict(_span, start_date="2026-09-07", end_date="2026-09-13", cached=True, cached_from=["2026-09-07", "2026-09-13"])})
+_run1w, _sum1w = _lines(_r1w)[-1]["routine_run"]["run"], _lines(_r1w)[-1]["routine_run"]["summary"]
+check("route run with an interval: the record and the summary say week, the summary's window is the unit, and it is against the week before (the fill's last)", _run1w["interval"] == "week" and _sum1w["interval"] == "week" and _run1w["against"] == _wk_runs[2]["number"] and _sum1w["data"]["window"] == ["2026-09-07", "2026-09-13"], (_run1w.get("interval"), _run1w["against"]))
+while not q.empty(): q.get()
+# stopped when asked, and when the Data tab's frame changed: a slow wrapper around run_routine makes the moment deterministic
+_real_run = BAMBOO.run_routine
+def _slow(*a, **k):
+    _time.sleep(0.4)
+    return _real_run(*a, **k)
+BAMBOO.run_routine = _slow
+_rs = _wc.post(f"/routines/{_rid}/fill", json={"interval": "day", "windows": [["2026-09-14", "2026-09-14"], ["2026-09-15", "2026-09-15"], ["2026-09-16", "2026-09-16"]], "load": dict(_span, start_date="2026-09-14", end_date="2026-09-16")})
+_time.sleep(0.1)
+_stop = _wc.post("/routines/fill/stop").get_json()["fill"]
+_t0 = _time.time()
+while _time.time() - _t0 < 30 and _wc.get("/routines/fill").get_json()["fill"].get("running"):
+    _time.sleep(0.1)
+_fst_stop = _wc.get("/routines/fill").get_json()["fill"]
+_rs2 = _wc.post(f"/routines/{_rid}/fill", json={"interval": "day", "windows": [["2026-09-17", "2026-09-17"], ["2026-09-18", "2026-09-18"], ["2026-09-19", "2026-09-19"]], "load": dict(_span, start_date="2026-09-17", end_date="2026-09-19")})
+_time.sleep(0.1)
+_keep_df_id = BAMBOO.df_id; BAMBOO.df_id = "replaced-on-the-data-tab"
+_t0 = _time.time()
+while _time.time() - _t0 < 30 and _wc.get("/routines/fill").get_json()["fill"].get("running"):
+    _time.sleep(0.1)
+_fst_chg = _wc.get("/routines/fill").get_json()["fill"]
+BAMBOO.df_id = _keep_df_id; BAMBOO.run_routine = _real_run
+while not q.empty(): q.get()
+check("Stop: the day under way finishes, nothing more starts - 1 of 3 done, stopped; the frame replaced on the Data tab: the fill stops after the day under way with the reason",
+      _rs.status_code == 202 and _stop["running"] is True and _fst_stop["stopped"] is True and _fst_stop["done"] == 1 and _fst_stop["error"] == "" and _rs2.status_code == 202 and _fst_chg["stopped"] is True and _fst_chg["done"] == 1 and _fst_chg["error"] == "the data on the Data tab changed", (_stop, _fst_stop, _fst_chg))
 check("route rename / delete", _wc.post(f"/routines/{_rid}/rename", json={"name": "Renamed"}).get_json()["routine"]["name"] == "Renamed" and _wc.delete(f"/routines/{_rid}").status_code == 200 and _wc.get(f"/routines/{_rid}").status_code == 404)
 _r = _wc.post("/routines/create", json={"proposal_id": "gone"})
 check("route /routines/create with a spent proposal: the stream ends with routine_error", "routine_error" in _lines(_r)[-1] and "expired" in _lines(_r)[-1]["routine_error"])

@@ -5,8 +5,10 @@ faked, the page filled as tools/render_gallery.py fills it), one PNG per screen,
 
 Screens: the Save pill's menu on a finished chain; the Save-as-routine dialog with a proposal, with the next-version
 choice, and refused; the Routines manager with one routine and empty; the favourites manager with a card's Routine
-button lit. The two streaming routes are answered with the lines the server would send, so routines.js runs its own
-path - the dialog is driven by the script, not drawn by hand. Exits 1 when a page error or an unexpected state shows."""
+button lit; the run dialog on a file, refusing, on an Intervals window, and on Week with the weeks to fill (§14.2);
+the manager while a fill runs (§14.3). The two streaming routes are answered with the lines the server would send, so
+routines.js runs its own path - the dialog is driven by the script, not drawn by hand. Exits 1 when a page error or an
+unexpected state shows."""
 import argparse, json, os, sys, importlib.util
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -70,7 +72,7 @@ PRECHECK_BAD = {"loaded": True, "ok": False, "line": "none of the routine's 49 c
 # an Intervals.icu routine (2026-10-10): the dialog loads the next window itself - the original's length ending today, the auxiliaries as the original
 PRECHECK_INTERVALS = {"loaded": True, "ok": True, "line": "2 of 49 columns empty in this data: power, temperature; wellness absent in this data - the method will see an empty table there", "fit": {"fits": True, "missing": ["power", "temperature"], "expected": 49},
                       "values_missing": [], "problems": [], "aux": {"absent": ["wellness"], "bound": {"summary": "activity_summary_20260812_to_20261010.csv"}, "line": "wellness absent in this data - the method will see an empty table there"},
-                      "plan": {"source": "intervals", "name": "", "aux_kinds": ["summary", "wellness"], "metrics": [], "window_days": 59, "start": "2026-07-02", "end": "2026-08-30", "date_range": "2026-07-02 to 2026-08-30"},
+                      "plan": {"source": "intervals", "name": "", "aux_kinds": ["summary", "wellness"], "metrics": [], "window_days": 59, "start": "2026-07-02", "end": "2026-08-30", "date_range": "2026-07-02 to 2026-08-30", "subject": {"id": "i1", "name": "First Athlete"}},
                       "data": {"df_id": "df_z", "name": "", "source": "intervals", "rows": 10200, "columns": 47, "date_range": "2026-08-12 to 2026-10-10"}}
 SUMMARY = {"id": "r1", "name": ROUTINE["name"], "created": 1791460000, "updated": 1791460000, "source": "file", "purpose": ROUTINE["purpose"], "question": ROUTINE["question"], "origin": ROUTINE["origin"],
            "current_version": 1, "versions": 1, "runs": 0, "verified": True, "run_zero_status": "reproduced", "run_zero_line": "reproduced: 5 result line(s) identical", "inputs": 4, "results": 5, "figures": 1, "data": PROPOSAL["data"]}
@@ -85,9 +87,12 @@ SCREENS = {
     's4_run_dialog':      {"js": "RoutinesUI.openRun('r1')", "routines": [SUMMARY], "precheck": PRECHECK_OK},
     's4b_run_dialog_nofit': {"js": "RoutinesUI.openRun('r1')", "routines": [SUMMARY], "precheck": PRECHECK_BAD},
     's4c_run_dialog_intervals': {"js": "RoutinesUI.openRun('r1')", "routines": [SUMMARY], "precheck": PRECHECK_INTERVALS},
+    's4d_run_dialog_week': {"js": "RoutinesUI.openRun('r1'); setTimeout(() => document.querySelector('#routineRunModal [data-interval=\"week\"]').click(), 900)", "routines": [SUMMARY], "precheck": PRECHECK_INTERVALS, "wait": 1500},
     's5_run_view':        {"js": "RoutinesUI.viewRun('r1', 3)", "routines": [SUMMARY]},
     's5b_run_live':       {"js": "window.__shot.live()", "routines": [SUMMARY], "precheck": PRECHECK_OK},
     's6_manager_runs':    {"js": "RoutinesUI.openManager('r1')", "routines": [SUMMARY]},
+    's6b_manager_fill':   {"js": "setTimeout(() => RoutinesUI.openManager('r1'), 1200)", "routines": [SUMMARY], "wait": 2500,
+                           "fill": {"running": True, "routine_id": "r1", "interval": "week", "total": 41, "done": 12, "failed": 0, "current": ["2026-02-02", "2026-02-08"], "stopped": False, "error": "", "left": 870, "elapsed": 360}},
 }
 
 
@@ -143,6 +148,12 @@ def render(out, light=False, width=1440, height=900):
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps(spec_.get('precheck') or PRECHECK_OK))
                     if path == '/intervals/get_data_limits':
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps({"max_days": 365, "compute_tier": "pro"}))
+                    if path == '/intervals/athletes':          # the run dialog's athletes (2026-10-30): Run waits for them
+                        return route.fulfill(status=200, content_type='application/json', body=json.dumps({"athletes": [{"id": "i1", "name": "First Athlete"}, {"id": "i2", "name": "Second Athlete"}]}))
+                    if path == '/cache/inspect':
+                        return route.fulfill(status=200, content_type='application/json', body=json.dumps({"tree": {}, "subjects": []}))
+                    if path == '/routines/fill':               # the session's fill (§14.3): running for the manager-with-a-fill screen
+                        return route.fulfill(status=200, content_type='application/json', body=json.dumps({"fill": spec_.get('fill') or {"running": False}}))
                     if path == '/routines/r1/cached':          # the window the dialog opens on is in the executor's cache (2026-10-11)
                         body = json.loads(route.request.post_data or '{}')
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps({"hit": True, "df_id": "df_c", "files": ["datasets/u/activity_summary_x.csv", "datasets/u/wellness_data_x.csv"], "rows": 10200,
@@ -184,18 +195,24 @@ def render(out, light=False, width=1440, height=900):
                 except Exception as e: print('  [eval]', name, str(e)[:200]); bad.append(name)
                 pg.wait_for_timeout(1200)
                 if name == 's5b_run_live': pg.wait_for_timeout(2500)
+                if spec_.get('wait'): pg.wait_for_timeout(spec_['wait'])
                 state = pg.evaluate("({pill: getComputedStyle(document.getElementById('rankButton')).display, menu: !!document.querySelector('#saveMenu') && document.querySelector('#saveMenu').style.display !== 'none', dialog: !!document.querySelector('#routineMakeModal') && document.querySelector('#routineMakeModal').style.display === 'flex', inputs: document.querySelectorAll('#routineMakeModal .rt-inputs tbody tr').length, derived: document.querySelectorAll('#routineMakeModal .rt-inputs tbody tr[data-derived]').length, error: !!document.querySelector('#routineMakeModal .rt-error'), manager: !!document.querySelector('#routinesModal') && document.querySelector('#routinesModal').style.display === 'flex', mgrItems: document.querySelectorAll('#routinesModal .rt-side .it').length, cards: document.querySelectorAll('#workflowManagerModal .workflow-card-routine').length, lit: document.querySelectorAll('#workflowManagerModal .workflow-card-routine.has').length, pane: (document.getElementById('streamOutput').textContent || '').includes('Routine'),"
                                     " runDlg: !!document.querySelector('#routineRunModal') && document.querySelector('#routineRunModal').style.display === 'flex', runBtn: !!document.querySelector('#routineRunModal [data-act=\"run\"]') && !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled, fitBad: !!document.querySelector('#routineRunModal .rt-fit.bad'), widgets: document.querySelectorAll('#routineRunModal [data-key]').length, derivedRows: document.querySelectorAll('#routineRunModal .rt-derived-row').length,"
-                                    " dataChoice: (document.querySelector('#routineRunModal input[name=\"rt-data\"]:checked') || {}).value || '', loadWin: document.querySelectorAll('#routineRunModal input[data-load]').length, cacheLine: (document.querySelector('#routineRunModal .rt-cache') || {}).className || '',"
+                                    " dataChoice: (document.querySelector('#routineRunModal input[name=\"rt-data\"]:checked') || {}).value || '', loadWin: document.querySelectorAll('#routineRunModal input[data-load=\"start\"], #routineRunModal input[data-load=\"end\"]').length, cacheLine: (document.querySelector('#routineRunModal .rt-cache') || {}).className || '',"
+                                    " athletes: (document.querySelector('#routineRunModal select[data-load=\"athlete\"]') || {}).value || '', interval: (document.querySelector('#routineRunModal .rt-interval .on') || {}).getAttribute ? document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval') : '', fillBox: !!document.querySelector('#routineRunModal input[data-load=\"fill\"]') && document.querySelector('#routineRunModal input[data-load=\"fill\"]').checked,"
+                                    " plan: (document.querySelector('#routineRunModal .rt-plan') || {}).textContent || '', pickers: !!document.querySelector('#routineRunModal .rt-loadwin') && document.querySelector('#routineRunModal .rt-loadwin').style.display === 'none', runLabel: (document.querySelector('#routineRunModal [data-act=\"run\"] span') || {}).textContent || '', compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '',"
+                                    " fillBar: (document.querySelector('#routinesModal .rt-fillbar .t') || {}).textContent || '', stopBtn: !!document.querySelector('#routinesModal [data-act=\"stop-fill\"]'), placeholder: document.getElementById('queryInput').placeholder,"
                                     " inRun: RoutinesUI.inRunView(), position: document.getElementById('chainPosition').textContent, cmpRows: document.querySelectorAll('#content-comparison tbody tr').length, locked: document.getElementById('queryInput').disabled, done: !!document.querySelector('#streamOutput .sp-done'), runsTable: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, runItems: document.querySelectorAll('#routinesModal .rt-run').length, tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent)})")
                 want = {'s0_save_menu': state['pill'] != 'none' and state['menu'], 's1_make_dialog': state['dialog'] and state['inputs'] == 4 and state['derived'] == 1 and state['pane'], 's1b_next_version': state['dialog'] and state['inputs'] == 4,
                         's1c_refused': state['dialog'] and state['error'], 's2_manager': state['manager'] and state['mgrItems'] == 1, 's2b_manager_empty': state['manager'] and state['mgrItems'] == 0,
                         's3_favourite_card': state['cards'] >= 1 and state['lit'] >= 1,
                         's4_run_dialog': state['runDlg'] and state['runBtn'] and state['widgets'] == 3 and state['derivedRows'] == 1 and not state['fitBad'] and state['dataChoice'] == 'now', 's4b_run_dialog_nofit': state['runDlg'] and not state['runBtn'] and state['fitBad'],
-                        's4c_run_dialog_intervals': state['runDlg'] and state['runBtn'] and state['widgets'] == 3 and state['dataChoice'] == 'load' and state['loadWin'] == 2 and not state['fitBad'] and 'hit' in state['cacheLine'],
+                        's4c_run_dialog_intervals': state['runDlg'] and state['runBtn'] and state['widgets'] == 3 and state['dataChoice'] == 'load' and state['loadWin'] == 2 and not state['fitBad'] and 'hit' in state['cacheLine'] and state['athletes'] == 'i1' and state['interval'] == 'custom' and not state['pickers'],
+                        's4d_run_dialog_week': state['runDlg'] and state['runBtn'] and state['interval'] == 'week' and state['fillBox'] and state['plan'].startswith('The last complete week: ') and state['pickers'] and state['runLabel'].startswith('Run ') and state['runLabel'].endswith(' weeks') and 'each week with the week before it on First Athlete' in state['compare'] and 'hit' in state['cacheLine'],
                         's5_run_view': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 5 and state['locked'] and state['done'] and state['pill'] == 'none' and state['tabs'][0] == 'Comparison',
                         's5b_run_live': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 5 and state['locked'] and state['done'] and state['tabs'][0] == 'Comparison',
-                        's6_manager_runs': state['manager'] and state['runsTable'] == 5 and state['runItems'] == 4}[name]
+                        's6_manager_runs': state['manager'] and state['runsTable'] == 5 and state['runItems'] == 4,
+                        's6b_manager_fill': state['manager'] and state['fillBar'] == 'Filling the weeks · 12 of 41 done · 2 – 8 Feb running · about 15 min left' and state['stopBtn'] and state['locked'] and state['placeholder'].startswith('A fill is running (Filling the weeks · 12 of 41 done')}[name]
                 if not want:
                     bad.append(name); print('  [state]', name, state)
                 pg.screenshot(path=os.path.join(out, f'{name}_{theme}.png')); pg.close()
