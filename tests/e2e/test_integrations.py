@@ -619,14 +619,15 @@ def main():
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => !!document.querySelector('#routinesModal select[data-pick=\"athlete\"]')", timeout=15000)
             if shots: page.wait_for_timeout(300); page.query_selector("#routinesModal .rt-mgr").screenshot(path=os.path.join(shots, "manager_by_athlete.png"))
-            mg5 = page.evaluate("""() => { const s = document.querySelector('#routinesModal select[data-pick="athlete"]'); const cols = () => [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \\d+$/, '').trim()).filter(Boolean); const runs = () => [...document.querySelectorAll('#routinesModal .rt-run')].map(e => e.getAttribute('data-run'));
-                const a = { picked: s.value, options: [...s.options].map(o => o.textContent), cols: cols(), runs: runs(), heads: [...document.querySelectorAll('#routinesModal .rt-sec > .h')].map(h => h.textContent.trim()) };
+            mg5 = page.evaluate("""() => { const s = document.querySelector('#routinesModal select[data-pick="athlete"]'); const cols = () => [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \\d+( · \\d+ days)?$/, '').trim()).filter(Boolean); const runs = () => [...document.querySelectorAll('#routinesModal .rt-run')].map(e => e.getAttribute('data-run'));
+                const a = { picked: s.value, options: [...s.options].map(o => o.textContent), cols: cols(), runs: runs(), heads: [...document.querySelectorAll('#routinesModal .rt-sec > .h')].map(h => h.textContent.trim()), filter: [...document.querySelectorAll('#routinesModal .rt-filter [data-filter]')].map(e => e.dataset.filter + ':' + e.className + ':' + ((e.querySelector('.k') || {}).textContent || '')) };
                 s.value = 'i0'; s.dispatchEvent(new Event('change', { bubbles: true }));
                 const b = { picked: document.querySelector('#routinesModal select[data-pick="athlete"]').value, cols: cols(), runs: runs() };
                 return { a, b }; }""")
-            check("the manager's history by athlete: a pick in the Results heading - the other subject (the latest run's) selected with 1 run, the first subject with 5 (run 0 counted) - the table and the list the other subject's run alone, the Runs heading naming them; the first subject picked: run 0 and runs 1 to 4 with the trend",
+            check("the manager's history by athlete: a pick in the Results heading - the other subject (the latest run's) selected with 1 run, the first subject with 5 (run 0 counted) - the table and the list the other subject's run alone, the Runs heading naming them, the filter bar on Custom (their one run) with the set intervals greyed; the first subject picked: run 0 and runs 1 to 4, no trend across custom runs (§14.6)",
                   mg5["a"]["picked"] == "i1" and mg5["a"]["options"] == ["The other subject \u00b7 1 run", "The subject \u00b7 5 runs"] and mg5["a"]["cols"] == ["Result", "Run 5"] and mg5["a"]["runs"] == ["5"] and any(h.endswith("\u00b7 The other subject") for h in mg5["a"]["heads"])
-                  and mg5["b"]["picked"] == "i0" and mg5["b"]["cols"] == ["Result", "Run 0", "Run 1", "Run 2", "Run 3", "Run 4", "Trend"] and mg5["b"]["runs"] == ["4", "3", "2", "1", "0"], mg5)
+                  and mg5["a"]["filter"] == ["day:off:", "week:off:", "month:off:", "year:off:", "custom:on:1"]
+                  and mg5["b"]["picked"] == "i0" and mg5["b"]["cols"] == ["Result", "Run 0", "Run 1", "Run 2", "Run 3", "Run 4"] and mg5["b"]["runs"] == ["4", "3", "2", "1", "0"], mg5)
             # the arrows stay within the athlete (2026-10-30): run 4 opened from the manager steps back through the first subject's runs only
             page.click("#routinesModal .rt-run[data-run='4']")
             wait_text(page, "#chainPosition", "run 4 of 4 · The subject", 30000)
@@ -710,8 +711,10 @@ def main():
             fill_end = (fetch_json(page, "/routines/fill", None, "GET")["json"] or {}).get("fill") or {}
             page.wait_for_function("() => !document.querySelector('#routinesModal .rt-fillbar')", timeout=30000)
             page.wait_for_timeout(500)
-            after_fill = page.evaluate("""() => ({ bar: !!document.querySelector('#routinesModal .rt-fillbar'), placeholder: document.getElementById('queryInput').placeholder, locked: document.getElementById('queryInput').disabled, cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.replace(/[A-Z][a-z]{2} \\d+$/, '').trim()).filter(Boolean),
-                runs: [...document.querySelectorAll('#routinesModal .rt-run')].map(e => [e.getAttribute('data-run'), e.querySelector('.w').textContent]), picked: (document.querySelector('#routinesModal select[data-pick="athlete"]') || {}).value })""")
+            after_fill = page.evaluate("""() => ({ bar: !!document.querySelector('#routinesModal .rt-fillbar'), placeholder: document.getElementById('queryInput').placeholder, locked: document.getElementById('queryInput').disabled,
+                filter: [...document.querySelectorAll('#routinesModal .rt-filter [data-filter]')].map(e => e.dataset.filter + ':' + e.className + ':' + ((e.querySelector('.k') || {}).textContent || '')), byRows: [...document.querySelectorAll('#routinesModal .rt-by tbody tr')].map(r => [r.dataset.run, r.querySelector('td.w').textContent, r.className]),
+                heads: [...document.querySelectorAll('#routinesModal .rt-by thead th')].map(e => e.textContent), thumbs: document.querySelectorAll('#routinesModal .rt-by thead .rt-thumb').length, head: ([...document.querySelectorAll('#routinesModal .rt-sec > .h')].find(h => /Results across runs/.test(h.textContent)) || {}).textContent || '',
+                runs: [...document.querySelectorAll('#routinesModal .rt-runbox .rt-run')].map(e => [e.getAttribute('data-run'), e.querySelector('.w').textContent]), picked: (document.querySelector('#routinesModal select[data-pick="athlete"]') || {}).value, legend: (document.querySelector('#routinesModal .rt-byunit + .rt-legend') || {}).textContent || '' })""")
             rj_f = (fetch_json(page, "/routines/" + str(rj.get("id")), None, "GET")["json"] or {}).get("routine") or {}
             wk_runs = [x for x in rj_f.get("runs") or [] if x.get("interval") == "week"]
             check("Run on Week with the fill: the dialog closes once the span is loaded, the Summary opens on the routine with the fill's line ('Filling the weeks · 0 of N done …') and Stop, the composer locked with the fill as its reason; the fill ends not running, N of N done, none failed",
@@ -721,8 +724,12 @@ def main():
                   len(rj_f.get("runs") or []) == n_before_fill + len(weeks) and [tuple(x["data"]["window"]) for x in wk_runs] == [(a_.isoformat(), b_.isoformat()) for a_, b_ in weeks] and all(x["status"] in ("ran", "reproduced", "differed") and x["data"]["subject"] == {"id": "i0", "name": "The subject"} for x in wk_runs)
                   and wk_runs[0]["against"] is None and all(wk_runs[i]["against"] == wk_runs[i - 1]["number"] for i in range(1, len(wk_runs))) and wk_runs[0]["comparison"]["line"] == "nothing to compare with: no earlier week on record for this subject"
                   and not after_fill["bar"] and after_fill["locked"] and after_fill["placeholder"] == "A run is a record: to go further, open the analysis it was made from" and after_fill["picked"] == "i0"
-                  and after_fill["cols"][-1] == "Trend" and all(f"Run {x['number']}" in after_fill["cols"] for x in wk_runs) and after_fill["runs"][0][0] == str(wk_runs[-1]["number"]) and f"week {weeks[-1][0].day} " in after_fill["runs"][0][1],
+                  and after_fill["runs"][0][0] == str(wk_runs[-1]["number"]) and f"week {weeks[-1][0].day} " in after_fill["runs"][0][1] and [r_[0] for r_ in after_fill["runs"]] == [str(x["number"]) for x in wk_runs[::-1]],
                   ([(x["number"], x.get("interval"), x["against"], x["data"].get("window"), x["status"], x["comparison"]["line"]) for x in wk_runs], after_fill))
+            check("the Summary by interval (§14.6): the filter bar on Weekly with the weeks' count, Custom with the five custom runs (run 0 counted), Daily, Monthly and Yearly greyed; the heading says by week, the latest at the top; the table by week - a row per week run, the latest first and tinted, the dates with the run number - with a thumbnail per line in the head (three lines); the legend counts the weeks of the year not run",
+                  after_fill["filter"] == ["day:off:", f"week:on:{len(weeks)}", "month:off:", "year:off:", "custom::5"] and "— by week, the latest at the top" in after_fill["head"]
+                  and [r_[0] for r_ in after_fill["byRows"]] == [str(x["number"]) for x in wk_runs[::-1]] and after_fill["byRows"][0][1] == f"{_wshort(*weeks[-1])}run {wk_runs[-1]['number']}" and after_fill["byRows"][0][2] == "latest" and after_fill["byRows"][-1][2] == ""
+                  and after_fill["heads"][0] == "Week" and after_fill["thumbs"] == 3 and re.search(r"\d+ weeks (back to \d+ \w+ \d{4}|in the last year) are not run yet: Run → Week → fill the weeks back\.", after_fill["legend"]), after_fill)
             rec_w = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", f"v1_{wk_runs[1]['number']}", "run.json")))
             check("a filled week's record: cut to its week from the span's load, the interval on it, its CHECK line saying the cut and the week's rows; its summary file bound to the span's and cut",
                   rec_w["interval"] == "week" and rec_w["data"]["load"]["start_date"] == weeks[1][0].isoformat() and rec_w["data"]["load"]["end_date"] == weeks[1][1].isoformat() and rec_w["data"]["load"]["cached_from"] == [weeks[0][0].isoformat(), weeks[-1][1].isoformat()]
@@ -739,6 +746,33 @@ def main():
             page.evaluate("RoutinesUI.closeManager()")
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none'", timeout=10000)
             page.unroute("**/intervals/get_data_limits")
+            # a thumbnail opens the chart at full size on a calendar axis (§14.6); the latest week opened from the list shows the Trend tab with the weeks' heads and a thumbnail per line
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_selector("#routinesModal .rt-by thead .rt-thumb", timeout=15000)
+            page.evaluate("() => document.querySelector('#routinesModal .rt-by thead .rt-thumb').dispatchEvent(new MouseEvent('click', { bubbles: true }))")
+            page.wait_for_function("() => document.getElementById('routineTrendModal') && document.getElementById('routineTrendModal').style.display === 'flex' && !!document.querySelector('#routineTrendModal .rt-chart')", timeout=15000)
+            big = page.evaluate("""() => ({ title: document.querySelector('#routineTrendModal .title').textContent, sub: document.querySelector('#routineTrendModal .sub').textContent, points: document.querySelector('#routineTrendModal .rt-chart').getAttribute('data-points'), missing: document.querySelector('#routineTrendModal .rt-chart').getAttribute('data-missing'),
+                dots: document.querySelectorAll('#routineTrendModal .rt-chart g.pt').length, titles: [...document.querySelectorAll('#routineTrendModal .rt-chart g.pt title')].map(t => t.textContent), gaps: document.querySelectorAll('#routineTrendModal .rt-chart rect.rt-gap').length, months: document.querySelectorAll('#routineTrendModal .rt-months [data-months]').length,
+                also: [...document.querySelectorAll('#routineTrendModal .rt-also option')].map(o => o.textContent), note: document.querySelector('#routineTrendModal .ui-dlg-f .note').textContent })""")
+            if shots: page.query_selector("#routineTrendModal .modal-content").screenshot(path=os.path.join(shots, "trend_enlarged.png"))
+            page.click("#routineTrendModal .rt-months [data-months='3']")
+            page.wait_for_timeout(300)
+            big3 = page.evaluate("() => ({ sub: document.querySelector('#routineTrendModal .sub').textContent, points: document.querySelector('#routineTrendModal .rt-chart').getAttribute('data-points'), on: document.querySelector('#routineTrendModal .rt-months .on').getAttribute('data-months') })")
+            page.click("#routineTrendModal .ui-dlg-h .x")
+            page.wait_for_function("() => document.getElementById('routineTrendModal').style.display === 'none'", timeout=5000)
+            check("the enlarged chart: the line's label as the title, 'by week · The subject · the latest 12 months'; one dot per week run with its run and dates in its title, the weeks of the year not run as dashed boxes, 3 m · 6 m · 12 m, also show with the other two lines, the note; three months: 13 weeks in view, the same points",
+                  big["title"].startswith("sessions in the window") and big["sub"] == "by week · The subject · the latest 12 months" and big["points"] == str(len(weeks)) and int(big["missing"]) >= 40 and big["dots"] == len(weeks)
+                  and big["titles"][-1].startswith(f"run {wk_runs[-1]['number']} · {_wtext(*weeks[-1])} · ") and int(big["gaps"]) >= 1 and big["months"] == 3 and len(big["also"]) == 3 and big["also"][0] == "also show: none" and "One dot per week at its place in the calendar" in big["note"]
+                  and big3["on"] == "3" and big3["points"] == str(len(weeks)) and big3["sub"].endswith("the latest 3 months"), (big, big3))
+            page.click(f"#routinesModal .rt-runbox .rt-run[data-run='{wk_runs[-1]['number']}']")
+            wait_text(page, "#chainPosition", f"run {wk_runs[-1]['number']} of {wk_runs[-1]['number']} · The subject", 30000)
+            page.wait_for_function("() => document.querySelectorAll('#content-comparison td.trend .rt-thumb').length >= 1", timeout=15000)
+            ttab = page.evaluate("() => ({ tab: document.querySelector('#tab-comparison').textContent, heads: [...document.querySelectorAll('#content-comparison thead th')].map(e => e.textContent), thumbs: document.querySelectorAll('#content-comparison td.trend .rt-thumb').length, legend: (document.querySelector('#content-comparison .rt-legend') || {}).textContent || '', card: ([...document.querySelectorAll('.sp-done a')].map(a => a.textContent)) })")
+            if shots: page.query_selector("#content-comparison").screenshot(path=os.path.join(shots, "trend_tab_week.png"))
+            check("the Trend tab (the Comparison tab renamed) of a week opened from the Summary: the heads name the two weeks with their run numbers, a last column 'Weekly trend' with a thumbnail per line, the legend saying what the trend is; the closing card links to Trend",
+                  ttab["tab"] == "Trend" and ttab["heads"] == ["Result", f"{_wshort(*weeks[-2])}run {wk_runs[-2]['number']}", f"{_wshort(*weeks[-1])}run {wk_runs[-1]['number']}", "Change", "Intervals", "Weekly trend"] and ttab["thumbs"] == 3
+                  and "The trend is each line over the weeks run on this athlete" in ttab["legend"] and ttab["card"] and ttab["card"][0].startswith("Trend"), ttab)
 
             # Endura: a routine made on one race, run on another picked in the dialog (the flat crit has no power channel, no climbs)
             page.click("#routinesPill")
@@ -1134,7 +1168,14 @@ def main():
             # the first subject's original window back on the Data tab as it was, through the Intervals.icu dialog (nothing loaded now, so it opens)
             page.evaluate("() => { const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'none'; }")
             page.evaluate("showIntervalsModal()")
-            page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            try:
+                page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            except Exception:
+                if shots:                                                       # the page as it stood when the dialog did not show (seen once, 2026-11-06)
+                    page.screenshot(path=os.path.join(shots, "intervals_modal_not_shown.png"))
+                    open(os.path.join(shots, "intervals_modal_not_shown.html"), "w").write(page.content())
+                    open(os.path.join(shots, "intervals_modal_not_shown.json"), "w").write(json.dumps(page.evaluate("() => { const m = document.getElementById('intervalsModal'); const r = m && m.getBoundingClientRect(); return { display: m && m.style.display, computed: m && getComputedStyle(m).display, vis: m && getComputedStyle(m).visibility, box: r && [r.x, r.y, r.width, r.height], inRun: RoutinesUI.inRunView(), modals: [...document.querySelectorAll('.modal, .ui-modal, .ui-modal-plain')].filter(e => e.style.display && e.style.display !== 'none').map(e => e.id) }; }")))
+                raise
             pick_athlete(page, "i0")                                            # the first subject's key, whichever was used last (2026-10-30)
             set_window(page, a_start, a_end)
             page.evaluate("() => ['summary-checkbox', 'intervals-checkbox', 'wellness-checkbox', 'context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")

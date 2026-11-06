@@ -342,10 +342,42 @@
 .rt-mark.same { color: var(--text-quaternary); font-weight: 400; }
 .rt-mark.missing, .rt-mark.unreached { color: var(--text-quaternary); }
 .rt-cmp-table tr.unreached td { color: var(--text-quaternary); }
-.rt-spark { width: 72px; height: 18px; vertical-align: middle; }
-.rt-spark polyline { fill: none; stroke: var(--c-model); stroke-width: 1.5; }
-.rt-spark circle { fill: var(--c-model); }
 .rt-legend { font-size: var(--fs-small); color: var(--text-quaternary); margin-top: 10px; line-height: 1.5; }
+/* the Summary by interval (docs/ROUTINES_DESIGN.md §14.6): the filter bar in the heading, the table by unit in a box with its head
+   fixed, a thumbnail per line in the column head, the latest row tinted; the runs list in a box of five */
+.rt-sec > .h .rt-filter { margin-left: auto; }
+.rt-sec > .h .rt-filter > span { padding: 3px 9px; font-size: var(--fs-small); text-transform: none; letter-spacing: 0; }
+.rt-sec > .h .rt-filter > span.off { color: var(--text-quaternary); opacity: .55; cursor: default; }
+.rt-sec > .h .rt-filter .k { margin-left: 5px; font-family: var(--font-mono); font-size: 10px; color: var(--text-quaternary); }
+.rt-sec > .h .rt-filter > span.on .k { color: var(--c-model); }
+.rt-sec > .h .rt-filter + .rt-athlete-pick { margin-left: 10px; }
+.rt-byunit { max-height: 420px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--r-2); }
+.rt-by { width: 100%; border-collapse: separate; border-spacing: 0; }
+.rt-by thead th { position: sticky; top: 0; z-index: 1; background: var(--bg-secondary); vertical-align: bottom; }
+.rt-by th.m { text-align: right; min-width: 128px; }
+.rt-by th.m .lab { display: block; text-transform: none; letter-spacing: 0; font-weight: 500; white-space: normal; line-height: 1.3; margin-bottom: 4px; }
+.rt-by td.w { white-space: nowrap; color: var(--text-primary); }
+.rt-by td.w .r { display: block; font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-quaternary); }
+.rt-by td.num { text-align: right; font-family: var(--font-mono); font-size: var(--fs-meta); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rt-by td.num .rt-mark { min-width: 12px; }
+.rt-by tr.latest td { background: color-mix(in srgb, var(--c-model) 6%, transparent); }
+.rt-thumb { display: block; width: 112px; height: 24px; margin-left: auto; cursor: pointer; }
+.rt-thumb polyline { fill: none; stroke: var(--c-model); stroke-width: 1.5; }
+.rt-thumb circle { fill: var(--c-model); }
+.rt-thumb circle.last { fill: none; stroke: var(--c-model); stroke-width: 1.5; }
+.rt-thumb:hover polyline, .rt-thumb:hover circle.last { stroke-width: 2.2; }
+.rt-cmp-table td.trend .rt-thumb { margin-left: 0; cursor: default; }
+.rt-runbox { max-height: 226px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--r-2); padding: 4px; }
+.rt-runbox .rt-runlist .ui-item { margin-bottom: 4px; }
+/* the enlarged chart (§14.6): the thumbnail at full size on a calendar axis */
+#routineTrendModal .trend-dlg { width: min(1240px, 100%); }
+#routineTrendModal .ui-dlg-h .ui-seg { margin-right: 10px; }
+#routineTrendModal .ui-dlg-h .ui-seg > span { padding: 4px 9px; font-size: var(--fs-small); white-space: nowrap; }
+#routineTrendModal .ui-dlg-h .rt-also { height: 26px; font-size: var(--fs-small); max-width: 260px; margin-right: 10px; }
+#routineTrendModal .rt-trend { padding: 6px 0 0; }
+#routineTrendModal .rt-chart { display: block; width: 100%; height: auto; }
+#routineTrendModal .rt-chart .pt circle { cursor: default; }
+#routineTrendModal .ui-dlg-f .note { max-width: none; line-height: 1.4; }
 .rt-runlist .ui-item { padding: 6px 10px; gap: 12px; cursor: pointer; }
 .rt-runlist .ui-item .n { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--text-tertiary); width: 46px; flex-shrink: 0; }
 .rt-runlist .ui-item .w { font-size: var(--fs-meta); color: var(--text-secondary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -354,13 +386,19 @@
 .rt-status.ran { color: var(--c-model); border-color: var(--chip-model-border); }
 .rt-status.failed, .rt-status.timed_out { color: var(--c-fail); border-color: var(--chip-fail-border); }
 .rt-status.differed { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
-/* the Comparison tab (S4): the right pane's own padding, a table, the legend */
+/* the Trend tab (S4; Comparison until 2026-11-06): the right pane's own padding, a table, the legend */
 #content-comparison .rt-cmp { padding: 16px 20px; font-family: var(--font-ui); }
 .rt-cmp-table { table-layout: fixed; }
 .rt-cmp-table th:first-child { width: 30%; }           /* the labels wrap (2026-10-30); the run columns hold a window each */
 .rt-cmp-table th.num { width: 16%; }
 .rt-cmp-table th:last-child { width: 14%; }
 .rt-cmp-table td:last-child { white-space: nowrap; }
+.rt-cmp-table.with-trend th:first-child { width: 24%; }          /* the Trend column (§14.6): the others give way, an interval may wrap */
+.rt-cmp-table.with-trend th.num { width: 15%; }
+.rt-cmp-table.with-trend th:nth-last-child(2) { width: 11%; }
+.rt-cmp-table.with-trend th.trend { width: 112px; }
+.rt-cmp-table.with-trend .ci { white-space: normal; }
+.rt-cmp-table.with-trend td.trend .rt-thumb { width: 96px; height: 21px; }
 #content-comparison .rt-cmp .rt-sec > .h { margin-bottom: 4px; }
 .rt-cmp-table td.change { color: var(--text-primary); }
 /* whose and when (2026-10-30): the window under each run's header; the result labels whole, wrapped, not cut */

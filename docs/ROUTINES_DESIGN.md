@@ -897,28 +897,36 @@ does not give): the span in the template, `refreshBadge` and its calls, the `.rb
 athlete picked; an interval never run is greyed with *no run with this interval yet*; the pick opens on the latest
 run's interval. The athlete pick stays beside it.
 
-A set interval shows **a table by interval**: a row per unit, the latest at the top (tinted), its run number beside the
-dates (*26 Oct – 1 Nov · run 15*); a column per result line, its label trimmed (14.4) and, when every label shares a
-prefix, the prefix said once in the section's head and the rest in the column; in each column head a **thumbnail**
-of the metric over the units in calendar order, oldest left, the latest dot ringed, a unit not run a gap; each cell
-the estimate with its mark against the row below (↑ ↓ when the intervals do not overlap, = when they do; the interval
-on hover). The table scrolls in a box with its head fixed. Under it the legend and, when units are missing, *40
-weeks back to 3 Nov 2025 are not run yet: Run → Week → fill the weeks back*. *Custom* is today's table - a column per
-run in run order, the head *Run 1 · 5 Nov · 186 days* with the window on hover - and its legend says custom windows
-are not a series and no trend is drawn across them.
+A set interval shows **a table by interval**: a row per unit run, the latest at the top (tinted), its run number
+under the dates (*26 Oct – 1 Nov · run 15*; the latest run of a unit stands for it, a failed one counts as not run);
+a column per result line, its label trimmed (14.4) and, when every label shares a prefix up to a comma, the prefix
+said once in the section's head (with the unit when all share one) and the rest in the column; in each column head a
+**thumbnail** of the metric over the units, from the first run to the last at their place in the calendar, oldest
+left, the line broken where a unit is not run, the latest dot ringed (nothing with fewer than two points); each cell
+the estimate with its mark against the row below - the unit before it that ran (↑ ↓ when the intervals do not
+overlap, = when they do; the run and the interval on hover). The table scrolls in a box with its head fixed. Under it
+the legend and, when units of the horizon are missing, *40 weeks back to 3 Nov 2025 are not run yet: Run → Week →
+fill the weeks back* (*in the last year* when the gaps are not all before the first run). *Custom* is today's table -
+a column per run in run order, the head *Run 1 · 5 Nov · 186 days* with the window on hover - without the sparkline
+it had, and its legend says custom windows are not a series and no trend is drawn across them. The horizon is the
+plan's day limit, at most a year (`/intervals/get_data_limits`, asked once per page).
 
-**Enlarge.** A thumbnail opens the chart at full size, in a dialog of the Summary's: a calendar axis over the
-horizon, one dot per unit, the gaps empty with the words above (*40 weeks not run yet · Run → Week → fill*), the
-values written at the latest, the highest and the lowest only and the rest on hover (the run, the dates, the
-estimate with its interval), *3 m · 6 m · 12 m*, *also show* another metric, a PNG. Nothing is computed there that
-the thumbnail does not have.
+**Enlarge.** A thumbnail opens the chart at full size, in a dialog of the Summary's (`#routineTrendModal`): a
+calendar axis over the span - *3 m · 6 m · 12 m* of units, the months named along it - one dot per unit run at its
+place, the line broken at a unit not run and a dashed box over each stretch of them (the count written when the box
+is wide enough), the values written at the latest, the highest and the lowest only and every dot titled with its
+run, dates and estimate with its interval; *also show* draws a second line on a right axis in its own colour; PNG
+saves the chart as drawn (the colours are written into it, so the picture keeps them). Nothing is computed there
+that the thumbnail does not have.
 
 **Runs** shows the latest five of the interval and athlete picked, the rest by scrolling in a box; each line names the
 unit (*week 26 Oct – 1 Nov*); the custom runs and run 0 under Custom.
 
-**The Trend tab.** The run view's *Comparison* tab is renamed **Trend**; for a set interval its two head cells are
-the units (*19 – 25 Oct*, *26 Oct – 1 Nov*), and a last column *Weekly trend* carries the thumbnail of each line over
-the athlete's units, drawn from the routine's runs list. A custom run's tab is as it was, under the new name.
+**The Trend tab.** The run view's *Comparison* tab is renamed **Trend** (the closing card's link too); for a run on a
+set interval its two head cells are the units with the run numbers under them (*19 – 25 Oct · run 14*, *26 Oct – 1
+Nov · run 15*), and a last column *Weekly trend* carries the thumbnail of each line over the athlete's units, drawn
+from the routine's runs list once the tab is up (the first render is without it). A custom run's tab is as it was,
+under the new name.
 
 ### 14.7 Build order and acceptance
 
@@ -932,8 +940,10 @@ the athlete's units, drawn from the routine's runs list. A custom run's tab is a
   from the template and the stylesheet), the screens tool (the dialog on *Week* with its fill), and the
   integrations walk (an Intervals routine run on *Week* with the fill over the fake Intervals: the runs land with
   their interval, the Summary shows the progress and then the runs).
-- **Patch 0265 — the Summary by interval**: 14.6. The filter bar, the table by interval with its thumbnails, the
-  enlarge, Runs in a box, the Trend tab. Accepted by: the markup on the mini DOM (the bar's counts and greying, the
-  rows newest first, the marks against the row below, the gaps in a thumbnail and the enlarged chart, the prefix
-  said once, the Trend column), the screens tool (the Summary on *Weekly*, the enlarged chart, the Trend tab), and
-  the walks (the filled routine's Summary by week; the custom view unchanged).
+- **Patch 0265 — the Summary by interval** (built 2026-11-06): 14.6. The filter bar, the table by interval with its
+  thumbnails, the enlarge, Runs in a box, the Trend tab. Accepted by: the markup on the mini DOM (the counts and the
+  bar's greying, the series from the runs, the rows newest first with the marks against the row below, the
+  thumbnails broken at the gaps, the enlarged chart's dots, boxes, axis and written values, the prefix said once, the
+  custom table without a trend, the Trend tab's heads and column, the tab's name), the screens tool (the Summary on
+  *Weekly*, the enlarged chart, the Trend tab of a week), and the walks (the stack walk's custom Summary; the
+  integrations walk's filled routine - the Summary by week, the enlarge over it, the Trend tab of the latest week).

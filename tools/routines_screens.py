@@ -74,6 +74,32 @@ PRECHECK_INTERVALS = {"loaded": True, "ok": True, "line": "2 of 49 columns empty
                       "values_missing": [], "problems": [], "aux": {"absent": ["wellness"], "bound": {"summary": "activity_summary_20260812_to_20261010.csv"}, "line": "wellness absent in this data - the method will see an empty table there"},
                       "plan": {"source": "intervals", "name": "", "aux_kinds": ["summary", "wellness"], "metrics": [], "window_days": 59, "start": "2026-07-02", "end": "2026-08-30", "date_range": "2026-07-02 to 2026-08-30", "subject": {"id": "i1", "name": "First Athlete"}},
                       "data": {"df_id": "df_z", "name": "", "source": "intervals", "rows": 10200, "columns": 47, "date_range": "2026-08-12 to 2026-10-10"}}
+# the Summary by interval (2026-11-06, docs/ROUTINES_DESIGN.md §14.6): an Intervals routine run weekly on one athlete - ten of the last
+# eleven complete weeks (one never run), the values drifting - and the run view of the latest week with its Trend tab
+def _weeks(n, today=None):
+    from datetime import date, timedelta
+    t = today or date.today()
+    end = t - timedelta(days=t.weekday() + 1)                        # the Sunday before this week's Monday
+    return [((end - timedelta(days=7 * k + 6)).isoformat(), (end - timedelta(days=7 * k)).isoformat()) for k in range(n)][::-1]
+ROUTINE_W = json.loads(json.dumps(ROUTINE))
+ROUTINE_W.update({"source": "intervals", "summary_card": {"data": dict(PROPOSAL["data"], source="intervals")}})
+ROUTINE_W["versions"][0]["manifest"]["data"] = dict(PROPOSAL["data"], source="intervals", load={"source": "intervals", "subject": {"source": "intervals", "id": "i1", "name": "First Athlete"}, "start_date": "2026-07-02", "end_date": "2026-08-30"})
+_WEEKS = _weeks(11)
+_W_RUNS = []
+for k, (ws, we) in enumerate(_WEEKS):
+    if k == 4: continue                                               # the fifth week never run: a gap in the thumbnails and the chart
+    vals = _lines([(0.11 + 0.004 * k, 0.02), (0.31 - 0.003 * k, 0.02), (-0.13 + 0.002 * k * (-1) ** k, 0.03), (-0.14 + 0.01 * k, 0.05), (0.065 + 0.003 * k, 0.015)])
+    before = _W_RUNS[-1] if _W_RUNS else None
+    c = _cmp(vals, before["results"]) if before else {"rows": [], "moved": 0, "within": 0, "changed": 0, "missing": 0, "compared": 0, "line": "nothing to compare with: no earlier week on record for this subject"}
+    _W_RUNS.append({"number": len(_W_RUNS) + 1, "version": 1, "created": 1792400000 + 3600 * k, "finished": 1792400000 + 3600 * k + 31, "elapsed": 31.0, "status": "ran", "line": "ran: 6 result lines", "interval": "week",
+                    "inputs": {"hard_effort_hr": 155, "hr_bands": [130, 145, 155, 165, 175], "exclude": ["athlete07", "athlete09"]}, "results": vals, "figures": 1, "against": before["number"] if before else None, "cells": 5,
+                    "data": {"df_id": f"df_w{k}", "name": "", "source": "intervals", "rows": 2000 + 90 * k, "columns": 49, "date_range": f"{ws} to {we}", "aux": [], "extra": {}, "subject": {"id": "i1", "name": "First Athlete"}, "window": [ws, we]},
+                    "comparison": {kk: c[kk] for kk in ("moved", "within", "changed", "missing", "compared", "line")}, "full_comparison": c})
+ROUTINE_W["runs"] = [{kk: v for kk, v in r.items() if kk != "full_comparison"} for r in _W_RUNS]
+_last, _prev = _W_RUNS[-1], _W_RUNS[-2]
+RUN_VIEW_W = {"run": dict({kk: v for kk, v in _last.items() if kk != "full_comparison"}, comparison=_last["full_comparison"], narrative="", data=dict(_last["data"], columns=PROPOSAL["data"]["columns"], load={"source": "intervals", "subject": {"source": "intervals", "id": "i1", "name": "First Athlete"}, "start_date": _last["data"]["window"][0], "end_date": _last["data"]["window"][1]})),
+              "stdout": "RESULT: ...\n", "figures": [], "routine": None, "numbers": [n["number"] for n in _W_RUNS], "name": ROUTINE["name"], "manifest_results": [], "subject": {"id": "i1", "name": "First Athlete"},
+              "against_data": dict(_prev["data"])}
 SUMMARY = {"id": "r1", "name": ROUTINE["name"], "created": 1791460000, "updated": 1791460000, "source": "file", "purpose": ROUTINE["purpose"], "question": ROUTINE["question"], "origin": ROUTINE["origin"],
            "current_version": 1, "versions": 1, "runs": 0, "verified": True, "run_zero_status": "reproduced", "run_zero_line": "reproduced: 5 result line(s) identical", "inputs": 4, "results": 5, "figures": 1, "data": PROPOSAL["data"]}
 SCREENS = {
@@ -93,6 +119,9 @@ SCREENS = {
     's6_manager_runs':    {"js": "RoutinesUI.openManager('r1')", "routines": [SUMMARY]},
     's6b_manager_fill':   {"js": "setTimeout(() => RoutinesUI.openManager('r1'), 1200)", "routines": [SUMMARY], "wait": 2500,
                            "fill": {"running": True, "routine_id": "r1", "interval": "week", "total": 41, "done": 12, "failed": 0, "current": ["2026-02-02", "2026-02-08"], "stopped": False, "error": "", "left": 870, "elapsed": 360}},
+    's6c_manager_weekly': {"js": "RoutinesUI.openManager('r1')", "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_W},
+    's6d_trend_enlarged': {"js": "RoutinesUI.openManager('r1'); setTimeout(() => document.querySelector('#routinesModal .rt-thumb').dispatchEvent(new MouseEvent('click', {bubbles: true})), 1200)", "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_W, "wait": 1200},
+    's5c_trend_tab':      {"js": "RoutinesUI.viewRun('r1', %d)" % _last["number"], "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_W, "view": RUN_VIEW_W, "wait": 1000},
 }
 
 
@@ -143,7 +172,10 @@ def render(out, light=False, width=1440, height=900):
                     if path == '/routines':
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps({"routines": spec_.get('routines', [])}))
                     if path == '/routines/r1':
-                        return route.fulfill(status=200, content_type='application/json', body=json.dumps({"routine": ROUTINE}))
+                        return route.fulfill(status=200, content_type='application/json', body=json.dumps({"routine": spec_.get('routine') or ROUTINE}))
+                    if spec_.get('view') and path == '/routines/r1/runs/%d' % spec_['view']['run']['number']:
+                        v = json.loads(json.dumps(spec_['view'])); v["routine"] = dict(SUMMARY, source="intervals")
+                        return route.fulfill(status=200, content_type='application/json', body=json.dumps(v))
                     if path == '/routines/r1/precheck':
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps(spec_.get('precheck') or PRECHECK_OK))
                     if path == '/intervals/get_data_limits':
@@ -202,6 +234,9 @@ def render(out, light=False, width=1440, height=900):
                                     " athletes: (document.querySelector('#routineRunModal select[data-load=\"athlete\"]') || {}).value || '', interval: (document.querySelector('#routineRunModal .rt-interval .on') || {}).getAttribute ? document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval') : '', fillBox: !!document.querySelector('#routineRunModal input[data-load=\"fill\"]') && document.querySelector('#routineRunModal input[data-load=\"fill\"]').checked,"
                                     " plan: (document.querySelector('#routineRunModal .rt-plan') || {}).textContent || '', pickers: !!document.querySelector('#routineRunModal .rt-loadwin') && document.querySelector('#routineRunModal .rt-loadwin').style.display === 'none', runLabel: (document.querySelector('#routineRunModal [data-act=\"run\"] span') || {}).textContent || '', compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '',"
                                     " fillBar: (document.querySelector('#routinesModal .rt-fillbar .t') || {}).textContent || '', stopBtn: !!document.querySelector('#routinesModal [data-act=\"stop-fill\"]'), placeholder: document.getElementById('queryInput').placeholder,"
+                                    " filterOn: (document.querySelector('#routinesModal .rt-filter .on') || {}).getAttribute ? document.querySelector('#routinesModal .rt-filter .on').getAttribute('data-filter') : '', byRows: document.querySelectorAll('#routinesModal .rt-by tbody tr').length, thumbs: document.querySelectorAll('#routinesModal .rt-by thead .rt-thumb').length, runBox: document.querySelectorAll('#routinesModal .rt-runbox .rt-run').length,"
+                                    " trendDlg: !!document.querySelector('#routineTrendModal') && document.querySelector('#routineTrendModal').style.display === 'flex', chartPoints: Number((document.querySelector('#routineTrendModal .rt-chart') || {}).getAttribute ? document.querySelector('#routineTrendModal .rt-chart').getAttribute('data-points') : 0), chartGaps: document.querySelectorAll('#routineTrendModal .rt-chart rect.rt-gap').length,"
+                                    " trendHeads: [...document.querySelectorAll('#content-comparison thead th')].map(e => e.textContent), trendThumbs: document.querySelectorAll('#content-comparison td.trend .rt-thumb').length,"
                                     " inRun: RoutinesUI.inRunView(), position: document.getElementById('chainPosition').textContent, cmpRows: document.querySelectorAll('#content-comparison tbody tr').length, locked: document.getElementById('queryInput').disabled, done: !!document.querySelector('#streamOutput .sp-done'), runsTable: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, runItems: document.querySelectorAll('#routinesModal .rt-run').length, tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent)})")
                 want = {'s0_save_menu': state['pill'] != 'none' and state['menu'], 's1_make_dialog': state['dialog'] and state['inputs'] == 4 and state['derived'] == 1 and state['pane'], 's1b_next_version': state['dialog'] and state['inputs'] == 4,
                         's1c_refused': state['dialog'] and state['error'], 's2_manager': state['manager'] and state['mgrItems'] == 1, 's2b_manager_empty': state['manager'] and state['mgrItems'] == 0,
@@ -209,9 +244,12 @@ def render(out, light=False, width=1440, height=900):
                         's4_run_dialog': state['runDlg'] and state['runBtn'] and state['widgets'] == 3 and state['derivedRows'] == 1 and not state['fitBad'] and state['dataChoice'] == 'now', 's4b_run_dialog_nofit': state['runDlg'] and not state['runBtn'] and state['fitBad'],
                         's4c_run_dialog_intervals': state['runDlg'] and state['runBtn'] and state['widgets'] == 3 and state['dataChoice'] == 'load' and state['loadWin'] == 2 and not state['fitBad'] and 'hit' in state['cacheLine'] and state['athletes'] == 'i1' and state['interval'] == 'custom' and not state['pickers'],
                         's4d_run_dialog_week': state['runDlg'] and state['runBtn'] and state['interval'] == 'week' and state['fillBox'] and state['plan'].startswith('The last complete week: ') and state['pickers'] and state['runLabel'].startswith('Run ') and state['runLabel'].endswith(' weeks') and 'each week with the week before it on First Athlete' in state['compare'] and 'hit' in state['cacheLine'],
-                        's5_run_view': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 5 and state['locked'] and state['done'] and state['pill'] == 'none' and state['tabs'][0] == 'Comparison',
-                        's5b_run_live': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 5 and state['locked'] and state['done'] and state['tabs'][0] == 'Comparison',
-                        's6_manager_runs': state['manager'] and state['runsTable'] == 5 and state['runItems'] == 4,
+                        's5_run_view': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 5 and state['locked'] and state['done'] and state['pill'] == 'none' and state['tabs'][0] == 'Trend',
+                        's5b_run_live': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 5 and state['locked'] and state['done'] and state['tabs'][0] == 'Trend',
+                        's6_manager_runs': state['manager'] and state['runsTable'] == 5 and state['runItems'] == 4 and state['filterOn'] == 'custom' and state['byRows'] == 0,
+                        's6c_manager_weekly': state['manager'] and state['filterOn'] == 'week' and state['byRows'] == 10 and state['thumbs'] == 5 and state['runBox'] == 10 and state['runsTable'] == 0,
+                        's6d_trend_enlarged': state['trendDlg'] and state['chartPoints'] == 10 and state['chartGaps'] >= 2,
+                        's5c_trend_tab': state['inRun'] and state['tabs'][0] == 'Trend' and state['trendHeads'][-1] == 'Weekly trend' and state['trendThumbs'] == 5 and state['cmpRows'] == 5,
                         's6b_manager_fill': state['manager'] and state['fillBar'] == 'Filling the weeks · 12 of 41 done · 2 – 8 Feb running · about 15 min left' and state['stopBtn'] and state['locked'] and state['placeholder'].startswith('A fill is running (Filling the weeks · 12 of 41 done')}[name]
                 if not want:
                     bad.append(name); print('  [state]', name, state)

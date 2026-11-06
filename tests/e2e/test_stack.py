@@ -573,10 +573,11 @@ def main():
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => document.querySelectorAll('#routinesModal .rt-runlist .rt-run').length >= 3", timeout=15000)
             mg2 = page.evaluate("""() => ({ items: [...document.querySelectorAll('#routinesModal .rt-runlist .rt-run')].map(e => [e.dataset.run, (e.querySelector('.rt-status') || {}).textContent || '', e.textContent]),
-                cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.trim()), rows: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, sub: document.querySelector('#routinesModal .rt-right .sub').textContent })""")
-            check("the manager after two runs: the runs table has a column per run (0, 1, 2) and a row for the routine's line; the runs list reads run 2 (ran, regime C), run 1 (reproduced), run 0",
+                cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.trim()), rows: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, sub: document.querySelector('#routinesModal .rt-right .sub').textContent,
+                filter: [...document.querySelectorAll('#routinesModal .rt-filter [data-filter]')].map(e => e.dataset.filter + ':' + e.className + ':' + ((e.querySelector('.k') || {}).textContent || '')), box: !!document.querySelector('#routinesModal .rt-runbox .rt-runlist') })""")
+            check("the manager after two runs: the filter bar on Custom with its 3 runs, the set intervals greyed (none run); the runs table has a column per run (0, 1, 2) and a row for the routine's line, no trend across custom runs; the runs list, in its box, reads run 2 (ran, regime C), run 1 (reproduced), run 0",
                   [x[0] for x in mg2["items"]] == ["2", "1", "0"] and mg2["items"][0][1].startswith("ran") and "regime = C" in mg2["items"][0][2] and mg2["items"][1][1] == "reproduced" and mg2["rows"] == 1
-                  and sum(1 for c in mg2["cols"] if re.match(r"Run [012]", c)) == 3 and "Trend" in mg2["cols"], mg2)
+                  and sum(1 for c in mg2["cols"] if re.match(r"Run [012]", c)) == 3 and "Trend" not in mg2["cols"] and mg2["filter"] == ["day:off:", "week:off:", "month:off:", "year:off:", "custom:on:3"] and mg2["box"], mg2)
             page.click("#routinesModal .rt-runlist .rt-run[data-run='1']")
             wait_text(page, "#chainPosition", "run 1 of 2", 30000)
             page.wait_for_timeout(400)

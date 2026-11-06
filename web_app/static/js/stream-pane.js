@@ -223,7 +223,7 @@
             const bad = r.status === 'failed' || r.status === 'timed_out' || r.status === 'differed';
             const title = 'Run ' + esc(r.number) + (r.status === 'failed' ? ' failed' : (r.status === 'timed_out' ? ' timed out' : (r.status === 'differed' ? ' differed' : ' complete'))) + (r.name ? ' · ' + esc(r.name) : '');
             const compared = r.compared ? ((r.moved || r.changed || 0) + ' of ' + r.compared) : '—';
-            const links = ['Comparison'].concat(r.figures ? ['Plots (' + r.figures + ')'] : []).concat(['Results', 'Data']).map(l =>
+            const links = ['Trend'].concat(r.figures ? ['Plots (' + r.figures + ')'] : []).concat(['Results', 'Data']).map(l =>
                 '<a href="#" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'' + l.split(' ')[0] + '\');return false;">' + l + ' →</a>').join('');
             return '<div class="sp-done' + (bad ? ' warn' : '') + '"><div class="title">' + title + '</div>' +
                 '<div class="grid"><span>Results <b>' + esc(r.results || 0) + '</b></span><span>Moved <b>' + compared + '</b></span>' +

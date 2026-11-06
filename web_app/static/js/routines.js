@@ -175,7 +175,9 @@
                 : '<span class="ui-muted">made from the analysis of ' + esc(chainDate(o.chain_id) || o.chain_id) + ' — no longer in Saved workflows</span>';
             return { title: esc(r.name), sub: esc(sourceLabel(r.source)) + (cols ? ' · ' + cols + ' columns' : '') + ' · v' + esc(r.current_version) + ' · ' + link };
         },
-        routineBody(r, fill) {
+        // the manager's body; `fill` the session's fill when it is this routine's (§14.3); `opts` {today, horizon} for the units a
+        // set interval's view spans (§14.6: the last year, or the plan's day limit when shorter)
+        routineBody(r, fill, opts) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const m = v.manifest || {};
             const rz = v.run_zero || {};
@@ -195,9 +197,146 @@
             const many = athletes.length > 1;
             const pick = many ? '<select class="ui-input rt-athlete-pick" data-pick="athlete" title="whose runs">' + athletes.map(a => '<option value="' + esc(a.id) + '"' + (a.id === picked ? ' selected' : '') + '>' + esc(a.name || a.id || 'athlete not recorded') + ' · ' + a.n + ' run' + (a.n === 1 ? '' : 's') + '</option>').join('') + '</select>' : '';
             const whose = many ? ' · ' + esc((athletes.find(a => a.id === picked) || {}).name || picked || 'athlete not recorded') : '';
-            h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">— each run against the one before it</span>' + pick + '</div>' + build.fillBar(fill) + build.runsTable(r, many ? picked : null) + '</div>';
-            h += '<div class="rt-sec"><div class="h">Runs <span class="n">— a run opens in the main panes' + whose + '</span></div>' + build.runsList(r, many ? picked : null) + '</div>';
+            // the results by interval (§14.6): the filter bar's pick - the one asked, else the latest run's; a set interval is the table by
+            // unit over the horizon's units, custom the table by run; the runs list follows
+            const athleteId = many ? picked : null;
+            const counts = build.intervalCounts(r, athleteId);
+            const kind = counts[managerState.interval] ? managerState.interval : build.openInterval(r, athleteId);
+            const o = opts || {};
+            const series = kind === 'custom' ? null : build.series(r, kind, athleteId, build.units(kind, o.today || new Date(), o.horizon || 365));
+            const prefix = series ? build.sharedPrefix(series.lines.map(l => build.metricLabel(l.label))) : '';
+            const unit = series && series.lines.length && series.lines.every(l => (l.unit || '') === (series.lines[0].unit || '')) ? (series.lines[0].unit || '') : '';
+            const headNote = series ? '— by ' + kind + ', the latest at the top' + (prefix ? ' · ' + esc(prefix) + (unit && unit !== 'n/a' ? ', ' + esc(unit) : '') : '') : '— each run against the one before it';
+            h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">' + headNote + '</span>' + build.filterBar(counts, kind) + pick + '</div>' + build.fillBar(fill) + (series ? build.byIntervalTable(series, prefix) : build.runsTable(r, athleteId)) + '</div>';
+            h += '<div class="rt-sec"><div class="h">Runs <span class="n">— the latest five; a run opens in the main panes' + whose + '</span></div>' + build.runsList(r, athleteId, kind) + '</div>';
             return h;
+        },
+        // ---- the Summary by interval (§14.6): the counts and the filter bar, the series of one interval on one athlete, the table by
+        // unit with a thumbnail per line, the enlarged chart. The runs that count are the current version's that ran.
+        INTERVAL_NAMES: { day: 'Daily', week: 'Weekly', month: 'Monthly', year: 'Yearly', custom: 'Custom' },
+        doneRuns(r, athleteId) {
+            return (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && (athleteId == null || build.subjectId(x) === String(athleteId)));
+        },
+        // how many runs each interval has on the athlete; run zero counts as custom when it is theirs
+        intervalCounts(r, athleteId) {
+            const v = (r.versions || []).find(x => x.number === r.current_version) || {};
+            const out = { day: 0, week: 0, month: 0, year: 0, custom: 0 };
+            build.doneRuns(r, athleteId).forEach(x => { out[x.interval in out ? x.interval : 'custom'] += 1; });
+            if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) out.custom += 1;
+            return out;
+        },
+        openInterval(r, athleteId) {    // the interval the Summary opens on: the latest run's, custom without one
+            const runs = build.doneRuns(r, athleteId);
+            return runs.length && runs[runs.length - 1].interval ? runs[runs.length - 1].interval : 'custom';
+        },
+        filterBar(counts, on) {
+            return '<span class="ui-seg rt-filter">' + Object.keys(build.INTERVAL_NAMES).map(k => { const n = counts[k] || 0;
+                return '<span class="' + [k === on ? 'on' : '', n ? '' : 'off'].filter(Boolean).join(' ') + '" data-filter="' + k + '"' + (n ? '' : ' title="no run with this interval yet"') + '>' + build.INTERVAL_NAMES[k] + (n ? '<span class="k">' + n + '</span>' : '') + '</span>'; }).join('') + '</span>';
+        },
+        // the series: the manifest's lines with estimates; the horizon's units, each with the latest run on it (a failed run is none)
+        // and that run's values by line; the rows (the units run, the latest first); the first and last unit run; what is missing
+        series(r, kind, athleteId, units) {
+            const v = (r.versions || []).find(x => x.number === r.current_version) || {};
+            const all = (v.manifest || {}).results || [];
+            const lines = all.filter(x => !x.dropped && x.estimate != null);
+            const byUnit = {};
+            build.doneRuns(r, athleteId).filter(x => x.interval === kind).forEach(x => { const w = (x.data || {}).window || []; const key = w[0] + ' ' + w[1]; if (!byUnit[key] || x.number > byUnit[key].number) byUnit[key] = x; });
+            const points = units.map(w => { const run = byUnit[w[0] + ' ' + w[1]] || null; return { unit: w, run, values: run ? lines.map(l => (run.results || [])[all.indexOf(l)] || null) : null }; });
+            const have = points.map((p, i) => p.run ? i : -1).filter(i => i >= 0);
+            const first = have.length ? have[0] : -1, last = have.length ? have[have.length - 1] : -1;
+            return { kind, units, lines, points, first, last, rows: points.filter(p => p.run).reverse(), missing: units.length - have.length, missingBefore: have.length ? first : units.length };
+        },
+        // the words the labels share up to a comma: said once in the heading, so the columns carry what differs
+        sharedPrefix(labels) {
+            if (labels.length < 2) return '';
+            const parts = labels.map(l => String(l).split(/,\s+/));
+            let n = 0;
+            while (parts.every(p => p.length > n + 1 && p[n] === parts[0][n])) n++;
+            return n ? parts[0].slice(0, n).join(', ') : '';
+        },
+        value(x) { const v = parseFloat(String((x || {}).estimate).replace(/,/g, '')); return x && !isNaN(v) ? v : null; },     // a line's estimate as a number, null without one
+        byIntervalTable(s, prefix) {
+            if (!s.lines.length) return '<div class="rt-line muted">This routine records no result lines; its runs keep their output and figures.</div>';
+            const one = s.kind, many = one + 's';
+            if (!s.rows.length) return '<div class="rt-line muted">No ' + one + ' run within the last year.</div>';
+            const heads = s.lines.map(l => { const t = build.metricLabel(l.label); return prefix && t.startsWith(prefix) ? t.slice(prefix.length).replace(/^,\s*/, '') || t : t; });
+            const th = '<th>' + one.charAt(0).toUpperCase() + one.slice(1) + '</th>' + s.lines.map((l, i) => '<th class="m" title="' + esc(l.label) + '"><span class="lab">' + esc(heads[i]) + '</span>' + build.thumb(s, i) + '</th>').join('');
+            const body = s.rows.map((p, ri) => {
+                const below = s.rows[ri + 1] || null;              // the unit before it in the calendar: the row below
+                const tds = s.lines.map((l, i) => {
+                    const x = p.values[i], b = below ? below.values[i] : null;
+                    const mark = x && b ? build.markOf(x, b) : '';
+                    return '<td class="num"' + (x ? ' title="run ' + esc(p.run.number) + (build.ivl(x) ? ' · ' + build.ivl(x).replace(/"/g, '') : '') + '"' : '') + '>' + (x ? esc(x.estimate) : '<span class="rt-mark missing">·</span>') +
+                        (mark && mark !== 'missing' ? ' <span class="rt-mark ' + esc(mark) + '">' + build.markText(mark) + '</span>' : '') + '</td>';
+                }).join('');
+                return '<tr' + (ri === 0 ? ' class="latest"' : '') + ' data-run="' + esc(p.run.number) + '"><td class="w">' + esc(build.unitText(one, p.unit, true)) + '<span class="r">run ' + esc(p.run.number) + '</span></td>' + tds + '</tr>';
+            }).join('');
+            const gap = s.missing ? ' ' + s.missing + ' ' + (s.missing === 1 ? one : many) + (s.missingBefore === s.missing ? ' back to ' + esc(build.dateText(s.units[0][0])) : ' in the last year') + (s.missing === 1 ? ' is' : ' are') + ' not run yet: Run → ' + one.charAt(0).toUpperCase() + one.slice(1) + ' → fill the ' + many + ' back.' : '';
+            return '<div class="rt-byunit"><table class="ui-table rt-by"><thead><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+                '<div class="rt-legend">One row per ' + one + ', the latest at the top; each ' + one + ' against the ' + one + ' before it: ↑ ↓ when the intervals do not overlap, = when they do. Hover a number for its run and interval. The thumbnail in each column is the metric over the ' + many + ', oldest to newest - click it for the full chart.' + gap + '</div>';
+        },
+        // a line's thumbnail over the units run, at their place in the calendar (the first run to the last): the line breaks where a
+        // unit is not run, the latest dot is ringed; nothing with fewer than two points
+        thumb(s, i) {
+            const pts = s.points.map((p, k) => ({ k, v: p.values ? build.value(p.values[i]) : null })).filter(p => p.v != null);
+            if (pts.length < 2) return '';
+            const k0 = pts[0].k, span = Math.max(1, pts[pts.length - 1].k - k0);
+            const vals = pts.map(p => p.v), min = Math.min.apply(null, vals), max = Math.max.apply(null, vals), vs = (max - min) || 1;
+            const x = k => (4 + (k - k0) / span * 104).toFixed(1), y = v => (20 - (v - min) / vs * 16).toFixed(1);
+            const segs = [[pts[0]]];
+            pts.slice(1).forEach((p, j) => { if (p.k === pts[j].k + 1) segs[segs.length - 1].push(p); else segs.push([p]); });
+            const last = pts[pts.length - 1];
+            return '<svg class="rt-thumb" viewBox="0 0 112 24" data-line="' + i + '" role="img"><g><title>' + esc(build.metricLabel(s.lines[i].label)) + ' over the ' + s.kind + 's - click for the full chart</title></g>' +
+                segs.filter(sg => sg.length > 1).map(sg => '<polyline points="' + sg.map(p => x(p.k) + ',' + y(p.v)).join(' ') + '"/>').join('') +
+                pts.map(p => '<circle cx="' + x(p.k) + '" cy="' + y(p.v) + '" r="1.6"/>').join('') + '<circle class="last" cx="' + x(last.k) + '" cy="' + y(last.v) + '" r="3"/></svg>';
+        },
+        // the units one span of the enlarged chart shows: three, six or twelve months of them
+        unitsIn(kind, months) { return Math.max(1, Math.round(months * ({ day: 30.4, week: 4.35, month: 1, year: 1 / 12 })[kind])); },
+        // the enlarged chart (§14.6): a calendar axis over the span, one dot per unit at its place, the line broken where a unit is
+        // not run (a dashed box over a stretch of them, with the count when it fits), the values written at the latest, the highest
+        // and the lowest, every dot titled with its run; `also` a second line on a right axis. Colours are given, so a PNG keeps them.
+        trendChart(s, i, months, also, colors) {
+            const c = Object.assign({ text: '#9aa3ad', grid: '#2a3038', line: '#2ecc71', also: '#5dade2', box: '#6b7480' }, colors || {});
+            const W = 1180, H = 360, L = 60, R = also != null && also >= 0 ? 60 : 20, T = 28, B = 44, pw = W - L - R, ph = H - T - B;
+            const n = build.unitsIn(s.kind, months), k0 = Math.max(0, s.units.length - n), units = s.units.slice(k0);
+            if (!units.length) return '<svg class="rt-chart" viewBox="0 0 ' + W + ' ' + H + '"></svg>';
+            const x = k => L + (k - k0 + 0.5) / units.length * pw;
+            const fmt = v => Math.abs(v) >= 100 ? v.toFixed(0) : (Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2));
+            const seriesOf = li => s.points.slice(k0).map((p, j) => ({ k: k0 + j, p, v: p.values ? build.value(p.values[li]) : null })).filter(q => q.v != null);
+            const draw = (li, color, side, dashed) => {
+                const pts = seriesOf(li);
+                if (!pts.length) return { svg: '', pts };
+                const vals = pts.map(q => q.v), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo || Math.abs(hi) || 1) * 0.08;
+                const y0 = lo - pad, y1 = hi + pad, y = v => T + ph - (v - y0) / (y1 - y0) * ph;
+                let g = '';
+                for (let t = 0; t <= 4; t++) {                    // the axis: five labels, the grid once (for the left line)
+                    const v = y0 + (y1 - y0) * t / 4;
+                    g += side === 'left' ? '<line x1="' + L + '" y1="' + y(v).toFixed(1) + '" x2="' + (W - R) + '" y2="' + y(v).toFixed(1) + '" stroke="' + c.grid + '" stroke-width="1"/><text x="' + (L - 8) + '" y="' + (y(v) + 4).toFixed(1) + '" text-anchor="end" fill="' + c.text + '" font-size="11">' + fmt(v) + '</text>'
+                        : '<text x="' + (W - R + 8) + '" y="' + (y(v) + 4).toFixed(1) + '" fill="' + color + '" font-size="11">' + fmt(v) + '</text>';
+                }
+                const segs = [[pts[0]]];
+                pts.slice(1).forEach((q, j) => { if (q.k === pts[j].k + 1) segs[segs.length - 1].push(q); else segs.push([q]); });
+                g += segs.filter(sg => sg.length > 1).map(sg => '<polyline fill="none" stroke="' + color + '" stroke-width="2"' + (dashed ? ' stroke-dasharray="5 4"' : '') + ' points="' + sg.map(q => x(q.k).toFixed(1) + ',' + y(q.v).toFixed(1)).join(' ') + '"/>').join('');
+                const hiK = pts.reduce((a, q) => (q.v > a.v ? q : a)), loK = pts.reduce((a, q) => (q.v < a.v ? q : a)), last = pts[pts.length - 1];
+                g += pts.map(q => '<g class="pt"><title>run ' + esc(q.p.run.number) + ' · ' + esc(build.unitText(s.kind, q.p.unit)) + ' · ' + esc(q.p.values[li].estimate) + (build.ivl(q.p.values[li]) ? ' ' + build.ivl(q.p.values[li]).replace(/"/g, '') : '') + '</title>' +
+                    '<circle cx="' + x(q.k).toFixed(1) + '" cy="' + y(q.v).toFixed(1) + '" r="' + (q === last ? 5 : 3.5) + '" fill="' + (q === last ? 'none' : color) + '" stroke="' + color + '" stroke-width="2"/></g>').join('');
+                if (side === 'left') {
+                    const said = [];                               // the values written: the latest, the highest, the lowest - once each
+                    [last, hiK, loK].forEach(q => { if (!said.includes(q)) { said.push(q); g += '<text x="' + x(q.k).toFixed(1) + '" y="' + (q === loK && q !== last ? y(q.v) + 18 : y(q.v) - 10).toFixed(1) + '" text-anchor="middle" fill="' + c.text + '" font-size="11">' + esc(q.p.values[li].estimate) + '</text>'; } });
+                }
+                return { svg: g, pts };
+            };
+            const main = draw(i, c.line, 'left', false);
+            const other = also != null && also >= 0 && also !== i ? draw(also, c.also, 'right', true) : { svg: '', pts: [] };
+            // the months along the axis: a label where a unit's month differs from the unit before's; the gaps as dashed boxes
+            let axis = '';
+            units.forEach((w, j) => { const d = build.dayOf(w[0]), prev = j ? build.dayOf(units[j - 1][0]) : null; if (!prev || d.getMonth() !== prev.getMonth()) axis += '<text x="' + x(k0 + j).toFixed(1) + '" y="' + (H - 18) + '" text-anchor="middle" fill="' + c.text + '" font-size="11">' + build.MONTHS[d.getMonth()] + (d.getMonth() === 0 || !prev ? ' ' + d.getFullYear() : '') + '</text>'; });
+            let gaps = '', run = null;
+            const flush = (a, b) => { const w = x(b) - x(a) + pw / units.length; const n_ = b - a + 1; gaps += '<rect class="rt-gap" x="' + (x(a) - pw / units.length / 2).toFixed(1) + '" y="' + (T + 6) + '" width="' + w.toFixed(1) + '" height="' + (ph - 12) + '" fill="none" stroke="' + c.box + '" stroke-dasharray="4 4"/>' + (w > 150 ? '<text x="' + ((x(a) + x(b)) / 2).toFixed(1) + '" y="' + (T + ph / 2).toFixed(1) + '" text-anchor="middle" fill="' + c.text + '" font-size="12">' + n_ + ' ' + s.kind + (n_ === 1 ? '' : 's') + ' not run yet</text>' : ''); };
+            s.points.slice(k0).forEach((p, j) => { const k = k0 + j; if (!p.run) { if (run === null) run = k; } else if (run !== null) { flush(run, k - 1); run = null; } });
+            if (run !== null) flush(run, k0 + units.length - 1);
+            const missing = s.points.slice(k0).filter(p => !p.run).length;
+            return '<svg class="rt-chart" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" data-missing="' + missing + '" data-points="' + main.pts.length + '">' + gaps + main.svg + other.svg + axis + '</svg>';
         },
         // the athletes the routine has run on (2026-10-30): id, name, how many runs, the latest run's first; run zero counts for
         // its athlete - a run zero or a run recorded before the athlete was kept makes the "athlete not recorded" group
@@ -353,7 +492,7 @@
             const one = st.interval, many = one + 's';
             if (st.running) return 'Filling the ' + many + ' · ' + st.done + ' of ' + st.total + ' done' + (st.failed ? ' (' + st.failed + ' failed)' : '') + (st.current ? ' · ' + build.unitText(one, st.current, true) + ' running' : '') + (st.left != null && st.done ? ' · about ' + fmtTook(st.left) + ' left' : '');
             if (st.stopped) return 'Stopped after ' + st.done + ' of ' + st.total + ' ' + many + (st.error ? ': ' + st.error : '') + (st.failed ? ' · ' + st.failed + ' failed' : '');
-            return 'Filled ' + st.total + ' ' + (st.total === 1 ? one : many) + ' in ' + fmtTook(st.elapsed) + (st.failed ? ' · ' + st.failed + ' failed' : '');
+            return 'Filled ' + st.total + ' ' + (st.total === 1 ? one : many) + ' in ' + (st.elapsed < 1 ? 'under a second' : fmtTook(st.elapsed)) + (st.failed ? ' · ' + st.failed + ' failed' : '');
         },
         fillBar(st) {
             return st && st.running ? '<div class="rt-fillbar"><span class="live"></span><span class="t">' + esc(build.fillLine(st)) + '</span><button class="ui-btn sm" data-act="stop-fill">Stop</button></div>' : '';
@@ -467,17 +606,25 @@
         // whose data a record is on, and when: the athlete's name (the subject on a summary, or the load's on a full record), and the
         // window asked for - else the file or the race (2026-10-30: the Comparison tab says what is compared with what)
         whoOf(d) { const sub = (d || {}).subject || ((d || {}).load || {}).subject || {}; return String(sub.name || sub.id || ''); },
-        whenOf(d) {
+        windowOf(d) {      // a record's window as [start, end]: the summary's, else the load's dates, else the date range; [] without one
             d = d || {}; const ld = d.load || {};
-            if (Array.isArray(d.window) && d.window.length === 2 && d.window[0] && d.window[1]) return d.window[0] + ' → ' + d.window[1];
-            if (ld.start_date && ld.end_date) return ld.start_date + ' → ' + ld.end_date;
+            if (Array.isArray(d.window) && d.window.length === 2 && d.window[0] && d.window[1]) return [d.window[0], d.window[1]];
+            if (ld.start_date && ld.end_date) return [ld.start_date, ld.end_date];
             const m = /^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-|→)\s*(\d{4}-\d{2}-\d{2})\s*$/.exec(String(d.date_range || ''));
-            if (m) return m[1] + ' → ' + m[2];
-            return String((d.extra || {}).race_title || ld.race_title || d.name || '');
+            return m ? [m[1], m[2]] : [];
         },
-        comparisonTab(view) {
+        whenOf(d) {
+            const w = build.windowOf(d);
+            if (w.length) return w[0] + ' → ' + w[1];
+            d = d || {};
+            return String((d.extra || {}).race_title || (d.load || {}).race_title || d.name || '');
+        },
+        // the Trend tab (§14.6; the Comparison tab until 2026-11-06): this run against the one before. `series` (a run on a set
+        // interval, from the routine's runs): the heads name the units and a last column carries each line's thumbnail over them.
+        comparisonTab(view, series) {
             const run = view.run || {}, c = run.comparison || {};
             const d = run.data || {}, ref = view.against_data || null;
+            const kind = series && run.interval ? run.interval : '';
             // the heading: both runs and, when the athletes are known, whose - one name when it is the same athlete, each run's when not
             const who = build.whoOf(d), whoRef = ref ? build.whoOf(ref) : '';
             const same = run.against != null && who === whoRef;
@@ -486,7 +633,9 @@
                 : ('Run ' + esc(run.number) + (run.against != null && !same ? ' (' + esc(named(who)) + ')' : '') + (run.against != null ? ' against run ' + esc(run.against) + (!same ? ' (' + esc(named(whoRef)) + ')' : '') : ''));
             const whose = (run.against == null || same) && who ? esc(who) + ' · ' : '';
             let h = '<div class="rt-cmp"><div class="rt-sec"><div class="h">' + head + ' <span class="n">— ' + whose + 'v' + esc(run.version) + (run.against != null ? ' · ' + esc(c.line || '') : '') + '</span></div>';
-            const th = (n, data) => { const when = build.whenOf(data); return '<th class="num">Run ' + esc(n) + (when ? '<span class="when">' + esc(when) + '</span>' : '') + '</th>'; };
+            const th = (n, data) => { const when = kind ? build.unitText(kind, build.windowOf(data), true) : build.whenOf(data); return kind && when ? '<th class="num">' + esc(when) + '<span class="when">run ' + esc(n) + '</span></th>' : '<th class="num">Run ' + esc(n) + (when ? '<span class="when">' + esc(when) + '</span>' : '') + '</th>'; };
+            const lineOf = x => series ? series.lines.findIndex(l => l.cell === x.cell && l.index === x.index) : -1;       // the comparison's row as the manifest's line, for its thumbnail
+            const trendTh = kind ? '<th class="trend">' + esc(build.INTERVAL_NAMES[kind]) + ' trend</th>' : '', trendTd = x => (kind ? '<td class="trend">' + (lineOf(x) >= 0 ? build.thumb(series, lineOf(x)) : '') + '</td>' : '');
             if (run.status === 'failed' || run.status === 'timed_out') {
                 // the failed cell's code beside the traceback (step 4, 2026-10-11): what ran, and where it stopped
                 const fc = run.failed_cell || null;
@@ -500,16 +649,16 @@
             } else if (run.against == null) {
                 // nothing to compare with - the first run on this athlete, or of the version: the record's own line says which
                 h += (run.number !== 0 && c.line ? '<div class="rt-line muted">' + esc(c.line) + '</div>' : '') +
-                    '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th>' + th(run.number, d) + '</tr></thead><tbody>' +
-                    rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(build.metricLabel(x.label)) + '</td><td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td></tr>').join('') + '</tbody></table>';
+                    '<table class="ui-table rt-cmp-table' + (kind ? ' with-trend' : '') + '"><thead><tr><th>Result</th>' + th(run.number, d) + trendTh + '</tr></thead><tbody>' +
+                    rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(build.metricLabel(x.label)) + '</td><td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' + trendTd(x) + '</tr>').join('') + '</tbody></table>';
             } else {
-                h += '<table class="ui-table rt-cmp-table"><thead><tr><th>Result</th>' + th(run.against, ref) + th(run.number, d) + '<th class="num">Change</th><th>Intervals</th></tr></thead><tbody>' +
+                h += '<table class="ui-table rt-cmp-table' + (kind ? ' with-trend' : '') + '"><thead><tr><th>Result</th>' + th(run.against, ref) + th(run.number, d) + '<th class="num">Change</th><th>Intervals</th>' + trendTh + '</tr></thead><tbody>' +
                     rows.map(x => '<tr class="' + esc(x.mark) + '"><td class="label" title="' + esc(x.label) + '">' + esc(build.metricLabel(x.label)) + '</td>' +
                         '<td class="num">' + esc(build.num((x.before || {}).estimate)) + '<div class="ci">' + build.ivl(x.before) + '</div></td>' +
                         '<td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' +
                         '<td class="num change">' + (x.change == null ? '' : esc((x.change > 0 ? '+' : '') + Number(x.change.toPrecision(3)))) + '</td>' +
-                        '<td><span class="rt-mark ' + esc(x.mark) + '">' + build.markText(x.mark) + '</span> ' + build.markWord(x) + '</td></tr>').join('') + '</tbody></table>' +
-                    '<div class="rt-legend">Estimates with their 95% intervals, as the routine printed them. "moved" means the two intervals do not overlap; "within" means they do; without intervals, "changed" and "same" compare the estimates' + ((c.unreached || 0) ? '; "not reached" is a line the run failed before printing' : '') + '. Nothing here is written by a model.</div>';
+                        '<td><span class="rt-mark ' + esc(x.mark) + '">' + build.markText(x.mark) + '</span> ' + build.markWord(x) + '</td>' + trendTd(x) + '</tr>').join('') + '</tbody></table>' +
+                    '<div class="rt-legend">Estimates with their 95% intervals, as the routine printed them. "moved" means the two intervals do not overlap; "within" means they do; without intervals, "changed" and "same" compare the estimates' + ((c.unreached || 0) ? '; "not reached" is a line the run failed before printing' : '') + (kind ? '. The trend is each line over the ' + kind + 's run on this athlete, oldest to newest' : '') + '. Nothing here is written by a model.</div>';
             }
             return h + '</div></div>';
         },
@@ -532,13 +681,6 @@
                 (d.aux && d.aux.length ? '<b>Auxiliary</b><span>' + d.aux.map(a => esc(String(a).split('/').pop())).join(', ') + '</span>' : '') +
                 '<b>Columns</b><span>' + (Array.isArray(cols) && cols.length && typeof cols[0] === 'object' ? cols.map(c => esc(c.name) + (c.dtype ? ' <span class="ui-muted">' + esc(c.dtype) + '</span>' : '')).join(', ') : esc(String(cols))) + '</span></div></div></div>';
         },
-        spark(values) {
-            const v = values.filter(x => x != null);
-            if (v.length < 3) return '';
-            const min = Math.min.apply(null, v), max = Math.max.apply(null, v), span = (max - min) || 1;
-            const pts = v.map((x, i) => (4 + i * (64 / (v.length - 1))).toFixed(1) + ',' + (15 - (x - min) / span * 12).toFixed(1));
-            return '<svg class="rt-spark" viewBox="0 0 72 18"><polyline points="' + pts.join(' ') + '"/><circle cx="' + pts[pts.length - 1].split(',')[0] + '" cy="' + pts[pts.length - 1].split(',')[1] + '" r="1.8"/></svg>';
-        },
         markOf(now, before) {
             if (!now || !before) return 'missing';
             const a = parseFloat(String(now.estimate).replace(/,/g, '')), b = parseFloat(String(before.estimate).replace(/,/g, ''));
@@ -548,22 +690,22 @@
             if (isNaN(a) || isNaN(b)) return now.estimate === before.estimate ? 'same' : 'changed';
             return a === b ? 'same' : (a > b ? 'up' : 'down');
         },
+        // the custom runs (§14.6): a column per run in the order they were run, each against the one before - not a series, so no
+        // trend is drawn across them; the head says the run's day and its window's length, the window itself on hover
         runsTable(r, athleteId) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
             const lines = ((v.manifest || {}).results || []).filter(x => !x.dropped && x.estimate != null);
             const cols = [];
-            const own = x => athleteId == null || build.subjectId(x) === String(athleteId);        // one athlete's runs when asked (2026-10-30)
-            if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [] });
-            (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && own(x)).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [] }));
-            if (!lines.length || !cols.length) return '<div class="rt-line muted">' + (!lines.length ? 'This routine records no result lines; its runs keep their output and figures.' : 'No run yet.') + '</div>';
+            const days = d => { const w = build.windowOf(d), a = build.dayOf(w[0]), b = build.dayOf(w[1]); return a && b ? Math.round((b - a) / 86400000) : null; };     // start to end, as the Data tab's pill and the run dialog count a window
+            if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [], when: build.whenOf(((v.manifest || {}).data) || {}), days: days(((v.manifest || {}).data) || {}) });
+            build.doneRuns(r, athleteId).filter(x => !x.interval).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [], when: build.whenOf(x.data || {}), days: days(x.data || {}) }));
+            if (!lines.length || !cols.length) return '<div class="rt-line muted">' + (!lines.length ? 'This routine records no result lines; its runs keep their output and figures.' : 'No custom run yet.') + '</div>';
             const all = ((v.manifest || {}).results || []);
-            // the mark sits between the two numbers it compares, in a column of its own (2026-10-10: beside the second
-            // number it read as a misplaced Trend); Trend holds the sparkline, so it appears with the third run
-            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num">Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + '</span></th>').join('') + (cols.length > 2 ? '<th>Trend</th>' : '') + '</tr></thead>';
+            // the mark sits between the two numbers it compares, in a column of its own (2026-10-10: beside the second number it read as a misplaced Trend)
+            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num"' + (c.when ? ' title="' + esc(c.when) + '"' : '') + '>Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + (c.days ? ' · ' + esc(c.days) + ' days' : '') + '</span></th>').join('') + '</tr></thead>';
             const body = lines.map(line => {
                 const pos = all.indexOf(line);
                 const cells = cols.map(c => c.results[pos] || null);
-                const vals = cells.map(x => x ? parseFloat(String(x.estimate).replace(/,/g, '')) : null);
                 let tds = '<td class="label" title="' + esc(line.label) + '">' + esc(build.metricLabel(line.label)) + '</td>';
                 cells.forEach((x, i) => {
                     if (i) {
@@ -572,13 +714,15 @@
                     }
                     tds += '<td class="num"' + (x ? ' title="' + build.ivl(x).replace(/"/g, '') + '"' : '') + '>' + (x ? esc(x.estimate) : '<span class="rt-mark missing">·</span>') + '</td>';
                 });
-                if (cols.length > 2) tds += '<td>' + build.spark(vals) + '</td>';
                 return '<tr>' + tds + '</tr>';
             }).join('');
-            return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table><div class="rt-legend">Between two runs: ↑ ↓ when the intervals do not overlap, = when they do; · a line the run did not print. Hover a number for its interval.' + (cols.length > 2 ? ' Trend: the numbers across the runs.' : '') + '</div>';
+            return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table><div class="rt-legend">Custom windows are of different lengths (the window on hover) and are not a series: the runs in the order they were run, each against the one before - ↑ ↓ when the intervals do not overlap, = when they do; · a line the run did not print. Hover a number for its interval. No trend is drawn across them; a set interval has one.</div>';
         },
-        runsList(r, athleteId) {
-            const items = (r.runs || []).slice().reverse().filter(x => athleteId == null || build.subjectId(x) === String(athleteId)).map(x => {
+        // the runs list (§14.6): the interval picked - the custom runs and run 0 under Custom - the latest first, the latest five in
+        // view and the rest by scrolling
+        runsList(r, athleteId, kind) {
+            const custom = !kind || kind === 'custom';
+            const items = (r.runs || []).slice().reverse().filter(x => (athleteId == null || build.subjectId(x) === String(athleteId)) && (custom ? !x.interval : x.interval === kind)).map(x => {
                 const d = x.data || {};
                 const inputs = Object.keys(x.inputs || {}).length ? Object.entries(x.inputs).map(([k, val]) => esc(k) + ' = ' + esc(Array.isArray(val) ? val.join(', ') : val)).join(' · ') : '';
                 const status = x.status === 'reproduced' ? 'reproduced' : (x.status === 'ran' ? ((x.comparison || {}).moved ? 'ran · ' + x.comparison.moved + ' of ' + x.comparison.compared + ' moved' : 'ran') : x.status.replace('_', ' '));
@@ -588,8 +732,8 @@
                     '<span class="rt-status ' + esc(x.status) + '">' + status + '</span><span class="open">open →</span></div>';
             });
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
-            if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) items.push('<div class="ui-item rt-run" data-run="0"><span class="n">run 0</span><span class="w"><b>' + esc(fmtDate(v.run_zero.created)) + '</b> the analysis\u2019s own data · v' + esc(v.number) + '</span><span class="rt-status reproduced">reproduced</span><span class="open">open →</span></div>');
-            return items.length ? '<div class="ui-list rt-runlist">' + items.join('') + '</div>' : '<div class="rt-line muted">None yet.</div>';
+            if (custom && v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) items.push('<div class="ui-item rt-run" data-run="0"><span class="n">run 0</span><span class="w"><b>' + esc(fmtDate(v.run_zero.created)) + '</b> the analysis’s own data · v' + esc(v.number) + '</span><span class="rt-status reproduced">reproduced</span><span class="open">open →</span></div>');
+            return items.length ? '<div class="rt-runbox"><div class="ui-list rt-runlist">' + items.join('') + '</div></div>' : '<div class="rt-line muted">None yet.</div>';
         },
         // the favourites' cards' button
         cardButton(n) {
@@ -602,7 +746,13 @@
     const originCache = {};            // "thread/chain" -> [{id, name, version}]; "thread" -> [...]
     let menuEl = null, menuTimer = null, menuState = { saved: false, own: [], thread: [] };
     let dialog = null, dialogState = null;
-    let manager = null, managerState = { list: [], current: null, athlete: '' };     // athlete: the runs shown in the manager (2026-10-30)
+    let manager = null, managerState = { list: [], current: null, athlete: '', interval: '', horizon: 365 };     // athlete: the runs shown in the manager (2026-10-30); interval: the filter picked (§14.6)
+    // the horizon a set interval's view spans (§14.6): the plan's day limit, at most a year; asked once per page
+    let horizonPromise = null;
+    function horizon() {
+        if (!horizonPromise) horizonPromise = fetchJson('/intervals/get_data_limits').then(res => Math.min(365, Number((res.json || {}).max_days) || 365)).catch(() => 365);
+        return horizonPromise;
+    }
 
     function fetchJson(url, opts) {
         const f = (window.authService && window.authService.fetch) ? window.authService.fetch.bind(window.authService) : fetch;
@@ -888,6 +1038,10 @@
             }
             const runItem = e.target.closest('.rt-run');
             if (runItem && managerState.current) { const n = Number(runItem.getAttribute('data-run')); closeManager(); viewRun(managerState.current.id, n); return; }
+            const filter = e.target.closest('.rt-filter [data-filter]');          // the interval shown (§14.6); one never run is greyed and inert
+            if (filter) { if (!filter.classList.contains('off') && managerState.current) { managerState.interval = filter.getAttribute('data-filter'); renderManagerBody(); } return; }
+            const thumb = e.target.closest('.rt-thumb[data-line]');
+            if (thumb && managerState.current) { openTrend(Number(thumb.getAttribute('data-line'))); return; }
             const b = e.target.closest('[data-act]'); if (!b || !managerState.current) return;
             const r = managerState.current;
             if (b.getAttribute('data-act') === 'run') { openRun(r.id); return; }
@@ -912,7 +1066,7 @@
         manager.addEventListener('change', e => {                // whose runs (2026-10-30): the table and the list follow the pick
             const pick = e.target.closest('select[data-pick="athlete"]'); if (!pick || !managerState.current) return;
             managerState.athlete = pick.value;
-            manager.querySelector('.rt-body').innerHTML = build.routineBody(managerState.current, fillFor(managerState.current.id));
+            renderManagerBody();
         });
         return manager;
     }
@@ -941,12 +1095,81 @@
         const m = ensureManager();
         const body = m.querySelector('.rt-body'), title = m.querySelector('.rt-right .title'), sub = m.querySelector('.rt-right .sub'), actions = m.querySelector('.rt-actions');
         m.querySelectorAll('.rt-side .it').forEach(x => x.classList.toggle('on', x.getAttribute('data-id') === id));
-        return fetchJson('/routines/' + encodeURIComponent(id)).then(res => {
+        return Promise.all([fetchJson('/routines/' + encodeURIComponent(id)), horizon()]).then(([res, h]) => {
             if (!res.ok) { body.innerHTML = build.error('This routine could not be loaded.', false); return; }
-            const r = res.json.routine; managerState.current = r;
+            const r = res.json.routine; managerState.current = r; managerState.horizon = h;
             const hd = build.routineHeader(r);
-            title.innerHTML = hd.title; sub.innerHTML = hd.sub; actions.innerHTML = build.actions(r); body.innerHTML = build.routineBody(r, fillFor(r.id));
+            title.innerHTML = hd.title; sub.innerHTML = hd.sub; actions.innerHTML = build.actions(r);
+            renderManagerBody();
         });
+    }
+    function renderManagerBody() {
+        const r = managerState.current; if (!manager || !r) return;
+        manager.querySelector('.rt-body').innerHTML = build.routineBody(r, fillFor(r.id), { horizon: managerState.horizon });
+    }
+    // the series the manager shows (§14.6): the interval and athlete picked, over the horizon's units; null under Custom
+    function managerSeries() {
+        const r = managerState.current; if (!r) return null;
+        const athletes = build.runAthletes(r), many = athletes.length > 1;
+        const athleteId = many ? (athletes.find(a => a.id === managerState.athlete) ? managerState.athlete : athletes[0].id) : null;
+        const counts = build.intervalCounts(r, athleteId);
+        const kind = counts[managerState.interval] ? managerState.interval : build.openInterval(r, athleteId);
+        return kind === 'custom' ? null : { series: build.series(r, kind, athleteId, build.units(kind, new Date(), managerState.horizon)), athlete: (athletes.find(a => a.id === athleteId) || {}).name || '' };
+    }
+
+    // ------------------------------------------------------------ the enlarged chart (§14.6): a thumbnail at full size, on a calendar axis
+    let trendDlg = null, trendState = null;
+    function ensureTrendDialog() {
+        if (trendDlg) return trendDlg;
+        trendDlg = document.createElement('div'); trendDlg.id = 'routineTrendModal'; trendDlg.className = 'modal ui-modal'; trendDlg.style.display = 'none';
+        trendDlg.innerHTML = '<div class="modal-content ui-dlg routine-dlg trend-dlg">' +
+            '<div class="ui-dlg-h"><div><div class="title"></div><div class="sub"></div></div><span class="sp"></span>' +
+            '<span class="ui-seg rt-months"><span data-months="3">3 m</span><span data-months="6">6 m</span><span class="on" data-months="12">12 m</span></span>' +
+            '<select class="ui-input rt-also" title="a second line, on the right axis"></select><button class="ui-btn ghost" data-act="png" title="the chart as a picture">' + ICON_DOWN + 'PNG</button><button class="x" aria-label="Close">×</button></div>' +
+            '<div class="ui-dlg-b rt-trend"></div><div class="ui-dlg-f"><span class="note"></span></div></div>';
+        document.body.appendChild(trendDlg);
+        trendDlg.addEventListener('click', e => {
+            if (e.target === trendDlg || e.target.closest('.ui-dlg-h .x')) { closeTrend(); return; }
+            const m = e.target.closest('.rt-months [data-months]');
+            if (m && trendState) { trendState.months = Number(m.getAttribute('data-months')); renderTrend(); return; }
+            if (e.target.closest('[data-act="png"]')) savePng();
+        });
+        trendDlg.addEventListener('change', e => { if (e.target.closest('.rt-also') && trendState) { trendState.also = Number(e.target.value); renderTrend(); } });
+        return trendDlg;
+    }
+    function closeTrend() { if (trendDlg) trendDlg.style.display = 'none'; trendState = null; }
+    function chartColors() {
+        const css = getComputedStyle(document.documentElement), v = (n, d) => (css.getPropertyValue(n) || '').trim() || d;
+        return { text: v('--text-tertiary', '#9aa3ad'), grid: v('--border-color', '#2a3038'), line: v('--c-model', '#2ecc71'), also: v('--c-kernel', '#5dade2'), box: v('--text-quaternary', '#6b7480') };
+    }
+    function openTrend(line) {
+        const ms = managerSeries(); if (!ms || !ms.series.lines[line]) return;
+        trendState = { series: ms.series, athlete: ms.athlete, line, months: 12, also: -1 };
+        const d = ensureTrendDialog();
+        d.querySelectorAll('.rt-months [data-months]').forEach(el => el.classList.toggle('on', el.getAttribute('data-months') === '12'));
+        d.querySelector('.rt-also').innerHTML = '<option value="-1">also show: none</option>' + ms.series.lines.map((l, i) => (i === line ? '' : '<option value="' + i + '">' + esc(build.metricLabel(l.label)) + '</option>')).join('');
+        d.style.display = 'flex';
+        renderTrend();
+    }
+    function renderTrend() {
+        const st = trendState; if (!st) return;
+        const d = ensureTrendDialog(), s = st.series, one = s.kind;
+        d.querySelector('.title').textContent = build.metricLabel(s.lines[st.line].label);
+        d.querySelector('.sub').textContent = 'by ' + one + (st.athlete ? ' · ' + st.athlete : '') + ' · the latest ' + st.months + ' months';
+        d.querySelectorAll('.rt-months [data-months]').forEach(el => el.classList.toggle('on', Number(el.getAttribute('data-months')) === st.months));
+        d.querySelector('.rt-trend').innerHTML = build.trendChart(s, st.line, st.months, st.also, chartColors());
+        const svg = d.querySelector('.rt-chart'), missing = Number(svg && svg.getAttribute('data-missing')) || 0, n = Number(svg && svg.getAttribute('data-points')) || 0;
+        d.querySelector('.ui-dlg-f .note').textContent = 'One dot per ' + one + ' at its place in the calendar (' + n + ' run), the latest ringed; a ' + one + ' not run is a gap, never a line across it' + (missing ? ' - ' + missing + ' ' + (missing === 1 ? one : one + 's') + ' in view not run yet: Run → ' + one.charAt(0).toUpperCase() + one.slice(1) + ' → fill the ' + one + 's back' : '') + '. Hover a dot for the run. Nothing is computed here that the thumbnail does not have.';
+    }
+    function savePng() {
+        const svg = trendDlg && trendDlg.querySelector('.rt-chart'); if (!svg) return;
+        const xml = new XMLSerializer().serializeToString(svg), img = new Image();
+        img.onload = () => {
+            const c = document.createElement('canvas'); c.width = 2360; c.height = 720;
+            const ctx = c.getContext('2d'); ctx.fillStyle = (getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary') || '#fff').trim() || '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+            const a = document.createElement('a'); a.download = (trendState ? build.metricLabel(trendState.series.lines[trendState.line].label).replace(/[^A-Za-z0-9]+/g, '_') : 'trend') + '.png'; a.href = c.toDataURL('image/png'); a.click();
+        };
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
     }
 
     // ------------------------------------------------------------ the run dialog (S3, the data loaded now)
@@ -1518,8 +1741,18 @@
         const c = run.comparison || {};
         if (typeof paneRunStrip === 'function') paneRunStrip({ mode: 'Routine', run: run.number, version: run.version, idle: true, estimate: run.against != null ? 'run ' + run.against + ' — ' + (c.line || '') : (c.line || '') });
         if (typeof createOrUpdateTab === 'function') createOrUpdateTab('comparison', build.comparisonTab({ run, against_data: out.against_data || null }));
+        withSeries(viewState.routine.id, run, subjectIdOf(viewState.subject), s => createOrUpdateTab('comparison', build.comparisonTab({ run, against_data: out.against_data || null }, s)));
         updateRunNav();
         toast('Run ' + run.number + ' recorded · ' + (run.line || run.status));
+    }
+    // the Trend tab's series (§14.6): a run on a set interval draws each line over the athlete's units, from the routine's runs
+    function withSeries(routineId, run, subjectId, show) {
+        if (!run || !run.interval || typeof createOrUpdateTab !== 'function') return;
+        Promise.all([fetchJson('/routines/' + encodeURIComponent(routineId)), horizon()]).then(([res, h]) => {
+            const r = res.ok && res.json && res.json.routine;
+            if (!r || !viewState || viewState.routine.id !== routineId || viewState.numbers[viewState.index] !== run.number) return;
+            show(build.series(r, run.interval, subjectId || '', build.units(run.interval, new Date(), h)));
+        }).catch(() => {});
     }
     function viewRun(routineId, number) {
         if (typeof queryRunning !== 'undefined' && queryRunning) { toast('An analysis is running; open the run when it has finished.'); return; }
@@ -1546,6 +1779,7 @@
                 if (view.stdout) createOrUpdateTab('code_exec_results', view.stdout);
                 createOrUpdateTab('dataframe', build.dataTab(d, run));
                 if (typeof activateTab === 'function') activateTab('comparison');
+                withSeries(routineId, run, subjectIdOf(view.subject), s => createOrUpdateTab('comparison', build.comparisonTab(view, s)));
             }
             if (typeof paneRunIds === 'function') paneRunIds({ name: view.name, run: run.number + ' · v' + run.version + whoLine(), df_id: d.df_id || '' });
             updateRunNav();

@@ -224,6 +224,8 @@ function createOrUpdateTab(type, data, id = null, format = null) {
             tabName = 'Data';
         } else if (type === 'plot') {
             tabName = 'Plots';
+        } else if (type === 'comparison') {
+            tabName = 'Trend';             // a routine's run against the one before, and the line over the units (docs/ROUTINES_DESIGN.md §14.6, 2026-11-06)
         } else {
             tabName = type.charAt(0).toUpperCase() + type.slice(1);
         }

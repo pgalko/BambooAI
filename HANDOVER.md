@@ -99,10 +99,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/162/60/93/27/30/37/15/88/1/1 Python; 58/7/45/72/24/105/14/25/4/14/67/41 JS; 1,715 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/162/60/93/27/30/37/15/88/1/1 Python; 58/7/45/72/24/116/14/25/4/14/67/41 JS; 1,726 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (140; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -481,6 +481,26 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines by the calendar, step 2: the Summary by interval (2026-11-06, patch 0265; page only, image v74 stands;
+  no migration). docs/ROUTINES_DESIGN.md §14.6.** The manager's *Results across runs* has a filter bar - *Daily ·
+  Weekly · Monthly · Yearly · Custom* with the counts on the athlete picked, an interval never run greyed and inert
+  (`intervalCounts`, `filterBar`; the pick opens on the latest run's interval, `openInterval`; kept in
+  `managerState.interval`). A set interval shows the table by unit (`series` over `units(kind, today, horizon)` -
+  the horizon the plan's day limit, at most a year, `horizon()` asked once per page; `byIntervalTable`: a row per
+  unit run, the latest first and tinted, the mark against the row below, the shared label prefix said once in the
+  heading, `sharedPrefix`; a thumbnail per line in the column head, `thumb`, broken at the units not run, the latest
+  ringed) in a box with its head fixed, and the legend counts the units of the horizon not run. Custom is the table
+  by run (`runsTable`, the custom runs alone, the sparkline gone: custom windows are not a series; the head says the
+  window's length, the window on hover). A thumbnail opens the enlarged chart (`#routineTrendModal`, `openTrend` /
+  `renderTrend` / `savePng`; `trendChart(series, line, months, also, colors)`: a calendar axis with the months, dots
+  with titles, dashed boxes over the stretches not run with the count when wide enough, the latest / highest /
+  lowest values written, `3 m · 6 m · 12 m`, a second line on a right axis, PNG from the SVG with its colours
+  written in). The runs list follows the interval picked, in a box of five (`runsList(r, athlete, kind)`; run 0
+  under Custom). The run view's Comparison tab is renamed **Trend** (content-rendering.js, the closing card's link in
+  stream-pane.js; the tab's id `comparison` stays): a run on a set interval gets the units as heads and a last
+  column of thumbnails from the routine's runs (`withSeries` after the first render; `comparisonTab(view,
+  series)`). Tests: test_routines.js 116, the screens tool (s6c the Summary on Weekly, s6d the enlarged chart, s5c
+  the Trend tab of a week; s5 / s5b expect the tab named Trend), the stack walk 134, the integrations walk 143.
 - **Routines by the calendar, step 1: the interval and the fill (2026-11-06, patch 0264; app and page, image v74
   stands; no migration). docs/ROUTINES_DESIGN.md §14.** Palo's rethink after the set-aside 0261-0263 (branch
   `set-aside/routines-for-a-coach`): the trend followed the run order and the windows differed in length. A run now
