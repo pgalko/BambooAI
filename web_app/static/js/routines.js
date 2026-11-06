@@ -382,11 +382,14 @@
             if (st === 'differed' || st === 'failed') return 'run zero did not reproduce the chain’s analysis — the method is not run on other data; delete it, or make it again from the chain';
             return '';
         },
-        actions(r) {
-            const hold = build.zeroHold(r);
+        // the header's buttons; while a fill runs (§14.3) Run and Delete are greyed with the reason - the kernel is taken, and a
+        // routine under a fill is not deleted under it
+        actions(r, fill) {
+            const busy = fill && fill.running ? (fill.routine_id === r.id ? 'a fill is running — wait for it, or stop it below' : 'a fill is running on ' + (fill.routine_name || 'another routine') + ' — wait for it, or stop it there') : '';
+            const hold = busy || build.zeroHold(r);
             return '<button class="ui-btn primary" data-act="run"' + (hold ? ' disabled title="' + esc(hold) + '"' : ' title="run the method on the data loaded now"') + '>' + ICON_ROUTINE + 'Run</button>' +
                 '<a class="ui-btn ghost" href="/routines/' + esc(r.id) + '/script" download title="the script, with its inputs at the top">' + ICON_DOWN + '.py</a>' +
-                '<button class="ui-btn ghost" data-act="rename">Rename</button><button class="ui-btn ghost danger-text" data-act="delete">Delete</button>';
+                '<button class="ui-btn ghost" data-act="rename">Rename</button><button class="ui-btn ghost danger-text" data-act="delete"' + (busy ? ' disabled title="' + esc(busy) + '"' : '') + '>Delete</button>';
         },
         // ---- a run (docs/ROUTINES_DESIGN.md F2, S3, S4)
         inputWidget(p) {
@@ -515,7 +518,9 @@
             return 'Filled ' + st.total + ' ' + (st.total === 1 ? one : many) + ' in ' + (st.elapsed < 1 ? 'under a second' : fmtTook(st.elapsed)) + (st.failed ? ' · ' + st.failed + ' failed' : '');
         },
         fillBar(st) {
-            return st && st.running ? '<div class="rt-fillbar"><span class="live"></span><span class="t">' + esc(build.fillLine(st)) + '</span><button class="ui-btn sm" data-act="stop-fill">Stop</button></div>' : '';
+            if (!st || !st.total) return '';
+            if (st.running) return '<div class="rt-fillbar"><span class="live"></span><span class="t">' + esc(build.fillLine(st)) + '</span><button class="ui-btn sm" data-act="stop-fill">Stop</button></div>';
+            return '<div class="rt-fillbar done' + (st.stopped || st.failed ? ' warn' : '') + '"><span class="mark">' + (st.stopped || st.failed ? '!' : '✓') + '</span><span class="t">' + esc(build.fillLine(st)) + '</span></div>';
         },
         // a result's label without what was true of the original data (§14.4): trailing segments that are a date range or a count
         // ("all 380 activities", "n = 380") are dropped; the full label stays on hover
@@ -1117,7 +1122,7 @@
         m.style.display = 'flex';
         loadManager(routineId);
     }
-    function closeManager() { if (manager) manager.style.display = 'none'; }
+    function closeManager() { if (manager) manager.style.display = 'none'; if (fillState && !fillState.running) fillState = null; }     // an ended fill's last word is read once
     function loadManager(routineId) {
         const m = ensureManager();
         const side = m.querySelector('.rt-side'), body = m.querySelector('.rt-body'), title = m.querySelector('.rt-right .title'), sub = m.querySelector('.rt-right .sub'), actions = m.querySelector('.rt-actions');
@@ -1141,7 +1146,7 @@
             if (!res.ok) { body.innerHTML = build.error('This routine could not be loaded.', false); return; }
             const r = res.json.routine; managerState.current = r; managerState.horizon = h;
             const hd = build.routineHeader(r);
-            title.innerHTML = hd.title; sub.innerHTML = hd.sub; actions.innerHTML = build.actions(r);
+            title.innerHTML = hd.title; sub.innerHTML = hd.sub; actions.innerHTML = build.actions(r, fillState);
             renderManagerBody();
         });
     }

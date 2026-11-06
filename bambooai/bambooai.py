@@ -738,9 +738,10 @@ class BambooAI:
         fill = getattr(self, "_fill", None)
         if fill is not None and fill.running:
             raise routines_host.RoutineRefused("a fill is already running: wait for it, or stop it in the Summary")
-        if self.routine_store().load(routine_id) is None:
+        routine = self.routine_store().load(routine_id)
+        if routine is None:
             raise routines_host.RoutineRefused("no such routine")
-        self._fill = routines_host.Fill(self, routine_id, interval, windows, values, aux, load).start()
+        self._fill = routines_host.Fill(self, routine_id, interval, windows, values, aux, load, routine_name=routine.get("name") or "").start()
         return self._fill.status()
 
     def fill_status(self):

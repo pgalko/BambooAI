@@ -538,6 +538,8 @@ _f4 = host.Fill(_Inst(), "r1", "week", [["2026-10-05", "2026-10-11"]], load={"ca
 check("Fill stops when the Data tab's frame is no longer the span (after the window under way, with the reason) and when asked (the window under way finishes); the span is the load's cached_from when the page loaded a wider frame",
       _f2.status()["stopped"] and _f2.status()["done"] == 1 and _f2.status()["error"] == "the data on the Data tab changed" and _f3.status()["stopped"] and _f3.status()["done"] == 1 and _f3.status()["error"] == ""
       and _f4.instance.calls[0][2] == ["2026-09-01", "2026-11-01"], (_f2.status(), _f3.status()))
+check("Fill's status names its routine (the Summary greys Run on another routine with the name); empty when none was given",
+      host.Fill(_Inst(), "r1", "day", [["2026-11-01", "2026-11-01"]], routine_name="Start hours").status()["routine_name"] == "Start hours" and _f4.status()["routine_name"] == "")
 # ---- the data made to fit the recorded shape (2026-10-10): a method that reads a loader's auxiliary file by its dated name ----
 aux_dir = os.path.join(tempfile.mkdtemp(), "datasets", "local")
 os.makedirs(aux_dir)

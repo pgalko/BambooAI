@@ -879,6 +879,16 @@ with `interval`, the main panes, the Comparison tab. More than one is a **fill**
    41 weeks) — the composer comes back when it ends; stop it in the Summary*), Run and Delete refuse with a toast, and
    the server answers 409 to a second `/fill` and to `/run`; a fill is not started while a query runs (Run refuses
    then, as it did). Reloading the page loses nothing: the state is the instance's; the page asks for it as it loads.
+6. Said in the Summary (2026-11-06, after the first live fill: "no indication in the modal when the run has finished;
+   the run button stays available during the run"): while a fill runs the header's **Run** and **Delete** are greyed
+   with the reason (*a fill is running — wait for it, or stop it below*; on another routine, the one under the fill
+   named: the status carries `routine_name`); when it ends, the bar's place keeps the last word - *✓ Filled 41 weeks
+   in 19 min*, or *! Stopped after 5 of 41 weeks: …* - with no dot and no Stop, until the Summary is closed; the
+   toast stays for whoever is not looking at the Summary.
+
+The dialogs keep their size (2026-11-06: "the modal changes size slightly when I click on different elements … only
+the scroll bars should change"): the Summary and the Run dialog have a set height, so what comes and goes inside them
+- the plan under the interval, the pickers, the lines, the filter's rows - scrolls the body and never moves the box.
 
 A daily fill is 365 runs; the dialog says the count and the time before Run, and that is the whole of the protection.
 

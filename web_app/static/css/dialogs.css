@@ -267,7 +267,7 @@
 .rt-eta { color: var(--text-tertiary); font-size: var(--fs-small); margin: 4px 0 2px; }
 /* the manager: the shape of the saved-workflows dialog, a list on the left and one routine on the right */
 #routinesModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
-#routinesModal .ui-dlg.rt-mgr { width: min(1240px, 100%); max-height: min(90vh, 900px); flex-direction: row; overflow: hidden; }
+#routinesModal .ui-dlg.rt-mgr { width: min(1240px, 100%); height: min(90vh, 900px); flex-direction: row; overflow: hidden; }     /* a set height (2026-11-06): the body scrolls, the box does not follow its content */
 #routinesModal .rt-left { width: 270px; flex-shrink: 0; border-right: 1px solid var(--border-color); padding: 14px 10px 12px; display: flex; flex-direction: column; gap: 6px; overflow: auto; }
 #routinesModal .rt-left .ui-side-label { margin: 0 0 4px 6px; }
 #routinesModal .rt-right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -287,7 +287,7 @@
 .rt-empty { padding: 24px; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.6; max-width: 560px; }
 .rt-empty b { color: var(--text-primary); }
 /* a run (step 2): the run dialog's fields, the runs table in the manager, the Comparison tab in the right pane, the runs list */
-#routineRunModal .ui-dlg.run-dlg { width: min(640px, 100%); }
+#routineRunModal .ui-dlg.run-dlg { width: min(640px, 100%); height: min(80vh, 720px); }     /* a set height (2026-11-06): the plan, the pickers and the lines come and go inside it */
 #routineRunModal .ui-dlg-b { display: flex; flex-direction: column; gap: 14px; }
 #routineRunModal .ui-dlg-f .note { max-width: 420px; line-height: 1.4; }
 .rt-fit { font-size: var(--fs-small); color: var(--c-model); display: flex; align-items: center; gap: 6px; line-height: 1.4; }
@@ -320,6 +320,9 @@
 .rt-fillbar { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-secondary); }
 .rt-fillbar .live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); flex-shrink: 0; animation: rt-pulse 1.2s ease-in-out infinite; }
 .rt-fillbar .t { flex: 1; min-width: 0; }
+/* the fill's last word stays where the bar was until the Summary is closed (2026-11-06): ✓ filled, ! stopped or with failures */
+.rt-fillbar.done .mark { width: 8px; flex-shrink: 0; text-align: center; color: var(--c-model); font-weight: 600; }
+.rt-fillbar.done.warn .mark { color: var(--c-kernel); }
 /* the manager's runs by athlete: the pick at the right of the heading */
 .rt-sec > .h .rt-athlete-pick { margin-left: auto; height: 24px; font-size: var(--fs-small); text-transform: none; letter-spacing: 0; max-width: 60%; }
 .rt-load .help { margin: 0 0 6px 22px; font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }

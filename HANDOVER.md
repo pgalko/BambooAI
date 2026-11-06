@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/173/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/123/14/25/4/14/67/41 JS; 1,745 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/174/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/126/14/25/4/14/67/41 JS; 1,749 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Summary during and after a fill; the dialogs' size (2026-11-06, patch 0268; page, plus `routine_name` on the
+  fill's status).** Palo after the first live fill: no sign in the modal that it had finished (the bar vanished, only a
+  toast), and Run stayed clickable during it. Now the header's Run and Delete are greyed with the reason while a fill
+  runs (`build.actions(r, fill)`; on another routine the one under the fill is named - `Fill.status()` carries
+  `routine_name`, passed by `fill_routine`), and when it ends the bar's place keeps the last word (`.rt-fillbar.done`:
+  *✓ Filled 41 weeks in 19 min*, *!* when stopped or with failures; no dot, no Stop) until the Summary is closed
+  (`closeManager` drops an ended `fillState`). And the Summary and the Run dialog have a set height (`height:` in
+  place of `max-height:` - 90vh/900px and 80vh/720px): the body scrolls, the box no longer grows and shrinks as the
+  plan, the pickers or the filter's rows come and go. docs/ROUTINES_DESIGN.md §14.3 (6). Tests: test_routines.js 126
+  (the ended bar, the greyed buttons and their titles, the source and stylesheet), test_routines.py 174 and
+  test_app_path.py (the name on the status), the screens tool (s6b Run greyed; s6e a fill ending while the Summary is
+  open - the fake status answers in turn), the integrations walk (Run and Delete greyed during the fill with the
+  title; after it the word in place, no Stop, Run back).
 - **The lines a run compares, and their names (2026-11-06, patch 0267; docs/ROUTINES_DESIGN.md §15).** The first
   live power-curve routine compared ten lines from four cells - the chain had computed the same quantity in cell 2, 3
   and 4 and the routine carried every version, each under that cell's wording. Root cause: the ledger is append-only

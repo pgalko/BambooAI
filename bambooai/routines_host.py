@@ -875,13 +875,15 @@ class Fill:
     on the pane's queue).
     It stops when asked (the window under way finishes) and when the Data tab no longer holds the span."""
 
-    def __init__(self, instance, routine_id: str, interval: str, windows: List, values: Optional[dict] = None, aux: Optional[List[str]] = None, load: Optional[dict] = None):
+    def __init__(self, instance, routine_id: str, interval: str, windows: List, values: Optional[dict] = None, aux: Optional[List[str]] = None, load: Optional[dict] = None,
+                 routine_name: str = ""):
         if interval not in INTERVALS:
             raise RoutineRefused(f"the interval must be one of {', '.join(INTERVALS)}")
         self.windows = [(str(w[0]), str(w[1])) for w in (windows or []) if isinstance(w, (list, tuple)) and len(w) == 2]
         if not self.windows or len(self.windows) != len(windows) or any(not re.fullmatch(r"\d{4}-\d{2}-\d{2}", x) for w in self.windows for x in w) or any(a > b for a, b in self.windows):
             raise RoutineRefused("the windows must be [start, end] pairs of dates, the start not after the end")
         self.instance, self.routine_id, self.interval = instance, str(routine_id), str(interval)
+        self.routine_name = str(routine_name or "")                    # on the status: the Summary names the routine under a fill when another is shown
         self.values, self.aux, self.load = dict(values or {}), aux, dict(load or {})
         self.df_id = getattr(instance, "df_id", None)                  # the span: the fill stops when the Data tab holds something else
         span = self.load.get("cached_from")
@@ -907,7 +909,7 @@ class Fill:
 
     def status(self) -> dict:
         now = self.finished or time.time()
-        return {"running": self.running, "routine_id": self.routine_id, "interval": self.interval, "total": len(self.windows), "done": self.done, "failed": self.failed,
+        return {"running": self.running, "routine_id": self.routine_id, "routine_name": self.routine_name, "interval": self.interval, "total": len(self.windows), "done": self.done, "failed": self.failed,
                 "current": list(self.current) if self.current else None, "stopped": self.stopped, "error": self.error, "last": self.last,
                 "started": self.started, "finished": self.finished, "elapsed": round(now - self.started, 1),
                 "left": round((now - self.started) / self.done * (len(self.windows) - self.done), 0) if self.done and self.running else None}

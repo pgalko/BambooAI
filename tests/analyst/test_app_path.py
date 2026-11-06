@@ -438,8 +438,8 @@ _rj_f = _wc.get(f"/routines/{_rid}").get_json()["routine"]
 _wk_runs = [x for x in _rj_f["runs"] if x.get("interval") == "week"]
 _qd = []
 while not q.empty(): _qd.append(q.get())
-check("route fill: 202 with the status (3 weeks, nothing done yet); the fill ends not running, 3 of 3 done, none failed, in order",
-      _rf.status_code == 202 and _fst0.get("total") == 3 and _fst0.get("done") == 0 and _fst0.get("interval") == "week" and _fst["running"] is False and _fst["done"] == 3 and _fst["failed"] == 0 and _fst["stopped"] is False and _fst["error"] == "" and _fst["finished"], (_rf.status_code, _fst0, _fst))
+check("route fill: 202 with the status (3 weeks, nothing done yet, the routine named); the fill ends not running, 3 of 3 done, none failed, in order",
+      _rf.status_code == 202 and _fst0.get("total") == 3 and _fst0.get("done") == 0 and _fst0.get("interval") == "week" and _fst0.get("routine_name") == _rj_f.get("name") and _fst["running"] is False and _fst["done"] == 3 and _fst["failed"] == 0 and _fst["stopped"] is False and _fst["error"] == "" and _fst["finished"], (_rf.status_code, _fst0, _fst))
 check("the three runs landed oldest first, each with interval 'week', its window and the subject on the summary, the first against nothing (no earlier week), the next two each against the week before; the values given; nothing went to the pane's queue (quiet)",
       len(_rj_f["runs"]) == _n_before + 3 and [x["data"]["window"] for x in _wk_runs] == _wins and all(x["data"]["subject"] == {"id": "i0", "name": "The subject"} and x["inputs"] == {"arm_b": "A"} and x["status"] in ("ran", "reproduced") for x in _wk_runs)
       and _wk_runs[0]["against"] is None and _wk_runs[1]["against"] == _wk_runs[0]["number"] and _wk_runs[2]["against"] == _wk_runs[1]["number"] and _wk_runs[0]["comparison"]["line"] == "nothing to compare with: no earlier week on record for this subject" and not _qd,
