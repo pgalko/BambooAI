@@ -87,6 +87,11 @@ def pick_athlete(page, athlete_id):
             if os.environ.get("SHOTS"):                                         # the page as it stood when the row could not be clicked
                 page.screenshot(path=os.path.join(os.environ["SHOTS"], "pick_athlete_failed.png"))
                 open(os.path.join(os.environ["SHOTS"], "pick_athlete_failed.html"), "w").write(page.content())
+                open(os.path.join(os.environ["SHOTS"], "pick_athlete_failed.json"), "w").write(json.dumps(page.evaluate("""(id) => { const m = document.getElementById('intervalsModal'), row = document.querySelector('#intervalsRoster .row[data-athlete="' + id + '"]');
+                    const box = e => { const r = e && e.getBoundingClientRect(); return r && [r.x, r.y, r.width, r.height]; }; const vis = e => e && [getComputedStyle(e).display, getComputedStyle(e).visibility, getComputedStyle(e).opacity];
+                    const chain = []; for (let e = row; e; e = e.parentElement) chain.push([e.tagName + (e.id ? '#' + e.id : '') + (e.className ? '.' + String(e.className).split(' ').join('.') : ''), vis(e), box(e)]);
+                    return { modal: m && m.style.display, chain, rows: document.querySelectorAll('#intervalsRoster .row').length, mode: (document.querySelector('#intervalsModal .int-athlete-section') || {}).dataset && document.querySelector('#intervalsModal .int-athlete-section').dataset.mode,
+                             modals: [...document.querySelectorAll('.modal, .ui-modal, .ui-modal-plain')].filter(e => e.style.display && e.style.display !== 'none').map(e => e.id), url: location.href, inRun: typeof RoutinesUI !== 'undefined' && RoutinesUI.inRunView() }; }""", athlete_id)))
             raise
     return mode
 
@@ -754,17 +759,24 @@ def main():
             page.wait_for_function("() => document.getElementById('routineTrendModal') && document.getElementById('routineTrendModal').style.display === 'flex' && !!document.querySelector('#routineTrendModal .rt-chart')", timeout=15000)
             big = page.evaluate("""() => ({ title: document.querySelector('#routineTrendModal .title').textContent, sub: document.querySelector('#routineTrendModal .sub').textContent, points: document.querySelector('#routineTrendModal .rt-chart').getAttribute('data-points'), missing: document.querySelector('#routineTrendModal .rt-chart').getAttribute('data-missing'),
                 dots: document.querySelectorAll('#routineTrendModal .rt-chart g.pt').length, titles: [...document.querySelectorAll('#routineTrendModal .rt-chart g.pt title')].map(t => t.textContent), gaps: document.querySelectorAll('#routineTrendModal .rt-chart rect.rt-gap').length, months: document.querySelectorAll('#routineTrendModal .rt-months [data-months]').length,
-                also: [...document.querySelectorAll('#routineTrendModal .rt-also option')].map(o => o.textContent), note: document.querySelector('#routineTrendModal .ui-dlg-f .note').textContent })""")
+                also: [...document.querySelectorAll('#routineTrendModal .rt-also option')].map(o => o.textContent), note: document.querySelector('#routineTrendModal .ui-dlg-f .note').textContent, footOff: document.querySelector('#routineTrendModal .ui-dlg-f').classList.contains('off'),
+                keys: [...document.querySelectorAll('#routineTrendModal .rt-keys .rt-key')].map(e => e.textContent) })""")
+            page.select_option("#routineTrendModal .rt-also", "1")
+            page.wait_for_function("() => document.querySelectorAll('#routineTrendModal .rt-keys .rt-key').length === 2", timeout=5000)
+            big2 = page.evaluate("() => ({ keys: [...document.querySelectorAll('#routineTrendModal .rt-keys .rt-key')].map(e => [e.textContent, e.querySelector('.sw').className]), note: document.querySelector('#routineTrendModal .ui-dlg-f .note').textContent, footOff: document.querySelector('#routineTrendModal .ui-dlg-f').classList.contains('off'), right: [...document.querySelectorAll('#routineTrendModal .rt-chart text')].some(t => t.getAttribute('fill') && t.getAttribute('fill') !== getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim()), dots: document.querySelectorAll('#routineTrendModal .rt-chart g.pt').length })")
+            if shots: page.query_selector("#routineTrendModal .modal-content").screenshot(path=os.path.join(shots, "trend_enlarged_two_lines.png"))
+            page.select_option("#routineTrendModal .rt-also", "-1")
             if shots: page.query_selector("#routineTrendModal .modal-content").screenshot(path=os.path.join(shots, "trend_enlarged.png"))
             page.click("#routineTrendModal .rt-months [data-months='3']")
             page.wait_for_timeout(300)
             big3 = page.evaluate("() => ({ sub: document.querySelector('#routineTrendModal .sub').textContent, points: document.querySelector('#routineTrendModal .rt-chart').getAttribute('data-points'), on: document.querySelector('#routineTrendModal .rt-months .on').getAttribute('data-months') })")
             page.click("#routineTrendModal .ui-dlg-h .x")
             page.wait_for_function("() => document.getElementById('routineTrendModal').style.display === 'none'", timeout=5000)
-            check("the enlarged chart: the line's label as the title, 'by week · The subject · the latest 12 months'; one dot per week run with its run and dates in its title, the weeks of the year not run as dashed boxes, 3 m · 6 m · 12 m, also show with the other two lines, the note; three months: 13 weeks in view, the same points",
+            check("the enlarged chart: the line's label as the title, 'by week · The subject · the latest 12 months', the key naming the line and its scale (0266) with no footer; one dot per week run with its run and dates in its title, the weeks of the year not run as dashed boxes, 3 m · 6 m · 12 m, also show with the other two lines; a second line picked: a dashed key for it on the right scale, the footer saying the scales differ, its dots titled too; three months: 13 weeks in view, the same points",
                   big["title"].startswith("sessions in the window") and big["sub"] == "by week · The subject · the latest 12 months" and big["points"] == str(len(weeks)) and int(big["missing"]) >= 40 and big["dots"] == len(weeks)
-                  and big["titles"][-1].startswith(f"run {wk_runs[-1]['number']} · {_wtext(*weeks[-1])} · ") and int(big["gaps"]) >= 1 and big["months"] == 3 and len(big["also"]) == 3 and big["also"][0] == "also show: none" and "One dot per week at its place in the calendar" in big["note"]
-                  and big3["on"] == "3" and big3["points"] == str(len(weeks)) and big3["sub"].endswith("the latest 3 months"), (big, big3))
+                  and big["titles"][-1].startswith(f"run {wk_runs[-1]['number']} · {_wtext(*weeks[-1])} · ") and int(big["gaps"]) >= 1 and big["months"] == 3 and len(big["also"]) == 3 and big["also"][0] == "also show: none" and big["note"] == "" and big["footOff"] and big["keys"] == [big["title"] + " · left scale"]
+                  and len(big2["keys"]) == 2 and big2["keys"][1] == ["the local hour most sessions start · right scale", "sw dashed"] and big2["note"] == "The two lines are on different scales — compare their shapes, not their heights." and not big2["footOff"] and big2["right"] and big2["dots"] == 2 * len(weeks)
+                  and big3["on"] == "3" and big3["points"] == str(len(weeks)) and big3["sub"].endswith("the latest 3 months"), (big, big2, big3))
             page.click(f"#routinesModal .rt-runbox .rt-run[data-run='{wk_runs[-1]['number']}']")
             wait_text(page, "#chainPosition", f"run {wk_runs[-1]['number']} of {wk_runs[-1]['number']} · The subject", 30000)
             page.wait_for_function("() => document.querySelectorAll('#content-comparison td.trend .rt-thumb').length >= 1", timeout=15000)

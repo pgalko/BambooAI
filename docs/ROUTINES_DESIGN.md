@@ -916,8 +916,11 @@ calendar axis over the span - *3 m · 6 m · 12 m* of units, the months named al
 place, the line broken at a unit not run and a dashed box over each stretch of them (the count written when the box
 is wide enough), the values written at the latest, the highest and the lowest only and every dot titled with its
 run, dates and estimate with its interval; *also show* draws a second line on a right axis in its own colour; PNG
-saves the chart as drawn (the colours are written into it, so the picture keeps them). Nothing is computed there
-that the thumbnail does not have.
+saves the chart as drawn (the colours are written into it, so the picture keeps them). Under the title a key names
+each line with its scale (*best continuous 5s average · left scale*; the second dashed, *· right scale*), and with
+two lines a footer says *The two lines are on different scales — compare their shapes, not their heights*; nothing
+else is explained (0266: the first footer described the dots and the gaps, which the picture shows). Nothing is
+computed there that the thumbnail does not have.
 
 **Runs** shows the latest five of the interval and athlete picked, the rest by scrolling in a box; each line names the
 unit (*week 26 Oct – 1 Nov*); the custom runs and run 0 under Custom.

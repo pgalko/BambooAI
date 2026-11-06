@@ -378,6 +378,11 @@
 #routineTrendModal .rt-chart { display: block; width: 100%; height: auto; }
 #routineTrendModal .rt-chart .pt circle { cursor: default; }
 #routineTrendModal .ui-dlg-f .note { max-width: none; line-height: 1.4; }
+#routineTrendModal .ui-dlg-f.off { display: none; }                                  /* the footer only when two lines show (0266) */
+#routineTrendModal .rt-keys { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 5px; font-size: var(--fs-small); color: var(--text-secondary); }
+#routineTrendModal .rt-keys:empty { display: none; }
+#routineTrendModal .rt-key .sw { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin: 0 7px 2px 0; }
+#routineTrendModal .rt-key .sw.dashed { height: 0; border-top: 2px dashed; background: none; }
 .rt-runlist .ui-item { padding: 6px 10px; gap: 12px; cursor: pointer; }
 .rt-runlist .ui-item .n { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--text-tertiary); width: 46px; flex-shrink: 0; }
 .rt-runlist .ui-item .w { font-size: var(--fs-meta); color: var(--text-secondary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

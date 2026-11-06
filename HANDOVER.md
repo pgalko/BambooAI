@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/162/60/93/27/30/37/15/88/1/1 Python; 58/7/45/72/24/116/14/25/4/14/67/41 JS; 1,726 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/162/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/117/14/25/4/14/67/41 JS; 1,728 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The enlarged chart's key (2026-11-06, patch 0266; page only).** Palo, on the first chart with two lines: nothing
+  said which line was which, and the footer explained the dots and the gaps, which the picture shows. Under the title
+  a key names each line with its scale (`trendKeys`: the line in its colour, the second dashed, *· left / right
+  scale*); the footer is only *The two lines are on different scales — compare their shapes, not their heights*, and
+  only with two lines (`.ui-dlg-f.off` otherwise). Also in this patch: the integrations walk's flaky spot (three of
+  seven runs since 0264, after the Dataset cache section) was a real bug - a completed load's delayed
+  `hideIntervalsModal()` (2 s, 6 s with a context line) fired on an Intervals.icu dialog opened in those seconds,
+  since the Dataset cache dialog's Load polls through `pollIntervalsJob` too; the hide now closes only the dialog it
+  was scheduled for (`intervalsModalOpens`), and the walk leaves a screenshot, the page and the dialog's state under
+  `SHOTS` if the dialog ever fails to show again. Tests: test_routines.js 117, test_dialogs.js 46, the screens tool
+  (s6d the key, no footer), the integrations walk 143 (the key, then a second line picked: the dashed key, the
+  footer, its dots titled).
 - **Routines by the calendar, step 2: the Summary by interval (2026-11-06, patch 0265; page only, image v74 stands;
   no migration). docs/ROUTINES_DESIGN.md §14.6.** The manager's *Results across runs* has a filter bar - *Daily ·
   Weekly · Monthly · Yearly · Custom* with the counts on the athlete picked, an interval never run greyed and inert

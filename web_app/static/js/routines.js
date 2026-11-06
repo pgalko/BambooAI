@@ -292,6 +292,12 @@
         },
         // the units one span of the enlarged chart shows: three, six or twelve months of them
         unitsIn(kind, months) { return Math.max(1, Math.round(months * ({ day: 30.4, week: 4.35, month: 1, year: 1 / 12 })[kind])); },
+        // the key to the enlarged chart's lines (0266): each line named with its scale, in its colour; the second one dashed
+        trendKeys(s, i, also, colors) {
+            const c = Object.assign({ line: '#2ecc71', also: '#5dade2' }, colors || {});
+            const key = (li, color, dashed, side) => '<span class="rt-key"><i class="sw' + (dashed ? ' dashed' : '') + '" style="' + (dashed ? 'border-color:' : 'background:') + esc(color) + '"></i>' + esc(build.metricLabel(s.lines[li].label)) + ' · ' + side + ' scale</span>';
+            return key(i, c.line, false, 'left') + (also != null && also >= 0 && also !== i && s.lines[also] ? key(also, c.also, true, 'right') : '');
+        },
         // the enlarged chart (§14.6): a calendar axis over the span, one dot per unit at its place, the line broken where a unit is
         // not run (a dashed box over a stretch of them, with the count when it fits), the values written at the latest, the highest
         // and the lowest, every dot titled with its run; `also` a second line on a right axis. Colours are given, so a PNG keeps them.
@@ -1123,7 +1129,7 @@
         if (trendDlg) return trendDlg;
         trendDlg = document.createElement('div'); trendDlg.id = 'routineTrendModal'; trendDlg.className = 'modal ui-modal'; trendDlg.style.display = 'none';
         trendDlg.innerHTML = '<div class="modal-content ui-dlg routine-dlg trend-dlg">' +
-            '<div class="ui-dlg-h"><div><div class="title"></div><div class="sub"></div></div><span class="sp"></span>' +
+            '<div class="ui-dlg-h"><div><div class="title"></div><div class="sub"></div><div class="rt-keys"></div></div><span class="sp"></span>' +
             '<span class="ui-seg rt-months"><span data-months="3">3 m</span><span data-months="6">6 m</span><span class="on" data-months="12">12 m</span></span>' +
             '<select class="ui-input rt-also" title="a second line, on the right axis"></select><button class="ui-btn ghost" data-act="png" title="the chart as a picture">' + ICON_DOWN + 'PNG</button><button class="x" aria-label="Close">×</button></div>' +
             '<div class="ui-dlg-b rt-trend"></div><div class="ui-dlg-f"><span class="note"></span></div></div>';
@@ -1157,9 +1163,11 @@
         d.querySelector('.title').textContent = build.metricLabel(s.lines[st.line].label);
         d.querySelector('.sub').textContent = 'by ' + one + (st.athlete ? ' · ' + st.athlete : '') + ' · the latest ' + st.months + ' months';
         d.querySelectorAll('.rt-months [data-months]').forEach(el => el.classList.toggle('on', Number(el.getAttribute('data-months')) === st.months));
-        d.querySelector('.rt-trend').innerHTML = build.trendChart(s, st.line, st.months, st.also, chartColors());
-        const svg = d.querySelector('.rt-chart'), missing = Number(svg && svg.getAttribute('data-missing')) || 0, n = Number(svg && svg.getAttribute('data-points')) || 0;
-        d.querySelector('.ui-dlg-f .note').textContent = 'One dot per ' + one + ' at its place in the calendar (' + n + ' run), the latest ringed; a ' + one + ' not run is a gap, never a line across it' + (missing ? ' - ' + missing + ' ' + (missing === 1 ? one : one + 's') + ' in view not run yet: Run → ' + one.charAt(0).toUpperCase() + one.slice(1) + ' → fill the ' + one + 's back' : '') + '. Hover a dot for the run. Nothing is computed here that the thumbnail does not have.';
+        const colors = chartColors(), two = st.also != null && st.also >= 0 && st.also !== st.line;
+        d.querySelector('.rt-trend').innerHTML = build.trendChart(s, st.line, st.months, st.also, colors);
+        d.querySelector('.rt-keys').innerHTML = build.trendKeys(s, st.line, two ? st.also : -1, colors);     // which line is which, and its scale (0266)
+        d.querySelector('.ui-dlg-f .note').textContent = two ? 'The two lines are on different scales — compare their shapes, not their heights.' : '';
+        d.querySelector('.ui-dlg-f').classList.toggle('off', !two);
     }
     function savePng() {
         const svg = trendDlg && trendDlg.querySelector('.rt-chart'); if (!svg) return;

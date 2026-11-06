@@ -510,9 +510,11 @@ function pollIntervalsJob(jobId, dateRange, auxDatasets) {
                 showIntervalsMessage('Data loaded successfully!' + (stLine ? ' ' + stLine + '.' : '') + (ctxLine ? ' ' + ctxLine : '') + warnLine, 'success');
                 if (warnLine) console.warn('Intervals.icu load: ' + warnLine.trim());
 
-                if (!warnLine) setTimeout(() => {                   // a line that names what was not written stays until the dialog is closed
-                    hideIntervalsModal();
-                }, ctxLine ? 6000 : 2000);
+                // a line that names what was not written stays until the dialog is closed; the hide is for the dialog open now - the
+                // Dataset cache dialog's Load polls here too, and its delayed hide used to close an Intervals.icu dialog opened in
+                // those seconds (2026-11-06, found by the integrations walk)
+                const opened = intervalsModalOpens;
+                if (!warnLine) setTimeout(() => { if (intervalsModalOpens === opened) hideIntervalsModal(); }, ctxLine ? 6000 : 2000);
 
                 // Create pill ONLY ONCE
                 const dataInfo = {
@@ -753,6 +755,7 @@ function showIntervalsConfigMessage(message, type = 'default') {
 // athlete's key. Picking an athlete sets the window to the day after their last held day -> today; a window typed by hand stays.
 let intervalsAthletes = [];          // the roster rows: { id, name, pending, count, from, to, last, added }
 let intervalsPreselect = '';         // the athlete the Dataset cache dialog opened the dialog for
+let intervalsModalOpens = 0;         // bumped by showIntervalsModal: a load's delayed hide closes only the dialog it was scheduled for (2026-11-06)
 let intervalsWindowTyped = false;    // a window typed by hand stays (2026-10-14) until an athlete is picked by a click
 const INTERVALS_FIND_FROM = 7;
 function intervalsAthleteId() {
@@ -886,6 +889,7 @@ function showIntervalsModal(athleteId) {
     const modal = document.getElementById('intervalsModal');
     if (modal) {
         modal.style.display = 'flex';
+        intervalsModalOpens++;
         showIntervalsMessage('', 'default');
         intervalsPreselect = String(athleteId || '');          // the Dataset cache dialog opens it for an athlete (2026-10-30)
         initializeIntervalsRoster();

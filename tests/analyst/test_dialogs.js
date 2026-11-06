@@ -132,6 +132,8 @@ check('storeLine: the laps\' account when the laps file was asked (2026-10-29) -
   && storeLine({ window: 5, held: 5, fetched: 0, laps: null }) === 'all 5 activities from the store, nothing downloaded',
   [storeLine({ window: 101, held: 91, fetched: 10, laps: { window: 101, held: 91, fetched: 10 } })]);
 const ij = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'), 'utf8');
+check('a load\'s delayed hide closes only the Intervals.icu dialog it was scheduled for (2026-11-06): the Dataset cache dialog\'s Load polls the same way, and a dialog opened within those seconds used to be closed under the person',
+  ij.includes('let intervalsModalOpens = 0;') && ij.includes("modal.style.display = 'flex';\n        intervalsModalOpens++;") && ij.includes('const opened = intervalsModalOpens;') && ij.includes('setTimeout(() => { if (intervalsModalOpens === opened) hideIntervalsModal(); }, ctxLine ? 6000 : 2000);'));
 check('intervals.js sends the flag with the load, says the store\'s line with the success message and puts the choice back on Only what\'s new after', ij.includes('refresh: refresh') && ij.includes("storeLine(job.result && job.result.store)") && ij.includes('setIntervalsRefresh(false);'));
 // the Download choice driven on the mini DOM: a click on a side sets the hidden box and lights the side; the foot's store line
 const dmx = makeDocument(); global.document = dmx; const dlHost = dmx.createElement('div'); dlHost.innerHTML = fragment("intervalsModal"); dmx.body.appendChild(dlHost);
