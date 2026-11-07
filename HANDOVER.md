@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/209/31/27/18/49/44/72/33/203/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/133/14/25/4/14/67/41 JS; 1,787 on 2026-11-07; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/209/31/27/18/49/44/72/33/205/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/133/14/25/4/14/67/41 JS; 1,789 on 2026-11-07; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,13 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The promoter's pick, steadied (2026-11-07, patch 0276; docs/ROUTINES_DESIGN.md §15.5).** The pick of the lines a
+  run compares was erratic on the same chain (the whole series of a quantity over its durations one save, three of its
+  steps and a sensitivity line the next). Light touch, as Palo asked: three sentences in step 5 of the promoter's prompt
+  - the cells the report cites hold the final forms; a quantity computed again with part of the data left out is a
+  check when another line gives it on all the data; a series is compared whole or not at all - and one more section of
+  the payload, `THE REPORT CITES (...)`, the report's `[cell n]` citations limited to the method's cells, left out when
+  the report cites none (`routines_host.propose` → `rt.promoter_user(..., cited)`). Nothing else moved.
 - **The Condenser seat in the template (2026-11-07, patch 0275).** Palo: "add it to the template as default, the
   same model as the analyst". `web_app/LLM_CONFIG_template.json` carries `Condenser` in all four presets on the
   preset's analyst model and provider at medium effort with the Promoter's token allowance; `LLM_CONFIG_sample.json`

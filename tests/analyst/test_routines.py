@@ -142,7 +142,13 @@ hits = sorted({m.group(0) for s in strings for m in _DOMAIN.finditer(s)})
 check("standing rule: no string in analyst/routines.py (the promoter's prompt included) carries the tested tasks' vocabulary", not hits, hits)
 u = rt.promoter_user("Q?", "The answer.", "df: 10 rows", "\n# --- cell 1 ---\nx = 1", ["- [cell 1] a: +1"], {"parameters": [{"key": "k", "default": 1}]})
 check("promoter_user: the five sections, and the current inputs on a next version", all(s in u for s in ("QUESTION:\nQ?", "ANSWER SUMMARY:\nThe answer.", "DATA (", "THE SCRIPT (", "RESULT LINES THE CELLS RECORDED", "THE CURRENT VERSION'S INPUTS")) and '"key": "k"' in u)
+check("promoter_user: the cells the report cites, as a section after the ledger, sorted and once each; none cited, no section (§15.5)",
+      "THE REPORT CITES" not in u and rt.promoter_user("Q?", "A.", "d", "c", [], cited=[5, 2, 5]).endswith("THE REPORT CITES (the cells the answer was read from): cells 2, 5")
+      and rt.promoter_user("Q?", "A.", "d", "c", [], cited=[3]).endswith("THE REPORT CITES (the cells the answer was read from): cell 3"))
 check("PROMOTER_SYSTEM: asks for edits, not a retyped script; the five types; at most five; the reply's shape", all(s in rt.PROMOTER_SYSTEM for s in ("find/replace edits", "never by retyping", "at most five", "date_window", "toggle", '"edits"', "INPUTS = {...}")))
+check("PROMOTER_SYSTEM: the pick (§15.5) - the cited cells hold the final forms, a quantity recomputed on part of the data is a check, a series is compared whole or not at all",
+      all(s in rt.PROMOTER_SYSTEM for s in ("the cells the report cites, when it cites any", "Where the report cites cells, those are the cells the answer was read from",
+                                              "with part of the data left out, under another cut or a what-if, is a check", "are compared whole: every line of the series, from the cell that printed it last, or none of them")))
 
 # ---- the check of a run ----
 exp = [{"cell": 1, "index": 0, "label": "a", "estimate": "+1.0", "low": "+0.5", "high": "+1.5"}, {"cell": 2, "index": 0, "label": "b", "estimate": "+2", "low": None, "high": None}]
@@ -202,8 +208,9 @@ def runner(script, timeout):
     return out or "", err or "", [], []
 events = []
 p = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, emit=events.append)
-check("propose: the promoter is called with the question, the cells and the ledger; the proposal carries the inputs, the results, the figures and the edited script",
+check("propose: the promoter is called with the question, the cells, the ledger and the cell the report cites; the proposal carries the inputs, the results, the figures and the edited script",
       prompts and prompts[0][0] == rt.PROMOTER_SYSTEM and "How many rows" in prompts[0][1] and "1. [cell 2] rows above the line: +3" in prompts[0][1]
+      and "THE REPORT CITES (the cells the answer was read from): cell 2" in prompts[0][1]
       and p["name"] == "Rows above a line" and p["inputs"][0]["key"] == "threshold" and p["results"][0]["label"] == "rows above the line" and "INPUTS['threshold']" in p["script"] and p["data"]["name"] == "small.csv" and p["data_state"] == "same", (p.get("inputs"), p.get("data_state"), [e.get("type") for e in events]))
 check("propose: the pane saw a quiet turn start and its end; the dialog's checklist (§17) saw the steps - the chain read with its facts, the data checked (running, then its facts), the model running then done around the turn, the proposal running",
       [e.get("type") for e in events if e.get("type") != "step"] == ["turn_start", "turn_end"] and [e for e in events if e.get("type") == "turn_start"][0].get("quiet")

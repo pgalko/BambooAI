@@ -1020,6 +1020,30 @@ waits for a simulation on chains of several kinds.
   and the Trend tab by name; the stack walk's chain records one line, so nothing changes there), and the screens tool
   (the dialog with lines set aside, closed and open; the manifest on the pick in the manager, the run view and the
   Summary).
+- **Patch 0276 — the pick, steadied**: 15.5. Accepted by: the pure module (the prompt's three sentences; `promoter_user`
+  with cited cells, sorted and once each, and without), the host's path (the propose test's payload carries the cell
+  its report cites), the C5 scan.
+
+### 15.5 The pick, steadied (2026-11-07)
+
+The pick was erratic on the same chain: one save compared the whole series of a quantity over its durations, the next
+three steps of it and a sensitivity line. The promoter had the rule - the final form of a quantity the answer rests on,
+not a draft, not a check - and nothing to tell a series from a few of its lines, a check from a result, or the cells the
+answer was read from, from the cells it passed over. Three sentences in step 5 of its prompt, and one more section of
+its payload, all domain-free (C5):
+
+- *the report's citations*: the payload ends with `THE REPORT CITES (the cells the answer was read from): cells 5, 6` -
+  the `[cell n]` citations of the report, computed in the host with `analyst.report.cited_cells`, limited to the cells of
+  the method; left out when the report cites nothing. The prompt: where the report cites cells, those are the cells the
+  answer was read from, and the final forms are among their lines. An earlier cell's version of the quantity is usually
+  uncited, and reads as the draft it is.
+- *a check*: a quantity computed again with part of the data left out, under another cut or a what-if, is a check when
+  another line gives it on all the data.
+- *a series*: lines that form a series - one quantity over durations, bands, groups or periods - are compared whole,
+  every line of the series from the cell that printed it last, or none of them.
+
+Nothing else moved: the reply's shape, `pick_results`, the dialog, the manifest. The condensing pass (§19) runs after
+the pick and never touches a RESULT line, so the prints it drops have no part in this.
 
 ## 16. The Run dialog, slimmed (2026-11-06)
 

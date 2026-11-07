@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from analyst import routines as rt
 from analyst.notebook import Notebook, Run, split_sentences
 from analyst.replay import assemble
+from analyst.report import cited_cells
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +271,8 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         cur = next((v for v in routine.get("versions", []) if v.get("number") == routine.get("current_version")), None)
         manifest = (cur or {}).get("manifest")
     summary = summary_of(run)
-    user = rt.promoter_user(run.question, summary, describe_data(data), body, _ledger(expected), manifest)
+    cited = [n for n in cited_cells(run.report or "") if n in order]     # the cells the report read the answer from (§15.5)
+    user = rt.promoter_user(run.question, summary, describe_data(data), body, _ledger(expected), manifest, cited)
     obj, usage, cost = None, {}, 0.0
     problem, note, cut, cuts = "", "", False, 0
     why = ""                                                   # why the model is asked again, when it is: unreadable (§17) or identifiers (§18)
