@@ -42,6 +42,9 @@ def describe_data(data: Optional[dict]) -> str:
         lines.append(f"`df`: {size}")
     if cols:
         lines.append("Columns (name: dtype): " + ", ".join(f"{c.get('name')}: {c.get('dtype', '')}" for c in cols[:200]))
+    keys = [str(c.get("name")) for c in cols if rt.key_column(c.get("name"))]
+    if keys:                                                   # §18: what identifies rows, sessions or groups of this data - other data has its own
+        lines.append("Key columns (they identify rows, sessions or groups of this data; other data has its own values): " + ", ".join(keys))
     if d.get("date_range"):
         lines.append(f"Date range: {d['date_range']}")
     extra = d.get("extra") or {}
@@ -270,10 +273,11 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     user = rt.promoter_user(run.question, summary, describe_data(data), body, _ledger(expected), manifest)
     obj, usage, cost = None, {}, 0.0
     problem, note, cut, cuts = "", "", False, 0
+    why = ""                                                   # why the model is asked again, when it is: unreadable (§17) or identifiers (§18)
     for attempt in range(2):
         if emit:
             emit({"type": "turn_start", "turn": "routine", "quiet": True, "seat": seat, "model": model})
-        step({"type": "step", "step": "model", "state": "running", "again": bool(attempt)})
+        step({"type": "step", "step": "model", "state": "running", "again": bool(attempt), "detail": why if attempt else ""})
         t0 = time.time()
         text, usage = llm(rt.PROMOTER_SYSTEM, user if not attempt else user + "\n\n" + note)
         cost += float((usage or {}).get("cost") or 0.0)
@@ -286,9 +290,14 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
             # allowance thinking, twice; "invalid JSON" was true but not what happened)
             problem = ("the reply was cut off at the token limit" + (f" ({len(text.strip())} characters arrived)" if (text or "").strip() else " (nothing arrived but reasoning)")) if cut else str(exc)
             obj = None
+        keyed = rt.key_inputs(obj.get("inputs")) if obj is not None else []
         if emit:
             emit({"type": "turn_end", "turn": "routine", "kind": "routine", "elapsed": round(time.time() - t0, 1), "cost": float((usage or {}).get("cost") or 0.0),
-                  "peek": (f"{len(obj.get('inputs') or [])} input(s) proposed, {len(obj.get('edits') or [])} edit(s)" if obj else f"the reply could not be read ({problem})")})
+                  "peek": (f"{len(obj.get('inputs') or [])} input(s) proposed, {len(obj.get('edits') or [])} edit(s)" + (f" - identifiers among them ({', '.join(keyed)})" if keyed else "")
+                           if obj else f"the reply could not be read ({problem})")})
+        if obj is not None and keyed and attempt == 0:        # the floor (§18): identifiers of this data are not inputs - asked again once, with the reason
+            note, obj, why = rt.PROMOTER_KEYS.format(inputs=", ".join(keyed)), None, "identifiers were proposed as inputs"
+            continue
         if obj is not None:
             step({"type": "step", "step": "model"})
             step({"type": "step", "step": "proposal", "state": "running"})
@@ -297,6 +306,12 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         # Try again, came back whole - the reasoning's length varies from call to call; the note asks for it brief)
         note = (rt.PROMOTER_CUT_EMPTY if cut and not (text or "").strip() else
                 rt.PROMOTER_CUT.format(got=len((text or "").strip())) if cut else rt.PROMOTER_RETRY.format(problem=problem))
+    if obj is not None and keyed:                             # the second reply still picks by identifier
+        raise RoutineRefused("could not make a routine from this chain - the method picks rows of this data by their identifiers ("
+                             + ", ".join(keyed) + "), which other data will not have; ask the analyst to pick them by a rule, then save again")
+    if obj is not None and obj.get("unfit"):
+        raise RoutineRefused("could not make a routine from this chain - the method names rows of this data that other data will not have ("
+                             + (rt.unfit_line(obj["unfit"]) or "see the cells") + "); ask the analyst to pick them by a rule, then save again")
     if obj is None:
         if cut:
             raise RoutineRefused("could not make a routine from this chain - the model's reply was cut off at its token limit"
@@ -305,6 +320,7 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         raise RoutineRefused(f"could not make a routine from this chain - the script was not understood ({problem})")
     edited, applied, failed = rt.apply_edits(body, obj.get("edits") or [])
     inputs, notes = rt.finish_inputs(obj.get("inputs") or [], edited, failed)
+    notes.extend("recomputed from the data, not typed: " + str(c)[:200] for c in (obj.get("recomputed") or [])[:6] if str(c).strip())      # §18: the dialog says it
     if earlier:
         nos = [c.cell_no for r in earlier for c in r.cells() if c.cell_no is not None]
         theirs = f" (cells {nos[0]}-{nos[-1]})" if len(nos) > 1 else (f" (cell {nos[0]})" if nos else "")

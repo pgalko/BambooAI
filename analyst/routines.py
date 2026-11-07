@@ -164,24 +164,33 @@ def keys_read(script: str) -> List[str]:
 # ----------------------------------------------------------------------------- the promoter
 PROMOTER_SYSTEM = """You are preparing an analysis so that it can be run again, unchanged in method, on other data of the same shape - a later period, another subject's data, an updated file - by a person who will only set a few inputs before each run and will never edit the code.
 
-You receive the question the analysis answered, the summary of its answer, a description of the data it ran on, the cells of the script in execution order, and the ledger of RESULT lines the cells recorded. Reply with one JSON object and nothing else.
+What the result is for. The analysis becomes a routine: the method kept with its few inputs. A person opens it later, picks the data - usually a new window of the same source, often another subject's - sets the inputs in a dialog and runs it, and the result lines are compared with the run before. The data of a run is loaded fresh each time: nothing of this window is there - not its rows, not the identifiers of its sessions or groups, not the dates inside it - only data of the same shape, the same columns and the same files. Before the routine is kept it is run once more on this very data and must reproduce the result lines the chain recorded; a rewrite that changes a number is refused.
+
+The test of an input: could the person set it before the data is loaded, without looking at it? A threshold, a band, a number of days, a switch, a choice among values a person knows by name - yes. An identifier of a row, a session or a group of this data, a list of them, a date or a name found by looking at this data - no: such a value is the data's own, and the next data has its own. A literal of that kind is replaced by the rule that produced it - the expression the chain used to find it, where a cell has one - and is never made an input. Where the chain has no such rule, report the literal under "unfit" and leave it as it is; the routine is not made until the analysis picks by a rule.
+
+You receive the question the analysis answered, the summary of its answer, a description of the data it ran on (its key columns named), the cells of the script in execution order, and the ledger of RESULT lines the cells recorded. Reply with one JSON object and nothing else.
 
 What to do:
-1. Name the constants written into the code that would have to change for the method to apply to other data of the same shape: period boundaries inside the data, identifiers of subjects or groups, thresholds, filters, bin edges, exclusions. Leave alone the constants that belong to the method itself (plausibility bounds, a bootstrap size, a seed, column names) and anything that is the data's own vocabulary. A file name under the datasets folder is the loader's, written for the period it loaded: leave it exactly as it is, dates included - each run binds it to the file that run loads - and never make the loaded period itself an input; the period is chosen when the data is loaded, before the method runs.
-2. Where a date literal is the data's own first or last date, make it the data's range (the column's .min() or .max()) so the period chosen at load time is the only period there is. Where it is a boundary inside the data, make it an input. Where a number is a count the data determines - the rows of a table, the periods in it, the groups - and the code uses it as a loop bound, an index or a divisor, make it that count (len(...)), not an input: the next data has its own.
-3. Propose each remaining constant as an input: at most five, each of one type - number, numbers (a short list of numbers), date_window (two dates), choice (one value of a column, or several when "multiple" is true), toggle. Keep a constant a constant when unsure; fewer inputs is better than more.
-4. Rewrite the code as find/replace edits, never by retyping it: each edit's "find" is a verbatim fragment that occurs exactly once in the cell it names, and "replace" is the same fragment with the constant replaced by INPUTS["key"]. A label written into a RESULT call that carries a constant (a count, an identifier) may read the input through an f-string. Leave the method, the cell markers, the order of the cells and every RESULT call otherwise untouched. The block INPUTS = {...} is written at the top of the script before each run; do not write it yourself.
+1. Name the constants written into the code that would have to change for the method to apply to other data of the same shape: period boundaries inside the data, thresholds, filters, bin edges, exclusions. Leave alone the constants that belong to the method itself (plausibility bounds, a bootstrap size, a seed, column names) and anything that is the data's own vocabulary. A file name under the datasets folder is the loader's, written for the period it loaded: leave it exactly as it is, dates included - each run binds it to the file that run loads - and never make the loaded period itself an input; the period is chosen when the data is loaded, before the method runs.
+2. Where a date literal is the data's own first or last date, make it the data's range (the column's .min() or .max()) so the period chosen at load time is the only period there is. Where it is a boundary inside the data, make it an input. Where a number is a count the data determines - the rows of a table, the periods in it, the groups - and the code uses it as a loop bound, an index or a divisor, make it that count (len(...)), not an input: the next data has its own. Where a literal names rows, sessions or groups of this data - identifiers, a list of them - replace it with the rule that found them, as the test of an input says.
+3. Propose each remaining constant as an input: at most five, each of one type - number, numbers (a short list of numbers), date_window (two dates), choice (one value of a column, or several when "multiple" is true), toggle. A choice is a pick among the values of a column the person can read by name; never over a key column. Keep a constant a constant when unsure; fewer inputs is better than more.
+4. Rewrite the code as find/replace edits, never by retyping it: each edit's "find" is a verbatim fragment that occurs exactly once in the cell it names, and "replace" is the same fragment with the constant replaced by INPUTS["key"] - or, for a literal the chain read off the data, by the expression that computes it. A label written into a RESULT call that carries a constant (a count, an identifier) may read the input through an f-string. Leave the method, the cell markers, the order of the cells and every RESULT call otherwise untouched. The block INPUTS = {...} is written at the top of the script before each run; do not write it yourself.
 5. Say which RESULT lines a run should compare with the runs before it, by their numbers in the ledger, and name each. A line is compared when it is the final form of a quantity the answer rests on. Not compared: an earlier cell's version of a quantity that a later cell computed again, re-specified or extended; a check or a trial the answer does not rest on. Every line is still printed and checked; only the comparison leaves the others out. A name reads as a table head: the quantity and what tells it from the other compared lines, at most 40 characters, without the counts, periods and dates that vary with the data.
 6. Reply with exactly this object:
 {"name": "a short title for the method, at most 60 characters",
  "inputs": [{"key": "snake_case", "label": "what the person sees", "type": "number | numbers | date_window | choice | toggle", "default": "the value the analysis used, in the type's form", "origin": "one short clause: where the value came from in the analysis", "column": "for a choice over values of a column the data has (the frame or a loaded file): that column; none for words the script matches or computes", "multiple": false}],
  "edits": [{"cell": 3, "find": "verbatim fragment", "replace": "the same fragment reading INPUTS[...]"}],
  "kept": ["one clause per constant left as it is, and why"],
+ "recomputed": ["one clause per literal replaced by the rule that produced it, naming the cell"],
+ "unfit": [{"cell": 10, "what": "what the literal names and why no rule in the chain picks them"}],
  "compare": [{"line": 7, "name": "the quantity, as a table head"}]}
-With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape.
+With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape. "recomputed" and "unfit" are empty when nothing applies.
 Keep the object short: each "find" the shortest fragment that still occurs once in its cell, the clauses brief, nothing outside the object."""
 
 PROMOTER_RETRY = "Your reply could not be read ({problem}). Reply again with the JSON object only, as specified."
+PROMOTER_KEYS = ("Your reply made an input of identifiers of this data ({inputs}): a person cannot set those before the data is loaded, and the next "
+                 "data has its own. Replace each such literal with the rule the chain used to find it, or report it under \"unfit\" when the chain has "
+                 "no such rule. Reply again with the JSON object only.")
 PROMOTER_CUT = ("Your reply was cut off at the token limit before the object was complete ({got} characters arrived). Reply again, shorter: "
                 "the JSON object only, each \"find\" the shortest fragment that still occurs once in its cell, nothing outside the object.")
 PROMOTER_CUT_EMPTY = ("Your reply was cut off at the token limit before anything but reasoning arrived. Decide briefly - the constants that "
@@ -216,11 +225,46 @@ def parse_promoter(text: str) -> dict:
         raise ValueError(f"invalid JSON: {exc}") from exc
     if not isinstance(obj, dict):
         raise ValueError("the reply is not a JSON object")
-    for k, typ in (("inputs", list), ("edits", list), ("compare", list)):
+    for k, typ in (("inputs", list), ("edits", list), ("compare", list), ("recomputed", list), ("unfit", list)):
         if k in obj and not isinstance(obj[k], typ):
             raise ValueError(f"'{k}' is not a list")
-    obj.setdefault("inputs", []); obj.setdefault("edits", []); obj.setdefault("kept", []); obj.setdefault("compare", [])
+    for k in ("inputs", "edits", "kept", "compare", "recomputed", "unfit"):
+        obj.setdefault(k, [])
     return obj
+
+
+_KEY_COLUMN_RE = re.compile(r"id|.+_ids?|id_.+|uuid|.+_uuid", re.I)
+
+
+def key_column(name) -> bool:
+    """Whether a column name reads as a key - one that identifies rows, sessions or groups of this data, whose values other
+    data will not have (docs/ROUTINES_DESIGN.md §18): id, *_id, *_ids, id_*, uuid."""
+    return bool(_KEY_COLUMN_RE.fullmatch(str(name or "").strip()))
+
+
+def key_inputs(inputs: Iterable[dict]) -> List[str]:
+    """The proposed inputs that read as identifiers of the data - a choice over a key column, or an input named as one (*_id, *_ids) -
+    which a person cannot set before the data is loaded: 'key over column', or the key alone."""
+    out = []
+    for p in inputs or []:
+        if not isinstance(p, dict) or p.get("type") == "toggle":
+            continue
+        if key_column(p.get("column")):
+            out.append(f"{p.get('key')} over {p.get('column')}")
+        elif key_column(p.get("key")):
+            out.append(str(p.get("key")))
+    return out
+
+
+def unfit_line(unfit: Iterable) -> str:
+    """The literals the promoter could not express as a rule, as the refusal reads them: 'cell 10: three sessions named by identifier'."""
+    parts = []
+    for u in unfit or []:
+        if isinstance(u, dict) and (u.get("what") or u.get("cell") is not None):
+            parts.append((f"cell {u['cell']}: " if u.get("cell") is not None else "") + str(u.get("what") or "a literal of this data")[:160])
+        elif isinstance(u, str) and u.strip():
+            parts.append(u.strip()[:160])
+    return "; ".join(parts)
 
 
 MAX_NAME = 60

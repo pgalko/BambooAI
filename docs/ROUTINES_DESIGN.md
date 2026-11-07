@@ -1113,3 +1113,47 @@ Accepted by (patch 0270): the pure module (the steps emitted in order with their
 said), the route (the `routine_step` lines on the stream around the pane's card), the markup on the mini DOM (the four
 states of a line, the clock, the words), the screens tool (the dialog waiting at 0:42), and the walks unchanged (the
 step lines never reach the pane).
+
+## 18. The promoter's brief, and identifiers (2026-11-07)
+
+The first live routine over a within-session analysis (power, heart rate and ventilation at fixed power) came out with
+two inputs that no coach can set: the six sessions carrying ventilation, by id, and the three heat sessions, by id.
+The chain had retyped both lists from an earlier cell's output although it had the rules (sessions with more than 500
+ventilation samples; mean cockpit temperature above 18 °C), and the promoter's brief listed "identifiers of subjects
+or groups" among the constants to consider. Palo: "the user cannot possibly know and identify them on new data" - and
+"is the promoter sufficiently informed of the purpose of the task?" It was not, quite.
+
+### 18.1 The brief
+
+The promoter's prompt now opens with what the result is for - the routine's life: made from this chain, opened later
+by a person who picks the data (usually a new window of the same source, often another subject's), sets the inputs in
+a dialog and runs it, the result lines compared with the run before; the data loaded fresh each run, so nothing of
+this window survives - not its rows, not the identifiers of its sessions or groups, not the dates inside it - only
+the shape; run zero on this very data as the check on any rewrite. Then **the test of an input**: could the person
+set it before the data is loaded, without looking at it? A threshold, a band, a number of days, a switch, a choice
+among values known by name - yes. An identifier of a row, a session or a group of this data, a list of them, a date or
+a name found by looking - no: it is replaced by the rule that produced it (the expression the chain used, where a cell
+has one) and never made an input; where the chain has no rule, the literal is reported under `unfit`. Identifiers are
+gone from the list of candidates; a choice is "never over a key column"; an edit may replace a literal of the data by
+the expression that computes it. The data description names the **key columns** (`key_column`: `id`, `*_id`,
+`*_ids`, `id_*`, `uuid`). The reply carries `recomputed` (one clause per literal turned into a rule, naming the cell)
+and `unfit`. No domain words (C5).
+
+### 18.2 The floor
+
+Whatever the promoter says, an input that reads as identifiers - a `choice` over a key column, or any input but a
+toggle named as one (`heat_ride_ids`) - is not accepted (`key_inputs`): the reply is asked for once more with the
+reason (`PROMOTER_KEYS`: the inputs named, the rule restated), and a second such reply is refused - *the method picks
+rows of this data by their identifiers (rides over activity_id), which other data will not have; ask the analyst to
+pick them by a rule, then save again*. While it is asked again the dialog's checklist says so on the model's line
+(*identifiers were proposed as inputs; asking again*, §17) and the pane's quiet card names them in its peek. A reply
+with `unfit` entries is refused the same way, naming the cell and what it names. The dialog's notes say what was
+recomputed instead of typed, so the coach sees the method changed shape - run zero verified it. The analyst's contract
+already says a value read off the data is computed and kept in a variable, never typed; the brief and the floor are
+for the chains that did it anyway. At run time the precheck stands as the backstop: chosen values absent from the data
+refuse the run, which identifiers of other data always are.
+
+Accepted by (patch 0271): the pure module (`key_column`, `key_inputs`, `unfit_line`, the parse), `propose` over a
+fake promoter (the key column named in the data description; a keyed reply asked again with the reason and the step
+marked as asked again; a second keyed reply refused; an unfit reply refused; the recomputed clause a note), the C5
+scan over the new text, and the walks unchanged.

@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/175/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/131/14/25/4/14/67/41 JS; 1,755 on 2026-11-07; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/181/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/131/14/25/4/14/67/41 JS; 1,761 on 2026-11-07; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,20 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The promoter's brief, and identifiers (2026-11-07, patch 0271; docs/ROUTINES_DESIGN.md §18).** The first live
+  routine over a within-session analysis made inputs of session ids - the chain had retyped two id lists from earlier
+  output though it had the rules, and the brief listed "identifiers of subjects or groups" among the candidates. The
+  prompt (`PROMOTER_SYSTEM`) now opens with what a routine is for - its life, the data loaded fresh each run, run zero
+  as the check - and the test of an input (could the person set it before the data is loaded?); identifiers are out
+  of the candidates, a literal the chain read off the data is replaced by the rule that produced it (an edit like any
+  other) or reported under `unfit`; the data description names the key columns (`rt.key_column`: id, *_id, *_ids,
+  id_*, uuid); the reply carries `recomputed` and `unfit`. The floor in `propose`: an input that reads as identifiers (a
+  choice over a key column, or one named *_id / *_ids; `rt.key_inputs`) is asked for once more with the reason
+  (`PROMOTER_KEYS`; the checklist's model line says why), a second one refused naming the input; `unfit` refuses
+  naming the cell; `recomputed` clauses go to the dialog's notes. The contract already had the rule for the analyst (a value read
+  off the data is never typed); the precheck's refusal of absent values is the run-time backstop. Tests:
+  test_routines.py 181 (the helpers, the parse, the key column in the prompt, the retry with the step marked again,
+  the two refusals, the note), test_analyst.py 244 (the C5 scan over the new text), the walks unchanged.
 - **Save as routine: the checklist while you wait (2026-11-07, patch 0270; docs/ROUTINES_DESIGN.md §17).** The dialog
   showed one line for the whole wait. Now `propose` emits a `step` event as each step passes - the chain read (cells,
   results, figures), the data probed (rows, columns, the auxiliary kinds; or *no longer loaded — the routine will be

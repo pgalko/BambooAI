@@ -73,6 +73,13 @@ for t, why in (("no object here", "no JSON"), ("{\"inputs\": 3}", "not a list"),
     except ValueError as exc:
         ok = why.split()[0].lower() in str(exc).lower()
     check(f"parse_promoter: {t[:12]!r} -> ValueError mentioning {why!r}", ok)
+check("key_column: id, *_id, *_ids, id_*, uuid read as keys; other names do not (§18)",
+      all(rt.key_column(n) for n in ("id", "activity_id", "ride_ids", "id_session", "uuid", "Session_ID")) and not any(rt.key_column(n) for n in ("humidity", "grid", "name", "power", "date", "idle_time", "")))
+check("key_inputs: the inputs that read as identifiers - a choice over a key column ('key over column'), a list named *_ids (the key alone); a band of numbers, a choice over names and a toggle are not",
+      rt.key_inputs([{"key": "rides", "type": "choice", "column": "activity_id"}, {"key": "band", "type": "numbers"}, {"key": "who", "type": "choice", "column": "name"},
+                     {"key": "heat_ride_ids", "type": "numbers", "column": "none"}, {"key": "drop_id", "type": "toggle"}]) == ["rides over activity_id", "heat_ride_ids"])
+check("unfit_line: the literals as the refusal reads them, cells named, capped", rt.unfit_line([{"cell": 10, "what": "three sessions named by identifier; no rule picks them"}, {"what": "a date"}, "a bare clause", 7, {}]) == "cell 10: three sessions named by identifier; no rule picks them; a date; a bare clause")
+check("parse_promoter: 'recomputed' and 'unfit' are read as lists and default to empty ones", rt.parse_promoter('{"unfit": [{"cell": 2, "what": "x"}], "recomputed": ["y"]}')["unfit"] == [{"cell": 2, "what": "x"}] and rt.parse_promoter('{}')["recomputed"] == [] and rt.parse_promoter('{}')["unfit"] == [])
 check("parse_promoter: 'compare' is read as a list and defaults to an empty one",
       rt.parse_promoter('{"compare": [{"line": 2, "name": "x"}]}')["compare"] == [{"line": 2, "name": "x"}] and rt.parse_promoter('{"inputs": []}')["compare"] == [])
 try:
@@ -269,6 +276,40 @@ for rid_, why in ((run5.id, "no cells"), ("nope", "not in this thread")):
 _gone_events = []
 p6 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "other"}, emit=_gone_events.append)
 made6 = host.create(nb4, p6, {"name": "Unverified", "purpose": "", "drop_inputs": [], "drop_results": []}, None, store)
+# the floor under the promoter (§18): identifiers of this data are not inputs - the prompt names the key columns, a reply that makes one an
+# input is asked again once with the reason, a second such reply is refused; literals the promoter reports as unfit refuse; what it recomputed is a note
+_cols_before = run4.data["columns"]
+run4.data["columns"] = _cols_before + [{"name": "session_id", "dtype": "object"}]
+_keyed = reply.replace('"inputs": [', '"inputs": [{"key": "rides", "label": "Rides", "type": "choice", "default": ["s1", "s2"], "origin": "typed", "column": "session_id", "multiple": true}, ')
+_turns = {"n": 0}
+def keyed_then_clean(system, user):
+    _turns["n"] += 1
+    prompts.append((system, user))
+    return (_keyed if _turns["n"] == 1 else reply.replace('"kept": ["nothing else"]', '"kept": ["nothing else"], "recomputed": ["cell 1: the rows above the line are found by the threshold, not listed"]')), {"cost": 0.0}
+_key_events = []
+p8 = host.propose(nb4, run4.id, keyed_then_clean, current_data={"df_id": "other"}, emit=_key_events.append)
+check("propose (§18): the data description names the key column; a reply with a choice over it is asked again once with the reason (the input named), the model step marked as asked again and why, the pane's peek saying identifiers were among the inputs; the clean reply makes the proposal, its recomputed clause a note",
+      "Key columns (they identify rows, sessions or groups of this data; other data has its own values): session_id" in prompts[-2][1] and _turns["n"] == 2
+      and prompts[-1][1].endswith(rt.PROMOTER_KEYS.format(inputs="rides over session_id"))
+      and [(e.get("again"), e.get("detail")) for e in _key_events if e.get("type") == "step" and e.get("step") == "model" and e.get("state") == "running"] == [(False, ""), (True, "identifiers were proposed as inputs")]
+      and [e.get("peek") for e in _key_events if e.get("type") == "turn_end"] == ["2 input(s) proposed, 1 edit(s) - identifiers among them (rides over session_id)", "1 input(s) proposed, 1 edit(s)"]
+      and [q["key"] for q in p8["inputs"]] == ["threshold"] and any(n_ == "recomputed from the data, not typed: cell 1: the rows above the line are found by the threshold, not listed" for n_ in p8["notes"]), (prompts[-1][1][-300:], p8.get("inputs"), p8.get("notes")))
+def keyed_twice(system, user):
+    return _keyed, {"cost": 0.0}
+try:
+    host.propose(nb4, run4.id, keyed_twice, current_data={"df_id": "other"}); _twice = ""
+except host.RoutineRefused as exc:
+    _twice = str(exc)
+def unfit_promoter(system, user):
+    return reply.replace('"kept": ["nothing else"]', '"kept": ["nothing else"], "unfit": [{"cell": 2, "what": "two rows named by identifier; no rule in the chain picks them"}]'), {"cost": 0.0}
+try:
+    host.propose(nb4, run4.id, unfit_promoter, current_data={"df_id": "other"}); _unfit = ""
+except host.RoutineRefused as exc:
+    _unfit = str(exc)
+check("propose (§18): a second reply still picking rows by identifier is refused naming the input; a reply reporting a literal no rule picks is refused naming the cell and what it names - both say to ask the analyst for a rule",
+      "picks rows of this data by their identifiers (rides over session_id)" in _twice and "ask the analyst to pick them by a rule, then save again" in _twice
+      and "names rows of this data that other data will not have (cell 2: two rows named by identifier; no rule in the chain picks them)" in _unfit and "ask the analyst" in _unfit, (_twice, _unfit))
+run4.data["columns"] = _cols_before
 check("the checklist with the data gone: no probe (the data step lands done at once), its line says the data is no longer loaded and the routine will be made unverified",
       [(e["step"], e.get("state", "done"), e.get("detail", "")) for e in _gone_events if e.get("type") == "step" and e["step"] == "data"] == [("data", "done", "no longer loaded — the routine will be made unverified")], _gone_events)
 check("the analysis's data gone: the proposal says 'gone', run zero is skipped and the routine is created unverified, saying so",

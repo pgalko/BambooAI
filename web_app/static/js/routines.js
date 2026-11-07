@@ -93,7 +93,7 @@
         steps(st, now) {
             return '<div class="rt-steps">' + build.STEPS.map(([key, doing, done]) => {
                 const x = (st || {})[key] || {}, state = x.state || 'pending';
-                const detail = state === 'running' ? [x.again ? 'the reply could not be read; asking again' : '', x.since ? build.clock((now || Date.now()) - x.since) : ''].filter(Boolean).join(' · ') : (state === 'done' ? x.detail || '' : '');
+                const detail = state === 'running' ? [x.again ? (x.detail || 'the reply could not be read') + '; asking again' : '', x.since ? build.clock((now || Date.now()) - x.since) : ''].filter(Boolean).join(' · ') : (state === 'done' ? x.detail || '' : '');
                 return '<div class="s ' + state + '" data-step="' + key + '"><span class="m">' + (state === 'done' ? '✓' : (state === 'running' ? '<i class="live"></i>' : '○')) + '</span>' +
                     '<span class="t">' + esc(state === 'done' ? done : doing) + '</span>' + (detail ? '<span class="d">— ' + esc(detail) + '</span>' : '') + '</div>';
             }).join('') + '</div>';
