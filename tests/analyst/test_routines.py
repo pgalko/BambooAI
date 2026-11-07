@@ -232,6 +232,126 @@ try:
 except host.RoutineRefused as exc:
     refused = str(exc)
 check("create: a rewrite whose run zero differs is refused, naming the line; nothing is stored", refused and "differ" in refused and "rows above the line" in refused and len(store.all()) == before, refused)
+
+# ---- the condensing pass (docs/ROUTINES_DESIGN.md §19): the condenser's cells run on the chain's own data and are kept only when the
+# lines and the figures are run zero's; a failure is asked again once with the reason, the second keeps the script as written
+import base64 as _b64
+check("parse_condenser: the cells from the reply's code block (the one with markers); UNCHANGED is None; a reply without cells raises",
+      rt.parse_condenser("Here:\n```python\n# --- cell 2 ---\nx = 1\n```\nDone.") == "\n# --- cell 2 ---\nx = 1\n" and rt.parse_condenser(" UNCHANGED ") is None and rt.parse_condenser("```\nUNCHANGED\n```") is None
+      and rt.parse_condenser("# --- cell 1 ---\nbare") == "\n# --- cell 1 ---\nbare\n")
+for _t, _why in (("```python\nx = 1\n```", "no cells"), ("", "empty")):
+    try:
+        rt.parse_condenser(_t); _pc = ""
+    except ValueError as exc:
+        _pc = str(exc)
+    check(f"parse_condenser: {_t[:12]!r} raises mentioning {_why!r}", _why in _pc, _pc)
+_orig_cells = "\n# --- cell 1 ---\na = INPUTS['k']\n# --- cell 2 ---\nprint(a)\n# --- cell 3 ---\nfig.show()\n"
+check("check_condensed: the cells kept are a subsequence of the original's by number, every figure cell is kept, the same inputs are read; each fault named",
+      rt.check_condensed(_orig_cells, "\n# --- cell 1 ---\na = INPUTS['k']\n# --- cell 3 ---\nfig.show()\n", [3], ["k"]) == ""
+      and rt.check_condensed(_orig_cells, "\n# --- cell 3 ---\nfig.show()\n# --- cell 1 ---\na = INPUTS['k']\n", [3], ["k"]).startswith("renumbers or reorders")
+      and rt.check_condensed(_orig_cells, "\n# --- cell 1 ---\na = INPUTS['k']\n", [3], ["k"]) == "drops cell 3, which draws a figure"
+      and rt.check_condensed(_orig_cells, "\n# --- cell 1 ---\na = INPUTS['j']\n# --- cell 3 ---\nfig.show()\n", [3], ["k"]) == "reads other inputs than the script (j, k)"
+      and rt.check_condensed(_orig_cells, "\n# --- cell 4 ---\nx\n", [], ["k"]).startswith("renumbers") and rt.check_condensed(_orig_cells, "nothing", [], []) == "has no cells"
+      and rt.check_condensed(_orig_cells, "\n# --- cell 1 ---\na = INPUTS['k']\n# --- cell 1 ---\nb\n", [], ["k"]) == "repeats a cell marker")
+def _fig(y, fmt="json", chain="c1"):
+    return json.dumps({"type": "plot", "data": json.dumps({"data": [{"type": "bar", "y": y}], "layout": {"title": {"text": "t"}}}) if fmt == "json" else y, "format": fmt, "id": "plot_1", "chain_id": chain})
+_arr = lambda xs: {"dtype": "f8", "bdata": _b64.b64encode(np.array(xs, dtype="f8").tobytes()).decode()}
+check("same_figures: the same picture under another chain id and wrapper is the same; a number moved past 1e-9 is not; a typed array within 1e-12 is; nan as nan; a PNG byte for byte; the count must match",
+      rt.same_figures([_fig([1, 2, 3])], [_fig([1, 2, 3.0000000000001], chain="c2")]) == (True, "1 figure identical")
+      and rt.same_figures([_fig([1, 2, 3])], [_fig([1, 2, 3.1])]) == (False, "figure 1 differs")
+      and rt.same_figures([{"type": "plot", "data": {"data": [{"y": _arr([1.0, 2.0])}], "layout": {}}, "format": "json"}], [{"type": "plot", "data": {"data": [{"y": _arr([1.0, 2.0 + 1e-13])}], "layout": {}}, "format": "json"}])[0]
+      and not rt.same_figures([{"data": {"data": [{"y": _arr([1.0, 2.0])}]}, "format": "json"}], [{"data": {"data": [{"y": _arr([1.0, 2.5])}]}, "format": "json"}])[0]
+      and rt.same_figures([_fig([float("nan"), 1])], [_fig([float("nan"), 1])])[0] and rt.same_figures([_fig("iVBOR...", "png")], [_fig("iVBOR...", "png")])[0] and not rt.same_figures([_fig("iVBOR...", "png")], [_fig("iVBOQ...", "png")])[0]
+      and rt.same_figures([_fig([1])], []) == (False, "0 figures came back, 1 expected") and rt.same_figures([], []) == (True, "no figures"))
+check("the durations the condensed line says", (rt.secs_text(0.84), rt.secs_text(48.3), rt.secs_text(542), rt.secs_text(None)) == ("0.8 s", "48 s", "9 min", "0.0 s"))
+# the pass over run4's chain: cell 1 prints a count nothing rests on; the condenser drops the print
+_pc1 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
+_cells1 = _pc1["cells_text"]
+_zero = host.verify_zero("x", _pc1["script"], _pc1["results"], rt.defaults_of(_pc1["inputs"]), runner, 60)
+_runs = {"n": 0}
+def _counting_runner(script, timeout):
+    _runs["n"] += 1
+    return runner(script, timeout)
+def _block(cells):
+    return "```python\n" + cells.strip("\n") + "\n```"
+_cut = _cells1.replace("print(len(kept))\n", "")
+_asks = []
+def _condenser(system, user):
+    _asks.append((system, user))
+    return _block(_cut), {"cost": 0.01}
+_c = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _condenser, _counting_runner, 60, "Condenser", "m")
+check("condense: the brief carries the cells, the numbered lines, the figure cells, the input keys and the time each cell took; the candidate without the print reproduces the line and is condensed - the script as run, its lines, output, cells and times on the record",
+      _asks[0][0] == rt.CONDENSER_SYSTEM and "THE SCRIPT (the cells in execution order" in _asks[0][1] and "1. [cell 2] rows above the line: +3" in _asks[0][1] and "CELLS THAT DRAW FIGURES: none" in _asks[0][1]
+      and "INPUT KEYS THE CELLS READ: threshold" in _asks[0][1] and "TIME EACH CELL TOOK: cell 1: 0.0 s, cell 2: 0.0 s" in _asks[0][1]
+      and _c["status"] == "condensed" and _c["cells"] == [2, 2] and _c["attempts"] == 1 and _c["cost"] == 0.01 and _c["seat"] == "Condenser" and _runs["n"] == 1
+      and "print(len(kept))" not in _c["script"] and "INPUTS['threshold']" in _c["script"] and _c["results"][0]["estimate"] == "+3.00" and _c["stdout"].strip() == "RESULT: rows above the line: +3.00 rows, n/a"
+      and _c["line"].startswith("condensed: 2 cells → 2, ") and _c["elapsed"][0] == _zero["elapsed"] and isinstance(_c["elapsed"][1], float), (_c, _asks[0][1][-400:]))
+# a candidate that changes a number is asked again with the differing line; the second one is kept
+_replies = [_block(_cut.replace("df.v > threshold", "df.v > threshold + 10")), _block(_cut)]
+_asks[:] = []
+def _condenser2(system, user):
+    _asks.append(user)
+    return _replies.pop(0), {"cost": 0.01}
+_c2 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _condenser2, _counting_runner, 60)
+check("condense: a candidate whose line differs is asked again once with the differing line; the second candidate is condensed (two attempts, both costs)",
+      _c2["status"] == "condensed" and _c2["attempts"] == 2 and _c2["cost"] == 0.02 and len(_asks) == 2
+      and _asks[1].endswith(rt.CONDENSER_RETRY.format(problem="did not reproduce the result lines: 1 of 1 result lines differ ([cell 2] rows above the line: +3 -> +2.00)")), (_c2.get("line"), _asks[-1][-300:]))
+# twice wrong: the script stays as written, the line says why; UNCHANGED: nothing to cut, no run; a static fault is asked again
+_runs["n"] = 0
+_c3 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: (_block(_cut.replace("df.v > threshold", "df.v > threshold + 10")), {"cost": 0.0}), _counting_runner, 60)
+_c4 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: ("UNCHANGED", {"cost": 0.0}), _counting_runner, 60)
+_c4b = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: (_block(_cells1), {"cost": 0.0}), _counting_runner, 60)
+_asks[:] = []
+def _condenser5(system, user):
+    _asks.append(user)
+    return (_block(_cut.replace("# --- cell 2 ---", "# --- cell 9 ---")) if len(_asks) == 1 else _block(_cut.replace("threshold = INPUTS['threshold']", "threshold = INPUTS['other']"))), {"cost": 0.0}
+_c5 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _condenser5, _counting_runner, 60)
+check("condense: twice wrong keeps the script as written with the reason; UNCHANGED, or the cells sent back as they are, is nothing to cut and nothing runs; renumbered cells and another input are refused before running, each asked again with its fault",
+      _c3["status"] == "as_written" and _c3["line"] == "as written: the condensed code did not reproduce the result lines: 1 of 1 result lines differ ([cell 2] rows above the line: +3 -> +2.00)" and _c3["attempts"] == 2 and _runs["n"] == 2
+      and _c4 == {"status": "as_written", "line": "as written: nothing to cut", "attempts": 1, "cost": 0.0, "cells": [2, 2], "elapsed": [_zero["elapsed"], None], "seat": "", "model": ""} and _c4b["line"] == "as written: nothing to cut" and _runs["n"] == 2
+      and _c5["status"] == "as_written" and "renumbers or reorders" in _asks[1] and _c5["line"] == "as written: the condensed code reads other inputs than the script (other, threshold)" and _runs["n"] == 2, (_c3, _c4, _c5, _asks))
+# a candidate that fails names the cell and the error; one whose figure differs says which; the seat down keeps the script as written
+_c6 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: (_block(_cut.replace("kept = df[df.v > threshold]", "kept = df[df.w > threshold]")), {"cost": 0.0}), _counting_runner, 60)
+_zero_fig = dict(_zero, figs=[_fig([1, 2])])
+_c7 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero_fig, lambda s, u: (_block(_cut), {"cost": 0.0}), _counting_runner, 60)
+def _down(s, u):
+    raise RuntimeError("no such seat")
+_c8 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _down, _counting_runner, 60)
+_c9 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: ("```python\n# --- cell 1 ---\nthres", {"cost": 0.01, "truncated": True}), _counting_runner, 60)
+check("condense: a reply cut at the seat's token limit keeps the script as written at once, naming the remedy", _c9["status"] == "as_written" and _c9["attempts"] == 1 and _c9["line"] == "as written: the condenser's reply was cut off at its token limit (the seat that condenses needs a larger max_tokens)", _c9)
+check("condense: a failing candidate is said by its cell and error; a figure that differs by its number; a seat that cannot be called keeps the script as written",
+      _c6["status"] == "as_written" and _c6["line"] == "as written: the condensed code failed at cell 1: AttributeError: 'DataFrame' object has no attribute 'w'"
+      and _c7["line"] == "as written: the condensed code did not reproduce the figures: 0 figures came back, 1 expected"
+      and _c8 == {"status": "as_written", "line": "as written: the condenser could not be called (no such seat)", "attempts": 1, "cost": 0.0, "cells": [2, 2], "elapsed": [_zero["elapsed"], None], "seat": "", "model": ""}, (_c6, _c7, _c8))
+# create with the pass: the version keeps the script as written beside the one that runs; run zero's record is the condensed run's
+_made_c = host.create(nb4, _pc1, {"name": "Condensed", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condenser=_condenser, condenser_seat="Condenser", condenser_model="m")
+_vc = store.load(_made_c["routine"]["id"])["versions"][0]
+check("create (foreground) with the pass: the version's script is the condensed one, the script as written kept, the pass's record on it and on the made record; run zero's results, figures and time are the condensed run's; the run files are its output",
+      _made_c["condensed"]["status"] == "condensed" and _vc["condensed"]["line"].startswith("condensed: 2 cells → 2") and "print(len(kept))" not in _vc["script"] and "print(len(kept))" in _vc["script_written"]
+      and _vc["run_zero"]["status"] == "reproduced" and _vc["run_zero"]["verified"] and _vc["run_zero"]["results"][0]["estimate"] == "+3.00" and _vc["run_zero"]["elapsed"] == _vc["condensed"]["elapsed"][1]
+      and open(os.path.join(store.path(_made_c["routine"]["id"]), "runs", "v1_0", "stdout.txt")).read().strip() == "RESULT: rows above the line: +3.00 rows, n/a"
+      and host.zero_holds(_vc) == "", (_made_c.get("condensed"), _vc.get("condensed")))
+# behind the dialog: verifying, then condensing while the condenser is at work (the store says so), then settled
+_seen_status = []
+def _condenser_bg(system, user):
+    _seen_status.append(store.load(_made_bg["routine"]["id"])["versions"][0]["run_zero"]["status"])
+    return _block(_cut), {"cost": 0.0}
+_pc2 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
+_made_bg = host.create(nb4, _pc2, {"name": "Condensed behind", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, background=True, condenser=_condenser_bg)
+_v_before = store.load(_made_bg["routine"]["id"])["versions"][0]
+_verdict_bg = _made_bg["verify"]()
+_v_after = store.load(_made_bg["routine"]["id"])["versions"][0]
+check("create behind the dialog with the pass: stored verifying (a run held, no pass yet), condensing while the condenser works (a run held, saying so), then reproduced with the condensed script and the pass on the record; the verdict carries the pass",
+      _v_before["run_zero"]["status"] == "verifying" and "condensed" not in _v_before and _seen_status == ["condensing"] and host.zero_holds({"run_zero": {"status": "condensing"}}) == "the routine's code is still being condensed - run it when it has settled"
+      and _v_after["run_zero"]["status"] == "reproduced" and _v_after["run_zero"]["line"].startswith("reproduced") and _v_after["condensed"]["status"] == "condensed" and "print(len(kept))" not in _v_after["script"] and "print(len(kept))" in _v_after["script_written"]
+      and _verdict_bg["condensed"]["status"] == "condensed" and _verdict_bg["results"][0]["estimate"] == "+3.00", (_v_before.get("run_zero"), _seen_status, _v_after.get("condensed")))
+# without a condenser nothing changes; a pass that keeps the script as written leaves no script_written
+_pc3 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
+_made_aw = host.create(nb4, _pc3, {"name": "As written", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condenser=lambda s, u: ("UNCHANGED", {"cost": 0.0}))
+_v_aw = store.load(_made_aw["routine"]["id"])["versions"][0]
+check("create with a pass that finds nothing to cut: the record says as written, the script is the one written and no script_written is kept; create without a condenser records no pass",
+      _v_aw["condensed"]["status"] == "as_written" and _v_aw["condensed"]["line"] == "as written: nothing to cut" and "script_written" not in _v_aw and "print(len(kept))" in _v_aw["script"]
+      and "condensed" not in store.load(made["routine"]["id"])["versions"][0] and made.get("condensed") is None, (_v_aw.get("condensed"), made.get("condensed")))
 # the next version: the manifest rides to the promoter, the inputs carry over, v1 stays
 p4 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, routine=store.load(made["routine"]["id"]))
 made4 = host.create(nb4, p4, {"name": "", "purpose": "", "drop_inputs": [], "drop_results": [], "change_note": "the same, again"}, runner, store, routine_id=made["routine"]["id"])

@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/181/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/131/14/25/4/14/67/41 JS; 1,761 on 2026-11-07; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/208/31/27/18/49/44/72/33/195/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/133/14/25/4/14/67/41 JS; 1,778 on 2026-11-07; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,20 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The condensing pass (2026-11-07, patch 0272; docs/ROUTINES_DESIGN.md §19).** A routine inherited the chain's
+  exploration - inspections, prints, brute-force loops (the MMC chain: minutes per run, forty runs in a fill). After run
+  zero reproduces, the Condenser seat (`Condenser` in the config, else the analyst's) is given the cells, the RESULT
+  lines, the figure cells, the input keys and each cell's time, and gives back the cells kept: no cell nothing rests on,
+  no prints, loops vectorised, every RESULT call, figure, INPUTS read, load, DS.save and marker as written. The candidate
+  runs on the chain's own data and is kept only when `check_lines` says reproduced and `same_figures` the same pictures
+  (Plotly data and layout within 1e-9, typed arrays decoded; a PNG byte for byte); a failure goes back once with the
+  reason, the second keeps the script as written. `routines_host.condense`, `settle_condensed`; the version's `script`
+  the condensed one, the chain's as `script_written`, the record under `condensed`; run zero's record the condensed
+  run's. Behind the dialog the status is `condensing` meanwhile (a run held, the chip and the row say so), the toast and
+  the Summary's Checked row carry the line, *as written ↓* downloads `/routines/<id>/script?written=1`. The call from
+  the thread is quiet (`_llm_quiet`: a silent output manager, billed to the save's chain). Tests: test_routines.py 195,
+  test_app_path.py 208, test_routines.js 133; the stack walk's routine runs condensed (the harness's own condenser);
+  the integrations walk unchanged but waits through `condensing`.
 - **The promoter's brief, and identifiers (2026-11-07, patch 0271; docs/ROUTINES_DESIGN.md §18).** The first live
   routine over a within-session analysis made inputs of session ids - the chain had retyped two id lists from earlier
   output though it had the rules, and the brief listed "identifiers of subjects or groups" among the candidates. The

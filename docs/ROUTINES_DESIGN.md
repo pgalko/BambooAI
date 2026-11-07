@@ -1157,3 +1157,79 @@ Accepted by (patch 0271): the pure module (`key_column`, `key_inputs`, `unfit_li
 fake promoter (the key column named in the data description; a keyed reply asked again with the reason and the step
 marked as asked again; a second keyed reply refused; an unfit reply refused; the recomputed clause a note), the C5
 scan over the new text, and the walks unchanged.
+
+## 19. The condensing pass (2026-11-07)
+
+A routine runs the chain's cells as the analyst wrote them, and the analyst explores: inspections, printed tables,
+a computation redone three ways, a loop over rows where a rolling sum would do. The routine inherits all of it. Two
+things went wrong with that in practice: the time (the MMC chain computed its curve by brute force - minutes per run,
+and a fill runs forty of them), and the clutter (an output full of exploration a coach never asked for). Palo's first
+thought was a fourth analysis mode that primes the analyst to write routine-ready code; dropped, since it would cost the
+analysis its exploring and touch every chain for the few that become routines. The shaping belongs after the chain,
+when the outputs are known - and not in the promoter's pass, which is a reading job (verbatim fragments, find/replace)
+that run zero can check; a rewrite folded into it would leave run zero unable to say which change broke what, and
+would take the inputs down with it.
+
+### 19.1 The pass
+
+After run zero reproduces, a second seat - the **Condenser**, `Condenser` in the model config, the analyst's seat
+when absent - is given the cells with their markers, the RESULT lines the script prints (the record every run is
+checked against), the cells that draw figures, the input keys the cells read, and the time each cell took in the
+analysis (`cell_times` on the proposal, from the kernel's record of each cell). Its brief (`CONDENSER_SYSTEM`): keep,
+exactly as written, every RESULT call in its order, every figure and the calls that draw it, every INPUTS read, the
+loads and the DS.save calls, the markers of the cells kept with their numbers (never renumbered, merged or reordered)
+and the capture switches between cells; drop a cell no RESULT line and no figure rests on and, within a cell, prints,
+displays and what nothing uses; make faster what can be made faster with the same answer, and never faster by a
+different one - no sampling, no fewer draws, no other seed or threshold. It replies with the kept cells in one code
+block, or UNCHANGED.
+
+The candidate is not trusted; it is run. `condense` in the host: the reply read (`parse_condenser`), the cells
+checked before anything runs (`check_condensed`: a subsequence of the original's markers, every figure cell kept,
+the same inputs read), the script joined and run on the chain's own data through the same runner as run zero, and
+accepted only when `check_lines` says reproduced - every RESULT line identical as printed, the same count - and
+`same_figures` says the same pictures: the same number, each figure's Plotly data and layout equal with numbers
+within a relative 1e-9 (plotly's typed arrays decoded and compared the same way; nan as nan), a PNG byte for byte.
+Anything else - the reply unreadable, a static fault, an error (named by its cell and line), lines that differ (the
+differing lines shown), a figure that differs (which one) - goes back to the condenser once, as `CONDENSER_RETRY`,
+and a second failure keeps the script as written with the reason on the record. UNCHANGED, or the cells sent back as
+they were, is *nothing to cut* and nothing runs; a reply cut at the seat's token limit keeps the script as written at
+once, the line naming the remedy (a larger max_tokens on the seat). The whole pass is two model calls and two runs at
+most.
+
+### 19.2 What is kept, and what the coach sees
+
+When the candidate is accepted the version's `script` is the condensed one and the chain's stays as
+`script_written`; run zero's record - its results, figure count, time and the files under `runs/v1_0` - becomes the
+condensed run's, since that is the script every later run is read against; the pass itself is on the version as
+`condensed` {status, line, attempts, cost, cells [before, after], elapsed [run zero's, the candidate's], seat,
+model}. Kept as written, the version carries the record and no `script_written`.
+
+Behind the dialog the verdict's thread runs the pass after run zero: the version is written as `condensing`
+meanwhile - `zero_holds` holds a run, the manager's chip says *condensing…* and the list row too - then settled. The
+page's watch (`watchVerification`) goes on through it, reloads an open manager when the status turns so the chip
+follows, and its toast carries the pass's line: *verified on the
+original data · condensed: 9 cells → 4, 48 s → 7 s*, or *· as written: the condensed code did not reproduce the
+figures: figure 2 differs*. The Summary's Checked row carries the same line after the verdict, with *as written ↓*
+beside it when the condensed code is the one that runs - `/routines/<id>/script?written=1`, the chain's code with
+the INPUTS block, named `_as_written.py`. Nothing else speaks: no pane rows (the pass runs after the request that
+made the routine has ended), no figures shown (the candidate's exist to be compared). The model call from that thread
+is a quiet one (`_llm_quiet`): a silent stand-in for the output manager, since the page's queue would carry a stream
+into the next request, and the cost read off the chain the call is billed to - the save's chain, the one the
+promoter was billed to (`billing_chain_id` on the proposal) - so the Usage dialog lists it there, under the seat it
+ran on. The pane's quiet Routine card cannot carry the turn for the same reason.
+
+The pass runs only where it can be checked: a routine made with the chain's data gone (unverified) is left as
+written, as is one whose run zero differed or failed. A run's Results tab may be empty afterwards when the method
+printed nothing but what the condenser dropped - the RESULT lines, when there are any, still print there.
+
+Accepted by (patch 0272): the pure module (`parse_condenser`, `check_condensed`, `same_figures`, `secs_text`),
+`condense` over a fake condenser and the kernel (the brief; a candidate without the print condensed with its lines,
+output, cells and times; a line that differs asked again with the differing line and the second candidate kept;
+twice wrong as written with the reason; UNCHANGED and the cells sent back as nothing to cut, nothing run;
+renumbered cells and another input refused before running; a failing candidate named by cell and error; a figure
+that differs by its number; the seat down), `create` with the pass in the foreground and behind the dialog (the
+status condensing while the condenser works, the scripts, the record, run zero's record, the files), the app path
+(the quiet call on the analyst seat, billed to the save's chain, no pane rows; the route's run without a Results tab),
+the dialogs' builders (the chip, the hold, the Checked row with the download, the side item), the page's watch, the
+stylesheet, the stack walk (the harness's own condenser gives the cells back without the inspection cell and the
+prints, and the walk's routine runs condensed) and the C5 scan over the new text.

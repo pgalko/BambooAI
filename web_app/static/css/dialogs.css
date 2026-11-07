@@ -272,7 +272,9 @@
 .rt-status { font-size: var(--fs-small); padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; }
 .rt-status.reproduced { color: var(--c-model); border-color: var(--chip-model-border); }
 .rt-status.unverified { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
-.rt-status.verifying { color: var(--c-kernel); border-color: var(--chip-kernel-border); animation: rt-verifying 1.4s ease-in-out infinite; }   /* run zero behind the dialog (2026-10-15) */
+.rt-status.verifying { color: var(--c-kernel); border-color: var(--chip-kernel-border); animation: rt-verifying 1.4s ease-in-out infinite; }   /* run zero behind the dialog (2026-10-15); condensing too (§19) */
+.rt-written { margin-left: 4px; font-size: var(--fs-small); color: var(--text-tertiary); text-decoration: none; }     /* the code as written, when the code that runs is the condensed one (§19) */
+.rt-written:hover { color: var(--text-secondary); text-decoration: underline; }
 @keyframes rt-verifying { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 /* the manager: the shape of the saved-workflows dialog, a list on the left and one routine on the right */
 #routinesModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }

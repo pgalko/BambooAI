@@ -153,6 +153,19 @@ check('a verifying routine: the chip says verifying… (pulsing class), Run disa
   && db.querySelector('.rt-status.differed').textContent === 'did not reproduce' && db.textContent.includes('1 of 2 lines moved') && da.querySelector('[data-act="run"]').hasAttribute('disabled') && da.querySelector('[data-act="run"]').getAttribute('title').includes('make it again')
   && !el(b.actions(routine)).querySelector('[data-act="run"]').hasAttribute('disabled') && b.zeroStatus({ verified: true }).includes('verified') && b.zeroStatus({}).includes('unverified'),
   [vb.querySelector('.rt-status') && vb.querySelector('.rt-status').outerHTML, va.innerHTML.slice(0, 200)]);
+// the condensing pass after the verdict (§19): the chip says condensing… and Run is held meanwhile; the Checked row carries the pass's line, with
+// the code as written to take away when the condensed code is the one that runs; nothing of it on a version the pass never saw
+const condensing = JSON.parse(JSON.stringify(routine)); condensing.versions[1].run_zero = { status: 'condensing', verified: true, line: 'condensing: the code is being condensed and checked against run zero' };
+const condensed = JSON.parse(JSON.stringify(routine)); condensed.versions[1].condensed = { status: 'condensed', line: 'condensed: 9 cells → 4, 48 s → 7 s', cells: [9, 4], elapsed: [48.2, 7.1] };
+const asWritten = JSON.parse(JSON.stringify(routine)); asWritten.versions[1].condensed = { status: 'as_written', line: 'as written: the condensed code did not reproduce the figures: figure 2 differs' };
+const cb = el(b.routineBody(condensing)), ca = el(b.actions(condensing)), cd = el(b.routineBody(condensed)), cw = el(b.routineBody(asWritten));
+check('a condensing routine: the chip says condensing… (the pulsing class), Run held with the reason, the side item says so; a condensed version: the Checked row carries the line and the as-written download; kept as written: the line alone; a version without the pass: nothing',
+  cb.querySelector('.rt-status.verifying').textContent === 'condensing…' && ca.querySelector('[data-act="run"]').hasAttribute('disabled') && ca.querySelector('[data-act="run"]').getAttribute('title').includes('still being condensed')
+  && el(b.sideItem({ id: 'x', name: 'N', source: 'file', current_version: 1, runs: 0, run_zero_status: 'condensing', created: 1791600000 }, false)).textContent.includes('condensing…')
+  && cd.querySelector('.rt-status.reproduced').textContent === 'verified' && cd.textContent.includes(' · condensed: 9 cells → 4, 48 s → 7 s') && cd.querySelector('a.rt-written').getAttribute('href') === '/routines/' + routine.id + '/script?written=1' && cd.querySelector('a.rt-written').textContent === 'as written ↓'
+  && cw.textContent.includes(' · as written: the condensed code did not reproduce the figures: figure 2 differs') && !cw.querySelector('a.rt-written')
+  && !el(b.routineBody(routine)).querySelector('a.rt-written') && b.condensedLine(routine, {}) === '' && b.condensedLine(routine, { condensed: { status: 'condensed' } }) === '',
+  [cb.querySelector('.rt-status') && cb.querySelector('.rt-status').outerHTML, cd.querySelector('.ui-kv') && cd.querySelector('.ui-kv').textContent.slice(0, 200)]);
 check('the side item says verifying… or did not reproduce from the summary card', el(b.sideItem({ id: 'x', name: 'N', source: 'file', current_version: 1, runs: 0, run_zero_status: 'verifying', created: 1791600000 }, false)).textContent.includes('verifying…')
   && el(b.sideItem({ id: 'x', name: 'N', source: 'file', current_version: 1, runs: 0, run_zero_status: 'failed', created: 1791600000 }, false)).textContent.includes('did not reproduce')
   && !el(b.sideItem({ id: 'x', name: 'N', source: 'file', current_version: 1, runs: 0, run_zero_status: 'reproduced', created: 1791600000 }, false)).textContent.includes('verifying'));
@@ -583,6 +596,11 @@ check('page: the Routines rail entry sits between Saved workflows and the Datase
   && html.indexOf("js/workflow-modal.js") < html.indexOf("js/routines.js"));
 const shellCss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'shell.css'), 'utf8');
 const dlgCss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8');
+const rtSrcC = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
+check('the page follows the verdict through the condensing pass (§19): the watch goes on while the status is verifying or condensing, an open manager reloaded when the status turns, and the toast at the end carries the pass\'s line; the as-written link styled',
+  rtSrcC.includes("if (!r || (st && st !== 'verifying' && st !== 'condensing')) {") && rtSrcC.includes("' · verified on the original data' + (v.condensed && v.condensed.line ? ' · ' + v.condensed.line : '')")
+  && rtSrcC.includes("if (st && st !== watching[id]) {") && rtSrcC.includes("watching[id] = 'verifying';")
+  && dlgCss.includes('.rt-written') && dlgCss.includes('.rt-written:hover'));
 check('stylesheets: the pill\'s menu and its saved and open states in shell.css (the rail badge rule gone with the badge); the dialog, the manager, the card button, the composer lock, the interval row, the plan, the fill box and the fill line in dialogs.css',
   ['.save-menu', '.save-menu .it.done', '#rankButton.saved', '#rankButton.menu-open'].every(c => shellCss.includes(c)) && !shellCss.includes('.rb-badge')
   && ['#routineMakeModal', '#routinesModal', '.rt-inputs', '.rt-results .r.flag', '.rt-version', '.workflow-card-routine.has', 'body.composer-locked', '.rt-interval', '.rt-plan', '.rt-fillbox', '.rt-fillbar'].every(c => dlgCss.includes(c)));

@@ -188,7 +188,7 @@
                 '<div class="rt-right"><div class="ui-dlg-h"><div><div class="title"></div><div class="sub"></div></div><span class="sp"></span><div class="rt-actions"></div><button class="x" aria-label="Close">×</button></div><div class="rt-body"></div></div></div>';
         },
         sideItem(r, on) {
-            const st = r.run_zero_status === 'verifying' ? ' · verifying…' : (r.run_zero_status === 'differed' || r.run_zero_status === 'failed' ? ' · did not reproduce' : '');
+            const st = r.run_zero_status === 'verifying' ? ' · verifying…' : (r.run_zero_status === 'condensing' ? ' · condensing…' : (r.run_zero_status === 'differed' || r.run_zero_status === 'failed' ? ' · did not reproduce' : ''));
             return '<div class="it' + (on ? ' on' : '') + '" data-id="' + esc(r.id) + '"><b>' + esc(r.name) + '</b><span>' + esc(sourceLabel(r.source)) + ' · v' + esc(r.current_version) + (r.runs ? ' · ' + r.runs + ' run' + (r.runs === 1 ? '' : 's') : '') + st + ' · ' + esc(fmtDate(r.updated || r.created)) + '</span></div>';
         },
         empty() {
@@ -210,7 +210,7 @@
             const m = v.manifest || {};
             const rz = v.run_zero || {};
             let h = '<div class="rt-sec"><div class="ui-kv">' + (r.purpose ? '<b>Purpose</b><span>' + esc(r.purpose) + '</span>' : '') + '<b>Question</b><span>' + esc(r.question) + '</span>' +
-                '<b>Checked</b><span>' + build.zeroStatus(rz) + ' ' + esc(rz.line || '') + '</span></div></div>';
+                '<b>Checked</b><span>' + build.zeroStatus(rz) + ' ' + esc(rz.line || '') + build.condensedLine(r, v) + '</span></div></div>';
             const params = m.parameters || [];
             h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— asked before each run</span></div>' + (params.length
                 ? '<table class="ui-table rt-inputs"><thead><tr><th>Input</th><th>Default</th><th>Where it comes from</th></tr></thead><tbody>' + params.map(p => '<tr' + (p.derived ? ' data-derived="' + esc(p.derived) + '"' : '') + '><td>' + esc(p.label) + '</td><td><span class="val">' + esc(valueText(p)) + '</span>' + (p.derived ? '<span class="rt-derived">' + esc(derivedText(p)) + '</span>' : '') + '</td><td><span class="from">' + esc(p.origin || '') + '</span></td></tr>').join('') + '</tbody></table>'
@@ -382,17 +382,26 @@
             if (v.run_zero && v.run_zero.verified) add(build.zeroSubject(v), ((((v.manifest || {}).data || {}).load || {}).subject || {}).name || '');
             return out;
         },
-        // run zero's verdict as a status chip (2026-10-15: run zero runs behind the dialog, so a routine can be verifying)
+        // run zero's verdict as a status chip (2026-10-15: run zero runs behind the dialog, so a routine can be verifying; since
+        // §19 condensing too, the pass after a verdict of reproduced)
         zeroStatus(rz) {
             const st = (rz && rz.status) || (rz && rz.verified ? 'reproduced' : 'unverified');
-            const cls = st === 'verifying' ? 'verifying' : (st === 'reproduced' || (rz && rz.verified) ? 'reproduced' : (st === 'differed' || st === 'failed' ? 'differed' : 'unverified'));
-            const word = cls === 'verifying' ? 'verifying…' : (cls === 'reproduced' ? 'verified' : (cls === 'differed' ? 'did not reproduce' : 'unverified'));
+            const cls = st === 'verifying' || st === 'condensing' ? 'verifying' : (st === 'reproduced' || (rz && rz.verified) ? 'reproduced' : (st === 'differed' || st === 'failed' ? 'differed' : 'unverified'));
+            const word = st === 'condensing' ? 'condensing…' : (cls === 'verifying' ? 'verifying…' : (cls === 'reproduced' ? 'verified' : (cls === 'differed' ? 'did not reproduce' : 'unverified')));
             return '<span class="rt-status ' + cls + '">' + word + '</span>';
+        },
+        // the condensing pass's outcome (§19) after the verdict: the line, and the code as written to take away when the code
+        // that runs is the condensed one; nothing while the pass has not run or still runs
+        condensedLine(r, v) {
+            const c = (v || {}).condensed;
+            if (!c || !c.line) return '';
+            return ' · ' + esc(c.line) + (c.status === 'condensed' && r && r.id ? ' <a class="rt-written" href="/routines/' + esc(r.id) + '/script?written=1" download title="the code as the analysis wrote it, before it was condensed">as written ↓</a>' : '');
         },
         zeroHold(r) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const st = (v.run_zero || {}).status || r.run_zero_status || '';
             if (st === 'verifying') return 'still being verified on its chain’s own data — run it when it has settled';
+            if (st === 'condensing') return 'its code is still being condensed — run it when it has settled';
             if (st === 'differed' || st === 'failed') return 'run zero did not reproduce the chain’s analysis — the method is not run on other data; delete it, or make it again from the chain';
             return '';
         },
@@ -1851,22 +1860,27 @@
 
     // ------------------------------------------------------------ the rail entry
     // run zero behind the dialog (2026-10-15): the page follows the verdict and says it when it lands; the manager, open on
-    // the routine, shows the chip change and the Run button come alive
+    // the routine, shows the chip change and the Run button come alive. The condensing pass (§19) follows the verdict: the
+    // chip says condensing… meanwhile, and the toast carries the pass's line
     const watching = {};
     function watchVerification(id, name, version) {
         if (watching[id]) return;
-        watching[id] = true;
+        watching[id] = 'verifying';
         const t0 = Date.now();
         const tick = () => fetchJson('/routines/' + encodeURIComponent(id)).then(res => {
             const r = res.json && res.json.routine;
             const v = r && (r.versions || []).find(x => x.number === version);
             const st = v && v.run_zero ? v.run_zero.status : '';
-            if (!r || (st && st !== 'verifying')) {
+            if (!r || (st && st !== 'verifying' && st !== 'condensing')) {
                 delete watching[id];
-                if (v) toast(name + ' · v' + version + (v.run_zero.verified ? ' · verified on the original data' : ' · run zero did not reproduce: ' + (v.run_zero.line || '')));
+                if (v) toast(name + ' · v' + version + (v.run_zero.verified ? ' · verified on the original data' + (v.condensed && v.condensed.line ? ' · ' + v.condensed.line : '') : ' · run zero did not reproduce: ' + (v.run_zero.line || '')));
                 if (manager && manager.style.display !== 'none') loadManager(id);
                 if (window.WorkflowModal && typeof window.WorkflowModal.refresh === 'function') window.WorkflowModal.refresh();
                 return;
+            }
+            if (st && st !== watching[id]) {                 // verifying → condensing: the open manager's chip follows
+                watching[id] = st;
+                if (manager && manager.style.display !== 'none') loadManager(id);
             }
             if (Date.now() - t0 < 3600000) setTimeout(tick, 3000); else delete watching[id];
         }).catch(() => { setTimeout(tick, 5000); });

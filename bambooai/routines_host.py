@@ -344,6 +344,7 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
             "summary": summary, "data": data, "data_state": state, "source": rt.source_kind(data), "inputs": inputs, "notes": notes,
             "kept": [str(k) for k in (obj.get("kept") or [])][:12], "results": results, "figures": {"count": sum(len(c.figures) for c in run.cells() if c.cell_no in figures), "cells": figures},
             "cells": len(order), "script": rt.join_script(header, edited, tail), "header": header, "tail": tail, "cells_text": edited, "cells_original": body,
+            "cell_times": {str(c.cell_no): round(float(c.elapsed or 0), 1) for c in path if c.cell_no in order},      # the condenser's brief (§19)
             "applied": applied, "timeout": _timeout(path), "cost": round(cost, 4), "routine_id": routine.get("id") if routine else None,
             "routine_name": routine.get("name") if routine else None, "next_version": (routine.get("current_version", 1) + 1) if routine else None}
 
@@ -355,7 +356,7 @@ VERIFYING_LINE = "verifying: the method is being run once on the chain's own dat
 
 
 def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callable], store: rt.RoutineStore, emit: Optional[Callable] = None,
-           routine_id: Optional[str] = None, background: bool = False) -> dict:
+           routine_id: Optional[str] = None, background: bool = False, condenser: Optional[Callable] = None, condenser_seat: str = "", condenser_model: str = "") -> dict:
     """Apply the person's choices (name, purpose, inputs dropped, results dropped) and store the routine (a new one, or
     the next version of `routine_id`); then run zero - the method once on the chain's own data, the proof that it
     reproduces the chain's lines. In the foreground (the default, as the tests and the library use it) a method whose
@@ -363,7 +364,9 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     re-executes every cell of the chain, nine minutes on a heavy one, and nobody waits for a dialog that long) the
     routine is stored at once as *verifying*, the result carries `verify`, a callable the host runs in a thread, and the
     verdict - reproduced, differed, failed - lands on the record when it is in; a run is refused until it has settled,
-    and after a verdict that is not reproduced. With the chain's data gone the routine is created unverified and says so."""
+    and after a verdict that is not reproduced. With the chain's data gone the routine is created unverified and says so.
+    `condenser` (§19): the model the condensing pass calls after run zero reproduced - the script as run is its candidate
+    when that reproduces the lines and the figures on the same data, else the script stays as written; None skips it."""
     name = (choices.get("name") or proposal.get("name") or "").strip()[:80] or "Routine"
     purpose = (choices.get("purpose") or "").strip()[:300]
     drop_inputs = {str(k) for k in (choices.get("drop_inputs") or [])}
@@ -384,12 +387,18 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     verifying = runner is not None and proposal.get("data_state") != "gone"
     timeout = int(proposal.get("timeout") or 300)
     stdout, figs = "", []
+    condensed = None
     if verifying and not background:
         verdict = verify_zero(name, script, results, run_zero["inputs"], runner, timeout, emit)
         if verdict["status"] != "reproduced":
             raise RoutineRefused(f"run zero on this chain's own data did not reproduce the analysis: {verdict['line']}")
         run_zero.update({k: verdict[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
         stdout, figs = verdict["stdout"], verdict["figs"]
+        if condenser is not None:
+            condensed = condense(proposal, cells, results, run_zero["inputs"], verdict, condenser, runner, timeout, condenser_seat, condenser_model)
+            if condensed["status"] == "condensed":
+                stdout, figs = condensed["stdout"], condensed["figs"]
+                run_zero.update({"results": condensed["results"], "figures": len(condensed["figs"]), "elapsed": condensed["elapsed"][1]})
     elif verifying:
         run_zero.update({"status": "verifying", "line": VERIFYING_LINE})
     routine = store.load(routine_id) if routine_id else None
@@ -406,33 +415,57 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
         if purpose:
             routine["purpose"] = purpose
     number = len(routine["versions"]) + 1
-    routine["versions"].append({"number": number, "created": now, "promoted_from": {"thread_id": str(nb.thread_id), "chain_id": str(proposal["chain_id"])},
-                                "script": script, "manifest": manifest, "change_note": change_note, "run_zero": run_zero})
+    version = {"number": number, "created": now, "promoted_from": {"thread_id": str(nb.thread_id), "chain_id": str(proposal["chain_id"])},
+               "script": script, "manifest": manifest, "change_note": change_note, "run_zero": run_zero}
+    if condensed is not None:
+        settle_condensed(version, condensed, script)
+    routine["versions"].append(version)
     routine["current_version"] = number
     store.save(routine)
     try:
         store.save_run_files(routine["id"], f"v{number}_0", stdout or "", figs or [])
     except OSError:
         pass
-    made = {"routine": rt.RoutineStore.summary(routine), "version": number, "run_zero": run_zero, "name": routine["name"]}
+    made = {"routine": rt.RoutineStore.summary(routine), "version": number, "run_zero": run_zero, "name": routine["name"], "condensed": version.get("condensed")}
     if verifying and background:
         rid, inputs_defaults = routine["id"], run_zero["inputs"]
+
+        def write(verdict: dict, status: Optional[str] = None, condensed_: Optional[dict] = None) -> bool:
+            """The verdict on the stored version (and the condensing pass's outcome, §19); False when the routine was
+            deleted meanwhile and there is nothing to write on."""
+            r = store.load(rid)
+            v = next((x for x in (r or {}).get("versions", []) if x.get("number") == number), None) if r else None
+            if v is None:
+                return False
+            v["run_zero"].update({k: verdict[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
+            if status:
+                v["run_zero"].update({"status": status, "line": CONDENSING_LINE})
+            if condensed_ is not None:
+                settle_condensed(v, condensed_, script)
+            store.save(r)
+            ran = condensed_ if condensed_ and condensed_.get("status") == "condensed" else verdict     # the files are the script that runs from now on
+            try:
+                store.save_run_files(rid, f"v{number}_0", ran.get("stdout") or "", ran.get("figs") or [])
+            except OSError:
+                pass
+            return True
 
         def verify():
             """Run zero behind the dialog: the verdict written on the stored version when it is in. No pane rows - nobody
             is watching a pane for it (a row emitted after the dialog's stream closed would land in the next request's);
-            the toast and the manager's chip say what happened."""
+            the toast and the manager's chip say what happened. Then the condensing pass (§19), the version marked
+            condensing while it runs."""
             verdict = verify_zero(name, script, results, inputs_defaults, runner, timeout, None)
-            r = store.load(rid)
-            v = next((x for x in (r or {}).get("versions", []) if x.get("number") == number), None) if r else None
-            if v is None:
+            if condenser is None or verdict["status"] != "reproduced":
+                write(verdict)
+                return verdict
+            if not write(verdict, status="condensing"):
                 return verdict                                        # deleted meanwhile: nothing to write on
-            v["run_zero"].update({k: verdict[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
-            store.save(r)
-            try:
-                store.save_run_files(rid, f"v{number}_0", verdict["stdout"] or "", verdict["figs"] or [])
-            except OSError:
-                pass
+            c = condense(proposal, cells, results, inputs_defaults, verdict, condenser, runner, timeout, condenser_seat, condenser_model)
+            if c["status"] == "condensed":
+                verdict = dict(verdict, results=c["results"], figures=len(c["figs"]), elapsed=c["elapsed"][1])
+            write(verdict, condensed_=c)
+            verdict["condensed"] = c
             return verdict
         made["verify"] = verify
     return made
@@ -456,6 +489,86 @@ def verify_zero(name: str, script: str, results: List[dict], inputs: Dict[str, o
         emit({"type": "lookup", "kind": "routine", "query": name, "peek": line, "elapsed": elapsed})
     return {"status": status, "line": line, "verified": status == "reproduced", "results": got, "figures": len(figs or []), "elapsed": elapsed,
             "stdout": stdout or "", "figs": figs or []}
+
+
+CONDENSING_LINE = "condensing: the code is being condensed and checked against run zero"
+
+
+def condense(proposal: dict, cells: str, results: List[dict], inputs: Dict[str, object], zero: dict, llm: Callable, runner: Callable, timeout: int,
+             seat: str = "", model: str = "") -> dict:
+    """The condensing pass (docs/ROUTINES_DESIGN.md §19): the condenser is given the cells, the RESULT lines, the figure
+    cells, the input keys and the time each cell took, and replies with the cells kept; the candidate runs on the chain's
+    own data and is accepted only when its RESULT lines are run zero's (check_lines, identical as printed) and its
+    figures the same pictures (same_figures). A candidate that fails or differs is asked for once more with the reason;
+    the second failure keeps the script as written. Returns {status: condensed | as_written, line, attempts, cost, cells:
+    [before, after], elapsed: [run zero's, the candidate's], seat, model} and, when condensed, script, results, stdout,
+    figs."""
+    header, tail = proposal.get("header") or "", proposal.get("tail") or ""
+    figure_cells = [int(c) for c in ((proposal.get("figures") or {}).get("cells") or [])]
+    keys = rt.keys_read(cells)
+    user = rt.condenser_user(cells, _ledger(results), figure_cells, keys, proposal.get("cell_times") or {})
+    before = len(rt.cell_blocks(cells))
+    out = {"status": "as_written", "line": "", "attempts": 0, "cost": 0.0, "cells": [before, before], "elapsed": [zero.get("elapsed"), None], "seat": seat, "model": model}
+    note, problem = "", ""
+    for attempt in range(2):
+        out["attempts"] = attempt + 1
+        try:
+            text, usage = llm(rt.CONDENSER_SYSTEM, user if not note else user + "\n\n" + note)
+        except Exception as exc:                                   # noqa: BLE001 - the seat down: the script as written, said
+            out["line"] = f"as written: the condenser could not be called ({str(exc).strip().splitlines()[-1][:160] if str(exc).strip() else exc})"
+            return out
+        out["cost"] = round(out["cost"] + float((usage or {}).get("cost") or 0.0), 4)
+        if (usage or {}).get("truncated"):                         # the seat's token allowance ran out mid-cells: the seat needs a larger one, not another try
+            out["line"] = "as written: the condenser's reply was cut off at its token limit (the seat that condenses needs a larger max_tokens)"
+            return out
+        try:
+            new = rt.parse_condenser(text)
+        except ValueError as exc:
+            problem = f"could not be read ({exc})"
+            note = rt.CONDENSER_RETRY.format(problem=problem)
+            continue
+        if new is None or new.strip() == (cells or "").strip():
+            out["line"] = "as written: nothing to cut"
+            return out
+        problem = rt.check_condensed(cells, new, figure_cells, keys)
+        if problem:
+            note = rt.CONDENSER_RETRY.format(problem=problem)
+            continue
+        script = rt.join_script(header, new, tail)
+        t0 = time.time()
+        try:
+            stdout, err, figs, _generated = runner(rt.with_inputs(script, inputs), timeout)
+        except Exception as exc:                                   # noqa: BLE001
+            stdout, err, figs = "", f"the run could not start: {exc}", []
+        elapsed = round(time.time() - t0, 1)
+        got = rt.result_lines_in(stdout or "")
+        status, line, _diffs = rt.check_lines(results, got, err or "")
+        if status == "failed":
+            cell = rt.failed_cell(rt.with_inputs(script, inputs), err or "")
+            problem = (f"failed at cell {cell}: " if cell else "failed: ") + (rt.error_line(err or "") or line)[:200]
+        elif status != "reproduced":
+            problem = "did not reproduce the result lines: " + line
+        else:
+            ok, why = rt.same_figures(zero.get("figs") or [], figs or [])
+            if ok:
+                after = len(rt.cell_blocks(new))
+                out.update({"status": "condensed", "cells": [before, after], "elapsed": [zero.get("elapsed"), elapsed], "script": script,
+                            "results": got, "stdout": stdout or "", "figs": figs or [],
+                            "line": f"condensed: {before} cell{'s' if before != 1 else ''} → {after}, {rt.secs_text(zero.get('elapsed'))} → {rt.secs_text(elapsed)}"})
+                return out
+            problem = "did not reproduce the figures: " + why
+        note = rt.CONDENSER_RETRY.format(problem=problem)
+    out["line"] = "as written: the condensed code " + problem
+    return out
+
+
+def settle_condensed(version: dict, condensed: dict, written: str) -> None:
+    """The pass's outcome on a version: the record of it; when condensed, the script as run in place of the script as
+    written, which stays under script_written."""
+    version["condensed"] = {k: condensed.get(k) for k in ("status", "line", "attempts", "cost", "cells", "elapsed", "seat", "model")}
+    if condensed.get("status") == "condensed":
+        version["script_written"] = written
+        version["script"] = condensed["script"]
 
 
 # ----------------------------------------------------------------------------- a run on the data loaded now (F2)
@@ -662,6 +775,8 @@ def zero_holds(ver: dict) -> str:
     status = str(rz.get("status") or "")
     if status == "verifying":
         return "the routine is still being verified on its chain's own data - run it when it has settled"
+    if status == "condensing":
+        return "the routine's code is still being condensed - run it when it has settled"
     if status in ("differed", "failed"):
         return f"run zero on this chain's own data did not reproduce the analysis ({rz.get('line') or status}) - the method is not run on other data; delete the routine, or make it again from the chain"
     return ""

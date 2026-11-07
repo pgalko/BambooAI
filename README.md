@@ -320,9 +320,13 @@ columns mean in practice, what to watch for, and what worked. It is stored in
 
 A finished analysis can be kept as a method and run again on other data of the same shape. *Save as
 routine* (the save menu on a chain) hands the chain to the `Promoter` seat, which reads it once and
-names the constants that would have to change for other data - a boundary date, an identifier, a
-threshold - as inputs, at most five; everything else stays as written. The routine is stored only
-once a *run zero* on the original data reproduces every RESULT line the chain recorded.
+names the constants that would have to change for other data - a boundary date, a threshold, a
+band - as inputs, at most five; identifiers of this data are never inputs. The routine is stored
+only once a *run zero* on the original data reproduces every RESULT line the chain recorded. Then
+the `Condenser` seat condenses the script to what the results and figures rest on - the
+exploration dropped, loops vectorised - and the condensed code replaces the chain's only when it
+reproduces run zero's lines and figures on the same data; otherwise the script stays as written,
+and the routine's Summary says which.
 
 A run is then a dialog with the inputs and the load, and no model: the data is loaded the way the
 original was (a window from Intervals.icu for the athlete picked in the dialog - a coach's athletes
@@ -412,6 +416,7 @@ The available roles:
 | `Reader` | Reads relevant document or context passages for the Analyst through `READ`. Called once per read; suitable for a cheaper model. |
 | `Coder` | Reads the words loaded beside Intervals.icu data once, in batches, and writes the codes table against the codebook; renders passages not in English. Falls back to the Reader when absent. |
 | `Promoter` | Handles *Save as routine*: reads a finished chain once and identifies its inputs as find/replace edits in a JSON reply. Falls back to the Analyst when absent. |
+| `Condenser` | The pass after a routine's run zero: condenses the chain's script to the code its results and figures rest on, faster where it can be; the result is kept only when it reproduces run zero's lines and figures on the same data. Falls back to the Analyst when absent. |
 | `Knowledge Distiller` | Writes the memory card when a run is saved. |
 | `Google Search Executor` | Performs the grounded search, using a Gemini model. |
 | `Google Search Summarizer` | Condenses search results into a digest with citations. |

@@ -60,7 +60,7 @@ def wait_verified(routine_json, timeout=240):
         try:
             rj = json.load(open(routine_json))
             rz = (rj.get("versions") or [{}])[-1].get("run_zero") or {}
-            if rz.get("status") not in (None, "", "verifying"):
+            if rz.get("status") not in (None, "", "verifying", "condensing"):
                 return rj
         except (OSError, ValueError):
             pass

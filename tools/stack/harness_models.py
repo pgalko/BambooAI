@@ -23,6 +23,7 @@ are the numbers the kernel printed.
 """
 import importlib.util
 import os
+import re
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -72,10 +73,30 @@ def _tokens(s):
     return max(1, len(_text(s) if not isinstance(s, str) else s) // 4)
 
 
+def condensed_reply(user):
+    """The stack's own condenser (docs/ROUTINES_DESIGN.md §19), for every scenario: the cells given back without the cells
+    that only print (the inspections) and without the top-level prints elsewhere; the markers, the RESULT calls, the
+    figures and the capture switches as they were. UNCHANGED when nothing goes."""
+    cells = user.split("first cell):\n", 1)[1].split("\n\nRESULT LINES THE SCRIPT PRINTS", 1)[0] if "first cell):\n" in user else ""
+    kept = []
+    for block in re.split(r"(?m)^(?=# --- cell \d+ ---$)", cells):
+        if not block.strip():
+            continue
+        lines = block.splitlines()
+        code = [ln for ln in lines[1:] if ln.strip() and not ln.lstrip().startswith("#")]
+        if code and all(ln.startswith("print(") for ln in code):
+            continue
+        kept.append("\n".join(ln for ln in lines if not ln.startswith("print(")))
+    out = "\n".join(kept).strip("\n")
+    return "UNCHANGED" if not out or out == cells.strip("\n") else "```python\n" + out + "\n```"
+
+
 def _reply(messages):
     if SCENARIO is None:
         raise RuntimeError("harness_models: no scenario loaded (call harness_models.load(name))")
     system, user = _split(messages)
+    if system.startswith("You are condensing the script"):
+        return "", condensed_reply(user)
     thinking, text = SCENARIO.reply(system, user)
     return thinking or "", text or ""
 

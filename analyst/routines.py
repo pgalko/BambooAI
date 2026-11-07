@@ -435,6 +435,139 @@ def defaults_of(inputs: List[dict]) -> Dict[str, object]:
     return {p["key"]: p["default"] for p in inputs or []}
 
 
+# ----------------------------------------------------------------------------- the condenser (docs/ROUTINES_DESIGN.md §19)
+CONDENSER_SYSTEM = """You are condensing the script of an analysis into the code of a routine: the same computation, run again on data of the same shape by a person who sets a few inputs and never edits the code. The analysis explored before it answered; the routine runs only what the answer rests on, and runs it fast.
+
+You receive the cells of the script in execution order with their markers, the RESULT lines the script printed (the record every run is checked against), the cells that drew figures, the input keys the cells read, and the time each cell took.
+
+Keep, exactly as written: every RESULT(...) call, in the same order, computing the same values; every figure, drawn by the same calls on the same values; every INPUTS[...] read; the loading of the data and of files and every DS.save(...), with the names as written; the markers "# --- cell N ---" of the cells you keep, with their numbers (never renumber, never merge, never reorder cells); any line between cells that sets _bamboo_capture.
+
+Drop: a cell no RESULT line and no figure rests on - inspections, printed tables, checks that led nowhere, an earlier version of a computation a later cell redid; within a cell, prints and displays, variables nothing uses, a load or a computation done twice.
+
+Make faster what can be made faster with the same answer: a vectorised operation for a loop over rows, a cumulative or rolling sum for a window recomputed at every step, one grouped aggregation for a loop over groups, a value computed once instead of inside a loop. Never faster by a different answer: no sampling, no fewer draws or iterations, no other seed, threshold or tolerance, no approximation; a loop that draws random numbers keeps its draws in their order, or the numbers change. A number that would print differently is a changed method and is refused.
+
+Reply with the cells only: one python code block holding the kept cells with their markers, nothing before or after it. When nothing can be dropped or made faster, reply with the word UNCHANGED."""
+
+CONDENSER_RETRY = "Your condensed code {problem}. Reply again with the cells, as specified - the same RESULT lines and the same figures - or with UNCHANGED."
+
+
+def secs_text(t) -> str:
+    """A duration as the condensed line says it: 0.8 s, 48 s, 9 min."""
+    t = float(t or 0)
+    return f"{t:.1f} s" if t < 10 else (f"{t:.0f} s" if t < 60 else f"{t / 60:.0f} min")
+
+
+def condenser_user(cells: str, ledger: Iterable[str], figure_cells: Iterable[int], keys: Iterable[str], times: Optional[Dict] = None) -> str:
+    figs = [str(c) for c in figure_cells or []]
+    took = ", ".join(f"cell {n}: {secs_text(t)}" for n, t in sorted(((int(k), float(v or 0)) for k, v in (times or {}).items()), key=lambda x: x[0]))
+    return "\n\n".join(["THE SCRIPT (the cells in execution order; `df` is loaded before the first cell):\n" + (cells or "").strip("\n"),
+                        "RESULT LINES THE SCRIPT PRINTS (in this order; every one must still be printed, identical):\n" + ("\n".join(ledger) or "(none)"),
+                        "CELLS THAT DRAW FIGURES: " + (", ".join(figs) or "none"),
+                        "INPUT KEYS THE CELLS READ: " + (", ".join(keys) or "none"),
+                        "TIME EACH CELL TOOK: " + (took or "not recorded")])
+
+
+def parse_condenser(text: str) -> Optional[str]:
+    """The condenser's cells, from the code block of its reply (the one with cell markers); None for UNCHANGED.
+    Raises ValueError with a readable reason."""
+    t = (text or "").strip()
+    if not t:
+        raise ValueError("the reply was empty")
+    if re.fullmatch(r"`*\s*UNCHANGED\.?\s*`*", t, re.I):
+        return None
+    blocks = re.findall(r"```(?:python|py)?[ \t]*\n(.*?)```", t, re.S)
+    cells = next((b for b in blocks if _CELL_MARK_RE.search(b)), None) if blocks else (t if _CELL_MARK_RE.search(t) else None)
+    if cells is None:
+        raise ValueError("no cells with their markers in the reply")
+    return "\n" + cells.strip("\n") + "\n"
+
+
+def check_condensed(original: str, cells: str, figure_cells: Iterable[int], keys: Iterable[str]) -> str:
+    """What is wrong with the condensed cells before they run: '' when nothing. The cells kept are a subsequence of the
+    original's, by number; every figure cell is kept; the same inputs are read."""
+    before = [int(n) for n in _CELL_MARK_RE.findall(original or "")]
+    after = [int(n) for n in _CELL_MARK_RE.findall(cells or "")]
+    if not after:
+        return "has no cells"
+    if len(set(after)) != len(after):
+        return "repeats a cell marker"
+    it = iter(before)
+    if not all(any(n == o for o in it) for n in after):
+        return "renumbers or reorders the cells (keep the markers of the cells you keep, in their order)"
+    gone = [c for c in figure_cells or [] if int(c) not in after]
+    if gone:
+        return f"drops cell {gone[0]}, which draws a figure"
+    want, got = set(keys or []), set(keys_read(cells))
+    if want != got:
+        return "reads other inputs than the script (" + ", ".join(sorted((want ^ got))) + ")"
+    return ""
+
+
+def _fig_payload(fig):
+    """The figure under the tabs' wrapper ({type, data, format, id, chain_id}): the Plotly object when the data is JSON,
+    else the data as it is (a PNG's base64)."""
+    o = fig
+    if isinstance(o, str):
+        try:
+            o = json.loads(o)
+        except ValueError:
+            return o
+    if isinstance(o, dict) and "data" in o and ("format" in o or "type" in o):
+        o = o["data"]
+    if isinstance(o, str):
+        try:
+            o = json.loads(o)
+        except ValueError:
+            pass
+    return o
+
+
+def _same_typed(a: dict, b: dict) -> bool:
+    """Plotly's typed arrays ({dtype, bdata, shape}) compared as numbers."""
+    if a.get("dtype") != b.get("dtype") or a.get("shape") != b.get("shape"):
+        return False
+    try:
+        import base64
+        import numpy as np
+        x = np.frombuffer(base64.b64decode(a.get("bdata") or ""), dtype=np.dtype(a["dtype"]))
+        y = np.frombuffer(base64.b64decode(b.get("bdata") or ""), dtype=np.dtype(b["dtype"]))
+        if x.shape != y.shape:
+            return False
+        return bool(np.allclose(x, y, rtol=1e-9, atol=1e-12, equal_nan=True)) if x.dtype.kind in "fc" else bool(np.array_equal(x, y))
+    except Exception:                                          # noqa: BLE001 - no numpy, or bytes that are not the dtype's
+        return a == b
+
+
+def _close(a, b) -> bool:
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a == b
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        if a != a and b != b:
+            return True
+        return a == b or abs(a - b) <= 1e-9 * max(1.0, abs(a), abs(b))
+    if isinstance(a, dict) and isinstance(b, dict):
+        if set(a) != set(b):
+            return False
+        if "bdata" in a and "dtype" in a:
+            return _same_typed(a, b)
+        return all(_close(a[k], b[k]) for k in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_close(x, y) for x, y in zip(a, b))
+    return a == b
+
+
+def same_figures(expected: Iterable, got: Iterable) -> Tuple[bool, str]:
+    """The figures of a run against run zero's: the same count, each the same picture - a Plotly figure by its data and
+    layout (numbers within a relative 1e-9, nan as nan), a PNG byte for byte. (ok, why)."""
+    exp, now = list(expected or []), list(got or [])
+    if len(exp) != len(now):
+        return False, f"{len(now)} figure{'s' if len(now) != 1 else ''} came back, {len(exp)} expected"
+    for i, (x, y) in enumerate(zip(exp, now), 1):
+        if not _close(_fig_payload(x), _fig_payload(y)):
+            return False, f"figure {i} differs"
+    return True, (f"{len(exp)} figure{'s' if len(exp) != 1 else ''} identical" if exp else "no figures")
+
+
 # ----------------------------------------------------------------------------- the check of a run
 def check_lines(expected: List[dict], got: List[dict], error: str = "") -> Tuple[str, str, List[dict]]:
     """A run's RESULT lines against the expected ones, by position. Returns (status, line, details):

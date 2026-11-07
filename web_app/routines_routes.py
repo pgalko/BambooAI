@@ -35,7 +35,8 @@ def _view(proposal):
 
 
 def _version_view(v):
-    return {k: v.get(k) for k in ("number", "created", "promoted_from", "change_note", "manifest", "run_zero")} | {"script_chars": len(v.get("script") or "")}
+    return {k: v.get(k) for k in ("number", "created", "promoted_from", "change_note", "manifest", "run_zero", "condensed")} | {
+        "script_chars": len(v.get("script") or ""), "written_chars": len(v.get("script_written") or "")}        # the script as written, when condensed (§19)
 
 
 def _stream(instance, work):
@@ -146,7 +147,8 @@ def rename_routine(rid):
 @routines_bp.route('/routines/<rid>/script', methods=['GET'])
 @requires_auth
 def routine_script(rid):
-    """The current version's script as a file, the INPUTS block at the top with the defaults."""
+    """The current version's script as a file, the INPUTS block at the top with the defaults; `?written=1` the script
+    as the analysis wrote it, when the version was condensed (§19)."""
     from analyst.routines import script_with_defaults
     import re
     r = _store().load(rid)
@@ -160,8 +162,10 @@ def routine_script(rid):
     if not v:
         return jsonify({'error': 'no such version'}), 404
     name = re.sub(r'[^A-Za-z0-9_-]+', '_', r.get('name') or 'routine').strip('_') or 'routine'
-    body = f"# {r.get('name')} - v{number} - made with BambooAI from the analysis of {r.get('origin', {}).get('chain_id')}\n" + script_with_defaults(v)
-    return Response(body, mimetype='text/x-python', headers={'Content-Disposition': f'attachment; filename="{name}_v{number}.py"'})
+    written = bool(request.args.get('written')) and bool(v.get('script_written'))
+    shown = dict(v, script=v['script_written']) if written else v
+    body = f"# {r.get('name')} - v{number} - made with BambooAI from the analysis of {r.get('origin', {}).get('chain_id')}" + (" - as the analysis wrote it" if written else "") + "\n" + script_with_defaults(shown)
+    return Response(body, mimetype='text/x-python', headers={'Content-Disposition': f'attachment; filename="{name}_v{number}{"_as_written" if written else ""}.py"'})
 
 
 @routines_bp.route('/routines/<rid>/cached', methods=['POST'])
