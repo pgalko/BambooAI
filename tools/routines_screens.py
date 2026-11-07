@@ -38,7 +38,7 @@ ROUTINE = {"id": "r1", "name": "Altitude pace correction, within athlete", "crea
            "versions": [{"number": 1, "created": 1791460000, "promoted_from": {"thread_id": "1791460000", "chain_id": "1791460001"}, "change_note": "first version", "script_chars": 9120,
                          "manifest": {"data": PROPOSAL["data"], "parameters": PROPOSAL["inputs"], "results": [dict(r) for r in PROPOSAL["results"]], "figures": PROPOSAL["figures"]},
                          "run_zero": {"status": "reproduced", "line": "reproduced: 5 result line(s) identical", "verified": True},
-                         "condensed": {"status": "condensed", "line": "condensed: 9 cells → 4, 48 s → 4.6 s", "cells": [9, 4], "elapsed": [48.2, 4.6], "attempts": 1}}]}     # the pass (§19)
+                         "condensed": {"status": "condensed", "line": "condensed: 9 cells → 4, 11 prints dropped, 48 s → 4.6 s", "cells": [9, 4], "dropped": {"cells": [1, 2, 4, 6, 8], "prints": 11}, "elapsed": [48.2, 4.6]}}]}     # the pass (§19)
 # step 2: three runs of v1 with their lines (the manifest's five kept lines, by position; the dropped typed one still printed)
 def _lines(vals):
     out = [{"estimate": f"{v:+.3f}", "low": f"{v - w:+.3f}", "high": f"{v + w:+.3f}"} for v, w in vals]
@@ -268,7 +268,7 @@ def render(out, light=False, width=1440, height=900):
                 want = {'s0_save_menu': state['pill'] != 'none' and state['menu'], 's1_make_dialog': state['dialog'] and state['inputs'] == 4 and state['derived'] == 1 and state['pane'] and state['kept'] == ['Abroad vs altitude, adjusted', 'Per +1000 m of altitude', 'Abroad vs road, same HR band'] and state['more'] == '▸ 2 more lines recorded, not compared' and state['aside'] == 0,
                         's1d_make_dialog_aside': state['dialog'] and state['more'].startswith('▾ 2 more lines') and state['aside'] == 2,
                         's1e_make_dialog_waiting': state['dialog'] and state['steps'] == ['s done — 5 cells · 6 results · 1 figure', 's done — 22,705 rows · 49 columns', 's running — 0:42', 's pending'], 's1b_next_version': state['dialog'] and state['inputs'] == 4,
-                        's1c_refused': state['dialog'] and state['error'], 's2_manager': state['manager'] and state['mgrItems'] == 1 and state['chip'] == 'verified' and ' · condensed: 9 cells → 4, 48 s → 4.6 s' in state['checkedRow'], 's2b_manager_empty': state['manager'] and state['mgrItems'] == 0,
+                        's1c_refused': state['dialog'] and state['error'], 's2_manager': state['manager'] and state['mgrItems'] == 1 and state['chip'] == 'verified' and ' · condensed: 9 cells → 4, 11 prints dropped, 48 s → 4.6 s' in state['checkedRow'], 's2b_manager_empty': state['manager'] and state['mgrItems'] == 0,
                         's2c_manager_condensing': state['manager'] and state['chip'] == 'condensing…' and state['runOff'] and 'condensed:' not in state['checkedRow'],
                         's3_favourite_card': state['cards'] >= 1 and state['lit'] >= 1,
                         's4_run_dialog': state['runDlg'] and state['runBtn'] and state['widgets'] == 3 and state['derivedRows'] == 1 and not state['fitBad'] and state['dataChoice'] == 'now', 's4b_run_dialog_nofit': state['runDlg'] and not state['runBtn'] and state['fitBad'],

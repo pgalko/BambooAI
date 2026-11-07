@@ -441,13 +441,13 @@ def main():
                   len(rdirs) == 1 and rj.get("current_version") == 1 and rj["versions"][0]["run_zero"]["verified"] and rj["versions"][0]["run_zero"]["status"] == "reproduced"
                   and [p["key"] for p in rj["versions"][0]["manifest"]["parameters"]] == ["regime"] and "INPUTS['regime']" in rj["versions"][0]["script"]
                   and rj["origin"]["thread_id"] == str(page.evaluate("() => currentData.thread_id")) and rj.get("purpose", "").startswith("the within-soil"), (len(rdirs), rj.get("versions", [{}])[0].get("run_zero")))
-            # the condensing pass after the verdict (§19): the harness's condenser gave the cells back without the inspection cell and the prints; the
-            # candidate reproduced the line and both figures (the matplotlib PNG byte for byte, the Plotly figure by its data), so it is the script
-            # that runs, the chain's kept as written; run zero's record is the condensed run's
+            # the condensing pass after the verdict (§19): the cells pruned from the code - the inspection cell (nothing reads what it makes) and
+            # the prints go; the candidate reproduced the line and both figures (the matplotlib PNG byte for byte, the Plotly figure by its data),
+            # so it is the script that runs, the chain's kept as written; run zero's record is the condensed run's
             v1 = (rj.get("versions") or [{}])[0]
-            check("the routine's code was condensed behind the verdict: 3 cells → 2 (the inspection cell gone, no prints left, the RESULT call and the figure cell kept with their numbers), the chain's script kept as written, the pass on the record with the analyst's seat and its cost, run zero's figures two",
-                  (v1.get("condensed") or {}).get("status") == "condensed" and v1["condensed"]["line"].startswith("condensed: 3 cells → 2, ") and v1["condensed"]["cells"] == [3, 2] and v1["condensed"]["attempts"] == 1 and v1["condensed"]["cost"] > 0
-                  and v1["condensed"]["seat"] == "Analyst" and [ln for ln in v1["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---", "# --- cell 3 ---"] and not [ln for ln in v1["script"].splitlines() if ln.startswith("print(")]
+            check("the routine's code was condensed behind the verdict, without a model: 3 cells → 2 (the inspection cell gone, five prints out, the RESULT call and the figure cell kept with their numbers), the chain's script kept as written, the pass on the record, run zero's figures two",
+                  (v1.get("condensed") or {}).get("status") == "condensed" and v1["condensed"]["line"].startswith("condensed: 3 cells → 2, 5 prints dropped, ") and v1["condensed"]["cells"] == [3, 2] and v1["condensed"]["dropped"] == {"cells": [1], "prints": 5}
+                  and [ln for ln in v1["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---", "# --- cell 3 ---"] and not [ln for ln in v1["script"].splitlines() if ln.startswith("print(")]
                   and "RESULT(" in v1["script"] and "pfig.show()" in v1["script"] and "print(df.shape)" in v1.get("script_written", "") and "# --- cell 1 ---" in v1.get("script_written", "")
                   and v1["run_zero"]["figures"] == 2 and v1["run_zero"]["elapsed"] == v1["condensed"]["elapsed"][1], (v1.get("condensed"), [ln for ln in v1.get("script", "").splitlines() if ln.startswith("# --- cell")]))
             fav1 = os.path.join(workdir, "webapp", "storage", USER, "favourites", rj["origin"]["thread_id"], rj["origin"]["chain_id"] + ".json") if rdirs else ""
@@ -476,7 +476,7 @@ def main():
                 inputs: document.querySelectorAll('#routinesModal .rt-inputs tbody tr').length, badge: !!document.getElementById('routinesBadge') || !!document.querySelector('#routinesPill .rb-badge') })""")
             check("the Routines manager lists the routine, verified, with its one input and the link to the analysis it was made from; the rail entry carries no count badge (gone 2026-11-06); the Checked row carries the pass's line and the as-written download (§19)",
                   mgr["items"] == ["Regime contrast within soil, plot means"] and mgr["origin"] and mgr["checked"] == "verified" and mgr["inputs"] == 1 and "a favourite" in mgr["sub"] and mgr["badge"] is False
-                  and " · condensed: 3 cells → 2, " in mgr["checkedRow"] and mgr["written"] == "/routines/" + rj["id"] + "/script?written=1", mgr)
+                  and " · condensed: 3 cells → 2, 5 prints dropped, " in mgr["checkedRow"] and mgr["written"] == "/routines/" + rj["id"] + "/script?written=1", mgr)
             script_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes(\"'regime': 'B'\") && !t.includes('print(df.shape)'))", rj["id"])
             written_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script?written=1').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes('print(df.shape)') && t.includes('as the analysis wrote it'))", rj["id"])
             check("the .py download carries the INPUTS block with the default and is the condensed code; ?written=1 is the chain's code with the same block, said so in its first line", script_status is True and written_status is True, (script_status, written_status))

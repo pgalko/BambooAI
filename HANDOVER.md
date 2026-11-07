@@ -481,6 +481,21 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The condensing pass without a model (2026-11-07, patch 0273; docs/ROUTINES_DESIGN.md §19).** 0272's model pass
+  met its first live chain (the MMC, twelve cells) and returned nothing: the analyst seat it fell back to spent its
+  16,000 tokens reasoning. The design was fragile - the reply grew with the chain, the model saw code without its
+  context, one dataset checked equivalence - so the model is out. `rt.prune_cells` prunes from the code alone: a cell
+  stays when a RESULT, a figure, a save or write, or an input's only read rests on it, or a later kept cell reads a name
+  it defines or mutates (ast: bindings, subscript and attribute assignments, in-place calls, functions; reads walked
+  in statement order with Python's scopes, so a reused loop variable is no link; a dropped cell's imports stay); the
+  rest go, with the kept cells' top-level prints and displays. On the MMC chain: 12 cells → 10, 68 prints out. `routines_host.condense` runs the pruned script on the
+  chain's data and keeps it only when the lines and figures are run zero's; a dropped cell that mattered falls back to
+  the prints alone; else as written with the reason. The record is `condensed` {status, line, cells, dropped, elapsed};
+  the chip, the toast, the Checked row and `?written=1` as in 0272; `_llm_quiet`, the Condenser seat, the harness's
+  scripted condenser and the usage map's entry are gone. The speed rewrite (the slow MMC cell) is §19.3, not built:
+  a model with the analyst's context, one method, two datasets. Revert path: 0272 and 0273 revert cleanly to 0271; a
+  routine made meanwhile keeps harmless extra fields. Tests: test_routines.py 195, test_app_path.py 208,
+  test_routines.js 133, the stack walk 135.
 - **The condensing pass (2026-11-07, patch 0272; docs/ROUTINES_DESIGN.md §19).** A routine inherited the chain's
   exploration - inspections, prints, brute-force loops (the MMC chain: minutes per run, forty runs in a fill). After run
   zero reproduces, the Condenser seat (`Condenser` in the config, else the analyst's) is given the cells, the RESULT

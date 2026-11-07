@@ -181,29 +181,6 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Promoter' if 'Promoter' in agents else self._seat()
 
-    def _condenser_seat(self):
-        """The seat the condensing pass runs on (docs/ROUTINES_DESIGN.md §19): 'Condenser' when the config carries one,
-        else the analyst seat - the model that wrote the code condenses it."""
-        agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
-        return 'Condenser' if 'Condenser' in agents else self._seat()
-
-    def _llm_quiet(self, system: str, user: str, seat: str, chain_id):
-        """A model call from a thread after its request has ended (the condensing pass, §19): nothing goes to the pane -
-        the page's queue would carry a stream into the next request - and the cost is read off the chain the call is
-        billed to, not the session's."""
-        class _Silent:
-            def print_wrapper(self, *a, **k): pass
-            def display_tool_info(self, *a, **k): pass
-            def send_html_content(self, *a, **k): pass
-            def display_system_messages(self, message, *a, **k): logger.info("quiet model call: %s", message)
-        before = self._cost_of(chain_id)
-        text = self.llm_stream(self.prompts, self.log_and_call_manager, _Silent(), [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                               agent=seat, chain_id=chain_id, reasoning_models=self.reasoning_models)
-        if isinstance(text, tuple):
-            text = text[0]
-        from bambooai.models import prompt_cache
-        return text or "", {"cost": max(0.0, self._cost_of(chain_id) - before), "truncated": bool(prompt_cache.last_meta().get("truncated"))}
-
     def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, image: str = None,
              effort=None, **hints):
         """The model call the session uses: the app's model layer (streaming,
@@ -241,11 +218,8 @@ class BambooAI:
                             "declined": meta.get("declined") or "", "effort": meta.get("seat_effort") or ""}
 
     def _chain_cost(self):
-        return self._cost_of(self.chain_id)
-
-    def _cost_of(self, chain_id):
         ts = self.log_and_call_manager.token_summary
-        summary = ts.get(chain_id) or ts.get(str(chain_id)) or {}
+        summary = ts.get(self.chain_id) or ts.get(str(self.chain_id)) or {}
         return float(summary.get('total_cost', 0.0) or 0.0)
 
     # ---------------------------------------------------------------- kernel
@@ -685,7 +659,6 @@ class BambooAI:
                                              runner=lambda s, t: self.run_script(s, t, what="Shape"))
         finally:
             self.chain_id = keep
-        proposal["billing_chain_id"] = str(billing_chain_id or self.chain_id or "")      # the condensing pass's call is billed there too (§19)
         pending = getattr(self, "_proposals", None)
         if pending is None:
             pending = self._proposals = {}
@@ -807,18 +780,9 @@ class BambooAI:
         # next version of one - the dialog's "A new routine" means that
         # run zero behind the dialog (2026-10-15: it re-executes every cell of the chain - nine minutes on a heavy one): the
         # routine is stored at once as verifying, the verdict lands on it from a thread, a run is refused until it has
-        # the condensing pass (§19) after run zero, on its seat, billed to the save's chain; its call runs in the thread,
-        # after this request has ended, so it is a quiet one
-        seat = self._condenser_seat()
-        try:
-            model = self.models.get_model_name(seat)
-            model = model[0] if isinstance(model, (tuple, list)) else model
-        except Exception:                                          # noqa: BLE001
-            model = ''
-        billing = proposal.get("billing_chain_id") or self.chain_id
+        # settled, and after a verdict that is not reproduced; the condensing pass (§19) follows the verdict in the same thread
         made = routines_host.create(nb, proposal, choices or {}, lambda script, timeout: self.run_script(script, timeout, what="Run zero"),
-                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id, background=True,
-                                    condenser=lambda s, u: self._llm_quiet(s, u, seat, billing), condenser_seat=seat, condenser_model=model or '')
+                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id, background=True, condense_code=True)
         pending.pop(proposal_id, None)
         verify = made.pop("verify", None)
         logger.info("Routine %s v%d made from chain %s: %s", made["routine"]["id"], made["version"], proposal["chain_id"], made["run_zero"]["line"])

@@ -233,18 +233,9 @@ except host.RoutineRefused as exc:
     refused = str(exc)
 check("create: a rewrite whose run zero differs is refused, naming the line; nothing is stored", refused and "differ" in refused and "rows above the line" in refused and len(store.all()) == before, refused)
 
-# ---- the condensing pass (docs/ROUTINES_DESIGN.md §19): the condenser's cells run on the chain's own data and are kept only when the
-# lines and the figures are run zero's; a failure is asked again once with the reason, the second keeps the script as written
+# ---- the condensing pass (docs/ROUTINES_DESIGN.md §19): the cells pruned from the code alone, run on the chain's own data and kept
+# only when the lines and the figures are run zero's; the prints alone when a dropped cell turns out to matter; else as written
 import base64 as _b64
-check("parse_condenser: the cells from the reply's code block (the one with markers); UNCHANGED is None; a reply without cells raises",
-      rt.parse_condenser("Here:\n```python\n# --- cell 2 ---\nx = 1\n```\nDone.") == "\n# --- cell 2 ---\nx = 1\n" and rt.parse_condenser(" UNCHANGED ") is None and rt.parse_condenser("```\nUNCHANGED\n```") is None
-      and rt.parse_condenser("# --- cell 1 ---\nbare") == "\n# --- cell 1 ---\nbare\n")
-for _t, _why in (("```python\nx = 1\n```", "no cells"), ("", "empty")):
-    try:
-        rt.parse_condenser(_t); _pc = ""
-    except ValueError as exc:
-        _pc = str(exc)
-    check(f"parse_condenser: {_t[:12]!r} raises mentioning {_why!r}", _why in _pc, _pc)
 _orig_cells = "\n# --- cell 1 ---\na = INPUTS['k']\n# --- cell 2 ---\nprint(a)\n# --- cell 3 ---\nfig.show()\n"
 check("check_condensed: the cells kept are a subsequence of the original's by number, every figure cell is kept, the same inputs are read; each fault named",
       rt.check_condensed(_orig_cells, "\n# --- cell 1 ---\na = INPUTS['k']\n# --- cell 3 ---\nfig.show()\n", [3], ["k"]) == ""
@@ -263,8 +254,81 @@ check("same_figures: the same picture under another chain id and wrapper is the 
       and not rt.same_figures([{"data": {"data": [{"y": _arr([1.0, 2.0])}]}, "format": "json"}], [{"data": {"data": [{"y": _arr([1.0, 2.5])}]}, "format": "json"}])[0]
       and rt.same_figures([_fig([float("nan"), 1])], [_fig([float("nan"), 1])])[0] and rt.same_figures([_fig("iVBOR...", "png")], [_fig("iVBOR...", "png")])[0] and not rt.same_figures([_fig("iVBOR...", "png")], [_fig("iVBOQ...", "png")])[0]
       and rt.same_figures([_fig([1])], []) == (False, "0 figures came back, 1 expected") and rt.same_figures([], []) == (True, "no figures"))
-check("the durations the condensed line says", (rt.secs_text(0.84), rt.secs_text(48.3), rt.secs_text(542), rt.secs_text(None)) == ("0.8 s", "48 s", "9 min", "0.0 s"))
-# the pass over run4's chain: cell 1 prints a count nothing rests on; the condenser drops the print
+check("the durations and the words of the condensed line", (rt.secs_text(0.84), rt.secs_text(48.3), rt.secs_text(542), rt.secs_text(None)) == ("0.8 s", "48 s", "9 min", "0.0 s")
+      and rt.condensed_line(12, 5, 23, 190.2, 184.0) == "condensed: 12 cells → 5, 23 prints dropped, 3 min → 3 min" and rt.condensed_line(3, 3, 1, 1.2, 1.1) == "condensed: 3 cells kept, 1 print dropped, 1.2 s → 1.1 s"
+      and rt.condensed_line(4, 2, 0, 9.96, 8.0) == "condensed: 4 cells → 2, 10 s → 8.0 s")
+# prune_cells over a made-up script: an inspection cell (prints alone) and a check cell nothing reads go; a cell that mutates a frame a later
+# cell reads stays, as do a RESULT cell, a figure cell (named, or by its show), a cell that writes a file and the only reader of an input;
+# top-level prints go, a print inside a loop stays; the capture switch between cells stays; a cell that does not parse prunes nothing
+_script = """
+# --- cell 1 ---
+import numpy as np, pandas as pd
+print("rows", df.shape)
+print(df.dtypes.to_string())
+g = df.groupby("a").size()
+print(g.to_string())
+
+# --- cell 2 ---
+d = df[df.power > 0].copy()
+d["x"] = d.power * INPUTS['scale']
+print("kept", len(d))
+
+# --- cell 3 ---
+tab = d.groupby("a")["x"].mean()
+print(tab.to_string(),
+      "two lines")
+for a_ in tab.index:
+    print(a_)
+RESULT('mean x', float(tab.mean()), None, None, 'W', 'n/a')
+_bamboo_capture[0] = False
+
+# --- cell 4 ---
+check = d.x.describe()
+print(check)
+_bamboo_capture[0] = True
+
+# --- cell 5 ---
+names = []
+def note(v):
+    names.append(v)
+
+# --- cell 6 ---
+note('x')
+tab.to_csv('out.csv')
+
+# --- cell 7 ---
+import plotly.graph_objects as go
+fig = go.Figure(go.Bar(x=list(tab.index), y=list(tab.values)))
+fig.show()
+
+# --- cell 8 ---
+lbl = INPUTS['label']
+print(lbl)
+"""
+_pruned, _dropped, _prints, _problem = rt.prune_cells(_script, [7])
+check("prune_cells: cells 1 and 4 go (nothing reads what they make), cell 2 stays (d, read later), 3 (RESULT), 5 (note, read by 6), 6 (a file written), 7 (the figure), 8 (the only reader of an input); the kept cells' top-level prints go (three), the print in the loop stays; the switch between cells stays; the markers keep their numbers",
+      _problem == "" and _dropped == [1, 4] and _prints == 3
+      and [ln for ln in _pruned.splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (2, 3, 5, 6, 7, 8)]
+      and "print(" not in _pruned.replace("    print(a_)", "") and "    print(a_)" in _pruned and "_bamboo_capture[0] = False" in _pruned and "_bamboo_capture[0] = True" in _pruned
+      and "two lines" not in _pruned and "INPUTS['scale']" in _pruned and "INPUTS['label']" in _pruned and "tab.to_csv('out.csv')" in _pruned
+      and rt.check_condensed(_script, _pruned, [7], ["scale", "label"]) == "" and "\n\n\n" not in _pruned, (_dropped, _prints, _pruned))
+_po, _pd, _pp, _ppr = rt.prune_cells(_script, [7], prints_only=True)
+check("prune_cells, prints only: every cell stays, every top-level print goes (seven); a script with nothing to cut comes back as it is; a cell that does not parse prunes nothing and says which",
+      _pd == [] and _pp == 7 and [ln for ln in _po.splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in range(1, 9)]
+      and rt.prune_cells("\n# --- cell 1 ---\nx = 1\nRESULT('x', float(x), None, None, '', 'n/a')\n", []) == ("\n# --- cell 1 ---\nx = 1\nRESULT('x', float(x), None, None, '', 'n/a')\n", [], 0, "")
+      and rt.prune_cells("\n# --- cell 1 ---\nx = (\n# --- cell 2 ---\nprint(1)\n", []) == ("\n# --- cell 1 ---\nx = (\n# --- cell 2 ---\nprint(1)\n", [], 0, "cell 1 could not be parsed ('(' was never closed)"), (_pd, _pp))
+_defs = rt.prune_cells("\n# --- cell 1 ---\nlst = []\n# --- cell 2 ---\nlst.append(1)\n# --- cell 3 ---\nd = df.copy()\n# --- cell 4 ---\nd.sort_values('v', inplace=True)\n# --- cell 5 ---\nd.attrs['k'] = 1\n# --- cell 6 ---\nimport math\n# --- cell 7 ---\ndef f():\n    return math.pi * len(lst) * len(d)\n# --- cell 8 ---\nRESULT('r', f(), None, None, '', 'n/a')\n", [])
+check("prune_cells: what counts as a definition - an in-place call (append, inplace=True) and a subscript or attribute assignment keep the cell for a later reader; a name read only in a function body is a read; an import cell goes but its import line stays",
+      _defs[1] == [6] and "import math\n# --- cell 7 ---" in _defs[0] and [ln for ln in _defs[0].splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (1, 2, 3, 4, 5, 7, 8)]
+      and rt.prune_cells("\n# --- cell 1 ---\nlst = []\n# --- cell 2 ---\nother = [1]\n# --- cell 3 ---\nother.append(2)\n# --- cell 4 ---\nRESULT('r', float(len(lst)), None, None, '', 'n/a')\n", [])[1] == [2, 3], _defs)
+# reads are what a cell takes from before it: a loop variable or a temporary the cell binds itself is no link to an earlier cell that used
+# the same name; a comprehension's and a lambda's own names neither; a frame read before it is rebound is
+check("prune_cells: a later cell that binds g, s and n itself before reading them does not keep the earlier cell that used those names; one that reads d before rebinding it does; comprehension and lambda names are their own",
+      rt.prune_cells("\n# --- cell 1 ---\nfor g in range(3):\n    s = g * 2\nn = 5\nprint(n)\n# --- cell 2 ---\nn = 0\nfor g in df.v:\n    s = g + 1\n    n += s\nRESULT('n', float(n), None, None, '', 'n/a')\n", [])[1] == [1]
+      and rt.prune_cells("\n# --- cell 1 ---\nd = df.copy()\n# --- cell 2 ---\nd = d[d.v > 1]\nRESULT('n', float(len(d)), None, None, '', 'n/a')\n", [])[1] == []
+      and rt.prune_cells("\n# --- cell 1 ---\nk = 3\nx = 1\n# --- cell 2 ---\nys = [k for k in range(4)]\nf = lambda k: k + 1\nRESULT('n', float(f(len(ys))), None, None, '', 'n/a')\n", [])[1] == [1]
+      and rt.prune_cells("\n# --- cell 1 ---\nk = 3\n# --- cell 2 ---\nys = [k * k for k_ in range(4)]\nRESULT('n', float(sum(ys)), None, None, '', 'n/a')\n", [])[1] == [])
+# the pass over run4's chain: cell 1 prints a count nothing rests on - the print goes, both cells stay (cell 2 reads kept)
 _pc1 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
 _cells1 = _pc1["cells_text"]
 _zero = host.verify_zero("x", _pc1["script"], _pc1["results"], rt.defaults_of(_pc1["inputs"]), runner, 60)
@@ -272,85 +336,72 @@ _runs = {"n": 0}
 def _counting_runner(script, timeout):
     _runs["n"] += 1
     return runner(script, timeout)
-def _block(cells):
-    return "```python\n" + cells.strip("\n") + "\n```"
-_cut = _cells1.replace("print(len(kept))\n", "")
-_asks = []
-def _condenser(system, user):
-    _asks.append((system, user))
-    return _block(_cut), {"cost": 0.01}
-_c = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _condenser, _counting_runner, 60, "Condenser", "m")
-check("condense: the brief carries the cells, the numbered lines, the figure cells, the input keys and the time each cell took; the candidate without the print reproduces the line and is condensed - the script as run, its lines, output, cells and times on the record",
-      _asks[0][0] == rt.CONDENSER_SYSTEM and "THE SCRIPT (the cells in execution order" in _asks[0][1] and "1. [cell 2] rows above the line: +3" in _asks[0][1] and "CELLS THAT DRAW FIGURES: none" in _asks[0][1]
-      and "INPUT KEYS THE CELLS READ: threshold" in _asks[0][1] and "TIME EACH CELL TOOK: cell 1: 0.0 s, cell 2: 0.0 s" in _asks[0][1]
-      and _c["status"] == "condensed" and _c["cells"] == [2, 2] and _c["attempts"] == 1 and _c["cost"] == 0.01 and _c["seat"] == "Condenser" and _runs["n"] == 1
+_c = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _counting_runner, 60)
+check("condense: the print pruned, the candidate run once and its line run zero's - condensed, with the script as run, its lines, output, what went and the times",
+      _c["status"] == "condensed" and _c["cells"] == [2, 2] and _c["dropped"] == {"cells": [], "prints": 1} and _runs["n"] == 1
       and "print(len(kept))" not in _c["script"] and "INPUTS['threshold']" in _c["script"] and _c["results"][0]["estimate"] == "+3.00" and _c["stdout"].strip() == "RESULT: rows above the line: +3.00 rows, n/a"
-      and _c["line"].startswith("condensed: 2 cells → 2, ") and _c["elapsed"][0] == _zero["elapsed"] and isinstance(_c["elapsed"][1], float), (_c, _asks[0][1][-400:]))
-# a candidate that changes a number is asked again with the differing line; the second one is kept
-_replies = [_block(_cut.replace("df.v > threshold", "df.v > threshold + 10")), _block(_cut)]
-_asks[:] = []
-def _condenser2(system, user):
-    _asks.append(user)
-    return _replies.pop(0), {"cost": 0.01}
-_c2 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _condenser2, _counting_runner, 60)
-check("condense: a candidate whose line differs is asked again once with the differing line; the second candidate is condensed (two attempts, both costs)",
-      _c2["status"] == "condensed" and _c2["attempts"] == 2 and _c2["cost"] == 0.02 and len(_asks) == 2
-      and _asks[1].endswith(rt.CONDENSER_RETRY.format(problem="did not reproduce the result lines: 1 of 1 result lines differ ([cell 2] rows above the line: +3 -> +2.00)")), (_c2.get("line"), _asks[-1][-300:]))
-# twice wrong: the script stays as written, the line says why; UNCHANGED: nothing to cut, no run; a static fault is asked again
+      and _c["line"].startswith("condensed: 2 cells kept, 1 print dropped, ") and _c["elapsed"][0] == _zero["elapsed"] and isinstance(_c["elapsed"][1], float), _c.get("line"))
+# a chain whose pruning drops a cell that mattered (a function mutating a list: the code does not show it) - the prints alone are kept
+nb5 = Notebook("t5")
+run5c = nb5.new_run("How many flags?")
+run5c.turns = [Turn(kind="cell", cell_no=1, code="print(df.shape)\nprint(df.dtypes.to_string())", results=[], stdout="(5, 2)"),
+               Turn(kind="cell", cell_no=2, code="flags = []\ndef flag(v):\n    flags.append(v)", results=[], stdout=""),
+               Turn(kind="cell", cell_no=3, code="for v in df.v:\n    if v > 150:\n        flag(v)\nprint(len(flags))", results=[], stdout="3"),
+               Turn(kind="cell", cell_no=4, code="RESULT('flags', float(len(flags)), None, None, 'rows', 'n/a')", results=[{"text": "flags: +3", "typed": False}], stdout="RESULT: flags: +3")]
+run5c.report = "## Three\n\nThree rows are flagged [cell 4]."
+run5c.status = "answered"
+run5c.data = dict(run4.data)
+run5c.replay_script, _ = assemble(run5c.cells(), run5c.report)
+nb5.runs[run5c.id] = run5c
+_pc5 = host.propose(nb5, run5c.id, lambda s, u: ('{"name": "Flags", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}), current_data={"df_id": "df4"})
+_zero5 = host.verify_zero("f", _pc5["script"], _pc5["results"], {}, runner, 60)
+check("the flags chain reproduces as written (the fixture's own check)", _zero5["status"] == "reproduced", _zero5.get("line"))
 _runs["n"] = 0
-_c3 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: (_block(_cut.replace("df.v > threshold", "df.v > threshold + 10")), {"cost": 0.0}), _counting_runner, 60)
-_c4 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: ("UNCHANGED", {"cost": 0.0}), _counting_runner, 60)
-_c4b = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: (_block(_cells1), {"cost": 0.0}), _counting_runner, 60)
-_asks[:] = []
-def _condenser5(system, user):
-    _asks.append(user)
-    return (_block(_cut.replace("# --- cell 2 ---", "# --- cell 9 ---")) if len(_asks) == 1 else _block(_cut.replace("threshold = INPUTS['threshold']", "threshold = INPUTS['other']"))), {"cost": 0.0}
-_c5 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _condenser5, _counting_runner, 60)
-check("condense: twice wrong keeps the script as written with the reason; UNCHANGED, or the cells sent back as they are, is nothing to cut and nothing runs; renumbered cells and another input are refused before running, each asked again with its fault",
-      _c3["status"] == "as_written" and _c3["line"] == "as written: the condensed code did not reproduce the result lines: 1 of 1 result lines differ ([cell 2] rows above the line: +3 -> +2.00)" and _c3["attempts"] == 2 and _runs["n"] == 2
-      and _c4 == {"status": "as_written", "line": "as written: nothing to cut", "attempts": 1, "cost": 0.0, "cells": [2, 2], "elapsed": [_zero["elapsed"], None], "seat": "", "model": ""} and _c4b["line"] == "as written: nothing to cut" and _runs["n"] == 2
-      and _c5["status"] == "as_written" and "renumbers or reorders" in _asks[1] and _c5["line"] == "as written: the condensed code reads other inputs than the script (other, threshold)" and _runs["n"] == 2, (_c3, _c4, _c5, _asks))
-# a candidate that fails names the cell and the error; one whose figure differs says which; the seat down keeps the script as written
-_c6 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: (_block(_cut.replace("kept = df[df.v > threshold]", "kept = df[df.w > threshold]")), {"cost": 0.0}), _counting_runner, 60)
+_c5 = host.condense(_pc5, _pc5["cells_text"], _pc5["results"], {}, _zero5, _counting_runner, 60)
+check("condense: pruning dropped cell 3 (a call that mutates through a function) and cell 1, the line came back wrong, so the prints alone were pruned and that candidate kept - two runs, the record saying 4 cells kept and the prints dropped",
+      _c5["status"] == "condensed" and _c5["dropped"] == {"cells": [], "prints": 3} and _c5["cells"] == [4, 4] and _runs["n"] == 2 and _c5["line"].startswith("condensed: 4 cells kept, 3 prints dropped, ")
+      and [ln for ln in _c5["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (1, 2, 3, 4)] and "print(len(flags))" not in _c5["script"] and "flag(v)" in _c5["script"], (_c5.get("line"), _c5.get("dropped")))
+# nothing to cut: no run; a pruning that fails on its only level: as written with the reason
 _zero_fig = dict(_zero, figs=[_fig([1, 2])])
-_c7 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero_fig, lambda s, u: (_block(_cut), {"cost": 0.0}), _counting_runner, 60)
-def _down(s, u):
-    raise RuntimeError("no such seat")
-_c8 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _down, _counting_runner, 60)
-_c9 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, lambda s, u: ("```python\n# --- cell 1 ---\nthres", {"cost": 0.01, "truncated": True}), _counting_runner, 60)
-check("condense: a reply cut at the seat's token limit keeps the script as written at once, naming the remedy", _c9["status"] == "as_written" and _c9["attempts"] == 1 and _c9["line"] == "as written: the condenser's reply was cut off at its token limit (the seat that condenses needs a larger max_tokens)", _c9)
-check("condense: a failing candidate is said by its cell and error; a figure that differs by its number; a seat that cannot be called keeps the script as written",
-      _c6["status"] == "as_written" and _c6["line"] == "as written: the condensed code failed at cell 1: AttributeError: 'DataFrame' object has no attribute 'w'"
-      and _c7["line"] == "as written: the condensed code did not reproduce the figures: 0 figures came back, 1 expected"
-      and _c8 == {"status": "as_written", "line": "as written: the condenser could not be called (no such seat)", "attempts": 1, "cost": 0.0, "cells": [2, 2], "elapsed": [_zero["elapsed"], None], "seat": "", "model": ""}, (_c6, _c7, _c8))
+_c6 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero_fig, _counting_runner, 60)
+_pc7 = dict(_pc1, cells_text=_cells1.replace("print(len(kept))\n", ""))
+_runs["n"] = 0
+_c7 = host.condense(_pc7, _pc7["cells_text"], _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _counting_runner, 60)
+check("condense: a figure that would differ keeps the script as written, naming the figure; a script with nothing to cut is as written without a run",
+      _c6["status"] == "as_written" and _c6["line"] == "as written: the pruned code did not reproduce the figures: 0 figures came back, 1 expected" and _c6["dropped"] == {"cells": [], "prints": 0}
+      and _c7 == {"status": "as_written", "line": "as written: nothing to cut", "cells": [2, 2], "dropped": {"cells": [], "prints": 0}, "elapsed": [_zero["elapsed"], None]} and _runs["n"] == 0, (_c6, _c7))
 # create with the pass: the version keeps the script as written beside the one that runs; run zero's record is the condensed run's
-_made_c = host.create(nb4, _pc1, {"name": "Condensed", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condenser=_condenser, condenser_seat="Condenser", condenser_model="m")
+_made_c = host.create(nb4, _pc1, {"name": "Condensed", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condense_code=True)
 _vc = store.load(_made_c["routine"]["id"])["versions"][0]
 check("create (foreground) with the pass: the version's script is the condensed one, the script as written kept, the pass's record on it and on the made record; run zero's results, figures and time are the condensed run's; the run files are its output",
-      _made_c["condensed"]["status"] == "condensed" and _vc["condensed"]["line"].startswith("condensed: 2 cells → 2") and "print(len(kept))" not in _vc["script"] and "print(len(kept))" in _vc["script_written"]
+      _made_c["condensed"]["status"] == "condensed" and _vc["condensed"] == {k: _made_c["condensed"][k] for k in ("status", "line", "cells", "dropped", "elapsed")} and _vc["condensed"]["line"].startswith("condensed: 2 cells kept, 1 print dropped")
+      and "print(len(kept))" not in _vc["script"] and "print(len(kept))" in _vc["script_written"]
       and _vc["run_zero"]["status"] == "reproduced" and _vc["run_zero"]["verified"] and _vc["run_zero"]["results"][0]["estimate"] == "+3.00" and _vc["run_zero"]["elapsed"] == _vc["condensed"]["elapsed"][1]
       and open(os.path.join(store.path(_made_c["routine"]["id"]), "runs", "v1_0", "stdout.txt")).read().strip() == "RESULT: rows above the line: +3.00 rows, n/a"
       and host.zero_holds(_vc) == "", (_made_c.get("condensed"), _vc.get("condensed")))
-# behind the dialog: verifying, then condensing while the condenser is at work (the store says so), then settled
+# behind the dialog: verifying, then condensing while the pass runs (the store says so), then settled
 _seen_status = []
-def _condenser_bg(system, user):
-    _seen_status.append(store.load(_made_bg["routine"]["id"])["versions"][0]["run_zero"]["status"])
-    return _block(_cut), {"cost": 0.0}
+def _watching_runner(script, timeout):
+    if _made_bg.get("routine"):
+        _seen_status.append(store.load(_made_bg["routine"]["id"])["versions"][0]["run_zero"]["status"])
+    return runner(script, timeout)
+_made_bg = {}
 _pc2 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
-_made_bg = host.create(nb4, _pc2, {"name": "Condensed behind", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, background=True, condenser=_condenser_bg)
+_made_bg.update(host.create(nb4, _pc2, {"name": "Condensed behind", "purpose": "", "drop_inputs": [], "drop_results": []}, _watching_runner, store, background=True, condense_code=True))
 _v_before = store.load(_made_bg["routine"]["id"])["versions"][0]
 _verdict_bg = _made_bg["verify"]()
 _v_after = store.load(_made_bg["routine"]["id"])["versions"][0]
-check("create behind the dialog with the pass: stored verifying (a run held, no pass yet), condensing while the condenser works (a run held, saying so), then reproduced with the condensed script and the pass on the record; the verdict carries the pass",
-      _v_before["run_zero"]["status"] == "verifying" and "condensed" not in _v_before and _seen_status == ["condensing"] and host.zero_holds({"run_zero": {"status": "condensing"}}) == "the routine's code is still being condensed - run it when it has settled"
+check("create behind the dialog with the pass: stored verifying (a run held, no pass yet); run zero runs under verifying, the candidate under condensing (a run held, saying so); then reproduced with the condensed script and the pass on the record; the verdict carries the pass",
+      _v_before["run_zero"]["status"] == "verifying" and "condensed" not in _v_before and _seen_status == ["verifying", "condensing"] and host.zero_holds({"run_zero": {"status": "condensing"}}) == "the routine's code is still being condensed - run it when it has settled"
       and _v_after["run_zero"]["status"] == "reproduced" and _v_after["run_zero"]["line"].startswith("reproduced") and _v_after["condensed"]["status"] == "condensed" and "print(len(kept))" not in _v_after["script"] and "print(len(kept))" in _v_after["script_written"]
       and _verdict_bg["condensed"]["status"] == "condensed" and _verdict_bg["results"][0]["estimate"] == "+3.00", (_v_before.get("run_zero"), _seen_status, _v_after.get("condensed")))
-# without a condenser nothing changes; a pass that keeps the script as written leaves no script_written
+# a pass that finds nothing to cut leaves no script_written; create without the flag records no pass
 _pc3 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
-_made_aw = host.create(nb4, _pc3, {"name": "As written", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condenser=lambda s, u: ("UNCHANGED", {"cost": 0.0}))
+_pc3["cells_text"] = _pc3["cells_text"].replace("print(len(kept))\n", "")
+_made_aw = host.create(nb4, _pc3, {"name": "As written", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condense_code=True)
 _v_aw = store.load(_made_aw["routine"]["id"])["versions"][0]
-check("create with a pass that finds nothing to cut: the record says as written, the script is the one written and no script_written is kept; create without a condenser records no pass",
-      _v_aw["condensed"]["status"] == "as_written" and _v_aw["condensed"]["line"] == "as written: nothing to cut" and "script_written" not in _v_aw and "print(len(kept))" in _v_aw["script"]
+check("create with a pass that finds nothing to cut: the record says as written, the script is the one written and no script_written is kept; create without the flag records no pass",
+      _v_aw["condensed"]["status"] == "as_written" and _v_aw["condensed"]["line"] == "as written: nothing to cut" and "script_written" not in _v_aw
       and "condensed" not in store.load(made["routine"]["id"])["versions"][0] and made.get("condensed") is None, (_v_aw.get("condensed"), made.get("condensed")))
 # the next version: the manifest rides to the promoter, the inputs carry over, v1 stays
 p4 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, routine=store.load(made["routine"]["id"]))

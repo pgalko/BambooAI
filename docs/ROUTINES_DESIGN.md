@@ -1167,69 +1167,80 @@ and a fill runs forty of them), and the clutter (an output full of exploration a
 thought was a fourth analysis mode that primes the analyst to write routine-ready code; dropped, since it would cost the
 analysis its exploring and touch every chain for the few that become routines. The shaping belongs after the chain,
 when the outputs are known - and not in the promoter's pass, which is a reading job (verbatim fragments, find/replace)
-that run zero can check; a rewrite folded into it would leave run zero unable to say which change broke what, and
-would take the inputs down with it.
+that run zero can check.
+
+Patch 0272 shipped the pass as a model's job: a Condenser seat given the cells, asked for the kept cells, its
+candidate run and compared. On the first live chain (the MMC, twelve cells, 2026-11-07) the seat it fell back to - the
+analyst's, tuned for long reasoning on short replies - spent its whole token allowance reasoning and returned nothing;
+the floor held and the routine stayed as written, but the design was fragile in three ways: the reply grew with the
+chain, the model saw code without the context that made it, and equivalence was checked on one dataset. Palo: "this
+feels a little fragile". 0273 took the model out of the pass; what remains needs none.
 
 ### 19.1 The pass
 
-After run zero reproduces, a second seat - the **Condenser**, `Condenser` in the model config, the analyst's seat
-when absent - is given the cells with their markers, the RESULT lines the script prints (the record every run is
-checked against), the cells that draw figures, the input keys the cells read, and the time each cell took in the
-analysis (`cell_times` on the proposal, from the kernel's record of each cell). Its brief (`CONDENSER_SYSTEM`): keep,
-exactly as written, every RESULT call in its order, every figure and the calls that draw it, every INPUTS read, the
-loads and the DS.save calls, the markers of the cells kept with their numbers (never renumbered, merged or reordered)
-and the capture switches between cells; drop a cell no RESULT line and no figure rests on and, within a cell, prints,
-displays and what nothing uses; make faster what can be made faster with the same answer, and never faster by a
-different one - no sampling, no fewer draws, no other seed or threshold. It replies with the kept cells in one code
-block, or UNCHANGED.
+After run zero reproduces, the cells are pruned from the code alone (`rt.prune_cells`). Each cell is parsed; the pass
+reads what it defines - names bound, names it mutates in place (a subscript or attribute assignment, an in-place call,
+`inplace=True`), functions, classes - what it reads from before it, and whether anything rests on it: a RESULT call,
+a figure (its cell named in the manifest, or a show / savefig call), a save or write (`to_csv` and its kind,
+`write_*`), an input read that no other kept cell makes. The reads are walked in statement order with Python's
+scopes: a name the cell binds before reading it - an earlier statement's, a loop or with target, a function's
+parameters and locals, a comprehension's or lambda's own - is not read from outside, so the `g`, `s` and `n` the
+analyst reuses in every cell do not chain the cells together (the first live chain, twelve cells, kept all twelve
+under the naive rule and ten under this one, the two that went being the inspection and a check). A walk from the
+last cell to the first keeps a cell when it is anchored so, or when a later kept cell reads a name it defines; every
+other cell goes - its imports kept in place, since they are cheap and a later cell may lean on them - as do the
+top-level `print` and `display` statements of the cells kept (a print inside a loop or a branch stays). Markers and
+numbers stay, as do the capture switches between cells. A cell that does not parse prunes nothing, with the reason on
+the record.
 
-The candidate is not trusted; it is run. `condense` in the host: the reply read (`parse_condenser`), the cells
-checked before anything runs (`check_condensed`: a subsequence of the original's markers, every figure cell kept,
-the same inputs read), the script joined and run on the chain's own data through the same runner as run zero, and
-accepted only when `check_lines` says reproduced - every RESULT line identical as printed, the same count - and
-`same_figures` says the same pictures: the same number, each figure's Plotly data and layout equal with numbers
-within a relative 1e-9 (plotly's typed arrays decoded and compared the same way; nan as nan), a PNG byte for byte.
-Anything else - the reply unreadable, a static fault, an error (named by its cell and line), lines that differ (the
-differing lines shown), a figure that differs (which one) - goes back to the condenser once, as `CONDENSER_RETRY`,
-and a second failure keeps the script as written with the reason on the record. UNCHANGED, or the cells sent back as
-they were, is *nothing to cut* and nothing runs; a reply cut at the seat's token limit keeps the script as written at
-once, the line naming the remedy (a larger max_tokens on the seat). The whole pass is two model calls and two runs at
-most.
+The candidate is not trusted; it is run. `condense` in the host checks its cells against the original's
+(`check_condensed`: a subsequence of the markers, every figure cell kept, the same inputs read), joins the script and
+runs it on the chain's own data through the same runner as run zero, and accepts it only when `check_lines` says
+reproduced - every RESULT line identical as printed, the same count - and `same_figures` says the same pictures: the
+same number, each figure's Plotly data and layout equal with numbers within a relative 1e-9 (plotly's typed arrays
+decoded and compared the same way; nan as nan), a PNG byte for byte. When the pruning of cells fails that test - a
+dropped cell mattered through a path the code does not show, a function mutating a list it was handed - the prints
+alone are tried; when that fails too, or there is nothing to cut, the script stays as written, the line saying why.
+Two runs at most, no model, no cost beyond them.
 
 ### 19.2 What is kept, and what the coach sees
 
 When the candidate is accepted the version's `script` is the condensed one and the chain's stays as
 `script_written`; run zero's record - its results, figure count, time and the files under `runs/v1_0` - becomes the
 condensed run's, since that is the script every later run is read against; the pass itself is on the version as
-`condensed` {status, line, attempts, cost, cells [before, after], elapsed [run zero's, the candidate's], seat,
-model}. Kept as written, the version carries the record and no `script_written`.
+`condensed` {status, line, cells [before, after], dropped {cells, prints}, elapsed [run zero's, the candidate's]}.
+Kept as written, the version carries the record and no `script_written`.
 
 Behind the dialog the verdict's thread runs the pass after run zero: the version is written as `condensing`
 meanwhile - `zero_holds` holds a run, the manager's chip says *condensing…* and the list row too - then settled. The
 page's watch (`watchVerification`) goes on through it, reloads an open manager when the status turns so the chip
-follows, and its toast carries the pass's line: *verified on the
-original data · condensed: 9 cells → 4, 48 s → 7 s*, or *· as written: the condensed code did not reproduce the
-figures: figure 2 differs*. The Summary's Checked row carries the same line after the verdict, with *as written ↓*
-beside it when the condensed code is the one that runs - `/routines/<id>/script?written=1`, the chain's code with
-the INPUTS block, named `_as_written.py`. Nothing else speaks: no pane rows (the pass runs after the request that
-made the routine has ended), no figures shown (the candidate's exist to be compared). The model call from that thread
-is a quiet one (`_llm_quiet`): a silent stand-in for the output manager, since the page's queue would carry a stream
-into the next request, and the cost read off the chain the call is billed to - the save's chain, the one the
-promoter was billed to (`billing_chain_id` on the proposal) - so the Usage dialog lists it there, under the seat it
-ran on. The pane's quiet Routine card cannot carry the turn for the same reason.
+follows, and its toast carries the pass's line: *verified on the original data · condensed: 12 cells → 5, 23 prints
+dropped, 190 s → 184 s*, or *· as written: the pruned code did not reproduce the figures: figure 2 differs*. The
+Summary's Checked row carries the same line after the verdict, with *as written ↓* beside it when the condensed code
+is the one that runs - `/routines/<id>/script?written=1`, the chain's code with the INPUTS block, named
+`_as_written.py`. Nothing else speaks: no pane rows, no figures shown (the candidate's exist to be compared).
 
 The pass runs only where it can be checked: a routine made with the chain's data gone (unverified) is left as
 written, as is one whose run zero differed or failed. A run's Results tab may be empty afterwards when the method
-printed nothing but what the condenser dropped - the RESULT lines, when there are any, still print there.
+printed nothing but what the pass dropped - the RESULT lines, when there are any, still print there. The time the
+pass saves is the dropped cells'; the slow cell that stays is the next step's problem (§19.3).
 
-Accepted by (patch 0272): the pure module (`parse_condenser`, `check_condensed`, `same_figures`, `secs_text`),
-`condense` over a fake condenser and the kernel (the brief; a candidate without the print condensed with its lines,
-output, cells and times; a line that differs asked again with the differing line and the second candidate kept;
-twice wrong as written with the reason; UNCHANGED and the cells sent back as nothing to cut, nothing run;
-renumbered cells and another input refused before running; a failing candidate named by cell and error; a figure
-that differs by its number; the seat down), `create` with the pass in the foreground and behind the dialog (the
-status condensing while the condenser works, the scripts, the record, run zero's record, the files), the app path
-(the quiet call on the analyst seat, billed to the save's chain, no pane rows; the route's run without a Results tab),
-the dialogs' builders (the chip, the hold, the Checked row with the download, the side item), the page's watch, the
-stylesheet, the stack walk (the harness's own condenser gives the cells back without the inspection cell and the
-prints, and the walk's routine runs condensed) and the C5 scan over the new text.
+### 19.3 Not here
+
+The speed. The MMC method's cost is one cell - the curve by brute force - and no pruning touches it. A rewrite of that
+is a model's job again, to be done with the context the analyst had (the question, the report, the cells with their
+printed outputs, the lines, the times), as one clean method rather than cell by cell, on a seat sized for it and only
+when there is time to gain, and checked on two datasets: run zero on the chain's data, then the first run on new data,
+where the written and the rewritten method both execute once and the rewrite is kept only if they agree. Until that
+is built, the Summary line says what the pass did and the written code stays a download away.
+
+Accepted by (patch 0273): the pure module (`prune_cells` over a made-up script - the cells dropped and kept, the
+prints, the loop's print, the switches, the markers; prints only; nothing to cut; a cell that does not parse; what
+counts as a definition, an import cell's line kept; reads before binding - loop variables, a rebound frame,
+comprehension and lambda names; `check_condensed`, `same_figures`, `secs_text`, `condensed_line`), `condense` over the kernel
+(a print pruned and the candidate kept; a dropped cell that mattered, the prints alone kept on the second run; a figure
+that would differ; nothing to cut without a run), `create` with the pass in the foreground and behind the dialog (the
+status condensing while the candidate runs, the scripts, the record, run zero's record, the files), the app path (no
+model call; the route's run without a Results tab), the dialogs' builders, the page's watch, the stylesheet, the
+stack walk (the routine's inspection cell and five prints gone behind the verdict, both figures reproduced) and the C5
+scan.

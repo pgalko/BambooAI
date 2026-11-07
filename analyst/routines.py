@@ -13,6 +13,7 @@ The standing rule (DESIGN_CHECKLIST C5) holds for every string here: nothing a m
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -435,51 +436,231 @@ def defaults_of(inputs: List[dict]) -> Dict[str, object]:
     return {p["key"]: p["default"] for p in inputs or []}
 
 
-# ----------------------------------------------------------------------------- the condenser (docs/ROUTINES_DESIGN.md §19)
-CONDENSER_SYSTEM = """You are condensing the script of an analysis into the code of a routine: the same computation, run again on data of the same shape by a person who sets a few inputs and never edits the code. The analysis explored before it answered; the routine runs only what the answer rests on, and runs it fast.
-
-You receive the cells of the script in execution order with their markers, the RESULT lines the script printed (the record every run is checked against), the cells that drew figures, the input keys the cells read, and the time each cell took.
-
-Keep, exactly as written: every RESULT(...) call, in the same order, computing the same values; every figure, drawn by the same calls on the same values; every INPUTS[...] read; the loading of the data and of files and every DS.save(...), with the names as written; the markers "# --- cell N ---" of the cells you keep, with their numbers (never renumber, never merge, never reorder cells); any line between cells that sets _bamboo_capture.
-
-Drop: a cell no RESULT line and no figure rests on - inspections, printed tables, checks that led nowhere, an earlier version of a computation a later cell redid; within a cell, prints and displays, variables nothing uses, a load or a computation done twice.
-
-Make faster what can be made faster with the same answer: a vectorised operation for a loop over rows, a cumulative or rolling sum for a window recomputed at every step, one grouped aggregation for a loop over groups, a value computed once instead of inside a loop. Never faster by a different answer: no sampling, no fewer draws or iterations, no other seed, threshold or tolerance, no approximation; a loop that draws random numbers keeps its draws in their order, or the numbers change. A number that would print differently is a changed method and is refused.
-
-Reply with the cells only: one python code block holding the kept cells with their markers, nothing before or after it. When nothing can be dropped or made faster, reply with the word UNCHANGED."""
-
-CONDENSER_RETRY = "Your condensed code {problem}. Reply again with the cells, as specified - the same RESULT lines and the same figures - or with UNCHANGED."
-
-
+# ----------------------------------------------------------------------------- the condensing pass (docs/ROUTINES_DESIGN.md §19)
 def secs_text(t) -> str:
     """A duration as the condensed line says it: 0.8 s, 48 s, 9 min."""
     t = float(t or 0)
-    return f"{t:.1f} s" if t < 10 else (f"{t:.0f} s" if t < 60 else f"{t / 60:.0f} min")
+    return f"{t:.1f} s" if round(t, 1) < 10 else (f"{t:.0f} s" if t < 60 else f"{t / 60:.0f} min")
 
 
-def condenser_user(cells: str, ledger: Iterable[str], figure_cells: Iterable[int], keys: Iterable[str], times: Optional[Dict] = None) -> str:
-    figs = [str(c) for c in figure_cells or []]
-    took = ", ".join(f"cell {n}: {secs_text(t)}" for n, t in sorted(((int(k), float(v or 0)) for k, v in (times or {}).items()), key=lambda x: x[0]))
-    return "\n\n".join(["THE SCRIPT (the cells in execution order; `df` is loaded before the first cell):\n" + (cells or "").strip("\n"),
-                        "RESULT LINES THE SCRIPT PRINTS (in this order; every one must still be printed, identical):\n" + ("\n".join(ledger) or "(none)"),
-                        "CELLS THAT DRAW FIGURES: " + (", ".join(figs) or "none"),
-                        "INPUT KEYS THE CELLS READ: " + (", ".join(keys) or "none"),
-                        "TIME EACH CELL TOOK: " + (took or "not recorded")])
+_CAPTURE_LINE_RE = re.compile(r"^_bamboo_capture\[0\] = (True|False)$")
+_KEEP_ATTRS = {"show", "save", "savefig", "write", "writelines", "to_csv", "to_parquet", "to_excel", "to_json", "to_pickle", "to_hdf", "to_sql", "to_feather",
+               "to_html", "to_latex", "to_markdown"}                 # a call by one of these names, or by a write_* name, is an effect the routine keeps
+_MUTATORS = {"append", "extend", "insert", "pop", "remove", "clear", "update", "setdefault", "sort", "reverse", "add", "discard", "popitem"}
 
 
-def parse_condenser(text: str) -> Optional[str]:
-    """The condenser's cells, from the code block of its reply (the one with cell markers); None for UNCHANGED.
-    Raises ValueError with a readable reason."""
-    t = (text or "").strip()
-    if not t:
-        raise ValueError("the reply was empty")
-    if re.fullmatch(r"`*\s*UNCHANGED\.?\s*`*", t, re.I):
-        return None
-    blocks = re.findall(r"```(?:python|py)?[ \t]*\n(.*?)```", t, re.S)
-    cells = next((b for b in blocks if _CELL_MARK_RE.search(b)), None) if blocks else (t if _CELL_MARK_RE.search(t) else None)
-    if cells is None:
-        raise ValueError("no cells with their markers in the reply")
-    return "\n" + cells.strip("\n") + "\n"
+def _root(node):
+    """The name an expression hangs on: df in df['x'], df.loc[...], fig.update_layout(...)."""
+    while isinstance(node, (ast.Attribute, ast.Subscript, ast.Call)):
+        node = node.func if isinstance(node, ast.Call) else node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+class _CellFacts:
+    """What a cell binds (names assigned, and names it mutates in place), what it reads before binding it - the names
+    that must come from an earlier cell - whether anything rests on it (a RESULT line, a figure, a save, a write), its
+    top-level imports, and the top-level print and display statements it could lose. The reads are walked in statement
+    order with the scopes Python has: a name bound by an earlier statement, a loop or with target, a function's
+    parameters and locals, a comprehension's or lambda's own names, is not read from outside."""
+
+    def __init__(self, tree: ast.Module):
+        self.defines, self.reads, self.anchored, self.prints, self.imports = set(), set(), False, [], []
+        for st in tree.body:
+            if isinstance(st, ast.Expr) and isinstance(st.value, ast.Call) and isinstance(st.value.func, ast.Name) and st.value.func.id in ("print", "display"):
+                self.prints.append((st.lineno, st.end_lineno or st.lineno))
+            elif isinstance(st, (ast.Import, ast.ImportFrom)):
+                self.imports.append((st.lineno, st.end_lineno or st.lineno))
+        self._bound = set()
+        for st in tree.body:
+            self._stmt(st, frozenset())
+
+    # -- binding
+    def _bind(self, target, local: frozenset):
+        if isinstance(target, ast.Name):
+            (self._bound if not local else set()).add(target.id)
+            if not local:
+                self.defines.add(target.id)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for t in target.elts:
+                self._bind(t, local)
+        elif isinstance(target, ast.Starred):
+            self._bind(target.value, local)
+        elif isinstance(target, (ast.Attribute, ast.Subscript)):   # a mutation: the root is read, and redefined for what follows
+            self._expr(target, local)
+            root = _root(target)
+            if root and root not in local:
+                self.defines.add(root)
+
+    def _stmt(self, st, local: frozenset):
+        if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for d in st.decorator_list + st.args.defaults + [d for d in st.args.kw_defaults if d is not None]:
+                self._expr(d, local)
+            args = st.args
+            inner = {a.arg for a in args.args + args.posonlyargs + args.kwonlyargs} | ({args.vararg.arg} if args.vararg else set()) | ({args.kwarg.arg} if args.kwarg else set())
+            inner |= {n.id for n in ast.walk(st) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+            for s2 in st.body:
+                self._stmt(s2, local | frozenset(inner))
+            self._bind(ast.Name(id=st.name, ctx=ast.Store()), local)
+        elif isinstance(st, ast.ClassDef):
+            for d in st.decorator_list + st.bases:
+                self._expr(d, local)
+            inner = {n.id for n in ast.walk(st) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+            for s2 in st.body:
+                self._stmt(s2, local | frozenset(inner))
+            self._bind(ast.Name(id=st.name, ctx=ast.Store()), local)
+        elif isinstance(st, (ast.For, ast.AsyncFor)):
+            self._expr(st.iter, local)
+            self._bind(st.target, local)
+            self._block(st.body + st.orelse, local)
+        elif isinstance(st, (ast.With, ast.AsyncWith)):
+            for item in st.items:
+                self._expr(item.context_expr, local)
+                if item.optional_vars is not None:
+                    self._bind(item.optional_vars, local)
+            self._block(st.body, local)
+        elif isinstance(st, (ast.Import, ast.ImportFrom)):
+            for a in st.names:
+                self._bound.add((a.asname or a.name).split(".")[0])      # bound, but not a definition: a dropped cell's imports are kept
+        elif isinstance(st, ast.Assign):
+            self._expr(st.value, local)
+            for t in st.targets:
+                self._bind(t, local)
+        elif isinstance(st, ast.AugAssign):
+            self._expr(st.value, local)
+            self._expr(ast.Name(id=st.target.id, ctx=ast.Load()) if isinstance(st.target, ast.Name) else st.target, local)
+            self._bind(st.target, local)
+        elif isinstance(st, ast.AnnAssign):
+            if st.value is not None:
+                self._expr(st.value, local)
+            self._bind(st.target, local)
+        elif isinstance(st, (ast.If, ast.While)):
+            self._expr(st.test, local)
+            self._block(st.body + st.orelse, local)
+        elif isinstance(st, ast.Try):
+            self._block(st.body, local)
+            for h in st.handlers:
+                if h.type is not None:
+                    self._expr(h.type, local)
+                if h.name:
+                    self._bind(ast.Name(id=h.name, ctx=ast.Store()), local)
+                self._block(h.body, local)
+            self._block(st.orelse + st.finalbody, local)
+        elif isinstance(st, ast.Match):
+            self._expr(st.subject, local)
+            for case in st.cases:
+                for n in ast.walk(case.pattern):
+                    if isinstance(n, (ast.MatchAs, ast.MatchStar)) and n.name:
+                        self._bind(ast.Name(id=n.name, ctx=ast.Store()), local)
+                if case.guard is not None:
+                    self._expr(case.guard, local)
+                self._block(case.body, local)
+        elif isinstance(st, ast.Delete):
+            pass
+        else:                                                  # Expr, Return, Raise, Assert, Global, Nonlocal, Pass, Break, Continue
+            for child in ast.iter_child_nodes(st):
+                if isinstance(child, ast.expr):
+                    self._expr(child, local)
+
+    def _block(self, stmts, local: frozenset):
+        for s2 in stmts:
+            self._stmt(s2, local)
+
+    def _expr(self, node, local: frozenset):
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Load) and node.id not in self._bound and node.id not in local:
+                self.reads.add(node.id)
+            return
+        if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+            inner = set(local)
+            for i, gen in enumerate(node.generators):
+                self._expr(gen.iter, frozenset(inner) if i else local)
+                inner |= {n.id for n in ast.walk(gen.target) if isinstance(n, ast.Name)}
+                for cond in gen.ifs:
+                    self._expr(cond, frozenset(inner))
+            for elt in ([node.key, node.value] if isinstance(node, ast.DictComp) else [node.elt]):
+                self._expr(elt, frozenset(inner))
+            return
+        if isinstance(node, ast.Lambda):
+            args = node.args
+            inner = {a.arg for a in args.args + args.posonlyargs + args.kwonlyargs} | ({args.vararg.arg} if args.vararg else set()) | ({args.kwarg.arg} if args.kwarg else set())
+            for d in args.defaults + [d for d in args.kw_defaults if d is not None]:
+                self._expr(d, local)
+            self._expr(node.body, local | frozenset(inner))
+            return
+        if isinstance(node, ast.NamedExpr):
+            self._expr(node.value, local)
+            self._bind(node.target, local)
+            return
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Name) and f.id == "RESULT":
+                self.anchored = True
+            elif isinstance(f, ast.Attribute):
+                if f.attr in _KEEP_ATTRS or f.attr.startswith("write_"):
+                    self.anchored = True
+                if f.attr in _MUTATORS or any(k.arg == "inplace" for k in node.keywords):
+                    root = _root(f.value)
+                    if root and root not in local:
+                        self.defines.add(root)
+        for child in ast.iter_child_nodes(node):
+            self._expr(child, local)
+
+
+def prune_cells(cells: str, figure_cells: Iterable[int], prints_only: bool = False) -> Tuple[str, List[int], int, str]:
+    """The cells without the exploration (docs/ROUTINES_DESIGN.md §19.1), from the code alone: a cell stays when
+    something rests on it - a RESULT line, a figure (its cell named, or a show / save / write call), an input read that
+    no other kept cell makes - or when a later kept cell reads, before binding it itself, a name it defines or mutates;
+    every other cell goes, its imports kept, as do the top-level print and display statements of the cells kept.
+    Markers, numbers and the capture switches between cells stay. `prints_only` keeps every cell and drops the prints
+    alone. Returns (cells, the cells dropped, the prints dropped, problem): a cell that does not parse prunes nothing,
+    with the problem said."""
+    blocks = cell_blocks(cells)
+    figs = {int(c) for c in figure_cells or []}
+    facts, codes = [], []
+    for n, start, end in blocks:
+        text = cells[start:end]
+        lines = text.split("\n")
+        code = "\n".join(lines[1:])                                # after the marker
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as exc:
+            return cells, [], 0, f"cell {n} could not be parsed ({exc.msg})"
+        f = _CellFacts(tree)
+        f.anchored = f.anchored or n in figs or prints_only
+        f.keys = set(_KEY_REF_RE.findall(code))
+        facts.append(f); codes.append((n, lines))
+    keep = {i for i, f in enumerate(facts) if f.anchored}
+    for k in {k for f in facts for k in f.keys}:                   # an input read nowhere else stays read
+        if not any(i in keep and k in facts[i].keys for i in range(len(facts))):
+            first = next((i for i, f in enumerate(facts) if k in f.keys), None)
+            if first is not None:
+                keep.add(first)
+    later_reads = set()
+    for i in range(len(facts) - 1, -1, -1):
+        if i in keep or (facts[i].defines & later_reads):
+            keep.add(i); later_reads |= facts[i].reads
+    out, dropped, prints = [], [], 0
+    for i, (n, lines) in enumerate(codes):
+        if i not in keep:
+            dropped.append(n)
+            held = {j for a, b in facts[i].imports for j in range(a, b + 1)}
+            out.extend(ln for j, ln in enumerate(lines[1:], 1) if j in held or _CAPTURE_LINE_RE.match(ln))     # its imports and the switches belong to the script
+            continue
+        gone = set()
+        for a, b in facts[i].prints:
+            gone.update(range(a, b + 1)); prints += 1
+        out.append(lines[0])
+        out.extend(ln for j, ln in enumerate(lines[1:], 1) if j not in gone)
+    if not dropped and not prints:
+        return cells, [], 0, ""
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip("\n")
+    return "\n" + text + "\n", dropped, prints, ""
+
+
+def condensed_line(before: int, after: int, prints: int, t0, t1) -> str:
+    """The Summary's words for an accepted pass: what went, and the time before and after."""
+    cut = (f"{before} cell{'s' if before != 1 else ''} → {after}" if after != before else f"{before} cell{'s' if before != 1 else ''} kept") + (f", {prints} print{'s' if prints != 1 else ''} dropped" if prints else "")
+    return f"condensed: {cut}, {secs_text(t0)} → {secs_text(t1)}"
 
 
 def check_condensed(original: str, cells: str, figure_cells: Iterable[int], keys: Iterable[str]) -> str:

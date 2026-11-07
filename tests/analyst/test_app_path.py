@@ -47,9 +47,6 @@ class FakeModels:
             if cut:                                     # the reply cut at the seat's token limit (the adapters record it per request)
                 prompt_cache.record_meta(truncated=True); return cut.pop(0)
             return state.get("promoter") or '{"name": "B against A", "inputs": [{"key": "arm_b", "label": "The arm compared", "type": "choice", "default": "B", "origin": "the analysis compared B", "column": "arm"}], "edits": [{"cell": 2, "find": "m[\'B\']", "replace": "m[INPUTS[\'arm_b\']]"}], "kept": ["A stays the baseline"]}'
-        if messages[0]["content"].startswith("You are condensing the script"):      # the condensing pass (§19): the cells given back without their prints
-            cells = user.split("first cell):\n", 1)[1].split("\n\nRESULT LINES THE SCRIPT PRINTS", 1)[0]
-            return state.get("condenser") or ("```python\n" + "\n".join(ln for ln in cells.splitlines() if not ln.startswith("print(")) + "\n```")
         if messages[0]["content"].startswith("You are the reviewer"):
             return ("###REVIEW###\n- The question requires: B against A.\n- Established: the difference [cell 1].\n"
                     "- Most consequential problem: no interval.\n- Verdict: TEST bootstrap the difference")
@@ -207,15 +204,14 @@ check("create_routine returns at once with the routine stored as verifying and n
       made["run_zero"]["status"] == "verifying" and not made["run_zero"]["verified"] and "verify" not in made and cev == [] and made["routine"]["origin"] == {"thread_id": "1001", "chain_id": run1.id}
       and os.path.exists(os.path.join(work, "storage", "u1", "routines", made["routine"]["id"], "routine.json")) and _rz.get("status") == "reproduced" and _rz.get("verified") is True
       and q.qsize() == 0, (cev, made.get("run_zero"), _rz))
-# the condensing pass behind the verdict (§19): a quiet call on the analyst seat (no Condenser configured), billed to the save's chain, no pane
-# rows; the cells came back without their prints and reproduced, so the version runs the condensed script and keeps the one written
+# the condensing pass behind the verdict (§19): no model - the cells pruned from the code; this chain has no RESULT line or figure, so the
+# whole pruning leaves nothing and the prints alone go; the version runs the condensed script and keeps the one written; no pane rows
 _v1 = BAMBOO.routine_store().load(made["routine"]["id"])["versions"][0]
-_cc = [(a, u) for a, u in state["calls"] if u.startswith("THE SCRIPT (the cells in execution order")]
-check("the condensing pass ran once run zero reproduced: one quiet call on the analyst seat with the cells, the lines (none here), the figure cells and the input key; billed to the save's chain; the version condensed - prints gone from the script that runs, kept in the script as written; run zero's record is the condensed run's; no pane rows",
-      len(_cc) == 1 and _cc[0][0] == "Investigator" and "INPUT KEYS THE CELLS READ: arm_b" in _cc[0][1] and "CELLS THAT DRAW FIGURES: none" in _cc[0][1] and "RESULT LINES THE SCRIPT PRINTS (in this order; every one must still be printed, identical):\n(none)" in _cc[0][1]
-      and _v1["condensed"]["status"] == "condensed" and _v1["condensed"]["line"].startswith("condensed: 2 cells → 2, ") and _v1["condensed"]["seat"] == "Investigator" and _v1["condensed"]["model"] == "fake/model" and _v1["condensed"]["cost"] > 0
+check("the condensing pass ran once run zero reproduced, without a model call: the two prints gone from the script that runs, kept in the script as written; run zero's record is the condensed run's; no pane rows",
+      not any(u.startswith("THE SCRIPT (the cells in execution order") for _a, u in state["calls"])
+      and _v1["condensed"]["status"] == "condensed" and _v1["condensed"]["line"].startswith("condensed: 2 cells kept, 2 prints dropped, ") and _v1["condensed"]["dropped"] == {"cells": [], "prints": 2}
       and "print('means'" not in _v1["script"] and "print('diff'" not in _v1["script"] and "print('means'" in _v1["script_written"] and "INPUTS['arm_b']" in _v1["script"] and _v1["run_zero"]["status"] == "reproduced" and _v1["run_zero"]["verified"]
-      and sum(1 for e in json.load(open(_runlog)) if str(e.get("chain_id")) == "9001") >= 2 and q.qsize() == 0, (_cc[:1], _v1.get("condensed"), _v1.get("script", "")[-200:]))
+      and q.qsize() == 0, (_v1.get("condensed"), _v1.get("script", "")[-200:]))
 st = BAMBOO.routine_store()
 check("the store lists it with the favourite's card index pointing at run1", [r["id"] for r in st.all()] == [made["routine"]["id"]] and st.by_origin() == {("1001", run1.id): [{"id": made["routine"]["id"], "name": "B against A", "version": 1}]})
 try:
