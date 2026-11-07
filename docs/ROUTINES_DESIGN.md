@@ -1233,11 +1233,14 @@ model gets the context the analyst had; the rewrite is checked on two datasets; 
 never a fallback.
 
 **The seat.** `Condenser` in the model config. Without the entry the step does not run (`_condenser_seat` is None):
-the one fallback 0272 made - the analyst's seat, tuned for long reasoning on short replies - was the failure. The
-stack's template opts it in (`webapp_launcher.local_template`), so the walks exercise the path. The call is a quiet
-one from the verdict's thread (`_llm_quiet`: a silent output manager, the cost read off the save's chain, which the
-proposal carries as `billing_chain_id`; the Usage dialog lists it there under *Condenser*), at medium effort, low on
-the second try.
+the one fallback 0272 made - the analyst's seat, tuned for long reasoning on short replies - was the failure. Since
+0275 the shipped template carries the seat in every preset (Palo: "add it to the template as default, the same model
+as the analyst"): the preset's analyst model and provider, medium effort, the Promoter's token allowance - a seat at
+medium, not the analyst's xhigh, and the call asks for medium in any case (`_effective_effort` only ever lowers).
+Removing the entry turns the step off; the stack's copy of the template puts it on the harness like every seat, so
+the walks exercise the path. The call is a quiet one from the verdict's thread (`_llm_quiet`: a silent output
+manager, the cost read off the save's chain, which the proposal carries as `billing_chain_id`; the Usage dialog lists
+it there under *Condenser*), at medium effort, low on the second try.
 
 **When.** After the pruning, and only when the method takes time: run zero's elapsed - the pruned run's when there
 was one - at or above `CONSOLIDATE_MIN_SECONDS` (15; the environment `BAMBOO_CONSOLIDATE_MIN_SECONDS` sets it, the

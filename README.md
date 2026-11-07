@@ -326,9 +326,9 @@ only once a *run zero* on the original data reproduces every RESULT line the cha
 the script is condensed from the code itself, without a model: the cells nothing rests on and the
 prints go, and the condensed code replaces the chain's only when it reproduces run zero's lines
 and figures on the same data; otherwise the script stays as written, and the routine's Summary
-says which. With a `Condenser` seat configured, a slow method is also rewritten once by that seat
-- vectorised, computed once - under the same checks, and the rewrite stays provisional until the
-routine's first run on new data has run the old method beside it and found them to agree.
+says which. A slow method is also rewritten once by the `Condenser` seat - vectorised, computed
+once - under the same checks, and the rewrite stays provisional until the routine's first run on
+new data has run the old method beside it and found them to agree.
 
 A run is then a dialog with the inputs and the load, and no model: the data is loaded the way the
 original was (a window from Intervals.icu for the athlete picked in the dialog - a coach's athletes
@@ -418,7 +418,7 @@ The available roles:
 | `Reader` | Reads relevant document or context passages for the Analyst through `READ`. Called once per read; suitable for a cheaper model. |
 | `Coder` | Reads the words loaded beside Intervals.icu data once, in batches, and writes the codes table against the codebook; renders passages not in English. Falls back to the Reader when absent. |
 | `Promoter` | Handles *Save as routine*: reads a finished chain once and identifies its inputs as find/replace edits in a JSON reply. Falls back to the Analyst when absent. |
-| `Condenser` | Optional. After a routine's run zero and the pruning, rewrites the method once as lean code when the method takes more than a few seconds; the rewrite is kept only when it reproduces run zero's lines and figures, and stays provisional until the first run on new data confirms it against the method it replaced. No fallback: without this entry the step does not run. A seat like the Promoter's (a strong coding model, medium effort, 32,000 tokens) fits. |
+| `Condenser` | After a routine's run zero and the pruning, rewrites the method once as lean code when the method takes 15 s or more; the rewrite is kept only when it reproduces run zero's lines and figures, and stays provisional until the first run on new data confirms it against the method it replaced. The template puts it on the Analyst's model at medium effort. No fallback: remove the entry and the step does not run. |
 | `Knowledge Distiller` | Writes the memory card when a run is saved. |
 | `Google Search Executor` | Performs the grounded search, using a Gemini model. |
 | `Google Search Summarizer` | Condenses search results into a digest with citations. |

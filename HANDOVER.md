@@ -481,6 +481,12 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The Condenser seat in the template (2026-11-07, patch 0275).** Palo: "add it to the template as default, the
+  same model as the analyst". `web_app/LLM_CONFIG_template.json` carries `Condenser` in all four presets on the
+  preset's analyst model and provider at medium effort with the Promoter's token allowance; `LLM_CONFIG_sample.json`
+  likewise. A working folder's template is the user's own copy (`bambooai init`): the new seat reaches a self-hosted
+  box when that copy is updated, and the hosted editions on restart (the per-user config rebuilds when the template is
+  newer). The stack launcher no longer appends the seat. Removing the entry turns the step off; no fallback.
 - **The consolidation (2026-11-07, patch 0274; docs/ROUTINES_DESIGN.md §19.3).** The speed, on the footing §19 set:
   the `Condenser` seat, opted in by configuring it (no fallback; the stack's template opts it in), rewrites a slow
   method once - run zero at or above `CONSOLIDATE_MIN_SECONDS` (15; env `BAMBOO_CONSOLIDATE_MIN_SECONDS`) - given the

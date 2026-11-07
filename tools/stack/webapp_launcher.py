@@ -39,8 +39,7 @@ def local_template(workdir):
     seat = {"model": HARNESS_MODEL, "provider": "vllm", "reasoning_effort": "medium", "max_tokens": 16000}
     for key in ("free_agent_configs", "cost_agent_configs", "performance_agent_configs", "max_agent_configs"):
         for a in src.get(key, []):
-            a["details"] = dict(seat)
-        src.setdefault(key, []).append({"agent": "Condenser", "details": dict(seat)})      # the consolidation opted in (docs/ROUTINES_DESIGN.md §19.3) - the stack walks it
+            a["details"] = dict(seat)                            # the Condenser's among them (docs/ROUTINES_DESIGN.md §19.3): the stack walks the consolidation
     src.setdefault("model_properties", {})[HARNESS_MODEL] = {
         "capability": "reasoning", "multimodal": "true", "templ_formating": "text",      # takes images: the plot the person asks about rides along (2026-10-13)
         "reasoning_style": "effort", "reasoning_efforts": ["low", "medium", "high"],
