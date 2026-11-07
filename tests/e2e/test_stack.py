@@ -449,7 +449,14 @@ def main():
                   (v1.get("condensed") or {}).get("status") == "condensed" and v1["condensed"]["line"].startswith("condensed: 3 cells → 2, 5 prints dropped, ") and v1["condensed"]["cells"] == [3, 2] and v1["condensed"]["dropped"] == {"cells": [1], "prints": 5}
                   and [ln for ln in v1["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---", "# --- cell 3 ---"] and not [ln for ln in v1["script"].splitlines() if ln.startswith("print(")]
                   and "RESULT(" in v1["script"] and "pfig.show()" in v1["script"] and "print(df.shape)" in v1.get("script_written", "") and "# --- cell 1 ---" in v1.get("script_written", "")
-                  and v1["run_zero"]["figures"] == 2 and v1["run_zero"]["elapsed"] == v1["condensed"]["elapsed"][1], (v1.get("condensed"), [ln for ln in v1.get("script", "").splitlines() if ln.startswith("# --- cell")]))
+                  and v1["run_zero"]["figures"] == 2 and v1["run_zero"]["elapsed"] == v1["consolidated"]["elapsed"][1], (v1.get("condensed"), [ln for ln in v1.get("script", "").splitlines() if ln.startswith("# --- cell")]))
+            # the consolidation (§19.3): the stack's Condenser seat gave the pruned cells back without the two dead stores (tab, raw); the rewrite
+            # reproduced the line and both figures, so it runs - provisional, the pruned script waiting under script_fallback for run 1
+            check("the method was consolidated behind the pass, on the stack's Condenser seat: the two dead stores gone, the rewrite provisional until the first run on new data, the pruned script waiting under script_fallback",
+                  (v1.get("consolidated") or {}).get("status") == "consolidated" and v1["consolidated"]["provisional"] is True and v1["consolidated"]["seat"] == "Condenser" and v1["consolidated"]["line"].startswith("consolidated: 2 cells → 2, ")
+                  and v1["consolidated"]["line"].endswith("; checked on the original data, the first run on new data checks it again")
+                  and not re.search(r"^(tab|raw) = ", v1["script"].split("# --- cell 2 ---", 1)[-1], re.M) and re.search(r"^tab = ", v1.get("script_fallback", ""), re.M)
+                  and "RESULT(" in v1["script"] and v1["consolidated"]["cost"] > 0, (v1.get("consolidated"), [ln for ln in v1.get("script", "").split("# --- cell 2 ---", 1)[-1].splitlines() if ln.startswith(("tab", "raw"))]))
             fav1 = os.path.join(workdir, "webapp", "storage", USER, "favourites", rj["origin"]["thread_id"], rj["origin"]["chain_id"] + ".json") if rdirs else ""
             def _fav_type():
                 try:
@@ -476,7 +483,7 @@ def main():
                 inputs: document.querySelectorAll('#routinesModal .rt-inputs tbody tr').length, badge: !!document.getElementById('routinesBadge') || !!document.querySelector('#routinesPill .rb-badge') })""")
             check("the Routines manager lists the routine, verified, with its one input and the link to the analysis it was made from; the rail entry carries no count badge (gone 2026-11-06); the Checked row carries the pass's line and the as-written download (§19)",
                   mgr["items"] == ["Regime contrast within soil, plot means"] and mgr["origin"] and mgr["checked"] == "verified" and mgr["inputs"] == 1 and "a favourite" in mgr["sub"] and mgr["badge"] is False
-                  and " · condensed: 3 cells → 2, 5 prints dropped, " in mgr["checkedRow"] and mgr["written"] == "/routines/" + rj["id"] + "/script?written=1", mgr)
+                  and " · condensed: 3 cells → 2, 5 prints dropped, " in mgr["checkedRow"] and " · consolidated: 2 cells → 2, " in mgr["checkedRow"] and mgr["written"] == "/routines/" + rj["id"] + "/script?written=1", mgr)
             script_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes(\"'regime': 'B'\") && !t.includes('print(df.shape)'))", rj["id"])
             written_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script?written=1').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes('print(df.shape)') && t.includes('as the analysis wrote it'))", rj["id"])
             check("the .py download carries the INPUTS block with the default and is the condensed code; ?written=1 is the chain's code with the same block, said so in its first line", script_status is True and written_status is True, (script_status, written_status))
@@ -709,6 +716,8 @@ def main():
                   and [x["number"] for x in rj2.get("runs", [])] == list(range(1, _n_runs + 1)) and [x["status"] for x in rj2["runs"]][:4] == ["reproduced", "ran", "reproduced", "failed"] and rj2["runs"][1]["inputs"] == {"regime": "C"}
                   and (edition != "hosted" or (rj2["runs"][4]["status"] == "reproduced" and run5.get("data", {}).get("load") == {"source": "file", "name": "field_trial.csv", "cached": True} and run5.get("data", {}).get("name") == "field_trial.csv"))
                   and run1.get("against") == 0 and run1.get("comparison", {}).get("compared") == 1 and run1.get("data", {}).get("name") == "field_trial.csv" and len(run1.get("results", [])) == 1
+                  and run1.get("consolidation", "").startswith("the rewritten method confirmed on this data (run 1): 1 result line identical, 2 figures identical") and rj2["versions"][0]["consolidated"]["confirmed"]["run"] == 1 and "script_fallback" not in rj2["versions"][0]
+                  and rj2["versions"][0]["consolidated"]["line"].endswith("; confirmed on run 1")
                   and "ZeroDivisionError" in run4.get("error", "") and run4.get("fit", {}).get("missing") == ["soil"] and run4.get("run_dir", "").endswith("/v1_4") and run4.get("data", {}).get("load", {}).get("source") == "file",
                   (run_files, [(x.get("number"), x.get("status"), x.get("inputs")) for x in rj2.get("runs", [])], run4.get("fit"), run4.get("run_dir")))
             # back to the thread for the rest of the walk

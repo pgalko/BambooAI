@@ -657,6 +657,83 @@ def prune_cells(cells: str, figure_cells: Iterable[int], prints_only: bool = Fal
     return "\n" + text + "\n", dropped, prints, ""
 
 
+# ----------------------------------------------------------------------------- the consolidation (§19.3): a model, opt in, checked twice
+CONSOLIDATE_SYSTEM = """You are rewriting the method of a finished analysis as the lean code of a routine: the same computation, the same printed results and figures, run again on data of the same shape by a person who sets a few inputs and never edits the code. The analysis explored; the routine should run what the answer rests on, once, and fast.
+
+You receive the question, the answer, the cells of the method in execution order with the output each printed when the analysis ran, the RESULT lines the method prints (the record every run is checked against), the cells that draw figures, the inputs the cells read, and the time each cell took.
+
+Write the method again under the same cell markers "# --- cell N ---", keeping the markers of the cells that print a RESULT line or draw a figure, in their order, with their numbers; a cell that only prepares may go, its work moved under a kept marker. Each RESULT(...) call stays under the marker of the cell it came from, in the same order, with the same label text and arguments, computing the same values. Each figure is drawn by the same calls on the same values. Every INPUTS[...] key is read as before. The data is loaded as before (DS.load(), the files by their written names) and every DS.save(...) stays.
+
+Compute once what the cells computed several times. Make faster what can be made faster with the same answer: vectorised operations for loops over rows, cumulative or rolling sums for a window recomputed at every step, one grouped aggregation for a loop over groups. Never faster by a different answer: no sampling, no fewer draws or iterations, no other seed, threshold or tolerance, no approximation; a loop that draws random numbers keeps its draws in their order, or the numbers change. A number that would print differently is a changed method and is refused.
+
+Reply with the cells only: one python code block holding the cells with their markers, nothing before or after it. When the method is already as lean as it can be, reply with the word UNCHANGED."""
+
+CONSOLIDATE_RETRY = "Your rewritten method {problem}. Reply again with the cells, as specified - the same RESULT lines under the same markers and the same figures - or with UNCHANGED."
+
+
+def consolidate_user(question: str, summary: str, cells: Iterable[Tuple[int, str, str]], ledger: Iterable[str], figure_cells: Iterable[int],
+                     inputs: Iterable[dict], times: Optional[Dict] = None, output_chars: int = 1500) -> str:
+    """The consolidation's brief: the question and the answer, each cell with the output it printed in the analysis
+    (clipped), the numbered RESULT lines, the figure cells, the inputs, the times."""
+    parts = []
+    for n, code, out in cells:
+        out = (out or "").strip()
+        if len(out) > output_chars + 200:
+            out = out[:output_chars].rstrip() + f"\n... [{len(out) - output_chars} more characters]"
+        parts.append(f"# --- cell {n} ---\n{code.strip()}\nOUTPUT:\n{out or '(no output)'}")
+    ins = [f"{p.get('key')} ({p.get('type')}): {p.get('label')}; default {json.dumps(p.get('default'))}" for p in inputs or []]
+    took = ", ".join(f"cell {n}: {secs_text(t)}" for n, t in sorted(((int(k), float(v or 0)) for k, v in (times or {}).items()), key=lambda x: x[0]))
+    return "\n\n".join([f"QUESTION:\n{(question or '').strip()}", f"ANSWER:\n{(summary or '(none)').strip()}",
+                        "THE METHOD (the cells in execution order, each with the output it printed; `df` is loaded before the first cell):\n" + "\n\n".join(parts),
+                        "RESULT LINES THE METHOD PRINTS (numbered; every one must still be printed, identical, under its cell's marker):\n" + ("\n".join(ledger) or "(none)"),
+                        "CELLS THAT DRAW FIGURES: " + (", ".join(str(c) for c in figure_cells or []) or "none"),
+                        "INPUTS THE CELLS READ:\n" + ("\n".join(ins) or "none"),
+                        "TIME EACH CELL TOOK: " + (took or "not recorded")])
+
+
+def parse_cells(text: str) -> Optional[str]:
+    """The cells from a reply's code block (the one with cell markers); None for UNCHANGED. Raises ValueError with a
+    readable reason."""
+    t = (text or "").strip()
+    if not t:
+        raise ValueError("the reply was empty")
+    if re.fullmatch(r"`*\s*UNCHANGED\.?\s*`*", t, re.I):
+        return None
+    blocks = re.findall(r"```(?:python|py)?[ \t]*\n(.*?)```", t, re.S)
+    cells = next((b for b in blocks if _CELL_MARK_RE.search(b)), None) if blocks else (t if _CELL_MARK_RE.search(t) else None)
+    if cells is None:
+        raise ValueError("no cells with their markers in the reply")
+    return "\n" + cells.strip("\n") + "\n"
+
+
+def result_calls(cells: str) -> Dict[int, int]:
+    """How many RESULT(...) calls each cell's text carries - the static check that a rewrite kept them under their markers."""
+    return {n: cells[a:b].count("RESULT(") for n, a, b in cell_blocks(cells)}
+
+
+def check_consolidated(original: str, cells: str, figure_cells: Iterable[int], keys: Iterable[str]) -> str:
+    """check_condensed, and every RESULT call still under the marker it came from (by count per cell)."""
+    problem = check_condensed(original, cells, figure_cells, keys)
+    if problem:
+        return problem
+    before, after = result_calls(original), result_calls(cells)
+    moved = [n for n, k in before.items() if k and after.get(n, 0) != k]
+    if moved:
+        return f"moves or loses the RESULT calls of cell {moved[0]} (keep each under the marker it came from)"
+    return ""
+
+
+def same_lines(expected: Iterable[dict], got: Iterable[dict]) -> Tuple[bool, str]:
+    """Two runs' RESULT lines against each other by position - the same count, the same numbers as printed. (ok, why)."""
+    a, b = list(expected or []), list(got or [])
+    if len(a) != len(b):
+        return False, f"{len(b)} result line{'s' if len(b) != 1 else ''} came back, {len(a)} expected"
+    for i, (x, y) in enumerate(zip(a, b), 1):
+        if not all((number(x.get(k)) == number(y.get(k))) or (x.get(k) == y.get(k)) for k in ("estimate", "low", "high")):
+            return False, f"line {i} ({str(x.get('what') or x.get('label') or '')[:50]}): {x.get('estimate')} -> {y.get('estimate')}"
+    return True, (f"{len(a)} result line{'s' if len(a) != 1 else ''} identical" if a else "no result lines")
+
+
 def condensed_line(before: int, after: int, prints: int, t0, t1) -> str:
     """The Summary's words for an accepted pass: what went, and the time before and after."""
     cut = (f"{before} cell{'s' if before != 1 else ''} → {after}" if after != before else f"{before} cell{'s' if before != 1 else ''} kept") + (f", {prints} print{'s' if prints != 1 else ''} dropped" if prints else "")

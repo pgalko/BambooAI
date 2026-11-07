@@ -403,6 +403,92 @@ _v_aw = store.load(_made_aw["routine"]["id"])["versions"][0]
 check("create with a pass that finds nothing to cut: the record says as written, the script is the one written and no script_written is kept; create without the flag records no pass",
       _v_aw["condensed"]["status"] == "as_written" and _v_aw["condensed"]["line"] == "as written: nothing to cut" and "script_written" not in _v_aw
       and "condensed" not in store.load(made["routine"]["id"])["versions"][0] and made.get("condensed") is None, (_v_aw.get("condensed"), made.get("condensed")))
+# ---- the consolidation (§19.3): the Condenser seat, opted in, rewrites the method under the kept markers; the candidate runs on the chain's
+# data and is kept provisionally; the first run on new data runs the method it replaced too and keeps or drops the rewrite
+def _runner_with(frame):
+    def run_(script, timeout, d=None):
+        k = PersistentKernel(df=frame)
+        try:
+            out, err, _ = k.execute(script)
+        finally:
+            k.cleanup()
+        return out or "", err or "", [], []
+    return run_
+_pk = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
+_zero_k = host.verify_zero("x", _pk["script"], _pk["results"], rt.defaults_of(_pk["inputs"]), runner, 60)
+_asks = []
+_REWRITE = "```python\n# --- cell 1 ---\nthreshold = INPUTS['threshold']\n# --- cell 2 ---\nRESULT('rows above the line', float((df.v > threshold).sum()), None, None, 'rows', 'n/a')\n```"
+def _consolidator(system, user, effort=None):
+    _asks.append((system, user, effort))
+    return _REWRITE, {"cost": 0.03}
+_k0 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator, runner, 60, "Condenser", "m")
+check("consolidate: a method that runs in under the threshold is left alone - not tried, the line saying how fast it runs, no call made",
+      _k0["status"] == "not_tried" and _k0["line"] == f"not consolidated: the method runs in {rt.secs_text(_zero_k['elapsed'])}" and _k0["attempts"] == 0 and _asks == [], _k0)
+_min_keep, host.CONSOLIDATE_MIN_SECONDS = host.CONSOLIDATE_MIN_SECONDS, 0.0
+_runs["n"] = 0
+_k1 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator, _counting_runner, 60, "Condenser", "m")
+check("consolidate: the brief carries the question, the answer, each cell with the output it printed, the numbered lines, the figure cells, the inputs and the times, at medium effort; the rewrite under the kept markers reproduces the line and is consolidated - provisional, the script, its lines and times on the record",
+      len(_asks) == 1 and _asks[0][0] == rt.CONSOLIDATE_SYSTEM and _asks[0][2] == "medium" and "QUESTION:\nHow many rows are above 155?" in _asks[0][1] and "ANSWER:\n" in _asks[0][1]
+      and "# --- cell 1 ---\nthreshold = INPUTS['threshold']\nkept = df[df.v > threshold]\nprint(len(kept))\nOUTPUT:\n3" in _asks[0][1] and "1. [cell 2] rows above the line: +3" in _asks[0][1]
+      and "INPUTS THE CELLS READ:\nthreshold (number): Threshold; default 155" in _asks[0][1] and "TIME EACH CELL TOOK: cell 1: 0.0 s, cell 2: 0.0 s" in _asks[0][1] and "CELLS THAT DRAW FIGURES: none" in _asks[0][1]
+      and _k1["status"] == "consolidated" and _k1["cells"] == [2, 2] and _k1["attempts"] == 1 and _k1["cost"] == 0.03 and _k1["seat"] == "Condenser" and _runs["n"] == 1
+      and "kept = df" not in _k1["script"] and "(df.v > threshold).sum()" in _k1["script"] and _k1["results"][0]["estimate"] == "+3.00"
+      and _k1["line"].startswith("consolidated: 2 cells → 2, ") and _k1["line"].endswith("; checked on the original data, the first run on new data checks it again"), (_k1.get("line"), _asks[0][1][:600] if _asks else None))
+# a rewrite that moves the RESULT call is refused before running and asked again, at low effort; one that changes the number, twice, keeps the method as it was
+_replies = ["```python\n# --- cell 1 ---\nthreshold = INPUTS['threshold']\nRESULT('rows above the line', float((df.v > threshold).sum()), None, None, 'rows', 'n/a')\n# --- cell 2 ---\npass\n```", _REWRITE]
+_asks[:] = []
+def _consolidator2(system, user, effort=None):
+    _asks.append((user, effort))
+    return _replies.pop(0), {"cost": 0.01}
+_k2 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator2, _counting_runner, 60)
+_k3 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: (_REWRITE.replace("df.v > threshold", "df.v > threshold + 10"), {"cost": 0.0}), _counting_runner, 60)
+_k4 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: ("UNCHANGED", {"cost": 0.0}), _counting_runner, 60)
+_k5 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: ("```python\n# --- cell 1 ---\nthres", {"cost": 0.0, "truncated": True}), _counting_runner, 60)
+check("consolidate: a RESULT call moved to another cell is refused before running and asked again at low effort, the second reply kept; a number changed twice keeps the method as it was with the differing line; UNCHANGED is nothing to gain; a reply cut at the token limit names the remedy",
+      _k2["status"] == "consolidated" and _k2["attempts"] == 2 and [e for _u, e in _asks] == ["medium", "low"] and _asks[1][0].endswith(rt.CONSOLIDATE_RETRY.format(problem="moves or loses the RESULT calls of cell 2 (keep each under the marker it came from)"))
+      and _k3["status"] == "as_it_was" and _k3["line"] == "as it was: the rewritten method did not reproduce the result lines: 1 of 1 result lines differ ([cell 2] rows above the line: +3 -> +2.00)" and _k3["attempts"] == 2
+      and _k4 == {"status": "as_it_was", "line": "as it was: the Condenser found nothing to gain", "cells": [2, 2], "elapsed": [_zero_k["elapsed"], None], "attempts": 1, "cost": 0.0, "seat": "", "model": ""}
+      and _k5["line"] == "as it was: the Condenser's reply was cut off at its token limit (the seat needs a larger max_tokens)", (_k2.get("line"), _k3.get("line"), _k5.get("line")))
+# create with both passes: the pruned script waits under script_fallback, the rewrite runs provisionally; run 1 on other data confirms it
+_made_k = host.create(nb4, _pk, {"name": "Consolidated", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condense_code=True, consolidator=_consolidator, consolidator_seat="Condenser", consolidator_model="m")
+_vk = store.load(_made_k["routine"]["id"])["versions"][0]
+check("create with the pass and the consolidation: the version runs the rewrite, provisional; the pruned script waits under script_fallback, the chain's under script_written; both records on the version and the made record; run zero's record is the rewrite's",
+      _vk["condensed"]["status"] == "condensed" and _vk["consolidated"]["status"] == "consolidated" and _vk["consolidated"]["provisional"] is True and _vk["consolidated"]["confirmed"] is None
+      and "(df.v > threshold).sum()" in _vk["script"] and "kept = df[df.v > threshold]" in _vk["script_fallback"] and "print(len(kept))" not in _vk["script_fallback"] and "print(len(kept))" in _vk["script_written"]
+      and _made_k["consolidated"]["status"] == "consolidated" and _vk["run_zero"]["elapsed"] == _vk["consolidated"]["elapsed"][1] and host.zero_holds(_vk) == "", (_vk.get("consolidated"), _made_k.get("consolidated")))
+_df6 = pd.DataFrame({"v": [100, 150, 160, 170, 200, 210], "g": list("aabbbb")})
+_data6 = {"df_id": "df6", "name": "six.csv", "source": "csv", "columns": [{"name": "v", "dtype": "int64"}, {"name": "g", "dtype": "object"}], "rows": 6, "aux": []}
+_ev_k = []
+_out_k = host.run(store.load(_made_k["routine"]["id"]), {}, _data6, _runner_with(_df6), store, emit=_ev_k.append)
+_vk2 = store.load(_made_k["routine"]["id"])["versions"][0]
+check("run 1 on other data of a provisional rewrite: the method it replaced runs too, the two agree (4 rows), the rewrite is confirmed - script_fallback gone, the record and the line say so, the pane saw the check; the run's line is the rewrite's",
+      _out_k["run"]["results"][0]["estimate"] == "+4.00" and _out_k["run"]["consolidation"] == "the rewritten method confirmed on this data (run 1): 1 result line identical, no figures"
+      and _vk2["consolidated"]["provisional"] is False and _vk2["consolidated"]["confirmed"]["run"] == 1 and "script_fallback" not in _vk2 and "(df.v > threshold).sum()" in _vk2["script"]
+      and _vk2["consolidated"]["line"].startswith("consolidated: 2 cells → 2, ") and _vk2["consolidated"]["line"].endswith("; confirmed on run 1")
+      and any(e.get("type") == "lookup" and e.get("kind") == "check" and e.get("query") == "the rewritten method" and e.get("peek", "").startswith("the rewritten method confirmed") for e in _ev_k), (_out_k["run"].get("consolidation"), _vk2.get("consolidated")))
+_out_k2 = host.run(store.load(_made_k["routine"]["id"]), {}, _data6, _runner_with(_df6), store)
+check("run 2: nothing more to check - the record carries no verdict", _out_k2["run"]["consolidation"] == "" and _out_k2["run"]["results"][0]["estimate"] == "+4.00")
+# a rewrite that agrees on the chain's data and not on the next: the version falls back to the method it replaced, whose output is the run's
+_pk2 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
+_made_f = host.create(nb4, _pk2, {"name": "Falls back", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condense_code=True,
+                      consolidator=lambda s, u, e=None: (_REWRITE.replace("float((df.v > threshold).sum())", "float(3)"), {"cost": 0.0}))
+_vf = store.load(_made_f["routine"]["id"])["versions"][0]
+_out_f = host.run(store.load(_made_f["routine"]["id"]), {}, _data6, _runner_with(_df6), store)
+_vf2 = store.load(_made_f["routine"]["id"])["versions"][0]
+check("a rewrite that typed the number (3) passed run zero and is provisional; on other data the method it replaced says 4 - the version falls back to that method, the run's line is its, the record says why; the chain's script stays as written",
+      _vf["consolidated"]["status"] == "consolidated" and "float(3)" in _vf["script"]
+      and _out_f["run"]["results"][0]["estimate"] == "+4.00" and _out_f["run"]["consolidation"] == "fell back at run 1: the rewritten method differed on this data (line 1 (rows above the line): +4.00 -> +3.00)"
+      and _vf2["consolidated"]["status"] == "fell_back" and _vf2["consolidated"]["fell_back"]["run"] == 1 and "script_fallback" not in _vf2 and "kept = df[df.v > threshold]" in _vf2["script"] and "float(3)" not in _vf2["script"]
+      and _vf2["consolidated"]["line"] == "as it was since run 1: the rewritten method differed on new data (line 1 (rows above the line): +4.00 -> +3.00)" and "print(len(kept))" in _vf2["script_written"], (_out_f["run"].get("consolidation"), _vf2.get("consolidated")))
+# behind the dialog with both: the statuses, the verdict's records
+_pk3 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
+_made_kb = host.create(nb4, _pk3, {"name": "Behind, both", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, background=True, condense_code=True, consolidator=_consolidator)
+_verdict_kb = _made_kb["verify"]()
+_vkb = store.load(_made_kb["routine"]["id"])["versions"][0]
+check("create behind the dialog with both passes: the verdict carries both records; the version runs the rewrite, provisional, with the pruned script under script_fallback",
+      _verdict_kb["condensed"]["status"] == "condensed" and _verdict_kb["consolidated"]["status"] == "consolidated" and _vkb["run_zero"]["status"] == "reproduced" and _vkb["consolidated"]["provisional"] is True
+      and "(df.v > threshold).sum()" in _vkb["script"] and "kept = df" in _vkb["script_fallback"], (_verdict_kb.get("consolidated"), _vkb.get("run_zero")))
+host.CONSOLIDATE_MIN_SECONDS = _min_keep
 # the next version: the manifest rides to the promoter, the inputs carry over, v1 stays
 p4 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, routine=store.load(made["routine"]["id"]))
 made4 = host.create(nb4, p4, {"name": "", "purpose": "", "drop_inputs": [], "drop_results": [], "change_note": "the same, again"}, runner, store, routine_id=made["routine"]["id"])

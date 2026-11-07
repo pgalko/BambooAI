@@ -21,8 +21,10 @@ What it says comes from a scenario (tools/stack/scenarios/<name>.py): `load(name
 question, the turn number, the cell outputs) and answers from it, so the numbers in its report
 are the numbers the kernel printed.
 """
+import ast
 import importlib.util
 import os
+import re
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -72,10 +74,43 @@ def _tokens(s):
     return max(1, len(_text(s) if not isinstance(s, str) else s) // 4)
 
 
+def consolidated_reply(user):
+    """The stack's own Condenser (docs/ROUTINES_DESIGN.md §19.3), for every scenario: the method's cells given back without
+    the assignments nothing reads afterwards (a dead store whose value calls no bare function), the markers, RESULT calls
+    and figures as they were; UNCHANGED when there is none. Enough to walk the consolidation's path - the record, the
+    provisional script, the first run's check - without a model."""
+    body = user.split("THE METHOD (the cells in execution order, each with the output it printed; `df` is loaded before the first cell):\n", 1)
+    if len(body) < 2:
+        return "UNCHANGED"
+    cells = []
+    for block in re.split(r"(?m)^(?=# --- cell \d+ ---$)", body[1].split("\n\nRESULT LINES THE METHOD PRINTS", 1)[0]):
+        if block.strip():
+            head, code = block.split("\n", 1)
+            cells.append((head, code.split("\nOUTPUT:\n", 1)[0].rstrip("\n")))
+    out, changed = [], False
+    for i, (head, code) in enumerate(cells):
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return "UNCHANGED"
+        lines, gone = code.split("\n"), set()
+        for st in tree.body:
+            if isinstance(st, ast.Assign) and len(st.targets) == 1 and isinstance(st.targets[0], ast.Name) \
+                    and not any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) for n in ast.walk(st.value)):
+                name = st.targets[0].id
+                after = "\n".join(lines[st.end_lineno:]) + "\n" + "\n".join(c for _h, c in cells[i + 1:])
+                if not re.search(r"\b" + re.escape(name) + r"\b", after):
+                    gone.update(range(st.lineno, st.end_lineno + 1)); changed = True
+        out.append(head + "\n" + "\n".join(ln for j, ln in enumerate(lines, 1) if j not in gone))
+    return "```python\n" + "\n\n".join(out) + "\n```" if changed else "UNCHANGED"
+
+
 def _reply(messages):
     if SCENARIO is None:
         raise RuntimeError("harness_models: no scenario loaded (call harness_models.load(name))")
     system, user = _split(messages)
+    if system.startswith("You are rewriting the method of a finished analysis"):
+        return "", consolidated_reply(user)
     thinking, text = SCENARIO.reply(system, user)
     return thinking or "", text or ""
 

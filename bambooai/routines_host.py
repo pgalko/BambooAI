@@ -344,6 +344,8 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
             "summary": summary, "data": data, "data_state": state, "source": rt.source_kind(data), "inputs": inputs, "notes": notes,
             "kept": [str(k) for k in (obj.get("kept") or [])][:12], "results": results, "figures": {"count": sum(len(c.figures) for c in run.cells() if c.cell_no in figures), "cells": figures},
             "cells": len(order), "script": rt.join_script(header, edited, tail), "header": header, "tail": tail, "cells_text": edited, "cells_original": body,
+            "cell_outputs": {str(c.cell_no): (c.stdout or "") for c in path if c.cell_no in order},          # the consolidation's brief (§19.3)
+            "cell_times": {str(c.cell_no): round(float(c.elapsed or 0), 1) for c in path if c.cell_no in order},
             "applied": applied, "timeout": _timeout(path), "cost": round(cost, 4), "routine_id": routine.get("id") if routine else None,
             "routine_name": routine.get("name") if routine else None, "next_version": (routine.get("current_version", 1) + 1) if routine else None}
 
@@ -355,7 +357,8 @@ VERIFYING_LINE = "verifying: the method is being run once on the chain's own dat
 
 
 def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callable], store: rt.RoutineStore, emit: Optional[Callable] = None,
-           routine_id: Optional[str] = None, background: bool = False, condense_code: bool = False) -> dict:
+           routine_id: Optional[str] = None, background: bool = False, condense_code: bool = False,
+           consolidator: Optional[Callable] = None, consolidator_seat: str = "", consolidator_model: str = "") -> dict:
     """Apply the person's choices (name, purpose, inputs dropped, results dropped) and store the routine (a new one, or
     the next version of `routine_id`); then run zero - the method once on the chain's own data, the proof that it
     reproduces the chain's lines. In the foreground (the default, as the tests and the library use it) a method whose
@@ -366,7 +369,8 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     and after a verdict that is not reproduced. With the chain's data gone the routine is created unverified and says so.
     `condense_code` (§19): the condensing pass after run zero reproduced - the cells pruned from the code alone, the
     pruned script the one that runs when it reproduces the lines and the figures on the same data, else the script
-    stays as written."""
+    stays as written. `consolidator` (§19.3): the model that rewrites the method once, when there is time to gain;
+    its script is provisional until the first run on new data confirms it."""
     name = (choices.get("name") or proposal.get("name") or "").strip()[:80] or "Routine"
     purpose = (choices.get("purpose") or "").strip()[:300]
     drop_inputs = {str(k) for k in (choices.get("drop_inputs") or [])}
@@ -387,7 +391,7 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     verifying = runner is not None and proposal.get("data_state") != "gone"
     timeout = int(proposal.get("timeout") or 300)
     stdout, figs = "", []
-    condensed = None
+    condensed = consolidated = None
     if verifying and not background:
         verdict = verify_zero(name, script, results, run_zero["inputs"], runner, timeout, emit)
         if verdict["status"] != "reproduced":
@@ -399,6 +403,11 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
             if condensed["status"] == "condensed":
                 stdout, figs = condensed["stdout"], condensed["figs"]
                 run_zero.update({"results": condensed["results"], "figures": len(condensed["figs"]), "elapsed": condensed["elapsed"][1]})
+        if consolidator is not None:
+            consolidated = consolidate(proposal, condensed, cells, results, run_zero["inputs"], verdict, consolidator, runner, timeout, consolidator_seat, consolidator_model)
+            if consolidated["status"] == "consolidated":
+                stdout, figs = consolidated["stdout"], consolidated["figs"]
+                run_zero.update({"results": consolidated["results"], "figures": len(consolidated["figs"]), "elapsed": consolidated["elapsed"][1]})
     elif verifying:
         run_zero.update({"status": "verifying", "line": VERIFYING_LINE})
     routine = store.load(routine_id) if routine_id else None
@@ -419,6 +428,8 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
                "script": script, "manifest": manifest, "change_note": change_note, "run_zero": run_zero}
     if condensed is not None:
         settle_condensed(version, condensed, script)
+    if consolidated is not None:
+        settle_consolidated(version, consolidated)
     routine["versions"].append(version)
     routine["current_version"] = number
     store.save(routine)
@@ -426,13 +437,14 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
         store.save_run_files(routine["id"], f"v{number}_0", stdout or "", figs or [])
     except OSError:
         pass
-    made = {"routine": rt.RoutineStore.summary(routine), "version": number, "run_zero": run_zero, "name": routine["name"], "condensed": version.get("condensed")}
+    made = {"routine": rt.RoutineStore.summary(routine), "version": number, "run_zero": run_zero, "name": routine["name"], "condensed": version.get("condensed"),
+            "consolidated": version.get("consolidated")}
     if verifying and background:
         rid, inputs_defaults = routine["id"], run_zero["inputs"]
 
-        def write(verdict: dict, status: Optional[str] = None, condensed_: Optional[dict] = None) -> bool:
-            """The verdict on the stored version (and the condensing pass's outcome, §19); False when the routine was
-            deleted meanwhile and there is nothing to write on."""
+        def write(verdict: dict, status: Optional[str] = None, condensed_: Optional[dict] = None, consolidated_: Optional[dict] = None) -> bool:
+            """The verdict on the stored version (and the passes' outcomes, §19); False when the routine was deleted
+            meanwhile and there is nothing to write on."""
             r = store.load(rid)
             v = next((x for x in (r or {}).get("versions", []) if x.get("number") == number), None) if r else None
             if v is None:
@@ -442,8 +454,10 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
                 v["run_zero"].update({"status": status, "line": CONDENSING_LINE})
             if condensed_ is not None:
                 settle_condensed(v, condensed_, script)
+            if consolidated_ is not None:
+                settle_consolidated(v, consolidated_)
             store.save(r)
-            ran = condensed_ if condensed_ and condensed_.get("status") == "condensed" else verdict     # the files are the script that runs from now on
+            ran = next((x for x in (consolidated_, condensed_) if x and x.get("status") in ("condensed", "consolidated")), verdict)     # the files are the script that runs from now on
             try:
                 store.save_run_files(rid, f"v{number}_0", ran.get("stdout") or "", ran.get("figs") or [])
             except OSError:
@@ -453,19 +467,22 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
         def verify():
             """Run zero behind the dialog: the verdict written on the stored version when it is in. No pane rows - nobody
             is watching a pane for it (a row emitted after the dialog's stream closed would land in the next request's);
-            the toast and the manager's chip say what happened. Then the condensing pass (§19), the version marked
-            condensing while it runs."""
+            the toast and the manager's chip say what happened. Then the condensing pass (§19) and, with a consolidator,
+            the consolidation (§19.3), the version marked condensing while they run."""
             verdict = verify_zero(name, script, results, inputs_defaults, runner, timeout, None)
-            if not condense_code or verdict["status"] != "reproduced":
+            if not (condense_code or consolidator is not None) or verdict["status"] != "reproduced":
                 write(verdict)
                 return verdict
             if not write(verdict, status="condensing"):
                 return verdict                                        # deleted meanwhile: nothing to write on
-            c = condense(proposal, cells, results, inputs_defaults, verdict, runner, timeout)
-            if c["status"] == "condensed":
+            c = condense(proposal, cells, results, inputs_defaults, verdict, runner, timeout) if condense_code else None
+            if c and c["status"] == "condensed":
                 verdict = dict(verdict, results=c["results"], figures=len(c["figs"]), elapsed=c["elapsed"][1])
-            write(verdict, condensed_=c)
-            verdict["condensed"] = c
+            k = consolidate(proposal, c, cells, results, inputs_defaults, verdict, consolidator, runner, timeout, consolidator_seat, consolidator_model) if consolidator is not None else None
+            if k and k["status"] == "consolidated":
+                verdict = dict(verdict, results=k["results"], figures=len(k["figs"]), elapsed=k["elapsed"][1])
+            write(verdict, condensed_=c, consolidated_=k)
+            verdict["condensed"], verdict["consolidated"] = c, k
             return verdict
         made["verify"] = verify
     return made
@@ -561,6 +578,131 @@ def settle_condensed(version: dict, condensed: dict, written: str) -> None:
     if condensed.get("status") == "condensed":
         version["script_written"] = written
         version["script"] = condensed["script"]
+
+
+CONSOLIDATE_MIN_SECONDS = float(os.environ.get("BAMBOO_CONSOLIDATE_MIN_SECONDS", "15"))      # below this, a method is left alone: nothing to gain
+
+
+def consolidate(proposal: dict, condensed: Optional[dict], cells: str, results: List[dict], inputs: Dict[str, object], zero: dict, llm: Callable, runner: Callable,
+                timeout: int, seat: str = "", model: str = "") -> dict:
+    """The consolidation (docs/ROUTINES_DESIGN.md §19.3): the Condenser seat, opted in, rewrites the method once - given
+    the question, the answer, the cells (as pruned) with the output each printed in the analysis, the RESULT lines, the
+    figure cells, the inputs and the times - under the kept markers; the candidate runs on the chain's own data and is
+    accepted only when its RESULT lines are run zero's and its figures the same pictures, as a provisional script: the
+    first run on new data checks it against the method it replaced (run), and keeps or drops it. A failure goes back once
+    with the reason; the second keeps the method as it was. Nothing is tried when the method already runs in under
+    CONSOLIDATE_MIN_SECONDS. Returns {status: consolidated | as_it_was | not_tried, line, cells, elapsed, attempts, cost,
+    seat, model} and, when consolidated, script, results, stdout, figs."""
+    base_cells = condensed["script"] and rt.split_script(condensed["script"])[1] if condensed and condensed.get("status") == "condensed" else cells
+    before_time = float(zero.get("elapsed") or 0)
+    n_before = len(rt.cell_blocks(base_cells))
+    out = {"status": "not_tried", "line": "", "cells": [n_before, n_before], "elapsed": [before_time, None], "attempts": 0, "cost": 0.0, "seat": seat, "model": model}
+    if before_time < CONSOLIDATE_MIN_SECONDS:
+        out["line"] = f"not consolidated: the method runs in {rt.secs_text(before_time)}"
+        return out
+    header, tail = proposal.get("header") or "", proposal.get("tail") or ""
+    figure_cells = [int(c) for c in ((proposal.get("figures") or {}).get("cells") or [])]
+    keys = rt.keys_read(base_cells)
+    outputs = proposal.get("cell_outputs") or {}
+    shown = [(n, base_cells[a:b].split("\n", 1)[1] if "\n" in base_cells[a:b] else "", outputs.get(str(n), "")) for n, a, b in rt.cell_blocks(base_cells)]
+    user = rt.consolidate_user(proposal.get("question", ""), proposal.get("summary", ""), shown, _ledger(results), figure_cells,
+                               (proposal.get("inputs") or []), proposal.get("cell_times") or {})
+    note, problem = "", ""
+    for attempt in range(2):
+        out["attempts"] = attempt + 1
+        try:
+            text, usage = llm(rt.CONSOLIDATE_SYSTEM, user if not note else user + "\n\n" + note, "medium" if not attempt else "low")
+        except Exception as exc:                                   # noqa: BLE001 - the seat down: the method as it was, said
+            out.update({"status": "as_it_was", "line": f"as it was: the Condenser could not be called ({str(exc).strip().splitlines()[-1][:160] if str(exc).strip() else exc})"})
+            return out
+        out["cost"] = round(out["cost"] + float((usage or {}).get("cost") or 0.0), 4)
+        if (usage or {}).get("truncated"):
+            out.update({"status": "as_it_was", "line": "as it was: the Condenser's reply was cut off at its token limit (the seat needs a larger max_tokens)"})
+            return out
+        try:
+            new = rt.parse_cells(text)
+        except ValueError as exc:
+            problem = f"could not be read ({exc})"
+            note = rt.CONSOLIDATE_RETRY.format(problem=problem)
+            continue
+        if new is None or new.strip() == base_cells.strip():
+            out.update({"status": "as_it_was", "line": "as it was: the Condenser found nothing to gain"})
+            return out
+        problem = rt.check_consolidated(base_cells, new, figure_cells, keys)
+        if problem:
+            note = rt.CONSOLIDATE_RETRY.format(problem=problem)
+            continue
+        script = rt.join_script(header, new, tail)
+        t0 = time.time()
+        try:
+            stdout, err, figs, _generated = runner(rt.with_inputs(script, inputs), timeout)
+        except Exception as exc:                                   # noqa: BLE001
+            stdout, err, figs = "", f"the run could not start: {exc}", []
+        elapsed = round(time.time() - t0, 1)
+        got = rt.result_lines_in(stdout or "")
+        status, line, _diffs = rt.check_lines(results, got, err or "")
+        if status == "failed":
+            cell = rt.failed_cell(rt.with_inputs(script, inputs), err or "")
+            problem = (f"failed at cell {cell}: " if cell else "failed: ") + (rt.error_line(err or "") or line)[:200]
+        elif status != "reproduced":
+            problem = "did not reproduce the result lines: " + line
+        else:
+            ok, why = rt.same_figures(zero.get("figs") or [], figs or [])
+            if ok:
+                after = len(rt.cell_blocks(new))
+                out.update({"status": "consolidated", "cells": [n_before, after], "elapsed": [before_time, elapsed], "script": script, "results": got, "stdout": stdout or "", "figs": figs or [],
+                            "line": f"consolidated: {n_before} cell{'s' if n_before != 1 else ''} → {after}, {rt.secs_text(before_time)} → {rt.secs_text(elapsed)}; checked on the original data, the first run on new data checks it again"})
+                return out
+            problem = "did not reproduce the figures: " + why
+        note = rt.CONSOLIDATE_RETRY.format(problem=problem)
+    out.update({"status": "as_it_was", "line": "as it was: the rewritten method " + problem})
+    return out
+
+
+def settle_consolidated(version: dict, consolidated: dict) -> None:
+    """The consolidation's outcome on a version: the record; when consolidated, the rewritten script runs, provisional,
+    and the script it replaced waits under script_fallback for the first run on new data."""
+    version["consolidated"] = {k: consolidated.get(k) for k in ("status", "line", "cells", "elapsed", "attempts", "cost", "seat", "model")}
+    if consolidated.get("status") == "consolidated":
+        version["consolidated"].update({"provisional": True, "confirmed": None, "fell_back": None})
+        version["script_fallback"] = version["script"]
+        version["script"] = consolidated["script"]
+
+
+def check_consolidated_run(ver: dict, prep: dict, script_vals: Dict[str, object], run_dir: str, runner: Callable, timeout: int, number: int,
+                           result: Tuple[str, str, list]) -> Tuple[Tuple[str, str, list], str]:
+    """The first run on new data of a version whose script is provisional (§19.3): the method it replaced runs once
+    more on the same data, and the two are compared - the same RESULT lines as printed, the same figures. Agree, and
+    the rewrite is confirmed; disagree, and the version falls back to the method it replaced, whose output becomes
+    this run's. Returns ((stdout, err, figs) of the run that stands, the verdict's words); the version is changed in
+    place and the caller saves it."""
+    c = ver.get("consolidated") or {}
+    if not ver.get("script_fallback") or not c.get("provisional"):
+        return result, ""
+    other, _subs = rt.bind_script(ver["script_fallback"], prep["bound"], run_dir, prep.get("datasets_dir") or "", prep["placeholders"])
+    try:
+        o_out, o_err, o_figs, _g = _call_runner(runner, rt.with_inputs(other, script_vals, prep["prelude"]), timeout, run_dir)
+    except Exception as exc:                                       # noqa: BLE001
+        o_out, o_err, o_figs = "", f"the run could not start: {exc}", []
+    stdout, err, figs = result
+    if o_err or err:
+        if err and not o_err:                                      # the rewrite failed where the method it replaced ran: back to that
+            why = "fell back at run %d: the rewritten method failed on this data (%s)" % (number, (rt.error_line(str(err)) or "error")[:120])
+            ver["script"] = ver.pop("script_fallback")
+            c.update({"status": "fell_back", "provisional": False, "fell_back": {"run": number, "why": why}, "line": "as it was since run %d: the rewritten method failed on new data" % number})
+            return (o_out, o_err, o_figs), why
+        return result, "no verdict on the rewritten method at run %d: %s" % (number, "both methods failed on this data" if o_err else "the method it replaced failed on this data")
+    ok, why = rt.same_lines(rt.result_lines_in(o_out or ""), rt.result_lines_in(stdout or ""))
+    if ok:
+        ok, fig_why = rt.same_figures(o_figs or [], figs or [])
+        why = f"{why}, {fig_why}" if ok else fig_why
+    if ok:
+        ver.pop("script_fallback", None)
+        c.update({"provisional": False, "confirmed": {"run": number, "when": time.time()}, "line": re.sub(r"; checked on the original data.*$", "", c.get("line") or "") + f"; confirmed on run {number}"})
+        return result, f"the rewritten method confirmed on this data (run {number}): {why}"
+    ver["script"] = ver.pop("script_fallback")
+    c.update({"status": "fell_back", "provisional": False, "fell_back": {"run": number, "why": why}, "line": f"as it was since run {number}: the rewritten method differed on new data ({why})"})
+    return (o_out, o_err, o_figs), f"fell back at run {number}: the rewritten method differed on this data ({why})"
 
 
 # ----------------------------------------------------------------------------- a run on the data loaded now (F2)
@@ -696,7 +838,7 @@ def prepare(ver: dict, current_data: Optional[dict], runner: Optional[Callable],
                 ", ".join(rt.aux_kind(p) for p in binding["absent"]) or "-", len(subs), ("; " + note) if note else "",
                 (f"; cut to {cut['start']} → {cut['end']} by {cut['column'] or '?'}, {len(cut_files)} file(s)") if cut else "",
                 "; CTX over the run's context file" if context[0] else "")
-    return {"binding": binding, "bound": bound, "placeholders": placeholders, "sources": sources, "shape": shape, "script": script, "subs": subs, "note": note, "cut": cut,
+    return {"binding": binding, "bound": bound, "placeholders": placeholders, "sources": sources, "shape": shape, "script": script, "subs": subs, "note": note, "cut": cut, "datasets_dir": ddir,
             "prelude": rt.conform_prelude(rec.get("columns") or [], files, span_inputs((ver.get("manifest") or {}).get("parameters") or [], rec), cut, context)}
 
 
@@ -891,6 +1033,13 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         stdout, err, figs, generated = _call_runner(runner, script, timeout, run_dir)
     except Exception as exc:                                           # noqa: BLE001
         stdout, err, figs, generated = "", f"the run could not start: {exc}", [], None
+    # a provisional rewrite (§19.3): the method it replaced runs once more on this data, and the two are compared
+    (stdout, err, figs), consolidation = check_consolidated_run(ver, prep, vals, run_dir, runner, timeout, number, (stdout, err, figs))
+    if consolidation:
+        if consolidation.startswith("fell back"):
+            script = rt.with_inputs(prep["script"], vals, prep["prelude"])     # the failed cell is read off the script that stands (the fallback's binding is the same text)
+        if emit:
+            emit({"type": "lookup", "kind": "check", "query": "the rewritten method", "peek": consolidation})
     elapsed = round(time.time() - t0, 1)
     # the inputs that follow the frame's own dates were written by the prelude: the values go on the record, the line off the output
     written = read_marked(stdout or "", rt.INPUTS_MARK_OUT)
@@ -923,7 +1072,7 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
               "data": d, "inputs": vals, "results": got, "figures": len(figs or []), "stdout_chars": len(stdout or ""), "cells": n_cells,
               "against": ref_number, "comparison": cmp, "narrative": "", "error": (str(err).strip()[-2000:] if err else ""),
               "fit": {k: fit[k] for k in ("missing", "extra", "retyped", "line")}, "bindings": prep["subs"], "sources": prep["sources"], "aux_absent": [rt.aux_kind(p) for p in prep["binding"]["absent"]],
-              "differences": differences, "check": check_line, "failed_cell": failed_cell,
+              "differences": differences, "check": check_line, "failed_cell": failed_cell, "consolidation": consolidation,
               "shape": prep["shape"], "run_dir": run_dir, "generated": list(generated or []) if isinstance(generated, (list, tuple)) else []}
     summary = {k: record[k] for k in ("number", "version", "created", "finished", "elapsed", "status", "line", "interval", "inputs", "results", "figures", "against", "cells")}
     summary["data"] = light_data(d)

@@ -35,7 +35,7 @@ PROPOSAL = {"proposal_id": "p1", "thread_id": "1791460000", "chain_id": "1791460
 ROUTINE = {"id": "r1", "name": "Altitude pace correction, within athlete", "created": 1791460000, "updated": 1791460000, "purpose": "the sea-level gap, holding effort and surface fixed",
            "question": PROPOSAL["question"], "summary": PROPOSAL["summary"], "origin": {"thread_id": "1791460000", "chain_id": "1791460001"}, "source": "file", "current_version": 1, "runs": [],
            "origin_available": True, "summary_card": {"data": PROPOSAL["data"]},
-           "versions": [{"number": 1, "created": 1791460000, "promoted_from": {"thread_id": "1791460000", "chain_id": "1791460001"}, "change_note": "first version", "script_chars": 9120,
+           "versions": [{"number": 1, "created": 1791460000, "promoted_from": {"thread_id": "1791460000", "chain_id": "1791460001"}, "change_note": "first version", "script_chars": 9120, "written_chars": 14800,
                          "manifest": {"data": PROPOSAL["data"], "parameters": PROPOSAL["inputs"], "results": [dict(r) for r in PROPOSAL["results"]], "figures": PROPOSAL["figures"]},
                          "run_zero": {"status": "reproduced", "line": "reproduced: 5 result line(s) identical", "verified": True},
                          "condensed": {"status": "condensed", "line": "condensed: 9 cells → 4, 11 prints dropped, 48 s → 4.6 s", "cells": [9, 4], "dropped": {"cells": [1, 2, 4, 6, 8], "prints": 11}, "elapsed": [48.2, 4.6]}}]}     # the pass (§19)

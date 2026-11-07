@@ -391,11 +391,13 @@
             return '<span class="rt-status ' + cls + '">' + word + '</span>';
         },
         // the condensing pass's outcome (§19) after the verdict: the line, and the code as written to take away when the code
-        // that runs is the condensed one; nothing while the pass has not run or still runs
+        // that runs is not the chain's; then the consolidation's line (§19.3), when a Condenser seat had its say; nothing
+        // while the passes have not run or still run
         condensedLine(r, v) {
-            const c = (v || {}).condensed;
+            const c = (v || {}).condensed, k = (v || {}).consolidated;
             if (!c || !c.line) return '';
-            return ' · ' + esc(c.line) + (c.status === 'condensed' && r && r.id ? ' <a class="rt-written" href="/routines/' + esc(r.id) + '/script?written=1" download title="the code as the analysis wrote it, before it was condensed">as written ↓</a>' : '');
+            return ' · ' + esc(c.line) + (k && k.line ? ' · ' + esc(k.line) : '')
+                + ((v || {}).written_chars > 0 && r && r.id ? ' <a class="rt-written" href="/routines/' + esc(r.id) + '/script?written=1" download title="the code as the analysis wrote it, before it was condensed">as written ↓</a>' : '');
         },
         zeroHold(r) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};

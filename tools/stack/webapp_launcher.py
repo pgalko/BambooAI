@@ -40,6 +40,7 @@ def local_template(workdir):
     for key in ("free_agent_configs", "cost_agent_configs", "performance_agent_configs", "max_agent_configs"):
         for a in src.get(key, []):
             a["details"] = dict(seat)
+        src.setdefault(key, []).append({"agent": "Condenser", "details": dict(seat)})      # the consolidation opted in (docs/ROUTINES_DESIGN.md §19.3) - the stack walks it
     src.setdefault("model_properties", {})[HARNESS_MODEL] = {
         "capability": "reasoning", "multimodal": "true", "templ_formating": "text",      # takes images: the plot the person asks about rides along (2026-10-13)
         "reasoning_style": "effort", "reasoning_efforts": ["low", "medium", "high"],
@@ -88,6 +89,7 @@ def main():
     # the app asks Intervals.icu whose a key is when it is saved (2026-10-30): the stack's fake answers; without one (the
     # local kernel, no fake APIs) a dead port, so no walk ever reaches the real service with a made-up key
     os.environ["INTERVALS_API_BASE_URL"] = (os.environ.get("STACK_FAKE_APIS", "").rstrip("/") or "http://127.0.0.1:9") + "/api/v1"
+    os.environ.setdefault("BAMBOO_CONSOLIDATE_MIN_SECONDS", "0")      # the stack's methods run in a second or two: consolidated all the same (§19.3)
     sys.path[:0] = [ROOT, os.path.join(ROOT, "delve"), os.path.join(ROOT, "web_app"), HERE]
     import sandbox
     try:

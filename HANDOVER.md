@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/208/31/27/18/49/44/72/33/195/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/133/14/25/4/14/67/41 JS; 1,778 on 2026-11-07; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/209/31/27/18/49/44/72/33/203/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/133/14/25/4/14/67/41 JS; 1,787 on 2026-11-07; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,18 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The consolidation (2026-11-07, patch 0274; docs/ROUTINES_DESIGN.md §19.3).** The speed, on the footing §19 set:
+  the `Condenser` seat, opted in by configuring it (no fallback; the stack's template opts it in), rewrites a slow
+  method once - run zero at or above `CONSOLIDATE_MIN_SECONDS` (15; env `BAMBOO_CONSOLIDATE_MIN_SECONDS`) - given the
+  analyst's context: the question, the answer, the pruned cells with the output each printed (`cell_outputs` on the
+  proposal), the lines, the figure cells, the inputs, the times (`CONSOLIDATE_SYSTEM`, `consolidate_user`). The rewrite
+  keeps the markers of the RESULT and figure cells, each RESULT call under its marker (`check_consolidated`); it runs on
+  the chain's data (`routines_host.consolidate`) and is kept provisionally - `script` the rewrite, `script_fallback` the
+  method it replaced, the record `consolidated` {status, line, …, provisional, confirmed, fell_back}. On the first run
+  on new data (`check_consolidated_run` in `run`) the old method runs beside it: agree and the rewrite is confirmed
+  (*; confirmed on run 1*), disagree and the version falls back, the run's output the old method's (*as it was since
+  run 1: …*); the run's record and a pane CHECK row say which. The quiet call (`_llm_quiet`, medium effort, low on the
+  retry) is billed to the save's chain. Tests: test_routines.py 203, test_app_path.py 209, the stack walk 136.
 - **The condensing pass without a model (2026-11-07, patch 0273; docs/ROUTINES_DESIGN.md §19).** 0272's model pass
   met its first live chain (the MMC, twelve cells) and returned nothing: the analyst seat it fell back to spent its
   16,000 tokens reasoning. The design was fragile - the reply grew with the chain, the model saw code without its

@@ -181,6 +181,29 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Promoter' if 'Promoter' in agents else self._seat()
 
+    def _condenser_seat(self):
+        """The seat that consolidates a routine's method (docs/ROUTINES_DESIGN.md §19.3): 'Condenser' when the config
+        carries one, else None - the consolidation is opted in by configuring the seat, never a fallback."""
+        agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
+        return 'Condenser' if 'Condenser' in agents else None
+
+    def _llm_quiet(self, system: str, user: str, seat: str, chain_id, effort=None):
+        """A model call from a thread after its request has ended (the consolidation, §19.3): nothing goes to the pane -
+        the page's queue would carry a stream into the next request - and the cost is read off the chain the call is
+        billed to, not the session's. `effort` lowers the seat's reasoning effort for this call."""
+        class _Silent:
+            def print_wrapper(self, *a, **k): pass
+            def display_tool_info(self, *a, **k): pass
+            def send_html_content(self, *a, **k): pass
+            def display_system_messages(self, message, *a, **k): logger.info("quiet model call: %s", message)
+        before = self._cost_of(chain_id)
+        text = self.llm_stream(self.prompts, self.log_and_call_manager, _Silent(), [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                               agent=seat, chain_id=chain_id, reasoning_models=self.reasoning_models, **({"reasoning_effort": effort} if effort else {}))
+        if isinstance(text, tuple):
+            text = text[0]
+        from bambooai.models import prompt_cache
+        return text or "", {"cost": max(0.0, self._cost_of(chain_id) - before), "truncated": bool(prompt_cache.last_meta().get("truncated"))}
+
     def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, image: str = None,
              effort=None, **hints):
         """The model call the session uses: the app's model layer (streaming,
@@ -218,8 +241,11 @@ class BambooAI:
                             "declined": meta.get("declined") or "", "effort": meta.get("seat_effort") or ""}
 
     def _chain_cost(self):
+        return self._cost_of(self.chain_id)
+
+    def _cost_of(self, chain_id):
         ts = self.log_and_call_manager.token_summary
-        summary = ts.get(self.chain_id) or ts.get(str(self.chain_id)) or {}
+        summary = ts.get(chain_id) or ts.get(str(chain_id)) or {}
         return float(summary.get('total_cost', 0.0) or 0.0)
 
     # ---------------------------------------------------------------- kernel
@@ -659,6 +685,7 @@ class BambooAI:
                                              runner=lambda s, t: self.run_script(s, t, what="Shape"))
         finally:
             self.chain_id = keep
+        proposal["billing_chain_id"] = str(billing_chain_id or self.chain_id or "")      # the consolidation's call is billed there too (§19.3)
         pending = getattr(self, "_proposals", None)
         if pending is None:
             pending = self._proposals = {}
@@ -780,9 +807,21 @@ class BambooAI:
         # next version of one - the dialog's "A new routine" means that
         # run zero behind the dialog (2026-10-15: it re-executes every cell of the chain - nine minutes on a heavy one): the
         # routine is stored at once as verifying, the verdict lands on it from a thread, a run is refused until it has
-        # settled, and after a verdict that is not reproduced; the condensing pass (§19) follows the verdict in the same thread
+        # settled, and after a verdict that is not reproduced; the condensing pass (§19) follows the verdict in the same thread,
+        # and the consolidation (§19.3) when a Condenser seat is configured - a quiet call, billed to the save's chain
+        seat = self._condenser_seat()
+        model = ''
+        if seat:
+            try:
+                model = self.models.get_model_name(seat)
+                model = model[0] if isinstance(model, (tuple, list)) else model
+            except Exception:                                          # noqa: BLE001
+                model = ''
+        billing = proposal.get("billing_chain_id") or self.chain_id
         made = routines_host.create(nb, proposal, choices or {}, lambda script, timeout: self.run_script(script, timeout, what="Run zero"),
-                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id, background=True, condense_code=True)
+                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id, background=True, condense_code=True,
+                                    consolidator=(lambda s, u, effort=None: self._llm_quiet(s, u, seat, billing, effort)) if seat else None,
+                                    consolidator_seat=seat or '', consolidator_model=model or '')
         pending.pop(proposal_id, None)
         verify = made.pop("verify", None)
         logger.info("Routine %s v%d made from chain %s: %s", made["routine"]["id"], made["version"], proposal["chain_id"], made["run_zero"]["line"])
@@ -792,8 +831,8 @@ class BambooAI:
             def work():
                 try:
                     verdict = verify()
-                    logger.info("Routine %s v%d verified: %s (%.0f s); %s", rid, vnum, verdict.get("line"), float(verdict.get("elapsed") or 0),
-                                (verdict.get("condensed") or {}).get("line") or "not condensed")
+                    logger.info("Routine %s v%d verified: %s (%.0f s); %s; %s", rid, vnum, verdict.get("line"), float(verdict.get("elapsed") or 0),
+                                (verdict.get("condensed") or {}).get("line") or "not condensed", (verdict.get("consolidated") or {}).get("line") or "no consolidation")
                 except Exception as exc:                            # noqa: BLE001
                     logger.error("Routine %s v%d: the verification failed: %s", rid, vnum, exc)
             threading.Thread(target=work, daemon=True, name=f"routine-verify-{rid}").start()

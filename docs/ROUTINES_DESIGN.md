@@ -1223,24 +1223,69 @@ is the one that runs - `/routines/<id>/script?written=1`, the chain's code with 
 The pass runs only where it can be checked: a routine made with the chain's data gone (unverified) is left as
 written, as is one whose run zero differed or failed. A run's Results tab may be empty afterwards when the method
 printed nothing but what the pass dropped - the RESULT lines, when there are any, still print there. The time the
-pass saves is the dropped cells'; the slow cell that stays is the next step's problem (§19.3).
+pass saves is the dropped cells'; the slow cell that stays is the consolidation's (§19.3).
 
-### 19.3 Not here
+### 19.3 The consolidation (patch 0274)
 
-The speed. The MMC method's cost is one cell - the curve by brute force - and no pruning touches it. A rewrite of that
-is a model's job again, to be done with the context the analyst had (the question, the report, the cells with their
-printed outputs, the lines, the times), as one clean method rather than cell by cell, on a seat sized for it and only
-when there is time to gain, and checked on two datasets: run zero on the chain's data, then the first run on new data,
-where the written and the rewritten method both execute once and the rewrite is kept only if they agree. Until that
-is built, the Summary line says what the pass did and the written code stays a download away.
+The speed. The MMC method's cost is one computation the cells redo several ways, and no pruning touches it. A rewrite
+of that is a model's job again - done, this time, on the footing §19 set out: the unit is the method, not a cell; the
+model gets the context the analyst had; the rewrite is checked on two datasets; and the step is opted in by seat,
+never a fallback.
 
-Accepted by (patch 0273): the pure module (`prune_cells` over a made-up script - the cells dropped and kept, the
-prints, the loop's print, the switches, the markers; prints only; nothing to cut; a cell that does not parse; what
-counts as a definition, an import cell's line kept; reads before binding - loop variables, a rebound frame,
-comprehension and lambda names; `check_condensed`, `same_figures`, `secs_text`, `condensed_line`), `condense` over the kernel
-(a print pruned and the candidate kept; a dropped cell that mattered, the prints alone kept on the second run; a figure
-that would differ; nothing to cut without a run), `create` with the pass in the foreground and behind the dialog (the
-status condensing while the candidate runs, the scripts, the record, run zero's record, the files), the app path (no
-model call; the route's run without a Results tab), the dialogs' builders, the page's watch, the stylesheet, the
-stack walk (the routine's inspection cell and five prints gone behind the verdict, both figures reproduced) and the C5
-scan.
+**The seat.** `Condenser` in the model config. Without the entry the step does not run (`_condenser_seat` is None):
+the one fallback 0272 made - the analyst's seat, tuned for long reasoning on short replies - was the failure. The
+stack's template opts it in (`webapp_launcher.local_template`), so the walks exercise the path. The call is a quiet
+one from the verdict's thread (`_llm_quiet`: a silent output manager, the cost read off the save's chain, which the
+proposal carries as `billing_chain_id`; the Usage dialog lists it there under *Condenser*), at medium effort, low on
+the second try.
+
+**When.** After the pruning, and only when the method takes time: run zero's elapsed - the pruned run's when there
+was one - at or above `CONSOLIDATE_MIN_SECONDS` (15; the environment `BAMBOO_CONSOLIDATE_MIN_SECONDS` sets it, the
+stack sets 0). Below it the record says *not consolidated: the method runs in 2.3 s* and nothing is called.
+
+**The brief** (`CONSOLIDATE_SYSTEM`, `consolidate_user`): the question, the answer, the cells of the method - the
+pruned script's - each with the output it printed when the analysis ran (`cell_outputs` on the proposal, from the
+kernel's record of each cell, clipped at 1,500 characters), the numbered RESULT lines, the figure cells, the inputs
+with their labels and defaults, the time each cell took. The method is to be written again under the same markers:
+the cells that print a RESULT line or draw a figure keep their markers, numbers and order; a cell that only prepares
+may go, its work moved under a kept marker; each RESULT call stays under the marker of the cell it came from, in its
+order, with its label and arguments; each figure is drawn by the same calls; every INPUTS key is read; loads and
+DS.save stay. Compute once what the cells computed several times; vectorise; never faster by a different answer -
+no sampling, no fewer draws, no other seed, a loop that draws random numbers keeps its draws in their order. One code
+block, or UNCHANGED.
+
+**The check at creation** (`consolidate`): the reply read (`parse_cells`), the cells checked before anything runs
+(`check_consolidated`: `check_condensed`'s subsequence, figure cells and inputs, and every RESULT call still under the
+marker it came from, by count per cell), the script run on the chain's own data and accepted only when `check_lines`
+says reproduced and `same_figures` the same pictures. A fault goes back once (`CONSOLIDATE_RETRY`); the second keeps
+the method as it was (*as it was: the rewritten method did not reproduce the result lines: …*); UNCHANGED is *nothing
+to gain*; a reply cut at the token limit names the remedy. Accepted, the rewrite becomes the version's `script` and
+the script it replaced waits under `script_fallback`; the record `consolidated` {status, line, cells, elapsed,
+attempts, cost, seat, model, provisional: true, confirmed, fell_back}; run zero's record is the rewrite's. The
+Summary's line: *consolidated: 10 cells → 4, 190 s → 6 s; checked on the original data, the first run on new data
+checks it again*.
+
+**The check on the next data** (`check_consolidated_run`, inside `run`): on the first run of a provisional version,
+the method it replaced runs once more on the same data - bound the same way (`prepare` hands out the datasets
+folder for the second binding), the same inputs and prelude - and the two outputs are compared: the same RESULT lines
+as printed (`same_lines`), the same figures. Agree, and the rewrite is confirmed - `script_fallback` goes, the line
+ends *; confirmed on run 1*, the run's record and the pane's CHECK row say *the rewritten method confirmed on this
+data*. Disagree, and the version falls back to the method it replaced, whose output becomes this run's - the line
+reads *as it was since run 1: the rewritten method differed on new data (line 3 (…): +4.00 -> +3.00)*, the run's
+record says *fell back at run 1: …*. The rewrite failing where the old method ran falls back the same way; both
+failing, or the old method alone, gives no verdict and the rewrite stays provisional for the next run. A fill's first
+window does the check like any run. Two datasets are not a proof; a rewrite that survives the window it was made on
+and the next is on the footing of everything else here.
+
+**What the coach sees.** The chip says *condensing…* through both passes; the toast and the Summary's Checked row
+carry the pass's line and then the consolidation's; *as written ↓* is there whenever a script as written is stored
+(`written_chars` on the version view). Nothing else speaks.
+
+Accepted by (patch 0274): the pure module (`parse_cells`, `check_consolidated`, `same_lines`, the brief), `consolidate`
+over the kernel (left alone under the threshold; the brief's contents and the effort; a rewrite kept provisionally;
+a RESULT call moved refused before running and asked again at low effort; a number changed twice; UNCHANGED; a cut
+reply), `create` with both passes in the foreground and behind the dialog (the scripts, the records), `run` on other
+data (a rewrite confirmed, the record and the pane; a rewrite that typed a number falls back, the run's output the
+old method's; a second run with nothing to check), the app path (the quiet call on the Condenser seat at medium
+effort, billed to the save's chain; the route's first run confirming), the page's line, the stack walk (the stack's
+own Condenser drops the dead stores; the rewrite provisional, then confirmed on run 1) and the C5 scan.
