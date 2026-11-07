@@ -97,9 +97,31 @@ p = el(b.proposal(Object.assign({}, proposal, { data_state: 'gone', inputs: [], 
 check('dialog body with the data gone, no inputs and no result lines: says the routine will be unverified, that the method runs as it is, and that runs will not be compared number by number',
   p.querySelector('.rt-line.warn').textContent.includes('created unverified') && [...p.querySelectorAll('.rt-line')].some(x => x.textContent.startsWith('No inputs:'))
   && [...p.querySelectorAll('.rt-line')].some(x => x.textContent.includes('recorded no RESULT lines')));
-check('dialog states: the waiting line names the seat and model; the error block carries the message and, when asked, a Try again',
-  el(b.loading('Analyst', 'anthropic/claude-sonnet-5-5')).querySelector('.rt-wait').textContent.includes('Analyst on claude-sonnet-5-5')
+check('dialog states: the waiting line says what it is given; the error block carries the message and, when asked, a Try again',
+  el(b.loading('Reading the routine…')).querySelector('.rt-wait').textContent === 'Reading the routine…' && el(b.loading('x')).querySelector('.rt-wait .live')
   && el(b.error('run zero differed: x', true)).querySelector('.rt-error .msg').textContent === 'run zero differed: x' && el(b.error('x', true)).querySelector('[data-act="retry"]') && !el(b.error('x', false)).querySelector('[data-act="retry"]'));
+// the checklist while the proposal is made (§17): four steps in order; done ones ticked with what they found, the running one with the
+// dot and its clock (and the retry's words), the rest to come; the words the coach reads, not the machinery's
+const t0 = 1800000000000;
+const stA = el(b.steps({ chain: { state: 'running', since: t0 } }, t0 + 1500));
+const stB = el(b.steps({ chain: { state: 'done', detail: '9 cells · 12 results · 2 figures' }, data: { state: 'done', detail: '206,016 rows · 17 columns · activity summary, wellness' }, model: { state: 'running', since: t0, again: false } }, t0 + 42000));
+const stC = el(b.steps({ chain: { state: 'done', detail: '9 cells · 12 results · 2 figures' }, data: { state: 'done', detail: 'no longer loaded — the routine will be made unverified' }, model: { state: 'running', since: t0, again: true }, proposal: {} }, t0 + 12000));
+const stD = el(b.steps({ chain: { state: 'done' }, data: { state: 'done' }, model: { state: 'done' }, proposal: { state: 'running', since: t0 } }, t0 + 400));
+check('steps: as the dialog opens - Reading the analysis running with its clock, the three to come greyed',
+  [...stA.querySelectorAll('.s')].map(e => e.getAttribute('data-step') + ':' + e.className.replace('s ', '')).join(',') === 'chain:running,data:pending,model:pending,proposal:pending'
+  && stA.querySelector('.s.running .t').textContent === 'Reading the analysis' && stA.querySelector('.s.running .d').textContent === '— 0:01' && stA.querySelector('.s.running .m .live') && stA.querySelector('.s.pending .m').textContent === '○'
+  && stA.querySelector('[data-step="model"] .t').textContent === 'Working out what you can change each run, and which results to compare' && !stA.querySelector('.s.pending .d'));
+check('steps: the analysis read and the data checked carry what they found, ticked; the model at work with its clock at 0:42; the proposal to come',
+  stB.querySelector('[data-step="chain"].done .t').textContent === 'Read the analysis' && stB.querySelector('[data-step="chain"] .d').textContent === '— 9 cells · 12 results · 2 figures' && stB.querySelector('[data-step="chain"] .m').textContent === '✓'
+  && stB.querySelector('[data-step="data"].done .d').textContent === '— 206,016 rows · 17 columns · activity summary, wellness' && stB.querySelector('[data-step="model"].running .d').textContent === '— 0:42' && stB.querySelector('[data-step="proposal"].pending .t').textContent === 'Preparing the proposal');
+check('steps: a reply that could not be read says so on the model\'s line with the clock; data no longer loaded says so; the proposal running has the clock and the others ticked',
+  stC.querySelector('[data-step="model"].running .d').textContent === '— the reply could not be read; asking again · 0:12' && stC.querySelector('[data-step="data"] .d').textContent === '— no longer loaded — the routine will be made unverified' && stC.querySelector('[data-step="proposal"]').className === 's pending'
+  && stD.querySelector('[data-step="proposal"].running .d').textContent === '— 0:00' && stD.querySelectorAll('.s.done').length === 3 && b.clock(3725000) === '62:05');
+const rtSrcSteps = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
+check('the page (§17): the routine_step lines are taken off the stream before the pane sees them, a step landing marks the ones before it done and sets the running one\'s clock, the chain\'s facts go to the sub-header, the clock ticks every second until the proposal lands or the dialog closes; the stylesheet has the list',
+  rtSrcSteps.includes("if (data.type === 'routine_step') { if (dialogState === st) stepLanded(st, data); return true; }") && rtSrcSteps.includes("order.slice(0, order.indexOf(key)).forEach(k => { if (!st.steps[k] || st.steps[k].state !== 'done') st.steps[k] = Object.assign({}, st.steps[k], { state: 'done' }); });")
+  && rtSrcSteps.includes("if (key === 'chain' && data.detail) dialogParts().sub.textContent = 'from this chain · ' + data.detail;") && rtSrcSteps.includes("st.stepTimer = setInterval(() => { if (dialogState !== st || st.proposal) { clearInterval(st.stepTimer); return; } renderSteps(st); }, 1000);")
+  && rtSrcSteps.includes("if (dialogState) clearInterval(dialogState.stepTimer);") && dlgCss0().includes('.rt-steps { display: flex; flex-direction: column;') && dlgCss0().includes('.rt-steps .s.done .m { color: var(--c-model); }'));
 
 // ---- the manager ----
 const mg = el(b.managerShell());

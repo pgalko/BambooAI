@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/174/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/127/14/25/4/14/67/41 JS; 1,750 on 2026-11-06; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/207/31/27/18/49/44/72/33/175/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/131/14/25/4/14/67/41 JS; 1,755 on 2026-11-07; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,19 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Save as routine: the checklist while you wait (2026-11-07, patch 0270; docs/ROUTINES_DESIGN.md §17).** The dialog
+  showed one line for the whole wait. Now `propose` emits a `step` event as each step passes - the chain read (cells,
+  results, figures), the data probed (rows, columns, the auxiliary kinds; or *no longer loaded — the routine will be
+  made unverified*), the model's turn (running; again when a reply could not be read; done), the proposal under way -
+  the instance puts each on the stream as a `routine_step` line (`_emit_routine`), the dialog takes them off the
+  stream before the pane sees them and draws `build.steps`: ✓ *Read the analysis — 9 cells · 12 results · 2 figures*,
+  ✓ *Checked the data — …*, ● *Working out what you can change each run, and which results to compare — 0:42* (a clock
+  ticking on the page), ○ *Preparing the proposal*. The chain's facts go to the sub-header at once. `build.loading`
+  is a plain waiting line now (the Run dialog's), `build.STEPS`/`steps`/`clock` the checklist; `data_facts` in the
+  host. Tests: test_routines.py 175 (the steps in order with their facts, the retry's `again`, the data gone),
+  test_app_path.py 207 (the step lines on the route's stream around the pane's card; the pane's rows read without
+  them), test_routines.js 131 (the four states of a line, the clock, the words, the page's wiring), the screens tool
+  (s1e the dialog waiting at 0:42).
 - **The Run dialog, slimmed; the load's band (2026-11-06, patch 0269; page only; docs/ROUTINES_DESIGN.md §16).** Palo on
   the first live Week run: "too much detail and it is confusing; pretty much all of it should go", and the load's
   progress "hard to see". The dialog is rows now (`.rt-row`, `build.dataRows` + `build.runDialog`): Data (the load,

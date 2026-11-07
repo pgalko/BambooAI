@@ -1079,3 +1079,37 @@ height comes down to what the rows need (520px / 80vh).
   busy, the cache preview and the refresh box gone from the dialog and the load), the stylesheet, the screens tool
   (the dialog on Week, on Custom, on the data loaded now, and while a load runs), the stack walk (the file routine's
   dialog) and the integrations walk (the Intervals dialog on Week, the fill, the load's band seen while it runs).
+
+## 17. Save as routine: what happens while you wait (2026-11-07)
+
+The dialog of S1 showed one line for the whole wait - *The analyst is reading the chain and naming its inputs… · Analyst*
+- "bare, and nothing of what is happening under the hood". What happens is four steps: the chain read (the cells on the
+path, the result lines, the figures, the data record - a second), the data probed when it is still loaded (the frame's
+span, the auxiliary files' columns - a few seconds), the model's turn (it reads the script and the ledger and decides
+the inputs, the edits, the lines to compare and their names - twenty seconds to minutes; a reply that cannot be read is
+asked for once more), and the proposal prepared (the edits applied and checked).
+
+The dialog now shows them as a checklist that fills as the steps pass, in the coach's words:
+
+```
+✓ Read the analysis — 9 cells · 12 results · 2 figures
+✓ Checked the data — 206,016 rows · 17 columns · activity summary, wellness
+●  Working out what you can change each run, and which results to compare — 0:42
+○ Preparing the proposal
+```
+
+A done step carries what it found; the running one the dot and a clock that ticks on the page; a reply asked for again
+says so on the model's line (*the reply could not be read; asking again · 0:12*); data no longer loaded says so on its
+line (*no longer loaded — the routine will be made unverified*). The chain's facts go to the sub-header as soon as they
+are known (*from this chain · 9 cells · 12 results · 2 figures*). The seat and the model stay on the pane's quiet card.
+When the proposal lands the checklist gives way to it; a refusal takes its place with *Try again*, as before.
+
+Mechanics: `propose` emits a `step` event as each step passes (`{step: chain | data | model | proposal, state: running |
+done, detail, again}`); the instance puts it on the stream as a `routine_step` line (`_emit_routine`); the dialog takes
+those lines off the stream before the pane sees them (`stream`'s intercept) and draws `build.steps`. A step landing marks
+the steps before it done. Not a pane row, ever.
+
+Accepted by (patch 0270): the pure module (the steps emitted in order with their facts; the retry marked; the data gone
+said), the route (the `routine_step` lines on the stream around the pane's card), the markup on the mini DOM (the four
+states of a line, the clock, the words), the screens tool (the dialog waiting at 0:42), and the walks unchanged (the
+step lines never reach the pane).

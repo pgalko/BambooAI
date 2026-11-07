@@ -198,7 +198,12 @@ p = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, emit
 check("propose: the promoter is called with the question, the cells and the ledger; the proposal carries the inputs, the results, the figures and the edited script",
       prompts and prompts[0][0] == rt.PROMOTER_SYSTEM and "How many rows" in prompts[0][1] and "1. [cell 2] rows above the line: +3" in prompts[0][1]
       and p["name"] == "Rows above a line" and p["inputs"][0]["key"] == "threshold" and p["results"][0]["label"] == "rows above the line" and "INPUTS['threshold']" in p["script"] and p["data"]["name"] == "small.csv" and p["data_state"] == "same", (p.get("inputs"), p.get("data_state"), [e.get("type") for e in events]))
-check("propose: the pane saw a quiet turn start and its end", [e.get("type") for e in events] == ["turn_start", "turn_end"] and events[0].get("quiet"))
+check("propose: the pane saw a quiet turn start and its end; the dialog's checklist (§17) saw the steps - the chain read with its facts, the data checked (running, then its facts), the model running then done around the turn, the proposal running",
+      [e.get("type") for e in events if e.get("type") != "step"] == ["turn_start", "turn_end"] and [e for e in events if e.get("type") == "turn_start"][0].get("quiet")
+      and [(e["step"], e.get("state", "done"), e.get("detail", "")) for e in events if e.get("type") == "step"] == [("chain", "done", "2 cells · 1 result · 0 figures"), ("data", "running", ""), ("data", "done", "5 rows · 2 columns"), ("model", "running", ""), ("model", "done", ""), ("proposal", "running", "")]
+      and [e.get("type") for e in events] == ["step", "step", "step", "turn_start", "step", "turn_end", "step", "step"], events)
+_ev_steps = [e for e in events if e.get("type") == "step"]
+events[:] = [e for e in events if e.get("type") != "step"]      # the create test below reads the pane's events by position
 made = host.create(nb4, p, {"name": "Rows above a line", "purpose": "count the rows above a line", "drop_inputs": [], "drop_results": []}, runner, store, emit=events.append)
 check("create: run zero on the data reproduces the chain's line; the routine is stored with v1, its manifest and run zero; the origin is the chain",
       made["run_zero"]["status"] == "reproduced" and made["routine"]["current_version"] == 1 and made["routine"]["origin"] == {"thread_id": "t4", "chain_id": run4.id}
@@ -261,8 +266,11 @@ for rid_, why in ((run5.id, "no cells"), ("nope", "not in this thread")):
         got = str(exc)
     check(f"propose: refused before any call - {why}", why in got, got)
 # the data gone: the proposal says so, and create makes the routine unverified
-p6 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "other"})
+_gone_events = []
+p6 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "other"}, emit=_gone_events.append)
 made6 = host.create(nb4, p6, {"name": "Unverified", "purpose": "", "drop_inputs": [], "drop_results": []}, None, store)
+check("the checklist with the data gone: no probe (the data step lands done at once), its line says the data is no longer loaded and the routine will be made unverified",
+      [(e["step"], e.get("state", "done"), e.get("detail", "")) for e in _gone_events if e.get("type") == "step" and e["step"] == "data"] == [("data", "done", "no longer loaded — the routine will be made unverified")], _gone_events)
 check("the analysis's data gone: the proposal says 'gone', run zero is skipped and the routine is created unverified, saying so",
       p6["data_state"] == "gone" and made6["run_zero"]["status"] == "unverified" and not made6["run_zero"]["verified"] and "not verified" in made6["run_zero"]["line"], (p6.get("data_state"), made6.get("run_zero")))
 # the promoter's pick (§15): the proposal carries it; create without the page's set takes it, with the set takes the set
@@ -288,11 +296,14 @@ calls = {"n": 0}
 def mute_promoter(system, user):
     calls["n"] += 1
     return "I cannot do that.", {"cost": 0.0}
+_mute_events = []
 try:
-    host.propose(nb4, run4.id, mute_promoter, current_data={"df_id": "df4"}); got = ""
+    host.propose(nb4, run4.id, mute_promoter, current_data={"df_id": "df4"}, emit=_mute_events.append); got = ""
 except host.RoutineRefused as exc:
     got = str(exc)
-check("propose: an unreadable reply is asked for once more, then refused as 'not understood'", calls["n"] == 2 and "not understood" in got, (calls, got))
+check("propose: an unreadable reply is asked for once more, then refused as 'not understood'; the checklist saw the model step running twice, the second time marked as asked again, and no step after",
+      calls["n"] == 2 and "not understood" in got and [(e["step"], e.get("again")) for e in _mute_events if e.get("type") == "step" and e["step"] == "model"] == [("model", False), ("model", True)]
+      and not any(e.get("step") == "proposal" for e in _mute_events), (calls, got, _mute_events))
 # a reply cut at the seat's token limit (the model layer's `truncated` flag): nothing but reasoning - refused at once, since a
 # second try would go the same way; cut mid-object - asked for once more, shorter; cut twice - refused with the cause
 cut_calls = []

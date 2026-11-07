@@ -249,6 +249,16 @@
 .rt-results .more .aside .r .act { opacity: 1; }
 .rt-wait { display: flex; align-items: center; gap: 10px; padding: 18px 4px; font-size: var(--fs-meta); color: var(--text-secondary); }
 .rt-wait .live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); flex-shrink: 0; animation: rt-pulse 1.2s ease-in-out infinite; }
+/* the Save-as-routine dialog's checklist while the proposal is made (docs/ROUTINES_DESIGN.md §17): a line per step, the done ones
+   ticked, the running one with the dot and its clock, the rest to come */
+.rt-steps { display: flex; flex-direction: column; gap: 10px; padding: 14px 4px; font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-steps .s { display: flex; align-items: baseline; gap: 10px; line-height: 1.4; }
+.rt-steps .s .m { width: 12px; flex-shrink: 0; text-align: center; color: var(--text-quaternary); }
+.rt-steps .s.done .m { color: var(--c-model); }
+.rt-steps .s .m .live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); animation: rt-pulse 1.2s ease-in-out infinite; vertical-align: middle; }
+.rt-steps .s.pending .t { color: var(--text-quaternary); }
+.rt-steps .s.running .t { color: var(--text-primary); }
+.rt-steps .s .d { color: var(--text-quaternary); font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
 @keyframes rt-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 .rt-error { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--chip-fail-border); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-primary); }
 .rt-error .msg { line-height: 1.5; }

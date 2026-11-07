@@ -178,9 +178,11 @@ check("the run records its data: df_id, the columns with dtypes, the row count, 
 from bambooai.routines_host import RoutineRefused
 while not q.empty(): q.get()
 prop = BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9001")
-pev = [json.loads(q.get()) for _ in range(q.qsize())]
-check("propose_routine: the promoter's call is a quiet card on the pane, accounted to the billing chain; the proposal names the input the fake promoter made and the data the run recorded",
+pev_all = [json.loads(q.get()) for _ in range(q.qsize())]
+pev = [e for e in pev_all if e.get("type") != "routine_step"]           # the pane's rows; the dialog's step lines ride the same queue (§17)
+check("propose_routine: the promoter's call is a quiet card on the pane, accounted to the billing chain; the dialog's steps on the queue too (routine_step, the billing chain on them); the proposal names the input the fake promoter made and the data the run recorded",
       [e.get("type") for e in pev] == ["pane_turn_start", "pane_turn_end"] and pev[0].get("quiet") and pev[0].get("chain_id") == "9001" and pev[0].get("turn") == "routine"
+      and [(e["step"], e["state"]) for e in pev_all if e.get("type") == "routine_step"] == [("chain", "done"), ("data", "running"), ("data", "done"), ("model", "running"), ("model", "done"), ("proposal", "running")] and all(e.get("chain_id") == "9001" for e in pev_all)
       and prop["inputs"][0]["key"] == "arm_b" and prop["data"]["rows"] == 200 and prop["data_state"] == "same" and prop["results"] == [] and "INPUTS['arm_b']" in prop["script"], (pev, prop.get("inputs")))
 _pu = next((u for _, u in state["calls"] if u.startswith("QUESTION:") and "ANSWER SUMMARY:" in u), "")     # the promoter's, not the figures step's
 check("the promoter's prompt carried the question, the two cells and the data's columns", _pu.startswith("QUESTION:\nIs B higher") and "# --- cell 2 ---" in _pu and "arm: " in _pu and "ANSWER SUMMARY:\nB exceeds A by" in _pu, _pu[:300])
@@ -225,7 +227,7 @@ check("without a Promoter entry the promoter's call ran on the analyst's seat", 
 FakeModels.config["agent_configs"].append({"agent": "Promoter", "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "medium", "max_tokens": 32000}})
 while not q.empty(): q.get()
 prop3 = BAMBOO.propose_routine("1001", run1.id, billing_chain_id="9003")
-pev3 = [json.loads(q.get()) for _ in range(q.qsize())]
+pev3 = [e for e in (json.loads(q.get()) for _ in range(q.qsize())) if e.get("type") != "routine_step"]
 check("with a Promoter entry the call runs on it: the pane's card names the seat, the log's call is on it",
       BAMBOO._promoter_seat() == "Promoter" and pev3[0].get("seat") == "Promoter" and state["calls"][-1][0] == "Promoter" and prop3["inputs"][0]["key"] == "arm_b", (pev3[0].get("seat"), state["calls"][-1][0]))
 # a reply cut at the token limit: a cut with nothing but reasoning is asked once more, with the note that reasoning took it all
@@ -280,8 +282,10 @@ with _wc.session_transaction() as _sess: _sess["session_id"] = "s1"
 def _lines(resp): return [json.loads(x) for x in resp.get_data(as_text=True).splitlines() if x.strip()]
 _r = _wc.post("/routines/propose", json={"thread_id": "1001", "chain_id": run1.id})
 _msgs = _lines(_r)
-check("route /routines/propose: streams the pane's rows and ends with routine_proposal (no scripts in it)",
-      _r.status_code == 200 and [m.get("type") for m in _msgs[:2]] == ["pane_turn_start", "pane_turn_end"] and "routine_proposal" in _msgs[-1]
+check("route /routines/propose: streams the dialog's step lines and the pane's rows in order - the chain read, the data checked, the model's turn around its quiet card, the proposal under way - and ends with routine_proposal (no scripts in it)",
+      _r.status_code == 200 and [m.get("type") for m in _msgs[:-1]] == ["routine_step", "routine_step", "routine_step", "pane_turn_start", "routine_step", "pane_turn_end", "routine_step", "routine_step"]
+      and [(m["step"], m["state"]) for m in _msgs[:-1] if m.get("type") == "routine_step"] == [("chain", "done"), ("data", "running"), ("data", "done"), ("model", "running"), ("model", "done"), ("proposal", "running")]
+      and _msgs[0]["detail"].endswith("figures") and "rows" in _msgs[2]["detail"] and _msgs[3 + 1]["again"] is False and "routine_proposal" in _msgs[-1]
       and _msgs[-1]["routine_proposal"]["inputs"][0]["key"] == "arm_b" and "script" not in _msgs[-1]["routine_proposal"], _msgs[-1])
 _pid = _msgs[-1]["routine_proposal"]["proposal_id"]
 _r = _wc.post("/routines/create", json={"proposal_id": _pid, "name": "Route made", "purpose": "p", "drop_inputs": [], "drop_results": []})

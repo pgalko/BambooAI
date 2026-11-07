@@ -622,6 +622,8 @@ class BambooAI:
             self._pane('pane_turn_start', turn='routine', of=None, seat=ev.get("seat") or self._seat(), model=ev.get("model") or '', quiet=True)
         elif kind == "turn_end":
             self._pane('pane_turn_end', turn='routine', kind='routine', peek=ev.get("peek") or '', elapsed=ev.get("elapsed"), cost=ev.get("cost"), thinking='', note='', code='')
+        elif kind == "step":                                     # the Save-as-routine dialog's checklist (§17): never a pane row
+            self._pane('routine_step', step=ev.get("step") or '', state=ev.get("state") or 'done', detail=ev.get("detail") or '', again=bool(ev.get("again")))
         elif kind == "lookup_start":
             self._pane('pane_lookup_start', kind=ev.get("kind") or 'routine', query=ev.get("query") or '', model='')
             if (ev.get("kind") or 'routine') in ('routine', 'run'):

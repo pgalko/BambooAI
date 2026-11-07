@@ -81,8 +81,22 @@
                 '<div class="ui-dlg-b"></div>' +
                 '<div class="ui-dlg-f"><span class="note"></span><span class="sp"></span><button class="ui-btn" data-act="cancel">Cancel</button><button class="ui-btn primary" data-act="create">' + ICON_ROUTINE + '<span>Create routine</span></button></div></div>';
         },
-        loading(seat, model) {
-            return '<div class="rt-wait"><span class="live"></span>The analyst is reading the chain and naming its inputs…' + (seat ? '<span class="ui-muted"> · ' + esc(seat) + (model ? ' on ' + esc(String(model).split('/').pop()) : '') + '</span>' : '') + '</div>';
+        loading(text) {
+            return '<div class="rt-wait"><span class="live"></span>' + esc(text) + '</div>';
+        },
+        // the Save-as-routine dialog while the proposal is made (§17): a checklist that fills as the steps pass - the analysis read,
+        // the data checked, the model's turn (with a clock), the proposal prepared - each line with what the step found
+        STEPS: [['chain', 'Reading the analysis', 'Read the analysis'], ['data', 'Checking the data', 'Checked the data'],
+                ['model', 'Working out what you can change each run, and which results to compare', 'Working out what you can change each run, and which results to compare'],
+                ['proposal', 'Preparing the proposal', 'Prepared the proposal']],
+        clock(ms) { const sec = Math.max(0, Math.floor(ms / 1000)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); },
+        steps(st, now) {
+            return '<div class="rt-steps">' + build.STEPS.map(([key, doing, done]) => {
+                const x = (st || {})[key] || {}, state = x.state || 'pending';
+                const detail = state === 'running' ? [x.again ? 'the reply could not be read; asking again' : '', x.since ? build.clock((now || Date.now()) - x.since) : ''].filter(Boolean).join(' · ') : (state === 'done' ? x.detail || '' : '');
+                return '<div class="s ' + state + '" data-step="' + key + '"><span class="m">' + (state === 'done' ? '✓' : (state === 'running' ? '<i class="live"></i>' : '○')) + '</span>' +
+                    '<span class="t">' + esc(state === 'done' ? done : doing) + '</span>' + (detail ? '<span class="d">— ' + esc(detail) + '</span>' : '') + '</div>';
+            }).join('') + '</div>';
         },
         error(message, retry) {
             return '<div class="rt-error"><div class="msg">' + esc(message) + '</div>' + (retry ? '<div class="row"><button class="ui-btn sm" data-act="retry">Try again</button></div>' : '') + '</div>';
@@ -970,17 +984,41 @@
     }
     function closeMake() {
         if (dialogState && dialogState.busy) return;
+        if (dialogState) clearInterval(dialogState.stepTimer);
         const p = dialogParts(); p.d.style.display = 'none'; dialogState = null;
+    }
+    // the steps as the server says them (§17): a routine_step line moves a step to running or done; the step before a running
+    // one is done; the running step's clock ticks on the page
+    function stepLanded(st, data) {
+        const key = data.step, state = data.state === 'running' ? 'running' : 'done';
+        const order = build.STEPS.map(x => x[0]);
+        if (!order.includes(key)) return;
+        order.slice(0, order.indexOf(key)).forEach(k => { if (!st.steps[k] || st.steps[k].state !== 'done') st.steps[k] = Object.assign({}, st.steps[k], { state: 'done' }); });
+        st.steps[key] = { state, detail: data.detail || '', again: !!data.again, since: state === 'running' ? Date.now() : null };
+        if (key === 'chain' && data.detail) dialogParts().sub.textContent = 'from this chain · ' + data.detail;
+        renderSteps(st);
+    }
+    function renderSteps(st) {
+        const p = dialogParts();
+        if (dialogState !== st || st.proposal) return;
+        p.body.innerHTML = build.steps(st.steps, Date.now());
     }
     function propose() {
         const st = dialogState; if (!st) return;
         const p = dialogParts();
         st.busy = true; st.proposal = null;
-        p.body.innerHTML = build.loading('Analyst', '');
+        st.steps = { chain: { state: 'running', since: Date.now() } };
+        renderSteps(st);
+        clearInterval(st.stepTimer);
+        st.stepTimer = setInterval(() => { if (dialogState !== st || st.proposal) { clearInterval(st.stepTimer); return; } renderSteps(st); }, 1000);
         p.createBtn.style.display = 'none';
         p.cancelBtn.disabled = true;
-        stream('/routines/propose', { thread_id: st.thread_id, chain_id: st.chain_id }, !st.fromCard).then(msg => {
+        stream('/routines/propose', { thread_id: st.thread_id, chain_id: st.chain_id }, !st.fromCard, data => {
+            if (data.type === 'routine_step') { if (dialogState === st) stepLanded(st, data); return true; }
+            return false;
+        }).then(msg => {
             if (dialogState !== st) return;
+            clearInterval(st.stepTimer);
             st.busy = false; p.cancelBtn.disabled = false;
             st.proposal = msg.routine_proposal;
             const pr = st.proposal;
@@ -992,6 +1030,7 @@
             syncVersionChoice();
         }).catch(err => {
             if (dialogState !== st) return;
+            clearInterval(st.stepTimer);
             st.busy = false; p.cancelBtn.disabled = false;
             p.body.innerHTML = build.error(err.message || String(err), true);
         });
@@ -1234,7 +1273,7 @@
         if (fillRunning()) { toast('A fill is running (' + build.fillLine(fillState) + '); run the routine when it has ended, or stop it in the Summary.'); return; }
         runState = { id: routineId, routine: null, pre: null, busy: false, interval: 'custom' };
         const p = runParts();
-        p.d.style.display = 'flex'; p.title.textContent = 'Run'; p.sub.textContent = ''; p.body.innerHTML = build.loading('', '').replace('The analyst is reading the chain and naming its inputs…', 'Reading the routine and checking the data loaded now…');
+        p.d.style.display = 'flex'; p.title.textContent = 'Run'; p.sub.textContent = ''; p.body.innerHTML = build.loading('Reading the routine and checking the data loaded now…');
         progress('');
         p.runBtn.disabled = true; p.cancelBtn.disabled = false;             // Cancel was held while the last run started
         Promise.all([fetchJson('/routines/' + encodeURIComponent(routineId)), fetchJson('/routines/' + encodeURIComponent(routineId) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })]).then(([rr, pr]) => {

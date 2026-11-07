@@ -87,6 +87,24 @@ def _ledger(expected: List[dict]) -> List[str]:
     return out
 
 
+def data_facts(data: Optional[dict]) -> str:
+    """The data in a few words for the Save-as-routine dialog's checklist (§17): rows, columns, the auxiliary kinds by name."""
+    d = data or {}
+    parts = []
+    if d.get("rows") is not None:
+        parts.append(f"{int(d['rows']):,} rows")
+    if d.get("columns"):
+        parts.append(f"{len(d['columns'])} columns")
+    kinds: List[str] = []
+    for path in d.get("aux") or []:
+        name = rt.KIND_NAMES.get(rt.aux_kind(str(path)))
+        if name and name not in kinds:
+            kinds.append(name)
+    if kinds:
+        parts.append(", ".join(kinds))
+    return " · ".join(parts)
+
+
 def data_state(run_data: Optional[dict], current: Optional[dict]) -> str:
     """same: the chain's data is the data loaded now - the same frame, or the same content loaded again (the same file
     uploaded in a new session; notebook.same_data, 2026-10-12); gone: other data, or none, is loaded; assumed: the
@@ -235,10 +253,15 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         raise RoutineRefused("this chain has no cells to run again (nothing was computed)")
     expected = rt.expected_results(path, order)
     figures = [c.cell_no for c in run.cells() if c.figures and c.cell_no in order]
+    nfig = sum(len(c.figures) for c in run.cells() if c.cell_no in figures)
+    step = emit or (lambda ev: None)                      # the dialog's checklist (§17): a line as each step passes
+    step({"type": "step", "step": "chain", "detail": f"{len(order)} cell{'s' if len(order) != 1 else ''} · {len(expected)} result{'s' if len(expected) != 1 else ''} · {nfig} figure{'s' if nfig != 1 else ''}"})
     state = data_state(run.data, current_data)
     data = dict(run.data or {}) if state != "assumed" else dict(current_data or {})
     if state in ("same", "assumed"):
+        step({"type": "step", "step": "data", "state": "running"})
         data = record_data_shape(data, runner)            # the data is still there: the auxiliary files' columns and the frame's period go on record
+    step({"type": "step", "step": "data", "detail": data_facts(data) if state != "gone" else "no longer loaded — the routine will be made unverified"})
     manifest = None
     if routine:
         cur = next((v for v in routine.get("versions", []) if v.get("number") == routine.get("current_version")), None)
@@ -250,6 +273,7 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     for attempt in range(2):
         if emit:
             emit({"type": "turn_start", "turn": "routine", "quiet": True, "seat": seat, "model": model})
+        step({"type": "step", "step": "model", "state": "running", "again": bool(attempt)})
         t0 = time.time()
         text, usage = llm(rt.PROMOTER_SYSTEM, user if not attempt else user + "\n\n" + note)
         cost += float((usage or {}).get("cost") or 0.0)
@@ -266,6 +290,8 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
             emit({"type": "turn_end", "turn": "routine", "kind": "routine", "elapsed": round(time.time() - t0, 1), "cost": float((usage or {}).get("cost") or 0.0),
                   "peek": (f"{len(obj.get('inputs') or [])} input(s) proposed, {len(obj.get('edits') or [])} edit(s)" if obj else f"the reply could not be read ({problem})")})
         if obj is not None:
+            step({"type": "step", "step": "model"})
+            step({"type": "step", "step": "proposal", "state": "running"})
             break
         # a reply cut with nothing but reasoning is asked again too (2026-10-12: the same prompt, sent again by the person's
         # Try again, came back whole - the reasoning's length varies from call to call; the note asks for it brief)
