@@ -247,6 +247,11 @@
 .rt-results .more .t:hover { color: var(--text-primary); }
 .rt-results .more .aside { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 0 20px; }
 .rt-results .more .aside .r .act { opacity: 1; }
+/* the Custom instructions section (§15.6): the explanation, then the box with Update the list beside it */
+.rt-instr .rt-line.muted { line-height: 1.45; margin-bottom: 8px; }
+.rt-instr-row { display: flex; gap: 8px; align-items: flex-start; }
+.rt-instr-row .ui-input { flex: 1; min-width: 0; }
+.rt-instr-row .ui-btn { white-space: nowrap; }
 .rt-wait { display: flex; align-items: center; gap: 10px; padding: 18px 4px; font-size: var(--fs-meta); color: var(--text-secondary); }
 .rt-wait .live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); flex-shrink: 0; animation: rt-pulse 1.2s ease-in-out infinite; }
 /* the Save-as-routine dialog's checklist while the proposal is made (docs/ROUTINES_DESIGN.md §17): a line per step, the done ones
@@ -285,8 +290,8 @@
 #routinesModal .rt-actions .ui-btn { height: 26px; padding: 0 9px; font-size: var(--fs-small); text-decoration: none; }
 #routinesModal .rt-actions .danger-text { color: var(--c-fail); }
 #routinesModal .rt-body { padding: 14px 16px 18px; overflow: auto; display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
-/* the facts (S2, 2026-11-08): Purpose, Inputs, Results, Version(s) as label and value; then the runs */
-#routinesModal .rt-facts { grid-template-columns: 72px 1fr; gap: 7px 14px; }
+/* the facts (S2, 2026-11-08): Purpose, Inputs, Tracked, Custom instructions (§15.6), Version(s) as label and value; then the runs */
+#routinesModal .rt-facts { grid-template-columns: max-content 1fr; gap: 7px 14px; }
 #routinesModal .rt-facts > span { color: var(--text-secondary); line-height: 1.5; min-width: 0; }
 .rt-facts .rt-input { display: block; }
 .rt-facts .rt-input .k { color: var(--text-primary); }

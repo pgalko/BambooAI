@@ -226,13 +226,18 @@ class Scenario:
     def promoter(self, user):
         """The routine's inputs for the story's first chain: the regime compared becomes a choice from the regime
         column (the analysis compared B against A); the bootstrap size and seed stay the method's. The edits name
-        the cell that defines adj_diff, wherever the chain numbered it."""
+        the cell that defines adj_diff, wherever the chain numbered it. With the person's instruction (§15.6) the answer
+        names the yield line for the contrast and finds no line for the plot count."""
         m = re.search(r"# --- cell (\d+) ---\n(?:(?!# --- cell).)*?def adj_diff", user, re.S)
         if not m:
             return json.dumps({"name": "As it is", "inputs": [], "edits": [], "kept": ["nothing in this chain varies with the data"]})
         cell = int(m.group(1))
+        tracked = {}
+        if "THE PERSON'S INSTRUCTION" in user:
+            n = re.search(r"^(\d+)\. \[cell \d+\] yield, regime B vs A", user, re.M)
+            tracked = {"tracked": [{"asked": "the yield contrast", "lines": [{"line": int(n.group(1)), "name": "Yield, B vs A"}] if n else []}, {"asked": "the plot count", "lines": []}]}
         return json.dumps({
-            "name": "Regime contrast within soil, plot means",
+            "name": "Regime contrast within soil, plot means", **tracked,
             "inputs": [{"key": "regime", "label": "The regime compared with A", "type": "choice", "default": "B", "origin": "the analysis compared B against A", "column": "regime", "multiple": False}],
             "edits": [
                 {"cell": cell, "find": "def adj_diff(pm, a='A', b='B', rng=None):", "replace": "def adj_diff(pm, a='A', b=INPUTS['regime'], rng=None):"},

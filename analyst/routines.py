@@ -169,7 +169,7 @@ What the result is for. The analysis becomes a routine: the method kept with its
 
 The test of an input: could the person set it before the data is loaded, without looking at it? A threshold, a band, a number of days, a switch, a choice among values a person knows by name - yes. An identifier of a row, a session or a group of this data, a list of them, a date or a name found by looking at this data - no: such a value is the data's own, and the next data has its own. A literal of that kind is replaced by the rule that produced it - the expression the chain used to find it, where a cell has one - and is never made an input. Where the chain has no such rule, report the literal under "unfit" and leave it as it is; the routine is not made until the analysis picks by a rule.
 
-You receive the question the analysis answered, the summary of its answer, a description of the data it ran on (its key columns named), the cells of the script in execution order, the ledger of RESULT lines the cells recorded, and the cells the report cites, when it cites any. Reply with one JSON object and nothing else.
+You receive the question the analysis answered, the summary of its answer, a description of the data it ran on (its key columns named), the cells of the script in execution order, the ledger of RESULT lines the cells recorded, the cells the report cites, when it cites any, and - when the person gave one - their instruction on what the runs should track. Reply with one JSON object and nothing else.
 
 What to do:
 1. Name the constants written into the code that would have to change for the method to apply to other data of the same shape: period boundaries inside the data, thresholds, filters, bin edges, exclusions. Leave alone the constants that belong to the method itself (plausibility bounds, a bootstrap size, a seed, column names) and anything that is the data's own vocabulary. A file name under the datasets folder is the loader's, written for the period it loaded: leave it exactly as it is, dates included - each run binds it to the file that run loads - and never make the loaded period itself an input; the period is chosen when the data is loaded, before the method runs.
@@ -177,15 +177,17 @@ What to do:
 3. Propose each remaining constant as an input: at most five, each of one type - number, numbers (a short list of numbers), date_window (two dates), choice (one value of a column, or several when "multiple" is true), toggle. A choice is a pick among the values of a column the person can read by name; never over a key column. Keep a constant a constant when unsure; fewer inputs is better than more.
 4. Rewrite the code as find/replace edits, never by retyping it: each edit's "find" is a verbatim fragment that occurs exactly once in the cell it names, and "replace" is the same fragment with the constant replaced by INPUTS["key"] - or, for a literal the chain read off the data, by the expression that computes it. A label written into a RESULT call that carries a constant (a count, an identifier) may read the input through an f-string. Leave the method, the cell markers, the order of the cells and every RESULT call otherwise untouched. The block INPUTS = {...} is written at the top of the script before each run; do not write it yourself.
 5. Say which RESULT lines a run should compare with the runs before it, by their numbers in the ledger, and name each. A line is compared when it is the final form of a quantity the answer rests on. Where the report cites cells, those are the cells the answer was read from: the final forms are among their lines. Not compared: an earlier cell's version of a quantity that a later cell computed again, re-specified or extended; a check or a trial the answer does not rest on - a quantity computed again with part of the data left out, under another cut or a what-if, is a check when another line gives it on all the data. Lines that form a series - one quantity over durations, bands, groups or periods - are compared whole: every line of the series, from the cell that printed it last, or none of them. Every line is still printed and checked; only the comparison leaves the others out. A name reads as a table head: the quantity and what tells it from the other compared lines, at most 40 characters, without the counts, periods and dates that vary with the data.
-6. Reply with exactly this object:
+6. The person's instruction, when there is one, is not a request to compute anything: the method is fixed, nothing is computed, added or rewritten for what it names, and no input is made for it. For each quantity it names, give the ledger lines that are that quantity - its final form, from the cell that printed it last - with a name for each; a line is a match when it is that quantity, not the nearest one. A quantity no line gives is answered with an empty list and nothing more: no reason, no substitute. Every line given here is compared, whether or not step 5 picked it.
+7. Reply with exactly this object:
 {"name": "a short title for the method, at most 60 characters",
  "inputs": [{"key": "snake_case", "label": "what the person sees", "type": "number | numbers | date_window | choice | toggle", "default": "the value the analysis used, in the type's form", "origin": "one short clause: where the value came from in the analysis", "column": "for a choice over values of a column the data has (the frame or a loaded file): that column; none for words the script matches or computes", "multiple": false}],
  "edits": [{"cell": 3, "find": "verbatim fragment", "replace": "the same fragment reading INPUTS[...]"}],
  "kept": ["one clause per constant left as it is, and why"],
  "recomputed": ["one clause per literal replaced by the rule that produced it, naming the cell"],
  "unfit": [{"cell": 10, "what": "what the literal names and why no rule in the chain picks them"}],
- "compare": [{"line": 7, "name": "the quantity, as a table head"}]}
-With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape. "recomputed" and "unfit" are empty when nothing applies.
+ "compare": [{"line": 7, "name": "the quantity, as a table head"}],
+ "tracked": [{"asked": "a quantity the instruction names, in its words", "lines": [{"line": 5, "name": "the quantity, as a table head"}]}]}
+With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape. "recomputed" and "unfit" are empty when nothing applies; "tracked" is empty when there is no instruction.
 Keep the object short: each "find" the shortest fragment that still occurs once in its cell, the clauses brief, nothing outside the object."""
 
 PROMOTER_RETRY = "Your reply could not be read ({problem}). Reply again with the JSON object only, as specified."
@@ -196,14 +198,19 @@ PROMOTER_CUT = ("Your reply was cut off at the token limit before the object was
                 "the JSON object only, each \"find\" the shortest fragment that still occurs once in its cell, nothing outside the object.")
 PROMOTER_CUT_EMPTY = ("Your reply was cut off at the token limit before anything but reasoning arrived. Decide briefly - the constants that "
                       "would change for other data of the same shape, and the shortest fragment for each - and reply with the JSON object only.")
+PROMOTER_TRACKED = ("Your reply left out \"tracked\" though the person gave an instruction. Reply again with the JSON object only, \"tracked\" "
+                    "answered from the ledger: for each quantity the instruction names, the lines that are it, or an empty list.")
+MAX_INSTRUCTION = 300
 
 
 def promoter_user(question: str, summary: str, data_text: str, cells: str, ledger: Iterable[str], manifest: Optional[dict] = None,
-                  cited: Iterable[int] = ()) -> str:
+                  cited: Iterable[int] = (), instruction: str = "") -> str:
     parts = [f"QUESTION:\n{(question or '').strip()}", f"ANSWER SUMMARY:\n{(summary or '(none)').strip()}",
              f"DATA (the frame `df` the script ran on):\n{(data_text or '(no description)').strip()}",
              "THE SCRIPT (the cells in execution order; `df` is loaded before the first cell):\n" + (cells or "").strip(),
              "RESULT LINES THE CELLS RECORDED (numbered; the method's outputs, which must still be produced, in this order):\n" + ("\n".join(ledger) or "(none)")]
+    if (instruction or "").strip():                           # the person's instruction (§15.6): answered under "tracked", from the ledger alone
+        parts.append("THE PERSON'S INSTRUCTION (what the runs should track; answer it under \"tracked\", from the ledger alone):\n" + instruction.strip())
     cited = sorted({int(n) for n in cited})
     if cited:                                                  # the report's citations steady the pick (§15.5): where the answer was read from
         parts.append("THE REPORT CITES (the cells the answer was read from): " + ("cell " if len(cited) == 1 else "cells ") + ", ".join(map(str, cited)))
@@ -230,11 +237,11 @@ def parse_promoter(text: str) -> dict:
         raise ValueError(f"invalid JSON: {exc}") from exc
     if not isinstance(obj, dict):
         raise ValueError("the reply is not a JSON object")
-    for k, typ in (("inputs", list), ("edits", list), ("compare", list), ("recomputed", list), ("unfit", list)):
+    for k, typ in (("inputs", list), ("edits", list), ("compare", list), ("recomputed", list), ("unfit", list), ("tracked", list)):
         if k in obj and not isinstance(obj[k], typ):
             raise ValueError(f"'{k}' is not a list")
     for k in ("inputs", "edits", "kept", "compare", "recomputed", "unfit"):
-        obj.setdefault(k, [])
+        obj.setdefault(k, [])                                  # "tracked" is not defaulted: its absence is what the host asks again about (§15.6)
     return obj
 
 
@@ -275,11 +282,37 @@ def unfit_line(unfit: Iterable) -> str:
 MAX_NAME = 60
 
 
-def pick_results(expected: List[dict], compare: Optional[Iterable]) -> List[dict]:
+def tracked_lines(expected: List[dict], tracked: Optional[Iterable]) -> Tuple[Dict[int, str], List[str]]:
+    """The promoter's answer to the person's instruction (§15.6): ({line number: name} of the lines it gave, the
+    quantities it gave no line for). A number outside the ledger is dropped; a line already given for an earlier
+    quantity is not given again, so one line never stands for two quantities - the second is said as not found."""
+    picked: Dict[int, str] = {}
+    missing: List[str] = []
+    for e in tracked or []:
+        if not isinstance(e, dict):
+            continue
+        asked = " ".join(str(e.get("asked") or "").split())[:120]
+        got = False
+        for item in (e.get("lines") or []):
+            raw, name = (item.get("line"), item.get("name")) if isinstance(item, dict) else (item, "")
+            try:
+                n = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if 1 <= n <= len(expected) and n not in picked:
+                picked[n] = " ".join(str(name or "").split())[:MAX_NAME]
+                got = True
+        if not got and asked and asked not in missing:
+            missing.append(asked)
+    return picked, missing
+
+
+def pick_results(expected: List[dict], compare: Optional[Iterable], extra: Optional[Dict[int, str]] = None) -> List[dict]:
     """The promoter's pick applied to the expected lines (docs/ROUTINES_DESIGN.md §15.1): each entry of `compare` names a
     ledger line by its 1-based number and gives it a short name; the lines named are compared, every other line is
-    dropped - still printed and checked by position, left out of the comparison. A pick with no valid line keeps every
-    line, without names: the pick is a proposal, never a refusal."""
+    dropped - still printed and checked by position, left out of the comparison. `extra` (§15.6) are the lines the
+    person's instruction reached, compared whatever `compare` says. A pick with no valid line keeps every line, without
+    names: the pick is a proposal, never a refusal."""
     picked = {}
     for e in compare or []:
         if not isinstance(e, dict):
@@ -290,6 +323,9 @@ def pick_results(expected: List[dict], compare: Optional[Iterable]) -> List[dict
             continue
         if 1 <= n <= len(expected):
             picked.setdefault(n, " ".join(str(e.get("name") or "").split())[:MAX_NAME])
+    for n, name in (extra or {}).items():
+        if not picked.get(n):
+            picked[n] = name
     if not picked:
         return [dict(r, dropped=False) for r in expected]
     out = []
@@ -360,6 +396,10 @@ def apply_edits(cells: str, edits: List[dict]) -> Tuple[str, List[dict], List[di
                 cell = None
             if not find or find == rep:
                 ok = False; failed.append({"keys": list(keys), "reason": "an edit has no fragment to find, or changes nothing"}); break
+            if find.count("RESULT(") != rep.count("RESULT("):
+                # the method's outputs are not the promoter's to change (§15.6): an edit that adds or removes a RESULT call
+                # - computing something the person asked to track, say - is refused as a whole
+                ok = False; failed.append({"keys": list(keys), "reason": "an edit adds or removes a RESULT call - the method's outputs are not changed"}); break
             if loader_file_literals(find) != loader_file_literals(rep):
                 # the loaded period written into the loader's file name (2026-10-10): the name is the loader's, and a run
                 # binds it to the file this load produced - an input there, or any change to the name, would only break
@@ -2002,7 +2042,7 @@ class RoutineStore:
         cur = next((v for v in r.get("versions", []) if v.get("number") == r.get("current_version")), None) or (r.get("versions") or [{}])[-1]
         rz = (cur or {}).get("run_zero") or {}
         return {"id": r["id"], "name": r.get("name", ""), "created": r.get("created"), "updated": r.get("updated"), "source": r.get("source", ""),
-                "purpose": r.get("purpose", ""), "question": r.get("question", ""), "origin": r.get("origin", {}),
+                "purpose": r.get("purpose", ""), "question": r.get("question", ""), "origin": r.get("origin", {}), "instruction": r.get("instruction", ""),
                 "current_version": r.get("current_version", 1), "versions": len(r.get("versions", [])), "runs": len(r.get("runs", [])),
                 "verified": bool(rz.get("verified")), "run_zero_status": rz.get("status", ""), "run_zero_line": rz.get("line", ""),
                 "inputs": len((cur or {}).get("manifest", {}).get("parameters", [])),
@@ -2011,13 +2051,14 @@ class RoutineStore:
                 "data": ((cur or {}).get("manifest", {}).get("data") or {})}
 
     def by_origin(self) -> Dict[Tuple[str, str], List[dict]]:
-        """(thread id, chain id) -> the routine versions promoted from that chain: what a favourite's card shows."""
+        """(thread id, chain id) -> the routine versions promoted from that chain: what a favourite's card shows, and the
+        routine's instruction (§15.6), which the Save-as-routine dialog offers again for a next version."""
         out: Dict[Tuple[str, str], List[dict]] = {}
         for r in self.all():
             for v in r.get("versions", []):
                 pf = v.get("promoted_from") or r.get("origin") or {}
                 key = (str(pf.get("thread_id", "")), str(pf.get("chain_id", "")))
-                out.setdefault(key, []).append({"id": r["id"], "name": r.get("name", ""), "version": v.get("number", 1)})
+                out.setdefault(key, []).append({"id": r["id"], "name": r.get("name", ""), "version": v.get("number", 1), "instruction": r.get("instruction", "")})
         return out
 
     def run_dir(self, rid: str, tag: str) -> str:

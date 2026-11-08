@@ -547,15 +547,28 @@ from, "made from this chain: <name> v1 · again, or as a next version".
 │ Inputs  Hard-effort threshold   155       the exploration …  ☐ keep fixed │
 │         HR bands   130, 145, 155, 165, 175   the exploration's bands  ☐  │
 │         Left as they are: the 1-km lap window · the bootstrap …  │
-│ Results — the lines the runs will compare, 2 of 6 kept · 1 figure │
+│ Tracked metrics — recomputed each run and compared with the run │
+│                   before, 2 of 6 · 1 figure                     │
 │         ✓ log speed, abroad vs Ethiopia, athlete FE …   cell 2   │
 │         ! cell 4: typed, not computed   [keep as a constant] [drop] │
-│         ▸ 4 more lines recorded, not compared                     │
+│         ▸ 4 more metrics computed, not tracked                    │
+│ Custom instructions — optional                                  │
+│         If you want this routine to track particular metrics,   │
+│         say so here and the model building it will add them to  │
+│         the list above — for example the power durations that   │
+│         matter to you. It can only track what the analysis      │
+│         computed; if something you ask for isn't there, it will │
+│         tell you.                                               │
+│         [ e.g. track the best power at 5 s, 1 min, 5 min … ] [Update the list] │
 │ The routine is checked once on this chain's own data before it  │
 │ is created; the chain is saved as a favourite, and the routine  │
 │ links to it.                        [Cancel] [Create routine]   │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+The dialog speaks of *tracked metrics*, not of result lines (2026-11-08): a coach saves a routine to track particular
+metrics over time, recomputed each run and compared with the run before. *track* on a set-aside line brings it into the
+list, *drop* on a tracked one sets it aside. The *Custom instructions* box is §15.6.
 
 While the promoter works the body reads "The analyst is reading the chain and naming its inputs… · Analyst on
 <model>" and the pane shows the quiet card; a refusal (the script not understood, an input dropped that the script still
@@ -567,8 +580,8 @@ reads) shows in the body with *Try again*; run zero's verdict comes later, behin
 Left: the routines (name; source · version · runs · date). Right: the name; "File · v1 · from the analysis of 10 Oct
 ↗" (the link opens the favourite); the actions (Run, .py, Rename, Delete); then one column with one scroll: the
 **facts** as label and value - *Purpose* (the question when none was written), *Inputs* (none, or a line per input:
-label, default, where it came from; one that follows the data says so), *Results* (what a run records: *9 numbers and
-2 charts per run*), *Version(s)* (newest first: the date, the chain it came from when there are several, the verdict -
+label, default, where it came from; one that follows the data says so), *Tracked* (what a run records: *9 metrics and
+2 charts per run*; *Results* until §15.6), *Custom instructions* when the routine has them (§15.6), *Version(s)* (newest first: the date, the chain it came from when there are several, the verdict -
 *verified, 17 lines reproduced*, or *did not reproduce — …* - the condensed code's size and time (§19: *10 cells ·
 0.8 s*), the consolidation's state (§19.3: *rewritten, the next run on new data checks it* / *confirmed on run 3* /
 *rewrite dropped on run 2*), *as written ↓* - or *as written* with the pass's reason on hover when the chain's code is the
@@ -997,14 +1010,16 @@ most 60 characters; `label` stays the recorded wording. The prompt stays domain-
 
 ### 15.2 The dialog (S1)
 
-The coach is not asked to pick. The Results section lists the lines a run will compare — the name, the recorded wording
-on hover, the cell — under *the lines the runs will compare, 5 of 10 kept · 2 figures*; a kept line shows *drop* when
-hovered. The lines set aside are one muted line, *5 more lines recorded, not compared*, that opens on a click into the
-greyed lines with their recorded wording and *keep* on each. A typed line keeps its flag and its *keep as a constant /
-drop* choice, visible as before (a warning is not hidden), the default following the pick. The page keeps the state on
-the proposal and sends the whole set of dropped lines on Create; the library's `create` without choices takes the
-proposal's. The decision (2026-11-06): trust the model's pick, keep the coach in charge without asking anything of
-them, and show the set-aside lines only on a click, so they neither clutter the dialog nor read as something to decide.
+The coach is not asked to pick. The section lists the lines a run will compare — the name, the recorded wording on
+hover, the cell — under *Tracked metrics — recomputed each run and compared with the run before, 5 of 10 · 2 figures*
+(the words since 2026-11-08; it read *Results — the lines the runs will compare, 5 of 10 kept* before); a tracked line
+shows *drop* when hovered. The lines set aside are one muted line, *5 more metrics computed, not tracked*, that opens on
+a click into the greyed lines with their recorded wording and *track* on each. A typed line keeps its flag and its
+*keep as a constant / drop* choice, visible as before (a warning is not hidden), the default following the pick. The
+page keeps the state on the proposal and sends the whole set of dropped lines on Create; the library's `create` without
+choices takes the proposal's. The decision (2026-11-06): trust the model's pick, keep the coach in charge without asking
+anything of them, and show the set-aside lines only on a click, so they neither clutter the dialog nor read as something
+to decide. What the coach can say about the pick is the box of §15.6.
 
 ### 15.3 Where the name shows
 
@@ -1032,6 +1047,17 @@ waits for a simulation on chains of several kinds.
 - **Patch 0276 — the pick, steadied**: 15.5. Accepted by: the pure module (the prompt's three sentences; `promoter_user`
   with cited cells, sorted and once each, and without), the host's path (the propose test's payload carries the cell
   its report cites), the C5 scan.
+- **Patch 0281 — custom instructions**: 15.6, and the dialog in the coach's words (15.2). Accepted by: the pure module
+  (`tracked_lines` on a valid, a bare, an out-of-range, a doubled and an empty answer; `pick_results` with the
+  instruction's lines over an empty and a named pick; `apply_edits` refusing an edit that adds a RESULT call;
+  `promoter_user` with and without the section; `parse_promoter` leaving `tracked` absent), the host's path (the
+  section in the payload, the one retry and its step, the union and the notes, the proposal's `instruction`; `create`
+  keeping, leaving and clearing it; the summary and the by-origin index), the routes (propose with the line, create
+  keeping it, the views), the markup on the mini DOM (the section's words, the box, the button, the Notes after it;
+  the facts' *Tracked* and *Custom instructions*), the page's source (the re-pick carrying the fields, the first pass
+  with the origin routine's line, the next-version fill), the stack walk (the box typed, *Update the list*, the line
+  named as the scripted promoter answered, the note for the metric it found no line for, the fields standing, the
+  facts after the save), the screens tool.
 
 ### 15.5 The pick, steadied (2026-11-07)
 
@@ -1053,6 +1079,58 @@ its payload, all domain-free (C5):
 
 Nothing else moved: the reply's shape, `pick_results`, the dialog, the manifest. The condensing pass (§19) runs after
 the pick and never touches a RESULT line, so the prints it drops have no part in this.
+
+### 15.6 Custom instructions (2026-11-08)
+
+The steadied pick still missed: on a power-curve chain the promoter kept 1 s and 5 s and set the rest of the ladder
+aside, naming in its reasoning the durations it was dropping. The rule of 15.5 was read and not followed; a sentence in
+a prompt is advice the model weighs against its own judgement, and here the judgement was the problem. Palo's idea: let
+the coach say what the routine should track, and put that in front of the promoter. The design makes the coach's line a
+question the model must answer, line by line, and lets the host keep what it answers - the model does the matching (a
+recognition task it does reliably), the host does the keeping (no judgement left to it).
+
+**The dialog.** After the pick, under the Tracked metrics, a section *Custom instructions — optional*, explained in two
+ordinary sentences (*If you want this routine to track particular metrics, say so here and the model building it will
+add them to the list above — for example the power durations that matter to you. It can only track what the analysis
+computed; if something you ask for isn't there, it will tell you.*), one box (an example as its placeholder, 300
+characters), and *Update the list*. The promoter runs at once when Save as routine is pressed, as before - most picks
+are right, a question before every save would be friction paid every time, and the coach writes a better line once they
+see what was picked. *Update the list* asks the promoter again with the box's line; the dialog's fields stand as the
+coach left them (name, purpose, the version choice, keep fixed, the box), the group folds again, and a keep/drop made
+by hand before it is replaced by the new pick. The Notes section follows the box, so a note about a metric not computed
+sits under it.
+
+**The prompt.** The payload carries the line as its own section right after the ledger: `THE PERSON'S INSTRUCTION (what
+the runs should track; answer it under "tracked", from the ledger alone):`. Step 6 of the system prompt says what it is
+and is not: not a request to compute anything - the method is fixed, nothing is computed, added or rewritten for what it
+names, no input is made for it; for each quantity it names, the ledger lines that *are* that quantity (its final form,
+from the cell that printed it last) with a name each; a match is that quantity, not the nearest one; a quantity no line
+gives is an empty list and nothing more - no reason, no substitute. The reply object gains `"tracked": [{"asked": …,
+"lines": [{"line": n, "name": …}]}]`, empty without an instruction. A required key is the most prominent thing in the
+prompt: it is how `compare` and `unfit` already work, and the model cannot leave it out without breaking the shape.
+
+**The host.** `tracked_lines(expected, tracked)` reads the answer: a number outside the ledger is dropped; a line
+already given for an earlier quantity is not given again (one line never stands for two quantities - the second is
+said as not found); the lines come back as `{number: name}`, the quantities with no line as a list. `pick_results`
+takes them as `extra`: kept whatever `compare` says, the pick's name standing where it has one. Each missing quantity is
+a note, *Not computed in this analysis, so it can't be tracked: best 3 h power*, written by the host. A reply that
+leaves `tracked` out when the section was sent is asked once more with the reason (`PROMOTER_TRACKED`; the model step
+reads *the instruction was not answered*), as the identifier rule is; left out twice, the proposal stands on the pick
+with the note *The custom instructions were not applied this time; try Update the list again.* `apply_edits` refuses an
+edit that adds or removes a `RESULT(` call (the count in the fragment before and after), so "compute it for the coach"
+cannot reach the code; run zero still has to reproduce the recorded lines. A reply cut at the token limit is handled as
+before. The worst case of a line asking for what was never computed is a note, not a changed routine. The one thing no
+check can catch is a wrong match - the 2 h line answered for 3 h - which shows as a tracked row whose title is the 2 h
+line; the dialog stays clean rather than carry a line per match.
+
+**Kept with the routine.** `routine.instruction` is the box as it stood at Create (a next version with the key sent
+replaces it, emptied included; a caller without the key leaves it). The summary, the by-origin index and
+`GET /routines/<id>` carry it; the manager's facts show it as *Custom instructions* under *Tracked* (the Results fact
+renamed: *9 metrics and 2 charts per run*). The dialog's first pass sends the instruction of the routine this very chain
+is the origin of - the page reads the thread's routines before it proposes - so a chain saved again keeps what the
+coach asked; choosing *Next version of …* on a later chain fills an empty box with that routine's line, and *Update
+the list* applies it. Not here: the promoter's words on why it set a line aside, and any check that a matched line is
+the quantity named - both would be more text for the coach and judgement for the model.
 
 ## 16. The Run dialog, slimmed (2026-11-06)
 
@@ -1342,7 +1420,7 @@ full names, the athlete choice as it was.
 **The modal** fills the window less the scrim's margin (`width: min(1800px, 100%); height: 100%`), the rail as it was,
 and the body is the one scroll: no box around the table (its head sticks to the body's top), no runs box.
 
-**The facts** (S2): *Purpose*, *Inputs*, *Results*, *Version(s)* as label and value. Gone from the header: the columns
+**The facts** (S2): *Purpose*, *Inputs*, *Results* (*Tracked* since §15.6, with *Custom instructions* under it when there are any), *Version(s)* as label and value. Gone from the header: the columns
 count and *(a favourite; continue it there)* (the link's hover says it); gone from the body: the Question when a
 purpose was written, the Checked row (its verdict and the passes' outcomes are the version row's, in a few words:
 *verified, 17 lines reproduced · 10 cells · 0.8 s · as written ↓*), the inputs table (a line per input), the Results

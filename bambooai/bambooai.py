@@ -660,10 +660,11 @@ class BambooAI:
             # the cut to the window - before the page saw it; a sentence per file, a dozen files, is ~1,500)
             self._pane('pane_lookup', kind=ev.get("kind") or 'routine', query=ev.get("query") or '', peek=(ev.get("peek") or '')[:self.LOOKUP_PEEK_CHARS], sources=[], passages=[])
 
-    def propose_routine(self, thread_id, chain_id, routine_id=None, billing_chain_id=None):
+    def propose_routine(self, thread_id, chain_id, routine_id=None, billing_chain_id=None, instruction=""):
         """Save as routine, step one: the promoter reads the chain and proposes its inputs. The call is accounted to
-        `billing_chain_id` (a chain of its own, so the hosted edition charges it as a query). Returns the proposal,
-        kept on the instance until create_routine takes it; raises RoutineRefused with a readable reason."""
+        `billing_chain_id` (a chain of its own, so the hosted edition charges it as a query). `instruction` is the
+        person's line on what the runs should track (docs/ROUTINES_DESIGN.md §15.6). Returns the proposal, kept on the
+        instance until create_routine takes it; raises RoutineRefused with a readable reason."""
         from bambooai import routines_host
         nb = self.notebook if (self.notebook is not None and self.notebook.thread_id == str(thread_id)) else self.store.load(thread_id)
         routine = self.routine_store().load(routine_id) if routine_id else None
@@ -682,7 +683,7 @@ class BambooAI:
         try:
             proposal = routines_host.propose(nb, str(chain_id), lambda s, u: self._llm(s, u, seat=seat), current_data=self._data_record(),
                                              emit=self._emit_routine, routine=routine, seat=seat, model=model,
-                                             runner=lambda s, t: self.run_script(s, t, what="Shape"))
+                                             runner=lambda s, t: self.run_script(s, t, what="Shape"), instruction=instruction or "")
         finally:
             self.chain_id = keep
         proposal["billing_chain_id"] = str(billing_chain_id or self.chain_id or "")      # the consolidation's call is billed there too (§19.3)

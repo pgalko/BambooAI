@@ -123,27 +123,34 @@
             return '<table class="ui-table rt-inputs"><thead><tr><th>Input</th><th>Value now</th><th>Where it comes from</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
                 (kept && kept.length ? '<div class="rt-line muted">Left as they are: ' + kept.map(esc).join(' · ') + '</div>' : '');
         },
-        // the lines a run will compare (§15.2): the lines kept, each named, with drop on hover; the lines the promoter set aside
-        // behind one muted line that opens on a click, each with keep; a typed line keeps its flag and its choice, visible, the
-        // default following the pick. `open` is whether the set-aside group is unfolded.
+        // the metrics a run will track (§15.2; in the coach's words since 2026-11-08): the lines kept, each named, with drop on
+        // hover; the lines the promoter set aside behind one muted line that opens on a click, each with track; a typed line
+        // keeps its flag and its choice, visible, the default following the pick. `open` is whether the set-aside group is unfolded.
         resultsList(results, open) {
-            if (!results || !results.length) return '<div class="rt-line">This analysis recorded no RESULT lines, so runs will not be compared number by number; the routine still keeps its printed output and figures.</div>';
+            if (!results || !results.length) return '<div class="rt-line">This analysis recorded no metrics, so the runs will not be compared number by number; the routine still keeps its printed output and figures.</div>';
             const row = (r, i) => r.typed
                 ? '<div class="r flag' + (r.dropped ? ' off' : '') + '" data-line="' + i + '" data-cell="' + esc(r.cell) + '" data-index="' + esc(r.index) + '"><span class="g">!</span><span class="l">cell ' + esc(r.cell) + ': the numbers were typed into the call, not computed — this line will not change with new data</span>' +
                   '<span class="ui-seg"><span' + (r.dropped ? '' : ' class="on"') + ' data-keep="1">keep as a constant</span><span' + (r.dropped ? ' class="on"' : '') + ' data-keep="0">drop</span></span></div>'
                 : r.dropped
-                    ? '<div class="r off" data-line="' + i + '"><span class="g">○</span><span class="l" title="' + esc(r.label) + '">' + esc(r.label) + '</span><span class="c">cell ' + esc(r.cell) + '</span><button type="button" class="act" data-line-act="keep">keep</button></div>'
+                    ? '<div class="r off" data-line="' + i + '"><span class="g">○</span><span class="l" title="' + esc(r.label) + '">' + esc(r.label) + '</span><span class="c">cell ' + esc(r.cell) + '</span><button type="button" class="act" data-line-act="keep">track</button></div>'
                     : '<div class="r" data-line="' + i + '"><span class="g">✓</span><span class="l" title="' + esc(r.label) + '">' + esc(build.lineName(r)) + '</span><span class="c">cell ' + esc(r.cell) + '</span><button type="button" class="act" data-line-act="drop">drop</button></div>';
             const aside = results.map((r, i) => [r, i]).filter(([r]) => r.dropped && !r.typed), setAside = new Set(aside.map(([, i]) => i));
             return '<div class="rt-results">' + results.map((r, i) => setAside.has(i) ? '' : row(r, i)).join('') +
-                (aside.length ? '<div class="more' + (open ? ' open' : '') + '"><button type="button" class="t" data-line-act="more">' + (open ? '▾' : '▸') + ' ' + aside.length + ' more line' + (aside.length === 1 ? '' : 's') + ' recorded, not compared</button>' +
+                (aside.length ? '<div class="more' + (open ? ' open' : '') + '"><button type="button" class="t" data-line-act="more">' + (open ? '▾' : '▸') + ' ' + aside.length + ' more metric' + (aside.length === 1 ? '' : 's') + ' computed, not tracked</button>' +
                     (open ? '<div class="aside">' + aside.map(([r, i]) => row(r, i)).join('') + '</div>' : '') + '</div>' : '') + '</div>';
         },
-        // the dialog's Results section, rebuilt on its own when a line moves (§15.2)
+        // the dialog's Tracked metrics section, rebuilt on its own when a line moves (§15.2)
         resultsSection(p, open) {
             const all = (p.results || []), kept = all.filter(r => !r.dropped).length;
-            const count = kept === all.length ? kept + ' kept' : kept + ' of ' + all.length + ' kept';
-            return '<div class="h">Results <span class="n">— the lines the runs will compare, ' + count + (p.figures && p.figures.count ? ' · ' + p.figures.count + ' figure' + (p.figures.count === 1 ? '' : 's') : '') + '</span></div>' + build.resultsList(all, open);
+            return '<div class="h">Tracked metrics <span class="n">— recomputed each run and compared with the run before, ' + kept + ' of ' + all.length + (p.figures && p.figures.count ? ' · ' + p.figures.count + ' figure' + (p.figures.count === 1 ? '' : 's') : '') + '</span></div>' + build.resultsList(all, open);
+        },
+        // the Custom instructions section (§15.6): the person's line on what the runs should track, Update the list asking the
+        // promoter again with it; the box holds the routine's line when a next version is made
+        instructionSection(p) {
+            return '<div class="h">Custom instructions <span class="n">— optional</span></div>' +
+                '<div class="rt-line muted">If you want this routine to track particular metrics, say so here and the model building it will add them to the list above — for example the power durations that matter to you. It can only track what the analysis computed; if something you ask for isn’t there, it will tell you.</div>' +
+                '<div class="rt-instr-row"><input class="ui-input" data-field="instruction" value="' + esc(p.instruction || '') + '" placeholder="e.g. track the best power at 5 s, 1 min, 5 min, 20 min and 1 h, and critical power" maxlength="300">' +
+                '<button type="button" class="ui-btn" data-act="instruct">Update the list</button></div>';
         },
         // the routine a chain's proposal stands under (2026-10-12): the one made from this very chain, else the thread's
         // first; and which it is, since the offer and its default differ - this chain's own routine defaults to its next
@@ -179,6 +186,7 @@
             h += '<div class="rt-sec"><div class="h">Data</div>' + build.dataLine(p) + '</div>';
             h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— what you can change each run; everything else stays as the analysis had it</span></div>' + build.inputsTable(p.inputs, p.kept) + '</div>';
             h += '<div class="rt-sec" data-sec="results">' + build.resultsSection(p, false) + '</div>';
+            h += '<div class="rt-sec rt-instr">' + build.instructionSection(p) + '</div>';
             if (p.notes && p.notes.length) h += '<div class="rt-sec"><div class="h">Notes</div><div class="rt-line muted">' + p.notes.map(esc).join('<br>') + '</div></div>';
             return h;
         },
@@ -201,14 +209,16 @@
                 : '<span class="ui-muted">from the analysis of ' + esc(chainDate(o.chain_id) || o.chain_id) + ' — no longer in Saved workflows</span>';
             return { title: esc(r.name), sub: esc(sourceLabel(r.source)) + ' · v' + esc(r.current_version) + ' · ' + link };
         },
-        // the manager's body (S2, redesigned 2026-11-08: one column, one scroll): the facts - Purpose, Inputs, Results, Version(s) -
-        // then the runs of the interval and athlete picked as a table. `fill` is the session's fill when it is this routine's
-        // (§14.3); `opts` {today, horizon} the units a set interval's view spans (§14.6: the last year, or the plan's day limit)
+        // the manager's body (S2, redesigned 2026-11-08: one column, one scroll): the facts - Purpose, Inputs, Tracked, Custom
+        // instructions when the routine has them (§15.6), Version(s) - then the runs of the interval and athlete picked as a table.
+        // `fill` is the session's fill when it is this routine's (§14.3); `opts` {today, horizon} the units a set interval's view
+        // spans (§14.6: the last year, or the plan's day limit)
         routineBody(r, fill, opts) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const m = v.manifest || {};
             let h = '<div class="ui-kv rt-facts">' + (r.purpose ? '<b>Purpose</b><span>' + esc(r.purpose) + '</span>' : (r.question ? '<b>Question</b><span>' + esc(r.question) + '</span>' : '')) +
-                '<b>Inputs</b><span>' + build.inputsFacts(m.parameters || []) + '</span><b>Results</b><span>' + esc(build.resultsFacts(m)) + '</span>' +
+                '<b>Inputs</b><span>' + build.inputsFacts(m.parameters || []) + '</span><b>Tracked</b><span>' + esc(build.resultsFacts(m)) + '</span>' +
+                (r.instruction ? '<b>Custom instructions</b><span>' + esc(r.instruction) + '</span>' : '') +
                 '<b>Version' + ((r.versions || []).length > 1 ? 's' : '') + '</b><span class="rt-vers">' + build.versionRows(r) + '</span></div><div class="rt-sep"></div>';
             // the runs by athlete (2026-10-30): a choice when the runs span more than one; the latest run's athlete first
             const athletes = build.runAthletes(r);
@@ -234,12 +244,12 @@
             return params.map(p => '<span class="rt-input" data-key="' + esc(p.key) + '"' + (p.derived ? ' data-derived="' + esc(p.derived) + '"' : '') + '><span class="k">' + esc(p.label) + '</span> ' +
                 (p.derived ? '<span class="rt-derived">' + esc(derivedText(p)) + '</span>' : '<span class="val">' + esc(valueText(p)) + '</span>') + (p.origin ? ' <span class="from">' + esc(p.origin) + '</span>' : '') + '</span>').join('');
         },
-        // the Results fact: what a run records - the numbers compared run to run (the table's columns) and the charts
+        // the Tracked fact: what a run records - the metrics compared run to run (the table's columns) and the charts
         resultsFacts(m) {
             const n = ((m || {}).results || []).filter(x => !x.dropped && x.estimate != null).length, k = Number(((m || {}).figures || {}).count) || 0;
-            const nums = n ? n + ' number' + (n === 1 ? '' : 's') : '', charts = k ? k + ' chart' + (k === 1 ? '' : 's') : '';
+            const nums = n ? n + ' metric' + (n === 1 ? '' : 's') : '', charts = k ? k + ' chart' + (k === 1 ? '' : 's') : '';
             if (!n && !k) return 'none recorded: runs keep their printed output';
-            return (nums && charts ? nums + ' and ' + charts : nums || 'no numbers recorded, ' + charts) + ' per run';
+            return (nums && charts ? nums + ' and ' + charts : nums || 'no metrics recorded, ' + charts) + ' per run';
         },
         // the Version rows, newest first: the number, the date, the chain it came from when there are several, run zero's verdict (the
         // lines reproduced; the reason when it did not), the condensed code's size and time or that the code runs as written (§19),
@@ -950,6 +960,7 @@
             const act = b.getAttribute('data-act');
             if (act === 'cancel') closeMake();
             else if (act === 'retry') propose();
+            else if (act === 'instruct') propose({ again: true });
             else if (act === 'create') create();
         });
         dialog.addEventListener('click', e => {
@@ -1002,18 +1013,41 @@
             const defaults = [st.proposal.name, under ? under.routine.name : ''].filter(Boolean);
             if (!nameEl.value.trim() || defaults.includes(nameEl.value.trim())) nameEl.value = vs.name;
         }
+        // a next version offers the routine's instruction (§15.6) when the box is empty; Update the list applies it
+        const box = p.d.querySelector('[data-field="instruction"]');
+        if (box && vs.change && under && under.routine.instruction && !box.value.trim()) box.value = under.routine.instruction;
+    }
+    // the dialog's fields as the person left them, carried over a re-pick (§15.6)
+    function readFields(p) {
+        const f = {};
+        p.d.querySelectorAll('[data-field]').forEach(el => { f[el.getAttribute('data-field')] = el.value; });
+        return { fields: f, version: versionChoice(), fixed: Array.from(p.d.querySelectorAll('input[data-drop]:checked')).map(x => x.getAttribute('data-drop')) };
+    }
+    function writeFields(p, saved) {
+        if (!saved) return;
+        if (saved.version) p.d.querySelectorAll('.rt-version .ui-choice').forEach(x => x.classList.toggle('on', x.getAttribute('data-version') === saved.version));
+        syncVersionChoice();
+        Object.keys(saved.fields).forEach(k => { const el = p.d.querySelector('[data-field="' + k + '"]'); if (el && saved.fields[k].trim()) el.value = saved.fields[k]; });
+        saved.fixed.forEach(k => { const el = p.d.querySelector('input[data-drop="' + k + '"]'); if (el) el.checked = true; });
     }
     function openMake(threadId, chainId, opts) {
         dialogState = { thread_id: threadId, chain_id: chainId, threadRoutines: uniqueRoutines((opts && opts.threadRoutines) || []), fromCard: !!(opts && opts.fromCard), proposal: null, busy: false };
-        const p = dialogParts();
+        const st = dialogState, p = dialogParts();
         p.d.style.display = 'flex';
         p.sub.textContent = 'from this chain';
         p.note.textContent = '';
+        p.body.innerHTML = '';
         p.createBtn.style.display = 'none';
-        if (!dialogState.threadRoutines.length) {
-            origins(threadId).then(list => { if (dialogState && String(dialogState.chain_id) === String(chainId)) dialogState.threadRoutines = uniqueRoutines(list); });
-        }
-        propose();
+        // the thread's routines first (a quick read): the pick's first pass carries the instruction of the routine this chain is
+        // the origin of (§15.6), so a chain saved again keeps what the person asked for
+        const ready = st.threadRoutines.length ? Promise.resolve(st.threadRoutines) : origins(threadId).then(uniqueRoutines);
+        ready.then(list => {
+            if (dialogState !== st) return;
+            st.threadRoutines = list;
+            const own = list.find(r => String(r.chain_id) === String(chainId));
+            st.instruction = own && own.instruction ? String(own.instruction) : '';
+            propose();
+        });
     }
     function closeMake() {
         if (dialogState && dialogState.busy) return;
@@ -1036,9 +1070,15 @@
         if (dialogState !== st || st.proposal) return;
         p.body.innerHTML = build.steps(st.steps, Date.now());
     }
-    function propose() {
-        const st = dialogState; if (!st) return;
+    // the promoter's pass: the first with the instruction the dialog opened with, a re-pick (`again`, Update the list) with the
+    // box's line and the fields as the person left them carried over (§15.6)
+    function propose(opts) {
+        const st = dialogState; if (!st || st.busy) return;
         const p = dialogParts();
+        const again = !!(opts && opts.again && st.proposal);
+        const saved = again ? readFields(p) : null;
+        const instruction = again ? (saved.fields.instruction || '').trim() : (st.instruction || '');
+        st.instruction = instruction;                          // a Retry after a failed pass asks with the same line
         st.busy = true; st.proposal = null;
         st.steps = { chain: { state: 'running', since: Date.now() } };
         renderSteps(st);
@@ -1046,7 +1086,7 @@
         st.stepTimer = setInterval(() => { if (dialogState !== st || st.proposal) { clearInterval(st.stepTimer); return; } renderSteps(st); }, 1000);
         p.createBtn.style.display = 'none';
         p.cancelBtn.disabled = true;
-        stream('/routines/propose', { thread_id: st.thread_id, chain_id: st.chain_id }, !st.fromCard, data => {
+        stream('/routines/propose', { thread_id: st.thread_id, chain_id: st.chain_id, instruction }, !st.fromCard, data => {
             if (data.type === 'routine_step') { if (dialogState === st) stepLanded(st, data); return true; }
             return false;
         }).then(msg => {
@@ -1054,13 +1094,14 @@
             clearInterval(st.stepTimer);
             st.busy = false; p.cancelBtn.disabled = false;
             st.proposal = msg.routine_proposal;
+            st.asideOpen = false;
             const pr = st.proposal;
             const under = st.threadRoutines;
-            p.sub.textContent = 'from this chain · ' + pr.cells + ' cell' + (pr.cells === 1 ? '' : 's') + ' · ' + (pr.results || []).length + ' result' + ((pr.results || []).length === 1 ? '' : 's') + (pr.figures && pr.figures.count ? ' · ' + pr.figures.count + ' figure' + (pr.figures.count === 1 ? '' : 's') : '') + (pr.cost ? ' · $' + Number(pr.cost).toFixed(2) : '');
+            p.sub.textContent = 'from this chain · ' + pr.cells + ' cell' + (pr.cells === 1 ? '' : 's') + ' · ' + (pr.results || []).length + ' metric' + ((pr.results || []).length === 1 ? '' : 's') + (pr.figures && pr.figures.count ? ' · ' + pr.figures.count + ' figure' + (pr.figures.count === 1 ? '' : 's') : '') + (pr.cost ? ' · $' + Number(pr.cost).toFixed(2) : '');
             p.body.innerHTML = build.proposal(pr, under);
             p.createBtn.style.display = '';
             p.createBtn.disabled = false;
-            syncVersionChoice();
+            if (saved) writeFields(p, saved); else syncVersionChoice();
         }).catch(err => {
             if (dialogState !== st) return;
             clearInterval(st.stepTimer);
@@ -1077,7 +1118,8 @@
             proposal_id: st.proposal.proposal_id, name: field('name') || (nextOn ? under.routine.name : st.proposal.name), purpose: field('purpose'),
             drop_inputs: Array.from(p.d.querySelectorAll('input[data-drop]:checked')).map(x => x.getAttribute('data-drop')),
             drop_results: (st.proposal.results || []).filter(r => r.dropped).map(r => [r.cell, r.index]),     // the whole set left out of the comparison: the pick with the person's changes (§15.2)
-            change_note: nextOn ? field('change_note') : '', routine_id: nextOn ? under.routine.id : null
+            change_note: nextOn ? field('change_note') : '', routine_id: nextOn ? under.routine.id : null,
+            instruction: field('instruction')                   // kept on the routine for its next version (§15.6)
         };
     }
     function create() {

@@ -423,6 +423,26 @@ def main():
                   dlg["name"] == "Regime contrast within soil, plot means" and dlg["inputs"] == [["regime", "B"]] and len(dlg["results"]) == 1 and "regime B vs A" in dlg["results"][0]
                   and "field_trial.csv" in dlg["data"] and "Checked once" in dlg["state"] and dlg["card"] and "Promoter" in dlg["seat"], dlg)
             page.fill("#routineMakeModal [data-field='purpose']", "the within-soil regime contrast, for the next season")
+            # the custom instructions (§15.6): the coach's line goes to the promoter again with Update the list; the scripted promoter
+            # answers the yield line for the contrast (named) and nothing for the plot count; the fields typed before stay
+            instr = page.evaluate("""() => ({ head: document.querySelector('#routineMakeModal .rt-sec[data-sec="results"] .h').textContent, sec: document.querySelector('#routineMakeModal .rt-instr .h').textContent,
+                text: document.querySelector('#routineMakeModal .rt-instr .rt-line').textContent, box: document.querySelector('#routineMakeModal [data-field="instruction"]').value,
+                btn: document.querySelector('#routineMakeModal [data-act="instruct"]').textContent, named: [...document.querySelectorAll('#routineMakeModal .rt-results .r .l')].map(e => [e.textContent, e.getAttribute('title')]) })""")
+            check("the dialog in the coach's words (2026-11-08): the Tracked metrics head, the Custom instructions section (optional) with its explanation, an empty box and Update the list; the chain's one line tracked under its recorded wording (the promoter named nothing)",
+                  instr["head"].startswith("Tracked metrics — recomputed each run and compared with the run before, 1 of 1") and instr["sec"] == "Custom instructions — optional"
+                  and instr["text"].startswith("If you want this routine to track particular metrics, say so here") and instr["box"] == "" and instr["btn"] == "Update the list"
+                  and len(instr["named"]) == 1 and instr["named"][0][0].startswith("yield, regime B vs A"), instr)
+            page.fill("#routineMakeModal [data-field='instruction']", "track the yield contrast and the plot count")
+            page.click("#routineMakeModal [data-act='instruct']")
+            page.wait_for_function("() => { const l = document.querySelector('#routineMakeModal .rt-results .r .l'); return !!l && l.textContent === 'Yield, B vs A'; }", timeout=120000)
+            instr2 = page.evaluate("""() => ({ named: [...document.querySelectorAll('#routineMakeModal .rt-results .r .l')].map(e => [e.textContent, e.getAttribute('title')]), head: document.querySelector('#routineMakeModal .rt-sec[data-sec="results"] .h').textContent,
+                box: document.querySelector('#routineMakeModal [data-field="instruction"]').value, purpose: document.querySelector('#routineMakeModal [data-field="purpose"]').value,
+                notes: [...document.querySelectorAll('#routineMakeModal .rt-sec')].filter(s => s.querySelector('.h').textContent === 'Notes').map(s => s.querySelector('.rt-line').textContent),
+                after: [...document.querySelectorAll('#routineMakeModal .rt-sec')].map(s => s.querySelector('.h').textContent.split(' ')[0]), create: document.querySelector('#routineMakeModal [data-act="create"] span').textContent })""")
+            check("Update the list: the promoter asked again with the line - the yield line now named as it answered (its recorded wording the title), the head still 1 of 1; the plot count it found no line for is a note under the box; the purpose typed before and the box stand; Create routine offered again",
+                  instr2["named"] == [["Yield, B vs A", "yield, regime B vs A within soil type, plot means"]] and ", 1 of 1" in instr2["head"] and instr2["box"] == "track the yield contrast and the plot count"
+                  and instr2["purpose"] == "the within-soil regime contrast, for the next season" and instr2["notes"] == ["Not computed in this analysis, so it can’t be tracked: the plot count"]
+                  and instr2["after"][-3:] == ["Tracked", "Custom", "Notes"] and instr2["create"] == "Create routine", instr2)
             page.click("#routineMakeModal [data-act='create']")
             page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
             err_box = page.evaluate("() => { const e = document.querySelector('#routineMakeModal .rt-error'); return e ? e.textContent : null; }")
@@ -481,11 +501,12 @@ def main():
                 sub: document.querySelector('#routinesModal .rt-right .sub').textContent, origin: !!document.querySelector('#routinesModal .rt-origin'), checked: (document.querySelector('#routinesModal .rt-status') || {}).textContent,
                 facts: [...document.querySelectorAll('#routinesModal .rt-facts > b')].map(e => e.textContent), version: (document.querySelector('#routinesModal .rt-vers .v') || {}).textContent, results: [...document.querySelectorAll('#routinesModal .rt-facts > span')].map(e => e.textContent).find(t => /per run/.test(t)) || '',
                 written: (document.querySelector('#routinesModal a.rt-written') || { getAttribute: () => null }).getAttribute('href'), inputs: [...document.querySelectorAll('#routinesModal .rt-facts .rt-input')].map(e => e.textContent),
+                instruction: (() => { const bs = [...document.querySelectorAll('#routinesModal .rt-facts > b')]; const i = bs.findIndex(e => e.textContent === 'Custom instructions'); return i < 0 ? null : [...document.querySelectorAll('#routinesModal .rt-facts > span')][i].textContent; })(),
                 badge: !!document.getElementById('routinesBadge') || !!document.querySelector('#routinesPill .rb-badge'), scrolls: [...document.querySelectorAll('#routinesModal .rt-right *')].filter(e => { const o = getComputedStyle(e).overflowY; return (o === 'auto' || o === 'scroll') && e.scrollHeight > e.clientHeight; }).map(e => e.className) })""")
-            check("the Routines manager (S2, 2026-11-08) lists the routine; the header's sub-line carries the source, the version and the link to the analysis it was made from, nothing of the columns or the favourite; the facts - Purpose, Inputs (the one input with its default and origin), Results (what a run records), Version (verified with the lines reproduced, the condensed code's cells and time, the as-written download) - and no scroll inside the body's; the rail entry carries no count badge",
+            check("the Routines manager (S2, 2026-11-08) lists the routine; the header's sub-line carries the source, the version and the link to the analysis it was made from, nothing of the columns or the favourite; the facts - Purpose, Inputs (the one input with its default and origin), Tracked (what a run records), Custom instructions (the line typed in the dialog, §15.6), Version (verified with the lines reproduced, the condensed code's cells and time, the as-written download) - and no scroll inside the body's; the rail entry carries no count badge",
                   mgr["items"] == ["Regime contrast within soil, plot means"] and mgr["origin"] and mgr["checked"] == "verified" and mgr["sub"].startswith("File · v1 · from the analysis of ") and "columns" not in mgr["sub"] and "a favourite" not in mgr["sub"] and mgr["badge"] is False
-                  and mgr["facts"] == ["Purpose", "Inputs", "Results", "Version"] and mgr["inputs"] == ["The regime compared with A B the analysis compared B against A"]
-                  and mgr["results"] == "1 number and 2 charts per run" and re.search(r"^v1(?:[A-Z][a-z]{2} \d+|\d+ [A-Z][a-z]{2}) · verified, 1 line reproduced · 2 cells · [\d.]+ s · rewritten, the next run on new data checks it · as written ↓$", mgr["version"])
+                  and mgr["facts"] == ["Purpose", "Inputs", "Tracked", "Custom instructions", "Version"] and mgr["inputs"] == ["The regime compared with A B the analysis compared B against A"]
+                  and mgr["results"] == "1 metric and 2 charts per run" and mgr["instruction"] == "track the yield contrast and the plot count" and re.search(r"^v1(?:[A-Z][a-z]{2} \d+|\d+ [A-Z][a-z]{2}) · verified, 1 line reproduced · 2 cells · [\d.]+ s · rewritten, the next run on new data checks it · as written ↓$", mgr["version"])
                   and mgr["written"] == "/routines/" + rj["id"] + "/script?written=1" and set(mgr["scrolls"]) <= {"rt-body"}, mgr)
             script_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes(\"'regime': 'B'\") && !t.includes('print(df.shape)'))", rj["id"])
             written_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script?written=1').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes('print(df.shape)') && t.includes('as the analysis wrote it'))", rj["id"])
@@ -538,9 +559,9 @@ def main():
             check("run 1 in the pane: the CHECK, RUN and COMPARE rows, no model card, and the closing card says run 1 reproduced run 0's line",
                   any("CHECK" in r and "field_trial.csv" in r for r in rv["rows"]) and any("RUN" in r and "run 1" in r for r in rv["rows"]) and any("COMPARE" in r and "run 0" in r for r in rv["rows"])
                   and rv["turns"] == 0 and "Run 1 complete" in rv["done"] and "reproduced: every result line as the run before (1 line)" in rv["done"] and "against run 0" in rv["done"] and not rv["warn"], (rv["rows"], rv["done"][:200]))
-            check("run 1 in the panes: the strip reads run 1 · v1 against run 0, the id line names the routine and the run, the Comparison tab is first and open with the line within its interval",
+            check("run 1 in the panes: the strip reads run 1 · v1 against run 0, the id line names the routine and the run, the Comparison tab is first and open with the line (under the name the instruction gave it) within its interval",
                   "run 1" in rv["strip"] and "v1" in rv["strip"] and "run 0" in rv["strip"] and "Routine:" in rv["ids"] and "Run:1·v1" in rv["ids"].replace(" ", "")
-                  and rv["tabs"] and rv["tabs"][0] == "tab-comparison" and rv["active"] == "content-comparison" and "against run 0" in rv["cmp"] and "within" in rv["cmp"] and "regime B vs A" in rv["cmp"], (rv["strip"], rv["ids"], rv["tabs"], rv["active"], rv["cmp"][:200]))
+                  and rv["tabs"] and rv["tabs"][0] == "tab-comparison" and rv["active"] == "content-comparison" and "against run 0" in rv["cmp"] and "within" in rv["cmp"] and "Yield, B vs A" in rv["cmp"], (rv["strip"], rv["ids"], rv["tabs"], rv["active"], rv["cmp"][:200]))
             check("run 1 in the panes: the Plots and Results tabs came through the stream as an analysis's do", "tab-plot" in rv["tabs"] and "tab-code_exec_results" in rv["tabs"], rv["tabs"])
             check("after run 1: the composer stays locked with the reason as its placeholder, the Save pill stays hidden, the position reads run 1 of 1 with the next arrow off and the previous one on (run 0)",
                   rv["locked"] and "open the analysis" in rv["placeholder"] and rv["pill"] == "none" and rv["arrows"] == [False, True], (rv["locked"], rv["placeholder"], rv["pill"], rv["arrows"]))
@@ -550,7 +571,7 @@ def main():
             page.wait_for_timeout(400)
             r0 = page.evaluate("() => ({ cmp: (document.getElementById('content-comparison') || {}).textContent || '', done: (document.querySelector('.sp-done') || {}).textContent || '', arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled], tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id) })")
             check("the previous arrow opens run 0 (the version's own check): its own line with the estimate and the interval, nothing it is against, the Results and Data tabs of the stored run, the previous arrow off",
-                  r0["cmp"].startswith("Run 0 — the original data") and "against" not in r0["cmp"] and "regime B vs A" in r0["cmp"] and re.search(r"\[[+-]?\d", r0["cmp"]) is not None
+                  r0["cmp"].startswith("Run 0 — the original data") and "against" not in r0["cmp"] and "Yield, B vs A" in r0["cmp"] and re.search(r"\[[+-]?\d", r0["cmp"]) is not None
                   and "Run 0 complete" in r0["done"] and r0["arrows"] == [True, False] and "tab-code_exec_results" in r0["tabs"] and "tab-dataframe" in r0["tabs"], r0)
             page.click("#nextResponse")
             wait_text(page, "#chainPosition", "run 1 of 1", 30000)

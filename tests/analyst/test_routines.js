@@ -47,7 +47,7 @@ check('dialog body: the inputs table - a row per input with its value, its origi
 check('dialog body: the results - a tick per computed line with its cell; the typed line flagged with keep/drop, keep on by default; the count and the figure in the heading',
   p.querySelectorAll('.rt-results .r').length === 2 && p.querySelector('.rt-results .r:not(.flag) .c').textContent === 'cell 2' && p.querySelector('.rt-results .r.flag[data-cell="4"][data-index="0"]')
   && p.querySelector('.rt-results .r.flag .ui-seg .on').getAttribute('data-keep') === '1' && p.querySelector('.rt-results .r.flag .ui-seg span[data-keep="0"]').textContent === 'drop'
-  && [...p.querySelectorAll('.rt-sec .h')].some(h => h.textContent.includes('2 kept · 1 figure')));
+  && [...p.querySelectorAll('.rt-sec .h')].some(h => h.textContent.includes('2 of 2 · 1 figure')));
 check('dialog body: without a routine on the thread there is no version choice', !p.querySelector('.rt-version'));
 // the promoter's pick (§15.2): the lines kept listed by name with the recorded wording on hover and drop at hand; the lines set
 // aside behind one muted line that opens; a typed line visible with its choice following the pick; the head counting
@@ -57,22 +57,33 @@ const picked = Object.assign({}, proposal, { results: [
   { cell: 4, index: 0, label: 'the count, final form, 21 rows', typed: false, dropped: false, estimate: '3', name: 'The count' },
   { cell: 4, index: 1, label: 'a typed one', typed: true, dropped: true, estimate: '9' }] });
 let ps = el('<div class="rt-sec">' + b.resultsSection(picked, false) + '</div>');
-check('dialog, a pick: the head counts "1 of 4 kept"; the compared line by its name with the recorded label as its title, its cell and a drop button; the typed line in place, its choice on drop; the set-aside lines folded behind "2 more lines recorded, not compared"',
-  ps.querySelector('.h').textContent.includes('1 of 4 kept · 1 figure') && [...ps.querySelectorAll('.rt-results .r')].map(r => r.getAttribute('data-line')).join(',') === '2,3'
+check('dialog, a pick (in the coach\'s words, 2026-11-08): the head "Tracked metrics — recomputed each run and compared with the run before, 1 of 4"; the tracked line by its name with the recorded label as its title, its cell and a drop button; the typed line in place, its choice on drop; the set-aside lines folded behind "2 more metrics computed, not tracked"',
+  ps.querySelector('.h').textContent === 'Tracked metrics — recomputed each run and compared with the run before, 1 of 4 · 1 figure' && [...ps.querySelectorAll('.rt-results .r')].map(r => r.getAttribute('data-line')).join(',') === '2,3'
   && ps.querySelector('.rt-results .r[data-line="2"] .l').textContent === 'The count' && ps.querySelector('.rt-results .r[data-line="2"] .l').getAttribute('title') === 'the count, final form, 21 rows'
   && ps.querySelector('.rt-results .r[data-line="2"] .c').textContent === 'cell 4' && ps.querySelector('.rt-results .r[data-line="2"] .act[data-line-act="drop"]').textContent === 'drop'
   && ps.querySelector('.rt-results .r.flag[data-line="3"] .ui-seg .on').getAttribute('data-keep') === '0'
-  && ps.querySelector('.rt-results .more .t[data-line-act="more"]').textContent === '▸ 2 more lines recorded, not compared' && !ps.querySelector('.rt-results .more.open') && !ps.querySelector('.rt-results .aside'), ps.innerHTML);
+  && ps.querySelector('.rt-results .more .t[data-line-act="more"]').textContent === '▸ 2 more metrics computed, not tracked' && !ps.querySelector('.rt-results .more.open') && !ps.querySelector('.rt-results .aside'), ps.innerHTML);
 ps = el('<div class="rt-sec">' + b.resultsSection(picked, true) + '</div>');
-check('dialog, the group opened: the set-aside lines greyed under the line, each with its recorded wording, its cell and a keep button; the compared list unchanged',
-  ps.querySelector('.rt-results .more.open .t').textContent === '▾ 2 more lines recorded, not compared' && [...ps.querySelectorAll('.rt-results .aside .r')].map(r => r.getAttribute('data-line')).join(',') === '0,1'
+check('dialog, the group opened: the set-aside lines greyed under the line, each with its recorded wording, its cell and a track button; the tracked list unchanged',
+  ps.querySelector('.rt-results .more.open .t').textContent === '▾ 2 more metrics computed, not tracked' && [...ps.querySelectorAll('.rt-results .aside .r')].map(r => r.getAttribute('data-line')).join(',') === '0,1'
   && ps.querySelectorAll('.rt-results .aside .r.off').length === 2 && ps.querySelector('.rt-results .aside .r[data-line="0"] .l').textContent === 'the count, first form, 21 rows' && ps.querySelector('.rt-results .aside .r[data-line="1"] .c').textContent === 'cell 3'
-  && ps.querySelectorAll('.rt-results .aside .act[data-line-act="keep"]').length === 2 && [...ps.querySelectorAll('.rt-results .r')].filter(r => !r.closest('.aside')).map(r => r.getAttribute('data-line')).join(',') === '2,3', ps.innerHTML);
-check('dialog, no pick (every line kept, as before the pick): the head counts "2 kept", no muted line, every computed line ticked with a drop button; one line set aside reads "1 more line"',
-  el(b.resultsSection(proposal, false)).textContent.includes('2 kept · 1 figure') && !el(b.resultsList(proposal.results, false)).querySelector('.more') && el(b.resultsList(proposal.results, false)).querySelectorAll('.r .act[data-line-act="drop"]').length === 1
-  && el(b.resultsList([picked.results[0], picked.results[2]], false)).querySelector('.more .t').textContent === '▸ 1 more line recorded, not compared');
+  && [...ps.querySelectorAll('.rt-results .aside .act[data-line-act="keep"]')].map(a => a.textContent).join() === 'track,track' && [...ps.querySelectorAll('.rt-results .r')].filter(r => !r.closest('.aside')).map(r => r.getAttribute('data-line')).join(',') === '2,3', ps.innerHTML);
+check('dialog, no pick (every line kept, as before the pick): the head counts "2 of 2", no muted line, every computed line ticked with a drop button; one line set aside reads "1 more metric"',
+  el(b.resultsSection(proposal, false)).textContent.includes('2 of 2 · 1 figure') && !el(b.resultsList(proposal.results, false)).querySelector('.more') && el(b.resultsList(proposal.results, false)).querySelectorAll('.r .act[data-line-act="drop"]').length === 1
+  && el(b.resultsList([picked.results[0], picked.results[2]], false)).querySelector('.more .t').textContent === '▸ 1 more metric computed, not tracked');
 check('lineName: the promoter\'s name when there is one, else the label trimmed of its trailing date range and count',
   b.lineName({ name: 'The count', label: 'the count, final form, 21 rows' }) === 'The count' && b.lineName({ label: 'the count, final form, all 21 rows, 2026-10-05..2026-11-06' }) === 'the count, final form' && b.lineName({}) === '');
+// the Custom instructions section (§15.6): after the tracked metrics, optional, explained in plain words; the box holding the
+// proposal's line; Update the list; the Notes section after it, so a note about a metric not computed sits under the box
+const pi = el(b.proposal(Object.assign({}, proposal, { instruction: 'track the best power at 5 s and 1 min', notes: ['Not computed in this analysis, so it can’t be tracked: best 3 h power.'] }), []));
+const secHeads = [...pi.querySelectorAll('.rt-sec')].map(d => d.querySelector('.h').textContent);
+check('dialog: the Custom instructions section follows the Tracked metrics one and precedes the Notes; its head says optional; the explanation reads as the coach would hear it; the box carries the proposal\'s line with an example as its placeholder and a 300-character cap; the button says Update the list',
+  secHeads.indexOf('Custom instructions — optional') === secHeads.findIndex(t => t.startsWith('Tracked metrics')) + 1 && secHeads.indexOf('Notes') === secHeads.indexOf('Custom instructions — optional') + 1
+  && pi.querySelector('.rt-instr .rt-line.muted').textContent === 'If you want this routine to track particular metrics, say so here and the model building it will add them to the list above — for example the power durations that matter to you. It can only track what the analysis computed; if something you ask for isn’t there, it will tell you.'
+  && pi.querySelector('.rt-instr .rt-instr-row input[data-field="instruction"]').getAttribute('value') === 'track the best power at 5 s and 1 min'
+  && pi.querySelector('.rt-instr input[data-field="instruction"]').getAttribute('placeholder') === 'e.g. track the best power at 5 s, 1 min, 5 min, 20 min and 1 h, and critical power' && pi.querySelector('.rt-instr input').getAttribute('maxlength') === '300'
+  && pi.querySelector('.rt-instr .rt-instr-row button[data-act="instruct"]').textContent === 'Update the list' && [...pi.querySelectorAll('.rt-sec')].pop().querySelector('.rt-line').textContent === 'Not computed in this analysis, so it can’t be tracked: best 3 h power.', secHeads);
+check('dialog: without a line the box is empty; the section is there all the same', el(b.proposal(proposal, [])).querySelector('.rt-instr input[data-field="instruction"]').getAttribute('value') === '');
 // the version choice (2026-10-12): the chain's own routine defaults to its next version, the name field holding the routine's name;
 // a routine made from an earlier chain of the thread defaults to a new routine, the name the proposal's; the foot follows the choice
 const ownP = Object.assign({}, proposal, { chain_id: 'c9' });
@@ -98,7 +109,7 @@ check('versionState: next -> "Make it v2", the replaces-the-current note, What-c
 p = el(b.proposal(Object.assign({}, proposal, { data_state: 'gone', inputs: [], results: [], figures: { count: 0 } }), []));
 check('dialog body with the data gone, no inputs and no result lines: says the routine will be unverified, that the method runs as it is, and that runs will not be compared number by number',
   p.querySelector('.rt-line.warn').textContent.includes('created unverified') && [...p.querySelectorAll('.rt-line')].some(x => x.textContent.startsWith('No inputs:'))
-  && [...p.querySelectorAll('.rt-line')].some(x => x.textContent.includes('recorded no RESULT lines')));
+  && [...p.querySelectorAll('.rt-line')].some(x => x.textContent.includes('recorded no metrics')));
 check('dialog states: the waiting line says what it is given; the error block carries the message and, when asked, a Try again',
   el(b.loading('Reading the routine…')).querySelector('.rt-wait').textContent === 'Reading the routine…' && el(b.loading('x')).querySelector('.rt-wait .live')
   && el(b.error('run zero differed: x', true)).querySelector('.rt-error .msg').textContent === 'run zero differed: x' && el(b.error('x', true)).querySelector('[data-act="retry"]') && !el(b.error('x', false)).querySelector('[data-act="retry"]'));
@@ -140,17 +151,19 @@ check('manager header (S2, 2026-11-08): the name; the source, the version and th
   && !hd.sub.includes('columns') && !el(hd.sub).textContent.includes('a favourite'), hd.sub);
 check('manager header when the favourite is gone: no link, says so', !el(b.routineHeader(Object.assign({}, routine, { origin_available: false })).sub).querySelector('a') && b.routineHeader(Object.assign({}, routine, { origin_available: false })).sub.includes('no longer in Saved workflows'));
 const bd = el(b.routineBody(routine));
-check('manager body (S2, 2026-11-08): the facts - Purpose, Inputs (the current version\'s, a line each: label, default, origin), Results (what a run records), Versions newest first (the date, the chain when there are several, the verdict with the lines reproduced, the note after the first version); then the runs - the custom table with run 0 in its head, no runs list, no legend',
-  [...bd.querySelector('.rt-facts').querySelectorAll(':scope > b')].map(e => e.textContent).join('|') === 'Purpose|Inputs|Results|Versions' && bd.querySelector('.rt-facts').textContent.includes('count the rows above a line') && !bd.textContent.includes('How many rows')
+check('manager body (S2, 2026-11-08): the facts - Purpose, Inputs (the current version\'s, a line each: label, default, origin), Tracked (what a run records), Versions newest first (the date, the chain when there are several, the verdict with the lines reproduced, the note after the first version); then the runs - the custom table with run 0 in its head, no runs list, no legend',
+  [...bd.querySelector('.rt-facts').querySelectorAll(':scope > b')].map(e => e.textContent).join('|') === 'Purpose|Inputs|Tracked|Versions' && bd.querySelector('.rt-facts').textContent.includes('count the rows above a line') && !bd.textContent.includes('How many rows')
   && bd.querySelectorAll('.rt-facts .rt-input').length === 1 && bd.querySelector('.rt-facts .rt-input[data-key="threshold"] .k').textContent === 'Threshold' && bd.querySelector('.rt-facts .rt-input .val').textContent === '155' && bd.querySelector('.rt-facts .rt-input .from').textContent === 'the analysis split at 155'
-  && [...bd.querySelector('.rt-facts').querySelectorAll(':scope > span')][2].textContent === '1 number and 1 chart per run'
+  && [...bd.querySelector('.rt-facts').querySelectorAll(':scope > span')][2].textContent === '1 metric and 1 chart per run'
   && [...bd.querySelectorAll('.rt-vers .v')].map(e => e.getAttribute('data-version')).join(',') === '2,1' && bd.querySelector('.rt-vers .v b').textContent === 'v2' && bd.querySelector('.rt-vers .v').textContent.includes(' · from the analysis of ')
   && bd.querySelector('.rt-vers .v .rt-status.reproduced').textContent === 'verified' && bd.querySelector('.rt-vers .v').textContent.includes('verified, 2 lines reproduced · “the threshold became an input”') && bd.querySelector('.rt-vers .v[data-version="1"]').textContent.endsWith('verified')
   && bd.querySelector('.rt-runs thead th[data-run="0"]').textContent.includes('Run 0') && !bd.querySelector('.rt-run') && !bd.querySelector('.rt-legend') && bd.querySelector('.rt-sep'), [[...bd.querySelectorAll('.rt-vers .v')].map(e => e.textContent), bd.querySelector('.rt-facts').innerHTML.slice(0, 400)]);
-check('manager body without a purpose: the question stands in its place; resultsFacts: numbers and charts, one of them, neither',
-  [...el(b.routineBody(Object.assign({}, routine, { purpose: '' }))).querySelector('.rt-facts').querySelectorAll(':scope > b')].map(e => e.textContent).join('|') === 'Question|Inputs|Results|Versions' && el(b.routineBody(Object.assign({}, routine, { purpose: '' }))).querySelector('.rt-facts').querySelector(':scope > span').textContent === 'How many rows are above 155?'
-  && b.resultsFacts({ results: [{ estimate: '1' }, { estimate: '2' }, { estimate: '3', dropped: true }], figures: { count: 2 } }) === '2 numbers and 2 charts per run' && b.resultsFacts({ results: [{ estimate: '1' }], figures: { count: 0 } }) === '1 number per run'
-  && b.resultsFacts({ results: [], figures: { count: 1 } }) === 'no numbers recorded, 1 chart per run' && b.resultsFacts({}) === 'none recorded: runs keep their printed output');
+check('manager body without a purpose: the question stands in its place; resultsFacts: metrics and charts, one of them, neither; the Custom instructions fact when the routine has a line (§15.6), none otherwise',
+  [...el(b.routineBody(Object.assign({}, routine, { purpose: '' }))).querySelector('.rt-facts').querySelectorAll(':scope > b')].map(e => e.textContent).join('|') === 'Question|Inputs|Tracked|Versions' && el(b.routineBody(Object.assign({}, routine, { purpose: '' }))).querySelector('.rt-facts').querySelector(':scope > span').textContent === 'How many rows are above 155?'
+  && [...el(b.routineBody(Object.assign({}, routine, { instruction: 'track the rows above the line' }))).querySelector('.rt-facts').querySelectorAll(':scope > b')].map(e => e.textContent).join('|') === 'Purpose|Inputs|Tracked|Custom instructions|Versions'
+  && [...el(b.routineBody(Object.assign({}, routine, { instruction: 'track the rows above the line' }))).querySelector('.rt-facts').querySelectorAll(':scope > span')][3].textContent === 'track the rows above the line'
+  && b.resultsFacts({ results: [{ estimate: '1' }, { estimate: '2' }, { estimate: '3', dropped: true }], figures: { count: 2 } }) === '2 metrics and 2 charts per run' && b.resultsFacts({ results: [{ estimate: '1' }], figures: { count: 0 } }) === '1 metric per run'
+  && b.resultsFacts({ results: [], figures: { count: 1 } }) === 'no metrics recorded, 1 chart per run' && b.resultsFacts({}) === 'none recorded: runs keep their printed output');
 check('manager actions carry Run first', el(b.actions(routine)).querySelector('[data-act="run"]') && el(b.actions(routine)).elements[0].getAttribute('data-act') === 'run');
 // run zero behind the dialog (2026-10-15): a routine can be verifying - the card's chip pulses and says so, the side item says so, Run is held with
 // the reason; a verdict that did not reproduce holds Run for good; an older record without a status reads from `verified` as before
@@ -592,6 +605,13 @@ check('the page (§15.2): keep and drop move a line on the proposal and rebuild 
   && rtSrcS.includes("sec.innerHTML = build.resultsSection(st.proposal, !!st.asideOpen);") && rtSrcS.includes("if (line) line.dropped = seg.getAttribute('data-keep') === '0';")
   && rtSrcS.includes("drop_results: (st.proposal.results || []).filter(r => r.dropped).map(r => [r.cell, r.index])") && !rtSrcS.includes("querySelectorAll('.rt-results .r.flag')).filter(")
   && dlgCss0().includes('.rt-results .r .act {') && dlgCss0().includes('.rt-results .r:hover .act, .rt-results .r .act:focus-visible { opacity: 1; }') && dlgCss0().includes('.rt-results .r.off {') && dlgCss0().includes('.rt-results .more .aside {'));
+check('the page (§15.6): Update the list asks the promoter again with the box\'s line, the fields as the person left them carried over (name, purpose, the version choice, keep fixed, the box), the group folded again; the first pass sends the instruction of the routine this chain is the origin of, read before it (the thread\'s routines first); the next-version choice fills an empty box with the routine\'s line; Create sends the box; a Retry after a failed pass keeps the line',
+  rtSrcS.includes("else if (act === 'instruct') propose({ again: true });") && rtSrcS.includes("const again = !!(opts && opts.again && st.proposal);") && rtSrcS.includes("const saved = again ? readFields(p) : null;")
+  && rtSrcS.includes("const instruction = again ? (saved.fields.instruction || '').trim() : (st.instruction || '');") && rtSrcS.includes("st.instruction = instruction;")
+  && rtSrcS.includes("stream('/routines/propose', { thread_id: st.thread_id, chain_id: st.chain_id, instruction }, !st.fromCard, data => {") && rtSrcS.includes("if (saved) writeFields(p, saved); else syncVersionChoice();") && rtSrcS.includes("st.asideOpen = false;")
+  && rtSrcS.includes("const ready = st.threadRoutines.length ? Promise.resolve(st.threadRoutines) : origins(threadId).then(uniqueRoutines);") && rtSrcS.includes("st.instruction = own && own.instruction ? String(own.instruction) : '';")
+  && rtSrcS.includes("if (box && vs.change && under && under.routine.instruction && !box.value.trim()) box.value = under.routine.instruction;") && rtSrcS.includes("instruction: field('instruction')")
+  && rtSrcS.includes("saved.fixed.forEach(k => { const el = p.d.querySelector('input[data-drop=\"' + k + '\"]'); if (el) el.checked = true; });") && dlgCss0().includes('.rt-instr-row { display: flex; gap: 8px; align-items: flex-start; }'));
 check('the page (2026-11-06, the manager\'s frame 2026-11-08): the header\'s buttons are built with the fill; the manager fills the window less the scrim\'s margin and its body is the one scroll (no box of its own around the table, no runs box); the run dialog keeps its set height; the ended fill\'s bar is gone; a run\'s row, a custom run\'s head or a failed run\'s line opens the run, the gap line\'s link opens the Run dialog on the interval',
   rtSrcS.includes("actions.innerHTML = build.actions(r, fillState);") && !rtSrcS.includes("if (fillState && !fillState.running) fillState = null; }")
   && /#routinesModal \.ui-dlg\.rt-mgr \{ width: min\(1800px, 100%\); height: 100%; max-height: none;/.test(dlgCss0()) && /#routineRunModal \.ui-dlg\.run-dlg \{ width: min\(640px, 100%\); height: min\(80vh, 520px\);/.test(dlgCss0())

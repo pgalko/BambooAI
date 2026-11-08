@@ -235,9 +235,12 @@ def span_inputs(params: List[dict], data: Optional[dict]) -> List[Tuple[str, str
 
 
 def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dict] = None, emit: Optional[Callable] = None,
-            routine: Optional[dict] = None, seat: str = "", model: str = "", runner: Optional[Callable] = None) -> dict:
+            routine: Optional[dict] = None, seat: str = "", model: str = "", runner: Optional[Callable] = None, instruction: str = "") -> dict:
     """Read the chain, call the promoter once (twice when its reply cannot be read), apply its edits, and return the
-    proposal the dialog shows. Raises RoutineRefused with a readable reason."""
+    proposal the dialog shows. `instruction` (§15.6) is the person's line on what the runs should track: the promoter
+    answers it line by line under "tracked", the lines it gives are compared whatever its pick says, and a quantity it
+    gives no line for is said in a note. Raises RoutineRefused with a readable reason."""
+    instruction = " ".join((instruction or "").split())[:rt.MAX_INSTRUCTION]
     run: Optional[Run] = nb.runs.get(str(run_id))
     if run is None:
         raise RoutineRefused("this chain is not in this thread's record")
@@ -273,10 +276,10 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         manifest = (cur or {}).get("manifest")
     summary = summary_of(run)
     cited = [n for n in cited_cells(run.report or "") if n in order]     # the cells the report read the answer from (§15.5)
-    user = rt.promoter_user(run.question, summary, describe_data(data), body, _ledger(expected), manifest, cited)
+    user = rt.promoter_user(run.question, summary, describe_data(data), body, _ledger(expected), manifest, cited, instruction)
     obj, usage, cost = None, {}, 0.0
     problem, note, cut, cuts = "", "", False, 0
-    why = ""                                                   # why the model is asked again, when it is: unreadable (§17) or identifiers (§18)
+    why = ""                                                   # why the model is asked again, when it is: unreadable (§17), identifiers (§18) or the instruction unanswered (§15.6)
     for attempt in range(2):
         if emit:
             emit({"type": "turn_start", "turn": "routine", "quiet": True, "seat": seat, "model": model})
@@ -300,6 +303,9 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
                            if obj else f"the reply could not be read ({problem})")})
         if obj is not None and keyed and attempt == 0:        # the floor (§18): identifiers of this data are not inputs - asked again once, with the reason
             note, obj, why = rt.PROMOTER_KEYS.format(inputs=", ".join(keyed)), None, "identifiers were proposed as inputs"
+            continue
+        if obj is not None and instruction and obj.get("tracked") is None and attempt == 0:     # the instruction unanswered (§15.6): asked again once
+            note, obj, why = rt.PROMOTER_TRACKED, None, "the instruction was not answered"
             continue
         if obj is not None:
             step({"type": "step", "step": "model"})
@@ -342,8 +348,13 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     if unknown:
         raise RoutineRefused("could not make a routine from this chain - the script reads an input that was not declared (" + ", ".join(unknown) + ")")
     name = str(obj.get("name") or "").strip()[:60] or (run.question or "").strip()[:60]
-    results = rt.pick_results(expected, obj.get("compare"))      # the lines a run compares, named (§15.1); every line without a usable pick
-    return {"proposal_id": rt.new_id(), "thread_id": nb.thread_id, "chain_id": run.id, "name": name, "purpose": "", "question": run.question,
+    # the lines the instruction reached are compared whatever the pick says (§15.6); a quantity it reached no line for is said
+    tracked, missing = rt.tracked_lines(expected, obj.get("tracked")) if instruction else ({}, [])
+    results = rt.pick_results(expected, obj.get("compare"), tracked)      # the lines a run compares, named (§15.1); every line without a usable pick
+    notes.extend(f"Not computed in this analysis, so it can’t be tracked: {q}" for q in missing)
+    if instruction and obj.get("tracked") is None:
+        notes.append("The custom instructions were not applied this time; try Update the list again.")
+    return {"proposal_id": rt.new_id(), "thread_id": nb.thread_id, "chain_id": run.id, "name": name, "purpose": "", "question": run.question, "instruction": instruction,
             "summary": summary, "data": data, "data_state": state, "source": rt.source_kind(data), "inputs": inputs, "notes": notes,
             "kept": [str(k) for k in (obj.get("kept") or [])][:12], "results": results, "figures": {"count": sum(len(c.figures) for c in run.cells() if c.cell_no in figures), "cells": figures},
             "cells": len(order), "script": rt.join_script(header, edited, tail), "header": header, "tail": tail, "cells_text": edited, "cells_original": body,
@@ -376,6 +387,7 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     its script is provisional until the first run on new data confirms it."""
     name = (choices.get("name") or proposal.get("name") or "").strip()[:80] or "Routine"
     purpose = (choices.get("purpose") or "").strip()[:300]
+    instruction = " ".join(str(choices.get("instruction") or "").split())[:rt.MAX_INSTRUCTION]       # the person's line on what to track (§15.6), kept for the next version
     drop_inputs = {str(k) for k in (choices.get("drop_inputs") or [])}
     # the lines left out of the comparison: the whole set as the page sends it (the promoter's pick with the person's
     # changes, §15.2); without the key, the proposal's pick stands
@@ -418,7 +430,8 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
         raise RoutineRefused("the routine this version was meant for no longer exists")
     if routine is None:
         routine = {"id": rt.new_id(), "name": name, "created": now, "purpose": purpose, "question": proposal.get("question", ""), "summary": proposal.get("summary", ""),
-                   "origin": {"thread_id": str(nb.thread_id), "chain_id": str(proposal["chain_id"])}, "source": proposal.get("source", "file"), "current_version": 0, "versions": [], "runs": []}
+                   "origin": {"thread_id": str(nb.thread_id), "chain_id": str(proposal["chain_id"])}, "source": proposal.get("source", "file"), "current_version": 0, "versions": [], "runs": [],
+                   "instruction": instruction}
         change_note = "first version"
     else:
         change_note = (choices.get("change_note") or "").strip()[:200] or "a new version"
@@ -426,6 +439,8 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
             routine["name"] = name
         if purpose:
             routine["purpose"] = purpose
+        if "instruction" in choices:                                   # the dialog's box as it stood, emptied included; a caller without the key leaves it
+            routine["instruction"] = instruction
     number = len(routine["versions"]) + 1
     version = {"number": number, "created": now, "promoted_from": {"thread_id": str(nb.thread_id), "chain_id": str(proposal["chain_id"])},
                "script": script, "manifest": manifest, "change_note": change_note, "run_zero": run_zero}

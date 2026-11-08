@@ -98,6 +98,16 @@ check("pick_results: a name longer than 60 characters is cut; an empty name leav
 check("pick_results: no usable pick (absent, empty, nothing valid) keeps every line, without names",
       all(not r["dropped"] and "name" not in r for c in (None, [], [{"line": 0}, {"line": 99}], ["x"]) for r in rt.pick_results(_exp_pick, c)))
 check("pick_results: the input rows are not changed", all(not r["dropped"] and "name" not in r for r in _exp_pick))
+# the person's instruction answered (§15.6): the lines it reached, named; the quantities it reached no line for
+_tl, _tm = rt.tracked_lines(_exp_pick, [{"asked": " a,  final ", "lines": [{"line": 4, "name": " a  final "}]}, {"asked": "the check", "lines": [3, {"line": "x"}]},
+                                       {"asked": "nothing gives it", "lines": []}, {"asked": "a, final again", "lines": [{"line": 4, "name": "again"}]}, {"asked": "out of range", "lines": [{"line": 9}]}, "junk", {"lines": []}])
+check("tracked_lines: a line given is kept under its name (whitespace folded; a bare number keeps the line unnamed); a quantity with no valid line is missing - none given, out of range, or a line already given for an earlier quantity; junk and a nameless entry are ignored",
+      _tl == {4: "a final", 3: ""} and _tm == ["nothing gives it", "a, final again", "out of range"], (_tl, _tm))
+check("tracked_lines: nothing answered, nothing kept or missing", rt.tracked_lines(_exp_pick, None) == ({}, []) and rt.tracked_lines(_exp_pick, []) == ({}, []))
+_pe = rt.pick_results(_exp_pick, [{"line": 1, "name": "first"}, {"line": 3, "name": ""}], {3: "the check", 4: "final", 1: "other"})
+check("pick_results with the instruction's lines: they are kept whatever the pick says, the pick's name standing where it has one, the instruction's filling an empty one; a pick of nothing plus the instruction's lines keeps those alone",
+      [(r["dropped"], r.get("name")) for r in _pe] == [(False, "first"), (True, None), (False, "the check"), (False, "final")]
+      and [r["dropped"] for r in rt.pick_results(_exp_pick, [], {2: "n"})] == [True, False, True, True], _pe)
 edited, applied, failed_groups = rt.apply_edits(body, obj["edits"])
 check("apply_edits: a unique fragment in the named cell is replaced; nothing else moves", "threshold = INPUTS['threshold']" in edited and "threshold = 155" not in edited and len(applied) == 1 and not failed_groups and edited.replace("INPUTS['threshold']", "155") == body)
 inputs, notes = rt.finish_inputs(obj["inputs"], edited, failed_groups)
@@ -108,6 +118,10 @@ two = [{"cell": 1, "find": "threshold = 155", "replace": "threshold = INPUTS['t'
 e2, a2, f2 = rt.apply_edits(body, two)
 check("apply_edits: an input's edits apply whole or not at all; an independent input still applies",
       "threshold = 155" in e2 and "INPUTS['t']" not in e2 and "INPUTS['cols']" in e2 and len(a2) == 1 and f2 and f2[0]["keys"] == ["t"] and "0 times in cell 2" in f2[0]["reason"], (e2, f2))
+_e3, _a3, _f3 = rt.apply_edits(body, [{"cell": 1, "find": "threshold = 155", "replace": "threshold = INPUTS['t']\nRESULT('rows', float(len(df)), None, None, 'rows', 'n/a')"}])
+check("apply_edits (§15.6): an edit that adds or removes a RESULT call is refused with the reason - the method's outputs are not the promoter's to change; one that only reads an input inside a RESULT call applies",
+      _e3 == body and not _a3 and _f3 and _f3[0]["keys"] == ["t"] and "adds or removes a RESULT call" in _f3[0]["reason"]
+      and not rt.apply_edits("\n# --- cell 1 ---\nRESULT('a', 5, None, None, 'n', 'n/a')\n", [{"cell": 1, "find": "RESULT('a', 5,", "replace": "RESULT('a', INPUTS['a'],"}])[2], _f3)
 i2, n2 = rt.finish_inputs([{"key": "t", "label": "T", "type": "number", "default": 1}, {"key": "cols", "label": "Columns", "type": "choice", "default": ["v"], "multiple": True, "column": "name"},
                            {"key": "Bad Key", "label": "x", "type": "number", "default": 1}, {"key": "ghost", "label": "Ghost", "type": "number", "default": 2},
                            {"key": "u", "label": "U", "type": "unknown", "default": 1}], e2, f2)
@@ -149,6 +163,20 @@ check("PROMOTER_SYSTEM: asks for edits, not a retyped script; the five types; at
 check("PROMOTER_SYSTEM: the pick (§15.5) - the cited cells hold the final forms, a quantity recomputed on part of the data is a check, a series is compared whole or not at all",
       all(s in rt.PROMOTER_SYSTEM for s in ("the cells the report cites, when it cites any", "Where the report cites cells, those are the cells the answer was read from",
                                               "with part of the data left out, under another cut or a what-if, is a check", "are compared whole: every line of the series, from the cell that printed it last, or none of them")))
+check("PROMOTER_SYSTEM (§15.6): the person's instruction is received, is no request to compute - the method fixed, no input made for it - and is answered line by line under \"tracked\" from the ledger, a match being that quantity and not the nearest, a quantity no line gives an empty list and nothing more; every line given is compared",
+      all(s in rt.PROMOTER_SYSTEM for s in ("their instruction on what the runs should track", "is not a request to compute anything: the method is fixed, nothing is computed, added or rewritten for what it names, and no input is made for it",
+                                              "a line is a match when it is that quantity, not the nearest one", "answered with an empty list and nothing more: no reason, no substitute",
+                                              "Every line given here is compared, whether or not step 5 picked it", '"tracked": [{"asked":', '"tracked" is empty when there is no instruction')))
+_ui = rt.promoter_user("Q?", "A.", "d", "c", ["1. [cell 1] a: +1"], None, [1], "  track a,\n and b ")
+check("promoter_user (§15.6): the instruction as a section right after the ledger, before the cited cells; none given, no section",
+      "RESULT LINES THE CELLS RECORDED (numbered; the method's outputs, which must still be produced, in this order):\n1. [cell 1] a: +1\n\nTHE PERSON'S INSTRUCTION (what the runs should track; answer it under \"tracked\", from the ledger alone):\ntrack a,\n and b\n\nTHE REPORT CITES" in _ui
+      and "INSTRUCTION" not in rt.promoter_user("Q?", "A.", "d", "c", [], None, [], "   "), _ui)
+try:
+    rt.parse_promoter('{"tracked": {}}'); _tr_bad = False
+except ValueError as exc:
+    _tr_bad = "'tracked' is not a list" in str(exc)
+check("parse_promoter: 'tracked' is read as a list when given and refused otherwise; absent, it is left absent (the host asks again about that)",
+      _tr_bad and rt.parse_promoter('{"tracked": [{"asked": "a", "lines": []}]}')["tracked"] == [{"asked": "a", "lines": []}] and "tracked" not in rt.parse_promoter('{}'))
 
 # ---- the check of a run ----
 exp = [{"cell": 1, "index": 0, "label": "a", "estimate": "+1.0", "low": "+0.5", "high": "+1.5"}, {"cell": 2, "index": 0, "label": "b", "estimate": "+2", "low": None, "high": None}]
@@ -178,7 +206,7 @@ files = store.save_run_files(rid, "v1_0", "RESULT: rows above the line: +3\n", [
 loaded = store.load(rid)
 check("RoutineStore: save, load, the run's files on disk, the list and its summaries", loaded and loaded["name"] == "Rows above a line" and os.path.exists(os.path.join(files["folder"], "stdout.txt")) and len(files["figures"]) == 1
       and [r["id"] for r in store.all()] == [rid] and store.summary(loaded)["inputs"] == 1 and store.summary(loaded)["results"] == 1 and store.summary(loaded)["verified"] and store.summary(loaded)["source"] == "file")
-check("RoutineStore.by_origin: the versions born from a chain, for the favourite's card", store.by_origin() == {("T", "C"): [{"id": rid, "name": "Rows above a line", "version": 1}]})
+check("RoutineStore.by_origin: the versions born from a chain, for the favourite's card, with the routine's instruction (none here)", store.by_origin() == {("T", "C"): [{"id": rid, "name": "Rows above a line", "version": 1, "instruction": ""}]})
 check("script_with_defaults: the download carries the INPUTS block with the defaults", "INPUTS = {\n    'threshold': 155\n}" in rt.script_with_defaults(loaded["versions"][0]))
 check("RoutineStore.delete: the folder goes; a second delete is False", store.delete(rid) and not store.load(rid) and not store.delete(rid) and store.all() == [])
 check("source_kind: the executor's names map to the four kinds", rt.source_kind({"source": "csv"}) == "file" and rt.source_kind({"source": "intervals"}) == "intervals" and rt.source_kind({"name": "x.parquet"}) == "file" and rt.source_kind({}) == "none")
@@ -596,6 +624,47 @@ check("create with the page's set: it is the whole set left out - an empty one k
 made7c = host.create(nb4, p7, {"name": "Picked, the first dropped", "drop_results": [[p7["results"][0]["cell"], 0]]}, None, store)
 check("create with the page's set: a line the person dropped is dropped, one they kept is kept",
       [r["dropped"] for r in store.load(made7c["routine"]["id"])["versions"][0]["manifest"]["results"]] == [True, False])
+# the person's instruction (§15.6): a section after the ledger; a reply without "tracked" is asked again once; the lines it gives
+# are compared whatever the pick says; a quantity it gives no line for is a note; the line is kept on the routine
+_tr_turns = {"n": 0}
+def tracked_promoter(system, user):
+    _tr_turns["n"] += 1
+    prompts.append((system, user))
+    if _tr_turns["n"] == 1:
+        return reply, {"cost": 0.0}
+    return reply.replace('"kept": ["nothing else"]', '"kept": ["nothing else"], "compare": [], "tracked": [{"asked": "the rows above the line", "lines": [{"line": 1, "name": "Rows above"}]}, '
+                         '{"asked": "the median", "lines": []}, {"asked": "the rows, again", "lines": [{"line": 1, "name": "x"}]}]'), {"cost": 0.0}
+_tr_events = []
+p9 = host.propose(nb4, run4.id, tracked_promoter, current_data={"df_id": "other"}, emit=_tr_events.append, instruction="  track the rows above the line,\n the median ")
+check("propose (§15.6): the instruction, whitespace folded, is a section after the ledger; a reply without \"tracked\" is asked again once with the reason, the model step saying why; the line the answer gives is kept and named though the pick names nothing; a quantity with no line, and a second quantity on the same line, are notes; the proposal carries the instruction",
+      _tr_turns["n"] == 2 and "THE PERSON'S INSTRUCTION (what the runs should track; answer it under \"tracked\", from the ledger alone):\ntrack the rows above the line, the median" in prompts[-2][1]
+      and prompts[-1][1].endswith(rt.PROMOTER_TRACKED) and "THE PERSON'S INSTRUCTION" in prompts[-1][1]
+      and [(e.get("again"), e.get("detail")) for e in _tr_events if e.get("type") == "step" and e.get("step") == "model" and e.get("state") == "running"] == [(False, ""), (True, "the instruction was not answered")]
+      and p9["results"][0].get("name") == "Rows above" and not p9["results"][0]["dropped"] and p9["instruction"] == "track the rows above the line, the median"
+      and [n_ for n_ in p9["notes"] if "tracked" in n_] == ["Not computed in this analysis, so it can’t be tracked: the median", "Not computed in this analysis, so it can’t be tracked: the rows, again"]
+      and not any("not applied" in n_ for n_ in p9["notes"]), (prompts[-1][1][-200:], p9.get("results"), p9.get("notes")))
+_plain = {"n": 0}
+def plain_promoter(system, user):
+    _plain["n"] += 1
+    return reply, {"cost": 0.0}
+p9b = host.propose(nb4, run4.id, plain_promoter, current_data={"df_id": "other"}, instruction="track the rows")
+check("propose (§15.6): \"tracked\" left out twice - the proposal stands on the pick with a note that the instructions were not applied; without an instruction a reply without \"tracked\" is not asked again (the earlier proposals above ran once)",
+      _plain["n"] == 2 and not p9b["results"][0]["dropped"] and any(n_ == "The custom instructions were not applied this time; try Update the list again." for n_ in p9b["notes"]), (_plain, p9b.get("notes")))
+def adding_promoter(system, user):
+    return reply.replace("threshold = INPUTS['threshold']", "threshold = INPUTS['threshold']\\nRESULT('rows', float(len(df)), None, None, 'rows', 'n/a')"), {"cost": 0.0}
+p9c = host.propose(nb4, run4.id, adding_promoter, current_data={"df_id": "other"}, instruction="track the row count too")
+check("propose (§15.6): an edit that writes a RESULT call into the method is refused as a whole - the input goes with the reason in a note, the script stays as written",
+      "RESULT('rows'" not in p9c["script"] and p9c["inputs"] == [] and any("adds or removes a RESULT call" in n_ for n_ in p9c["notes"]), (p9c.get("inputs"), p9c.get("notes")))
+made9 = host.create(nb4, p9, {"name": "Tracked", "instruction": "  track the rows above   the line "}, None, store)
+_r9 = store.load(made9["routine"]["id"])
+check("create (§15.6): the instruction is kept on the routine, whitespace folded; the summary and the by-origin index carry it",
+      _r9["instruction"] == "track the rows above the line" and rt.RoutineStore.summary(_r9)["instruction"] == "track the rows above the line"
+      and all(x["instruction"] == "track the rows above the line" for x in store.by_origin()[("t4", run4.id)] if x["id"] == _r9["id"]), _r9.get("instruction"))
+host.create(nb4, host.propose(nb4, run4.id, plain_promoter, current_data={"df_id": "other"}), {"name": "Tracked", "change_note": "no key sent"}, None, store, routine_id=_r9["id"])
+_kept9 = store.load(_r9["id"])["instruction"]
+host.create(nb4, host.propose(nb4, run4.id, plain_promoter, current_data={"df_id": "other"}), {"name": "Tracked", "change_note": "emptied", "instruction": ""}, None, store, routine_id=_r9["id"])
+check("create (§15.6): a next version without the key leaves the instruction; one with the box emptied clears it; a new routine without the key has an empty one",
+      _kept9 == "track the rows above the line" and store.load(_r9["id"])["instruction"] == "" and store.load(made7["routine"]["id"])["instruction"] == "", _kept9)
 # a promoter whose reply cannot be read: one retry, then refusal
 calls = {"n": 0}
 def mute_promoter(system, user):

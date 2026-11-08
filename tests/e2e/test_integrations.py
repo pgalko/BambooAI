@@ -258,26 +258,26 @@ def main():
             check("the make dialog: the band (9, 11), the session types (a choice over the summary file's column) and the dates typed into the label as the inputs, the two result lines the promoter picked, the data as Intervals.icu",
                   [i[:2] for i in dlg["inputs"]] == [["band", "9, 11"], ["kinds", "Ride, Run"], ["span", f"{a_start.isoformat()} → {a_end.isoformat()}"]] and dlg["results"] == 2 and "Intervals" in dlg["data"], dlg)
             # the promoter's pick (docs/ROUTINES_DESIGN.md §15.2): the two lines compared under their names, the recorded wording on hover;
-            # the session count set aside behind one muted line; keep brings it back, drop sets it aside again
+            # the session count set aside behind one muted line; track brings it back, drop sets it aside again (the coach's words since 2026-11-08)
             def results_now():
-                return page.evaluate("""() => ({ head: [...document.querySelectorAll('#routineMakeModal .rt-sec > .h')].map(h => h.textContent).find(t => t.startsWith('Results')) || '',
+                return page.evaluate("""() => ({ head: [...document.querySelectorAll('#routineMakeModal .rt-sec > .h')].map(h => h.textContent).find(t => t.startsWith('Tracked metrics')) || '',
                     kept: [...document.querySelectorAll('#routineMakeModal .rt-results .r')].filter(r => !r.closest('.aside')).map(r => [r.querySelector('.l').textContent, r.querySelector('.l').getAttribute('title') || '', r.querySelector('.c').textContent]),
                     more: (document.querySelector('#routineMakeModal .rt-results .more .t') || {}).textContent || '', aside: [...document.querySelectorAll('#routineMakeModal .rt-results .aside .r')].map(r => [r.className, r.querySelector('.l').textContent, (r.querySelector('.act') || {}).textContent || '']) })""")
             rs0 = results_now()
-            check("the pick: 'Peak start hour' and 'Share in the band' are the lines compared, the recorded wording their titles; the head counts 2 of 3; the session count behind '1 more line recorded, not compared', folded",
+            check("the pick: 'Peak start hour' and 'Share in the band' are the metrics tracked, the recorded wording their titles; the head counts 2 of 3; the session count behind '1 more metric computed, not tracked', folded",
                   [k[0] for k in rs0["kept"]] == ["Peak start hour", "Share in the band"] and rs0["kept"][0][1] == "the local hour most sessions start" and rs0["kept"][1][1].startswith("share of sessions starting in the hour band")
-                  and "2 of 3 kept" in rs0["head"] and rs0["more"] == "▸ 1 more line recorded, not compared" and rs0["aside"] == [], rs0)
+                  and rs0["head"].startswith("Tracked metrics — recomputed each run and compared with the run before, 2 of 3") and rs0["more"] == "▸ 1 more metric computed, not tracked" and rs0["aside"] == [], rs0)
             page.click("#routineMakeModal .rt-results .more .t")
             rs1 = results_now()
-            check("the muted line opened: the session count greyed with its recorded wording and a keep button", rs1["more"].startswith("▾") and len(rs1["aside"]) == 1 and "off" in rs1["aside"][0][0].split()
-                  and rs1["aside"][0][1].startswith("sessions in the window") and rs1["aside"][0][2] == "keep", rs1)
+            check("the muted line opened: the session count greyed with its recorded wording and a track button", rs1["more"].startswith("▾") and len(rs1["aside"]) == 1 and "off" in rs1["aside"][0][0].split()
+                  and rs1["aside"][0][1].startswith("sessions in the window") and rs1["aside"][0][2] == "track", rs1)
             page.click("#routineMakeModal .rt-results .aside .act[data-line-act='keep']")
             rs2 = results_now()
-            check("keep: the line joins the compared list in ledger order under its recorded wording (no name), the head counts 3 kept, the muted line gone",
-                  [k[0][:22] for k in rs2["kept"]] == ["sessions in the window", "Peak start hour", "Share in the band"] and "3 kept" in rs2["head"] and "of 3" not in rs2["head"] and rs2["more"] == "", rs2)
+            check("track: the line joins the tracked list in ledger order under its recorded wording (no name), the head counts 3 of 3, the muted line gone",
+                  [k[0][:22] for k in rs2["kept"]] == ["sessions in the window", "Peak start hour", "Share in the band"] and ", 3 of 3" in rs2["head"] and rs2["more"] == "", rs2)
             page.click("#routineMakeModal .rt-results .r[data-line='0'] .act[data-line-act='drop']")
             rs3 = results_now()
-            check("drop: the line is set aside again, the group still open", [k[0] for k in rs3["kept"]] == ["Peak start hour", "Share in the band"] and "2 of 3 kept" in rs3["head"] and rs3["more"].startswith("▾ 1 more line") and len(rs3["aside"]) == 1, rs3)
+            check("drop: the line is set aside again, the group still open", [k[0] for k in rs3["kept"]] == ["Peak start hour", "Share in the band"] and ", 2 of 3" in rs3["head"] and rs3["more"].startswith("▾ 1 more metric") and len(rs3["aside"]) == 1, rs3)
             check("the dates typed into the label are the frame's first and last: the row says the input follows the data, written at each run (the probe recorded the frame's period at promotion)",
                   dlg["inputs"][2][2] == "span" and "follows the data: its first and last dates" in dlg["inputs"][2][3] and dlg["inputs"][0][2] == "" and dlg["inputs"][1][2] == "", dlg["inputs"])
             check("the promoter's other proposal - the loaded window as an input written into the summary's file name, as the live promoter did - is refused with the reason in the notes: the name is the loader's, bound at each run",

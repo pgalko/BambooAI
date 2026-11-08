@@ -222,7 +222,7 @@ check("the condensing pass ran once run zero reproduced, without a model call: t
       and "print('means'" not in _v1["script_fallback"] and "# --- cell 1 ---" in _v1["script_fallback"] and "print('means'" in _v1["script_written"] and "INPUTS['arm_b']" in _v1["script"] and _v1["run_zero"]["status"] == "reproduced" and _v1["run_zero"]["verified"]
       and sum(1 for e in json.load(open(_runlog)) if str(e.get("chain_id")) == "9001" and e.get("agent") == "Condenser") == 1 and q.qsize() == 0, (_v1.get("consolidated"), _kc[0][1][:400] if _kc else None))
 st = BAMBOO.routine_store()
-check("the store lists it with the favourite's card index pointing at run1", [r["id"] for r in st.all()] == [made["routine"]["id"]] and st.by_origin() == {("1001", run1.id): [{"id": made["routine"]["id"], "name": "B against A", "version": 1}]})
+check("the store lists it with the favourite's card index pointing at run1", [r["id"] for r in st.all()] == [made["routine"]["id"]] and st.by_origin() == {("1001", run1.id): [{"id": made["routine"]["id"], "name": "B against A", "version": 1, "instruction": ""}]})
 try:
     BAMBOO.create_routine(prop["proposal_id"], {}); twice = ""
 except RoutineRefused as exc:
@@ -313,8 +313,26 @@ _rid = _msgs[-1]["routine_made"]["routine"]["id"]
 check("route /routines: the list; /routines/<id>: the versions without scripts; by_origin: the card's index",
       [x["id"] for x in _wc.get("/routines").get_json()["routines"]] == [_rid] and _wc.get(f"/routines/{_rid}").get_json()["routine"]["versions"][0]["script_chars"] > 100
       and "script" not in _wc.get(f"/routines/{_rid}").get_json()["routine"]["versions"][0]
-      and _wc.get(f"/routines/by_origin/1001/{run1.id}").get_json()["routines"] == [{"id": _rid, "name": "Route made", "version": 1, "chain_id": run1.id}]
+      and _wc.get(f"/routines/by_origin/1001/{run1.id}").get_json()["routines"] == [{"id": _rid, "name": "Route made", "version": 1, "chain_id": run1.id, "instruction": ""}]
       and _wc.get("/routines/by_origin/1001").get_json()["routines"][0]["id"] == _rid and _wc.get("/routines/by_origin/1001/nope").get_json()["routines"] == [])
+# the person's instruction through the routes (§15.6): the prompt carries it; the fake promoter answers no "tracked", so it is asked once
+# more and the proposal says the instructions were not applied; create keeps the box's line on the routine, and the views carry it
+from analyst import routines as _rt
+_r = _wc.post("/routines/propose", json={"thread_id": "1001", "chain_id": run1.id, "instruction": " track  the difference "})
+_msgs_i = _lines(_r)
+_pu_i = [u for _, u in state["calls"] if "THE PERSON'S INSTRUCTION" in u]
+check("route /routines/propose with an instruction: the promoter's prompt carries it, whitespace folded; asked again once with the reason (the model step again, saying why); the proposal view carries the instruction and the note",
+      len(_pu_i) == 2 and "answer it under \"tracked\", from the ledger alone):\ntrack the difference" in _pu_i[0] and _pu_i[1].endswith(_rt.PROMOTER_TRACKED)
+      and [(m.get("again"), m.get("detail")) for m in _msgs_i if m.get("type") == "routine_step" and m.get("step") == "model" and m.get("state") == "running"] == [(False, ""), (True, "the instruction was not answered")]
+      and _msgs_i[-1]["routine_proposal"]["instruction"] == "track the difference" and "The custom instructions were not applied this time; try Update the list again." in _msgs_i[-1]["routine_proposal"]["notes"], _msgs_i[-1])
+_r = _wc.post("/routines/create", json={"proposal_id": _msgs_i[-1]["routine_proposal"]["proposal_id"], "name": "With a line", "purpose": "", "drop_inputs": [], "drop_results": [], "instruction": "track the difference"})
+_rid_i = _lines(_r)[-1]["routine_made"]["routine"]["id"]
+_settled(_rid_i)
+check("route /routines/create keeps the instruction on the routine; /routines/<id> and by_origin carry it",
+      _wc.get(f"/routines/{_rid_i}").get_json()["routine"]["instruction"] == "track the difference"
+      and [x["instruction"] for x in _wc.get(f"/routines/by_origin/1001/{run1.id}").get_json()["routines"] if x["id"] == _rid_i] == ["track the difference"])
+check("the store lists both routines after the instruction one", {x["id"] for x in _wc.get("/routines").get_json()["routines"]} == {_rid, _rid_i})
+_wc.delete(f"/routines/{_rid_i}")                                    # the later checks count the routines of the store
 _s = _wc.get(f"/routines/{_rid}/script")
 check("route /routines/<id>/script: a .py download with the INPUTS block and the defaults", _s.status_code == 200 and "attachment; filename=\"Route_made_v1.py\"" in _s.headers.get("Content-Disposition", "") and "INPUTS = {" in _s.get_data(as_text=True) and "'arm_b': 'B'" in _s.get_data(as_text=True))
 # step 2: a run on the data loaded now, through the instance and the routes

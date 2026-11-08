@@ -30,7 +30,7 @@ def _store():
 def _view(proposal):
     """The proposal as the dialog shows it: no scripts, no edit lists."""
     keys = ("proposal_id", "thread_id", "chain_id", "name", "purpose", "question", "summary", "data", "data_state", "source", "inputs", "notes",
-            "kept", "results", "figures", "cells", "cost", "routine_id", "routine_name", "next_version")
+            "kept", "results", "figures", "cells", "cost", "routine_id", "routine_name", "next_version", "instruction")
     return {k: proposal.get(k) for k in keys}
 
 
@@ -109,7 +109,7 @@ def get_routine(rid):
     r = _store().load(rid)
     if not r:
         return jsonify({'error': 'no such routine'}), 404
-    out = {k: r.get(k) for k in ("id", "name", "created", "updated", "purpose", "question", "summary", "origin", "source", "current_version", "runs")}
+    out = {k: r.get(k) for k in ("id", "name", "created", "updated", "purpose", "question", "summary", "origin", "source", "current_version", "runs", "instruction")}
     out["versions"] = [_version_view(v) for v in r.get("versions", [])]
     out["summary_card"] = _store().summary(r)
     try:
@@ -389,7 +389,8 @@ def propose_routine():
 
     def work():
         try:
-            proposal = instance.propose_routine(str(thread_id), str(chain_id), routine_id=data.get('routine_id'), billing_chain_id=billing_chain)
+            proposal = instance.propose_routine(str(thread_id), str(chain_id), routine_id=data.get('routine_id'), billing_chain_id=billing_chain,
+                                                instruction=str(data.get('instruction') or ''))
         finally:
             try:
                 instance.log_and_call_manager.charge_for_completed_query(billing_chain)
@@ -409,7 +410,7 @@ def create_routine():
     if not proposal_id:
         return jsonify({'error': 'proposal_id is needed'}), 400
     instance = a.get_bamboo_ai(session['session_id'])
-    choices = {k: data.get(k) for k in ("name", "purpose", "drop_inputs", "drop_results", "change_note")}
+    choices = {k: data.get(k) for k in ("name", "purpose", "drop_inputs", "drop_results", "change_note", "instruction")}
 
     def work():
         made = instance.create_routine(proposal_id, choices, routine_id=data.get('routine_id'))

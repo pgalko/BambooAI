@@ -99,8 +99,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/213/31/27/18/49/44/72/33/205/60/93/27/30/37/15/88/1/1 Python; 58/7/50/72/24/132/14/25/4/14/67/41 JS; 1,796 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (137 hosted on 2026-11-08; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/217/60/93/27/30/37/15/88/1/1 Python; 58/7/50/72/24/135/14/25/4/14/67/41 JS; 1,814 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (139 hosted on 2026-11-08; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (144; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -481,6 +481,23 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Custom instructions for the promoter (2026-11-08, patch 0281; docs/ROUTINES_DESIGN.md §15.6).** Palo's tests: the
+  steadied pick (0276) still kept 1 s and 5 s of a power curve and set the rest of the ladder aside, naming the
+  durations it dropped. The rule was read and not followed, so the coach's line is now a question the model must
+  answer, and the host keeps what it answers. The Save-as-routine dialog, in the coach's words - *Tracked metrics —
+  recomputed each run and compared with the run before, 3 of 10*, *track* / *drop*, *7 more metrics computed, not
+  tracked* - gets a section *Custom instructions — optional* under it: two plain sentences, one box, *Update the list*,
+  which asks the promoter again with the line and carries the dialog's fields over. The payload carries the line as a
+  section after the ledger; step 6 of the prompt says it is no request to compute anything and asks for `tracked`
+  (per quantity named, the ledger lines that are it, named; an empty list when none is); `tracked_lines` reads it (a
+  line never stands for two quantities), `pick_results` keeps those lines whatever the pick says, a quantity with no
+  line is the note *Not computed in this analysis, so it can't be tracked: …*; a reply without `tracked` is asked
+  again once (`PROMOTER_TRACKED`), twice means a note; `apply_edits` refuses an edit that adds or removes a RESULT
+  call. `routine.instruction` is kept (the summary, by_origin and `GET /routines/<id>` carry it; the facts show it
+  under *Tracked*, the Results fact renamed and counted in metrics); the first pass sends the origin routine's line,
+  *Next version of …* fills an empty box. Tests: test_routines.py 217, test_app_path.py 216, test_routines.js 135, the
+  stack walk 139 (the box typed, Update the list, the line named, the note, the facts), the integrations walk's dialog
+  words (run it on the Mac), the screens tool.
 - **Custom runs: Open, Delete, another run to compare with (2026-11-08, patch 0279; docs/ROUTINES_DESIGN.md §21).** A
   run's head in the Custom table and a failed run's line carry *Open* and *Delete* on hover (run 0 has no Delete);
   Delete asks, then `DELETE /routines/<id>/runs/<n>` (`routines_host.delete_run`: the line off the record, the folder
