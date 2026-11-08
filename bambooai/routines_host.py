@@ -1122,7 +1122,7 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     elif ref_results is None and subject_id and any(x.get("version") == vnum and x.get("status") in ("ran", "reproduced", "differed") for x in routine.get("runs", [])):
         cmp["line"] = cmp["line"].replace("the first run of this version", "the first run on this subject")       # the version's other runs are other subjects' (2026-10-30)
     cell_no = rt.failed_cell(script, str(err)) if err else None
-    failed_cell = {"number": cell_no, "code": rt.cell_text(script, cell_no)} if cell_no else None       # beside the traceback on the Comparison tab (step 4)
+    failed_cell = {"number": cell_no, "code": rt.cell_text(script, cell_no), "statement": rt.failed_statement(script, str(err))} if cell_no else None       # beside the traceback on the Comparison tab (step 4); the statement for the fix's question (§22)
     if emit and ref_results is not None:
         ref_run = next((x for x in routine.get("runs", []) if x.get("number") == ref_number), None)
         when = _when(ref_run.get("created") if ref_run else rz.get("created"))
@@ -1147,7 +1147,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     except OSError:
         pass
     return {"run": record, "summary": summary, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, vnum, subject_id), "subject": rt.subject_of_record(d),
-            "against_data": reference_data(routine, ver, ref_number), "stdout": stdout or "", "figures": figs or [], "name": routine.get("name")}
+            "against_data": reference_data(routine, ver, ref_number), "stdout": stdout or "", "figures": figs or [], "name": routine.get("name"),
+            "fix": fix_offer(routine, ver, record)}
 
 
 def _call_runner(runner: Callable, script: str, timeout: int, run_dir: str = ""):
@@ -1219,6 +1220,51 @@ def delete_run(routine: dict, store: rt.RoutineStore, number: int) -> dict:
     return summary
 
 
+def data_words(data: Optional[dict]) -> str:
+    """A run's data in a few words: the source, whose, the window - or the file's name."""
+    d = data or {}
+    kind = rt.source_kind(d)
+    label = {"intervals": "Intervals.icu", "sweatstack": "SweatStack", "endura": "Endura"}.get(kind)
+    if label:
+        sub = rt.subject_of_record(d)
+        return " · ".join(x for x in (label, sub.get("name") or sub.get("id") or "", window_text(d)) if x)
+    return f"the file {d.get('name')}" if d.get("name") else "other data"
+
+
+def fix_question(routine: dict, version: dict, record: dict) -> str:
+    """The question *Fix it in the analysis* puts in the composer (docs/ROUTINES_DESIGN.md §22): what the routine is, from
+    its record - the name, the purpose, the tracked metrics with their names and recorded wording, the inputs, the custom
+    instructions - then the failed run's facts and the one standing ask. Nothing of what went wrong is diagnosed here:
+    the analyst does that, with the failing data in front of it."""
+    m = version.get("manifest") or {}
+    lines = m.get("results") or []
+    tracked = [x for x in lines if not x.get("dropped")]
+
+    def one(x):
+        label, name = str(x.get("label") or "").strip(), str(x.get("name") or "").strip()
+        return f"{name} (\"{label}\", cell {x.get('cell')})" if name and label else f"\"{label or name}\" (cell {x.get('cell')})"
+    purpose = str(routine.get("purpose") or "").strip()
+    head = f"This analysis was saved as the routine \"{routine.get('name') or ''}\" (v{version.get('number', 1)})" + (f": {purpose}." if purpose else ".")
+    head += (" Each run recomputes these metrics and compares them with the run before: " + ", ".join(one(x) for x in tracked) + "." if tracked
+             else " Its runs keep their printed output and figures; no metric is compared number by number.")
+    ins = "; ".join(f"{p.get('label') or p.get('key')} ({p.get('key')}) = {json.dumps(p.get('default'))}" for p in (m.get("parameters") or []))
+    head += f" Its inputs: {ins}." if ins else " It has no inputs."
+    if routine.get("instruction"):
+        head += f" Custom instructions: \"{routine['instruction']}\"."
+    d = record.get("data") or {}
+    fc = record.get("failed_cell") or {}
+    err = rt.error_line(record.get("error") or "") or str(record.get("line") or "")
+    where = f" at `{fc['statement'].strip()}`" if fc.get("statement") else ""
+    printed = len(record.get("results") or [])
+    data = data_words(d) + (", the data loaded now" if rt.source_kind(d) in ("intervals", "sweatstack", "endura") else " - load that data before you send this")
+    body = (f"Run {record.get('number')} failed on other data than the analysis was made on: {data}. It stopped at cell {fc.get('number')} with `{err}`{where}."
+            + ((" It printed all its lines first." if printed >= len(lines) else f" It printed {printed} of its {len(lines)} lines first.") if printed and lines else "")
+            + " Find why the method fails on this data and change it so it runs on any data of the same shape: where this data cannot give one of the tracked"
+              " metrics, record it as missing rather than fail. Keep the tracked metrics, their order and their meaning, and keep the inputs as inputs, so the"
+              " runs stay comparable.")
+    return head + "\n\n" + body
+
+
 def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
     """A stored run as the main panes show it: the record, its printed output and figures, the routine's summary,
     the numbers to step through. Run zero is the current version's."""
@@ -1240,9 +1286,19 @@ def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
         record = store.load_run(routine["id"], tag) or dict(summary)
     stdout, figs = store.run_files(routine["id"], tag)
     subject = rt.subject_of_record(record.get("data"))                   # whose run: the arrows step through this subject's runs alone (2026-10-30)
+    ver = version_of(routine, record.get("version"))
     return {"run": record, "stdout": stdout, "figures": figs, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, subject_id=str(subject.get("id") or "")),
-            "subject": subject, "against_data": reference_data(routine, version_of(routine, record.get("version")), record.get("against")), "name": routine.get("name"),
-            "manifest_results": [x for x in (version_of(routine, record.get("version")).get("manifest") or {}).get("results", []) if not x.get("dropped")]}
+            "subject": subject, "against_data": reference_data(routine, ver, record.get("against")), "name": routine.get("name"),
+            "manifest_results": [x for x in (ver.get("manifest") or {}).get("results", []) if not x.get("dropped")], "fix": fix_offer(routine, ver, record)}
+
+
+def fix_offer(routine: dict, version: dict, record: dict) -> Optional[dict]:
+    """What *Fix it in the analysis* needs (§22), on a run that failed at a cell of the method: the question, the data's
+    source and the load to repeat. A load that failed, a timeout, an executor lost and run zero are not the method's
+    fault and offer nothing."""
+    if record.get("status") != "failed" or not (record.get("failed_cell") or {}).get("number") or not record.get("number"):
+        return None
+    return {"question": fix_question(routine, version, record), "source": rt.source_kind(record.get("data")), "load": (record.get("data") or {}).get("load") or None}
 
 
 class Fill:

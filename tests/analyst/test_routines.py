@@ -1584,6 +1584,33 @@ try:
 except host.RoutineRefused as exc:
     nope = str(exc)
 check("run_view of a run that does not exist is refused", "no run 99" in nope)
+# Fix it in the analysis (§22): a run that failed at a cell of the method carries the question and the data to load; a run that ran,
+# run zero and a timeout carry none
+_R = store.load(rid4)
+view5 = host.run_view(_R, store, out5["run"]["number"])
+view6 = host.run_view(_R, store, out6["run"]["number"])
+_q5 = (view5.get("fix") or {}).get("question", "")
+check("run_view (§22): the failed run offers the fix - the question names the routine, its version and purpose, the tracked metric by its recorded wording and cell, the inputs with their defaults, the run's number, the file it ran on (to load first) and the error at its cell, then the one standing ask; the data source and the load spec ride with it",
+      view5["fix"] is not None and view5["fix"]["source"] == "file" and view5["fix"]["load"] is None
+      and _q5.startswith("This analysis was saved as the routine \"" + _R["name"] + "\" (v" + str(out5["run"]["version"]) + "): count the rows above a line. Each run recomputes these metrics and compares them with the run before: \"rows above the line\" (cell 2).")
+      and " Its inputs: Threshold (threshold) = 155; Group (grp) = \"a\"." in _q5 and f"Run {out5['run']['number']} failed on other data than the analysis was made on: the file small.csv - load that data before you send this. It stopped at cell 2 with `KeyError: 'v'`." in _q5
+      and "Find why the method fails on this data and change it so it runs on any data of the same shape: where this data cannot give one of the tracked metrics, record it as missing rather than fail. Keep the tracked metrics, their order and their meaning, and keep the inputs as inputs, so the runs stay comparable." in _q5
+      and "printed" not in _q5, _q5)
+check("run_view (§22): no fix on a run that ran, on run zero, or on a timeout", view2.get("fix") is None and view0.get("fix") is None and view6.get("fix") is None, (view2.get("fix"), view6.get("fix")))
+_fq = host.fix_question({"name": "A curve", "purpose": "the curve each month", "instruction": "track every step of it"},
+                        {"number": 3, "manifest": {"results": [{"cell": 5, "index": 0, "label": "best over 5 s, whole window", "name": "Best 5 s"}, {"cell": 5, "index": 1, "label": "best over 1 h, whole window", "name": "Best 1 h"}, {"cell": 6, "index": 0, "label": "a check", "dropped": True}],
+                                                    "parameters": [{"key": "shortest", "label": "Shortest session (min)", "default": 20}, {"key": "kinds", "label": "Kinds", "default": ["Ride"]}]}},
+                        {"number": 66, "status": "failed", "line": "failed at cell 3: KeyError: 3600", "error": "Traceback (most recent call last):\n  File \"<string>\", line 40, in <module>\nKeyError: 3600",
+                         "failed_cell": {"number": 3, "code": "x", "statement": "best_1h = best[3600]"}, "results": [{"what": "best over 5 s"}],
+                         "data": {"source": "intervals", "load": {"source": "intervals", "start_date": "2026-10-01", "end_date": "2026-10-31", "subject": {"id": "i1", "name": "First Athlete"}}}})
+check("fix_question on an Intervals run: the purpose after the name, the tracked metrics named with their wording and cells (the dropped one left out), the inputs with their defaults, the custom instructions; the data as source · whose · window, loaded now; the statement the run stopped at; the lines printed before the failure",
+      _fq.startswith("This analysis was saved as the routine \"A curve\" (v3): the curve each month. Each run recomputes these metrics and compares them with the run before: Best 5 s (\"best over 5 s, whole window\", cell 5), Best 1 h (\"best over 1 h, whole window\", cell 5). Its inputs: Shortest session (min) (shortest) = 20; Kinds (kinds) = [\"Ride\"]. Custom instructions: \"track every step of it\".\n\n")
+      and "Run 66 failed on other data than the analysis was made on: Intervals.icu · First Athlete · 2026-10-01 → 2026-10-31, the data loaded now. It stopped at cell 3 with `KeyError: 3600` at `best_1h = best[3600]`. It printed 1 of its 3 lines first. Find why" in _fq
+      and "a check" not in _fq, _fq)
+check("failed_line_no and failed_statement: the executor's own line first, else the last frame; the line of the script, stripped; nothing beyond the script or without a frame",
+      rt.failed_line_no("Error on line 3: x\n  File \"<string>\", line 9") == 3 and rt.failed_line_no("  File \"<string>\", line 2, in f\n  File \"<string>\", line 7, in <module>") == 7 and rt.failed_line_no("boom") is None
+      and rt.failed_statement("a = 1\n  b = best[3600]\nc = 2\n", "File \"<string>\", line 2") == "b = best[3600]" and rt.failed_statement("a = 1\n", "File \"<string>\", line 9") == "" and rt.failed_statement("a = 1\n", "") == ""
+      and out5["run"]["failed_cell"]["statement"] == "" and out5["run"]["failed_cell"]["number"] == 2)
 shutil.rmtree(tmp, ignore_errors=True)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")

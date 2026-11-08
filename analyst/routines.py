@@ -1840,15 +1840,31 @@ def error_line(err: str) -> str:
     return ""
 
 
-def failed_cell(script: str, error: str) -> Optional[int]:
-    """The cell a run failed in, from the traceback's line number in the script (the markers count the lines)."""
+def failed_line_no(error: str) -> Optional[int]:
+    """The script line a traceback stopped at: the executor's condensed traceback names it first ("Error on line N:";
+    its frames may be cut at 1,000 characters), else the last frame in the script."""
     nums = [int(n) for n in re.findall(r'File "<string>", line (\d+)', error or "")]
-    head = re.search(r"^Error on line (\d+):", error or "", re.M)       # the executor's condensed traceback names the line first (its frames may be cut at 1,000 characters)
+    head = re.search(r"^Error on line (\d+):", error or "", re.M)
     if head:
         nums = [int(head.group(1))] + nums
     if not nums:
         return None
-    line_no = nums[0] if head else nums[-1]
+    return nums[0] if head else nums[-1]
+
+
+def failed_statement(script: str, error: str) -> str:
+    """The line of the script a run stopped at, as written (§22: the question Fix it in the analysis asks names it);
+    '' when the traceback names no line in the script."""
+    n = failed_line_no(error)
+    lines = (script or "").splitlines()
+    return lines[n - 1].strip() if n and 1 <= n <= len(lines) else ""
+
+
+def failed_cell(script: str, error: str) -> Optional[int]:
+    """The cell a run failed in, from the traceback's line number in the script (the markers count the lines)."""
+    line_no = failed_line_no(error)
+    if line_no is None:
+        return None
     cell = None
     for i, ln in enumerate((script or "").splitlines(), 1):
         if i > line_no:

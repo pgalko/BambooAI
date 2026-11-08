@@ -99,8 +99,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/223/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/137/14/25/4/14/67/41 JS; 1,824 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (139 hosted on 2026-11-08; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/227/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/139/14/25/4/14/67/41 JS; 1,830 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (141 hosted on 2026-11-08; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (144; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -481,6 +481,16 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Fix it in the analysis (2026-11-08, patch 0284; docs/ROUTINES_DESIGN.md §22).** A run that failed at a cell of the
+  method offers one button in its run view: the run's data back in the session (an Intervals window through the
+  cache, as a run loads it; a file left to the coach), the origin analysis opened, and a prepared question in the
+  composer, unsent - what the routine is, from its record (name, version, purpose, the tracked metrics with their
+  names, wording and cells, the inputs, the custom instructions), the run's facts (the data, the cell, the error, the
+  statement it stopped at, the lines printed first) and one standing ask (make the method run on any data of the same
+  shape, what the data cannot give recorded as missing, the metrics and inputs kept). `fix_question`/`fix_offer` in
+  routines_host; `failed_statement` on the record; `loadData(plan, p, spec)` takes a record's load. Tests:
+  test_routines.py 227, test_routines.js 139, the stack walk 141 (the button on the file run without soil, the
+  question read back).
 - **The exploration goes before the promoter (2026-11-08, patch 0283; docs/ROUTINES_DESIGN.md §19.4).** A save was
   refused under the identifier rule for a ride named by its id in a diagnostic cell that fed nothing; the condensing
   pass would have dropped the cell, but only after the promoter had read it. `propose` now prunes first

@@ -1498,3 +1498,48 @@ the deletion, the count, run 0 and a run already gone refused, a later run still
 (the heads' two words, none on run 0, the failed line's; the Compare row's third choice and its list; the page's
 handlers and the choice sent), the stack walk (the failed run deleted through the Summary - off the foot, off the
 record, off the disk, the rail's count down by one), the integrations walk (the heads read without their two words).
+
+## 22. Fix it in the analysis (2026-11-08, patch 0284)
+
+Palo, after a monthly fill of eleven failures on another athlete's data (KeyError on a duration the month had no ride
+for, row 0 of an empty table): "quite honestly it is really difficult to create a working transportable routine". A
+method written on one athlete's data assumes what that data had. No rule in the promoter can see it; it shows up on
+other data, and then the coach diagnoses it by hand and starts a follow-up from scratch. The way out after the routine
+is created: turn the failed run into the next version with one button.
+
+**What the coach sees.** In the run view of a run that failed at a cell of the method, under the error and the failed
+cell's code, one button: **Fix it in the analysis**, with one line beside it - *Loads this run's data, opens the
+analysis and writes the question; you read it and send it.* (an Intervals run) or *Opens the analysis and writes the
+question; load this run's data first.* (a file). Pressed: the run's data comes back into the session (the window
+through the cache the fill filled, as a run loads it - `loadData` with the record's load in place of the dialog's
+fields - else downloaded; a file is left to the coach), the origin analysis opens at its chain, and the prepared
+question stands in the composer, unsent. The coach reads it, adds what the record cannot know (*this athlete never
+rides two hours; drop that point for him*), and sends it. The analyst fixes the method on the very data that broke it;
+*Save as routine* offers *Next version of …* (the coach picks it; a later chain still defaults to a new routine, as
+decided on 2026-10-12), run zero checks the new version on that athlete's month, the custom instructions carry over,
+and *fill them* re-runs the failed months, which count as not run.
+
+**Where the question comes from.** Not from a diagnosis - the host cannot know that `KeyError: 3600` means "no
+one-hour ride"; that is the analyst's job, with the code, the error and the data in front of it. The host writes two
+things it has for every failed run (`fix_question`): what the routine is, from its record - the name, the version and
+the purpose; the tracked metrics in order, each with its name and the recorded wording it comes from and its cell;
+the inputs with their defaults; the custom instructions - and the run's facts - its number, the data (source · whose ·
+window, or the file's name), the cell, the error line and the statement it stopped at (`failed_statement`, kept on
+the record's `failed_cell` since this patch), the lines printed before the failure. Then one standing ask, the same
+every time: *find why the method fails on this data and change it so it runs on any data of the same shape: where this
+data cannot give one of the tracked metrics, record it as missing rather than fail; keep the tracked metrics, their
+order and their meaning, and keep the inputs as inputs, so the runs stay comparable.* Nothing in it depends on what
+was analysed or where the data came from, and nothing names the domain (C5). Without it the analyst in the origin
+thread would see the chain and the new data and nothing of the routine - not that the chain became one, not which of
+its printed lines are tracked, not which constants became inputs - and might reshape the very lines the runs compare.
+
+**Where the button does not appear.** A load that failed, a timeout, an executor lost, run zero: not the method's
+fault (`fix_offer` returns nothing without a failed cell). The offer rides on the run view (`GET /routines/<id>/runs/<n>`)
+and on a live run's closing message alike, as `fix: {question, source, load}`.
+
+Accepted by: the pure module (`failed_line_no`, `failed_statement`), the host (`fix_question` on an Intervals run with
+a purpose, names, inputs and custom instructions, and on a file run without; `run_view` offering the fix on the failed
+run and none on a run that ran, on run zero, on a timeout; the statement on the record), the mini DOM (the button, its
+words for the two sources, none without the offer; the page's source), the stack walk (the failed run on the file
+without soil: the button, pressed, opens chain 1 of the origin with the question in the composer, unsent, and the
+question read back whole).

@@ -269,6 +269,8 @@
 .rt-error .msg { line-height: 1.5; }
 .rt-error .h { font-size: var(--fs-small); color: var(--text-tertiary); margin-bottom: 4px; }     /* the failed cell's code beside the traceback (step 4, 2026-10-11) */
 .rt-error .rt-error-cell pre { max-height: 320px; overflow: auto; }
+.rt-error .rt-fix { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }     /* Fix it in the analysis (§22): the button and what it does */
+.rt-error .rt-fix .n { font-size: var(--fs-small); color: var(--text-quaternary); }
 .rt-version .ui-choice span { line-height: 1.4; }
 .rt-status { font-size: var(--fs-small); padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; }
 .rt-status.reproduced { color: var(--c-model); border-color: var(--chip-model-border); }

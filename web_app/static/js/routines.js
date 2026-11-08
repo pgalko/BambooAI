@@ -706,11 +706,14 @@
             const lineOf = x => series ? series.lines.findIndex(l => l.cell === x.cell && l.index === x.index) : -1;       // the comparison's row as the manifest's line, for its thumbnail
             const trendTh = kind ? '<th class="trend">' + esc(build.INTERVAL_NAMES[kind]) + ' trend</th>' : '', trendTd = x => (kind ? '<td class="trend">' + (lineOf(x) >= 0 ? build.thumb(series, lineOf(x)) : '') + '</td>' : '');
             if (run.status === 'failed' || run.status === 'timed_out') {
-                // the failed cell's code beside the traceback (step 4, 2026-10-11): what ran, and where it stopped
+                // the failed cell's code beside the traceback (step 4, 2026-10-11): what ran, and where it stopped; a failure in the
+                // method's own code offers the fix (§22): the question prepared from the record, the data loaded again, the analysis opened
                 const fc = run.failed_cell || null;
                 h += '<div class="rt-error"><div class="msg">' + esc(run.line || '') + '</div>' +
                     (fc && fc.code ? '<div class="rt-error-cell"><div class="h">cell ' + esc(fc.number) + ' — the code that failed</div><pre class="ui-code"><code class="language-python">' + esc(fc.code) + '</code></pre></div>' : '') +
-                    (run.error ? '<div class="rt-error-tb"><div class="h">the error</div><pre class="ui-code">' + esc(run.error) + '</pre></div>' : '') + '</div>';
+                    (run.error ? '<div class="rt-error-tb"><div class="h">the error</div><pre class="ui-code">' + esc(run.error) + '</pre></div>' : '') +
+                    (view.fix ? '<div class="rt-fix"><button type="button" class="ui-btn" data-act="fix-run" onclick="RoutinesUI.fixRun()">Fix it in the analysis</button>' +
+                        '<span class="n">' + (view.fix.source === 'intervals' ? 'Loads this run’s data, opens the analysis and writes the question; you read it and send it.' : 'Opens the analysis and writes the question; load this run’s data first.') + '</span></div>' : '') + '</div>';
             }
             const rows = c.rows || [];
             if (!rows.length) {
@@ -1591,24 +1594,26 @@
     }
     // the load, as the original load asked for its data (the integration routes the Data tab uses; its pills and the
     // dataframe tab refreshed the way the Data tab refreshes them)
-    async function loadData(plan, p) {
+    // `spec` (§22): a record's load - {asked, routineId, say} - in place of the dialog's fields, when a failed run's data is loaded again
+    async function loadData(plan, p, spec) {
         const src = plan.source;
-        const q = sel => p.d.querySelector(sel);
+        const q = sel => (p && p.d ? p.d.querySelector(sel) : null);
+        const say = spec && spec.say ? spec.say : progress;
         const dfTab = job => { if (job && job.dataframe && typeof createOrUpdateTab === 'function') { try { const o = JSON.parse(job.dataframe); createOrUpdateTab('dataframe', o.data); } catch (e) { /* no tab */ } } };
-        const asked = loadAsked(plan, p);
+        const asked = spec && spec.asked ? spec.asked : loadAsked(plan, p);
         // the cache asked here, for the window or the event as it stands when Run is pressed - not the line's earlier answer,
         // which can lag behind a date typed and committed by the click on Run itself (2026-10-11: a window loaded minutes
         // before was downloaded again)
         let cached = null;
         if (src === 'intervals' || src === 'endura') {
-            progress('Asking the cache…', 'loading');
-            const c = await askCache(runState, asked);
+            say('Asking the cache…', 'loading');
+            const c = await askCache(spec && spec.routineId ? { id: spec.routineId } : runState, asked);
             cached = c && c.hit ? c : null;
         }
         if (cached) {
             // the load is in the cache with every file the routine wants: the cached frame and files are taken through the
             // Dataset cache's own routes, the pills as a load's, no download
-            progress('Taking it from the cache…', 'loading');
+            say('Taking it from the cache…', 'loading');
             const res = await fetchJson('/cache/load_primary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ df_id: cached.df_id, folder: cached.folder || '' }) });     // whose frame: the other athletes' files leave the session with it (2026-10-29)
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the cached data could not be loaded');
             for (const fp of cached.files || []) {
@@ -1636,7 +1641,7 @@
         if (src === 'intervals') {
             const start = asked.start_date, end = asked.end_date;          // the window as typed, or a set interval's span (§14.2; a day's start is its end)
             if (!start || !end || start > end) throw new Error('the window needs a start before its end');
-            progress('Starting the load from Intervals.icu…', 'loading');
+            say('Starting the load from Intervals.icu…', 'loading');
             const who = asked.subject || {};                      // whose key (2026-10-30): the app refuses, naming them, when none is stored
             const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [] }, who.id ? { athlete: who.id, athlete_name: who.name || '' } : {})) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load could not start');
@@ -1652,7 +1657,7 @@
                     // the coding pass behind the load (2026-10-14): a routine's counts depend on the codes, so the run waits for it here
                     let coding = job.result && job.result.context && job.result.context.coding;
                     while (coding && coding.status === 'running' && Date.now() - t0 < 600000) {
-                        progress(coding.message || 'Coding the context…', 'loading', coding.percent);
+                        say(coding.message || 'Coding the context…', 'loading', coding.percent);
                         await sleep(2000);
                         const cr = await fetchJson('/intervals/context_coding/' + encodeURIComponent(jobId));
                         coding = cr.json || null;
@@ -1667,7 +1672,7 @@
                     return { source: 'intervals', start, end, aux: files, load: Object.assign({}, asked, store ? { store } : {}), store, loaded: 'Intervals.icu' + (who.name ? ' · ' + who.name + ' ·' : '') + ' ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') + (coding && coding.line ? ' · ' + coding.line : '') };
                 }
                 if (job.status === 'error' || job.status === 'not_found') throw new Error(job.error || 'the load failed');
-                progress(job.message || 'Loading…', 'loading', job.total > 0 ? job.percent : null);
+                say(job.message || 'Loading…', 'loading', job.total > 0 ? job.percent : null);
             }
             throw new Error('the load did not finish in ten minutes');
         }
@@ -1675,7 +1680,7 @@
             const race = q('select[data-load="race"]'); const raceId = race && race.value;
             if (!raceId) throw new Error('pick a race');
             const title = race.options[race.selectedIndex].textContent;
-            progress('Loading ' + title + ' from Endura…', 'loading');
+            say('Loading ' + title + ' from Endura…', 'loading');
             const res = await fetchJson('/endura/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ race_id: raceId, aux_datasets: plan.aux_kinds || ['profile'] }) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load failed');
             if (typeof createOrUpdateDatasetPill === 'function') {
@@ -1687,7 +1692,7 @@
         }
         if (src === 'sweatstack') {
             const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
-            progress('Loading from SweatStack…', 'loading');
+            say('Loading from SweatStack…', 'loading');
             const res = await fetchJson('/sweatstack/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sports: plan.sports || [], metrics: plan.metrics || [], users: plan.users || [], start_date: start, end_date: end }) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load failed');
             if (typeof createSweatStackPill === 'function') createSweatStackPill({ start_date: start, end_date: end, sports: plan.sports || [], users: plan.users || [] });
@@ -1699,7 +1704,7 @@
             const pick = q('select[data-load="cached"]');
             if (!pick || !pick.value) throw new Error('choose a file from the cache');
             const name = pick.options[pick.selectedIndex].getAttribute('data-name') || 'the cached file';
-            progress('Taking ' + name + ' from the Dataset cache…', 'loading');
+            say('Taking ' + name + ' from the Dataset cache…', 'loading');
             const res = await fetchJson('/cache/load_primary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ df_id: pick.value }) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the cached file could not be loaded');
             if (typeof createOrUpdateDatasetPill === 'function') createOrUpdateDatasetPill('primary-dataset-pill-' + Date.now(), 'Primary (' + name + ') loaded', 'primary', 'success', false, null);
@@ -1711,7 +1716,7 @@
         const f = q('input[data-load="file"]');
         if (!f || !f.files || !f.files.length) throw new Error('choose a file');
         const file = f.files[0];
-        progress('Uploading ' + file.name + '…', 'loading');
+        say('Uploading ' + file.name + '…', 'loading');
         const fd = new FormData(); fd.append('file', file);
         const r = await window.authService.fetch('/upload', { method: 'POST', body: fd });
         let data = {}; try { data = await r.json(); } catch (e) { data = {}; }
@@ -1879,7 +1884,7 @@
     function finishRunView(out) {
         if (!viewState) return;
         const run = out.run, numbers = out.numbers || viewState.numbers;
-        viewState.numbers = numbers; viewState.index = Math.max(0, numbers.indexOf(run.number)); viewState.pending = false; viewState.routine = out.routine || viewState.routine;
+        viewState.numbers = numbers; viewState.index = Math.max(0, numbers.indexOf(run.number)); viewState.pending = false; viewState.routine = out.routine || viewState.routine; viewState.view = out;
         if (out.subject) viewState.subject = out.subject;
         if (typeof paneRunIds === 'function') paneRunIds({ name: viewState.routine.name, run: run.number + ' · v' + run.version + whoLine(), df_id: (run.data || {}).df_id || '' });
         const c = run.comparison || {};
@@ -1905,6 +1910,7 @@
             const view = res.json, run = view.run;
             const numbers = view.numbers || [number];
             enterRunView(view.routine, numbers, Math.max(0, numbers.indexOf(run.number)), { version: run.version, subject: view.subject || {} });
+            viewState.view = view;
             const d = run.data || {};
             const cells = run.cells != null ? run.cells + ' cell' + (run.cells === 1 ? '' : 's') : '';
             if (typeof paneLookup === 'function') {
@@ -1932,6 +1938,28 @@
     function exitRunView() {
         viewState = null;
         composerUnlock();
+    }
+    // Fix it in the analysis (§22): the failed run's data back in the session - an Intervals window through the cache, else downloaded
+    // - then the origin analysis opened with the prepared question in the composer, unsent: the coach reads it, adds what the record
+    // cannot know, and sends it; a file is left to the coach to load
+    async function fixRun() {
+        const v = viewState && viewState.view; if (!v || !v.fix || !v.routine) return;
+        if (typeof queryRunning !== 'undefined' && queryRunning) { toast('An analysis is running; wait for it to finish.'); return; }
+        const r = v.routine, ld = v.fix.load || {};
+        if (v.fix.source === 'intervals' && ld.start_date && ld.end_date) {
+            try {
+                toast('Loading the data of run ' + v.run.number + '…');
+                await clearLoaded('all');
+                await loadData({ source: 'intervals', metrics: ld.metrics || [], aux_kinds: ld.aux_kinds || [] }, null, { asked: ld, routineId: r.id, say: () => {} });
+                toast('The data of run ' + v.run.number + ' is loaded.');
+            } catch (e) {
+                toast('The run’s data could not be loaded: ' + ((e && e.message) || e) + '. Load it from the paperclip, then send the question.', 'error');
+            }
+        }
+        const o = r.origin || {};
+        if (typeof loadThreadContent === 'function') await loadThreadContent(o.thread_id, o.chain_id);
+        const box = document.getElementById('queryInput');
+        if (box) { box.value = v.fix.question; box.dispatchEvent(new Event('input', { bubbles: true })); box.focus(); }
     }
     function navigateRuns(direction) {
         if (!viewState || viewState.pending) return;
@@ -2023,7 +2051,7 @@
         setTimeout(probeFill, 1500);
     }
 
-    window.RoutinesUI = { initialize, openMake, openManager, closeManager, toggleSaveMenu: toggleMenu, hideSaveMenu: hideMenu, forgetOrigins,
+    window.RoutinesUI = { initialize, openMake, openManager, closeManager, toggleSaveMenu: toggleMenu, hideSaveMenu: hideMenu, forgetOrigins, fixRun,
                           cardButton: build.cardButton, cardCount, bindCardButton, composerLock, composerUnlock, build,
                           openRun, viewRun, exitRunView, inRunView, navigateRuns, updateRunNav, enterRunView, runNumbers, clearLoaded, fillRunning };
     window.composerLock = composerLock; window.composerUnlock = composerUnlock;

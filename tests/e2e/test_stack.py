@@ -698,6 +698,23 @@ def main():
             page.click("#nextResponse")
             wait_text(page, "#chainPosition", "run 4 of 4", 30000)
             page.wait_for_timeout(300)
+            # Fix it in the analysis (§22): the failed run's view offers the button; pressed, it opens the origin analysis with the prepared
+            # question in the composer, unsent - what the routine is, from its record, the run's facts, the one standing ask; a file routine's
+            # data is left to the coach to load, and the words under the button say so
+            fx = page.evaluate("""() => ({ btn: (document.querySelector('#content-comparison .rt-fix button[data-act="fix-run"]') || {}).textContent || '', note: (document.querySelector('#content-comparison .rt-fix .n') || {}).textContent || '' })""")
+            check("the failed run's Comparison tab offers Fix it in the analysis, its line saying the analysis opens with the question and the file is loaded first",
+                  fx["btn"] == "Fix it in the analysis" and fx["note"] == "Opens the analysis and writes the question; load this run’s data first.", fx)
+            page.click("#content-comparison .rt-fix button[data-act='fix-run']")
+            page.wait_for_function("() => (document.getElementById('queryInput') || {}).value && document.getElementById('queryInput').value.startsWith('This analysis was saved as the routine')", timeout=30000)
+            page.wait_for_timeout(500)
+            fq = page.evaluate("""() => ({ q: document.getElementById('queryInput').value, pos: document.getElementById('chainPosition').textContent, running: !!(typeof queryRunning !== 'undefined' && queryRunning),
+                locked: !!document.getElementById('queryInput').disabled, turns: document.querySelectorAll('.sp-turn').length })""")
+            check("Fix it in the analysis: the origin analysis is open (chain 1 of the thread, the composer unlocked, nothing sent) and the composer holds the question - the routine by name, version and purpose, the tracked metric named as the instruction had it with its recorded wording and cell, the input with its default, the custom instructions, then run 4's file, the cell and the error, and the standing ask",
+                  "chain 1 of" in fq["pos"] and not fq["running"] and not fq["locked"]
+                  and fq["q"].startswith('This analysis was saved as the routine "Regime contrast within soil, plot means" (v1): the within-soil regime contrast, for the next season. Each run recomputes these metrics and compares them with the run before: Yield, B vs A ("yield, regime B vs A within soil type, plot means", cell 2). Its inputs: The regime compared with A (regime) = "B". Custom instructions: "track the yield contrast and the plot count".')
+                  and "Run 4 failed on other data than the analysis was made on: the file " in fq["q"] and "no_soil.csv - load that data before you send this. It stopped at cell 2 with `ZeroDivisionError" in fq["q"]
+                  and fq["q"].endswith("Find why the method fails on this data and change it so it runs on any data of the same shape: where this data cannot give one of the tracked metrics, record it as missing rather than fail. Keep the tracked metrics, their order and their meaning, and keep the inputs as inputs, so the runs stay comparable."), fq)
+            page.evaluate("() => { const b = document.getElementById('queryInput'); b.value = ''; b.dispatchEvent(new Event('input', { bubbles: true })); }")
             # the Dataset cache's pick (step 4, 2026-10-11): a file routine's dialog offers the files the executor's cache holds - the
             # uploads of this walk - and a run on one of them; the local edition has no executor cache, so the choice stays hidden
             page.click("#routinesPill")
