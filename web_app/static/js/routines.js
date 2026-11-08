@@ -266,6 +266,7 @@
                 const c = x.condensed || {};
                 if (c.status === 'condensed' && c.cells) t += ' · ' + esc(c.cells[1]) + ' cell' + (c.cells[1] === 1 ? '' : 's') + (c.elapsed && c.elapsed[1] != null ? ' · ' + build.secsText(c.elapsed[1]) : '');
                 else if (c.status === 'as_written') t += ' · <span class="rt-aswritten" title="' + esc(c.line || '') + '">as written</span>';     // the chain's code runs: why on hover
+                if (x.pruned && x.pruned.stood === false) t += ' · the whole chain kept: the pruned method did not reproduce';     // run zero's fallback (§19.4)
                 const k = x.consolidated || {};
                 if (k.status === 'consolidated') t += ' · ' + (k.confirmed ? 'rewritten, confirmed on run ' + esc(k.confirmed.run) : 'rewritten, the next run on new data checks it');
                 else if (k.status === 'fell_back') t += ' · rewrite dropped on run ' + esc((k.fell_back || {}).run);
@@ -1097,7 +1098,7 @@
             st.asideOpen = false;
             const pr = st.proposal;
             const under = st.threadRoutines;
-            p.sub.textContent = 'from this chain · ' + pr.cells + ' cell' + (pr.cells === 1 ? '' : 's') + ' · ' + (pr.results || []).length + ' metric' + ((pr.results || []).length === 1 ? '' : 's') + (pr.figures && pr.figures.count ? ' · ' + pr.figures.count + ' figure' + (pr.figures.count === 1 ? '' : 's') : '') + (pr.cost ? ' · $' + Number(pr.cost).toFixed(2) : '');
+            p.sub.textContent = 'from this chain · ' + (pr.chain_cells && pr.chain_cells !== pr.cells ? pr.cells + ' of ' + pr.chain_cells + ' cells' : pr.cells + ' cell' + (pr.cells === 1 ? '' : 's')) + ' · ' + (pr.results || []).length + ' metric' + ((pr.results || []).length === 1 ? '' : 's') + (pr.figures && pr.figures.count ? ' · ' + pr.figures.count + ' figure' + (pr.figures.count === 1 ? '' : 's') : '') + (pr.cost ? ' · $' + Number(pr.cost).toFixed(2) : '');
             p.body.innerHTML = build.proposal(pr, under);
             p.createBtn.style.display = '';
             p.createBtn.disabled = false;

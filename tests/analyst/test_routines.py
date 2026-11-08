@@ -388,14 +388,73 @@ run5c.status = "answered"
 run5c.data = dict(run4.data)
 run5c.replay_script, _ = assemble(run5c.cells(), run5c.report)
 nb5.runs[run5c.id] = run5c
-_pc5 = host.propose(nb5, run5c.id, lambda s, u: ('{"name": "Flags", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}), current_data={"df_id": "df4"})
-_zero5 = host.verify_zero("f", _pc5["script"], _pc5["results"], {}, runner, 60)
+_flags_prompts = []
+def flags_promoter(s_, u_):
+    _flags_prompts.append(u_)
+    return '{"name": "Flags", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}
+_flags_events = []
+_pc5 = host.propose(nb5, run5c.id, flags_promoter, current_data={"df_id": "df4"}, emit=_flags_events.append)
+check("propose (§19.4): the exploration is pruned before the promoter reads the chain - cells 1 and 3 go (cell 3's mutation through a function is invisible to the code reading), the promoter sees cells 2 and 4 with their prints, the checklist says 2 of 4 cells, the proposal carries the count, the cells dropped and the whole chain",
+      _pc5["pruned"] == [1, 3] and _pc5["cells"] == 2 and _pc5["chain_cells"] == 4 and "# --- cell 3 ---" not in _pc5["cells_text"] and "# --- cell 3 ---" in _pc5["cells_chain"] and "flag(v)" in _pc5["cells_chain"]
+      and "# --- cell 3 ---" not in _flags_prompts[0] and "# --- cell 2 ---" in _flags_prompts[0] and "print(df.shape)" not in _flags_prompts[0]
+      and [e.get("detail") for e in _flags_events if e.get("type") == "step" and e.get("step") == "chain"] == ["2 of 4 cells · 1 result · 0 figures"], (_pc5.get("pruned"), _pc5.get("cells_text")))
+_zero5p = host.verify_zero("f", _pc5["script"], _pc5["results"], {}, runner, 60)
+check("the pruned method of the flags chain does not reproduce on its own: the dropped mutation made the count nought", _zero5p["status"] == "differed" and "+3 -> +0.00" in _zero5p["line"], _zero5p.get("line"))
+_runs["n"] = 0
+made5 = host.create(nb5, _pc5, {"name": "Flags"}, _counting_runner, store)
+_v5 = store.load(made5["routine"]["id"])["versions"][0]
+check("create (§19.4): run zero fell back to the whole chain, which reproduced - two runs; the version's script is the whole chain with all four cells, the record says the pruning did not stand (4 cells, 2 kept, 1 and 3 dropped), and no script-as-written stands beside it",
+      _runs["n"] == 2 and made5["run_zero"]["status"] == "reproduced" and [ln for ln in _v5["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (1, 2, 3, 4)]
+      and _v5["pruned"] == {"before": 4, "after": 2, "dropped": [1, 3], "stood": False} and "script_written" not in _v5, (_runs, _v5.get("pruned"), made5.get("run_zero")))
+_whole5 = rt.join_script(_pc5["header"], _pc5["cells_chain"], _pc5["tail"])
+_zero5 = host.verify_zero("f", _whole5, _pc5["results"], {}, runner, 60)
 check("the flags chain reproduces as written (the fixture's own check)", _zero5["status"] == "reproduced", _zero5.get("line"))
 _runs["n"] = 0
-_c5 = host.condense(_pc5, _pc5["cells_text"], _pc5["results"], {}, _zero5, _counting_runner, 60)
+_c5 = host.condense(_pc5, _pc5["cells_chain"], _pc5["results"], {}, _zero5, _counting_runner, 60)
 check("condense: pruning dropped cell 3 (a call that mutates through a function) and cell 1, the line came back wrong, so the prints alone were pruned and that candidate kept - two runs, the record saying 4 cells kept and the prints dropped",
       _c5["status"] == "condensed" and _c5["dropped"] == {"cells": [], "prints": 3} and _c5["cells"] == [4, 4] and _runs["n"] == 2 and _c5["line"].startswith("condensed: 4 cells kept, 3 prints dropped, ")
       and [ln for ln in _c5["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (1, 2, 3, 4)] and "print(len(flags))" not in _c5["script"] and "flag(v)" in _c5["script"], (_c5.get("line"), _c5.get("dropped")))
+# the case that brought the pruning forward (2026-11-08): an exploration cell names a row by its identifier, picked by looking, and only
+# prints about it; the promoter never sees it, so the identifier rule has nothing to refuse, and the version keeps the chain as written beside the method
+nb5b = Notebook("t5b")
+run5d = nb5b.new_run("How many rows are above 155?")
+run5d.turns = [Turn(kind="cell", cell_no=1, code="one = df[df.g == 'b']\nprint(len(one), 'rows in group b, the first looked at')", results=[], stdout="3"),
+               Turn(kind="cell", cell_no=2, code="kept = df[df.v > 155]\nRESULT('rows above the line', float(len(kept)), None, None, 'rows', 'n/a')", results=[{"text": "rows above the line: +3", "typed": False}], stdout="RESULT: rows above the line: +3")]
+run5d.report = "## Three\n\nThree rows [cell 2]."
+run5d.status = "answered"
+run5d.data = dict(run4.data)
+run5d.replay_script, _ = assemble(run5d.cells(), run5d.report)
+nb5b.runs[run5d.id] = run5d
+def literal_promoter(s_, u_):
+    if "df.g == 'b'" in u_:
+        return '{"name": "Rows", "inputs": [], "edits": [], "kept": [], "unfit": [{"cell": 1, "what": "a group of this data named by looking"}]}', {"cost": 0.0}
+    return '{"name": "Rows", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}
+_pc5d = host.propose(nb5b, run5d.id, literal_promoter, current_data={"df_id": "df4"})
+_runs["n"] = 0
+made5d = host.create(nb5b, _pc5d, {"name": "Rows"}, _counting_runner, store)
+_v5d = store.load(made5d["routine"]["id"])["versions"][0]
+check("propose (§19.4): the exploration cell with the literal never reaches the promoter, so a promoter that would refuse on it proposes instead; create: the pruned method reproduces in one run and stands, the version's script is cell 2 alone, the chain as written (cell 1 included) beside it under script_written, the record saying the pruning stood",
+      _pc5d["pruned"] == [1] and _pc5d["cells"] == 1 and _runs["n"] == 1 and made5d["run_zero"]["status"] == "reproduced"
+      and [ln for ln in _v5d["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---"] and "# --- cell 1 ---" in _v5d["script_written"] and "df.g == 'b'" in _v5d["script_written"]
+      and _v5d["pruned"] == {"before": 2, "after": 1, "dropped": [1], "stood": True}, (_pc5d.get("pruned"), _v5d.get("pruned"), _runs))
+check("prune_cells with keep_prints: the exploration cells go, the kept cells' prints stay (prints_only drops the three prints and no cell); a chain with nothing to prune before the promoter keeps its count (run4's two cells, nothing dropped, no pruning record on the version)",
+      rt.prune_cells(_pc5d["cells_chain"], [], keep_prints=True)[1:3] == ([1], 0) and rt.prune_cells(_pc5d["cells_chain"], [])[1:3] == ([1], 0)
+      and rt.prune_cells(_pc5["cells_chain"], [], keep_prints=True)[1:3] == ([1, 3], 0) and rt.prune_cells(_pc5["cells_chain"], [], prints_only=True)[1:3] == ([], 3)
+      and rt.prune_cells(_pc1["cells_chain"], [], keep_prints=True)[1:3] == ([], 0) and "print(len(kept))" in rt.prune_cells(_pc1["cells_chain"], [], keep_prints=True)[0] and rt.prune_cells(_pc1["cells_chain"], [])[1:3] == ([], 1)
+      and _pc1["pruned"] == [] and _pc1["chain_cells"] == _pc1["cells"] == 2 and "pruned" not in store.load(made["routine"]["id"])["versions"][0])
+# a chain with nothing to anchor the pruning - no RESULT line, no figure (its printed output is what a run keeps): the whole chain is the method
+nb5c = Notebook("t5c")
+run5e = nb5c.new_run("Just the means?")
+run5e.turns = [Turn(kind="cell", cell_no=1, code="m = df.groupby('g')['v'].mean()\nprint(m.to_dict())", results=[], stdout="{}"),
+               Turn(kind="cell", cell_no=2, code="print('spread', float(m.max() - m.min()))", results=[], stdout="spread 1")]
+run5e.report = "## Means\n\nThe means [cell 1], their spread [cell 2]."
+run5e.status = "answered"
+run5e.data = dict(run4.data)
+run5e.replay_script, _ = assemble(run5e.cells(), run5e.report)
+nb5c.runs[run5e.id] = run5e
+_pc5e = host.propose(nb5c, run5e.id, lambda s_, u_: ('{"name": "Means", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}), current_data={"df_id": "df4"})
+check("propose (§19.4): a chain without a RESULT line or a figure is not pruned - both cells stay, nothing dropped, no whole chain kept beside",
+      _pc5e["pruned"] == [] and _pc5e["cells"] == 2 and _pc5e["chain_cells"] == 2 and "# --- cell 1 ---" in _pc5e["cells_text"] and "# --- cell 2 ---" in _pc5e["cells_text"], (_pc5e.get("pruned"), _pc5e.get("cells")))
 # nothing to cut: no run; a pruning that fails on its only level: as written with the reason
 _zero_fig = dict(_zero, figs=[_fig([1, 2])])
 _c6 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero_fig, _counting_runner, 60)

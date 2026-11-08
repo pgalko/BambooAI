@@ -256,14 +256,22 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     path = nb.computed_cells(run.id)
     earlier = nb.earlier_on_other_data(run.id)
     script, _order = assemble(path, run.report or "", own=run.cells())     # today's assembly, not the stored one: a chain from before the RESULT stub (2026-10-06) would stop on NameError
-    header, body, tail, order = rt.split_script(script)
-    if not order:
+    header, chain, tail, chain_order = rt.split_script(script)
+    if not chain_order:
         raise RoutineRefused("this chain has no cells to run again (nothing was computed)")
-    expected = rt.expected_results(path, order)
-    figures = [c.cell_no for c in run.cells() if c.figures and c.cell_no in order]
+    figures = [c.cell_no for c in run.cells() if c.figures and c.cell_no in chain_order]
     nfig = sum(len(c.figures) for c in run.cells() if c.cell_no in figures)
+    # the method is the cells the result lines and figures rest on (§19.4): the exploration - a ride named by its id, a check
+    # by hand - goes before the promoter reads the chain, its prints kept for now (the condensing pass drops them after run
+    # zero); run zero falls back to the whole chain when the pruned method does not reproduce
+    body, pruned, _prints, problem = rt.prune_cells(chain, figures, keep_prints=True)
+    if problem or not pruned or len(pruned) == len(chain_order):      # nothing to prune, or nothing anchors (no RESULT line, no figure): the whole chain is the method
+        body, pruned = chain, []
+    order = [n for n in chain_order if n not in pruned]
+    expected = rt.expected_results(path, order)
     step = emit or (lambda ev: None)                      # the dialog's checklist (§17): a line as each step passes
-    step({"type": "step", "step": "chain", "detail": f"{len(order)} cell{'s' if len(order) != 1 else ''} · {len(expected)} result{'s' if len(expected) != 1 else ''} · {nfig} figure{'s' if nfig != 1 else ''}"})
+    step({"type": "step", "step": "chain", "detail": (f"{len(order)} of {len(chain_order)} cells" if pruned else f"{len(order)} cell{'s' if len(order) != 1 else ''}")
+          + f" · {len(expected)} result{'s' if len(expected) != 1 else ''} · {nfig} figure{'s' if nfig != 1 else ''}"})
     state = data_state(run.data, current_data)
     data = dict(run.data or {}) if state != "assumed" else dict(current_data or {})
     if state in ("same", "assumed"):
@@ -357,7 +365,8 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     return {"proposal_id": rt.new_id(), "thread_id": nb.thread_id, "chain_id": run.id, "name": name, "purpose": "", "question": run.question, "instruction": instruction,
             "summary": summary, "data": data, "data_state": state, "source": rt.source_kind(data), "inputs": inputs, "notes": notes,
             "kept": [str(k) for k in (obj.get("kept") or [])][:12], "results": results, "figures": {"count": sum(len(c.figures) for c in run.cells() if c.cell_no in figures), "cells": figures},
-            "cells": len(order), "script": rt.join_script(header, edited, tail), "header": header, "tail": tail, "cells_text": edited, "cells_original": body,
+            "cells": len(order), "chain_cells": len(chain_order), "pruned": pruned, "cells_chain": chain,            # the whole chain, for run zero's fallback (§19.4)
+            "script": rt.join_script(header, edited, tail), "header": header, "tail": tail, "cells_text": edited, "cells_original": body,
             "cell_outputs": {str(c.cell_no): (c.stdout or "") for c in path if c.cell_no in order},          # the consolidation's brief (§19.3)
             "cell_times": {str(c.cell_no): round(float(c.elapsed or 0), 1) for c in path if c.cell_no in order},
             "applied": applied, "timeout": _timeout(path), "cost": round(cost, 4), "routine_id": routine.get("id") if routine else None,
@@ -399,27 +408,48 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     if unknown:
         raise RoutineRefused("the script still reads an input that was dropped (" + ", ".join(unknown) + ")")
     script = rt.join_script(proposal["header"], cells, proposal["tail"])
+    # the method the promoter saw is the chain without its exploration (§19.4); the whole chain, with the same edits, is run
+    # zero's fallback when the pruned method does not reproduce, and the script as written either way
+    whole = None
+    if proposal.get("pruned") and proposal.get("cells_chain"):
+        w_text, w_applied, _failed = rt.apply_edits(proposal["cells_chain"], proposal.get("applied") or [])
+        w_cells = rt.strip_keys(w_text, proposal["cells_chain"], w_applied, drop_inputs) if drop_inputs else w_text
+        whole = {"cells": w_cells, "script": rt.join_script(proposal["header"], w_cells, proposal["tail"])}
+    method = {"cells": cells, "script": script,
+              "pruned": {"before": int(proposal.get("chain_cells") or 0), "after": len(rt.cell_blocks(cells)), "dropped": list(proposal.get("pruned") or []), "stood": True} if whole else None}
     results = [dict(r, dropped=((r["cell"], r["index"]) in drop_results)) for r in proposal["results"]]
     manifest = {"data": proposal["data"], "parameters": inputs, "results": results, "figures": proposal.get("figures") or {"count": 0, "cells": []}, "notes": proposal.get("notes") or []}
     now = time.time()
     run_zero = {"created": now, "status": "unverified", "line": UNVERIFIED_LINE, "verified": False, "results": [], "figures": 0, "data": proposal["data"], "inputs": rt.defaults_of(inputs)}
     verifying = runner is not None and proposal.get("data_state") != "gone"
     timeout = int(proposal.get("timeout") or 300)
+
+    def zero(emit_: Optional[Callable]) -> dict:
+        """Run zero on the pruned method; when it does not reproduce and there is a whole chain to try, run zero on that
+        (§19.4) - the whole chain is then the method, the record saying so."""
+        verdict = verify_zero(name, method["script"], results, run_zero["inputs"], runner, timeout, emit_)
+        if verdict["status"] != "reproduced" and whole:
+            again = verify_zero(name, whole["script"], results, run_zero["inputs"], runner, timeout, emit_)
+            if again["status"] == "reproduced":
+                method.update({"cells": whole["cells"], "script": whole["script"]})
+                method["pruned"]["stood"] = False
+                return again
+        return verdict
     stdout, figs = "", []
     condensed = consolidated = None
     if verifying and not background:
-        verdict = verify_zero(name, script, results, run_zero["inputs"], runner, timeout, emit)
+        verdict = zero(emit)
         if verdict["status"] != "reproduced":
             raise RoutineRefused(f"run zero on this chain's own data did not reproduce the analysis: {verdict['line']}")
         run_zero.update({k: verdict[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
         stdout, figs = verdict["stdout"], verdict["figs"]
         if condense_code:
-            condensed = condense(proposal, cells, results, run_zero["inputs"], verdict, runner, timeout)
+            condensed = condense(proposal, method["cells"], results, run_zero["inputs"], verdict, runner, timeout)
             if condensed["status"] == "condensed":
                 stdout, figs = condensed["stdout"], condensed["figs"]
                 run_zero.update({"results": condensed["results"], "figures": len(condensed["figs"]), "elapsed": condensed["elapsed"][1]})
         if consolidator is not None:
-            consolidated = consolidate(proposal, condensed, cells, results, run_zero["inputs"], verdict, consolidator, runner, timeout, consolidator_seat, consolidator_model)
+            consolidated = consolidate(proposal, condensed, method["cells"], results, run_zero["inputs"], verdict, consolidator, runner, timeout, consolidator_seat, consolidator_model)
             if consolidated["status"] == "consolidated":
                 stdout, figs = consolidated["stdout"], consolidated["figs"]
                 run_zero.update({"results": consolidated["results"], "figures": len(consolidated["figs"]), "elapsed": consolidated["elapsed"][1]})
@@ -443,9 +473,10 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
             routine["instruction"] = instruction
     number = len(routine["versions"]) + 1
     version = {"number": number, "created": now, "promoted_from": {"thread_id": str(nb.thread_id), "chain_id": str(proposal["chain_id"])},
-               "script": script, "manifest": manifest, "change_note": change_note, "run_zero": run_zero}
+               "script": method["script"], "manifest": manifest, "change_note": change_note, "run_zero": run_zero}
+    settle_pruned(version, method, whole)
     if condensed is not None:
-        settle_condensed(version, condensed, script)
+        settle_condensed(version, condensed, whole["script"] if whole else script)
     if consolidated is not None:
         settle_consolidated(version, consolidated)
     routine["versions"].append(version)
@@ -470,8 +501,10 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
             v["run_zero"].update({k: verdict[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
             if status:
                 v["run_zero"].update({"status": status, "line": CONDENSING_LINE})
+            v["script"] = method["script"]                          # the whole chain when run zero fell back to it (§19.4)
+            settle_pruned(v, method, whole)
             if condensed_ is not None:
-                settle_condensed(v, condensed_, script)
+                settle_condensed(v, condensed_, whole["script"] if whole else script)
             if consolidated_ is not None:
                 settle_consolidated(v, consolidated_)
             store.save(r)
@@ -487,16 +520,16 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
             is watching a pane for it (a row emitted after the dialog's stream closed would land in the next request's);
             the toast and the manager's chip say what happened. Then the condensing pass (§19) and, with a consolidator,
             the consolidation (§19.3), the version marked condensing while they run."""
-            verdict = verify_zero(name, script, results, inputs_defaults, runner, timeout, None)
+            verdict = zero(None)
             if not (condense_code or consolidator is not None) or verdict["status"] != "reproduced":
                 write(verdict)
                 return verdict
             if not write(verdict, status="condensing"):
                 return verdict                                        # deleted meanwhile: nothing to write on
-            c = condense(proposal, cells, results, inputs_defaults, verdict, runner, timeout) if condense_code else None
+            c = condense(proposal, method["cells"], results, inputs_defaults, verdict, runner, timeout) if condense_code else None
             if c and c["status"] == "condensed":
                 verdict = dict(verdict, results=c["results"], figures=len(c["figs"]), elapsed=c["elapsed"][1])
-            k = consolidate(proposal, c, cells, results, inputs_defaults, verdict, consolidator, runner, timeout, consolidator_seat, consolidator_model) if consolidator is not None else None
+            k = consolidate(proposal, c, method["cells"], results, inputs_defaults, verdict, consolidator, runner, timeout, consolidator_seat, consolidator_model) if consolidator is not None else None
             if k and k["status"] == "consolidated":
                 verdict = dict(verdict, results=k["results"], figures=len(k["figs"]), elapsed=k["elapsed"][1])
             write(verdict, condensed_=c, consolidated_=k)
@@ -587,6 +620,16 @@ def condense(proposal: dict, cells: str, results: List[dict], inputs: Dict[str, 
         return out
     out["line"] = "as written: " + why
     return out
+
+
+def settle_pruned(version: dict, method: dict, whole: Optional[dict]) -> None:
+    """The pruning before the promoter on a version (§19.4): the record of it, and the chain as written under
+    script_written while the pruned method stands (the fallback to the whole chain leaves the two the same)."""
+    if not whole or not method.get("pruned"):
+        return
+    version["pruned"] = dict(method["pruned"])
+    if method["pruned"]["stood"]:
+        version["script_written"] = whole["script"]
 
 
 def settle_condensed(version: dict, condensed: dict, written: str) -> None:

@@ -419,8 +419,8 @@ def main():
                 results: [...document.querySelectorAll('#routineMakeModal .rt-results .r .l')].map(e => e.textContent), data: document.querySelector('#routineMakeModal .rt-data').textContent,
                 state: [...document.querySelectorAll('#routineMakeModal .rt-line')].map(e => e.textContent).join(' | '), card: !![...document.querySelectorAll('.sp-turn .n')].find(e => e.textContent === 'Routine'),
                 seat: (() => { const c = [...document.querySelectorAll('.sp-turn')].find(t => (t.querySelector('.n') || {}).textContent === 'Routine'); return c ? ((c.querySelector('.sp-prompt') || {}).dataset || {}).agent || '' : ''; })() })""")
-            check("Save as routine: the dialog shows the promoter's proposal - the name, the regime as the one input (B), the chain's RESULT line, the data, and that the check runs on this chain's own data; the pane shows the promoter's card on the Promoter seat",
-                  dlg["name"] == "Regime contrast within soil, plot means" and dlg["inputs"] == [["regime", "B"]] and len(dlg["results"]) == 1 and "regime B vs A" in dlg["results"][0]
+            check("Save as routine: the dialog shows the promoter's proposal - the name, the regime as the one input (B), the chain's RESULT line, the data, and that the check runs on this chain's own data; the header counts 2 of 3 cells (the inspection cell pruned before the promoter, §19.4); the pane shows the promoter's card on the Promoter seat",
+                  dlg["name"] == "Regime contrast within soil, plot means" and dlg["inputs"] == [["regime", "B"]] and len(dlg["results"]) == 1 and "regime B vs A" in dlg["results"][0] and "2 of 3 cells" in dlg["sub"]
                   and "field_trial.csv" in dlg["data"] and "Checked once" in dlg["state"] and dlg["card"] and "Promoter" in dlg["seat"], dlg)
             page.fill("#routineMakeModal [data-field='purpose']", "the within-soil regime contrast, for the next season")
             # the custom instructions (§15.6): the coach's line goes to the promoter again with Update the list; the scripted promoter
@@ -465,8 +465,9 @@ def main():
             # the prints go; the candidate reproduced the line and both figures (the matplotlib PNG byte for byte, the Plotly figure by its data),
             # so it is the script that runs, the chain's kept as written; run zero's record is the condensed run's
             v1 = (rj.get("versions") or [{}])[0]
-            check("the routine's code was condensed behind the verdict, without a model: 3 cells → 2 (the inspection cell gone, five prints out, the RESULT call and the figure cell kept with their numbers), the chain's script kept as written, the pass on the record, run zero's figures two",
-                  (v1.get("condensed") or {}).get("status") == "condensed" and v1["condensed"]["line"].startswith("condensed: 3 cells → 2, 5 prints dropped, ") and v1["condensed"]["cells"] == [3, 2] and v1["condensed"]["dropped"] == {"cells": [1], "prints": 5}
+            check("the inspection cell went before the promoter (§19.4): the version records 3 cells, 2 kept, cell 1 dropped, the pruning standing; the condensing pass behind the verdict then found only the five prints to drop (2 cells kept); the RESULT call and the figure cell kept with their numbers, the chain's script kept as written, run zero's figures two",
+                  v1.get("pruned") == {"before": 3, "after": 2, "dropped": [1], "stood": True}
+                  and (v1.get("condensed") or {}).get("status") == "condensed" and v1["condensed"]["line"].startswith("condensed: 2 cells kept, 5 prints dropped, ") and v1["condensed"]["cells"] == [2, 2] and v1["condensed"]["dropped"] == {"cells": [], "prints": 5}
                   and [ln for ln in v1["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---", "# --- cell 3 ---"] and not [ln for ln in v1["script"].splitlines() if ln.startswith("print(")]
                   and "RESULT(" in v1["script"] and "pfig.show()" in v1["script"] and "print(df.shape)" in v1.get("script_written", "") and "# --- cell 1 ---" in v1.get("script_written", "")
                   and v1["run_zero"]["figures"] == 2 and v1["run_zero"]["elapsed"] == v1["consolidated"]["elapsed"][1], (v1.get("condensed"), [ln for ln in v1.get("script", "").splitlines() if ln.startswith("# --- cell")]))

@@ -30,12 +30,12 @@ def _store():
 def _view(proposal):
     """The proposal as the dialog shows it: no scripts, no edit lists."""
     keys = ("proposal_id", "thread_id", "chain_id", "name", "purpose", "question", "summary", "data", "data_state", "source", "inputs", "notes",
-            "kept", "results", "figures", "cells", "cost", "routine_id", "routine_name", "next_version", "instruction")
+            "kept", "results", "figures", "cells", "chain_cells", "pruned", "cost", "routine_id", "routine_name", "next_version", "instruction")
     return {k: proposal.get(k) for k in keys}
 
 
 def _version_view(v):
-    return {k: v.get(k) for k in ("number", "created", "promoted_from", "change_note", "manifest", "run_zero", "condensed", "consolidated")} | {
+    return {k: v.get(k) for k in ("number", "created", "promoted_from", "change_note", "manifest", "run_zero", "condensed", "consolidated", "pruned")} | {
         "script_chars": len(v.get("script") or ""), "written_chars": len(v.get("script_written") or "")}        # the script as written, when condensed (§19)
 
 

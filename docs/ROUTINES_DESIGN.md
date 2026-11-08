@@ -1406,6 +1406,35 @@ old method's; a second run with nothing to check), the app path (the quiet call 
 effort, billed to the save's chain; the route's first run confirming), the page's line, the stack walk (the stack's
 own Condenser drops the dead stores; the rewrite provisional, then confirmed on run 1) and the C5 scan.
 
+### 19.4 The exploration goes before the promoter (2026-11-08, patch 0283)
+
+Palo's save of a power-curve chain was refused under the identifier rule (§18): cell 4 named one ride by its activity
+id, picked by looking, and printed about it. The ride fed nothing - cells 5 and 6 held the method, and the pass of 19.1
+would have dropped cell 4 after run zero. The refusal came first because the promoter read every cell that ran. And a
+diagnostic cell that is not refused stays in the routine and breaks on other data: a filter on one ride's id gives an
+empty table, and row 0 of an empty table is the IndexError Palo saw at cell 4 of an earlier routine.
+
+**Now the pruning runs first.** `propose` calls `prune_cells(chain, figures, keep_prints=True)` - the cells the result
+lines and figures rest on, by the reading of 19.1, their prints left in for now - and hands the promoter those cells
+alone: the ledger, the cited cells, the edits, the proposal's script are all the pruned method's. The checklist and the
+dialog's header say *2 of 6 cells*. A chain where nothing anchors (no RESULT line, no figure: its printed output is
+what a run keeps) is not pruned. The proposal carries the whole chain beside the method (`cells_chain`, `pruned`,
+`chain_cells`).
+
+**Run zero's fallback.** The reading of 19.1 is static and can miss a dependency the code does not show (a list
+mutated through a function, a file written by one cell and read by another). So `create` runs run zero on the pruned
+method and, when it does not reproduce, once more on the whole chain with the same edits applied; whichever reproduces
+is the version's script. The version records `pruned: {before, after, dropped, stood}`; while the pruned method stands,
+the chain as written (edits included) is kept under `script_written`, so *as written ↓* is there from the start; when
+run zero fell back, the version row says *the whole chain kept: the pruned method did not reproduce*. The condensing
+pass after the verdict runs as before and usually finds only the prints to drop.
+
+Accepted by: the pure module (`prune_cells` with `keep_prints`), the host's path (the flags chain - cells 1 and 3
+pruned before the promoter, the pruned method differing, run zero falling back to the whole chain in two runs, the
+record; a chain whose exploration cell names a row by looking - the promoter never sees it, the pruned method stands,
+the chain as written beside it; a chain with nothing to anchor, not pruned), the markup (the version row's note, the
+header's count), the stack walk (the inspection cell gone before the promoter, the pass dropping the prints alone).
+
 ## 20. The Summary, one column (2026-11-08)
 
 Palo, with three screenshots of the manager scrolled through: "very cluttered now with multiple scroll bars, and even

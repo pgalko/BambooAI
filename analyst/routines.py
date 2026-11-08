@@ -650,14 +650,14 @@ class _CellFacts:
             self._expr(child, local)
 
 
-def prune_cells(cells: str, figure_cells: Iterable[int], prints_only: bool = False) -> Tuple[str, List[int], int, str]:
+def prune_cells(cells: str, figure_cells: Iterable[int], prints_only: bool = False, keep_prints: bool = False) -> Tuple[str, List[int], int, str]:
     """The cells without the exploration (docs/ROUTINES_DESIGN.md §19.1), from the code alone: a cell stays when
     something rests on it - a RESULT line, a figure (its cell named, or a show / save / write call), an input read that
     no other kept cell makes - or when a later kept cell reads, before binding it itself, a name it defines or mutates;
     every other cell goes, its imports kept, as do the top-level print and display statements of the cells kept.
     Markers, numbers and the capture switches between cells stay. `prints_only` keeps every cell and drops the prints
-    alone. Returns (cells, the cells dropped, the prints dropped, problem): a cell that does not parse prunes nothing,
-    with the problem said."""
+    alone; `keep_prints` drops the cells alone (§19.4: the method before the promoter reads it). Returns (cells, the
+    cells dropped, the prints dropped, problem): a cell that does not parse prunes nothing, with the problem said."""
     blocks = cell_blocks(cells)
     figs = {int(c) for c in figure_cells or []}
     facts, codes = [], []
@@ -691,7 +691,7 @@ def prune_cells(cells: str, figure_cells: Iterable[int], prints_only: bool = Fal
             out.extend(ln for j, ln in enumerate(lines[1:], 1) if j in held or _CAPTURE_LINE_RE.match(ln))     # its imports and the switches belong to the script
             continue
         gone = set()
-        for a, b in facts[i].prints:
+        for a, b in ([] if keep_prints else facts[i].prints):
             gone.update(range(a, b + 1)); prints += 1
         out.append(lines[0])
         out.extend(ln for j, ln in enumerate(lines[1:], 1) if j not in gone)
