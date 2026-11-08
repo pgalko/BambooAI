@@ -22,7 +22,7 @@ import os
 import re
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 
 DB_FILE = "bambooai.sqlite"
 
@@ -198,7 +198,7 @@ class _Query:
                 where, args = self._where_sql()
                 vals = {k: self.s._enc(self.t, k, v) for k, v in self.values.items()}
                 if "updated_at" in self.s.columns(self.t) and "updated_at" not in vals:
-                    vals["updated_at"] = datetime.utcnow().isoformat()
+                    vals["updated_at"] = datetime.now(timezone.utc).isoformat()
                 sets = ", ".join(f'"{k}" = ?' for k in vals)
                 ids = [r[0] for r in self.s.conn.execute(f'SELECT id FROM "{self.t}"{where}', args)]
                 self.s.conn.execute(f'UPDATE "{self.t}" SET {sets}{where}', list(vals.values()) + args)
@@ -368,7 +368,7 @@ class LocalStore:
                 known = self.columns(table)
                 vals = {k: self._enc(table, k, v) for k, v in row.items() if k in known and k != "id"}
                 if "updated_at" in known and "updated_at" not in vals:
-                    vals["updated_at"] = datetime.utcnow().isoformat()
+                    vals["updated_at"] = datetime.now(timezone.utc).isoformat()
                 sets = ", ".join(f'"{k}" = ?' for k in vals)
                 self.conn.execute(f'UPDATE "{table}" SET {sets} WHERE id = ?', list(vals.values()) + [hit[0]])
                 return self._rows(table, [hit[0]])[0]
