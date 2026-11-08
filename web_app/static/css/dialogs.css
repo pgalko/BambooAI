@@ -265,20 +265,17 @@
 .rt-error .h { font-size: var(--fs-small); color: var(--text-tertiary); margin-bottom: 4px; }     /* the failed cell's code beside the traceback (step 4, 2026-10-11) */
 .rt-error .rt-error-cell pre { max-height: 320px; overflow: auto; }
 .rt-version .ui-choice span { line-height: 1.4; }
-.rt-vers { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-meta); color: var(--text-secondary); }
-.rt-vers .v { display: flex; gap: 10px; align-items: baseline; }
-.rt-vers .v b { color: var(--text-primary); font-family: var(--font-mono); font-size: var(--fs-meta); }
-.rt-vers .v span { color: var(--text-quaternary); font-size: var(--fs-small); }
 .rt-status { font-size: var(--fs-small); padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; }
 .rt-status.reproduced { color: var(--c-model); border-color: var(--chip-model-border); }
 .rt-status.unverified { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
 .rt-status.verifying { color: var(--c-kernel); border-color: var(--chip-kernel-border); animation: rt-verifying 1.4s ease-in-out infinite; }   /* run zero behind the dialog (2026-10-15); condensing too (§19) */
-.rt-written { margin-left: 4px; font-size: var(--fs-small); color: var(--text-tertiary); text-decoration: none; }     /* the code as written, when the code that runs is the condensed one (§19) */
+.rt-written { color: var(--text-tertiary); text-decoration: none; border-bottom: 1px dotted var(--text-quaternary); }     /* the code as written, when the code that runs is the condensed one (§19) */
+.rt-aswritten { border-bottom: 1px dotted var(--text-quaternary); cursor: help; }     /* kept as written: the reason on hover */
 .rt-written:hover { color: var(--text-secondary); text-decoration: underline; }
 @keyframes rt-verifying { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 /* the manager: the shape of the saved-workflows dialog, a list on the left and one routine on the right */
 #routinesModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
-#routinesModal .ui-dlg.rt-mgr { width: min(1240px, 100%); height: min(90vh, 900px); flex-direction: row; overflow: hidden; }     /* a set height (2026-11-06): the body scrolls, the box does not follow its content */
+#routinesModal .ui-dlg.rt-mgr { width: min(1800px, 100%); height: 100%; max-height: none; flex-direction: row; overflow: hidden; }     /* the window less the scrim's margin (2026-11-08): the body is the one scroll */
 #routinesModal .rt-left { width: 270px; flex-shrink: 0; border-right: 1px solid var(--border-color); padding: 14px 10px 12px; display: flex; flex-direction: column; gap: 6px; overflow: auto; }
 #routinesModal .rt-left .ui-side-label { margin: 0 0 4px 6px; }
 #routinesModal .rt-right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -287,9 +284,18 @@
 #routinesModal .rt-actions { display: flex; gap: 6px; align-items: center; }
 #routinesModal .rt-actions .ui-btn { height: 26px; padding: 0 9px; font-size: var(--fs-small); text-decoration: none; }
 #routinesModal .rt-actions .danger-text { color: var(--c-fail); }
-#routinesModal .rt-body { padding: 14px 16px; overflow: auto; display: flex; flex-direction: column; gap: 18px; flex: 1; min-height: 0; }
-#routinesModal .rt-body .ui-kv { grid-template-columns: 90px 1fr; }
-#routinesModal .rt-body .ui-kv span { color: var(--text-secondary); line-height: 1.5; }
+#routinesModal .rt-body { padding: 14px 16px 18px; overflow: auto; display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
+/* the facts (S2, 2026-11-08): Purpose, Inputs, Results, Version(s) as label and value; then the runs */
+#routinesModal .rt-facts { grid-template-columns: 72px 1fr; gap: 7px 14px; }
+#routinesModal .rt-facts > span { color: var(--text-secondary); line-height: 1.5; min-width: 0; }
+.rt-facts .rt-input { display: block; }
+.rt-facts .rt-input .k { color: var(--text-primary); }
+.rt-facts .rt-input .val { font-family: var(--font-mono); font-size: var(--fs-meta); margin-left: 6px; }
+.rt-facts .rt-input .from { color: var(--text-quaternary); font-size: var(--fs-small); margin-left: 6px; }
+.rt-facts .rt-vers .v { display: block; }
+.rt-facts .rt-vers .v b { color: var(--text-primary); font-family: var(--font-mono); font-size: var(--fs-meta); font-weight: 600; margin-right: 8px; }
+.rt-facts .rt-status { padding: 0; border: none; border-radius: 0; font-size: inherit; }
+.rt-sep { border-top: 1px solid var(--border-color); }
 .rt-side { display: flex; flex-direction: column; gap: 2px; }
 .rt-side .it { display: flex; flex-direction: column; gap: 2px; padding: 7px 8px; border-radius: 5px; cursor: pointer; }
 .rt-side .it:hover, .rt-side .it.on { background: var(--bg-tertiary); }
@@ -333,9 +339,6 @@
 .rt-fillbar { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-secondary); }
 .rt-fillbar .live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); flex-shrink: 0; animation: rt-pulse 1.2s ease-in-out infinite; }
 .rt-fillbar .t { flex: 1; min-width: 0; }
-/* the fill's last word stays where the bar was until the Summary is closed (2026-11-06): ✓ filled, ! stopped or with failures */
-.rt-fillbar.done .mark { width: 8px; flex-shrink: 0; text-align: center; color: var(--c-model); font-weight: 600; }
-.rt-fillbar.done.warn .mark { color: var(--c-kernel); }
 /* the manager's runs by athlete: the pick at the right of the heading */
 .rt-sec > .h .rt-athlete-pick { margin-left: auto; height: 24px; font-size: var(--fs-small); text-transform: none; letter-spacing: 0; max-width: 60%; }
 /* the load's band (§16.2): under the body, in view whatever the body scrolls, while a load runs - the dot, the loader's words, a
@@ -364,6 +367,8 @@
 .rt-runs td.num, .rt-runs th.num, .rt-cmp-table td.num, .rt-cmp-table th.num { text-align: right; font-family: var(--font-mono); font-size: var(--fs-meta); }
 .rt-runs td.label, .rt-cmp-table td.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; color: var(--text-primary); }
 .rt-runs th .d { display: block; color: var(--text-quaternary); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.rt-runs th[data-run] { cursor: pointer; }
+.rt-runs th[data-run]:hover { color: var(--text-primary); }
 .rt-runs td.mark, .rt-runs th.mark { width: 22px; padding-left: 4px; padding-right: 4px; text-align: center; }
 .rt-mark { display: inline-block; min-width: 14px; text-align: center; font-weight: 700; }
 .rt-mark.up, .rt-mark.down, .rt-mark.changed { color: var(--c-kernel); }
@@ -371,6 +376,11 @@
 .rt-mark.missing, .rt-mark.unreached { color: var(--text-quaternary); }
 .rt-cmp-table tr.unreached td { color: var(--text-quaternary); }
 .rt-legend { font-size: var(--fs-small); color: var(--text-quaternary); margin-top: 10px; line-height: 1.5; }
+.rt-foot { font-size: var(--fs-small); color: var(--text-quaternary); margin-top: 8px; line-height: 1.6; }
+.rt-foot a { color: var(--c-model); cursor: pointer; text-decoration: none; }
+.rt-foot a:hover { text-decoration: underline; }
+.rt-foot .rt-failed { display: block; cursor: pointer; }
+.rt-foot .rt-failed a { margin-left: 4px; }
 /* the Summary by interval (docs/ROUTINES_DESIGN.md §14.6): the filter bar in the heading, the table by unit in a box with its head
    fixed, a thumbnail per line in the column head, the latest row tinted; the runs list in a box of five */
 .rt-sec > .h .rt-filter { margin-left: auto; }
@@ -379,13 +389,20 @@
 .rt-sec > .h .rt-filter .k { margin-left: 5px; font-family: var(--font-mono); font-size: 10px; color: var(--text-quaternary); }
 .rt-sec > .h .rt-filter > span.on .k { color: var(--c-model); }
 .rt-sec > .h .rt-filter + .rt-athlete-pick { margin-left: 10px; }
-.rt-byunit { max-height: 420px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--r-2); }
+.rt-byunit { margin: 0 -4px; }     /* no box of its own (2026-11-08): the body scrolls, the head sticks to its top */
 .rt-by { width: 100%; border-collapse: separate; border-spacing: 0; }
 .rt-by thead th { position: sticky; top: 0; z-index: 1; background: var(--bg-secondary); vertical-align: bottom; }
 .rt-by th.m { text-align: right; min-width: 128px; }
 .rt-by th.m .lab { display: block; text-transform: none; letter-spacing: 0; font-weight: 500; white-space: normal; line-height: 1.3; margin-bottom: 4px; }
 .rt-by td.w { white-space: nowrap; color: var(--text-primary); }
 .rt-by td.w .r { display: block; font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-quaternary); }
+/* the rows are the runs (2026-11-08): each opens, said on hover; a unit whose runs failed is a row with the reason */
+.rt-by tbody tr[data-run] { cursor: pointer; }
+.rt-by tbody tr[data-run]:hover td { background: var(--dataframe-hover); }
+.rt-by td.w .open { margin-left: 12px; font-size: var(--fs-small); color: var(--c-model); opacity: 0; }
+.rt-by tbody tr:hover td.w .open { opacity: 1; }
+.rt-by tr.failed td.w { color: var(--text-tertiary); }
+.rt-by td.f { font-size: var(--fs-small); color: var(--c-fail); opacity: .8; white-space: normal; }
 .rt-by td.num { text-align: right; font-family: var(--font-mono); font-size: var(--fs-meta); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rt-by td.num .rt-mark { min-width: 12px; }
 .rt-by tr.latest td { background: color-mix(in srgb, var(--c-model) 6%, transparent); }
@@ -395,8 +412,6 @@
 .rt-thumb circle.last { fill: none; stroke: var(--c-model); stroke-width: 1.5; }
 .rt-thumb:hover polyline, .rt-thumb:hover circle.last { stroke-width: 2.2; }
 .rt-cmp-table td.trend .rt-thumb { margin-left: 0; cursor: default; }
-.rt-runbox { max-height: 226px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--r-2); padding: 4px; }
-.rt-runbox .rt-runlist .ui-item { margin-bottom: 4px; }
 /* the enlarged chart (§14.6): the thumbnail at full size on a calendar axis */
 #routineTrendModal .trend-dlg { width: min(1240px, 100%); }
 #routineTrendModal .ui-dlg-h .ui-seg { margin-right: 10px; }
@@ -411,11 +426,6 @@
 #routineTrendModal .rt-keys:empty { display: none; }
 #routineTrendModal .rt-key .sw { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin: 0 7px 2px 0; }
 #routineTrendModal .rt-key .sw.dashed { height: 0; border-top: 2px dashed; background: none; }
-.rt-runlist .ui-item { padding: 6px 10px; gap: 12px; cursor: pointer; }
-.rt-runlist .ui-item .n { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--text-tertiary); width: 46px; flex-shrink: 0; }
-.rt-runlist .ui-item .w { font-size: var(--fs-meta); color: var(--text-secondary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rt-runlist .ui-item .w b { color: var(--text-primary); font-weight: 600; }
-.rt-runlist .ui-item .open { font-size: var(--fs-small); color: var(--c-model); white-space: nowrap; }
 .rt-status.ran { color: var(--c-model); border-color: var(--chip-model-border); }
 .rt-status.failed, .rt-status.timed_out { color: var(--c-fail); border-color: var(--chip-fail-border); }
 .rt-status.differed { color: var(--c-kernel); border-color: var(--chip-kernel-border); }

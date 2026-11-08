@@ -195,38 +195,28 @@
             return '<div class="rt-empty">No routines yet. On a finished analysis, hover <b>Save</b> and choose <b>Save as routine</b>: the method keeps its few inputs and runs again on new data, without a model.</div>';
         },
         routineHeader(r) {
-            const d = (r.summary_card && r.summary_card.data) || {};
-            const cols = (d.columns || []).length;
             const o = r.origin || {};
             const link = r.origin_available
-                ? '<a href="#" class="rt-origin" data-thread="' + esc(o.thread_id) + '" data-chain="' + esc(o.chain_id) + '">made from the analysis of ' + esc(chainDate(o.chain_id) || o.chain_id) + ' ↗</a> <span class="ui-muted">(a favourite; continue it there)</span>'
-                : '<span class="ui-muted">made from the analysis of ' + esc(chainDate(o.chain_id) || o.chain_id) + ' — no longer in Saved workflows</span>';
-            return { title: esc(r.name), sub: esc(sourceLabel(r.source)) + (cols ? ' · ' + cols + ' columns' : '') + ' · v' + esc(r.current_version) + ' · ' + link };
+                ? '<a href="#" class="rt-origin" data-thread="' + esc(o.thread_id) + '" data-chain="' + esc(o.chain_id) + '" title="a favourite: open the analysis and continue it there">from the analysis of ' + esc(chainDate(o.chain_id) || o.chain_id) + ' ↗</a>'
+                : '<span class="ui-muted">from the analysis of ' + esc(chainDate(o.chain_id) || o.chain_id) + ' — no longer in Saved workflows</span>';
+            return { title: esc(r.name), sub: esc(sourceLabel(r.source)) + ' · v' + esc(r.current_version) + ' · ' + link };
         },
-        // the manager's body; `fill` the session's fill when it is this routine's (§14.3); `opts` {today, horizon} for the units a
-        // set interval's view spans (§14.6: the last year, or the plan's day limit when shorter)
+        // the manager's body (S2, redesigned 2026-11-08: one column, one scroll): the facts - Purpose, Inputs, Results, Version(s) -
+        // then the runs of the interval and athlete picked as a table. `fill` is the session's fill when it is this routine's
+        // (§14.3); `opts` {today, horizon} the units a set interval's view spans (§14.6: the last year, or the plan's day limit)
         routineBody(r, fill, opts) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const m = v.manifest || {};
-            const rz = v.run_zero || {};
-            let h = '<div class="rt-sec"><div class="ui-kv">' + (r.purpose ? '<b>Purpose</b><span>' + esc(r.purpose) + '</span>' : '') + '<b>Question</b><span>' + esc(r.question) + '</span>' +
-                '<b>Checked</b><span>' + build.zeroStatus(rz) + ' ' + esc(rz.line || '') + build.condensedLine(r, v) + '</span></div></div>';
-            const params = m.parameters || [];
-            h += '<div class="rt-sec"><div class="h">Inputs <span class="n">— asked before each run</span></div>' + (params.length
-                ? '<table class="ui-table rt-inputs"><thead><tr><th>Input</th><th>Default</th><th>Where it comes from</th></tr></thead><tbody>' + params.map(p => '<tr' + (p.derived ? ' data-derived="' + esc(p.derived) + '"' : '') + '><td>' + esc(p.label) + '</td><td><span class="val">' + esc(valueText(p)) + '</span>' + (p.derived ? '<span class="rt-derived">' + esc(derivedText(p)) + '</span>' : '') + '</td><td><span class="from">' + esc(p.origin || '') + '</span></td></tr>').join('') + '</tbody></table>'
-                : '<div class="rt-line">None: the method runs as it is on data of the same shape.</div>') + '</div>';
-            const res = (m.results || []).filter(x => !x.dropped);
-            h += '<div class="rt-sec"><div class="h">Results <span class="n">— compared run to run' + (m.figures && m.figures.count ? ' · ' + m.figures.count + ' figure' + (m.figures.count === 1 ? '' : 's') : '') + '</span></div>' +
-                (res.length ? '<div class="rt-results">' + res.map(x => '<div class="r"><span class="g">✓</span><span class="l" title="' + esc(x.label) + '">' + esc(build.lineName(x)) + '</span><span class="c">cell ' + esc(x.cell) + '</span></div>').join('') + '</div>' : '<div class="rt-line">None recorded: runs keep their printed output and figures.</div>') + '</div>';
-            h += '<div class="rt-sec"><div class="h">Versions</div><div class="rt-vers">' + (r.versions || []).slice().reverse().map(x => '<div class="v"><b>v' + esc(x.number) + '</b><span>' + esc(fmtDate(x.created)) + ' · from the analysis of ' + esc(chainDate((x.promoted_from || {}).chain_id) || (x.promoted_from || {}).chain_id) + (x.change_note ? ' · “' + esc(x.change_note) + '”' : '') + '</span></div>').join('') + '</div></div>';
+            let h = '<div class="ui-kv rt-facts">' + (r.purpose ? '<b>Purpose</b><span>' + esc(r.purpose) + '</span>' : (r.question ? '<b>Question</b><span>' + esc(r.question) + '</span>' : '')) +
+                '<b>Inputs</b><span>' + build.inputsFacts(m.parameters || []) + '</span><b>Results</b><span>' + esc(build.resultsFacts(m)) + '</span>' +
+                '<b>Version' + ((r.versions || []).length > 1 ? 's' : '') + '</b><span class="rt-vers">' + build.versionRows(r) + '</span></div><div class="rt-sep"></div>';
             // the runs by athlete (2026-10-30): a choice when the runs span more than one; the latest run's athlete first
             const athletes = build.runAthletes(r);
             const picked = athletes.find(a => a.id === managerState.athlete) ? managerState.athlete : (athletes[0] ? athletes[0].id : '');
             const many = athletes.length > 1;
             const pick = many ? '<select class="ui-input rt-athlete-pick" data-pick="athlete" title="whose runs">' + athletes.map(a => '<option value="' + esc(a.id) + '"' + (a.id === picked ? ' selected' : '') + '>' + esc(a.name || a.id || 'athlete not recorded') + ' · ' + a.n + ' run' + (a.n === 1 ? '' : 's') + '</option>').join('') + '</select>' : '';
-            const whose = many ? ' · ' + esc((athletes.find(a => a.id === picked) || {}).name || picked || 'athlete not recorded') : '';
-            // the results by interval (§14.6): the filter bar's pick - the one asked, else the latest run's; a set interval is the table by
-            // unit over the horizon's units, custom the table by run; the runs list follows
+            // the runs by interval (§14.6): the filter bar's pick - the one asked, else the latest run's; a set interval is the table by
+            // unit over the horizon's units, custom the table by run
             const athleteId = many ? picked : null;
             const counts = build.intervalCounts(r, athleteId);
             const kind = counts[managerState.interval] ? managerState.interval : build.openInterval(r, athleteId);
@@ -234,11 +224,48 @@
             const series = kind === 'custom' ? null : build.series(r, kind, athleteId, build.units(kind, o.today || new Date(), o.horizon || 365));
             const prefix = series ? build.sharedPrefix(series.lines.map(l => build.lineName(l))) : '';
             const unit = series && series.lines.length && series.lines.every(l => (l.unit || '') === (series.lines[0].unit || '')) ? (series.lines[0].unit || '') : '';
-            const headNote = series ? '— by ' + kind + ', the latest at the top' + (prefix ? ' · ' + esc(prefix) + (unit && unit !== 'n/a' ? ', ' + esc(unit) : '') : '') : '— each run against the one before it';
-            h += '<div class="rt-sec"><div class="h">Results across runs <span class="n">' + headNote + '</span>' + build.filterBar(counts, kind) + pick + '</div>' + build.fillBar(fill) + (series ? build.byIntervalTable(series, prefix) : build.runsTable(r, athleteId)) + '</div>';
-            h += '<div class="rt-sec"><div class="h">Runs <span class="n">— the latest five; a run opens in the main panes' + whose + '</span></div>' + build.runsList(r, athleteId, kind) + '</div>';
+            const headNote = series ? '— by ' + kind + ', the latest first' + (prefix ? ' · ' + esc(prefix) + (unit && unit !== 'n/a' ? ', ' + esc(unit) : '') : '') : '— each run against the one before it';
+            h += '<div class="rt-sec rt-runsec"><div class="h">Runs <span class="n">' + headNote + '</span>' + build.filterBar(counts, kind) + pick + '</div>' + build.fillBar(fill) + (series ? build.byIntervalTable(series, prefix) : build.runsTable(r, athleteId)) + '</div>';
             return h;
         },
+        // the Inputs fact: none, or a line per input - the label, its default (a derived one says what it follows), where it came from
+        inputsFacts(params) {
+            if (!params.length) return 'none';
+            return params.map(p => '<span class="rt-input" data-key="' + esc(p.key) + '"' + (p.derived ? ' data-derived="' + esc(p.derived) + '"' : '') + '><span class="k">' + esc(p.label) + '</span> ' +
+                (p.derived ? '<span class="rt-derived">' + esc(derivedText(p)) + '</span>' : '<span class="val">' + esc(valueText(p)) + '</span>') + (p.origin ? ' <span class="from">' + esc(p.origin) + '</span>' : '') + '</span>').join('');
+        },
+        // the Results fact: what a run records - the numbers compared run to run (the table's columns) and the charts
+        resultsFacts(m) {
+            const n = ((m || {}).results || []).filter(x => !x.dropped && x.estimate != null).length, k = Number(((m || {}).figures || {}).count) || 0;
+            const nums = n ? n + ' number' + (n === 1 ? '' : 's') : '', charts = k ? k + ' chart' + (k === 1 ? '' : 's') : '';
+            if (!n && !k) return 'none recorded: runs keep their printed output';
+            return (nums && charts ? nums + ' and ' + charts : nums || 'no numbers recorded, ' + charts) + ' per run';
+        },
+        // the Version rows, newest first: the number, the date, the chain it came from when there are several, run zero's verdict (the
+        // lines reproduced; the reason when it did not), the condensed code's size and time or that the code runs as written (§19),
+        // the consolidation's state (§19.3),
+        // the code as written to take away, the change note after the first version
+        versionRows(r) {
+            const vs = (r.versions || []).slice().reverse(), several = vs.length > 1;
+            return vs.map(x => {
+                const rz = x.run_zero || {}, st = rz.status || (rz.verified ? 'reproduced' : 'unverified');
+                const n = (((x.manifest || {}).results) || []).length;
+                let t = esc(fmtDate(x.created)) + (several ? ' · from the analysis of ' + esc(chainDate((x.promoted_from || {}).chain_id) || (x.promoted_from || {}).chain_id) : '') + ' · ' + build.zeroStatus(rz);
+                if (st === 'reproduced' || (rz.verified && st !== 'verifying' && st !== 'condensing')) t += n ? ', ' + n + ' line' + (n === 1 ? '' : 's') + ' reproduced' : '';
+                else if (st === 'differed' || st === 'failed') t += rz.line ? ' — ' + esc(rz.line) : '';
+                const c = x.condensed || {};
+                if (c.status === 'condensed' && c.cells) t += ' · ' + esc(c.cells[1]) + ' cell' + (c.cells[1] === 1 ? '' : 's') + (c.elapsed && c.elapsed[1] != null ? ' · ' + build.secsText(c.elapsed[1]) : '');
+                else if (c.status === 'as_written') t += ' · <span class="rt-aswritten" title="' + esc(c.line || '') + '">as written</span>';     // the chain's code runs: why on hover
+                const k = x.consolidated || {};
+                if (k.status === 'consolidated') t += ' · ' + (k.confirmed ? 'rewritten, confirmed on run ' + esc(k.confirmed.run) : 'rewritten, the next run on new data checks it');
+                else if (k.status === 'fell_back') t += ' · rewrite dropped on run ' + esc((k.fell_back || {}).run);
+                if (x.written_chars > 0 && r.id) t += ' · <a class="rt-written" href="/routines/' + esc(r.id) + '/script?written=1" download title="the code as the analysis wrote it, before it was condensed">as written ↓</a>';
+                if (x.change_note && x.change_note !== 'first version') t += ' · “' + esc(x.change_note) + '”';
+                return '<span class="v" data-version="' + esc(x.number) + '"><b>v' + esc(x.number) + '</b>' + t + '</span>';
+            }).join('');
+        },
+        secsText(t) { t = Number(t) || 0; return Math.round(t * 10) / 10 < 10 ? (Math.round(t * 10) / 10) + ' s' : fmtTook(t); },
+        shown(estimate) { return esc(String(estimate == null ? '' : estimate).replace(/^\+/, '')); },     // a value as the Summary's tables show it: the sign only when negative (2026-11-08)
         // ---- the Summary by interval (§14.6): the counts and the filter bar, the series of one interval on one athlete, the table by
         // unit with a thumbnail per line, the enlarged chart. The runs that count are the current version's that ran.
         INTERVAL_NAMES: { day: 'Daily', week: 'Weekly', month: 'Monthly', year: 'Yearly', custom: 'Custom' },
@@ -261,18 +288,23 @@
             return '<span class="ui-seg rt-filter">' + Object.keys(build.INTERVAL_NAMES).map(k => { const n = counts[k] || 0;
                 return '<span class="' + [k === on ? 'on' : '', n ? '' : 'off'].filter(Boolean).join(' ') + '" data-filter="' + k + '"' + (n ? '' : ' title="no run with this interval yet"') + '>' + build.INTERVAL_NAMES[k] + (n ? '<span class="k">' + n + '</span>' : '') + '</span>'; }).join('') + '</span>';
         },
-        // the series: the manifest's lines with estimates; the horizon's units, each with the latest run on it (a failed run is none)
-        // and that run's values by line; the rows (the units run, the latest first); the first and last unit run; what is missing
+        // the series: the manifest's lines with estimates; the horizon's units, each with the latest run on it that ran and that run's
+        // values by line - a unit whose runs all failed carries its latest failed run under `failed`, a row that says why (2026-11-08),
+        // and counts as not run; the rows (the units with a run, the latest first); the first and last unit run; what is missing
         series(r, kind, athleteId, units) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
             const all = (v.manifest || {}).results || [];
             const lines = all.filter(x => !x.dropped && x.estimate != null);
-            const byUnit = {};
-            build.doneRuns(r, athleteId).filter(x => x.interval === kind).forEach(x => { const w = (x.data || {}).window || []; const key = w[0] + ' ' + w[1]; if (!byUnit[key] || x.number > byUnit[key].number) byUnit[key] = x; });
-            const points = units.map(w => { const run = byUnit[w[0] + ' ' + w[1]] || null; return { unit: w, run, values: run ? lines.map(l => (run.results || [])[all.indexOf(l)] || null) : null }; });
+            const byUnit = {}, failedBy = {};
+            const key = x => { const w = (x.data || {}).window || []; return w[0] + ' ' + w[1]; };
+            build.doneRuns(r, athleteId).filter(x => x.interval === kind).forEach(x => { if (!byUnit[key(x)] || x.number > byUnit[key(x)].number) byUnit[key(x)] = x; });
+            (r.runs || []).filter(x => x.version === r.current_version && ['failed', 'timed_out'].includes(x.status) && x.interval === kind && (athleteId == null || build.subjectId(x) === String(athleteId)))
+                .forEach(x => { if (!failedBy[key(x)] || x.number > failedBy[key(x)].number) failedBy[key(x)] = x; });
+            const points = units.map(w => { const k = w[0] + ' ' + w[1], run = byUnit[k] || null;
+                return { unit: w, run, failed: run ? null : failedBy[k] || null, values: run ? lines.map(l => (run.results || [])[all.indexOf(l)] || null) : null }; });
             const have = points.map((p, i) => p.run ? i : -1).filter(i => i >= 0);
             const first = have.length ? have[0] : -1, last = have.length ? have[have.length - 1] : -1;
-            return { kind, units, lines, points, first, last, rows: points.filter(p => p.run).reverse(), missing: units.length - have.length, missingBefore: have.length ? first : units.length };
+            return { kind, units, lines, points, first, last, rows: points.filter(p => p.run || p.failed).reverse(), missing: units.length - have.length, missingBefore: have.length ? first : units.length };
         },
         // the words the labels share up to a comma: said once in the heading, so the columns carry what differs
         sharedPrefix(labels) {
@@ -290,18 +322,21 @@
             const heads = s.lines.map(l => { const t = build.lineName(l); return prefix && t.startsWith(prefix) ? t.slice(prefix.length).replace(/^,\s*/, '') || t : t; });
             const th = '<th>' + one.charAt(0).toUpperCase() + one.slice(1) + '</th>' + s.lines.map((l, i) => '<th class="m" title="' + esc(l.label) + '"><span class="lab">' + esc(heads[i]) + '</span>' + build.thumb(s, i) + '</th>').join('');
             const body = s.rows.map((p, ri) => {
-                const below = s.rows[ri + 1] || null;              // the unit before it in the calendar: the row below
+                const run = p.run || p.failed;
+                const w = '<td class="w">' + esc(build.unitText(one, p.unit, true)) + '<span class="open">open →</span><span class="r">run ' + esc(run.number) + '</span></td>';
+                if (!p.run) return '<tr class="failed" data-run="' + esc(run.number) + '">' + w + '<td class="f" colspan="' + s.lines.length + '">' + esc(run.line || run.status.replace('_', ' ')) + '</td></tr>';
+                let below = null;                                   // the unit before it that ran: the next row below with values
+                for (let k = ri + 1; k < s.rows.length && !below; k++) if (s.rows[k].run) below = s.rows[k];
                 const tds = s.lines.map((l, i) => {
                     const x = p.values[i], b = below ? below.values[i] : null;
                     const mark = x && b ? build.markOf(x, b) : '';
-                    return '<td class="num"' + (x ? ' title="run ' + esc(p.run.number) + (build.ivl(x) ? ' · ' + build.ivl(x).replace(/"/g, '') : '') + '"' : '') + '>' + (x ? esc(x.estimate) : '<span class="rt-mark missing">·</span>') +
+                    return '<td class="num"' + (x ? ' title="run ' + esc(p.run.number) + (build.ivl(x) ? ' · ' + build.ivl(x).replace(/"/g, '') : '') + '"' : '') + '>' + (x ? build.shown(x.estimate) : '<span class="rt-mark missing">·</span>') +
                         (mark && mark !== 'missing' ? ' <span class="rt-mark ' + esc(mark) + '">' + build.markText(mark) + '</span>' : '') + '</td>';
                 }).join('');
-                return '<tr' + (ri === 0 ? ' class="latest"' : '') + ' data-run="' + esc(p.run.number) + '"><td class="w">' + esc(build.unitText(one, p.unit, true)) + '<span class="r">run ' + esc(p.run.number) + '</span></td>' + tds + '</tr>';
+                return '<tr' + (ri === 0 ? ' class="latest"' : '') + ' data-run="' + esc(p.run.number) + '">' + w + tds + '</tr>';
             }).join('');
-            const gap = s.missing ? ' ' + s.missing + ' ' + (s.missing === 1 ? one : many) + (s.missingBefore === s.missing ? ' back to ' + esc(build.dateText(s.units[0][0])) : ' in the last year') + (s.missing === 1 ? ' is' : ' are') + ' not run yet: Run → ' + one.charAt(0).toUpperCase() + one.slice(1) + ' → fill the ' + many + ' back.' : '';
-            return '<div class="rt-byunit"><table class="ui-table rt-by"><thead><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table></div>' +
-                '<div class="rt-legend">One row per ' + one + ', the latest at the top; each ' + one + ' against the ' + one + ' before it: ↑ ↓ when the intervals do not overlap, = when they do. Hover a number for its run and interval. The thumbnail in each column is the metric over the ' + many + ', oldest to newest - click it for the full chart.' + gap + '</div>';
+            const gap = s.missing ? '<div class="rt-foot">' + s.missing + ' ' + (s.missing === 1 ? one : many) + (s.missingBefore === s.missing ? ' back to ' + esc(build.dateText(s.units[0][0])) : ' in the last year') + ' not run yet · <a data-act="fill" data-kind="' + esc(one) + '">fill ' + (s.missing === 1 ? 'it' : 'them') + '</a></div>' : '';
+            return '<div class="rt-byunit"><table class="ui-table rt-by"><thead><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table></div>' + gap;
         },
         // a line's thumbnail over the units run, at their place in the calendar (the first run to the last): the line breaks where a
         // unit is not run, the latest dot is ringed; nothing with fewer than two points
@@ -389,15 +424,6 @@
             const cls = st === 'verifying' || st === 'condensing' ? 'verifying' : (st === 'reproduced' || (rz && rz.verified) ? 'reproduced' : (st === 'differed' || st === 'failed' ? 'differed' : 'unverified'));
             const word = st === 'condensing' ? 'condensing…' : (cls === 'verifying' ? 'verifying…' : (cls === 'reproduced' ? 'verified' : (cls === 'differed' ? 'did not reproduce' : 'unverified')));
             return '<span class="rt-status ' + cls + '">' + word + '</span>';
-        },
-        // the condensing pass's outcome (§19) after the verdict: the line, and the code as written to take away when the code
-        // that runs is not the chain's; then the consolidation's line (§19.3), when a Condenser seat had its say; nothing
-        // while the passes have not run or still run
-        condensedLine(r, v) {
-            const c = (v || {}).condensed, k = (v || {}).consolidated;
-            if (!c || !c.line) return '';
-            return ' · ' + esc(c.line) + (k && k.line ? ' · ' + esc(k.line) : '')
-                + ((v || {}).written_chars > 0 && r && r.id ? ' <a class="rt-written" href="/routines/' + esc(r.id) + '/script?written=1" download title="the code as the analysis wrote it, before it was condensed">as written ↓</a>' : '');
         },
         zeroHold(r) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
@@ -527,7 +553,7 @@
             if (ws.length > 1) return 'Run ' + ws.length + ' ' + plan.kind + 's';
             return ws.length && plan.lastRun && !plan.toRun.length ? 'Run again' : 'Run';
         },
-        // the Summary's line while a fill runs (§14.3), and its last word once it has ended
+        // the Summary's line while a fill runs (§14.3); its last word, once it has ended, is the toast's
         fillLine(st) {
             if (!st || !st.total) return '';
             const one = st.interval, many = one + 's';
@@ -536,9 +562,8 @@
             return 'Filled ' + st.total + ' ' + (st.total === 1 ? one : many) + ' in ' + (st.elapsed < 1 ? 'under a second' : fmtTook(st.elapsed)) + (st.failed ? ' · ' + st.failed + ' failed' : '');
         },
         fillBar(st) {
-            if (!st || !st.total) return '';
-            if (st.running) return '<div class="rt-fillbar"><span class="live"></span><span class="t">' + esc(build.fillLine(st)) + '</span><button class="ui-btn sm" data-act="stop-fill">Stop</button></div>';
-            return '<div class="rt-fillbar done' + (st.stopped || st.failed ? ' warn' : '') + '"><span class="mark">' + (st.stopped || st.failed ? '!' : '✓') + '</span><span class="t">' + esc(build.fillLine(st)) + '</span></div>';
+            if (!st || !st.total || !st.running) return '';
+            return '<div class="rt-fillbar"><span class="live"></span><span class="t">' + esc(build.fillLine(st)) + '</span><button class="ui-btn sm" data-act="stop-fill">Stop</button></div>';
         },
         // a result's label without what was true of the original data (§14.4): trailing segments that are a date range or a count
         // ("all 380 activities", "n = 380") are dropped; the full label stays on hover
@@ -717,7 +742,8 @@
             return a === b ? 'same' : (a > b ? 'up' : 'down');
         },
         // the custom runs (§14.6): a column per run in the order they were run, each against the one before - not a series, so no
-        // trend is drawn across them; the head says the run's day and its window's length, the window itself on hover
+        // trend is drawn across them; the head says the run's day and its window's length, the window itself on hover, and opens
+        // the run; the custom runs that failed are named under the table with their reason, each opening too (2026-11-08)
         runsTable(r, athleteId) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
             const lines = ((v.manifest || {}).results || []).filter(x => !x.dropped && x.estimate != null);
@@ -725,10 +751,12 @@
             const days = d => { const w = build.windowOf(d), a = build.dayOf(w[0]), b = build.dayOf(w[1]); return a && b ? Math.round((b - a) / 86400000) : null; };     // start to end, as the Data tab's pill and the run dialog count a window
             if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [], when: build.whenOf(((v.manifest || {}).data) || {}), days: days(((v.manifest || {}).data) || {}) });
             build.doneRuns(r, athleteId).filter(x => !x.interval).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [], when: build.whenOf(x.data || {}), days: days(x.data || {}) }));
-            if (!lines.length || !cols.length) return '<div class="rt-line muted">' + (!lines.length ? 'This routine records no result lines; its runs keep their output and figures.' : 'No custom run yet.') + '</div>';
+            const failed = (r.runs || []).filter(x => x.version === r.current_version && ['failed', 'timed_out'].includes(x.status) && !x.interval && (athleteId == null || build.subjectId(x) === String(athleteId))).reverse();
+            const foot = failed.length ? '<div class="rt-foot">' + failed.map(x => '<span class="rt-failed" data-run="' + esc(x.number) + '">run ' + esc(x.number) + ' · ' + esc(fmtDate(x.created)) + ' · ' + esc(x.line || x.status.replace('_', ' ')) + ' <a>open →</a></span>').join('') + '</div>' : '';
+            if (!lines.length || !cols.length) return '<div class="rt-line muted">' + (!lines.length ? 'This routine records no result lines; its runs keep their output and figures.' : 'No custom run yet.') + '</div>' + foot;
             const all = ((v.manifest || {}).results || []);
             // the mark sits between the two numbers it compares, in a column of its own (2026-10-10: beside the second number it read as a misplaced Trend)
-            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num"' + (c.when ? ' title="' + esc(c.when) + '"' : '') + '>Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + (c.days ? ' · ' + esc(c.days) + ' days' : '') + '</span></th>').join('') + '</tr></thead>';
+            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num" data-run="' + esc(c.number) + '" title="' + esc(c.when ? c.when + ' · ' : '') + 'open the run">Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + (c.days ? ' · ' + esc(c.days) + ' days' : '') + '</span></th>').join('') + '</tr></thead>';
             const body = lines.map(line => {
                 const pos = all.indexOf(line);
                 const cells = cols.map(c => c.results[pos] || null);
@@ -738,28 +766,11 @@
                         const mark = build.markOf(x, cells[i - 1]);
                         tds += '<td class="mark">' + (mark === 'missing' ? '' : '<span class="rt-mark ' + esc(mark) + '">' + build.markText(mark) + '</span>') + '</td>';
                     }
-                    tds += '<td class="num"' + (x ? ' title="' + build.ivl(x).replace(/"/g, '') + '"' : '') + '>' + (x ? esc(x.estimate) : '<span class="rt-mark missing">·</span>') + '</td>';
+                    tds += '<td class="num"' + (x ? ' title="' + build.ivl(x).replace(/"/g, '') + '"' : '') + '>' + (x ? build.shown(x.estimate) : '<span class="rt-mark missing">·</span>') + '</td>';
                 });
                 return '<tr>' + tds + '</tr>';
             }).join('');
-            return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table><div class="rt-legend">Custom windows are of different lengths (the window on hover) and are not a series: the runs in the order they were run, each against the one before - ↑ ↓ when the intervals do not overlap, = when they do; · a line the run did not print. Hover a number for its interval. No trend is drawn across them; a set interval has one.</div>';
-        },
-        // the runs list (§14.6): the interval picked - the custom runs and run 0 under Custom - the latest first, the latest five in
-        // view and the rest by scrolling
-        runsList(r, athleteId, kind) {
-            const custom = !kind || kind === 'custom';
-            const items = (r.runs || []).slice().reverse().filter(x => (athleteId == null || build.subjectId(x) === String(athleteId)) && (custom ? !x.interval : x.interval === kind)).map(x => {
-                const d = x.data || {};
-                const inputs = Object.keys(x.inputs || {}).length ? Object.entries(x.inputs).map(([k, val]) => esc(k) + ' = ' + esc(Array.isArray(val) ? val.join(', ') : val)).join(' · ') : '';
-                const status = x.status === 'reproduced' ? 'reproduced' : (x.status === 'ran' ? ((x.comparison || {}).moved ? 'ran · ' + x.comparison.moved + ' of ' + x.comparison.compared + ' moved' : 'ran') : x.status.replace('_', ' '));
-                const who = (d.subject || {}).name || (d.subject || {}).id || '';
-                const when = x.interval ? x.interval + ' ' + build.unitText(x.interval, d.window, true) : (d.date_range || '');      // a set interval names its unit (§14.1)
-                return '<div class="ui-item rt-run" data-run="' + esc(x.number) + '"><span class="n">run ' + esc(x.number) + '</span><span class="w"><b>' + esc(fmtDate(x.created)) + '</b> ' + esc(sourceLabel(d.source)) + (who ? ' · ' + esc(who) : '') + (d.name ? ': ' + esc(d.name) : '') + (when ? ' · ' + esc(when) : '') + ' · v' + esc(x.version) + (inputs ? ' · ' + inputs : '') + '</span>' +
-                    '<span class="rt-status ' + esc(x.status) + '">' + status + '</span><span class="open">open →</span></div>';
-            });
-            const v = (r.versions || []).find(x => x.number === r.current_version) || {};
-            if (custom && v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) items.push('<div class="ui-item rt-run" data-run="0"><span class="n">run 0</span><span class="w"><b>' + esc(fmtDate(v.run_zero.created)) + '</b> the analysis’s own data · v' + esc(v.number) + '</span><span class="rt-status reproduced">reproduced</span><span class="open">open →</span></div>');
-            return items.length ? '<div class="rt-runbox"><div class="ui-list rt-runlist">' + items.join('') + '</div></div>' : '<div class="rt-line muted">None yet.</div>';
+            return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table>' + foot;
         },
         // the favourites' cards' button
         cardButton(n) {
@@ -1106,8 +1117,10 @@
                 if (typeof loadThreadContent === 'function') loadThreadContent(t, c);
                 return;
             }
-            const runItem = e.target.closest('.rt-run');
-            if (runItem && managerState.current) { const n = Number(runItem.getAttribute('data-run')); closeManager(); viewRun(managerState.current.id, n); return; }
+            const runItem = e.target.closest('.rt-by tr[data-run], .rt-runs th[data-run], .rt-failed[data-run]');     // the table's rows are the runs (2026-11-08)
+            if (runItem && managerState.current && !e.target.closest('.rt-thumb')) { const n = Number(runItem.getAttribute('data-run')); closeManager(); viewRun(managerState.current.id, n); return; }
+            const fillLink = e.target.closest('.rt-foot [data-act="fill"]');
+            if (fillLink && managerState.current) { openRun(managerState.current.id, { interval: fillLink.getAttribute('data-kind') }); return; }
             const filter = e.target.closest('.rt-filter [data-filter]');          // the interval shown (§14.6); one never run is greyed and inert
             if (filter) { if (!filter.classList.contains('off') && managerState.current) { managerState.interval = filter.getAttribute('data-filter'); renderManagerBody(); } return; }
             const thumb = e.target.closest('.rt-thumb[data-line]');
@@ -1145,7 +1158,7 @@
         m.style.display = 'flex';
         loadManager(routineId);
     }
-    function closeManager() { if (manager) manager.style.display = 'none'; if (fillState && !fillState.running) fillState = null; }     // an ended fill's last word is read once
+    function closeManager() { if (manager) manager.style.display = 'none'; }
     function loadManager(routineId) {
         const m = ensureManager();
         const side = m.querySelector('.rt-side'), body = m.querySelector('.rt-body'), title = m.querySelector('.rt-right .title'), sub = m.querySelector('.rt-right .sub'), actions = m.querySelector('.rt-actions');
@@ -1279,7 +1292,7 @@
         const d = ensureRunDialog();
         return { d, sub: d.querySelector('.ui-dlg-h .sub'), title: d.querySelector('.ui-dlg-h .title'), body: d.querySelector('.ui-dlg-b'), runBtn: d.querySelector('[data-act="run"]'), cancelBtn: d.querySelector('[data-act="cancel"]') };
     }
-    function openRun(routineId) {
+    function openRun(routineId, opts) {
         if (typeof queryRunning !== 'undefined' && queryRunning) { toast('An analysis is running; run the routine when it has finished.'); return; }
         if (fillRunning()) { toast('A fill is running (' + build.fillLine(fillState) + '); run the routine when it has ended, or stop it in the Summary.'); return; }
         runState = { id: routineId, routine: null, pre: null, busy: false, interval: 'custom' };
@@ -1295,7 +1308,7 @@
             const r = runState.routine;
             p.title.textContent = 'Run: ' + r.name; p.sub.textContent = 'v' + r.current_version + ' · ' + (r.runs || []).length + ' run' + ((r.runs || []).length === 1 ? '' : 's') + ' so far';
             const src = runState.plan.source || 'file';
-            if (src === 'intervals') runState.interval = build.lastInterval(r);       // the dialog opens on the interval the routine was last run on (§14.2)
+            if (src === 'intervals') runState.interval = (opts && opts.interval) || build.lastInterval(r);       // the dialog opens on the interval the routine was last run on (§14.2), or the one asked (the Summary's gap line)
             const after = limits => {
                 if (!runState || runState.id !== routineId) return;
                 runState.limits = limits || null;

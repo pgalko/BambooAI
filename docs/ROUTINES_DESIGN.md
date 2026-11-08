@@ -562,19 +562,25 @@ While the promoter works the body reads "The analyst is reading the chain and na
 reads) shows in the body with *Try again*; run zero's verdict comes later, behind the dialog (F1 step 4). On a chain of an origin thread the body opens with *Next version of "…"* / *A new routine* and the
 *What changed* line, and the button reads *Make it v2*.
 
-### S2 — Routines manager (modal, like Saved workflows)
+### S2 — Routines manager (modal, like Saved workflows; redesigned 2026-11-08, §20)
 
-Left: the routines (name; source · version · runs · date). Right: the name; "File · 49 columns · v1 · made from the
-analysis of 10 Oct ↗ (a favourite; continue it there)"; the actions (Run, .py, Rename, Delete); Purpose, Question,
-Checked (verified / unverified, run zero's line); Inputs (asked before each run: label, default, where it comes
-from); Results (compared run to run, with their cells); Versions (newest first, with the change notes); Runs (built):
-the results-across-runs table — a column per run that ran (run 0 first; a failed run left out), the manifest's lines
-as rows (a dropped one left out), a cell the estimate with its interval on hover and, in a narrow column of its own
-between two runs, the mark of the second against the first (↑ ↓ for a change whose intervals do not overlap, = when
-they do; · in a cell for a line the run did not print) — it sat beside the second number until 2026-10-10, where it
-read as a misplaced Trend; a Trend column with the sparkline from the third run on, not before; under it the runs
-list, newest first (the date, the data, the version, the inputs, a status chip — *ran ·
-3 of 5 moved*, *reproduced*, *failed*), run 0 last; each opens the run in the main panes.
+Left: the routines (name; source · version · runs · date). Right: the name; "File · v1 · from the analysis of 10 Oct
+↗" (the link opens the favourite); the actions (Run, .py, Rename, Delete); then one column with one scroll: the
+**facts** as label and value - *Purpose* (the question when none was written), *Inputs* (none, or a line per input:
+label, default, where it came from; one that follows the data says so), *Results* (what a run records: *9 numbers and
+2 charts per run*), *Version(s)* (newest first: the date, the chain it came from when there are several, the verdict -
+*verified, 17 lines reproduced*, or *did not reproduce — …* - the condensed code's size and time (§19: *10 cells ·
+0.8 s*), the consolidation's state (§19.3: *rewritten, the next run on new data checks it* / *confirmed on run 3* /
+*rewrite dropped on run 2*), *as written ↓* - or *as written* with the pass's reason on hover when the chain's code is the
+one that runs - the change note after the first version); a rule; **Runs** with the
+interval filter and the athlete pick (§14.6) and the table, whose rows are the runs. A set interval: the table by
+unit, every row a run that opens (*open →* on hover), a unit whose runs all failed a row with the reason, the values
+without a plus sign, and under it the count of the units not run with *fill them* as a link into the Run dialog on
+that interval. Custom: the table by run - a column per run that ran (run 0 first), each head opening the run, the
+manifest's lines as rows (a dropped one left out), a cell the estimate with its interval on hover and, in a narrow
+column of its own between two runs, the mark of the second against the first (↑ ↓ for a change whose intervals do
+not overlap, = when they do; · in a cell for a line the run did not print); the custom runs that failed named under
+it with their reason, each opening too. No runs list, no legends, no box of its own around a table.
 
 ### S3 — Run (dialog) — built
 
@@ -882,13 +888,14 @@ with `interval`, the main panes, the Comparison tab. More than one is a **fill**
 6. Said in the Summary (2026-11-06, after the first live fill: "no indication in the modal when the run has finished;
    the run button stays available during the run"): while a fill runs the header's **Run** and **Delete** are greyed
    with the reason (*a fill is running — wait for it, or stop it below*; on another routine, the one under the fill
-   named: the status carries `routine_name`); when it ends, the bar's place keeps the last word - *✓ Filled 41 weeks
-   in 19 min*, or *! Stopped after 5 of 41 weeks: …* - with no dot and no Stop, until the Summary is closed; the
-   toast stays for whoever is not looking at the Summary.
+   named: the status carries `routine_name`); when it ends, the bar goes (until 2026-11-08 its place kept the last
+   word) and the toast says it - *Filled 41 weeks in 19 min*, or *Stopped after 5 of 41 weeks: …* - while the table
+   shows what landed, the weeks that failed among its rows.
 
 The dialogs keep their size (2026-11-06: "the modal changes size slightly when I click on different elements … only
-the scroll bars should change"): the Summary and the Run dialog have a set height, so what comes and goes inside them
-- the plan under the interval, the pickers, the lines, the filter's rows - scrolls the body and never moves the box.
+the scroll bars should change"): the Summary fills the window (§20) and the Run dialog has a set height, so what comes
+and goes inside them - the plan under the interval, the pickers, the lines, the filter's rows - scrolls the body and
+never moves the box.
 
 A daily fill is 365 runs; the dialog says the count and the time before Run, and that is the whole of the protection.
 
@@ -907,23 +914,25 @@ does not give): the span in the template, `refreshBadge` and its calls, the `.rb
 
 ### 14.6 The Summary (S2) by interval
 
-*Results across runs* gets a filter bar: **Daily · Weekly · Monthly · Yearly · Custom**, each with its count on the
-athlete picked; an interval never run is greyed with *no run with this interval yet*; the pick opens on the latest
-run's interval. The athlete pick stays beside it.
+*Runs* (*Results across runs* until 2026-11-08) gets a filter bar: **Daily · Weekly · Monthly · Yearly · Custom**,
+each with its count on the athlete picked; an interval never run is greyed with *no run with this interval yet*; the
+pick opens on the latest run's interval. The athlete pick stays beside it.
 
 A set interval shows **a table by interval**: a row per unit run, the latest at the top (tinted), its run number
-under the dates (*26 Oct – 1 Nov · run 15*; the latest run of a unit stands for it, a failed one counts as not run);
+under the dates (*26 Oct – 1 Nov · run 15*; the latest run of a unit that ran stands for it; a unit whose runs all
+failed is a row with the reason since 2026-11-08, and still counts as not run); each row opens its run (§20);
 a column per result line, its label trimmed (14.4) and, when every label shares a prefix up to a comma, the prefix
 said once in the section's head (with the unit when all share one) and the rest in the column; in each column head a
 **thumbnail** of the metric over the units, from the first run to the last at their place in the calendar, oldest
 left, the line broken where a unit is not run, the latest dot ringed (nothing with fewer than two points); each cell
 the estimate with its mark against the row below - the unit before it that ran (↑ ↓ when the intervals do not
-overlap, = when they do; the run and the interval on hover). The table scrolls in a box with its head fixed. Under it
-the legend and, when units of the horizon are missing, *40 weeks back to 3 Nov 2025 are not run yet: Run → Week →
-fill the weeks back* (*in the last year* when the gaps are not all before the first run). *Custom* is today's table -
-a column per run in run order, the head *Run 1 · 5 Nov · 186 days* with the window on hover - without the sparkline
-it had, and its legend says custom windows are not a series and no trend is drawn across them. The horizon is the
-plan's day limit, at most a year (`/intervals/get_data_limits`, asked once per page).
+overlap, = when they do; the run and the interval on hover). The table sits in the body's one scroll with its head
+stuck to the top (until 2026-11-08 it scrolled in a box of its own, under a legend). Under it, when units of the
+horizon are missing, *40 weeks back to 3 Nov 2025 not run yet · fill them* (*in the last year* when the gaps are not
+all before the first run), the link opening the Run dialog on the interval with the fill on. *Custom* is today's
+table - a column per run in run order, the head *Run 1 · 5 Nov · 186 days* with the window on hover, opening the run
+- without the sparkline it had; custom windows are not a series and no trend is drawn across them. The horizon is
+the plan's day limit, at most a year (`/intervals/get_data_limits`, asked once per page).
 
 **Enlarge.** A thumbnail opens the chart at full size, in a dialog of the Summary's (`#routineTrendModal`): a
 calendar axis over the span - *3 m · 6 m · 12 m* of units, the months named along it - one dot per unit run at its
@@ -936,14 +945,14 @@ two lines a footer says *The two lines are on different scales — compare their
 else is explained (0266: the first footer described the dots and the gaps, which the picture shows). Nothing is
 computed there that the thumbnail does not have.
 
-**Runs** shows the latest five of the interval and athlete picked, the rest by scrolling in a box; each line names the
-unit (*week 26 Oct – 1 Nov*); the custom runs and run 0 under Custom.
+The runs list under the table (the latest five in a box, with status chips) went on 2026-11-08: the table's rows and
+heads are the runs (§20).
 
 **The Trend tab.** The run view's *Comparison* tab is renamed **Trend** (the closing card's link too); for a run on a
 set interval its two head cells are the units with the run numbers under them (*19 – 25 Oct · run 14*, *26 Oct – 1
 Nov · run 15*), and a last column *Weekly trend* carries the thumbnail of each line over the athlete's units, drawn
-from the routine's runs list once the tab is up (the first render is without it). A custom run's tab is as it was,
-under the new name.
+from the routine's runs once the tab is up (the first render is without it). A custom run's tab is as it was, under
+the new name.
 
 ### 14.7 Build order and acceptance
 
@@ -999,8 +1008,8 @@ them, and show the set-aside lines only on a click, so they neither clutter the 
 
 ### 15.3 Where the name shows
 
-Wherever a line is shown by its label — the dialog, the manager's results list, the Summary (the table by interval's
-heads, the custom table, the enlarged chart's title and key), a run's Trend tab — the page shows `name` when the
+Wherever a line is shown by its label — the dialog, the Summary (the table by interval's heads, the custom table,
+the enlarged chart's title and key; its results list went in §20), a run's Trend tab — the page shows `name` when the
 manifest has one, else the label trimmed as §14.4 says (`build.lineName`); the full recorded label stays on hover.
 `compare_runs` rows carry the name, so a run's record reads the same way.
 
@@ -1240,9 +1249,10 @@ meanwhile - `zero_holds` holds a run, the manager's chip says *condensing…* an
 page's watch (`watchVerification`) goes on through it, reloads an open manager when the status turns so the chip
 follows, and its toast carries the pass's line: *verified on the original data · condensed: 12 cells → 5, 23 prints
 dropped, 190 s → 184 s*, or *· as written: the pruned code did not reproduce the figures: figure 2 differs*. The
-Summary's Checked row carries the same line after the verdict, with *as written ↓* beside it when the condensed code
-is the one that runs - `/routines/<id>/script?written=1`, the chain's code with the INPUTS block, named
-`_as_written.py`. Nothing else speaks: no pane rows, no figures shown (the candidate's exist to be compared).
+Summary's version row (the Checked row until §20) carries the outcome after the verdict - *10 cells · 0.8 s* - with
+*as written ↓* beside it when the condensed code is the one that runs - `/routines/<id>/script?written=1`, the chain's
+code with the INPUTS block, named `_as_written.py`. Nothing else speaks: no pane rows, no figures shown (the
+candidate's exist to be compared).
 
 The pass runs only where it can be checked: a routine made with the chain's data gone (unverified) is left as
 written, as is one whose run zero differed or failed. A run's Results tab may be empty afterwards when the method
@@ -1304,9 +1314,10 @@ failing, or the old method alone, gives no verdict and the rewrite stays provisi
 window does the check like any run. Two datasets are not a proof; a rewrite that survives the window it was made on
 and the next is on the footing of everything else here.
 
-**What the coach sees.** The chip says *condensing…* through both passes; the toast and the Summary's Checked row
-carry the pass's line and then the consolidation's; *as written ↓* is there whenever a script as written is stored
-(`written_chars` on the version view). Nothing else speaks.
+**What the coach sees.** The chip says *condensing…* through both passes; the toast carries the pass's line and then
+the consolidation's, and the Summary's version row their outcome in a few words (*10 cells · 0.8 s · rewritten, the
+next run on new data checks it*, then *confirmed on run 3* or *rewrite dropped on run 2*); *as written ↓* is there
+whenever a script as written is stored (`written_chars` on the version view). Nothing else speaks.
 
 Accepted by (patch 0274): the pure module (`parse_cells`, `check_consolidated`, `same_lines`, the brief), `consolidate`
 over the kernel (left alone under the threshold; the brief's contents and the effort; a rewrite kept provisionally;
@@ -1316,3 +1327,40 @@ data (a rewrite confirmed, the record and the pane; a rewrite that typed a numbe
 old method's; a second run with nothing to check), the app path (the quiet call on the Condenser seat at medium
 effort, billed to the save's chain; the route's first run confirming), the page's line, the stack walk (the stack's
 own Condenser drops the dead stores; the rewrite provisional, then confirmed on run 1) and the C5 scan.
+
+## 20. The Summary, one column (2026-11-08)
+
+Palo, with three screenshots of the manager scrolled through: "very cluttered now with multiple scroll bars, and even
+me as a designer of the system am struggling with the UI" - the whole scrolled, and the table by interval and the runs
+list each scrolled inside it; the modal took a small part of the screen; the runs' pills (*ran · 5 of 9 moved*,
+*differed*) said more than anyone reads; the design needed to be cleaner, what to keep and what to drop assessed on
+the UI. A first mockup grouped the columns that shared their first and last words under one head and put the athletes
+under the routine in the rail; both refused ("this could become problematic", "with 10 athletes and multiple routines
+this would become a problem - leave it as it was"); the second, approved: one column, four facts, the table with the
+full names, the athlete choice as it was.
+
+**The modal** fills the window less the scrim's margin (`width: min(1800px, 100%); height: 100%`), the rail as it was,
+and the body is the one scroll: no box around the table (its head sticks to the body's top), no runs box.
+
+**The facts** (S2): *Purpose*, *Inputs*, *Results*, *Version(s)* as label and value. Gone from the header: the columns
+count and *(a favourite; continue it there)* (the link's hover says it); gone from the body: the Question when a
+purpose was written, the Checked row (its verdict and the passes' outcomes are the version row's, in a few words:
+*verified, 17 lines reproduced · 10 cells · 0.8 s · as written ↓*), the inputs table (a line per input), the Results
+list (it repeated the table's column heads line for line; *9 numbers and 2 charts per run* says what a run records),
+the Versions list (the version rows), the *first version* note.
+
+**The runs** are the table: a set interval's rows and the custom table's heads open the run (*open →* on hover in the
+unit's cell); a unit whose runs all failed is a row with the reason (`run.line`: *failed at cell 6: ValueError: …*),
+the custom runs that failed are named under their table, each opening; the runs list with its pills went. The values
+show without the plus sign the RESULT format writes (`build.shown`; the sign stays on a negative). The legends went;
+the gap line is a link - *18 weeks in the last year not run yet · fill them* - that opens the Run dialog on the
+interval (`openRun(id, {interval})`, the fill box on by default). The fill's bar stays while the fill runs; its last
+word is the toast's, and the table shows what landed.
+
+Accepted by (patch 0277): the mini DOM (the header's sub-line; the facts, each; the version rows across the verdicts
+and the passes; the table by interval with a failed week among its rows and the gap link; the custom table's heads and
+its failed runs; the fill bar running and gone), the stylesheet (the frame, no box, no runs rules), the page's handlers
+(a row, a head or a failed line opens the run; the gap link opens the Run dialog on the interval), the stack walk (the
+manager's facts and the custom table after two runs, a run opened from a head), the integrations walk (the manager by
+athlete without a list, the fill's end with no bar and the toast's last word, the table by week with the gap link, a
+week opened from its row), the screens tool (the manager's states with no scroll inside the body's).

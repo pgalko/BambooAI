@@ -479,11 +479,14 @@ def main():
             page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
             mgr = page.evaluate("""() => ({ items: [...document.querySelectorAll('#routinesModal .rt-side .it b')].map(e => e.textContent), title: document.querySelector('#routinesModal .rt-right .title').textContent,
                 sub: document.querySelector('#routinesModal .rt-right .sub').textContent, origin: !!document.querySelector('#routinesModal .rt-origin'), checked: (document.querySelector('#routinesModal .rt-status') || {}).textContent,
-                checkedRow: (document.querySelector('#routinesModal .ui-kv') || {}).textContent, written: (document.querySelector('#routinesModal a.rt-written') || { getAttribute: () => null }).getAttribute('href'),
-                inputs: document.querySelectorAll('#routinesModal .rt-inputs tbody tr').length, badge: !!document.getElementById('routinesBadge') || !!document.querySelector('#routinesPill .rb-badge') })""")
-            check("the Routines manager lists the routine, verified, with its one input and the link to the analysis it was made from; the rail entry carries no count badge (gone 2026-11-06); the Checked row carries the pass's line and the as-written download (§19)",
-                  mgr["items"] == ["Regime contrast within soil, plot means"] and mgr["origin"] and mgr["checked"] == "verified" and mgr["inputs"] == 1 and "a favourite" in mgr["sub"] and mgr["badge"] is False
-                  and " · condensed: 3 cells → 2, 5 prints dropped, " in mgr["checkedRow"] and " · consolidated: 2 cells → 2, " in mgr["checkedRow"] and mgr["written"] == "/routines/" + rj["id"] + "/script?written=1", mgr)
+                facts: [...document.querySelectorAll('#routinesModal .rt-facts > b')].map(e => e.textContent), version: (document.querySelector('#routinesModal .rt-vers .v') || {}).textContent, results: [...document.querySelectorAll('#routinesModal .rt-facts > span')].map(e => e.textContent).find(t => /per run/.test(t)) || '',
+                written: (document.querySelector('#routinesModal a.rt-written') || { getAttribute: () => null }).getAttribute('href'), inputs: [...document.querySelectorAll('#routinesModal .rt-facts .rt-input')].map(e => e.textContent),
+                badge: !!document.getElementById('routinesBadge') || !!document.querySelector('#routinesPill .rb-badge'), scrolls: [...document.querySelectorAll('#routinesModal .rt-right *')].filter(e => { const o = getComputedStyle(e).overflowY; return (o === 'auto' || o === 'scroll') && e.scrollHeight > e.clientHeight; }).map(e => e.className) })""")
+            check("the Routines manager (S2, 2026-11-08) lists the routine; the header's sub-line carries the source, the version and the link to the analysis it was made from, nothing of the columns or the favourite; the facts - Purpose, Inputs (the one input with its default and origin), Results (what a run records), Version (verified with the lines reproduced, the condensed code's cells and time, the as-written download) - and no scroll inside the body's; the rail entry carries no count badge",
+                  mgr["items"] == ["Regime contrast within soil, plot means"] and mgr["origin"] and mgr["checked"] == "verified" and mgr["sub"].startswith("File · v1 · from the analysis of ") and "columns" not in mgr["sub"] and "a favourite" not in mgr["sub"] and mgr["badge"] is False
+                  and mgr["facts"] == ["Purpose", "Inputs", "Results", "Version"] and mgr["inputs"] == ["The regime compared with A B the analysis compared B against A"]
+                  and mgr["results"] == "1 number and 2 charts per run" and re.search(r"^v1(?:[A-Z][a-z]{2} \d+|\d+ [A-Z][a-z]{2}) · verified, 1 line reproduced · 2 cells · [\d.]+ s · rewritten, the next run on new data checks it · as written ↓$", mgr["version"])
+                  and mgr["written"] == "/routines/" + rj["id"] + "/script?written=1" and set(mgr["scrolls"]) <= {"rt-body"}, mgr)
             script_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes(\"'regime': 'B'\") && !t.includes('print(df.shape)'))", rj["id"])
             written_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script?written=1').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes('print(df.shape)') && t.includes('as the analysis wrote it'))", rj["id"])
             check("the .py download carries the INPUTS block with the default and is the condensed code; ?written=1 is the chain's code with the same block, said so in its first line", script_status is True and written_status is True, (script_status, written_status))
@@ -508,8 +511,8 @@ def main():
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent", timeout=15000)
-            runs_before = page.evaluate("() => [...document.querySelectorAll('#routinesModal .rt-runlist .rt-run')].map(e => e.dataset.run)")
-            check("the manager before any run: the runs list holds run 0 only", runs_before == ["0"], runs_before)
+            runs_before = page.evaluate("() => [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run)")
+            check("the manager before any run: the custom table's one column is run 0", runs_before == ["0"], runs_before)
             page.click("#routinesModal [data-act='run']")
             page.wait_for_selector("#routineRunModal", state="visible", timeout=10000)
             page.wait_for_selector("#routineRunModal .rt-row[data-row='data']", timeout=30000)
@@ -590,18 +593,18 @@ def main():
             check("run 2's Results tab holds the printed output of the run with regime C", "regime C vs A" in r2["results"] or "C vs A" in r2["results"], r2["results"][:200])
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
-            page.wait_for_function("() => document.querySelectorAll('#routinesModal .rt-runlist .rt-run').length >= 3", timeout=15000)
-            mg2 = page.evaluate("""() => ({ items: [...document.querySelectorAll('#routinesModal .rt-runlist .rt-run')].map(e => [e.dataset.run, (e.querySelector('.rt-status') || {}).textContent || '', e.textContent]),
-                cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.trim()), rows: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, sub: document.querySelector('#routinesModal .rt-right .sub').textContent,
-                filter: [...document.querySelectorAll('#routinesModal .rt-filter [data-filter]')].map(e => e.dataset.filter + ':' + e.className + ':' + ((e.querySelector('.k') || {}).textContent || '')), box: !!document.querySelector('#routinesModal .rt-runbox .rt-runlist') })""")
-            check("the manager after two runs: the filter bar on Custom with its 3 runs, the set intervals greyed (none run); the runs table has a column per run (0, 1, 2) and a row for the routine's line, no trend across custom runs; the runs list, in its box, reads run 2 (ran, regime C), run 1 (reproduced), run 0",
-                  [x[0] for x in mg2["items"]] == ["2", "1", "0"] and mg2["items"][0][1].startswith("ran") and "regime = C" in mg2["items"][0][2] and mg2["items"][1][1] == "reproduced" and mg2["rows"] == 1
-                  and sum(1 for c in mg2["cols"] if re.match(r"Run [012]", c)) == 3 and "Trend" not in mg2["cols"] and mg2["filter"] == ["day:off:", "week:off:", "month:off:", "year:off:", "custom:on:3"] and mg2["box"], mg2)
-            page.click("#routinesModal .rt-runlist .rt-run[data-run='1']")
+            page.wait_for_function("() => document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]').length >= 3", timeout=15000)
+            mg2 = page.evaluate("""() => ({ heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => [e.dataset.run, e.textContent.trim(), e.getAttribute('title')]),
+                cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.trim()), rows: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, values: [...document.querySelectorAll('#routinesModal .rt-runs tbody td.num')].map(e => e.textContent), sub: document.querySelector('#routinesModal .rt-right .sub').textContent,
+                filter: [...document.querySelectorAll('#routinesModal .rt-filter [data-filter]')].map(e => e.dataset.filter + ':' + e.className + ':' + ((e.querySelector('.k') || {}).textContent || '')), list: !!document.querySelector('#routinesModal .rt-run, #routinesModal .rt-runbox, #routinesModal .rt-legend') })""")
+            check("the manager after two runs: the filter bar on Custom with its 3 runs, the set intervals greyed (none run); the runs table has a column per run (0, 1, 2), each head opening its run, a row for the routine's line with the values without a plus sign, no trend across custom runs; no runs list and no legend (2026-11-08)",
+                  [h[0] for h in mg2["heads"]] == ["0", "1", "2"] and all(h[2].endswith("open the run") for h in mg2["heads"]) and mg2["rows"] == 1 and all(not v.startswith("+") for v in mg2["values"]) and len(mg2["values"]) == 3
+                  and sum(1 for c in mg2["cols"] if re.match(r"Run [012]", c)) == 3 and "Trend" not in mg2["cols"] and mg2["filter"] == ["day:off:", "week:off:", "month:off:", "year:off:", "custom:on:3"] and not mg2["list"], mg2)
+            page.click("#routinesModal .rt-runs thead th[data-run='1']")
             wait_text(page, "#chainPosition", "run 1 of 2", 30000)
             page.wait_for_timeout(400)
             opened = page.evaluate("() => ({ cmp: (document.getElementById('content-comparison') || {}).textContent || '', pos: document.getElementById('chainPosition').textContent, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled], locked: document.getElementById('queryInput').disabled })")
-            check("the runs list opens run 1 in the main panes: its comparison against run 0, both arrows on, the composer locked again",
+            check("a run's head in the manager's table opens run 1 in the main panes: its comparison against run 0, both arrows on, the composer locked again",
                   "against run 0" in opened["cmp"] and opened["arrows"] == [False, False] and opened["locked"], opened)
             page.click("#nextResponse")
             wait_text(page, "#chainPosition", "run 2 of 2", 30000)
