@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/217/60/93/27/30/37/15/88/1/1 Python; 58/7/50/72/24/135/14/25/4/14/67/41 JS; 1,814 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/217/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/136/14/25/4/14/67/41 JS; 1,817 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (139 hosted on 2026-11-08; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (144; hosted only - the loaders need the executor; the
@@ -481,6 +481,11 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Two things that ran past their edge (2026-11-08, patch 0282).** The pane's LOAD row (and any tool row) carried its
+  query cut at 120 characters and set nowrap, so on a pane narrower than that it ran past the edge - Palo: "the first
+  cell almost always overflows"; the query is whole now and a tool row's text wraps (`.sp-row.tool .in`). The Routines
+  manager's rail cut a routine's name with an ellipsis at 270 px; it is 300 px and the name wraps. Tests: test_pane.js
+  60, test_routines.js 136.
 - **Custom instructions for the promoter (2026-11-08, patch 0281; docs/ROUTINES_DESIGN.md §15.6).** Palo's tests: the
   steadied pick (0276) still kept 1 s and 5 s of a power curve and set the rest of the ladder aside, naming the
   durations it dropped. The rule was read and not followed, so the coach's line is now a question the model must

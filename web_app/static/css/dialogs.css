@@ -281,7 +281,7 @@
 /* the manager: the shape of the saved-workflows dialog, a list on the left and one routine on the right */
 #routinesModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
 #routinesModal .ui-dlg.rt-mgr { width: min(1800px, 100%); height: 100%; max-height: none; flex-direction: row; overflow: hidden; }     /* the window less the scrim's margin (2026-11-08): the body is the one scroll */
-#routinesModal .rt-left { width: 270px; flex-shrink: 0; border-right: 1px solid var(--border-color); padding: 14px 10px 12px; display: flex; flex-direction: column; gap: 6px; overflow: auto; }
+#routinesModal .rt-left { width: 300px; flex-shrink: 0; border-right: 1px solid var(--border-color); padding: 14px 10px 12px; display: flex; flex-direction: column; gap: 6px; overflow: auto; }
 #routinesModal .rt-left .ui-side-label { margin: 0 0 4px 6px; }
 #routinesModal .rt-right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 #routinesModal .rt-right .ui-dlg-h .sub a { color: var(--c-model); text-decoration: none; }
@@ -304,7 +304,7 @@
 .rt-side { display: flex; flex-direction: column; gap: 2px; }
 .rt-side .it { display: flex; flex-direction: column; gap: 2px; padding: 7px 8px; border-radius: 5px; cursor: pointer; }
 .rt-side .it:hover, .rt-side .it.on { background: var(--bg-tertiary); }
-.rt-side .it b { font-size: 12.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-side .it b { font-size: 12.5px; font-weight: 600; color: var(--text-primary); line-height: 1.3; overflow-wrap: anywhere; }   /* the name whole, wrapping (2026-11-08: cut with an ellipsis at 270px) */
 .rt-side .it span { font-size: var(--fs-small); color: var(--text-quaternary); }
 .rt-empty { padding: 24px; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.6; max-width: 560px; }
 .rt-empty b { color: var(--text-primary); }

@@ -157,7 +157,7 @@
             const doing = ({ search: 'searching the web…', replay: 'reproducing the cited cells in a fresh kernel…', routine: 'checking the method on this chain\'s own data…',
                              check: 'checking the data against the routine…', run: 'running the method on the data loaded now…', compare: 'comparing with the run before…', load: 'loading…' })[l.kind]
                         || (l.kind === 'read' ? 'reading' + (l.model ? ' · Reader on ' + esc(String(l.model).split('/').pop()) : '') + '…' : 'working…');
-            return '<div class="sp-row tool pending" data-pending="' + esc(l.kind || '') + '"><span class="live"></span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, 60) : '') + '</span>' +
+            return '<div class="sp-row tool pending" data-pending="' + esc(l.kind || '') + '"><span class="live"></span><span class="in">' + label + (l.query ? ' ' + esc(l.query) : '') + '</span>' +
                 '<span class="out">' + doing + '</span><span class="t"></span></div>';
         },
         lookup(l) {
@@ -165,9 +165,10 @@
             const glyph = ({ search: '⌕', recall: '✦', read: '¶', replay: '↻', routine: '↻', run: '↻', check: '✓', compare: '⇄', load: '⇩' })[l.kind] || '↺';
             const right = l.kind === 'search' && l.sources && l.sources.length ? l.sources.length + ' source' + (l.sources.length === 1 ? '' : 's')
                         : (l.kind === 'read' ? (l.passages && l.passages.length ? l.passages.length + ' passage' + (l.passages.length === 1 ? '' : 's') : 'no passage') : '');
-            // the row's text whole on hover: a CHECK row's sentences run past the row (step 4, 2026-10-11)
-            const room = l.kind === 'load' || l.kind === 'compare' ? 120 : 60;       // a LOAD row names the athlete and the window (2026-10-30), a COMPARE row the reference's window
-            let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query).slice(0, room) : '') + '</span>' +
+            // the row's text whole on hover: a CHECK row's sentences run past the row (step 4, 2026-10-11); the query whole, wrapping
+            // when it is long - a LOAD row names the athlete, the window, the kinds and the load it was cut from (2026-11-08: cut at
+            // 120 characters and set nowrap, it ran past the pane)
+            let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query) : '') + '</span>' +
                 '<span class="out" title="' + esc(l.peek || '') + '">' + esc(l.peek || '') + '</span><span class="t">' + esc(right) + '</span></div>';
             if (l.sources && l.sources.length) {
                 h += '<div class="sp-pills">' + l.sources.map(s =>

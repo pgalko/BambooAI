@@ -1417,8 +1417,9 @@ under the routine in the rail; both refused ("this could become problematic", "w
 this would become a problem - leave it as it was"); the second, approved: one column, four facts, the table with the
 full names, the athlete choice as it was.
 
-**The modal** fills the window less the scrim's margin (`width: min(1800px, 100%); height: 100%`), the rail as it was,
-and the body is the one scroll: no box around the table (its head sticks to the body's top), no runs box.
+**The modal** fills the window less the scrim's margin (`width: min(1800px, 100%); height: 100%`), the rail as it was
+(300 px since 0282, a routine's name wrapping rather than cut with an ellipsis), and the body is the one scroll: no box
+around the table (its head sticks to the body's top), no runs box.
 
 **The facts** (S2): *Purpose*, *Inputs*, *Results* (*Tracked* since §15.6, with *Custom instructions* under it when there are any), *Version(s)* as label and value. Gone from the header: the columns
 count and *(a favourite; continue it there)* (the link's hover says it); gone from the body: the Question when a

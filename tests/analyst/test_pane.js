@@ -151,6 +151,15 @@ w.paneLookupStart({kind:'routine', query:'Rows above a line', model:''});
 check('run zero under way: a pending ROUTINE row saying the method is being checked on this chain\'s data', pane2.querySelector('.sp-row.tool.pending .in').textContent === 'ROUTINE Rows above a line' && pane2.querySelector('.sp-row.tool.pending .out').textContent === 'checking the method on this chain\'s own data…');
 w.paneLookup({kind:'routine', query:'Rows above a line', peek:'reproduced: 9 result line(s) identical', sources:[], passages:[]});
 check('run zero done: the ROUTINE row with the ↻ glyph replaces the pending one and carries the verdict', !pane2.querySelector('.sp-row.tool.pending') && pane2.querySelector('.sp-row.tool').textContent.startsWith('↻ROUTINE Rows above a line') && pane2.querySelector('.sp-row.tool .out').textContent.startsWith('reproduced: 9'));
+// a LOAD row's text whole (2026-11-08: cut at 120 characters and set nowrap, it ran past the pane); the stylesheet lets a tool row's text wrap
+const longLoad = 'Intervals.icu · First Athlete · 2025-12-01 → 2025-12-31 · summary, rider, context, plan · cut from the cached load 2025-11-01 → 2026-01-31 · 61 of 92 days from the store, 31 downloaded';
+w.paneLookupStart({kind:'load', query:longLoad, model:''});
+check('a pending LOAD row carries the query whole', pane2.querySelector('.sp-row.tool.pending .in').textContent === 'LOAD ' + longLoad);
+w.paneLookup({kind:'load', query:longLoad, peek:'', sources:[], passages:[]});
+const loadRow = Array.from(pane2.querySelectorAll('.sp-row.tool')).pop();
+const paneCss = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'web_app', 'static', 'css', 'pane.css'), 'utf8');
+check('the LOAD row carries the query whole, no cap; the stylesheet wraps a tool row\'s text (normal white space, a minimum width of nought) where a cell row\'s badge stays on one line',
+  loadRow.querySelector('.in').textContent === 'LOAD ' + longLoad && paneCss.includes('#streamOutput .sp-row.tool .in { white-space: normal; min-width: 0; overflow-wrap: anywhere; }') && paneCss.includes("#streamOutput .sp-row .in { font-family: 'Courier New', Courier, monospace; color: var(--yaml-key); white-space: nowrap; }"));
 
 // the figures step after the report (2026-10-11): a quiet 'Figures' card per attempt, a correction named as such, its end line
 // from the session; a cell the analysis did not run as a skipped row
