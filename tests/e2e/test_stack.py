@@ -594,11 +594,11 @@ def main():
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]').length >= 3", timeout=15000)
-            mg2 = page.evaluate("""() => ({ heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => [e.dataset.run, e.textContent.trim(), e.getAttribute('title')]),
+            mg2 = page.evaluate("""() => ({ heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => [e.dataset.run, e.textContent.trim(), e.getAttribute('title')]), acts: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => [...e.querySelectorAll('.acts a')].map(a => a.textContent)),
                 cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.trim()), rows: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, values: [...document.querySelectorAll('#routinesModal .rt-runs tbody td.num')].map(e => e.textContent), sub: document.querySelector('#routinesModal .rt-right .sub').textContent,
                 filter: [...document.querySelectorAll('#routinesModal .rt-filter [data-filter]')].map(e => e.dataset.filter + ':' + e.className + ':' + ((e.querySelector('.k') || {}).textContent || '')), list: !!document.querySelector('#routinesModal .rt-run, #routinesModal .rt-runbox, #routinesModal .rt-legend') })""")
-            check("the manager after two runs: the filter bar on Custom with its 3 runs, the set intervals greyed (none run); the runs table has a column per run (0, 1, 2), each head opening its run, a row for the routine's line with the values without a plus sign, no trend across custom runs; no runs list and no legend (2026-11-08)",
-                  [h[0] for h in mg2["heads"]] == ["0", "1", "2"] and all(h[2].endswith("open the run") for h in mg2["heads"]) and mg2["rows"] == 1 and all(not v.startswith("+") for v in mg2["values"]) and len(mg2["values"]) == 3
+            check("the manager after two runs: the filter bar on Custom with its 3 runs, the set intervals greyed (none run); the runs table has a column per run (0, 1, 2), each head with Open and Delete on hover (run 0 without Delete), a row for the routine's line with the values without a plus sign, no trend across custom runs; no runs list and no legend (2026-11-08)",
+                  [h[0] for h in mg2["heads"]] == ["0", "1", "2"] and mg2["acts"] == [["Open"], ["Open", "Delete"], ["Open", "Delete"]] and mg2["rows"] == 1 and all(not v.startswith("+") for v in mg2["values"]) and len(mg2["values"]) == 3
                   and sum(1 for c in mg2["cols"] if re.match(r"Run [012]", c)) == 3 and "Trend" not in mg2["cols"] and mg2["filter"] == ["day:off:", "week:off:", "month:off:", "year:off:", "custom:on:3"] and not mg2["list"], mg2)
             page.click("#routinesModal .rt-runs thead th[data-run='1']")
             wait_text(page, "#chainPosition", "run 1 of 2", 30000)
@@ -710,8 +710,9 @@ def main():
             page.evaluate("RoutinesUI.closeManager()")
             run_files = sorted(os.path.basename(p) for p in glob.glob(os.path.join(os.path.dirname(rdirs[0]), "runs", "*"))) if rdirs else []
             rj2 = json.load(open(rdirs[0])) if rdirs else {}
+            run4_folder = os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_4")
+            run4 = json.load(open(os.path.join(run4_folder, "run.json"))) if "v1_4" in run_files else {}
             run1 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "run.json"))) if "v1_1" in run_files else {}
-            run4 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_4", "run.json"))) if "v1_4" in run_files else {}
             _n_runs = 5 if edition == "hosted" else 4
             run5 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_5", "run.json"))) if "v1_5" in run_files else {}
             check("on disk: runs/v1_0 (run zero) to the last run with run.json and stdout.txt; routine.json lists the runs with their status, data and comparison; the failed run keeps its traceback, the fit it ran under and its own folder on the executor's side; the cache-picked run's load says the file and the cache",
@@ -723,6 +724,23 @@ def main():
                   and rj2["versions"][0]["consolidated"]["line"].endswith("; confirmed on run 1")
                   and "ZeroDivisionError" in run4.get("error", "") and run4.get("fit", {}).get("missing") == ["soil"] and run4.get("run_dir", "").endswith("/v1_4") and run4.get("data", {}).get("load", {}).get("source") == "file",
                   (run_files, [(x.get("number"), x.get("status"), x.get("inputs")) for x in rj2.get("runs", [])], run4.get("fit"), run4.get("run_dir")))
+            # a run deleted from the history (2026-11-08, docs/ROUTINES_DESIGN.md §21): the failed run 4 is named under the Custom table with
+            # Open and Delete; Delete asks, the line and the folder go, the Summary is read again, the other runs stand
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_selector("#routinesModal .rt-foot .rt-failed[data-run='4']", timeout=15000)
+            expected_heads = [str(n) for n in range(0, 4)] + (["5"] if edition == "hosted" else [])       # the runs that ran, run 0 first; the Summary freshly read
+            page.wait_for_function("(want) => [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run).join(',') === want", arg=",".join(expected_heads), timeout=15000)
+            before_del = page.evaluate("() => ({ failed: [...document.querySelectorAll('#routinesModal .rt-foot .rt-failed')].map(e => [e.dataset.run, [...e.querySelectorAll('.acts a')].map(a => a.textContent)]), heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run) })")
+            page.once("dialog", lambda d: d.accept())
+            page.click("#routinesModal .rt-foot .rt-failed[data-run='4'] [data-act='delete-run']")
+            page.wait_for_function("() => !document.querySelector('#routinesModal .rt-foot .rt-failed[data-run=\"4\"]') && document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]').length > 0", timeout=15000)
+            after_del = page.evaluate("() => ({ failed: [...document.querySelectorAll('#routinesModal .rt-foot .rt-failed')].map(e => e.dataset.run), heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run), side: (document.querySelector('#routinesModal .rt-side .it span') || {}).textContent || '' })")
+            rj3 = json.load(open(rdirs[0]))
+            check("Delete on the failed run's line: the run asked about and gone - off the table's foot, off routine.json, its folder off the disk - the other runs standing with their numbers, the rail's count down by one",
+                  before_del["failed"] == [["4", ["Open", "Delete"]]] and after_del["failed"] == [] and after_del["heads"] == expected_heads and before_del["heads"] == expected_heads and [x["number"] for x in rj3.get("runs", [])] == [n for n in range(1, _n_runs + 1) if n != 4]
+                  and not os.path.isdir(run4_folder) and f"{_n_runs - 1} runs" in after_del["side"], (before_del, after_del, [x["number"] for x in rj3.get("runs", [])]))
+            page.evaluate("RoutinesUI.closeManager()")
             # back to the thread for the rest of the walk
             page.click("#workflowManagerPill")
             page.wait_for_selector("#workflowManagerModal .workflow-card", timeout=15000)

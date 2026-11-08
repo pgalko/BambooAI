@@ -342,6 +342,26 @@ def routine_run_view(rid, number):
     return jsonify(view), 200
 
 
+@routines_bp.route('/routines/<rid>/runs/<int:number>', methods=['DELETE'])
+@requires_auth
+def routine_run_delete(rid, number):
+    """Delete a run from the history (2026-11-08): refused while a fill runs on the routine, and for run 0."""
+    from bambooai.routines_host import delete_run, RoutineRefused
+    a = _app()
+    st = _store()
+    r = st.load(rid)
+    if not r:
+        return jsonify({'error': 'no such routine'}), 404
+    fill = a.get_bamboo_ai(session['session_id']).fill_status() or {}
+    if fill.get('running') and fill.get('routine_id') == rid:
+        return jsonify({'error': 'a fill is running on this routine; stop it first'}), 409
+    try:
+        gone = delete_run(r, st, number)
+    except RoutineRefused as exc:
+        return jsonify({'error': str(exc)}), 400
+    return jsonify({'deleted': gone.get('number'), 'runs': len(r.get('runs', []))}), 200
+
+
 @routines_bp.route('/routines/propose', methods=['POST'])
 @requires_auth
 def propose_routine():

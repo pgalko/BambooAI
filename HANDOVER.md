@@ -99,10 +99,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/212/31/27/18/49/44/72/33/205/60/93/27/30/37/15/88/1/1 Python; 58/7/50/72/24/132/14/25/4/14/67/41 JS; 1,795 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (244/213/31/27/18/49/44/72/33/205/60/93/27/30/37/15/88/1/1 Python; 58/7/50/72/24/132/14/25/4/14/67/41 JS; 1,796 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (137 hosted on 2026-11-08; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (144; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -481,6 +481,14 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Custom runs: Open, Delete, another run to compare with (2026-11-08, patch 0279; docs/ROUTINES_DESIGN.md §21).** A
+  run's head in the Custom table and a failed run's line carry *Open* and *Delete* on hover (run 0 has no Delete);
+  Delete asks, then `DELETE /routines/<id>/runs/<n>` (`routines_host.delete_run`: the line off the record, the folder
+  off the disk; refused during a fill on the routine) and the Summary is read again; a later run compared against it
+  keeps its number. The Run dialog's Compare row offers *another run* - the athlete's earlier custom runs - sending
+  the number as `compare_with` (`reference_run` took a number already). Tests: test_app_path.py 213, test_routines.js
+  132, the stack walk 137 (the failed run deleted through the Summary), the integrations walk's heads read without the
+  two words (run it on the Mac).
 - **The reach and the window (2026-11-08, patch 0278; docs/DATASETS_DESIGN.md §18).** Palo: keep four years, analyse a
   year at a time, by tier (free a year back and three months at once, cost two years and six months, performance/max
   and local four years and a year), the same in the three places a window is picked. One number did three jobs

@@ -1364,3 +1364,29 @@ its failed runs; the fill bar running and gone), the stylesheet (the frame, no b
 manager's facts and the custom table after two runs, a run opened from a head), the integrations walk (the manager by
 athlete without a list, the fill's end with no bar and the toast's last word, the table by week with the gap link, a
 week opened from its row), the screens tool (the manager's states with no scroll inside the body's).
+
+## 21. Custom runs: Open, Delete, and any earlier run to compare with (2026-11-08)
+
+With the reach of four years (docs/DATASETS_DESIGN.md §18) a custom run is how two periods are compared across years -
+the six months before one season's goal beside the same six months of another - and the Custom tab is where they
+live. Three things it lacked (Palo, 2026-11-08): a visible way to open a custom run in the main panes (0277 made the
+head the link, but nothing said so), a way to delete runs from the history, and a way to compare a run with a chosen
+earlier one rather than the one before.
+
+**Open and Delete.** A run's head in the Custom table carries the two words on hover - *Open* and *Delete*, set
+apart - and a failed custom run's line under the table the same; run 0 has no Delete (it is the check on the
+original data). Delete asks (*Delete run 61?*), then `DELETE /routines/<id>/runs/<n>`: the run's line comes off the
+record and its folder (`runs/v<version>_<n>`) off the disk, and the Summary is read again. A run another run was
+compared against stays named by its number on that run's record (the comparison was made then); a fill running on the
+routine refuses the delete until it ends (409). The rows of a set interval's table are not deletable here - a week
+re-run replaces the week; nothing is lost by keeping the record.
+
+**Another run.** The Run dialog's Compare row offers, beside *the run before* and *run 0*, *another run* with a list
+of the athlete's earlier custom runs (number · window); picking one checks the choice and sends its number as
+`compare_with`, which `reference_run` already took. The row shows when there are at least two choices, as before.
+
+Accepted by (patch 0279): the host (`delete_run`: the line, the folder, run 0 refused), the route (test_app_path.py:
+the deletion, the count, run 0 and a run already gone refused, a later run still naming the deleted one), the mini DOM
+(the heads' two words, none on run 0, the failed line's; the Compare row's third choice and its list; the page's
+handlers and the choice sent), the stack walk (the failed run deleted through the Summary - off the foot, off the
+record, off the disk, the rail's count down by one), the integrations walk (the heads read without their two words).

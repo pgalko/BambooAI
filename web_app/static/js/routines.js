@@ -637,14 +637,19 @@
         zeroFits(v, athleteId) { return athleteId == null || build.zeroSubject(v) === String(athleteId); },   // run zero is that athlete's alone; one naming none (before 2026-10-30) is nobody's but the subject-less runs'
         // the Compare row (§16.1): custom and the data loaded now only, and only with two runs to choose from - the run before
         // on the athlete and run 0 on their data; one choice is no choice and nothing is shown
+        // the Compare row (§16.1; another run since 2026-11-08, §21): the run before, run 0 when it is this athlete's, and any
+        // earlier custom run on the athlete - two periods compared whatever ran in between; no row with one choice
         compareSection(r, v, athleteId) {
             const mine = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && build.subjectId(x) === String(athleteId || ''));
             const last = mine.length ? mine[mine.length - 1] : null;
             const zero = v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId || '');
-            if (!last || !zero) return '';
+            const others = mine.filter(x => x !== last && !x.interval).reverse();
+            if (!last || (!zero && !others.length)) return '';
+            const when = x => { const w = build.windowOf(x.data || {}); return w[0] ? w[0] + ' → ' + w[1] : fmtDate(x.created); };
             return '<div class="rt-row" data-row="compare"><label>Compare</label><div class="rt-choices">' +
                 '<label class="rt-check"><input type="radio" name="rt-compare" value="previous" checked> run ' + esc(last.number) + ' (the run before)</label>' +
-                '<label class="rt-check"><input type="radio" name="rt-compare" value="zero"> run 0 (the original data)</label></div></div>';
+                (zero ? '<label class="rt-check"><input type="radio" name="rt-compare" value="zero"> run 0 (the original data)</label>' : '') +
+                (others.length ? '<label class="rt-check"><input type="radio" name="rt-compare" value="other"> another run <select class="ui-input rt-compare-other">' + others.map(x => '<option value="' + esc(x.number) + '">run ' + esc(x.number) + ' · ' + esc(when(x)) + '</option>').join('') + '</select></label>' : '') + '</div></div>';
         },
         num(x) { return x == null || x === '' ? '' : String(x); },
         ivl(s) { return s && s.low != null && s.high != null ? '[' + esc(s.low) + ', ' + esc(s.high) + ']' : ''; },
@@ -743,9 +748,13 @@
             if (isNaN(a) || isNaN(b)) return now.estimate === before.estimate ? 'same' : 'changed';
             return a === b ? 'same' : (a > b ? 'up' : 'down');
         },
+        // a run's two words, shown on hover (2026-11-08, docs/ROUTINES_DESIGN.md §21): Open, and Delete for any run but run 0
+        runActs(number) {
+            return '<span class="acts"><a data-act="open-run" data-run="' + esc(number) + '">Open</a>' + (Number(number) ? '<a class="x" data-act="delete-run" data-run="' + esc(number) + '">Delete</a>' : '') + '</span>';
+        },
         // the custom runs (§14.6): a column per run in the order they were run, each against the one before - not a series, so no
-        // trend is drawn across them; the head says the run's day and its window's length, the window itself on hover, and opens
-        // the run; the custom runs that failed are named under the table with their reason, each opening too (2026-11-08)
+        // trend is drawn across them; the head says the run's day and its window's length, the window itself on hover, and carries
+        // Open and Delete (§21); the custom runs that failed are named under the table with their reason, with the same two words
         runsTable(r, athleteId) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
             const lines = ((v.manifest || {}).results || []).filter(x => !x.dropped && x.estimate != null);
@@ -754,11 +763,11 @@
             if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [], when: build.whenOf(((v.manifest || {}).data) || {}), days: days(((v.manifest || {}).data) || {}) });
             build.doneRuns(r, athleteId).filter(x => !x.interval).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [], when: build.whenOf(x.data || {}), days: days(x.data || {}) }));
             const failed = (r.runs || []).filter(x => x.version === r.current_version && ['failed', 'timed_out'].includes(x.status) && !x.interval && (athleteId == null || build.subjectId(x) === String(athleteId))).reverse();
-            const foot = failed.length ? '<div class="rt-foot">' + failed.map(x => '<span class="rt-failed" data-run="' + esc(x.number) + '">run ' + esc(x.number) + ' · ' + esc(fmtDate(x.created)) + ' · ' + esc(x.line || x.status.replace('_', ' ')) + ' <a>open →</a></span>').join('') + '</div>' : '';
+            const foot = failed.length ? '<div class="rt-foot">' + failed.map(x => '<span class="rt-failed" data-run="' + esc(x.number) + '">run ' + esc(x.number) + ' · ' + esc(fmtDate(x.created)) + ' · ' + esc(x.line || x.status.replace('_', ' ')) + build.runActs(x.number) + '</span>').join('') + '</div>' : '';
             if (!lines.length || !cols.length) return '<div class="rt-line muted">' + (!lines.length ? 'This routine records no result lines; its runs keep their output and figures.' : 'No custom run yet.') + '</div>' + foot;
             const all = ((v.manifest || {}).results || []);
             // the mark sits between the two numbers it compares, in a column of its own (2026-10-10: beside the second number it read as a misplaced Trend)
-            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num" data-run="' + esc(c.number) + '" title="' + esc(c.when ? c.when + ' · ' : '') + 'open the run">Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + (c.days ? ' · ' + esc(c.days) + ' days' : '') + '</span></th>').join('') + '</tr></thead>';
+            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num" data-run="' + esc(c.number) + '"' + (c.when ? ' title="' + esc(c.when) + '"' : '') + '>Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + (c.days ? ' · ' + esc(c.days) + ' days' : '') + '</span>' + build.runActs(c.number) + '</th>').join('') + '</tr></thead>';
             const body = lines.map(line => {
                 const pos = all.indexOf(line);
                 const cells = cols.map(c => c.results[pos] || null);
@@ -1119,7 +1128,9 @@
                 if (typeof loadThreadContent === 'function') loadThreadContent(t, c);
                 return;
             }
-            const runItem = e.target.closest('.rt-by tr[data-run], .rt-runs th[data-run], .rt-failed[data-run]');     // the table's rows are the runs (2026-11-08)
+            const del = e.target.closest('[data-act="delete-run"]');                 // a run off the history (§21), after asking
+            if (del && managerState.current) { deleteRun(managerState.current, Number(del.getAttribute('data-run'))); return; }
+            const runItem = e.target.closest('[data-act="open-run"], .rt-by tr[data-run], .rt-runs th[data-run], .rt-failed[data-run]');     // the table's rows and heads are the runs (2026-11-08)
             if (runItem && managerState.current && !e.target.closest('.rt-thumb')) { const n = Number(runItem.getAttribute('data-run')); closeManager(); viewRun(managerState.current.id, n); return; }
             const fillLink = e.target.closest('.rt-foot [data-act="fill"]');
             if (fillLink && managerState.current) { openRun(managerState.current.id, { interval: fillLink.getAttribute('data-kind') }); return; }
@@ -1154,6 +1165,15 @@
             renderManagerBody();
         });
         return manager;
+    }
+    // a run deleted from the history (2026-11-08, §21): its line and its files go; the Summary is read again
+    async function deleteRun(r, number) {
+        if (fillRunning() && fillFor(r.id)) { toast('A fill is running on this routine; stop it first.'); return; }
+        if (!confirm('Delete run ' + number + '?')) return;
+        const res = await fetchJson('/routines/' + encodeURIComponent(r.id) + '/runs/' + encodeURIComponent(number), { method: 'DELETE' });
+        if (!res.ok) { toast((res.json && res.json.error) || 'The run could not be deleted.', 'error'); return; }
+        toast('Run ' + number + ' deleted');
+        loadManager(r.id);
     }
     function openManager(routineId) {
         const m = ensureManager();
@@ -1287,6 +1307,7 @@
             }
             if (e.target.matches('input[data-load="fill"]')) updateRunButton();                 // the units to run follow the box: the button and the time
             if (e.target.matches('select[data-load="athlete"]')) athleteChanged();
+            if (e.target.matches('select.rt-compare-other')) { const o = runDlg.querySelector('input[name="rt-compare"][value="other"]'); if (o) o.checked = true; }     // a run picked is the choice (§21)
         });
         runDlg.addEventListener('input', e => {                   // which end of a custom window was set last: the other one moves when the window is over the plan's (2026-11-08)
             if (e.target.matches('input[data-load="start"], input[data-load="end"]') && runState) runState.lastChanged = e.target.getAttribute('data-load');
@@ -1668,7 +1689,8 @@
             else values[k] = el.value;
         });
         const cmp = p.d.querySelector('input[name="rt-compare"]:checked');
-        return { values, compare_with: cmp ? cmp.value : 'previous' };
+        const other = p.d.querySelector('select.rt-compare-other');
+        return { values, compare_with: !cmp ? 'previous' : (cmp.value === 'other' && other ? other.value : cmp.value) };     // another run: its number (§21)
     }
     async function startRun() {
         const st = runState; if (!st || !st.routine || st.busy) return;

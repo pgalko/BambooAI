@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import threading
 import time
 from typing import Callable, Dict, List, Optional, Tuple
@@ -1140,6 +1141,24 @@ def reference_data(routine: dict, version: dict, number) -> Optional[dict]:
         return light_data((version.get("manifest") or {}).get("data"))
     ref = next((x for x in routine.get("runs", []) if x.get("number") == int(number)), None)
     return dict(ref.get("data") or {}) if ref else None
+
+
+def delete_run(routine: dict, store: rt.RoutineStore, number: int) -> dict:
+    """Delete a run from the routine's history (2026-11-08, docs/ROUTINES_DESIGN.md §21): its line off the record and its
+    files off the disk. Run zero is the check on the original data and stays; a run another run was compared against
+    stays named by its number on that run's record. Returns the line deleted."""
+    n = int(number)
+    if n == 0:
+        raise RoutineRefused("run 0 is the check on the original data; it stays")
+    runs = routine.get("runs", [])
+    summary = next((x for x in runs if x.get("number") == n), None)
+    if summary is None:
+        raise RoutineRefused(f"no run {n} on this routine")
+    routine["runs"] = [x for x in runs if x.get("number") != n]
+    store.save(routine)
+    folder = os.path.join(store.path(routine["id"]), "runs", run_tag(int(summary.get("version") or 1), n))
+    shutil.rmtree(folder, ignore_errors=True)
+    return summary
 
 
 def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:

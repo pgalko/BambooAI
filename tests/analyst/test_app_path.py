@@ -502,6 +502,18 @@ BAMBOO.df_id = _keep_df_id; BAMBOO.run_routine = _real_run
 while not q.empty(): q.get()
 check("Stop: the day under way finishes, nothing more starts - 1 of 3 done, stopped; the frame replaced on the Data tab: the fill stops after the day under way with the reason",
       _rs.status_code == 202 and _stop["running"] is True and _fst_stop["stopped"] is True and _fst_stop["done"] == 1 and _fst_stop["error"] == "" and _rs2.status_code == 202 and _fst_chg["stopped"] is True and _fst_chg["done"] == 1 and _fst_chg["error"] == "the data on the Data tab changed", (_stop, _fst_stop, _fst_chg))
+# a run deleted from the history (2026-11-08, docs/ROUTINES_DESIGN.md §21): its line and its files go, run 0 and the rest stay, the runs compared with it keep its number
+_before = _wc.get(f"/routines/{_rid}").get_json()["routine"]
+_last_n = max(x["number"] for x in _before["runs"]); _del_n = sorted(x["number"] for x in _before["runs"])[0]
+_folder_del = os.path.join(RR._store().path(_rid), "runs", f"v{next(x for x in _before['runs'] if x['number'] == _del_n)['version']}_{_del_n}")
+_had_folder = os.path.isdir(_folder_del)
+_rd1 = _wc.delete(f"/routines/{_rid}/runs/{_del_n}")
+_after = _wc.get(f"/routines/{_rid}").get_json()["routine"]
+_rd0 = _wc.delete(f"/routines/{_rid}/runs/0"); _rdx = _wc.delete(f"/routines/{_rid}/runs/{_del_n}")
+check("DELETE /routines/<id>/runs/<n>: the run's line off the record and its folder off the disk, the count answered; run 0 refused (it is the check on the original data); a run already gone refused; the other runs stand, a later run compared against the deleted one still names it",
+      _rd1.status_code == 200 and _rd1.get_json() == {"deleted": _del_n, "runs": len(_before["runs"]) - 1} and _had_folder and not os.path.isdir(_folder_del)
+      and [x["number"] for x in _after["runs"]] == [x["number"] for x in _before["runs"] if x["number"] != _del_n] and _rd0.status_code == 400 and "run 0" in _rd0.get_json()["error"] and _rdx.status_code == 400
+      and any(x.get("against") == _del_n for x in _after["runs"]) and _wc.get(f"/routines/{_rid}/runs/{_last_n}").status_code == 200 and _wc.get(f"/routines/{_rid}/runs/{_del_n}").status_code == 404, (_rd1.get_json(), _rd0.get_json(), [(x["number"], x.get("against")) for x in _after["runs"]]))
 check("route rename / delete", _wc.post(f"/routines/{_rid}/rename", json={"name": "Renamed"}).get_json()["routine"]["name"] == "Renamed" and _wc.delete(f"/routines/{_rid}").status_code == 200 and _wc.get(f"/routines/{_rid}").status_code == 404)
 _r = _wc.post("/routines/create", json={"proposal_id": "gone"})
 check("route /routines/create with a spent proposal: the stream ends with routine_error", "routine_error" in _lines(_r)[-1] and "expired" in _lines(_r)[-1]["routine_error"])

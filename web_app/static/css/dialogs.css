@@ -369,6 +369,14 @@
 .rt-runs th .d { display: block; color: var(--text-quaternary); font-weight: 400; text-transform: none; letter-spacing: 0; }
 .rt-runs th[data-run] { cursor: pointer; }
 .rt-runs th[data-run]:hover { color: var(--text-primary); }
+/* Open and Delete on a run's head, and on a failed run's line, on hover (2026-11-08, §21) */
+.rt-runs th .acts { display: flex; justify-content: flex-end; gap: 14px; margin-top: 4px; font-family: var(--font-ui); font-size: var(--fs-small); font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0; }
+.rt-runs th:hover .acts, .rt-foot .rt-failed:hover .acts { opacity: 1; }
+.rt-foot .rt-failed .acts { display: inline-flex; gap: 12px; margin-left: 10px; opacity: 0; }
+.acts a { color: var(--c-model); cursor: pointer; text-decoration: none; }
+.acts a.x { color: var(--c-fail); }
+.acts a:hover { text-decoration: underline; }
+.rt-compare-other { height: 26px; margin-left: 6px; font-size: var(--fs-small); }
 .rt-runs td.mark, .rt-runs th.mark { width: 22px; padding-left: 4px; padding-right: 4px; text-align: center; }
 .rt-mark { display: inline-block; min-width: 14px; text-align: center; font-weight: 700; }
 .rt-mark.up, .rt-mark.down, .rt-mark.changed { color: var(--c-kernel); }
@@ -380,7 +388,6 @@
 .rt-foot a { color: var(--c-model); cursor: pointer; text-decoration: none; }
 .rt-foot a:hover { text-decoration: underline; }
 .rt-foot .rt-failed { display: block; cursor: pointer; }
-.rt-foot .rt-failed a { margin-left: 4px; }
 /* the Summary by interval (docs/ROUTINES_DESIGN.md §14.6): the filter bar in the heading, the table by unit in a box with its head
    fixed, a thumbnail per line in the column head, the latest row tinted; the runs list in a box of five */
 .rt-sec > .h .rt-filter { margin-left: auto; }
