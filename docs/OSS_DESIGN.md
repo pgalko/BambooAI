@@ -310,6 +310,14 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-11-08: 2.7.2 (patches 0259-0280).** Routines by the calendar (docs/ROUTINES_DESIGN.md §14-§21): a
+  run on a day, week, month or year with the units not run yet filled from one load; the Summary by interval with a
+  thumbnail per line and the enlarged chart; the promoter picks the lines a run compares and names them; the save's
+  checklist; identifiers never inputs; the condensing pass (the cells nothing rests on and the prints go, checked
+  against run zero) and the consolidation by the `Condenser` seat, in the template; the Summary as one column; the
+  reach and the window per tier (docs/DATASETS_DESIGN.md §18: four years back, a year at a time on pro and local) in
+  the Intervals.icu dialog, the Dataset cache's Load row and a routine's custom window; custom runs opened, deleted and
+  compared with any earlier one. Image v74 stands; no migration.
 - **Status 2026-10-31: 2.7.1 (patches 0255-0258).** The Usage dialog rebuilt (docs/USAGE_DESIGN.md): each model call's row
   keeps the cache split, what the cache saved and the fees (the hosted table takes `docs/sql/usage_cache_fields.sql`
   once; the local file upgrades itself); one `/usage` answer and a dialog of four tabs - the tiles with their deltas,
