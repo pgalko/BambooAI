@@ -65,25 +65,64 @@ function initializeIntervalsDataOption() {
 // the bounds on the inputs, but the values are written only while the inputs are empty - the first opening - so a
 // window typed in stays for the next opening, and an answer landing after the dialog opened does not wipe a choice
 // made meanwhile (it did: the limits were fetched and both values rewritten on every opening).
-let intervalsLimitsPromise = null;
+let intervalsLimitsPromise = null, intervalsLimitsKnown = {};    // the limits route's answer, once it has landed
+
+// The plan's reach and window (2026-11-08, docs/DATASETS_DESIGN.md §18), one rule for the three pickers - this dialog, the
+// Dataset cache's Load row, a routine's custom window: a load starts no earlier than the reach (how far back the data goes)
+// and covers at most the window (how long at once). The limits route answers both; an older answer with `max_days` alone
+// reads as a window that is also the reach. Nothing here rewrites a date while it is typed (2026-10-15): `check` runs at Load.
+const DateWindow = {
+    of(limits) {
+        const l = limits || {};
+        const window = Number(l.window_days || l.max_days) || 92, reach = Number(l.reach_days) || window;
+        return { reach, window, windowLabel: l.window_label || window + ' days', reachLabel: l.reach_label || reach + ' days' };
+    },
+    fetch() {
+        if (!intervalsLimitsPromise) {
+            intervalsLimitsPromise = window.authService.fetch('/intervals/get_data_limits').then(r => r.json())
+                .catch(error => { console.error('Error fetching data limits:', error); return {}; });   // three months, a year back, when the answer fails
+        }
+        return intervalsLimitsPromise.then(l => { intervalsLimitsKnown = l || {}; return DateWindow.of(l); });
+    },
+    day(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null; },
+    plus(d, days) { const x = new Date(d); x.setDate(x.getDate() + days); return x; },
+    text(d) { return d.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ' ' + d.getFullYear(); },
+    // the bounds for a pair of date inputs: from the reach to today
+    bounds(dw, today) { const t = today || new Date(); return { min: localIsoDay(DateWindow.plus(t, -dw.reach)), max: localIsoDay(t) }; },
+    // the line under a picker: "up to 1 year at a time · back to 8 Nov 2022"
+    line(dw, today) { return 'up to ' + dw.windowLabel + ' at a time · back to ' + DateWindow.text(DateWindow.plus(today || new Date(), -dw.reach)); },
+    // the check at Load: the dates the load may use and, when one moved, why - in plain words. `changed` says which end the
+    // person set last ('start' | 'end'), so the other one moves when the span is over the window.
+    check(dw, start, end, changed, today) {
+        const t = today || new Date(); t.setHours(0, 0, 0, 0);
+        let s = DateWindow.day(start), e = DateWindow.day(end);
+        if (!s || !e) return { start, end, note: '' };
+        const notes = [], earliest = DateWindow.plus(t, -dw.reach), days = (a, b) => Math.round((b - a) / 86400000);
+        if (e > t) { e = t; notes.push('the end moved to today'); }
+        if (e <= earliest) { e = DateWindow.plus(earliest, 1); notes.push('the end moved to ' + DateWindow.text(e)); }
+        if (days(s, e) > dw.window) {
+            if (changed === 'start' && s >= earliest && DateWindow.plus(s, dw.window) <= t) { e = DateWindow.plus(s, dw.window); notes.push('up to ' + dw.windowLabel + ' at a time: the end moved to ' + DateWindow.text(e)); }
+            else { s = DateWindow.plus(e, -dw.window); notes.push('up to ' + dw.windowLabel + ' at a time: the start moved to ' + DateWindow.text(s)); }
+        }
+        if (s < earliest) { s = earliest; notes.push('data goes back ' + dw.reachLabel + ': the start moved to ' + DateWindow.text(s)); }
+        if (s >= e) { s = DateWindow.plus(e, -1); }
+        const note = notes.length ? notes.join('; ').replace(/^./, c => c.toUpperCase()) + '.' : '';
+        return { start: localIsoDay(s), end: localIsoDay(e), note };
+    }
+};
+if (typeof window !== 'undefined') window.DateWindow = DateWindow;
 
 async function applyIntervalsDateLimits() {
     const startDateInput = document.getElementById('intervalsStartDate');
     const endDateInput = document.getElementById('intervalsEndDate');
     if (!startDateInput || !endDateInput) return;
-    if (!intervalsLimitsPromise) {
-        intervalsLimitsPromise = window.authService.fetch('/intervals/get_data_limits').then(r => r.json())
-            .catch(error => { console.error('Error fetching data limits:', error); return {}; });   // 14 days when the answer fails
-    }
-    const limits = await intervalsLimitsPromise;
-    const today = new Date();
-    const maxDays = limits.max_days || 14;
-    const earliestDate = new Date(today);
-    earliestDate.setDate(today.getDate() - maxDays);
-    const lo = localIsoDay(earliestDate), hi = localIsoDay(today);
+    const dw = await DateWindow.fetch();
+    const { min: lo, max: hi } = DateWindow.bounds(dw);
     startDateInput.min = lo; startDateInput.max = hi;
     endDateInput.min = lo; endDateInput.max = hi;
-    if (!startDateInput.value) startDateInput.value = lo;       // each input on its own: one typed before the answer landed stays
+    const note = document.getElementById('intervalsWindowNote');
+    if (note) note.textContent = DateWindow.line(dw);
+    if (!startDateInput.value) startDateInput.value = localIsoDay(DateWindow.plus(new Date(), -dw.window));       // each input on its own: one typed before the answer landed stays
     if (!endDateInput.value) endDateInput.value = hi;
 }
 
@@ -104,7 +143,7 @@ function contextReportLine(report) {
     else if (n && report.coding_line) line += '; ' + report.coding_line;
     return line + '.';
 }
-if (typeof module !== 'undefined' && module.exports) module.exports.contextReportLine = contextReportLine;
+if (typeof module !== 'undefined' && module.exports) { module.exports.contextReportLine = contextReportLine; module.exports.DateWindow = DateWindow; }
 
 function createIntervalsPill(dataInfo) {
     // one frame on the page: the pill of an earlier window goes when a new one lands (2026-10-29: a second load from the open dialog
@@ -427,13 +466,16 @@ function initializeIntervalsMainModal() {
         
         // Validation
         const daysDiff = Math.ceil((new Date(dateRange.end) - new Date(dateRange.start)) / (1000 * 60 * 60 * 24));
-        if (daysDiff > 365) {
-            showIntervalsMessage('Date range cannot exceed 1 year.', 'error');
-            return;
-        }
-        
         if (daysDiff <= 0) {
             showIntervalsMessage('Please select a valid date range: the start before the end.', 'error');
+            return;
+        }
+        // the plan's reach and window (2026-11-08): a window over them is moved into them and said, and Load is pressed again
+        const dw = DateWindow.of(intervalsLimitsKnown);
+        const fit = DateWindow.check(dw, dateRange.start, dateRange.end, intervalsLastChanged);
+        if (fit.note) {
+            document.getElementById('intervalsStartDate').value = fit.start; document.getElementById('intervalsEndDate').value = fit.end;
+            showIntervalsMessage(fit.note, 'error');
             return;
         }
     
@@ -757,6 +799,7 @@ let intervalsAthletes = [];          // the roster rows: { id, name, pending, co
 let intervalsPreselect = '';         // the athlete the Dataset cache dialog opened the dialog for
 let intervalsModalOpens = 0;         // bumped by showIntervalsModal: a load's delayed hide closes only the dialog it was scheduled for (2026-11-06)
 let intervalsWindowTyped = false;    // a window typed by hand stays (2026-10-14) until an athlete is picked by a click
+let intervalsLastChanged = 'end';    // which date was set last: the other one moves when the window is over the plan's (2026-11-08)
 const INTERVALS_FIND_FROM = 7;
 function intervalsAthleteId() {
     const on = document.querySelector('#intervalsRoster .row.on');
@@ -869,7 +912,7 @@ function initializeIntervalsRoster() {
         find.addEventListener('input', intervalsFilterRoster);
         find.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const first = document.querySelector('#intervalsRoster .row:not(.hidden)'); if (first) intervalsPickAthlete(first.dataset.athlete); } });
     }
-    ['intervalsStartDate', 'intervalsEndDate'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('input', () => { intervalsWindowTyped = true; }); });
+    ['intervalsStartDate', 'intervalsEndDate'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('input', () => { intervalsWindowTyped = true; intervalsLastChanged = id === 'intervalsStartDate' ? 'start' : 'end'; }); });
 }
 async function fillIntervalsAthletes() {
     if (!window.authService || typeof window.authService.fetch !== 'function') return;

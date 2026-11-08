@@ -114,7 +114,7 @@ def fetch_json(page, url, body=None, method=None):
 
 
 def main():
-    os.environ["STACK_COMPUTE_TIER"] = "pro"             # a year's window for the Intervals loader (free: 14 days)
+    os.environ["STACK_COMPUTE_TIER"] = "pro"             # a year at a time, four years back, for the Intervals loader (free: three months, a year back)
     vendor.prepare(fetch=bool(os.environ.get("CI")))
     workdir = tempfile.mkdtemp(prefix="bamboo_e2e_apis_")
     mod = harness_models.load("start_hours")
@@ -709,8 +709,8 @@ def main():
                 compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '', radios: document.querySelectorAll('#routineRunModal input[name="rt-compare"]').length,
                 label: document.querySelector('#routineRunModal [data-act="run"] span').textContent, cache: !!document.querySelector('#routineRunModal .rt-cache'), note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })""")
             if shots: page.query_selector("#routineRunModal .modal-content").screenshot(path=os.path.join(shots, "run_dialog_week.png"))
-            check("the run dialog opens on Custom (no set interval run yet) with the pickers and the one note that matters (the plan clamps the original's 59 days to 35); Week picked (§16.1): the Interval row's segments, the last complete week named in one line (not run yet), the fill box on counting the weeks back to the horizon's first Monday, the pickers gone; no Compare row (a set interval compares by rule, nothing is said), no cache line; Run says how many weeks; the footer the time",
-                  dlg_c["on"] == "custom" and dlg_c["segs"] == ["Day", "Week", "Month", "Year", "Custom"] and dlg_c["pickers"] == "" and dlg_c["plan"] == "your plan allows 35 days" and dlg_c["label"] == "Run"
+            check("the run dialog opens on Custom (no set interval run yet) with the pickers and the plan's line under them (35 days at a time, back to the reach - the limits answered here with max_days alone, so the window is the reach); Week picked (§16.1): the Interval row's segments, the last complete week named in one line (not run yet), the fill box on counting the weeks back to the horizon's first Monday, the pickers gone; no Compare row (a set interval compares by rule, nothing is said), no cache line; Run says how many weeks; the footer the time",
+                  dlg_c["on"] == "custom" and dlg_c["segs"] == ["Day", "Week", "Month", "Year", "Custom"] and dlg_c["pickers"] == "" and re.fullmatch(r"up to 35 days at a time · back to \d+ \w+ \d{4}", dlg_c["plan"]) and dlg_c["label"] == "Run"
                   and dlg_w["on"] == "week" and dlg_w["plan"] == f"Last complete week: {_wshort(*weeks[-1])} — not run yet" and dlg_w["boxOn"] and dlg_w["box"].strip() == f"Fill the weeks back to {weeks[0][0].day} {weeks[0][0]:%b} {weeks[0][0].year} — {len(weeks) - 1} not run yet"
                   and dlg_w["pickers"] == "none" and dlg_w["compare"] == "" and dlg_w["radios"] == 0 and not dlg_w["cache"] and "metrics as the original" not in dlg_w["text"] and "background" not in dlg_w["text"]
                   and dlg_w["label"] == f"Run {len(weeks)} weeks" and re.fullmatch(r"(about .+|the last run took .+)?", dlg_w["note"]), (weeks, dlg_c, dlg_w))

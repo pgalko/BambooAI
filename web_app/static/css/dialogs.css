@@ -576,6 +576,14 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #datasetManagerModal .ds-row { display: flex; gap: 8px; align-items: center; }
 #datasetManagerModal .ds-row .hint { font-size: var(--fs-small); color: var(--text-quaternary); }
 #datasetManagerModal .ds-actions.ds-actions-more { margin-top: 0; border-top: none; padding-top: 0; }     /* the way into the Intervals.icu dialog, under the athlete's actions (2026-10-30) */
+/* the Load row (2026-11-08, docs/DATASETS_DESIGN.md §18): from → to within the plan's reach and window, the quick picks, Load */
+#datasetManagerModal .ds-window { display: flex; flex-direction: column; gap: 8px; }
+#datasetManagerModal .ds-window .k { font-size: var(--fs-meta); color: var(--text-secondary); }
+#datasetManagerModal .ds-window .ui-input { height: 28px; width: 132px; }
+#datasetManagerModal .ds-window .arrow { color: var(--text-quaternary); }
+#datasetManagerModal .ds-window .dataset-action-btn { white-space: nowrap; }
+#datasetManagerModal .ds-window .ds-picks > span { padding: 3px 8px; font-size: var(--fs-small); cursor: pointer; white-space: nowrap; }
+#datasetManagerModal .ds-window-hint { font-size: var(--fs-small); color: var(--text-quaternary); }
 #datasetManagerModal .ds-caret-none { visibility: hidden; }                                              /* an athlete with a key and nothing held: no lines to fold */
 #datasetManagerModal .ds-keyed .ds-subj-meta { font-style: italic; }
 #datasetManagerModal .ds-file { font-size: var(--fs-small); color: var(--text-tertiary); margin: 10px 0 5px; }     /* a second file's label among the columns */

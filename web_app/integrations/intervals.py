@@ -195,38 +195,58 @@ def remove_api_key():
         intervals_bp.logger.error(f'Error removing Intervals API key: {str(e)}')
         return jsonify({'error': f'Failed to remove API key: {str(e)}'}), 500
     
+# The reach and the window per compute tier (2026-11-08, docs/DATASETS_DESIGN.md §18): how far back a load may start, and the
+# longest span one load may cover. Free: a year back, three months at a time; plus: two years, six months; pro and the local
+# edition: four years, a year. The store keeps an athlete's data as far back as the reach (the retention). One number did the
+# three jobs before (14 / 182 / 365 / 3650 days), so the window was the reach and the store kept 400 days.
+TIER_DAYS = {'free': (366, 92), 'plus': (731, 184), 'pro': (1461, 365), 'local': (1461, 365)}     # (reach, window), in days
+REACH_LABELS = {366: '1 year', 731: '2 years', 1461: '4 years'}
+WINDOW_LABELS = {92: '3 months', 184: '6 months', 365: '1 year'}
+
+
+def tier_days(compute_tier):
+    """(reach_days, window_days, reach_label, window_label) for a compute tier; an unknown tier reads as free."""
+    reach, window = TIER_DAYS.get(compute_tier or 'free', TIER_DAYS['free'])
+    return reach, window, REACH_LABELS.get(reach, f'{reach} days'), WINDOW_LABELS.get(window, f'{window} days')
+
+
+def _compute_tier(auth0_id):
+    result = get_user_subscription(auth0_id) if auth0_id else {}
+    return (result.get('data') or {}).get('compute_tier', 'free') if result.get('ok') else 'free'
+
+
+def clamp_window(start, end, today, reach, window):
+    """The dates a load may use: the end no later than today, the start no earlier than the reach, the span no longer than the
+    window (the start moves up) and at least a day; returns (start, end, note) with the note saying what moved, or ''. A
+    window that ends before the reach cannot be moved into it: (None, None, why)."""
+    from datetime import timedelta
+    notes = []
+    if end > today:
+        end = today; notes.append('the end moved to today')
+    earliest = today - timedelta(days=reach)
+    if end <= earliest:
+        return None, None, f"the window is before the data your plan reaches (back to {earliest:%Y-%m-%d})"
+    if (end - start).days > window:
+        start = end - timedelta(days=window); notes.append(f"the start moved to {start:%Y-%m-%d} (up to {WINDOW_LABELS.get(window, f'{window} days')} at a time)")
+    if start < earliest:
+        start = earliest; notes.append(f"the start moved to {start:%Y-%m-%d} (as far back as the data goes)")
+    if start >= end:
+        start = end - timedelta(days=1)
+    return start, end, '; '.join(notes)
+
+
 @intervals_bp.route('/get_data_limits', methods=['GET'])
 @requires_auth
 def get_data_limits():
-    """Get data limits based purely on compute tier for Intervals"""
+    """The plan's reach and window for the pickers (2026-11-08); `max_days` is the window, kept for older readers."""
     try:
-        auth0_id = get_current_user_id()
-        if not auth0_id:
-            return jsonify({'max_days': 14}), 200
-
-        result = get_user_subscription(auth0_id)
-        
-        compute_tier = 'free'
-        if result.get('ok') and result.get('data'):
-            compute_tier = result['data'].get('compute_tier', 'free')
-        
-        # Intervals: Always based on compute tier (no payment required)
-        max_days_map = {
-            'free': 14,
-            'plus': 182,  # 6 months
-            'pro': 365,    # 1 year
-            'local': 3650  # your own machine: no limit that matters
-        }
-        max_days = max_days_map.get(compute_tier, 14)
-        
-        return jsonify({
-            'max_days': max_days,
-            'compute_tier': compute_tier
-        }), 200
-        
+        compute_tier = _compute_tier(get_current_user_id())
+        reach, window, reach_label, window_label = tier_days(compute_tier)
+        return jsonify({'max_days': window, 'window_days': window, 'reach_days': reach, 'window_label': window_label, 'reach_label': reach_label, 'compute_tier': compute_tier}), 200
     except Exception as e:
         intervals_bp.logger.error(f'Error getting data limits: {str(e)}')
-        return jsonify({'max_days': 14}), 200
+        reach, window, reach_label, window_label = tier_days('free')
+        return jsonify({'max_days': window, 'window_days': window, 'reach_days': reach, 'window_label': window_label, 'reach_label': reach_label, 'compute_tier': 'free'}), 200
 
 @intervals_bp.route('/load_data', methods=['POST'])
 @requires_auth
@@ -255,45 +275,19 @@ def load_data():
         return jsonify({'error': 'No API key configured. Please add your Intervals.icu API key.'}), 401
     api_key = api_key or ''                                    # a load from the store alone needs none
     
-    # Validate and auto-adjust date range based on compute tier
-    retention_days = 400                        # how long the executor's store keeps a key's activities (docs/INCREMENTAL_LOADS_DESIGN.md)
+    # the dates within the plan's reach and window (2026-11-08); the store keeps the athlete's data as far back as the reach
+    compute_tier = _compute_tier(auth0_id)
+    reach, window, _rl, _wl = tier_days(compute_tier)
+    retention_days = reach
+    note = ''
     if data.get('start_date') and data.get('end_date'):
-        from datetime import datetime, timedelta
-        
-        sub_result = get_user_subscription(auth0_id)
-        compute_tier = 'free'
-        
-        if sub_result.get('ok') and sub_result.get('data'):
-            compute_tier = sub_result['data'].get('compute_tier', 'free')
-        
-        # Max days based on compute tier
-        max_days_map = {'free': 14, 'plus': 182, 'pro': 365, 'local': 3650}
-        max_days = max_days_map.get(compute_tier, 14)
-        retention_days = {'free': 120}.get(compute_tier, 400)
-        
-        # Parse and adjust dates
-        requested_start = datetime.strptime(data['start_date'], '%Y-%m-%d')
-        requested_end = datetime.strptime(data['end_date'], '%Y-%m-%d')
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        # Calculate the allowed date range
-        earliest_allowed = today - timedelta(days=max_days)
-        
-        # Auto-adjust if needed
-        if requested_end > today:
-            requested_end = today
-        
-        if requested_start < earliest_allowed:
-            requested_start = earliest_allowed
-        
-        if requested_start >= requested_end:
-            requested_start = requested_end - timedelta(days=1)
-        
-        # Update with adjusted dates
-        data['start_date'] = requested_start.strftime('%Y-%m-%d')
-        data['end_date'] = requested_end.strftime('%Y-%m-%d')
-        
-        intervals_bp.logger.info(f'Date range adjusted to {max_days} days limit ({compute_tier} tier)')
+        from datetime import date
+        start, end, note = clamp_window(date.fromisoformat(data['start_date']), date.fromisoformat(data['end_date']), date.today(), reach, window)
+        if start is None:
+            return jsonify({'error': note[0].upper() + note[1:]}), 400
+        data['start_date'], data['end_date'] = start.isoformat(), end.isoformat()
+        if note:
+            intervals_bp.logger.info(f'Date range adjusted ({compute_tier} tier: {reach} days back, {window} at a time): {note}')
     
     try:
         session_id = session['session_id']
@@ -331,8 +325,9 @@ def load_data():
         if api_key:
             _job_keys()[job_data['job_id']] = used             # whose key the job ran on ('' = the pending one, named when the job completes)
 
+        dates = {'start_date': data.get('start_date'), 'end_date': data.get('end_date'), 'note': note}     # the dates the load uses, and what moved (2026-11-08)
         if not with_frame:                                     # the load record is the frame's: a dataset alone joins it when it completes
-            return jsonify({'job_id': job_data['job_id']}), 202
+            return jsonify(dict(dates, job_id=job_data['job_id'])), 202
         # Store df_id in session for later
         session['intervals_df_id'] = new_df_id
         session['intervals_job_id'] = job_data['job_id']
@@ -345,7 +340,7 @@ def load_data():
         if data.get('from_store'):
             prefs['load']['from_store'] = True                 # loaded from the store alone (2026-10-29)
 
-        return jsonify({'job_id': job_data['job_id']}), 202
+        return jsonify(dict(dates, job_id=job_data['job_id'])), 202
         
     except Exception as e:
         intervals_bp.logger.error(f'Error starting Intervals load: {str(e)}')

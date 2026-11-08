@@ -1215,6 +1215,23 @@ try:
     IV._coding_start("job-5", "s1", _res5, {"auxiliary_datasets": [_ctx4]})
     check("an account that may not run a query: the pass is skipped with the reason in the line, no call", _res5["context"]["coding"]["status"] == "skipped" and _res5["context"]["coding"]["line"] == "the context was not coded: no funds" and len(_calls4) == 2, _res5["context"])
     IV.can_execute_chain = lambda a: {"ok": True, "data": {"allowed": True}}
+    # the reach and the window per tier (2026-11-08, docs/DATASETS_DESIGN.md §18): one place for the numbers, one clamp for every load
+    from datetime import date as _date
+    _t = _date(2026, 11, 8)
+    check("tier_days: free a year back and three months at a time, plus two years and six months, pro and local four years and a year, an unknown tier as free, each with its words",
+          IV.tier_days("free") == (366, 92, "1 year", "3 months") and IV.tier_days("plus") == (731, 184, "2 years", "6 months") and IV.tier_days("pro") == (1461, 365, "4 years", "1 year") and IV.tier_days("local") == IV.tier_days("pro") and IV.tier_days("nope") == IV.tier_days("free") and IV.tier_days(None) == IV.tier_days("free"))
+    check("clamp_window: a calendar year passes whole (a leap year too); two years keep the end and move the start up a year, said; a window before the reach moves to its edge, said; an end after today moves to today; one before the reach is refused with the reason; a window of a day stands",
+          IV.clamp_window(_date(2023, 1, 1), _date(2023, 12, 31), _t, 1461, 365) == (_date(2023, 1, 1), _date(2023, 12, 31), "") and IV.clamp_window(_date(2024, 1, 1), _date(2024, 12, 31), _t, 1461, 365)[2] == ""
+          and IV.clamp_window(_date(2022, 1, 1), _date(2023, 12, 31), _t, 1461, 365) == (_date(2022, 12, 31), _date(2023, 12, 31), "the start moved to 2022-12-31 (up to 1 year at a time)")
+          and IV.clamp_window(_date(2026, 1, 1), _date(2027, 1, 1), _t, 1461, 365) == (_date(2026, 1, 1), _date(2026, 11, 8), "the end moved to today")
+          and IV.clamp_window(_date(2020, 1, 1), _date(2020, 6, 1), _t, 1461, 365) == (None, None, "the window is before the data your plan reaches (back to 2022-11-08)")
+          and IV.clamp_window(_date(2026, 11, 7), _date(2026, 11, 8), _t, 366, 92) == (_date(2026, 11, 7), _date(2026, 11, 8), "") and IV.clamp_window(_date(2026, 11, 8), _date(2026, 11, 8), _t, 366, 92) == (_date(2026, 11, 7), _date(2026, 11, 8), ""))
+    IV.get_user_subscription = lambda *a, **k: {"ok": True, "data": {"compute_tier": "plus"}}
+    _wi = Flask("i"); _wi.secret_key = "i"; _wi.register_blueprint(IV.intervals_bp); _wic = _wi.test_client()
+    _lim = _wic.get("/intervals/get_data_limits").get_json()
+    check("/intervals/get_data_limits answers the plan's reach and window with their words, and max_days as the window for older readers",
+          _lim == {"max_days": 184, "window_days": 184, "reach_days": 731, "window_label": "6 months", "reach_label": "2 years", "compute_tier": "plus"}, _lim)
+    IV.get_user_subscription = lambda *a, **k: {"ok": True, "data": {}}
     # one athlete at a time on the Data tab, on the app's side of the cache's own load routes too (2026-10-29): a routine run taken
     # from the cache goes through /cache/load_primary and /cache/load_auxiliary, never the loader's completion, and the session's
     # list of files - the instance holds the same list - must follow the page's pills

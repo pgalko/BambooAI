@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/209/31/27/18/49/44/72/33/205/60/93/27/30/37/15/88/1/1 Python; 58/7/46/72/24/132/14/25/4/14/67/41 JS; 1,788 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/212/31/27/18/49/44/72/33/205/60/93/27/30/37/15/88/1/1 Python; 58/7/50/72/24/132/14/25/4/14/67/41 JS; 1,795 on 2026-11-08; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (134 hosted on 2026-10-31; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (143; hosted only - the loaders need the executor; the
@@ -481,6 +481,21 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The reach and the window (2026-11-08, patch 0278; docs/DATASETS_DESIGN.md §18).** Palo: keep four years, analyse a
+  year at a time, by tier (free a year back and three months at once, cost two years and six months, performance/max
+  and local four years and a year), the same in the three places a window is picked. One number did three jobs
+  (`max_days`); now `TIER_DAYS` in `web_app/integrations/intervals.py` - the reach and the window per tier - and
+  `clamp_window`, the one rule every load passes through in `/intervals/load_data` (the end to today, the start to the
+  reach, the span to the window with the start moving up; a window before the reach refused); the limits route answers
+  both with their words; the retention passed to the executor is the reach (no executor change). `DateWindow` in
+  `integrations/intervals.js` is the pickers' shared rule: bounds from the reach, the line *up to 1 year at a time ·
+  back to 8 Nov 2022*, the check at Load/Run - never while typing - moving a window into the plan's and saying so in
+  plain words, Load pressed again. The Intervals.icu dialog's pickers; the Dataset cache's four buttons became the Load
+  row (*From → To*, *3 m · 6 m · 1 y*, **Load all datasets** / **Load wellness**, the hint *Up to 1 year at a time. Days
+  not in the cache are downloaded.*) and **Clear the cache** / **Clear wellness**; a routine's custom window bounded and
+  checked at Run. Labels in plain words, as Palo asked: a label says what the button does. SweatStack's own limits
+  untouched. Tests: test_app_path.py 212, test_dialogs.js 50, test_routines.js, the date-inputs suite, the
+  integrations walk's dialog line (run it on the Mac).
 - **The Summary, one column (2026-11-08, patch 0277; docs/ROUTINES_DESIGN.md §20, S2).** Palo, with screenshots of the
   manager: cluttered, three scrollbars, a small modal, pills nobody reads; mockups first (grouping the series' columns
   and the athletes in the rail refused - "leave it as it was"), then the approved one built. The modal fills the window

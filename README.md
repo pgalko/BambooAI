@@ -725,8 +725,10 @@ over the store: the window's activity list is fetched, the activities the store 
 changed) are downloaded, the rest are assembled from disk, and the chats and laps of activities older
 than sixty days are reused; the wellness and calendar of the window come down and are merged, so the
 span held is the union of every load. *Everything again* in the load dialog fetches the whole window
-again. Activities fall out of the store after 400 days unless a load used them in the last thirty; the
-window files a load writes leave after a month.
+again. A load covers at most a year at a time and reaches back four years (three months and a year on
+the free tier, six months and two years on the cost tier); activities fall out of the store once older
+than the plan's reach unless a load used them in the last thirty days; the window files a load writes
+leave after a month.
 
 The store and the loaded files live in the Docker volume `bambooai-datasets`, which outlives the
 container and its image: an upgrade keeps them. `docker volume rm bambooai-datasets` starts the

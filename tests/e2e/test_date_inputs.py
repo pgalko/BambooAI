@@ -42,7 +42,7 @@ def read(*p):
 
 core, ivl, sws = read("core.js"), read("integrations", "intervals.js"), read("integrations", "sweatstack.js")
 pieces = [cut(core, r"^function localIsoDay\(d\) \{", r"^\}\n") + "}\n",
-          cut(ivl, r"^let intervalsLimitsPromise = null;", r"^// The context's report"),
+          cut(ivl, r"^let intervalsLimitsPromise = null", r"^// The context's report"),
           cut(ivl, r"^function initializeIntervalsDatePickers\(\) \{", r"^\}\n") + "}\n",
           cut(sws, r"^let sweatstackLimitsPromise = null;", r"^//-{10,}"),
           cut(sws, r"^function initializeDatePickers\(\) \{", r"^\}\n") + "}\n"]

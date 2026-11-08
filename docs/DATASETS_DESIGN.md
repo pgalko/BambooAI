@@ -109,10 +109,10 @@ lives in the coach's own storage, as the question and the report do.
 ## 7. Retention, per athlete
 
 One rule per athlete store, across feeds: an item (activity, day, passage, snapshot) not used by a load within
-`USED_DAYS` (30) leaves when older than `RETENTION_DAYS` (400); a routine over an old window keeps its data as long as
-it runs. The numbers are the activity store's today and stay. A free tier's shorter span applies per athlete. The
-athlete line shows *held since · last used*, and **Forget** removes the athlete's folder whole. Views follow their
-runs (section 4), not this rule.
+`USED_DAYS` (30) leaves when older than the plan's reach (§18: a year, two or four - 400 days until 2026-11-08, the
+executor's default when the app names none); a routine over an old window keeps its data as long as it runs. The
+athlete line shows *held since · last used*, and **Clear the cache** (*Forget* until 2026-11-08) removes the
+athlete's folder whole. Views follow their runs (section 4), not this rule.
 
 ## 8. The route and the modal
 
@@ -627,3 +627,53 @@ integrations walk 127 (the key named by the fake Intervals.icu; the settings dia
 page and removing; the picker with one and with two athletes; the first subject picked for every later load), the
 local-store walk 17 (a key kept pending where Intervals.icu cannot be asked, listed unnamed, still there after a
 restart).
+
+## 18. The reach and the window (2026-11-08)
+
+Palo: keep four years, analyse a year at a time - a coach should be able to go back to 2022, but a load may not span
+more than a year; by tier, free a year back and three months at a time, cost two years and six months, performance
+and max (and the local edition) four years and a year. The same limits in the three places a window is picked: the
+Intervals.icu dialog, the Dataset cache's loads, a routine's custom run.
+
+**Two numbers, one place.** One number per tier did three jobs until now (`max_days`: 14 / 182 / 365 / 3650 - how
+far back, how long at once, and the store's retention at 400 days). `web_app/integrations/intervals.py` carries
+`TIER_DAYS` - the *reach* and the *window* per compute tier, in days: free (366, 92), plus (731, 184), pro and local
+(1461, 365) - and `clamp_window`, the one rule every load passes through in `/intervals/load_data`: the end no later
+than today, the start no earlier than the reach, the span no longer than the window (the start moves up to the end
+less the window), a window that ends before the reach refused with the reason. The route answers the dates it used
+and a note saying what moved. `/intervals/get_data_limits` answers `window_days`, `reach_days` and their words
+(`window_label` *3 months* / *6 months* / *1 year*, `reach_label` *1 year* / *2 years* / *4 years*); `max_days` stays
+as the window for older readers. The retention passed to the executor is the reach.
+
+**One rule for the pickers** (`DateWindow` in `integrations/intervals.js`, shared by the three): the inputs' bounds
+are the reach to today, the line beside them *up to 1 year at a time · back to 8 Nov 2022*, and the check runs when
+Load or Run is pressed - never while a date is typed (2026-10-15). A window over the plan's is moved into it, the moved
+dates written into the inputs, and said in plain words - *Up to 1 year at a time: the start moved to 31 Dec 2022.*,
+*Data goes back 4 years: the start moved to 8 Nov 2022.*, *The end moved to today.* - and the person presses Load
+again. Which end moves follows which end was set last: an end set last moves the start up; a start set last moves
+the end down (to today at most).
+
+**The Dataset cache.** The four buttons of §16 (*Load everything*, *Load everything to today*, *Forget everything*,
+*Load a new window from Intervals.icu…*) are one row and one button: **Load** - *From* → *To*, the quick picks *3 m ·
+6 m · 1 y* (as many as the window allows), **Load all datasets** (on a dataset's page, *Load wellness*), with the line
+*Up to 1 year at a time. Days not in the cache are downloaded.* (without a key: *Only days in the cache can be
+loaded*) - and **Clear the cache** (*Clear wellness* on a dataset's page), *Removes this athlete's data from the cache
+and the Data tab.*; the activity list's button is *Take off the Data tab*, since every load starts from it. The row
+opens on the window on the Data tab, else the plan's window back from today; a load whose days the store does not all
+hold goes through Intervals.icu under the athlete's key (the store serves what it holds), the rest from the store
+alone; nothing else changed in the load (`/intervals/load_data` with `from_store`, `with_frame`). The way into the
+Intervals.icu dialog stays as *Open the Intervals.icu dialog*, for the choice of datasets. Labels and lines in plain
+words, as Palo asked twice on 2026-11-08: a label says what the button does and nothing else.
+
+**Routines.** A routine's custom window has the same bounds and the same check at Run; a set interval's unit is
+within any window, so Day, Week and Month fit every tier and a Year unit only the tiers whose window is a year
+(the plan says *No complete year within the last 92 days* where it is not). The Summary's horizon is the window,
+as it was (`min(365, window)`): a fill is one load of the whole span, so the trend spans what a load may. Nothing on
+record is deleted: runs older than the horizon stay and leave the view. The Custom tab's *Open* and *Delete* and the
+run-to-run comparison across custom windows are the next patch's.
+
+Accepted by (patch 0278): test_app_path.py (`tier_days`, `clamp_window` across the cases, the limits route by tier),
+test_dialogs.js (`DateWindow.of`, `bounds`, `line`, `check` across the cases; the Intervals.icu dialog's bounds,
+default, note and Load check; the cache dialog's Load row, picks and Clear, and what is gone), test_routines.js (the
+run dialog's custom pickers bounded with the line, the check at Run), the date-inputs suite (nothing rewrites a typed
+date), the integrations walk (the run dialog's line under the pickers).

@@ -592,15 +592,17 @@
             let choices = '', rows = '';
             if (src === 'intervals' || src === 'sweatstack') {
                 const days = Math.max(1, Number((plan && plan.window_days) || 28));
-                const maxDays = limits && limits.max_days ? Number(limits.max_days) : null;
+                const dw = window.DateWindow && limits ? window.DateWindow.of(limits) : null;      // the plan's reach and window (2026-11-08, docs/DATASETS_DESIGN.md §18)
+                const maxDays = dw ? dw.window : null;
                 const span = maxDays ? Math.min(days, maxDays) : days;
                 const start = new Date(today); start.setDate(today.getDate() - span);       // calendar days back, not 24-hour steps (a clock change would shift the day)
+                const bounds = dw ? window.DateWindow.bounds(dw, today) : null, lim = bounds ? ' min="' + esc(bounds.min) + '" max="' + esc(bounds.max) + '"' : '';
                 const custom = !kind || kind === 'custom', hide = custom ? '' : ' style="display:none"';
                 choices = '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from ' + (src === 'intervals' ? 'Intervals.icu' : 'SweatStack') + '</label>' + nowChoice;
                 if (src === 'intervals') rows += '<div class="rt-row" data-row="athlete"><label>Athlete</label><div><select class="ui-input" data-load="athlete" data-state="loading"><option value="">loading the athletes…</option></select><div class="rt-athlete-help"></div></div></div>';
                 rows += '<div class="rt-row" data-row="interval"><label>' + (src === 'intervals' ? 'Interval' : 'Window') + '</label><div>' + (src === 'intervals' ? build.intervalRow(kind || 'custom') + '<div class="rt-interval-plan"></div>' : '') +
-                    '<div class="rt-window rt-loadwin rt-custom"' + hide + '><input type="date" class="ui-input" data-load="start" value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end" value="' + build.isoDay(today) + '"></div>' +
-                    (maxDays && days > maxDays ? '<div class="rt-plan warn rt-custom"' + hide + '>your plan allows ' + esc(maxDays) + ' days</div>' : '') + '</div></div>';
+                    '<div class="rt-window rt-loadwin rt-custom"' + hide + '><input type="date" class="ui-input" data-load="start"' + lim + ' value="' + build.isoDay(start) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-load="end"' + lim + ' value="' + build.isoDay(today) + '"></div>' +
+                    (dw ? '<div class="rt-plan rt-custom"' + hide + '><span class="n">' + esc(window.DateWindow.line(dw, today)) + '</span></div>' : '') + '</div></div>';
             } else if (src === 'endura') {
                 choices = '<label class="rt-check"><input type="radio" name="rt-data" value="load" checked> Load from Endura</label>' + nowChoice;
                 rows += '<div class="rt-row" data-row="race"><label>Race</label><select class="ui-input" data-load="race"><option value="">loading the races…</option></select></div>';
@@ -1286,6 +1288,9 @@
             if (e.target.matches('input[data-load="fill"]')) updateRunButton();                 // the units to run follow the box: the button and the time
             if (e.target.matches('select[data-load="athlete"]')) athleteChanged();
         });
+        runDlg.addEventListener('input', e => {                   // which end of a custom window was set last: the other one moves when the window is over the plan's (2026-11-08)
+            if (e.target.matches('input[data-load="start"], input[data-load="end"]') && runState) runState.lastChanged = e.target.getAttribute('data-load');
+        });
         return runDlg;
     }
     function runParts() {
@@ -1671,6 +1676,12 @@
         const { values, compare_with } = readRunValues();
         const plan = intervalPlan(), windows = build.fillWindows(plan, fillOn(p));       // a set interval (§14.2): the units to run; [] for custom
         if (plan && !windows.length) return;
+        // a custom window within the plan's reach and window (2026-11-08): one over them is moved into them and said, and Run is pressed again
+        if (!plan && dataChoice() === 'load' && (st.plan || {}).source === 'intervals' && st.limits && window.DateWindow) {
+            const a = p.d.querySelector('input[data-load="start"]'), b = p.d.querySelector('input[data-load="end"]');
+            const fit = window.DateWindow.check(window.DateWindow.of(st.limits), a && a.value, b && b.value, st.lastChanged || 'end');
+            if (fit.note) { a.value = fit.start; b.value = fit.end; progress('! ' + fit.note, 'bad'); return; }
+        }
         st.busy = true; p.runBtn.disabled = true; p.cancelBtn.disabled = true;
         const choice = dataChoice();
         let loaded = null;

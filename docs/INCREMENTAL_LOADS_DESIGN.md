@@ -59,12 +59,13 @@ labels, RPE and lactate are typed in after the sync). **Everything again** (the 
 again, for the person who knows something changed that the signature does not see (a message added under an old
 activity, say).
 
-**Retention.** When a load ends, activities started more than `RETENTION_DAYS` = 400 days ago leave the store
-(rows, chat and laps; the feeds' days and entries that old leave with them, and old profile snapshots but the newest)
-unless a load served them within `USED_DAYS` = 30 days - a routine over an old window keeps its data
-as long as it runs; a one-off look at an old year is gone a month later. The app can pass `retention_days` with the
-request (a free tier's shorter span). The startup cleanup does not touch the store (it clears the app's own datasets
-folder and skips every subfolder).
+**Retention.** When a load ends, activities started more than `retention_days` ago leave the store (rows, chat and
+laps; the feeds' days and entries that old leave with them, and old profile snapshots but the newest) unless a load
+served them within `USED_DAYS` = 30 days - a routine over an old window keeps its data as long as it runs; a one-off
+look at an old year is gone a month later. The app passes `retention_days` with every load: the plan's reach
+(docs/DATASETS_DESIGN.md §18 - a year, two or four by tier; 400 days, the executor's `RETENTION_DAYS`, when the app
+names none). The startup cleanup does not touch the store (it clears the app's own datasets folder and skips every
+subfolder).
 
 **Tier limits** stay on the window asked, as before: the store makes a load cheaper, not larger.
 

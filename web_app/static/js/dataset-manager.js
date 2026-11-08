@@ -1,11 +1,12 @@
 // Dataset Manager Module - the Dataset cache dialog. Since 2026-10-29 (docs/DATASETS_DESIGN.md §8, §16) it draws the executor's
 // store as a tree - source → athlete → dataset, exactly the datasets the Intervals.icu dialog offers plus the frame - with a
 // dot and the words on each line saying whether it is on the Data tab now or in the store only (an indicator, not a control:
-// the product owner clicked it, 2026-10-29). A click on a line opens its details on the right, where the actions are: Load
-// <dataset> (the span held, from the store alone) and Load <dataset> to today (through Intervals.icu for the missing days)
-// for one dataset, Load everything / Load everything to today for the athlete; Forget takes the pill(s) off the Data tab and
-// the data out of the cache (his word); the pill's × takes a dataset off the tab alone. Uploads and generated files keep their
-// own groups. A load's window files are not listed: they are a run's inputs, shown on the Data tab.
+// the product owner clicked it, 2026-10-29). A click on a line opens its details on the right, where the actions are (since
+// 2026-11-08, docs/DATASETS_DESIGN.md §18): a Load row - from → to, within the plan's reach and window, the quick picks 3 m ·
+// 6 m · 1 y - loading all datasets for the athlete or one dataset alone, from the store with the days not held downloaded;
+// and Clear, which takes the data out of the cache and off the Data tab; the pill's × takes a dataset off the tab alone.
+// Uploads and generated files keep their own groups. A load's window files are not listed: they are a run's inputs, shown on
+// the Data tab.
 window.DatasetManager = (function() {
     'use strict';
     
@@ -106,10 +107,13 @@ window.DatasetManager = (function() {
             const b = e.target.closest('#datasetDetails [data-act]');
             if (!b || b.disabled) return;
             const d = b.dataset;
-            if (d.act === 'load') startLoad(d.folder, d.feed, false);             // the span held, from the store alone
-            else if (d.act === 'today') startLoad(d.folder, d.feed, true);       // through Intervals.icu: the missing days come down
-            else if (d.act === 'forget') forgetDataset(d.folder, d.feed, d.name);   // off the Data tab and out of the cache, after asking
+            if (d.act === 'load') startLoad(d.folder, d.feed);                      // the window in the row (2026-11-08): from the store, the days not held downloaded
+            else if (d.act === 'pick') pickWindow(b);                            // 3 m · 6 m · 1 y back from the end
+            else if (d.act === 'forget') forgetDataset(d.folder, d.feed, d.name);   // out of the cache and off the Data tab, after asking
             else if (d.act === 'dialog') { hideModal(); if (typeof showIntervalsModal === 'function') showIntervalsModal(d.athlete); }   // the Intervals.icu dialog for this athlete (2026-10-30)
+        });
+        document.addEventListener('input', function(e) {                       // a date typed by hand: the quick pick that no longer fits goes off
+            if (e.target.closest('#datasetDetails .ds-window input[type="date"]')) markPick(e.target.closest('.ds-window'));
         });
     }
 
@@ -200,12 +204,12 @@ window.DatasetManager = (function() {
         return out;
     }
 
-    // ---- the actions (docs/DATASETS_DESIGN.md §16, as the product owner asked on 2026-10-29) ---------------------------------------
-    // Load <dataset> brings the span held onto the Data tab from the store alone - nothing is fetched; Load <dataset> to today goes
-    // through Intervals.icu for the same span extended to today, only the missing days come down. Loading Activities loads the
-    // frame (the frame on the Data tab is let go first, after asking); any other dataset alone leaves the frame as it is and
-    // replaces its own pill(s). Load everything is every dataset held at once. The job is the one the Intervals.icu dialog
-    // starts; the progress shows in the details pane and the dialog closes by itself.
+    // ---- the actions (docs/DATASETS_DESIGN.md §16 and §18) ----------------------------------------------------------------------
+    // The Load row brings a window onto the Data tab: from the store for the days it holds, through Intervals.icu for the rest
+    // (the athlete's key; without one, the store alone). Loading Activities loads the frame (the frame on the Data tab is let
+    // go first, after asking); any other dataset alone leaves the frame as it is and replaces its own pill(s); the athlete's row
+    // loads every dataset held at once. The job is the one the Intervals.icu dialog starts; the progress shows in the details
+    // pane and the dialog closes by itself.
     function spanOf(subject, feed) {
         const lines = feed ? [lineOf(subject, feed)].filter(Boolean) : (subject.feeds || []);
         const acts = lineOf(subject, 'activities');
@@ -214,8 +218,8 @@ window.DatasetManager = (function() {
         return { from: froms.sort()[0], to: tos.sort().slice(-1)[0] };
     }
     function kindsOf(subject, feed) {
-        // the datasets a load asks for beside the frame: everything held for the athlete's Load everything; for Activities the
-        // datasets on the Data tab now, so the tab stays one window (2026-10-29: a frame loaded to today beside files from May
+        // the datasets a load asks for beside the frame: everything held for the athlete's Load all datasets; for Activities the
+        // datasets on the Data tab now, so the tab stays one window (2026-10-29: a frame loaded through today beside files from May
         // read as broken); one dataset alone asks for its own kinds
         if (feed === 'activities') return Object.keys(onTab(subject.folder)).filter(f => f !== 'activities').reduce((a, f) => a.concat(FEED_KINDS[f] || []), []);
         if (feed) return FEED_KINDS[feed] || [];
@@ -224,13 +228,77 @@ window.DatasetManager = (function() {
     }
     function withFrameOf(subject, feed) { return feed ? feed === 'activities' : !!lineOf(subject, 'activities'); }
 
-    async function startLoad(folder, feed, online) {
+    // the plan's reach and window (2026-11-08, docs/DATASETS_DESIGN.md §18): asked once, through the Intervals.icu dialog's rule
+    let limitsPromise = null, limits = null;
+    function fetchLimits() {
+        if (!limitsPromise) limitsPromise = (window.DateWindow ? window.DateWindow.fetch() : Promise.resolve(null)).then(dw => { limits = dw; return dw; }).catch(() => null);
+        return limitsPromise;
+    }
+    // the Load row: a window of the athlete's data onto the Data tab - from the store, the days not held downloaded (through the
+    // athlete's key; without one, the store alone). The dates open on the window loaded last, else the plan's window back from today.
+    function loadRow(folder, feed, name, held, span) {
+        const what = feed ? FEED_NAMES[feed] : 'all datasets';
+        const key = !!keyOf(String(folder).split('/')[1]);
+        const dw = limits || (window.DateWindow ? window.DateWindow.of(null) : { reach: 92, window: 92, windowLabel: '3 months' });
+        const today = localDay(), b = window.DateWindow ? window.DateWindow.bounds(dw) : { min: '', max: today };
+        const last = lastWindowOf(folder);
+        const to = last ? last.to : today, from = last ? last.from : dayBack(to, dw.window);
+        const picks = [[92, '3 m'], [184, '6 m'], [365, '1 y']].filter(([d]) => d <= dw.window);
+        const hint = !held ? 'Nothing in the cache yet.' : key ? `Up to ${esc(dw.windowLabel)} at a time. Days not in the cache are downloaded.` : `Up to ${esc(dw.windowLabel)} at a time. Only days in the cache can be loaded (no key stored for this athlete).`;
+        return `<div class="ds-actions"><div class="ds-window" data-folder="${esc(folder)}" data-feed="${esc(feed)}">
+            <div class="ds-row"><span class="k">From</span><input type="date" class="ui-input ds-from" min="${esc(b.min)}" max="${esc(b.max)}" value="${esc(from)}"><span class="arrow">→</span><input type="date" class="ui-input ds-to" min="${esc(b.min)}" max="${esc(b.max)}" value="${esc(to)}">
+            <button class="dataset-action-btn dataset-load-btn" data-act="load" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held ? '' : 'disabled'}>Load ${esc(what)}</button></div>
+            <div class="ds-row">${picks.length ? '<span class="ui-seg ds-picks">' + picks.map(([d, t]) => `<span data-act="pick" data-days="${d}">${t}</span>`).join('') + '</span>' : ''}<span class="hint ds-window-hint">${hint}</span></div></div>
+            <div class="ds-row">${clearButton(folder, feed, name, held)}</div></div>`;
+    }
+    function clearButton(folder, feed, name, held) {
+        if (feed === 'summary') return `<button class="dataset-action-btn dataset-remove-btn" data-act="forget" data-folder="${esc(folder)}" data-feed="summary" data-name="${esc(name)}">Take off the Data tab</button><span class="hint">The activity list stays in the cache: every load starts from it.</span>`;
+        const what = feed ? FEED_NAMES[feed] : 'the cache';
+        const hint = feed ? `Removes ${esc(FEED_NAMES[feed])} from the cache and the Data tab.` : "Removes this athlete's data from the cache and the Data tab.";
+        return `<button class="dataset-action-btn dataset-remove-btn" data-act="forget" data-folder="${esc(folder)}" data-feed="${esc(feed)}" data-name="${esc(name)}" ${held ? '' : 'disabled'}>Clear ${esc(what)}</button><span class="hint">${hint}</span>`;
+    }
+    function dayBack(iso, days) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() - days); return typeof localIsoDay === 'function' ? localIsoDay(d) : d.toISOString().slice(0, 10); }
+    function lastWindowOf(folder) {           // the window on the Data tab for this athlete, when there is one
+        const spans = Object.values(onTab(folder)).map(e => e.span).filter(Boolean);
+        const m = spans.length ? /(\d{4}-\d{2}-\d{2}) → (\d{4}-\d{2}-\d{2})/.exec(spans[0]) : null;
+        return m ? { from: m[1], to: m[2] } : null;
+    }
+    function pickWindow(btn) {                // 3 m · 6 m · 1 y: the start that many days before the end (today when the end is after it)
+        const row = btn.closest('.ds-window'), from = row.querySelector('.ds-from'), to = row.querySelector('.ds-to');
+        if (to.value > localDay() || !to.value) to.value = localDay();
+        from.value = dayBack(to.value, Number(btn.dataset.days));
+        if (from.min && from.value < from.min) from.value = from.min;
+        markPick(row);
+    }
+    function markPick(row) {                  // the pick that matches the dates lit, none otherwise
+        const from = row.querySelector('.ds-from').value, to = row.querySelector('.ds-to').value;
+        row.querySelectorAll('.ds-picks [data-days]').forEach(el => el.classList.toggle('on', !!from && !!to && dayBack(to, Number(el.dataset.days)) === from));
+    }
+    function windowOfRow(folder, feed) {
+        const row = document.querySelector(`#datasetDetails .ds-window[data-folder="${CSS.escape(folder)}"][data-feed="${CSS.escape(feed || '')}"]`);
+        return row ? { from: row.querySelector('.ds-from').value, to: row.querySelector('.ds-to').value } : null;
+    }
+
+    async function startLoad(folder, feed) {
         const subject = subjectOf(folder);
         const span = subject && spanOf(subject, feed);
-        if (!subject || !span) return;
-        const from = span.from, to = online ? localDay() : span.to;
+        const win = windowOfRow(folder, feed);
+        const status = document.getElementById('dsLoadStatus');
+        if (!subject || !span || !win) return;
+        if (!win.from || !win.to || win.from >= win.to) { if (status) { status.style.display = ''; status.className = 'ds-load-status error'; status.textContent = 'Pick both dates, the start before the end.'; } return; }
+        // the plan's reach and window (2026-11-08): a window over them is moved into them and said, and Load is pressed again
+        const dw = limits || (window.DateWindow ? window.DateWindow.of(null) : null);
+        const fit = dw && window.DateWindow ? window.DateWindow.check(dw, win.from, win.to, 'end') : { start: win.from, end: win.to, note: '' };
+        if (fit.note) {
+            const row = document.querySelector('#datasetDetails .ds-window'); row.querySelector('.ds-from').value = fit.start; row.querySelector('.ds-to').value = fit.end; markPick(row);
+            if (status) { status.style.display = ''; status.className = 'ds-load-status error'; status.textContent = fit.note; }
+            return;
+        }
+        const key = !!keyOf(String(folder).split('/')[1]);
+        const online = key && (win.from < span.from || win.to > span.to);      // days the store does not hold: through Intervals.icu; without a key, the store alone
+        const from = online ? win.from : (win.from < span.from ? span.from : win.from), to = online ? win.to : (win.to > span.to ? span.to : win.to);
         const kinds = kindsOf(subject, feed), withFrame = withFrameOf(subject, feed);
-        const what = feed ? FEED_NAMES[feed] : 'everything';
+        const what = feed ? FEED_NAMES[feed] : 'all datasets';
         // one athlete at a time on the Data tab (2026-10-29): another athlete's pills - the frame's and the files' - go first, after asking
         const others = typeof intervalsOtherAthletePills === 'function' ? intervalsOtherAthletePills(folder) : [];
         if (others.length) {
@@ -250,10 +318,9 @@ window.DatasetManager = (function() {
             const busy = primaryLoadedMessage();
             if (busy) { if (typeof showUploadLimitMessage === 'function') showUploadLimitMessage(busy); return; }
         }
-        const status = document.getElementById('dsLoadStatus');
         const buttons = document.querySelectorAll('#datasetDetails [data-act]');
         buttons.forEach(b => { b.disabled = true; });
-        if (status) { status.style.display = ''; status.className = 'ds-load-status loading'; status.textContent = 'Loading ' + what + ' ' + from + ' → ' + to + (online ? ' - the store serves what it holds, the rest comes from Intervals.icu…' : ' from the store…'); }
+        if (status) { status.style.display = ''; status.className = 'ds-load-status loading'; status.textContent = 'Loading ' + what + ' ' + from + ' → ' + to + (online ? '… days not in the cache are downloaded' : ' from the cache…'); }
         const done = (ok, text) => {
             if (status) { status.className = 'ds-load-status ' + (ok ? 'success' : 'error'); status.textContent = text; }
             buttons.forEach(b => { b.disabled = false; });
@@ -344,13 +411,13 @@ window.DatasetManager = (function() {
         renderTree();
     }
 
-    // Forget (the product owner's word, 2026-10-29): the dataset off the Data tab and out of the cache - or the athlete whole -
-    // after asking; a later load downloads it again. The activity summary is the activity list, which every load from the
-    // store starts from: its Forget is off the Data tab alone.
+    // Clear (Forget until 2026-11-08): the dataset out of the cache and off the Data tab - or the athlete whole - after asking;
+    // a later load downloads it again. The activity summary is the activity list, which every load from the store starts
+    // from: its button takes it off the Data tab alone.
     async function forgetDataset(folder, feed, name) {
-        const what = feed ? (FEED_NAMES[feed] || feed) + ' of ' + (name || folder) : 'everything held for ' + (name || folder);
+        const what = feed ? (FEED_NAMES[feed] || feed) + ' of ' + (name || folder) : "everything in the cache for " + (name || folder);
         if (feed === 'summary') { await unloadFromTab(folder, feed); return; }
-        if (!confirm('Forget ' + what + '? It comes off the Data tab and out of the cache; a later load downloads it again.')) return;
+        if (!confirm('Clear ' + what + '? A later load downloads it again.')) return;
         await unloadFromTab(folder, feed);
         try {
             const response = await window.authService.fetch('/cache/forget', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: folder, feed: feed || '' }) });
@@ -595,7 +662,7 @@ window.DatasetManager = (function() {
                 <span class="k">Held</span><span>nothing yet: the first load fills the store</span>
             </div></div>
             <div class="ds-actions">
-                <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="dialog" data-athlete="${esc(a.id)}">Load from Intervals.icu…</button><span class="hint">opens the Intervals.icu dialog with this athlete picked: choose the window and what to load beside the activities</span></div>
+                <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="dialog" data-athlete="${esc(a.id)}">Open the Intervals.icu dialog</button><span class="hint">To load the first window.</span></div>
             </div></div>`;
     }
     function group(title, hint) {
@@ -641,21 +708,6 @@ window.DatasetManager = (function() {
     function onTabCell(entry, files) {
         return entry ? `<span class="ds-on" title="on the Data tab now">● ${esc(entry.span)}</span>${files ? ' &nbsp;' + esc(entry.files.join(', ')) : ''}` : '<span class="ds-off">○ not loaded</span>';
     }
-    function actionRows(folder, feed, name, loaded, held) {
-        const key = !!keyOf(String(folder).split('/')[1]);              // the athlete's own key (2026-10-30): a load through Intervals.icu needs it
-        const what = feed ? FEED_NAMES[feed] : 'everything';
-        const from = feed ? 'the span held, from the store alone' : 'every dataset held, from the store alone - nothing fetched';
-        const replaces = feed === 'activities' ? 'replaces the frame, and the datasets on the Data tab come with it to the same window' : feed ? 'replaces the ' + what + ' pill' : 'replaces what is on the Data tab';
-        const forgetOn = feed === 'summary' ? loaded : held;
-        const forgetHint = feed === 'summary' ? (loaded ? 'takes the pill off the Data tab; the activity list stays in the cache (every load from the store starts from it)' : 'not on the Data tab')
-                         : feed ? 'off the Data tab and out of the cache; a later load downloads it again' : 'every pill off the Data tab and the athlete out of the cache; a later load downloads it all again';
-        return `<div class="ds-actions">
-            <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="load" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held ? '' : 'disabled'}>Load ${esc(what)}</button><span class="hint">${held ? from + '; ' + replaces : 'nothing held yet: load from the Intervals.icu dialog first'}</span></div>
-            <div class="ds-row"><button class="dataset-action-btn dataset-load-btn wide" data-act="today" data-folder="${esc(folder)}" data-feed="${esc(feed)}" ${held && key ? '' : 'disabled'}>Load ${esc(what)} to today</button><span class="hint">${key ? 'through Intervals.icu: only the missing days come down' + (feed === 'activities' ? '; the datasets on the Data tab come with it' : '') : 'no key stored for this athlete - add it under Settings \u2192 Intervals ICU; loads from the store still work'}</span></div>
-            <div class="ds-row"><button class="dataset-action-btn dataset-remove-btn wide" data-act="forget" data-folder="${esc(folder)}" data-feed="${esc(feed)}" data-name="${esc(name)}" ${forgetOn ? '' : 'disabled'}>Forget ${esc(what)}</button><span class="hint">${forgetHint}</span></div>
-        </div>`;
-    }
-
     function showSubjectDetails(folder) {
         const panel = document.getElementById('datasetDetails');
         const subject = subjectOf(folder);
@@ -679,9 +731,11 @@ window.DatasetManager = (function() {
             </div></div>
             <div class="dataset-info-section dataset-info-columns"><h3>Held</h3><div class="dataset-columns"><table class="dataset-preview-table ds-feeds"><thead><tr><th></th><th>Dataset</th><th>Span</th><th>Held</th></tr></thead><tbody>${rows || '<tr><td colspan="4">nothing held yet</td></tr>'}</tbody></table></div></div>
             <div id="dsLoadStatus" class="ds-load-status" style="display:none"></div>
-            ${actionRows(folder, '', subject.name || subject.id, onNames.length > 0, feeds.length > 0)}
-            ${keyOf(subject.id) ? `<div class="ds-actions ds-actions-more"><div class="ds-row"><button class="dataset-action-btn wide" data-act="dialog" data-athlete="${esc(subject.id)}">Load a new window from Intervals.icu…</button><span class="hint">the Intervals.icu dialog with this athlete picked: any window, anything beside the activities</span></div></div>` : ''}
+            ${loadRow(folder, '', subject.name || subject.id, feeds.length > 0, whole)}
+            ${keyOf(subject.id) ? `<div class="ds-actions ds-actions-more"><div class="ds-row"><button class="dataset-action-btn" data-act="dialog" data-athlete="${esc(subject.id)}">Open the Intervals.icu dialog</button><span class="hint">To choose which datasets to load.</span></div></div>` : ''}
         </div>`;
+        markPick(panel.querySelector('.ds-window'));
+        if (!limits) fetchLimits().then(() => { if (shown && shown.folder === folder && !shown.feed) showSubjectDetails(folder); });     // the bounds and the hint once the plan is known
     }
 
     function showFeedDetails(folder, feedName) {
@@ -711,8 +765,10 @@ window.DatasetManager = (function() {
             </div></div>
             <div class="dataset-info-section dataset-info-columns"><h3>Columns${files.length === 1 ? ' (' + files[0].columns.length + ')' : ''}</h3><div class="dataset-columns">${cols}</div></div>
             <div id="dsLoadStatus" class="ds-load-status" style="display:none"></div>
-            ${actionRows(folder, f.feed, subject.name || subject.id, !!tab, true)}
+            ${loadRow(folder, f.feed, subject.name || subject.id, true, spanOf(subject, f.feed))}
         </div>`;
+        markPick(panel.querySelector('.ds-window'));
+        if (!limits) fetchLimits().then(() => { if (shown && shown.folder === folder && shown.feed === feedName) showFeedDetails(folder, feedName); });
     }
 
     function createDatasetItem(dataset, type) {
