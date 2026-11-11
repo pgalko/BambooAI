@@ -973,10 +973,13 @@ def main():
             close = lambda text, value: abs(float(str(text).lstrip("$").replace(",", "")) - value) < 0.0051
             top_seats = sorted(seat_cost, key=lambda k: -seat_cost[k])
             exp_legend = top_seats if len(top_seats) <= 7 else top_seats[:6] + ["Other"]
-            check("the Overview: the tiles say the rows' figures (model cost, analyses, model calls; Compute on the hosted edition only, free: nothing charged); the chart has a column per day of the window and today's is the one filled; the legend ranks the seats by cost with the rows' totals; three lines stand out",
+            # the days filled are the days the route counted calls on: today's alone, or yesterday's too when the walk ran past midnight
+            # (2026-11-11: a walk started at 23:58 UTC filled two columns and failed a check that expected one)
+            days_with_calls = sum(1 for d_ in data["days"] if d_.get("calls"))
+            check("the Overview: the tiles say the rows' figures (model cost, analyses, model calls; Compute on the hosted edition only, free: nothing charged); the chart has a column per day of the window and the days with calls are the ones filled (today's, and yesterday's when the walk ran past midnight); the legend ranks the seats by cost with the rows' totals; three lines stand out",
                   ui["tiles"][0][0] == "Model cost" and close(ui["tiles"][0][1], exp["cost"]) and ui["tiles"][1] == ["Analyses", str(exp["chains"])] and ui["tiles"][2] == ["Model calls", format(exp["calls"], ",")]
                   and (ui["tiles"][6][0] == "Compute" and ui["tiles"][6][1] == "$0.00" if edition == "hosted" else len(ui["tiles"]) == 6)
-                  and ui["cols"] == data["period"]["buckets"] == 30 and ui["filled"] == 1 and [n for n, v in ui["legend"]] == exp_legend and close(ui["legend"][0][1], seat_cost[top_seats[0]])
+                  and ui["cols"] == data["period"]["buckets"] == 30 and ui["filled"] == days_with_calls and 1 <= days_with_calls <= 2 and [n for n, v in ui["legend"]] == exp_legend and close(ui["legend"][0][1], seat_cost[top_seats[0]])
                   and close(ui["total"], exp["cost"]) and ui["sub"].endswith("hosted, Free compute" if edition == "hosted" else "the self-hosted edition") and ui["standout"] == [data["days"][-1]["label"], "Cache", "Failures"], ui)
             page.click("#usageModal .us-tabs [data-tab=analyses]")
             page.wait_for_selector("#usageModal .us-list .it", timeout=10000)

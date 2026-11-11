@@ -517,9 +517,11 @@ check('manager actions while a fill runs: Run and Delete greyed with the reason 
   && el(b.actions(routine, fs1)).querySelector('[data-act="delete"]').getAttribute('title') === 'a fill is running — wait for it, or stop it below' && !el(b.actions(routine, fs1)).querySelector('[data-act="rename"]').hasAttribute('disabled')
   && el(b.actions(Object.assign({}, routine, { id: 'r9' }), Object.assign({}, fs1, { routine_name: 'Start hours' }))).querySelector('[data-act="run"]').getAttribute('title') === 'a fill is running on Start hours — wait for it, or stop it there'
   && !el(b.actions(routine, fsDone)).querySelector('[data-act="run"]').hasAttribute('disabled') && !el(b.actions(routine, fsDone)).querySelector('[data-act="delete"]').hasAttribute('disabled'));
-const mbf = el(b.routineBody(Object.assign({}, weekly, { summary_card: {}, origin: {} }), fs1));
+// the view's day is given, as in every other check of the table by unit (2026-11-11: this one read the real clock, and the fixture's first
+// week - the picked athlete's only run - left the one-year view on 11 November 2026: no table after the bar, and the battery red from that day)
+const mbf = el(b.routineBody(Object.assign({}, weekly, { summary_card: {}, origin: {} }), fs1, { today: fri, horizon: 365 }));
 check('the manager body with a fill running carries the line under the Runs heading, above the table; without one, nothing',
-  mbf.querySelector('.rt-fillbar') && mbf.querySelector('.rt-fillbar').parent.children[mbf.querySelector('.rt-fillbar').parent.children.indexOf(mbf.querySelector('.rt-fillbar')) + 1].className === 'rt-byunit' && !el(b.routineBody(Object.assign({}, weekly, { summary_card: {}, origin: {} }), null)).querySelector('.rt-fillbar'));
+  mbf.querySelector('.rt-fillbar') && mbf.querySelector('.rt-fillbar').parent.children[mbf.querySelector('.rt-fillbar').parent.children.indexOf(mbf.querySelector('.rt-fillbar')) + 1].className === 'rt-byunit' && !el(b.routineBody(Object.assign({}, weekly, { summary_card: {}, origin: {} }), null, { today: fri, horizon: 365 })).querySelector('.rt-fillbar'));
 check('metricLabel (§14.4): the trailing count and date range dropped, the metric kept; "n = 380" too; a label with none is as it was; a count in the middle stays; never emptied',
   b.metricLabel('mean maximal power, best continuous 5s average, all 380 activities, 2025-11-01..2026-11-04') === 'mean maximal power, best continuous 5s average'
   && b.metricLabel('session start hour, mode, n = 60, 2026-07-29 to 2026-09-26') === 'session start hour, mode' && b.metricLabel('mean power, 20 min') === 'mean power, 20 min' && b.metricLabel('rows above 155, all 200 rows, of 3 columns') === 'rows above 155, all 200 rows, of 3 columns'
