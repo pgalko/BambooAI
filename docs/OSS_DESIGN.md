@@ -310,6 +310,14 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-11-14: 2.7.3 (patches 0281-0290).** Routines rebuilt (docs/ROUTINES_DESIGN.md §19, §22): a version
+  keeps the chain's code as written; a run executes it a statement at a time, so a step that cannot be computed on
+  the data costs its own lines - blank, with the reason - and not the run; a window with no data is an empty run; a
+  column emptier than in the analysis's data is marked; Save proves a shorter run and tries the method on a day, a
+  week and a month of the original data. Gone: the condensing pass, the consolidation and the `Condenser` seat of
+  2.7.2, and *Fix it in the analysis*, which came and went inside the series. Also: custom instructions for the
+  promoter (§15.6), the promoter reading the chain without its exploration, the athlete named from the first run,
+  the README rewritten, the public PR #64. Image v74 stands; no migration.
 - **Status 2026-11-08: 2.7.2 (patches 0259-0280).** Routines by the calendar (docs/ROUTINES_DESIGN.md §14-§21): a
   run on a day, week, month or year with the units not run yet filled from one load; the Summary by interval with a
   thumbnail per line and the enlarged chart; the promoter picks the lines a run compares and names them; the save's
