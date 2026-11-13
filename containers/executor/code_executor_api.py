@@ -32,7 +32,7 @@ import uuid
 import re
 import hashlib
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from intervals_store import Store, stores_under, RETENTION_DAYS as STORE_RETENTION_DAYS   # the Intervals.icu store (2026-10-15)
 from intervals_store import athlete_rel, athlete_record, remember_athlete, adopt_mark_folder, athlete_folders, views_rel, adopt_views, VIEWS_DIR   # the athlete's folder (2026-10-29)
 from intervals_store import cache_tree, forget as forget_store, prune_views, absorb_mark_folders, update_record, SOURCES as STORE_SOURCES, APP_FOLDERS as STORE_APP_FOLDERS   # the tree, forgetting, the views' age (step 3)
@@ -3131,7 +3131,7 @@ def profile_frame(athlete, today=None):
     if re.match(r'^\d{4}-\d{2}-\d{2}$', dob):
         try:
             d = datetime.strptime(dob, '%Y-%m-%d').date()
-            t = today or datetime.utcnow().date()
+            t = today or datetime.now(timezone.utc).date()
             age = t.year - d.year - ((t.month, t.day) < (d.month, d.day))
             rows.append({'section': 'subject', 'key': 'age', 'value': age, 'unit': 'years', 'note': 'from the date of birth, which stays out of the file'})
         except ValueError:

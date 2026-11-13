@@ -2,7 +2,7 @@ import os
 import base64
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -261,7 +261,7 @@ def store_sweatstack_token(bamboo_user_id: str, auth0_id: str, token_data: dict)
         service_client = get_service_client()
         
         # Extract and encrypt sensitive token fields with safety checks
-        created_at = datetime.utcnow()
+        created_at = datetime.now(timezone.utc)
         
         # Calculate expires_at safely
         expires_in = token_data.get('expires_in', 3600)  # Default to 1 hour if missing
@@ -326,7 +326,9 @@ def get_sweatstack_token(bamboo_user_id: str, auth0_id: str) -> str:
         if expires_at_str:
             try:
                 expires_at = datetime.fromisoformat(expires_at_str.replace('Z', '+00:00'))
-                if datetime.utcnow().replace(tzinfo=expires_at.tzinfo) >= expires_at:
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) >= expires_at:
                     logger.warning(f'SweatStack token expired for user: {bamboo_user_id}')
                     return None
             except (ValueError, TypeError) as e:
@@ -336,7 +338,7 @@ def get_sweatstack_token(bamboo_user_id: str, auth0_id: str) -> str:
         # Update last used timestamp
         try:
             service_client.table('sweatstack_integration').update({
-                'last_used_at': datetime.utcnow().isoformat()
+                'last_used_at': datetime.now(timezone.utc).isoformat()
             }).eq('bamboo_user_id', bamboo_user_id).execute()
         except Exception as e:
             logger.error(f'Warning: Could not update last_used_at for user {bamboo_user_id}: {e}')
@@ -399,7 +401,7 @@ def update_sweatstack_tokens(bamboo_user_id: str, auth0_id: str, new_token_data:
         
         # Prepare update data with encrypted tokens - handle missing fields gracefully
         update_data = {
-            'updated_at': datetime.utcnow().isoformat()
+            'updated_at': datetime.now(timezone.utc).isoformat()
         }
         
         # Only update access_token if provided and not empty
@@ -415,7 +417,7 @@ def update_sweatstack_tokens(bamboo_user_id: str, auth0_id: str, new_token_data:
             expires_in = new_token_data.get('expires_in', 3600)
             update_data['expires_in'] = expires_in
             # Recalculate expires_at if expires_in is updated
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
             update_data['expires_at'] = (current_time + timedelta(seconds=expires_in)).isoformat()
         
         # Include other optional fields if provided
@@ -482,7 +484,9 @@ def is_sweatstack_token_expired(bamboo_user_id: str, auth0_id: str) -> bool:
         
         try:
             expires_at = datetime.fromisoformat(expires_at_str.replace('Z', '+00:00'))
-            return datetime.utcnow().replace(tzinfo=expires_at.tzinfo) >= expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            return datetime.now(timezone.utc) >= expires_at
         except (ValueError, TypeError) as e:
             logger.error(f"Error parsing expires_at for user {bamboo_user_id}: {e}")
             return False  # If we can't parse, assume valid but log the issue
@@ -514,7 +518,9 @@ def get_sweatstack_integration_status(bamboo_user_id: str, auth0_id: str) -> dic
         is_expired = False
         if integration.get('expires_at'):
             expires_at = datetime.fromisoformat(integration['expires_at'].replace('Z', '+00:00'))
-            is_expired = datetime.utcnow().replace(tzinfo=expires_at.tzinfo) >= expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            is_expired = datetime.now(timezone.utc) >= expires_at
         
         return {
             'authenticated': not is_expired,
@@ -567,7 +573,7 @@ def store_intervals_api_key(bamboo_user_id: str, auth0_id: str, api_key: str, at
             logger.error(f"Error: Missing API key for user {bamboo_user_id}")
             return False
         
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         athlete_id = str(athlete_id or '')
         record = {
             'api_key': _encrypt_value(api_key),  # Encrypt the API key
@@ -620,7 +626,7 @@ def get_intervals_api_key(bamboo_user_id: str, auth0_id: str, athlete_id=None) -
         # Update last used timestamp
         try:
             service_client.table('intervals_integration').update({
-                'last_used_at': datetime.utcnow().isoformat()
+                'last_used_at': datetime.now(timezone.utc).isoformat()
             }).eq('id', key_data['id']).execute()
         except Exception as e:
             logger.error(f'Warning: Could not update last_used_at for user {bamboo_user_id}: {e}')
@@ -665,7 +671,7 @@ def name_pending_intervals_key(bamboo_user_id: str, auth0_id: str, athlete_id: s
         pending = _intervals_rows(service_client, bamboo_user_id, '')
         if not pending:
             return False
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         have = _intervals_rows(service_client, bamboo_user_id, str(athlete_id))
         if have:
             service_client.table('intervals_integration').update({'api_key': pending[0]['api_key'], 'athlete_name': str(athlete_name or have[0].get('athlete_name') or ''), 'updated_at': now, 'last_used_at': now}).eq('id', have[0]['id']).execute()
@@ -746,7 +752,7 @@ def store_endura_api_key(bamboo_user_id: str, auth0_id: str, api_key: str) -> bo
             logger.error(f"Error: Missing API key for user {bamboo_user_id}")
             return False
         
-        created_at = datetime.utcnow()
+        created_at = datetime.now(timezone.utc)
         
         key_record = {
             'bamboo_user_id': bamboo_user_id,
@@ -794,7 +800,7 @@ def get_endura_api_key(bamboo_user_id: str, auth0_id: str) -> str:
         # Update last used timestamp
         try:
             service_client.table('endura_integration').update({
-                'last_used_at': datetime.utcnow().isoformat()
+                'last_used_at': datetime.now(timezone.utc).isoformat()
             }).eq('bamboo_user_id', bamboo_user_id).execute()
         except Exception as e:
             logger.error(f'Warning: Could not update last_used_at for user {bamboo_user_id}: {e}')

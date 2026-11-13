@@ -20,7 +20,7 @@ import json
 import os
 import re
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, Response, jsonify, request
 
@@ -47,7 +47,7 @@ def _app():
 
 
 def _utcnow():
-    return datetime.utcnow()
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _fmt(dt):
