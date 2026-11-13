@@ -461,23 +461,30 @@ def main():
                   len(rdirs) == 1 and rj.get("current_version") == 1 and rj["versions"][0]["run_zero"]["verified"] and rj["versions"][0]["run_zero"]["status"] == "reproduced"
                   and [p["key"] for p in rj["versions"][0]["manifest"]["parameters"]] == ["regime"] and "INPUTS['regime']" in rj["versions"][0]["script"]
                   and rj["origin"]["thread_id"] == str(page.evaluate("() => currentData.thread_id")) and rj.get("purpose", "").startswith("the within-soil"), (len(rdirs), rj.get("versions", [{}])[0].get("run_zero")))
-            # the condensing pass after the verdict (§19): the cells pruned from the code - the inspection cell (nothing reads what it makes) and
-            # the prints go; the candidate reproduced the line and both figures (the matplotlib PNG byte for byte, the Plotly figure by its data),
-            # so it is the script that runs, the chain's kept as written; run zero's record is the condensed run's
+            # the method was condensed before the promoter read it (§19.5): the inspection cell (nothing reads what it makes), the prints and
+            # the two tables only printed (tab, raw) went; run zero ran it, and the pass behind the verdict ran the chain as written beside
+            # it - the same line and both figures (the matplotlib PNG byte for byte, the Plotly figure by its data) - so it stands, the
+            # chain's script kept as written
             v1 = (rj.get("versions") or [{}])[0]
-            check("the inspection cell went before the promoter (§19.4): the version records 3 cells, 2 kept, cell 1 dropped, the pruning standing; the condensing pass behind the verdict then found only the five prints to drop (2 cells kept); the RESULT call and the figure cell kept with their numbers, the chain's script kept as written, run zero's figures two",
-                  v1.get("pruned") == {"before": 3, "after": 2, "dropped": [1], "stood": True}
-                  and (v1.get("condensed") or {}).get("status") == "condensed" and v1["condensed"]["line"].startswith("condensed: 2 cells kept, 5 prints dropped, ") and v1["condensed"]["cells"] == [2, 2] and v1["condensed"]["dropped"] == {"cells": [], "prints": 5}
-                  and [ln for ln in v1["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---", "# --- cell 3 ---"] and not [ln for ln in v1["script"].splitlines() if ln.startswith("print(")]
+            cells_v1 = v1.get("script_fallback") or v1.get("script") or ""
+            check("the method was condensed before the promoter read it (§19.5): 3 cells → 2, cell 1 dropped, twelve lines in all - the prints and the two tables that were only printed; the figure cell whole, its print too; the pass ran the "
+                  "chain as written beside it and the figures were the same, both times on the record; the RESULT call and the figure cell kept with their numbers, the chain's script kept as written, run zero's figures two; no pruning "
+                  "record of the 0283 kind",
+                  (v1.get("condensed") or {}).get("status") == "condensed" and v1["condensed"]["cells"] == [3, 2] and v1["condensed"]["dropped"] == {"cells": [1], "lines": 12}
+                  and re.match(r"^condensed: 3 cells → 2, 12 lines dropped, [\d.]+ (s|min) → [\d.]+ (s|min)$", v1["condensed"]["line"]) and v1["condensed"]["elapsed"][0] is not None and "pruned" not in v1
+                  and [ln for ln in cells_v1.splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---", "# --- cell 3 ---"]
+                  and [ln for ln in cells_v1.splitlines() if ln.startswith("print(")] == ["print('figure drawn: yield by regime within soil')"] and not re.search(r"^(tab|raw) = ", cells_v1, re.M)
                   and "RESULT(" in v1["script"] and "pfig.show()" in v1["script"] and "print(df.shape)" in v1.get("script_written", "") and "# --- cell 1 ---" in v1.get("script_written", "")
-                  and v1["run_zero"]["figures"] == 2 and v1["run_zero"]["elapsed"] == v1["consolidated"]["elapsed"][1], (v1.get("condensed"), [ln for ln in v1.get("script", "").splitlines() if ln.startswith("# --- cell")]))
-            # the consolidation (§19.3): the stack's Condenser seat gave the pruned cells back without the two dead stores (tab, raw); the rewrite
-            # reproduced the line and both figures, so it runs - provisional, the pruned script waiting under script_fallback for run 1
-            check("the method was consolidated behind the pass, on the stack's Condenser seat: the two dead stores gone, the rewrite provisional until the first run on new data, the pruned script waiting under script_fallback",
+                  and re.search(r"^raw = plot_means\[plot_means.regime == 'B'\]", v1.get("script_written", ""), re.M) and "b=INPUTS['regime']" in v1.get("script_written", "")
+                  and v1["run_zero"]["figures"] == 2 and v1["run_zero"]["elapsed"] == v1["consolidated"]["elapsed"][1], (v1.get("condensed"), [ln for ln in cells_v1.splitlines() if ln.startswith(("# --- cell", "print(", "tab", "raw"))]))
+            # the consolidation (§19.3): the stack's Condenser seat gave the method's cells back without their comment lines; the rewrite
+            # reproduced the line and both figures, so it runs - provisional, the method it replaced waiting under script_fallback for run 1
+            _comments = lambda text: [ln for ln in text.split("# --- cell 2 ---", 1)[-1].split("# --- the executor's own display options back ---", 1)[0].splitlines() if ln.lstrip().startswith("#") and not ln.startswith("# --- cell")]
+            check("the method was consolidated behind the pass, on the stack's Condenser seat: the comment lines gone, the rewrite provisional until the first run on new data, the method it replaced waiting under script_fallback",
                   (v1.get("consolidated") or {}).get("status") == "consolidated" and v1["consolidated"]["provisional"] is True and v1["consolidated"]["seat"] == "Condenser" and v1["consolidated"]["line"].startswith("consolidated: 2 cells → 2, ")
                   and v1["consolidated"]["line"].endswith("; checked on the original data, the first run on new data checks it again")
-                  and not re.search(r"^(tab|raw) = ", v1["script"].split("# --- cell 2 ---", 1)[-1], re.M) and re.search(r"^tab = ", v1.get("script_fallback", ""), re.M)
-                  and "RESULT(" in v1["script"] and v1["consolidated"]["cost"] > 0, (v1.get("consolidated"), [ln for ln in v1.get("script", "").split("# --- cell 2 ---", 1)[-1].splitlines() if ln.startswith(("tab", "raw"))]))
+                  and _comments(v1["script"]) == [] and len(_comments(v1.get("script_fallback", ""))) >= 3
+                  and "RESULT(" in v1["script"] and v1["consolidated"]["cost"] > 0, (v1.get("consolidated"), _comments(v1.get("script", ""))))
             fav1 = os.path.join(workdir, "webapp", "storage", USER, "favourites", rj["origin"]["thread_id"], rj["origin"]["chain_id"] + ".json") if rdirs else ""
             def _fav_type():
                 try:

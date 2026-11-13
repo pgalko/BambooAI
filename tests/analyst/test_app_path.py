@@ -210,17 +210,18 @@ check("create_routine returns at once with the routine stored as verifying and n
       made["run_zero"]["status"] == "verifying" and not made["run_zero"]["verified"] and "verify" not in made and cev == [] and made["routine"]["origin"] == {"thread_id": "1001", "chain_id": run1.id}
       and os.path.exists(os.path.join(work, "storage", "u1", "routines", made["routine"]["id"], "routine.json")) and _rz.get("status") == "reproduced" and _rz.get("verified") is True
       and q.qsize() == 0, (cev, made.get("run_zero"), _rz))
-# the condensing pass behind the verdict (§19): no model - the cells pruned from the code; this chain has no RESULT line or figure, so the
-# whole pruning leaves nothing and the prints alone go; the version runs the condensed script and keeps the one written; no pane rows
+# the pass behind the verdict (§19, §19.5): no model, and here no run - this chain has no RESULT line and no figure, so its printed output is
+# what a run keeps: nothing was cut before the promoter read it and the record says so; no pane rows
 _v1 = BAMBOO.routine_store().load(made["routine"]["id"])["versions"][0]
 _kc = [(a, u) for a, u in state["calls"] if u.startswith("QUESTION:") and "THE METHOD (the cells in execution order" in u]
-check("the condensing pass ran once run zero reproduced, without a model call: the two prints gone, the script as written kept; then the consolidation on the Condenser seat - one quiet call at medium effort with the pruned cells and their outputs, billed to the save's chain, no pane rows - its rewrite (the preparing cell folded in) provisional, the pruned script waiting under script_fallback; run zero's record is the rewrite's",
-      _v1["condensed"]["status"] == "condensed" and _v1["condensed"]["line"].startswith("condensed: 2 cells kept, 2 prints dropped, ") and _v1["condensed"]["dropped"] == {"cells": [], "prints": 2}
-      and len(_kc) == 1 and _kc[0][0] == "Condenser" and "OUTPUT:\nmeans {" in _kc[0][1] and "print('means'" not in _kc[0][1].split("THE METHOD")[1] and state.get("consolidate_efforts") == ["medium"]
+check("the pass ran once run zero reproduced, without a model call: nothing to cut in a chain whose prints are its output, the record saying so, no script kept beside the method; then the consolidation on the Condenser seat - one quiet call at "
+      "medium effort with the cells and their outputs, billed to the save's chain, no pane rows - its rewrite (the preparing cell folded in) provisional, the method it replaced waiting under script_fallback; run zero's record is the rewrite's",
+      _v1["condensed"]["status"] == "as_written" and _v1["condensed"]["line"] == "as written: nothing to cut" and _v1["condensed"]["dropped"] == {"cells": [], "lines": 0} and "script_written" not in _v1
+      and len(_kc) == 1 and _kc[0][0] == "Condenser" and "OUTPUT:\nmeans {" in _kc[0][1] and "print('means'" in _kc[0][1].split("THE METHOD")[1] and state.get("consolidate_efforts") == ["medium"]
       and _v1["consolidated"]["status"] == "consolidated" and _v1["consolidated"]["provisional"] is True and _v1["consolidated"]["seat"] == "Condenser" and _v1["consolidated"]["model"] == "fake/model" and _v1["consolidated"]["cost"] > 0
       and _v1["consolidated"]["line"].startswith("consolidated: 2 cells → 1, ") and [ln for ln in _v1["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---"]
-      and "print('means'" not in _v1["script_fallback"] and "# --- cell 1 ---" in _v1["script_fallback"] and "print('means'" in _v1["script_written"] and "INPUTS['arm_b']" in _v1["script"] and _v1["run_zero"]["status"] == "reproduced" and _v1["run_zero"]["verified"]
-      and sum(1 for e in json.load(open(_runlog)) if str(e.get("chain_id")) == "9001" and e.get("agent") == "Condenser") == 1 and q.qsize() == 0, (_v1.get("consolidated"), _kc[0][1][:400] if _kc else None))
+      and "print('means'" in _v1["script_fallback"] and "# --- cell 1 ---" in _v1["script_fallback"] and "INPUTS['arm_b']" in _v1["script"] and _v1["run_zero"]["status"] == "reproduced" and _v1["run_zero"]["verified"]
+      and sum(1 for e in json.load(open(_runlog)) if str(e.get("chain_id")) == "9001" and e.get("agent") == "Condenser") == 1 and q.qsize() == 0, (_v1.get("condensed"), _v1.get("consolidated"), _kc[0][1][:400] if _kc else None))
 st = BAMBOO.routine_store()
 check("the store lists it with the favourite's card index pointing at run1", [r["id"] for r in st.all()] == [made["routine"]["id"]] and st.by_origin() == {("1001", run1.id): [{"id": made["routine"]["id"], "name": "B against A", "version": 1, "instruction": ""}]})
 try:

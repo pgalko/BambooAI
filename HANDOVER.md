@@ -99,8 +99,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/227/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/139/14/25/4/14/67/41 JS; 1,830 on 2026-11-11; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (141 hosted on 2026-11-08; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/236/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/139/14/25/4/14/67/41 JS; 1,839 on 2026-11-13; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (141 hosted on 2026-11-13; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (144; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -481,6 +481,33 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The pruning reads statements; the pass holds the figures (2026-11-13, patch 0286; docs/ROUTINES_DESIGN.md §19.5).**
+  Palo's saves of power-curve chains kept being refused under the identifier rule - a session named by its id in a
+  check, inside cells the method needs. 0283's pruning took whole cells and kept any cell that bound a name a later
+  cell read; every cell of a real chain re-loads `df`, so on the chain it was written for it dropped nothing. Now
+  `_pruning` (analyst/routines.py) reads top-level statements: one stays when a RESULT line, a figure, a file, a check
+  that can stop the run or the only read of an input rests on it, or when a later kept statement reads what it makes;
+  a name bound whole again ends the reading of what it held. `_Facts` reads what the code does not spell: a call does
+  what the function's body does, a bare call changes the object it is called on, a draw moves its generator, names in
+  query/eval strings and through `globals()`. `prune_cells(cells, figure_cells)` returns the lines dropped;
+  `held_out` / `put_back` give the chain as written the same edits exactly. In the host: `propose` condenses before
+  the promoter; `create`'s `zero` falls back on the lines as before; `condense` no longer prunes - it runs the chain
+  as written beside a method that draws and holds it to the figures (0283 had dropped that check), `settle_method`
+  writes the outcome, and the record is `condensed` alone (`dropped.lines`; the `pruned` record and its row note are
+  gone). `consolidate` takes the method's cells (no `condensed` argument). A chain with no RESULT line and no figure is
+  left whole, prints included. The stack's Condenser stand-in drops comment lines now (the dead stores go before the
+  promoter); the field-trial promoter edits what it was shown. Measured on the seventeen real chains Palo sent: 61% of
+  the lines kept, every check of the reading clean, identifiers in the code 10 → 3; the 8 November chain as written
+  and as condensed gives the same 23 lines and both figures on stand-in data. A fuzz of random chains, as written
+  against as pruned, is in the battery now (`tests/analyst/_random_chains.py`); it found two faults in the first
+  draft - a call reads what its function reads at call time; numpy's and the standard library's generators are two
+  states. Tests: test_routines.py 236, test_app_path.py 216, test_routines.js 139, the stack walk 141. Not built: the
+  refusal's own way out (§22 on the Save dialog), a check nested in a loop the method needs.
+- **Public PR #64 merged (2026-11-13, `9c9a004`).** An outside contributor's `datetime.utcnow()` →
+  `datetime.now(timezone.utc)` in four files (local_store, code_executor_api, supabase_client, usage_routes); squashed
+  onto 0285. The hosted edition is unchanged; the local edition's timestamps written from Python gain `+00:00` (old and
+  new forms sort and parse together). Its first CI run was red on our clock check, being set against the release;
+  closed and reopened, it ran against `main` and passed.
 - **Two checks that read the real clock (2026-11-11, patch 0285).** Found while evaluating the public PR #64 (the
   `datetime.utcnow()` replacement): the battery was red from 11 November 2026 UTC on every tree, the release included -
   one check in test_routines.js built the weekly view on `new Date()`, and the fixture's first week (the picked

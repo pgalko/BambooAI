@@ -35,7 +35,7 @@ def _view(proposal):
 
 
 def _version_view(v):
-    return {k: v.get(k) for k in ("number", "created", "promoted_from", "change_note", "manifest", "run_zero", "condensed", "consolidated", "pruned")} | {
+    return {k: v.get(k) for k in ("number", "created", "promoted_from", "change_note", "manifest", "run_zero", "condensed", "consolidated")} | {
         "script_chars": len(v.get("script") or ""), "written_chars": len(v.get("script_written") or "")}        # the script as written, when condensed (§19)
 
 

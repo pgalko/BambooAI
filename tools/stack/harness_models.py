@@ -23,9 +23,11 @@ are the numbers the kernel printed.
 """
 import ast
 import importlib.util
+import io
 import os
 import re
 import time
+import tokenize
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCENARIO = None
@@ -76,32 +78,25 @@ def _tokens(s):
 
 def consolidated_reply(user):
     """The stack's own Condenser (docs/ROUTINES_DESIGN.md §19.3), for every scenario: the method's cells given back without
-    the assignments nothing reads afterwards (a dead store whose value calls no bare function), the markers, RESULT calls
-    and figures as they were; UNCHANGED when there is none. Enough to walk the consolidation's path - the record, the
-    provisional script, the first run's check - without a model."""
+    their comment lines - the markers, the code, the RESULT calls and the figures as they were; UNCHANGED when there is
+    none. (The dead stores it used to drop go before the promoter since §19.5.) Enough to walk the consolidation's path -
+    the record, the provisional script, the first run's check - without a model."""
     body = user.split("THE METHOD (the cells in execution order, each with the output it printed; `df` is loaded before the first cell):\n", 1)
     if len(body) < 2:
         return "UNCHANGED"
-    cells = []
-    for block in re.split(r"(?m)^(?=# --- cell \d+ ---$)", body[1].split("\n\nRESULT LINES THE METHOD PRINTS", 1)[0]):
-        if block.strip():
-            head, code = block.split("\n", 1)
-            cells.append((head, code.split("\nOUTPUT:\n", 1)[0].rstrip("\n")))
     out, changed = [], False
-    for i, (head, code) in enumerate(cells):
+    for block in re.split(r"(?m)^(?=# --- cell \d+ ---$)", body[1].split("\n\nRESULT LINES THE METHOD PRINTS", 1)[0]):
+        if not block.strip():
+            continue
+        head, code = block.split("\n", 1)
+        code = code.split("\nOUTPUT:\n", 1)[0].rstrip("\n")
         try:
-            tree = ast.parse(code)
-        except SyntaxError:
+            ast.parse(code)
+            comments = {t.start[0] for t in tokenize.generate_tokens(io.StringIO(code).readline) if t.type == tokenize.COMMENT and not t.line[:t.start[1]].strip()}
+        except (SyntaxError, tokenize.TokenError):
             return "UNCHANGED"
-        lines, gone = code.split("\n"), set()
-        for st in tree.body:
-            if isinstance(st, ast.Assign) and len(st.targets) == 1 and isinstance(st.targets[0], ast.Name) \
-                    and not any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) for n in ast.walk(st.value)):
-                name = st.targets[0].id
-                after = "\n".join(lines[st.end_lineno:]) + "\n" + "\n".join(c for _h, c in cells[i + 1:])
-                if not re.search(r"\b" + re.escape(name) + r"\b", after):
-                    gone.update(range(st.lineno, st.end_lineno + 1)); changed = True
-        out.append(head + "\n" + "\n".join(ln for j, ln in enumerate(lines, 1) if j not in gone))
+        changed = changed or bool(comments)
+        out.append(head + "\n" + "\n".join(ln for j, ln in enumerate(code.split("\n"), 1) if j not in comments))
     return "```python\n" + "\n\n".join(out) + "\n```" if changed else "UNCHANGED"
 
 

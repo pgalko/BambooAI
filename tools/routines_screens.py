@@ -39,7 +39,7 @@ ROUTINE = {"id": "r1", "name": "Altitude pace correction, within athlete", "crea
            "versions": [{"number": 1, "created": 1791460000, "promoted_from": {"thread_id": "1791460000", "chain_id": "1791460001"}, "change_note": "first version", "script_chars": 9120, "written_chars": 14800,
                          "manifest": {"data": PROPOSAL["data"], "parameters": PROPOSAL["inputs"], "results": [dict(r) for r in PROPOSAL["results"]], "figures": PROPOSAL["figures"]},
                          "run_zero": {"status": "reproduced", "line": "reproduced: 5 result line(s) identical", "verified": True},
-                         "condensed": {"status": "condensed", "line": "condensed: 9 cells → 4, 11 prints dropped, 48 s → 4.6 s", "cells": [9, 4], "dropped": {"cells": [1, 2, 4, 6, 8], "prints": 11}, "elapsed": [48.2, 4.6]}}]}     # the pass (§19)
+                         "condensed": {"status": "condensed", "line": "condensed: 9 cells → 4, 112 lines dropped, 48 s → 4.6 s", "cells": [9, 4], "dropped": {"cells": [1, 2, 4, 6, 8], "lines": 112}, "elapsed": [48.2, 4.6]}}]}     # the pass (§19)
 # step 2: three runs of v1 with their lines (the manifest's five kept lines, by position; the dropped typed one still printed)
 def _lines(vals):
     out = [{"estimate": f"{v:+.3f}", "low": f"{v - w:+.3f}", "high": f"{v + w:+.3f}"} for v, w in vals]

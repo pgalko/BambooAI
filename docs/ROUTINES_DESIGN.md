@@ -1289,6 +1289,9 @@ feels a little fragile". 0273 took the model out of the pass; what remains needs
 
 ### 19.1 The pass
 
+*Since 0286 the pruning reads statements and runs before the promoter, and the pass holds the method to its figures
+(§19.5); what follows is the pass as it was made.*
+
 After run zero reproduces, the cells are pruned from the code alone (`rt.prune_cells`). Each cell is parsed; the pass
 reads what it defines - names bound, names it mutates in place (a subscript or attribute assignment, an in-place call,
 `inplace=True`), functions, classes - what it reads from before it, and whether anything rests on it: a RESULT call,
@@ -1434,6 +1437,100 @@ pruned before the promoter, the pruned method differing, run zero falling back t
 record; a chain whose exploration cell names a row by looking - the promoter never sees it, the pruned method stands,
 the chain as written beside it; a chain with nothing to anchor, not pruned), the markup (the version row's note, the
 header's count), the stack walk (the inspection cell gone before the promoter, the pass dropping the prints alone).
+
+### 19.5 The pruning reads statements; the pass holds the figures (2026-11-13, patch 0286)
+
+Palo, on a refusal that named three sessions in cells 2, 3 and 4 of a power-curve chain - six of its seven cells kept:
+"this issue keeps bugging us ... is there really nothing we can do to address this properly in a more robust way?"
+There was. Whether a row named by its identifier feeds a result line is a fact of the code, not a judgement, and the
+pruning of 19.4 read the code too coarsely, in two ways:
+
+- **It took or left whole cells.** A check on one session written inside a cell that also holds the method stayed with
+  the cell.
+- **A cell stayed when a later kept cell read any name it bound** - and nearly every cell of a real chain begins
+  `df = DS.load()`. The walk never took a name out of the names still read when a kept cell bound it whole, so a cell
+  that only looked was held by the last reader of `df`, across every cell that loaded the frame again. Run on the chain
+  of 8 November - the one 19.4 was written for - 0283's pruning drops nothing: 19.4's "the pass would have dropped cell
+  4" was assumed, not measured.
+
+**The reading now.** `_pruning` (analyst/routines.py) takes the chain statement by statement - top-level statements;
+those sharing a line are one piece. From the last statement to the first, a statement stays when something rests on it,
+or when a later kept statement reads a name it defines or changes; a statement that binds a name whole (`x = ...`, a
+`def`, an import) ends the reading of what the name held before it. What rests: a RESULT call; a figure (every
+statement of a figure cell; a show / save / write call); an `assert` or a `raise` (a check that can stop the run is
+the method's); a bare call on a module (a setting, a seed, a folder made); the only read of an input. Everything else
+goes - the prints, a table made to be looked at, a second way of computing set beside the first, a row picked by eye
+and what was derived from it - with the comment lines standing on it. Imports and the capture switches stay wherever
+they are; a cell left with nothing else goes, marker included.
+
+What the code does not show on its face is read all the same (`_Facts`):
+
+- a call does what the function's body does: a function that records a RESULT line, changes a name outside itself (a
+  list appended to, a `global`) or changes what it is handed (`t['k'] = ...` on a parameter) makes the statement that
+  calls it do so, and the statement that hands it to another call (`apply(f)`);
+- a bare call, whose value nobody takes, is there for its effect on the object it is called on and on the objects it
+  is handed (`fig.update_layout(...)`, `random.shuffle(xs)`);
+- a draw reads its generator's state and moves it on - the global generators, and one made by `default_rng` or
+  `RandomState` - so the draws before a kept draw stay, back to the seed;
+- the names in a `query` / `eval` string are read; `globals()`, `locals()` and `vars()` read the names whose strings
+  the kept code holds (to a fixed point: a string counts while its statement stays - the figures step reads this way,
+  `globals().get('well2')`); `eval` / `exec` keep everything before them; a write through `globals()` stays.
+
+What it cannot see: a second name for the same object (`also = flags; also.append(v)`), state inside a library (an
+unseeded draw in `df.sample`). Those are run zero's to catch.
+
+**Held to the lines, then to the figures.** Run zero runs the condensed method against the chain's result lines and
+falls back to the chain as written when it fails them (19.4). A method that draws is held to its figures too, by the
+pass behind the verdict (`condense`): the chain as written runs once beside it, and the condensed method stands when
+the figures are the same pictures (`same_figures`) - or when its own figures differ from one run to the next (an
+unseeded jitter), which no code can be held to; otherwise the chain as written is the method from then on, and its run
+is run zero's record. 0283 had left this check behind: its pruning ran before run zero, which reads the lines alone.
+The pass no longer prunes - what it dropped goes before the promoter - and its record is the one the Summary already
+shows: `condensed: 7 cells → 5, 189 lines dropped, 2 min → 48 s` (one time when the chain as written did not run), or
+*as written* with the reason on hover (`the condensed code did not reproduce the result lines: ...`, `... the figures:
+figure 1 differs`). 0283's `pruned` record and its row note are gone; `dropped` counts lines, not prints. A chain with
+nothing to anchor (no RESULT line, no figure) is not touched: its prints are what a run keeps, and the old pass's
+dropping them was a fault.
+
+**The same edits on the chain as written.** The promoter's edits are found in the condensed text, where each fragment
+occurs once; the chain may repeat a fragment in a line that was dropped (`print('threshold = 155 ...')`). `held_out`
+gives the chain with every dropped line replaced by a line no fragment can match, `apply_edits` runs on that, and
+`put_back` returns the lines: each edit lands where it landed in the method. An edit that cannot land - a fragment
+that ran across a dropped line - leaves no fallback rather than a half-edited one.
+
+**Measured (2026-11-13).** On the seventeen real chains at hand (the run logs and routine files Palo sent; 9,480 lines
+of code): 61% of the lines kept; every RESULT call there; nothing kept reads a name only dropped code gave; pruning
+the pruned changes nothing; the held-out form gives each chain back. Ten rows named by identifier in the code, three
+left - the three that mark sessions for a column the method uses, §18's case: the promoter's to turn into the rule the
+chain has, or to refuse. The chain of 8 November run as written and as condensed, in separate processes, on two sets
+of stand-in data of its shape: the same 23 RESULT lines and both figures, 189 lines fewer, a quarter of the printed
+output. A second power-curve chain stopped *as written* on the stand-in data in a print that reads a duration the data
+has no effort for - the failure of §22, in a line the condensed method no longer has. And a fuzz: random small chains
+of the statement kinds the reading claims to see, each run as written and as pruned, the RESULT values compared
+(`tests/analyst/_random_chains.py`; 400 of them in the battery, 46,000 while it was built, and 3,000 over pandas frames
+with the in-place idioms). It found two faults in the first draft, both fixed and pinned as cases: a call reads what
+the function's body reads *when it is called* (a dict changed between the definition and the call), and numpy's global
+generator and the standard library's are two states (a `random.seed` does not cut numpy's draws).
+
+**Limits.** The unit is the top-level statement: a check written inside a loop or a branch the method needs stays
+with it, and the promoter refuses it as before. A literal the method rests on is §18's: only the analysis can replace
+it with a rule. Both want §22's way out on the refusal itself (the question written for the coach) - not built here.
+
+Accepted by: the pure module (the made-up script by statement - 16 lines, three cells; the re-loaded frame; the check
+inside the method's cell with its comment; a call through a function, a parameter changed, a RESULT in a function, the
+alias the reading cannot see; bare calls, a module setting, an assert, a del of a column, a figure cell whole; the
+draws, global and by generator, the seed set again; names in query and eval strings, a function handed to a call, a
+function's global, globals() and eval, pprint; a change between a function's definition and its call; the two
+generators; 400 random chains as written against as pruned; `held_out` / `put_back` with an edit whose fragment the
+chain repeats),
+the host (the print pruned before the promoter; the pass with nothing drawn - one run; the figures the same - two
+runs, both times on the record; other pictures - the chain as written takes over; pictures that differ run to run -
+the method stands; a chain as written that fails; the alias chain falling back, with and without the pass; the
+literal in a cell of its own and inside the method's cell; the edit on the same line of the chain as written; a chain
+with nothing to anchor; behind the dialog, standing and falling), the app path (a chain whose prints are its output:
+nothing to cut), the markup (the as-written note alone), the stack walk (3 cells → 2, twelve lines, the chain as
+written run beside it, the figures the same; the Condenser's stand-in, which now drops comment lines).
+
 
 ## 20. The Summary, one column (2026-11-08)
 

@@ -491,6 +491,14 @@ _CAPTURE_LINE_RE = re.compile(r"^_bamboo_capture\[0\] = (True|False)$")
 _KEEP_ATTRS = {"show", "save", "savefig", "write", "writelines", "to_csv", "to_parquet", "to_excel", "to_json", "to_pickle", "to_hdf", "to_sql", "to_feather",
                "to_html", "to_latex", "to_markdown"}                 # a call by one of these names, or by a write_* name, is an effect the routine keeps
 _MUTATORS = {"append", "extend", "insert", "pop", "remove", "clear", "update", "setdefault", "sort", "reverse", "add", "discard", "popitem"}
+_QUIET = {"print", "pprint", "display"}                              # a call that only shows: nothing rests on it
+_OPAQUE = {"eval", "exec"}                                           # a call that may read or bind any name: it stays, and everything before it
+_NAMESPACE = {"globals", "locals", "vars"}                           # a call that reads names by their strings - the strings the chain's code holds
+_ANY = "*"                                                           # every name, as a read
+_MODULES = {"pd", "np", "plt", "matplotlib"}                         # bound before the first cell: the script's preamble, the kernel's start
+_RANDOM, _NP_RANDOM = "<random>", "<numpy.random>"                   # the state of a global generator, as a name: a draw reads it and moves it on
+_GENERATORS = {"default_rng", "RandomState", "Generator", "Random"}  # a call by one of these names makes a generator of its own
+HELD = "\x00"                                                        # a line of the chain held out of the method (held_out): no fragment of code matches it
 
 
 def _root(node):
@@ -500,30 +508,98 @@ def _root(node):
     return node.id if isinstance(node, ast.Name) else None
 
 
-class _CellFacts:
-    """What a cell binds (names assigned, and names it mutates in place), what it reads before binding it - the names
-    that must come from an earlier cell - whether anything rests on it (a RESULT line, a figure, a save, a write), its
-    top-level imports, and the top-level print and display statements it could lose. The reads are walked in statement
-    order with the scopes Python has: a name bound by an earlier statement, a loop or with target, a function's
-    parameters and locals, a comprehension's or lambda's own names, is not read from outside."""
+def _dotted(node) -> List[str]:
+    """A dotted name as its parts - np.random.seed is [np, random, seed]; nothing when it hangs on a call or a subscript."""
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    return [node.id] + parts[::-1] if isinstance(node, ast.Name) else []
 
-    def __init__(self, tree: ast.Module):
-        self.defines, self.reads, self.anchored, self.prints, self.imports = set(), set(), False, [], []
-        for st in tree.body:
-            if isinstance(st, ast.Expr) and isinstance(st.value, ast.Call) and isinstance(st.value.func, ast.Name) and st.value.func.id in ("print", "display"):
-                self.prints.append((st.lineno, st.end_lineno or st.lineno))
-            elif isinstance(st, (ast.Import, ast.ImportFrom)):
-                self.imports.append((st.lineno, st.end_lineno or st.lineno))
-        self._bound = set()
-        for st in tree.body:
+
+def _state(name: List[str]) -> Optional[str]:
+    """The global generator a dotted call draws from or seeds, as a name - random.x is the standard library's,
+    np.random.x numpy's; none for a call that makes a generator of its own, or has nothing to do with one."""
+    if "random" in name[:-1] and name[-1] not in _GENERATORS:
+        return _RANDOM if name[:-1] == ["random"] else _NP_RANDOM
+    return None
+
+
+def _whole(target) -> set:
+    """The names a target binds whole: x, and both in x, y = ...; none in x[k] = ... or x.a = ..., which change what x holds."""
+    if isinstance(target, ast.Name):
+        return {target.id}
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return {n for t in target.elts for n in _whole(t)}
+    return _whole(target.value) if isinstance(target, ast.Starred) else set()
+
+
+class _Facts:
+    """What a run of top-level statements does, from the code alone: the names it binds or changes in place (`defines`),
+    the names it reads before binding them - what earlier code must give (`reads`), the names it binds whole, so that
+    what they held before is not read after it (`kills`), and whether something rests on it (`anchored`): a RESULT
+    line, a figure shown, a file saved or written, a check that can stop the run (assert, raise), a bare call on a
+    module (a setting, a seed, a folder made). `fixed` marks an import, which stays wherever it is. The reads follow
+    Python's scopes: a name bound by an earlier statement, a loop or with target, a function's parameters and locals, a
+    comprehension's or lambda's own names, is not read from outside. Names the code reads without spelling them are
+    read too: those inside a query or eval string; `namespace` marks a read through globals(), whose names the
+    pruning settles from the strings the kept code holds; eval and exec read every name (_ANY) and stay.
+
+    `known` is what the chain's earlier statements established, and takes what these add: the functions defined - a
+    call does what the body does: something may rest on it, it may change names outside itself and the objects it is
+    handed - the names holding a random generator, the names bound by an import. A draw reads its generator's state and
+    moves it on, so the draws before it are part of it; a bare call, whose value nobody takes, is there for its effect
+    on the object it is called on and on the objects it is handed."""
+
+    def __init__(self, stmts, known: Optional[dict] = None):
+        self.defines, self.reads, self.kills, self.anchored, self.fixed, self.namespace = set(), set(), set(), False, False, False
+        self.known = known if known is not None else _known()
+        self._bound, self._inside, self._params, self._handed = set(), 0, set(), set()
+        for st in stmts:
             self._stmt(st, frozenset())
+            self._top(st)
+
+    # -- a top-level statement: what it binds whole, and what a bare call is there for
+    def _top(self, st):
+        if isinstance(st, ast.Assign):
+            self.kills |= {n for t in st.targets for n in _whole(t)}
+        elif isinstance(st, ast.AnnAssign) and st.value is not None:
+            self.kills |= _whole(st.target)
+        elif isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            self.kills.add(st.name)
+        elif isinstance(st, (ast.Import, ast.ImportFrom)):
+            names = {(a.asname or a.name).split(".")[0] for a in st.names}
+            self.kills |= names
+            self.known["modules"] |= names
+            self.fixed = True
+        elif isinstance(st, ast.Expr) and isinstance(st.value, ast.Call):
+            call, name = st.value, _dotted(st.value.func)
+            if name and name[-1] in _QUIET or isinstance(call.func, ast.Name) and call.func.id in self.known["functions"]:
+                return                                           # a call that only shows; a function of the chain's, whose body says what it does
+            if name and name[0] in self.known["modules"]:
+                self.anchored = True
+                if name[-1] == "seed" and _state(name):
+                    self.kills.add(_state(name))
+            handed = ([call.func.value] if isinstance(call.func, ast.Attribute) else []) + list(call.args) + [k.value for k in call.keywords]
+            self.defines |= {n[0] for n in map(_dotted, handed) if n and n[0] not in self.known["modules"]}
 
     # -- binding
+    def _change(self, root, local: frozenset):
+        """A name changed in place: one from outside holds something else from here on; a parameter marks its function
+        as changing what it is handed; a write through the namespace binds a name the code does not show, and stays."""
+        if root in _NAMESPACE:
+            self.anchored = True
+        elif root and root not in local:
+            self.defines.add(root)
+        elif root in self._params:
+            self._handed.add(root)
+
     def _bind(self, target, local: frozenset):
         if isinstance(target, ast.Name):
-            (self._bound if not local else set()).add(target.id)
-            if not local:
+            if target.id not in local:                         # the chain's own name: also a function's global, bound when the function is called
                 self.defines.add(target.id)
+                if not self._inside:
+                    self._bound.add(target.id)
         elif isinstance(target, (ast.Tuple, ast.List)):
             for t in target.elts:
                 self._bind(t, local)
@@ -531,19 +607,56 @@ class _CellFacts:
             self._bind(target.value, local)
         elif isinstance(target, (ast.Attribute, ast.Subscript)):   # a mutation: the root is read, and redefined for what follows
             self._expr(target, local)
-            root = _root(target)
-            if root and root not in local:
-                self.defines.add(root)
+            self._change(_root(target), local)
+
+    def _draw(self, state: str, seed: bool = False):
+        """A global generator's state: a seed sets it, a draw reads it and moves it on."""
+        if seed:
+            self._bound.add(state)
+        elif state not in self._bound:
+            self.reads.add(state)
+        self.defines.add(state)
+
+    def _body(self, stmts, local: frozenset, positional: List[str], params: set) -> dict:
+        """A function's body read apart from the code around it: what a call of it does - whether something rests on
+        it, the outside names it changes and those it reads (as they are when it is called), whether it reads names
+        through the namespace, its positional parameters and the parameters it changes in place. Defining it changes
+        nothing; what its body reads is read where it is defined as well, the function being a value from there on."""
+        held = (self.anchored, self.defines, self.reads, self.namespace, self._params, self._handed)
+        self.anchored, self.defines, self.reads, self.namespace, self._params, self._handed = False, set(), set(), False, params, set()
+        self._inside += 1
+        for s2 in stmts:
+            self._stmt(s2, local)
+        self._inside -= 1
+        does = {"anchored": self.anchored, "changes": frozenset(self.defines), "reads": frozenset(self.reads), "namespace": self.namespace,
+                "positional": tuple(positional), "handed": frozenset(self._handed)}
+        self.anchored, self.defines, self._params, self._handed = held[0], held[1], held[4], held[5]
+        self.reads, self.namespace = held[2] | self.reads, held[3] or self.namespace
+        return does
+
+    def _call(self, node, does: dict, local: frozenset):
+        """A call of a function the chain defined: what its body does, done here."""
+        self.anchored = self.anchored or does["anchored"]
+        self.namespace = self.namespace or does["namespace"]
+        self.reads |= does["reads"] - self._bound - local - {_RANDOM, _NP_RANDOM}
+        for name in does["changes"]:
+            if name in (_RANDOM, _NP_RANDOM):
+                self._draw(name)
+            else:
+                self._change(name, local)
+        for arg in [a for p, a in zip(does["positional"], node.args) if p in does["handed"]] + [k.value for k in node.keywords if k.arg in does["handed"]]:
+            self._change(_root(arg), local)
 
     def _stmt(self, st, local: frozenset):
         if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for d in st.decorator_list + st.args.defaults + [d for d in st.args.kw_defaults if d is not None]:
                 self._expr(d, local)
             args = st.args
-            inner = {a.arg for a in args.args + args.posonlyargs + args.kwonlyargs} | ({args.vararg.arg} if args.vararg else set()) | ({args.kwarg.arg} if args.kwarg else set())
-            inner |= {n.id for n in ast.walk(st) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
-            for s2 in st.body:
-                self._stmt(s2, local | frozenset(inner))
+            positional = [a.arg for a in args.posonlyargs + args.args]
+            params = set(positional) | {a.arg for a in args.kwonlyargs} | ({args.vararg.arg} if args.vararg else set()) | ({args.kwarg.arg} if args.kwarg else set())
+            inner = params | {n.id for n in ast.walk(st) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+            inner -= {name for g in ast.walk(st) if isinstance(g, ast.Global) for name in g.names}
+            self.known["functions"][st.name] = self._body(st.body, local | frozenset(inner), positional, params)
             self._bind(ast.Name(id=st.name, ctx=ast.Store()), local)
         elif isinstance(st, ast.ClassDef):
             for d in st.decorator_list + st.bases:
@@ -567,6 +680,8 @@ class _CellFacts:
                 self._bound.add((a.asname or a.name).split(".")[0])      # bound, but not a definition: a dropped cell's imports are kept
         elif isinstance(st, ast.Assign):
             self._expr(st.value, local)
+            if not local and isinstance(st.value, ast.Call) and (_dotted(st.value.func) or [""])[-1] in _GENERATORS:
+                self.known["generators"] |= {n for t in st.targets for n in _whole(t)}
             for t in st.targets:
                 self._bind(t, local)
         elif isinstance(st, ast.AugAssign):
@@ -599,8 +714,12 @@ class _CellFacts:
                     self._expr(case.guard, local)
                 self._block(case.body, local)
         elif isinstance(st, ast.Delete):
-            pass
+            for t in st.targets:
+                if isinstance(t, (ast.Attribute, ast.Subscript)):  # del d[k]: d holds something else from here on
+                    self._bind(t, local)
         else:                                                  # Expr, Return, Raise, Assert, Global, Nonlocal, Pass, Break, Continue
+            if isinstance(st, (ast.Assert, ast.Raise)) and not self._inside:
+                self.anchored = True                           # a check that can stop the run is the method's
             for child in ast.iter_child_nodes(st):
                 if isinstance(child, ast.expr):
                     self._expr(child, local)
@@ -636,69 +755,154 @@ class _CellFacts:
             self._bind(node.target, local)
             return
         if isinstance(node, ast.Call):
-            f = node.func
+            f, name = node.func, _dotted(node.func)
             if isinstance(f, ast.Name) and f.id == "RESULT":
                 self.anchored = True
+            elif isinstance(f, ast.Name) and f.id in self.known["functions"] and f.id not in local:
+                self._call(node, self.known["functions"][f.id], local)
             elif isinstance(f, ast.Attribute):
                 if f.attr in _KEEP_ATTRS or f.attr.startswith("write_"):
                     self.anchored = True
                 if f.attr in _MUTATORS or any(k.arg == "inplace" for k in node.keywords):
-                    root = _root(f.value)
-                    if root and root not in local:
-                        self.defines.add(root)
+                    self._change(_root(f.value), local)
+            if isinstance(f, ast.Name) and f.id in _OPAQUE and f.id not in local:
+                self.anchored = True
+                self.reads.add(_ANY)
+            if isinstance(f, ast.Name) and f.id in _NAMESPACE and f.id not in local:
+                self.namespace = True
+            if isinstance(f, ast.Attribute) and f.attr in ("query", "eval"):      # an expression in a string reads names the code does not show
+                texts = [c.value for c in ast.walk(node) if isinstance(c, ast.Constant) and isinstance(c.value, str)]
+                self.reads |= {w for t in texts for w in re.findall(r"[A-Za-z_]\w*", t)} - self._bound - local
+            for arg in list(node.args) + [k.value for k in node.keywords]:      # a function handed to a call may be called by it
+                if isinstance(arg, ast.Name) and arg.id in self.known["functions"] and arg.id not in local:
+                    self._call(ast.Call(func=arg, args=[], keywords=[]), self.known["functions"][arg.id], local)
+            if _state(name):
+                self._draw(_state(name), seed=name[-1] == "seed")
+            for held in [name[:1]] + [[a.id] for a in list(node.args) + [k.value for k in node.keywords] if isinstance(a, ast.Name)]:
+                if held and held[0] in self.known["generators"] and held[0] not in local:
+                    self.defines.add(held[0])                  # a draw moves the generator it is made on, or handed
         for child in ast.iter_child_nodes(node):
             self._expr(child, local)
 
 
-def prune_cells(cells: str, figure_cells: Iterable[int], prints_only: bool = False, keep_prints: bool = False) -> Tuple[str, List[int], int, str]:
-    """The cells without the exploration (docs/ROUTINES_DESIGN.md §19.1), from the code alone: a cell stays when
-    something rests on it - a RESULT line, a figure (its cell named, or a show / save / write call), an input read that
-    no other kept cell makes - or when a later kept cell reads, before binding it itself, a name it defines or mutates;
-    every other cell goes, its imports kept, as do the top-level print and display statements of the cells kept.
-    Markers, numbers and the capture switches between cells stay. `prints_only` keeps every cell and drops the prints
-    alone; `keep_prints` drops the cells alone (§19.4: the method before the promoter reads it). Returns (cells, the
-    cells dropped, the prints dropped, problem): a cell that does not parse prunes nothing, with the problem said."""
-    blocks = cell_blocks(cells)
+def _known() -> dict:
+    """What the chain's statements establish as they are read in order (_Facts): the functions defined and what a call
+    of each does, the names holding a random generator, the names bound by an import."""
+    return {"functions": {}, "generators": set(), "modules": set(_MODULES)}
+
+
+def _units(body) -> List[Tuple[int, int, list]]:
+    """A cell's top-level statements as the pieces the pruning takes or leaves: (first line, last line, statements).
+    Statements that share a line (a = 1; b = 2) are one piece."""
+    units: List[Tuple[int, int, list]] = []
+    for st in body:
+        a = min([st.lineno] + [d.lineno for d in getattr(st, "decorator_list", [])])
+        b = st.end_lineno or st.lineno
+        if units and a <= units[-1][1]:
+            units[-1] = (units[-1][0], max(units[-1][1], b), units[-1][2] + [st])
+        else:
+            units.append((a, b, [st]))
+    return units
+
+
+def _pruning(cells: str, figure_cells: Iterable[int]) -> Tuple[List[Tuple[int, List[str], set, bool]], str]:
+    """The reading prune_cells and held_out share (docs/ROUTINES_DESIGN.md §19.5): for each cell (its number, its lines
+    with the marker first, the lines that go, whether the whole cell goes), and the problem - a cell that does not
+    parse prunes nothing. A statement stays when something rests on it - a RESULT line, a figure (its cell named, or
+    a show / save / write call), a check that can stop the run, an input no other kept statement reads - or when a
+    later kept statement reads a name it defines or changes before binding that name whole itself; every other
+    statement goes, with the comment lines standing on it. Imports and the capture switches stay wherever they are; a
+    cell left with nothing else goes, marker included."""
     figs = {int(c) for c in figure_cells or []}
-    facts, codes = [], []
-    for n, start, end in blocks:
-        text = cells[start:end]
-        lines = text.split("\n")
-        code = "\n".join(lines[1:])                                # after the marker
+    known = _known()
+    plan, units = [], []
+    for n, start, end in cell_blocks(cells):
+        lines = cells[start:end].removesuffix("\n").split("\n")
         try:
-            tree = ast.parse(code)
+            body = ast.parse("\n".join(lines[1:])).body
         except SyntaxError as exc:
-            return cells, [], 0, f"cell {n} could not be parsed ({exc.msg})"
-        f = _CellFacts(tree)
-        f.anchored = f.anchored or n in figs or prints_only
-        f.keys = set(_KEY_REF_RE.findall(code))
-        facts.append(f); codes.append((n, lines))
-    keep = {i for i, f in enumerate(facts) if f.anchored}
-    for k in {k for f in facts for k in f.keys}:                   # an input read nowhere else stays read
-        if not any(i in keep and k in facts[i].keys for i in range(len(facts))):
-            first = next((i for i, f in enumerate(facts) if k in f.keys), None)
-            if first is not None:
-                keep.add(first)
-    later_reads = set()
-    for i in range(len(facts) - 1, -1, -1):
-        if i in keep or (facts[i].defines & later_reads):
-            keep.add(i); later_reads |= facts[i].reads
-    out, dropped, prints = [], [], 0
-    for i, (n, lines) in enumerate(codes):
-        if i not in keep:
-            dropped.append(n)
-            held = {j for a, b in facts[i].imports for j in range(a, b + 1)}
-            out.extend(ln for j, ln in enumerate(lines[1:], 1) if j in held or _CAPTURE_LINE_RE.match(ln))     # its imports and the switches belong to the script
-            continue
-        gone = set()
-        for a, b in ([] if keep_prints else facts[i].prints):
-            gone.update(range(a, b + 1)); prints += 1
-        out.append(lines[0])
-        out.extend(ln for j, ln in enumerate(lines[1:], 1) if j not in gone)
-    if not dropped and not prints:
-        return cells, [], 0, ""
+            return [], f"cell {n} could not be parsed ({exc.msg})"
+        for a, b, stmts in _units(body):
+            f = _Facts(stmts, known)
+            f.at = (len(plan), a, b)
+            f.keys = set(_KEY_REF_RE.findall("\n".join(lines[a:b + 1])))
+            f.strings = {c.value for st in stmts for c in ast.walk(st) if isinstance(c, ast.Constant) and isinstance(c.value, str) and c.value.isidentifier()}
+            f.fixed = f.fixed or all(_CAPTURE_LINE_RE.match(ln) for ln in lines[a:b + 1])
+            f.anchored = f.anchored or n in figs
+            units.append(f)
+        plan.append((n, lines, set(), False))
+
+    def sweep(strings: set) -> set:
+        """The statements that stay, read from the last to the first; a statement that reads names through globals()
+        reads the strings the kept code holds - a name looked up by its string is one of them."""
+        live, kept = set(), set()
+        for j in range(len(units) - 1, -1, -1):
+            f = units[j]
+            if f.fixed or f.anchored or (f.defines & live) or (f.defines and _ANY in live):
+                kept.add(j)
+                live = (live - f.kills) | f.reads | (strings if f.namespace else set())
+        return kept
+    kept = set(range(len(units)))
+    while True:                                                    # down to what holds itself up: the strings count while their statement stays
+        was, kept = kept, sweep({w for j in kept for w in units[j].strings})
+        unread = {k for f in units for k in f.keys} - {k for j in kept for k in units[j].keys}
+        if unread:                                                 # an input read by nothing kept stays read: its first reader stays
+            for k in unread:
+                next(f for f in units if k in f.keys).anchored = True
+            kept = set(range(len(units)))
+        elif kept == was:
+            break
+    stays = {units[j].at[0] for j in kept if not units[j].fixed}
+    for i, (n, lines, gone, _) in enumerate(plan):
+        if i not in stays:                                         # nothing of the cell is kept but what stays wherever it is
+            plan[i] = (n, lines, set(range(len(lines))) - {x for f in units if f.fixed and f.at[0] == i for x in range(f.at[1], f.at[2] + 1)}, True)
+    for j, f in enumerate(units):
+        i, a, b = f.at
+        if i in stays and j not in kept:
+            gone, lines = plan[i][2], plan[i][1]
+            gone.update(range(a, b + 1))
+            while a > 1 and lines[a - 1].lstrip().startswith("#"):   # the comment lines standing on it
+                a -= 1
+                gone.add(a)
+    return plan, ""
+
+
+def _dropped_lines(plan) -> int:
+    return sum(1 for n, lines, gone, _ in plan for x in gone if x and lines[x].strip())
+
+
+def prune_cells(cells: str, figure_cells: Iterable[int]) -> Tuple[str, List[int], int, str]:
+    """The cells without the exploration (docs/ROUTINES_DESIGN.md §19.1, §19.5), from the code alone: the statements
+    the result lines and the figures rest on, by the reading of _pruning - a check on one row picked by eye, a table
+    printed to look at, a second way of computing set beside the first, all go, with the cells left empty. Markers
+    keep their numbers. Returns (cells, the cells dropped, the lines dropped, problem); cells that need no pruning, or
+    cannot be read, come back as they are."""
+    plan, problem = _pruning(cells, figure_cells)
+    if problem or not any(gone for _, _, gone, _ in plan):
+        return cells, [], 0, problem
+    out = [ln for _, lines, gone, _ in plan for x, ln in enumerate(lines) if x not in gone]
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip("\n")
-    return "\n" + text + "\n", dropped, prints, ""
+    return "\n" + text + "\n", [n for n, _, _, whole in plan if whole], _dropped_lines(plan), ""
+
+
+def held_out(cells: str, figure_cells: Iterable[int]) -> Tuple[str, List[str]]:
+    """The whole chain with the pruning's lines held out (§19.5): each line prune_cells drops replaced by a HELD line,
+    and those lines in order. The promoter's edits were found in the pruned method; applied to this text they land
+    exactly where they landed there - a fragment cannot match in a line that is held out, however often the chain
+    repeats it - and put_back returns the lines: the chain as written with the same edits, run zero's fallback."""
+    plan, _problem = _pruning(cells, figure_cells)
+    if not plan:
+        return cells, []
+    blocks = cell_blocks(cells)
+    text = cells[:blocks[0][1]] + "".join("\n".join(HELD if x in gone else ln for x, ln in enumerate(lines)) + ("\n" if cells[start:end].endswith("\n") else "")
+                                          for (_, start, end), (_, lines, gone, _) in zip(blocks, plan))
+    return text, [lines[x] for _, lines, gone, _ in plan for x in sorted(gone)]
+
+
+def put_back(cells: str, lines: List[str]) -> str:
+    """held_out undone: the HELD lines of the text replaced by the lines they stood for, in order."""
+    it = iter(lines)
+    return "\n".join(next(it, "") if ln == HELD else ln for ln in cells.split("\n"))
 
 
 # ----------------------------------------------------------------------------- the consolidation (§19.3): a model, opt in, checked twice
@@ -778,10 +982,11 @@ def same_lines(expected: Iterable[dict], got: Iterable[dict]) -> Tuple[bool, str
     return True, (f"{len(a)} result line{'s' if len(a) != 1 else ''} identical" if a else "no result lines")
 
 
-def condensed_line(before: int, after: int, prints: int, t0, t1) -> str:
-    """The Summary's words for an accepted pass: what went, and the time before and after."""
-    cut = (f"{before} cell{'s' if before != 1 else ''} → {after}" if after != before else f"{before} cell{'s' if before != 1 else ''} kept") + (f", {prints} print{'s' if prints != 1 else ''} dropped" if prints else "")
-    return f"condensed: {cut}, {secs_text(t0)} → {secs_text(t1)}"
+def condensed_line(before: int, after: int, lines: int, t0, t1) -> str:
+    """The Summary's words for a condensing that stood: what went, and the time - the chain as written's before the
+    method's, when the chain as written was run beside it."""
+    cut = (f"{before} cell{'s' if before != 1 else ''} → {after}" if after != before else f"{before} cell{'s' if before != 1 else ''} kept") + (f", {lines} line{'s' if lines != 1 else ''} dropped" if lines else "")
+    return f"condensed: {cut}, " + (f"{secs_text(t0)} → " if t0 is not None else "") + secs_text(t1)
 
 
 def check_condensed(original: str, cells: str, figure_cells: Iterable[int], keys: Iterable[str]) -> str:

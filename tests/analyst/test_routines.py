@@ -290,11 +290,12 @@ check("same_figures: the same picture under another chain id and wrapper is the 
       and rt.same_figures([_fig([float("nan"), 1])], [_fig([float("nan"), 1])])[0] and rt.same_figures([_fig("iVBOR...", "png")], [_fig("iVBOR...", "png")])[0] and not rt.same_figures([_fig("iVBOR...", "png")], [_fig("iVBOQ...", "png")])[0]
       and rt.same_figures([_fig([1])], []) == (False, "0 figures came back, 1 expected") and rt.same_figures([], []) == (True, "no figures"))
 check("the durations and the words of the condensed line", (rt.secs_text(0.84), rt.secs_text(48.3), rt.secs_text(542), rt.secs_text(None)) == ("0.8 s", "48 s", "9 min", "0.0 s")
-      and rt.condensed_line(12, 5, 23, 190.2, 184.0) == "condensed: 12 cells → 5, 23 prints dropped, 3 min → 3 min" and rt.condensed_line(3, 3, 1, 1.2, 1.1) == "condensed: 3 cells kept, 1 print dropped, 1.2 s → 1.1 s"
-      and rt.condensed_line(4, 2, 0, 9.96, 8.0) == "condensed: 4 cells → 2, 10 s → 8.0 s")
-# prune_cells over a made-up script: an inspection cell (prints alone) and a check cell nothing reads go; a cell that mutates a frame a later
-# cell reads stays, as do a RESULT cell, a figure cell (named, or by its show), a cell that writes a file and the only reader of an input;
-# top-level prints go, a print inside a loop stays; the capture switch between cells stays; a cell that does not parse prunes nothing
+      and rt.condensed_line(12, 5, 23, 190.2, 184.0) == "condensed: 12 cells → 5, 23 lines dropped, 3 min → 3 min" and rt.condensed_line(3, 3, 1, 1.2, 1.1) == "condensed: 3 cells kept, 1 line dropped, 1.2 s → 1.1 s"
+      and rt.condensed_line(4, 2, 0, 9.96, 8.0) == "condensed: 4 cells → 2, 10 s → 8.0 s" and rt.condensed_line(7, 5, 201, None, 48.3) == "condensed: 7 cells → 5, 201 lines dropped, 48 s")
+# prune_cells over a made-up script (§19.5: by statement): a statement stays when a RESULT line, a figure, a file written or the only read
+# of an input rests on it, or when a later kept statement reads what it makes; everything else goes - the prints, a check nothing reads, a
+# loop that only prints, a list filled through a function that nothing reads - with the cells left empty; imports and the capture switches
+# stay wherever they are; a cell that does not parse prunes nothing
 _script = """
 # --- cell 1 ---
 import numpy as np, pandas as pd
@@ -340,48 +341,167 @@ fig.show()
 lbl = INPUTS['label']
 print(lbl)
 """
-_pruned, _dropped, _prints, _problem = rt.prune_cells(_script, [7])
-check("prune_cells: cells 1 and 4 go (nothing reads what they make), cell 2 stays (d, read later), 3 (RESULT), 5 (note, read by 6), 6 (a file written), 7 (the figure), 8 (the only reader of an input); the kept cells' top-level prints go (three), the print in the loop stays; the switch between cells stays; the markers keep their numbers",
-      _problem == "" and _dropped == [1, 4] and _prints == 3
-      and [ln for ln in _pruned.splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (2, 3, 5, 6, 7, 8)]
-      and "print(" not in _pruned.replace("    print(a_)", "") and "    print(a_)" in _pruned and "_bamboo_capture[0] = False" in _pruned and "_bamboo_capture[0] = True" in _pruned
-      and "two lines" not in _pruned and "INPUTS['scale']" in _pruned and "INPUTS['label']" in _pruned and "tab.to_csv('out.csv')" in _pruned
-      and rt.check_condensed(_script, _pruned, [7], ["scale", "label"]) == "" and "\n\n\n" not in _pruned, (_dropped, _prints, _pruned))
-_po, _pd, _pp, _ppr = rt.prune_cells(_script, [7], prints_only=True)
-check("prune_cells, prints only: every cell stays, every top-level print goes (seven); a script with nothing to cut comes back as it is; a cell that does not parse prunes nothing and says which",
-      _pd == [] and _pp == 7 and [ln for ln in _po.splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in range(1, 9)]
+_pruned, _dropped, _cut, _problem = rt.prune_cells(_script, [7])
+check("prune_cells: cells 1 and 4 go (nothing reads what they make) and cell 5 with the call that used it (a list nothing reads); cell 2 stays (d, read later), 3 (RESULT), 6 (a file written), 7 (the figure), 8 (the only read of an input); every "
+      "print goes, the loop that only prints with them - 16 lines in all; cell 1's import and the switches between cells stay; the markers keep their numbers",
+      _problem == "" and _dropped == [1, 4, 5] and _cut == 16
+      and [ln for ln in _pruned.splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (2, 3, 6, 7, 8)]
+      and "print(" not in _pruned and "for a_" not in _pruned and "note(" not in _pruned and "names" not in _pruned and "_bamboo_capture[0] = False" in _pruned and "_bamboo_capture[0] = True" in _pruned
+      and _pruned.startswith("\nimport numpy as np, pandas as pd\n# --- cell 2 ---\n") and "INPUTS['scale']" in _pruned and "lbl = INPUTS['label']" in _pruned and "tab.to_csv('out.csv')" in _pruned
+      and rt.check_condensed(_script, _pruned, [7], ["scale", "label"]) == "" and "\n\n\n" not in _pruned, (_dropped, _cut, _pruned))
+check("prune_cells: pruning the pruned changes nothing; a script with nothing to cut comes back as it is; a cell that does not parse prunes nothing and says which",
+      rt.prune_cells(_pruned, [7]) == (_pruned, [], 0, "")
       and rt.prune_cells("\n# --- cell 1 ---\nx = 1\nRESULT('x', float(x), None, None, '', 'n/a')\n", []) == ("\n# --- cell 1 ---\nx = 1\nRESULT('x', float(x), None, None, '', 'n/a')\n", [], 0, "")
-      and rt.prune_cells("\n# --- cell 1 ---\nx = (\n# --- cell 2 ---\nprint(1)\n", []) == ("\n# --- cell 1 ---\nx = (\n# --- cell 2 ---\nprint(1)\n", [], 0, "cell 1 could not be parsed ('(' was never closed)"), (_pd, _pp))
+      and rt.prune_cells("\n# --- cell 1 ---\nx = (\n# --- cell 2 ---\nprint(1)\n", []) == ("\n# --- cell 1 ---\nx = (\n# --- cell 2 ---\nprint(1)\n", [], 0, "cell 1 could not be parsed ('(' was never closed)"))
 _defs = rt.prune_cells("\n# --- cell 1 ---\nlst = []\n# --- cell 2 ---\nlst.append(1)\n# --- cell 3 ---\nd = df.copy()\n# --- cell 4 ---\nd.sort_values('v', inplace=True)\n# --- cell 5 ---\nd.attrs['k'] = 1\n# --- cell 6 ---\nimport math\n# --- cell 7 ---\ndef f():\n    return math.pi * len(lst) * len(d)\n# --- cell 8 ---\nRESULT('r', f(), None, None, '', 'n/a')\n", [])
-check("prune_cells: what counts as a definition - an in-place call (append, inplace=True) and a subscript or attribute assignment keep the cell for a later reader; a name read only in a function body is a read; an import cell goes but its import line stays",
+check("prune_cells: what counts as a definition - an in-place call (append, inplace=True) and a subscript or attribute assignment keep the statement for a later reader; a name read only in a function body is a read; an import cell goes but its import line stays",
       _defs[1] == [6] and "import math\n# --- cell 7 ---" in _defs[0] and [ln for ln in _defs[0].splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (1, 2, 3, 4, 5, 7, 8)]
       and rt.prune_cells("\n# --- cell 1 ---\nlst = []\n# --- cell 2 ---\nother = [1]\n# --- cell 3 ---\nother.append(2)\n# --- cell 4 ---\nRESULT('r', float(len(lst)), None, None, '', 'n/a')\n", [])[1] == [2, 3], _defs)
-# reads are what a cell takes from before it: a loop variable or a temporary the cell binds itself is no link to an earlier cell that used
-# the same name; a comprehension's and a lambda's own names neither; a frame read before it is rebound is
+# reads are what a statement takes from before it: a loop variable or a temporary bound again is no link to earlier code that used the same
+# name; a comprehension's and a lambda's own names neither; a frame read before it is rebound is
 check("prune_cells: a later cell that binds g, s and n itself before reading them does not keep the earlier cell that used those names; one that reads d before rebinding it does; comprehension and lambda names are their own",
       rt.prune_cells("\n# --- cell 1 ---\nfor g in range(3):\n    s = g * 2\nn = 5\nprint(n)\n# --- cell 2 ---\nn = 0\nfor g in df.v:\n    s = g + 1\n    n += s\nRESULT('n', float(n), None, None, '', 'n/a')\n", [])[1] == [1]
       and rt.prune_cells("\n# --- cell 1 ---\nd = df.copy()\n# --- cell 2 ---\nd = d[d.v > 1]\nRESULT('n', float(len(d)), None, None, '', 'n/a')\n", [])[1] == []
       and rt.prune_cells("\n# --- cell 1 ---\nk = 3\nx = 1\n# --- cell 2 ---\nys = [k for k in range(4)]\nf = lambda k: k + 1\nRESULT('n', float(f(len(ys))), None, None, '', 'n/a')\n", [])[1] == [1]
-      and rt.prune_cells("\n# --- cell 1 ---\nk = 3\n# --- cell 2 ---\nys = [k * k for k_ in range(4)]\nRESULT('n', float(sum(ys)), None, None, '', 'n/a')\n", [])[1] == [])
-# the pass over run4's chain: cell 1 prints a count nothing rests on - the print goes, both cells stay (cell 2 reads kept)
+      and rt.prune_cells("\n# --- cell 1 ---\nk = 3\n# --- cell 2 ---\nys = [k * k for k_ in range(4)]\nRESULT('n', float(sum(ys)), None, None, '', 'n/a')\n", [])[0].count("k = 3") == 1)
+_R = "RESULT('n', float(%s), None, None, '', 'n/a')"
+def _left(code, figs=()):
+    """The statements prune_cells leaves of one cell's code."""
+    return [ln for ln in rt.prune_cells("\n# --- cell 1 ---\n" + code + "\n", list(figs))[0].strip("\n").split("\n")[1:] if ln.strip()]
+# the case 0283 missed (2026-11-13, Palo's power-curve chain): every cell loads the frame again, so a cell that only looked was held by the
+# next reader of df; a name bound whole again cuts that link, and a check written inside a cell the method needs goes with its comment
+_looked = rt.prune_cells("\n# --- cell 1 ---\ndf = DS.load()\nlook = df[df.g == 'b']\nprint(len(look))\n# --- cell 2 ---\ndf = DS.load()\n" + _R % "len(df)" + "\n# --- cell 3 ---\nfig = draw(df)\nfig.show()\n", [3])
+check("prune_cells (§19.5): a cell that only looked goes although it loaded the frame a later cell reads - the cell between loads it whole again; a check inside a cell the method needs goes, the comment standing on it too, the comment on a kept "
+      "statement stays; a statement over two lines goes whole; statements sharing a line stay or go together",
+      _looked[1] == [1] and "df.g == 'b'" not in _looked[0] and _looked[0].count("df = DS.load()") == 1
+      and _left("kept = df[df.v > 155]\n# a look at group b\none = df[df.g == 'b']\nprint(len(one), 'rows of b')\n# the count\n" + _R % "len(kept)") == ["kept = df[df.v > 155]", "# the count", _R % "len(kept)"]
+      and _left("x = (1 +\n     2)\nprint(x)\ny = 3\n" + _R % "y") == ["y = 3", _R % "y"]
+      and _left("a = 1; b = 2\nc = 3; print(c)\n" + _R % "b") == ["a = 1; b = 2", _R % "b"], _looked)
+check("prune_cells (§19.5): a call does what the function's body does - a loop that fills a list through a function stays, a function that changes what it is handed keeps the statement that hands it over, a call of a function that records a RESULT "
+      "line stays; a function nothing kept calls goes; what the reading cannot see is an alias (the fallback's case)",
+      _left("flags = []\ndef flag(v):\n    flags.append(v)\nfor v in df.v:\n    if v > 150:\n        flag(v)\nprint(len(flags))\n" + _R % "len(flags)")
+      == ["flags = []", "def flag(v):", "    flags.append(v)", "for v in df.v:", "    if v > 150:", "        flag(v)", _R % "len(flags)"]
+      and _left("def mark(t):\n    t['seen'] = True\ntab = {}\nok = mark(tab)\nshown = mark({})\n" + _R % "len(tab)") == ["def mark(t):", "    t['seen'] = True", "tab = {}", "ok = mark(tab)", _R % "len(tab)"]
+      and _left("def record(x):\n    RESULT('x', float(x), None, None, '', 'n/a')\ndef unused(x):\n    return x\nrecord(3)") == ["def record(x):", "    RESULT('x', float(x), None, None, '', 'n/a')", "record(3)"]
+      and _left("flags = []\nalso = flags\nalso.append(1)\n" + _R % "len(flags)") == ["flags = []", _R % "len(flags)"])
+check("prune_cells (§19.5): a bare call is there for its effect - on the object it is called on (kept when that object is read later), on a module (a setting, a seed: kept); a check that can stop the run is the method's, with what it reads; a del "
+      "of a column changes the frame; a figure cell is kept whole, its prints too",
+      _left("fig = make()\nfig.update_layout(title='t')\nother = make()\nother.update_layout(title='u')\nfig.show()") == ["fig = make()", "fig.update_layout(title='t')", "fig.show()"]
+      and _left("import warnings\nwarnings.filterwarnings('ignore')\npd.set_option('display.width', 200)\nx = 1\n" + _R % "x") == ["import warnings", "warnings.filterwarnings('ignore')", "pd.set_option('display.width', 200)", "x = 1", _R % "x"]
+      and _left("chk = df.v.sum()\nspare = df.v.max()\nassert chk > 0\n" + _R % "len(df)") == ["chk = df.v.sum()", "assert chk > 0", _R % "len(df)"]
+      and _left("tmp = df.copy()\ndel tmp['g']\nprint(tmp.shape)\n" + _R % "tmp.shape[1]") == ["tmp = df.copy()", "del tmp['g']", _R % "tmp.shape[1]"]
+      and _left("print('drawing')\nfig = 1", figs=[1]) == ["print('drawing')", "fig = 1"])
+check("prune_cells (§19.5): a draw reads the generator's state and moves it on, so a draw nothing else reads stays when a later draw is kept - the global generators and one made by default_rng alike; a seed set again cuts the link; without a later "
+      "draw the look goes",
+      _left("np.random.seed(1)\nlook = np.random.rand(3)\nprint(look)\nx = np.random.rand()\n" + _R % "x") == ["np.random.seed(1)", "look = np.random.rand(3)", "x = np.random.rand()", _R % "x"]
+      and _left("rng = np.random.default_rng(0)\npeek = rng.normal(size=2)\nprint(peek)\nx = rng.normal()\n" + _R % "x") == ["rng = np.random.default_rng(0)", "peek = rng.normal(size=2)", "x = rng.normal()", _R % "x"]
+      and _left("np.random.seed(1)\nlook = np.random.rand(3)\nnp.random.seed(2)\nx = np.random.rand()\n" + _R % "x") == ["np.random.seed(1)", "np.random.seed(2)", "x = np.random.rand()", _R % "x"]
+      and _left("rng = np.random.default_rng(0)\npeek = rng.normal(size=2)\nx = 2\n" + _R % "x") == ["x = 2", _R % "x"]
+      and _left("def boot(a, gen):\n    return gen.choice(a).mean()\nrng = np.random.default_rng(0)\ntrial = boot(df.v, rng)\nx = boot(df.v, gen=rng)\n" + _R % "x")
+      == ["def boot(a, gen):", "    return gen.choice(a).mean()", "rng = np.random.default_rng(0)", "trial = boot(df.v, rng)", "x = boot(df.v, gen=rng)", _R % "x"])
+check("prune_cells (§19.5): what the code does not show on its face - a name read inside a query or eval string is read; a function handed to a call may be called by it; a function's global is the chain's own name; a print by another name "
+      "(pprint) only shows",
+      _left("thr = 150\nspare = 3\nsub = df.query('v > @thr')\n" + _R % "len(sub)") == ["thr = 150", "sub = df.query('v > @thr')", _R % "len(sub)"]
+      and _left("a = df.v\nb = 2\nspare = 9\nz = pd.eval('a * b')\n" + _R % "z.sum()") == ["a = df.v", "b = 2", "z = pd.eval('a * b')", _R % "z.sum()"]
+      and _left("seen = []\ndef keep(v):\n    seen.append(v)\n    return v\ndoubled = df.v.apply(keep)\n" + _R % "len(seen)") == ["seen = []", "def keep(v):", "    seen.append(v)", "    return v", "doubled = df.v.apply(keep)", _R % "len(seen)"]
+      and _left("n = 0\ndef bump():\n    global n\n    n += 1\nbump()\nspare = 5\n" + _R % "n") == ["n = 0", "def bump():", "    global n", "    n += 1", "bump()", _R % "n"]
+      and _left("import pprint\nlook = df[df.g == 'b']\npprint.pprint(look)\nx = 1\n" + _R % "x") == ["import pprint", "x = 1", _R % "x"])
+check("prune_cells (§19.5): names read through globals() are the names whose strings the kept code holds - spelled where they are read, or kept in a table the reader goes through; a string only dropped code holds keeps nothing (so pruning the "
+      "pruned changes nothing); a write through globals() stays; eval may read any name and keeps what came before it",
+      _left("well = 1\nwell2 = 2\nspare = 3\nw = globals().get('well2', globals().get('well'))\n" + _R % "w") == ["well = 1", "well2 = 2", "w = globals().get('well2', globals().get('well'))", _R % "w"]
+      and _left("fat_b = 1\nsor_b = 2\nspare = 3\nstored = {'f': ['fat_b'], 's': ['sor_b']}\ntot = sum(globals().get(nm) for k in stored for nm in stored[k])\n" + _R % "tot")
+      == ["fat_b = 1", "sor_b = 2", "stored = {'f': ['fat_b'], 's': ['sor_b']}", "tot = sum(globals().get(nm) for k in stored for nm in stored[k])", _R % "tot"]
+      and _left("tired = 1\nif 'tired' in globals():\n    print('have it')\nfresh = 2\nw = globals().get('fresh')\n" + _R % "w") == ["fresh = 2", "w = globals().get('fresh')", _R % "w"]
+      and (lambda once: rt.prune_cells(once, [])[0] == once)(rt.prune_cells("\n# --- cell 1 ---\ntired = 1\nif 'tired' in globals():\n    print('have it')\nfresh = 2\nw = globals().get('fresh')\n" + _R % "w" + "\n", [])[0])
+      and _left("globals()['made'] = 5\nspare = 1\n" + _R % "made") == ["globals()['made'] = 5", _R % "made"]
+      and _left("x = 1\ny = 2\nz = eval('x + 1')\nlate = 4\n" + _R % "z") == ["x = 1", "y = 2", "z = eval('x + 1')", _R % "z"])
+check("prune_cells (§19.5): a call reads what the function's body reads when it is called - a change made between the definition and the call stays; numpy's global generator and the standard library's are two states - a seed of one does not "
+      "cut the draws of the other",
+      _left("d = {}\ndef size(x):\n    d['a'] = x\n    return len(d)\nd['b'] = 1\nn = size(3)\n" + _R % "n") == ["d = {}", "def size(x):", "    d['a'] = x", "    return len(d)", "d['b'] = 1", "n = size(3)", _R % "n"]
+      and _left("np.random.seed(0)\nlook = np.random.rand()\nimport random\nrandom.seed(1)\nx = np.random.rand()\n" + _R % "x")
+      == ["np.random.seed(0)", "look = np.random.rand()", "import random", "random.seed(1)", "x = np.random.rand()", _R % "x"])
+# random small chains (tests/analyst/_random_chains.py), each run as written and as pruned: the same RESULT values - the reading holds for
+# what it claims to see; the two cases above are the two it found
+import random as _random
+from _random_chains import chain as _random_chain, values as _chain_values
+_rnd, _np_state, _py_state, _tried, _differ = _random.Random(20261113), np.random.get_state(), _random.getstate(), 0, []
+for _ in range(400):
+    _rc = _random_chain(_rnd)
+    _as_written = _chain_values(_rc)
+    if _as_written and _as_written[-1][0] == "error":          # a chain that stops as written is no chain an analysis ends on
+        continue
+    _tried += 1
+    _rp = rt.prune_cells(_rc, [])
+    if _rp[3] or _chain_values(_rp[0]) != _as_written or rt.prune_cells(_rp[0], []) != (_rp[0], [], 0, ""):
+        _differ.append(_rc)
+np.random.set_state(_np_state); _random.setstate(_py_state)
+check("prune_cells over 400 random chains (§19.5): each gives the same RESULT values as written and as pruned, and pruning the pruned changes nothing", _tried > 350 and not _differ, (_tried, _differ[:1]))
+# the chain as written with the same edits (run zero's fallback): an edit was found in the pruned method, where its fragment occurs once; in
+# the chain the fragment may occur again in a line that was dropped - held out, that line cannot take the edit
+_chain_e = "\n# --- cell 1 ---\nthreshold = 155\nprint('threshold = 155 is the line')\nkept = df[df.v > threshold]\n# --- cell 2 ---\nprint(df.shape)\n# --- cell 3 ---\n" + _R % "len(kept)" + "\n"
+_held_e, _lines_e = rt.held_out(_chain_e, [])
+_edit_e = [{"cell": 1, "find": "threshold = 155", "replace": "threshold = INPUTS['threshold']"}]
+check("held_out / put_back (§19.5): the chain with the pruning's lines held out has the pruned method's cells and nothing of the dropped lines; put back, it is the chain; an edit whose fragment the chain repeats in a dropped line fails on the chain "
+      "as it is and lands on the kept line of the chain held out, the dropped line back untouched; a chain with nothing to hold out comes back as it is",
+      [n for n, _a, _b in rt.cell_blocks(_held_e)] == [1, 3] and _held_e.split("\n").count(rt.HELD) == 3 and _lines_e == ["print('threshold = 155 is the line')", "# --- cell 2 ---", "print(df.shape)"]
+      and rt.put_back(_held_e, _lines_e) == _chain_e and rt.apply_edits(_chain_e, _edit_e)[2] and rt.apply_edits(_held_e, _edit_e)[2] == []
+      and rt.put_back(rt.apply_edits(_held_e, _edit_e)[0], _lines_e) == _chain_e.replace("\nthreshold = 155\n", "\nthreshold = INPUTS['threshold']\n")
+      and rt.held_out("\n# --- cell 1 ---\nx = 1\n" + _R % "x" + "\n", []) == ("\n# --- cell 1 ---\nx = 1\n" + _R % "x" + "\n", []), (_held_e, _lines_e))
+# the host's path: run4's chain prints a count nothing rests on - the print goes before the promoter reads the chain, both cells stay
 _pc1 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
-_cells1 = _pc1["cells_text"]
-_zero = host.verify_zero("x", _pc1["script"], _pc1["results"], rt.defaults_of(_pc1["inputs"]), runner, 60)
 _runs = {"n": 0}
 def _counting_runner(script, timeout):
     _runs["n"] += 1
     return runner(script, timeout)
-_c = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _counting_runner, 60)
-check("condense: the print pruned, the candidate run once and its line run zero's - condensed, with the script as run, its lines, output, what went and the times",
-      _c["status"] == "condensed" and _c["cells"] == [2, 2] and _c["dropped"] == {"cells": [], "prints": 1} and _runs["n"] == 1
-      and "print(len(kept))" not in _c["script"] and "INPUTS['threshold']" in _c["script"] and _c["results"][0]["estimate"] == "+3.00" and _c["stdout"].strip() == "RESULT: rows above the line: +3.00 rows, n/a"
-      and _c["line"].startswith("condensed: 2 cells kept, 1 print dropped, ") and _c["elapsed"][0] == _zero["elapsed"] and isinstance(_c["elapsed"][1], float), _c.get("line"))
-# a chain whose pruning drops a cell that mattered (a function mutating a list: the code does not show it) - the prints alone are kept
+def _drawing(figs_of):
+    """A runner that also returns figures: figs_of(script, the run's number) gives them."""
+    def run_(script, timeout):
+        _runs["n"] += 1
+        out, err, _f, gen = runner(script, timeout)
+        return out, err, figs_of(script, _runs["n"]), gen
+    return run_
+def _made_with(run_, nb_=nb4, pc=None, **kw):
+    """create in the foreground with the pass, on a fresh proposal: (the made record, the stored version, the runs it took)."""
+    _runs["n"] = 0
+    made_ = host.create(nb_, pc or host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}), {"name": "Pass", "purpose": "", "drop_inputs": [], "drop_results": []}, run_, store, condense_code=True, **kw)
+    return made_, store.load(made_["routine"]["id"])["versions"][0], _runs["n"]
+check("propose (§19.5): the print is pruned before the promoter reads the chain - no cell goes, one line does, the proposal carries the chain as written beside the method",
+      _pc1["pruned"] == [] and _pc1["pruned_lines"] == 1 and _pc1["cells"] == _pc1["chain_cells"] == 2 and "print(len(kept))" not in _pc1["cells_text"] and "print(len(kept))" in _pc1["cells_chain"]
+      and "print(len(kept))" not in prompts[-1][1] and "kept = df[df.v > threshold]" in prompts[-1][1], (_pc1.get("pruned"), _pc1.get("pruned_lines")))
+_made_c, _vc, _n_c = _made_with(_counting_runner, pc=_pc1)
+check("create with the pass, a method that draws nothing: one run - run zero on the condensed method; the version's script is the condensed one, the chain as written (its edit included) kept beside it, the pass's record on it and on the made "
+      "record, the time run zero's; the run files are its output",
+      _n_c == 1 and _made_c["condensed"] == _vc["condensed"] and _vc["condensed"]["status"] == "condensed" and _vc["condensed"]["cells"] == [2, 2] and _vc["condensed"]["dropped"] == {"cells": [], "lines": 1}
+      and _vc["condensed"]["elapsed"] == [None, _vc["run_zero"]["elapsed"]] and _vc["condensed"]["line"] == "condensed: 2 cells kept, 1 line dropped, " + rt.secs_text(_vc["run_zero"]["elapsed"])
+      and "print(len(kept))" not in _vc["script"] and "print(len(kept))" in _vc["script_written"] and "INPUTS['threshold']" in _vc["script_written"]
+      and _vc["run_zero"]["status"] == "reproduced" and _vc["run_zero"]["verified"] and _vc["run_zero"]["results"][0]["estimate"] == "+3.00"
+      and open(os.path.join(store.path(_made_c["routine"]["id"]), "runs", "v1_0", "stdout.txt")).read().strip() == "RESULT: rows above the line: +3.00 rows, n/a"
+      and host.zero_holds(_vc) == "", (_n_c, _vc.get("condensed")))
+# a method that draws is held to the figures of the chain as written, run once beside it
+_made_f, _vf, _n_f = _made_with(_drawing(lambda script, n: [_fig([1, 2, 3])]))
+_made_d, _vd, _n_d = _made_with(_drawing(lambda script, n: [_fig([1, 2, 3] if "print(len(kept))" in script else [9])]))
+_made_j, _vj, _n_j = _made_with(_drawing(lambda script, n: [_fig([n])]))
+def _written_fails(script, timeout):
+    _runs["n"] += 1
+    out, err, _f, gen = runner(script, timeout)
+    return (out, "NameError: name 'gone' is not defined", [], gen) if "print(len(kept))" in script else (out, err, [_fig([1])], gen)
+_made_w, _vw, _n_w = _made_with(_written_fails)
+check("the pass, a method that draws (§19.5): the chain as written runs once beside it - the same pictures, and the condensed method stands, both times on the record (two runs); other pictures, the same again from a second run of the method, "
+      "and the chain as written is the method from then on, the record saying why, nothing kept as written beside it (three runs); pictures that differ from one run of the method to the next hold it to nothing, and it stands (three runs); a chain "
+      "as written that fails where the method ran leaves the method standing (two runs)",
+      _n_f == 2 and _vf["condensed"]["status"] == "condensed" and _vf["condensed"]["elapsed"][0] is not None and _vf["condensed"]["elapsed"][1] == _vf["run_zero"]["elapsed"] and " → " in _vf["condensed"]["line"].split("dropped, ")[1]
+      and "print(len(kept))" not in _vf["script"] and "print(len(kept))" in _vf["script_written"] and _vf["run_zero"]["figures"] == 1
+      and _n_d == 3 and _vd["condensed"]["status"] == "as_written" and _vd["condensed"]["line"] == "as written: the condensed code did not reproduce the figures: figure 1 differs"
+      and _vd["condensed"]["cells"] == [2, 2] and _vd["condensed"]["dropped"] == {"cells": [], "lines": 0} and _vd["condensed"]["elapsed"][1] is None and "print(len(kept))" in _vd["script"] and "script_written" not in _vd
+      and _vd["run_zero"]["status"] == "reproduced" and _vd["run_zero"]["elapsed"] == _vd["condensed"]["elapsed"][0] and _made_d["condensed"]["status"] == "as_written" and "verdict" not in _made_d["condensed"]
+      and _n_j == 3 and _vj["condensed"]["status"] == "condensed" and "print(len(kept))" not in _vj["script"]
+      and _n_w == 2 and _vw["condensed"]["status"] == "condensed" and _vw["condensed"]["elapsed"][0] is None and "print(len(kept))" not in _vw["script"], (_n_f, _n_d, _n_j, _n_w, _vd.get("condensed")))
+# a chain whose condensing drops something that mattered - a list filled through another name for it, which the code reading cannot see
 nb5 = Notebook("t5")
 run5c = nb5.new_run("How many flags?")
 run5c.turns = [Turn(kind="cell", cell_no=1, code="print(df.shape)\nprint(df.dtypes.to_string())", results=[], stdout="(5, 2)"),
-               Turn(kind="cell", cell_no=2, code="flags = []\ndef flag(v):\n    flags.append(v)", results=[], stdout=""),
-               Turn(kind="cell", cell_no=3, code="for v in df.v:\n    if v > 150:\n        flag(v)\nprint(len(flags))", results=[], stdout="3"),
+               Turn(kind="cell", cell_no=2, code="flags = []\nalso = flags", results=[], stdout=""),
+               Turn(kind="cell", cell_no=3, code="for v in df.v:\n    if v > 150:\n        also.append(v)\nprint(len(flags))", results=[], stdout="3"),
                Turn(kind="cell", cell_no=4, code="RESULT('flags', float(len(flags)), None, None, 'rows', 'n/a')", results=[{"text": "flags: +3", "typed": False}], stdout="RESULT: flags: +3")]
 run5c.report = "## Three\n\nThree rows are flagged [cell 4]."
 run5c.status = "answered"
@@ -394,54 +514,69 @@ def flags_promoter(s_, u_):
     return '{"name": "Flags", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}
 _flags_events = []
 _pc5 = host.propose(nb5, run5c.id, flags_promoter, current_data={"df_id": "df4"}, emit=_flags_events.append)
-check("propose (§19.4): the exploration is pruned before the promoter reads the chain - cells 1 and 3 go (cell 3's mutation through a function is invisible to the code reading), the promoter sees cells 2 and 4 with their prints, the checklist says 2 of 4 cells, the proposal carries the count, the cells dropped and the whole chain",
-      _pc5["pruned"] == [1, 3] and _pc5["cells"] == 2 and _pc5["chain_cells"] == 4 and "# --- cell 3 ---" not in _pc5["cells_text"] and "# --- cell 3 ---" in _pc5["cells_chain"] and "flag(v)" in _pc5["cells_chain"]
-      and "# --- cell 3 ---" not in _flags_prompts[0] and "# --- cell 2 ---" in _flags_prompts[0] and "print(df.shape)" not in _flags_prompts[0]
-      and [e.get("detail") for e in _flags_events if e.get("type") == "step" and e.get("step") == "chain"] == ["2 of 4 cells · 1 result · 0 figures"], (_pc5.get("pruned"), _pc5.get("cells_text")))
+check("propose (§19.5): the exploration is pruned before the promoter reads the chain - cells 1 and 3 go (cell 3 fills the list through another name for it, which the code does not show), the second name with them; the promoter sees cells 2 and 4, "
+      "the checklist says 2 of 4 cells, the proposal carries the count, the cells and lines dropped and the chain as written",
+      _pc5["pruned"] == [1, 3] and _pc5["pruned_lines"] == 7 and _pc5["cells"] == 2 and _pc5["chain_cells"] == 4 and "# --- cell 3 ---" not in _pc5["cells_text"] and "also" not in _pc5["cells_text"]
+      and "# --- cell 3 ---" in _pc5["cells_chain"] and "also.append(v)" in _pc5["cells_chain"] and "# --- cell 3 ---" not in _flags_prompts[0] and "# --- cell 2 ---" in _flags_prompts[0] and "print(df.shape)" not in _flags_prompts[0]
+      and [e.get("detail") for e in _flags_events if e.get("type") == "step" and e.get("step") == "chain"] == ["2 of 4 cells · 1 result · 0 figures"], (_pc5.get("pruned"), _pc5.get("pruned_lines"), _pc5.get("cells_text")))
 _zero5p = host.verify_zero("f", _pc5["script"], _pc5["results"], {}, runner, 60)
-check("the pruned method of the flags chain does not reproduce on its own: the dropped mutation made the count nought", _zero5p["status"] == "differed" and "+3 -> +0.00" in _zero5p["line"], _zero5p.get("line"))
+check("the condensed method of the flags chain does not reproduce on its own: the dropped loop made the count nought", _zero5p["status"] == "differed" and "+3 -> +0.00" in _zero5p["line"], _zero5p.get("line"))
 _runs["n"] = 0
 made5 = host.create(nb5, _pc5, {"name": "Flags"}, _counting_runner, store)
 _v5 = store.load(made5["routine"]["id"])["versions"][0]
-check("create (§19.4): run zero fell back to the whole chain, which reproduced - two runs; the version's script is the whole chain with all four cells, the record says the pruning did not stand (4 cells, 2 kept, 1 and 3 dropped), and no script-as-written stands beside it",
+check("create (§19.4): run zero fell back to the chain as written, which reproduced - two runs; the version's script is the chain with all four cells, no script as written stands beside it, and without the pass no record of it",
       _runs["n"] == 2 and made5["run_zero"]["status"] == "reproduced" and [ln for ln in _v5["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (1, 2, 3, 4)]
-      and _v5["pruned"] == {"before": 4, "after": 2, "dropped": [1, 3], "stood": False} and "script_written" not in _v5, (_runs, _v5.get("pruned"), made5.get("run_zero")))
-_whole5 = rt.join_script(_pc5["header"], _pc5["cells_chain"], _pc5["tail"])
-_zero5 = host.verify_zero("f", _whole5, _pc5["results"], {}, runner, 60)
-check("the flags chain reproduces as written (the fixture's own check)", _zero5["status"] == "reproduced", _zero5.get("line"))
-_runs["n"] = 0
-_c5 = host.condense(_pc5, _pc5["cells_chain"], _pc5["results"], {}, _zero5, _counting_runner, 60)
-check("condense: pruning dropped cell 3 (a call that mutates through a function) and cell 1, the line came back wrong, so the prints alone were pruned and that candidate kept - two runs, the record saying 4 cells kept and the prints dropped",
-      _c5["status"] == "condensed" and _c5["dropped"] == {"cells": [], "prints": 3} and _c5["cells"] == [4, 4] and _runs["n"] == 2 and _c5["line"].startswith("condensed: 4 cells kept, 3 prints dropped, ")
-      and [ln for ln in _c5["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (1, 2, 3, 4)] and "print(len(flags))" not in _c5["script"] and "flag(v)" in _c5["script"], (_c5.get("line"), _c5.get("dropped")))
-# the case that brought the pruning forward (2026-11-08): an exploration cell names a row by its identifier, picked by looking, and only
-# prints about it; the promoter never sees it, so the identifier rule has nothing to refuse, and the version keeps the chain as written beside the method
-nb5b = Notebook("t5b")
-run5d = nb5b.new_run("How many rows are above 155?")
-run5d.turns = [Turn(kind="cell", cell_no=1, code="one = df[df.g == 'b']\nprint(len(one), 'rows in group b, the first looked at')", results=[], stdout="3"),
-               Turn(kind="cell", cell_no=2, code="kept = df[df.v > 155]\nRESULT('rows above the line', float(len(kept)), None, None, 'rows', 'n/a')", results=[{"text": "rows above the line: +3", "typed": False}], stdout="RESULT: rows above the line: +3")]
-run5d.report = "## Three\n\nThree rows [cell 2]."
-run5d.status = "answered"
-run5d.data = dict(run4.data)
-run5d.replay_script, _ = assemble(run5d.cells(), run5d.report)
-nb5b.runs[run5d.id] = run5d
+      and "also.append(v)" in _v5["script"] and "script_written" not in _v5 and "condensed" not in _v5 and "pruned" not in _v5, (_runs, made5.get("run_zero")))
+_made5p, _v5p, _n5p = _made_with(_counting_runner, nb_=nb5, pc=host.propose(nb5, run5c.id, flags_promoter, current_data={"df_id": "df4"}))
+check("create with the pass after run zero fell back: no further run; the record says the code runs as written and why - the line the condensed method got wrong",
+      _n5p == 2 and _v5p["condensed"] == {"status": "as_written", "line": "as written: the condensed code did not reproduce the result lines: 1 of 1 result lines differ ([cell 4] flags: +3 -> +0.00)", "cells": [4, 4],
+                                           "dropped": {"cells": [], "lines": 0}, "elapsed": [_v5p["run_zero"]["elapsed"], None]}
+      and "also.append(v)" in _v5p["script"] and "script_written" not in _v5p, (_n5p, _v5p.get("condensed")))
+# the case that brought the pruning forward (2026-11-08) and the one that brought it down to statements (2026-11-13): a row named by its
+# identifier, picked by looking, and only printed about - in a cell of its own, or inside the cell that holds the method; the promoter never
+# sees it, so the identifier rule has nothing to refuse, and the version keeps the chain as written beside the method
+def _literal_chain(thread, cells):
+    nb_ = Notebook(thread)
+    run_ = nb_.new_run("How many rows are above 155?")
+    run_.turns = [Turn(kind="cell", cell_no=i, code=code, results=res, stdout="") for i, (code, res) in enumerate(cells, 1)]
+    run_.report = f"## Three\n\nThree rows [cell {len(cells)}]."
+    run_.status = "answered"
+    run_.data = dict(run4.data)
+    run_.replay_script, _ = assemble(run_.cells(), run_.report)
+    nb_.runs[run_.id] = run_
+    return nb_, run_
+_ROWS = [{"text": "rows above the line: +3", "typed": False}]
 def literal_promoter(s_, u_):
     if "df.g == 'b'" in u_:
         return '{"name": "Rows", "inputs": [], "edits": [], "kept": [], "unfit": [{"cell": 1, "what": "a group of this data named by looking"}]}', {"cost": 0.0}
     return '{"name": "Rows", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}
+nb5b, run5d = _literal_chain("t5b", [("one = df[df.g == 'b']\nprint(len(one), 'rows in group b, the first looked at')", []),
+                                     ("kept = df[df.v > 155]\nRESULT('rows above the line', float(len(kept)), None, None, 'rows', 'n/a')", _ROWS)])
+nb5m, run5m = _literal_chain("t5m", [("kept = df[df.v > 155]\n# the first of group b, looked at\none = df[df.g == 'b']\nprint(len(one), 'rows in group b')\nRESULT('rows above the line', float(len(kept)), None, None, 'rows', 'n/a')", _ROWS)])
 _pc5d = host.propose(nb5b, run5d.id, literal_promoter, current_data={"df_id": "df4"})
+_pc5m = host.propose(nb5m, run5m.id, literal_promoter, current_data={"df_id": "df4"})
 _runs["n"] = 0
 made5d = host.create(nb5b, _pc5d, {"name": "Rows"}, _counting_runner, store)
-_v5d = store.load(made5d["routine"]["id"])["versions"][0]
-check("propose (§19.4): the exploration cell with the literal never reaches the promoter, so a promoter that would refuse on it proposes instead; create: the pruned method reproduces in one run and stands, the version's script is cell 2 alone, the chain as written (cell 1 included) beside it under script_written, the record saying the pruning stood",
-      _pc5d["pruned"] == [1] and _pc5d["cells"] == 1 and _runs["n"] == 1 and made5d["run_zero"]["status"] == "reproduced"
+made5m = host.create(nb5m, _pc5m, {"name": "Rows"}, _counting_runner, store)
+_v5d, _v5m = store.load(made5d["routine"]["id"])["versions"][0], store.load(made5m["routine"]["id"])["versions"][0]
+check("propose (§19.4, §19.5): the literal never reaches the promoter - in a cell of its own (the cell goes) or inside the cell that holds the method (the check and its comment go, the cell stays) - so a promoter that would refuse on it proposes "
+      "instead; create: the condensed method reproduces in one run and stands, the chain as written (the literal included) beside it under script_written",
+      _pc5d["pruned"] == [1] and _pc5d["cells"] == 1 and _pc5m["pruned"] == [] and _pc5m["pruned_lines"] == 3 and _pc5m["cells"] == 1 and _runs["n"] == 2
+      and made5d["run_zero"]["status"] == "reproduced" and made5m["run_zero"]["status"] == "reproduced"
       and [ln for ln in _v5d["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---"] and "# --- cell 1 ---" in _v5d["script_written"] and "df.g == 'b'" in _v5d["script_written"]
-      and _v5d["pruned"] == {"before": 2, "after": 1, "dropped": [1], "stood": True}, (_pc5d.get("pruned"), _v5d.get("pruned"), _runs))
-check("prune_cells with keep_prints: the exploration cells go, the kept cells' prints stay (prints_only drops the three prints and no cell); a chain with nothing to prune before the promoter keeps its count (run4's two cells, nothing dropped, no pruning record on the version)",
-      rt.prune_cells(_pc5d["cells_chain"], [], keep_prints=True)[1:3] == ([1], 0) and rt.prune_cells(_pc5d["cells_chain"], [])[1:3] == ([1], 0)
-      and rt.prune_cells(_pc5["cells_chain"], [], keep_prints=True)[1:3] == ([1, 3], 0) and rt.prune_cells(_pc5["cells_chain"], [], prints_only=True)[1:3] == ([], 3)
-      and rt.prune_cells(_pc1["cells_chain"], [], keep_prints=True)[1:3] == ([], 0) and "print(len(kept))" in rt.prune_cells(_pc1["cells_chain"], [], keep_prints=True)[0] and rt.prune_cells(_pc1["cells_chain"], [])[1:3] == ([], 1)
-      and _pc1["pruned"] == [] and _pc1["chain_cells"] == _pc1["cells"] == 2 and "pruned" not in store.load(made["routine"]["id"])["versions"][0])
+      and "df.g == 'b'" not in _v5m["script"] and "looked at" not in _v5m["script"] and "kept = df[df.v > 155]" in _v5m["script"] and "df.g == 'b'" in _v5m["script_written"], (_pc5d.get("pruned"), _pc5m.get("pruned_lines"), _runs))
+# an edit found in the pruned method lands on the same line of the chain as written, although the chain repeats its fragment in a dropped print
+nb5e, run5x = _literal_chain("t5e", [("threshold = 155\nprint('threshold = 155 is the line')\nkept = df[df.v > threshold]", []),
+                                     ("RESULT('rows above the line', float(len(kept)), None, None, 'rows', 'n/a')", _ROWS)])
+_pc5x = host.propose(nb5e, run5x.id, promoter_llm, current_data={"df_id": "df4"})
+made5x = host.create(nb5e, _pc5x, {"name": "Edit"}, runner, store)
+_v5x = store.load(made5x["routine"]["id"])["versions"][0]
+check("create (§19.5): the edit that made the input, found in the pruned method, is on the same line of the chain as written; the dropped print that repeats its fragment is untouched",
+      [p_["key"] for p_ in _pc5x["inputs"]] == ["threshold"] and "threshold = INPUTS['threshold']" in _v5x["script"] and "is the line" not in _v5x["script"]
+      and "threshold = INPUTS['threshold']\nprint('threshold = 155 is the line')\nkept = df[df.v > threshold]" in _v5x["script_written"], (_pc5x.get("inputs"), _v5x.get("script_written", "")[-400:]))
+check("a chain with nothing to prune before the promoter keeps its count and leaves nothing beside the method; the first routine of this file, made without the pass, has no record of one",
+      rt.prune_cells(_pc5d["cells_chain"], [])[1:3] == ([1], 2) and rt.prune_cells(_pc5["cells_chain"], [])[1:3] == ([1, 3], 7) and rt.prune_cells(_pc1["cells_chain"], [])[1:3] == ([], 1)
+      and "condensed" not in store.load(made["routine"]["id"])["versions"][0] and made.get("condensed") is None and "print(len(kept))" in store.load(made["routine"]["id"])["versions"][0]["script_written"])
 # a chain with nothing to anchor the pruning - no RESULT line, no figure (its printed output is what a run keeps): the whole chain is the method
 nb5c = Notebook("t5c")
 run5e = nb5c.new_run("Just the means?")
@@ -453,50 +588,43 @@ run5e.data = dict(run4.data)
 run5e.replay_script, _ = assemble(run5e.cells(), run5e.report)
 nb5c.runs[run5e.id] = run5e
 _pc5e = host.propose(nb5c, run5e.id, lambda s_, u_: ('{"name": "Means", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}), current_data={"df_id": "df4"})
-check("propose (§19.4): a chain without a RESULT line or a figure is not pruned - both cells stay, nothing dropped, no whole chain kept beside",
-      _pc5e["pruned"] == [] and _pc5e["cells"] == 2 and _pc5e["chain_cells"] == 2 and "# --- cell 1 ---" in _pc5e["cells_text"] and "# --- cell 2 ---" in _pc5e["cells_text"], (_pc5e.get("pruned"), _pc5e.get("cells")))
-# nothing to cut: no run; a pruning that fails on its only level: as written with the reason
-_zero_fig = dict(_zero, figs=[_fig([1, 2])])
-_c6 = host.condense(_pc1, _cells1, _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero_fig, _counting_runner, 60)
-_pc7 = dict(_pc1, cells_text=_cells1.replace("print(len(kept))\n", ""))
-_runs["n"] = 0
-_c7 = host.condense(_pc7, _pc7["cells_text"], _pc1["results"], rt.defaults_of(_pc1["inputs"]), _zero, _counting_runner, 60)
-check("condense: a figure that would differ keeps the script as written, naming the figure; a script with nothing to cut is as written without a run",
-      _c6["status"] == "as_written" and _c6["line"] == "as written: the pruned code did not reproduce the figures: 0 figures came back, 1 expected" and _c6["dropped"] == {"cells": [], "prints": 0}
-      and _c7 == {"status": "as_written", "line": "as written: nothing to cut", "cells": [2, 2], "dropped": {"cells": [], "prints": 0}, "elapsed": [_zero["elapsed"], None]} and _runs["n"] == 0, (_c6, _c7))
-# create with the pass: the version keeps the script as written beside the one that runs; run zero's record is the condensed run's
-_made_c = host.create(nb4, _pc1, {"name": "Condensed", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condense_code=True)
-_vc = store.load(_made_c["routine"]["id"])["versions"][0]
-check("create (foreground) with the pass: the version's script is the condensed one, the script as written kept, the pass's record on it and on the made record; run zero's results, figures and time are the condensed run's; the run files are its output",
-      _made_c["condensed"]["status"] == "condensed" and _vc["condensed"] == {k: _made_c["condensed"][k] for k in ("status", "line", "cells", "dropped", "elapsed")} and _vc["condensed"]["line"].startswith("condensed: 2 cells kept, 1 print dropped")
-      and "print(len(kept))" not in _vc["script"] and "print(len(kept))" in _vc["script_written"]
-      and _vc["run_zero"]["status"] == "reproduced" and _vc["run_zero"]["verified"] and _vc["run_zero"]["results"][0]["estimate"] == "+3.00" and _vc["run_zero"]["elapsed"] == _vc["condensed"]["elapsed"][1]
-      and open(os.path.join(store.path(_made_c["routine"]["id"]), "runs", "v1_0", "stdout.txt")).read().strip() == "RESULT: rows above the line: +3.00 rows, n/a"
-      and host.zero_holds(_vc) == "", (_made_c.get("condensed"), _vc.get("condensed")))
-# behind the dialog: verifying, then condensing while the pass runs (the store says so), then settled
+_made_n, _vn, _n_n = _made_with(_counting_runner, nb_=nb5c, pc=_pc5e)
+check("propose (§19.4): a chain without a RESULT line or a figure is not pruned - both cells stay with their prints, nothing dropped, no chain kept beside; the pass then has nothing to say but that, without a run of its own",
+      _pc5e["pruned"] == [] and _pc5e["pruned_lines"] == 0 and _pc5e["cells"] == 2 and _pc5e["chain_cells"] == 2 and "print(m.to_dict())" in _pc5e["cells_text"] and "# --- cell 2 ---" in _pc5e["cells_text"]
+      and _n_n == 1 and _vn["condensed"] == {"status": "as_written", "line": "as written: nothing to cut", "cells": [2, 2], "dropped": {"cells": [], "lines": 0}, "elapsed": [_vn["run_zero"]["elapsed"], None]}
+      and "script_written" not in _vn, (_pc5e.get("pruned"), _pc5e.get("cells"), _vn.get("condensed")))
+# behind the dialog: verifying while run zero runs, condensing while the chain as written runs beside a method that draws (the store says so), then settled
 _seen_status = []
 def _watching_runner(script, timeout):
     if _made_bg.get("routine"):
         _seen_status.append(store.load(_made_bg["routine"]["id"])["versions"][0]["run_zero"]["status"])
-    return runner(script, timeout)
+    out, err, _f, gen = runner(script, timeout)
+    return out, err, [_fig([1, 2])], gen
 _made_bg = {}
 _pc2 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
 _made_bg.update(host.create(nb4, _pc2, {"name": "Condensed behind", "purpose": "", "drop_inputs": [], "drop_results": []}, _watching_runner, store, background=True, condense_code=True))
 _v_before = store.load(_made_bg["routine"]["id"])["versions"][0]
 _verdict_bg = _made_bg["verify"]()
 _v_after = store.load(_made_bg["routine"]["id"])["versions"][0]
-check("create behind the dialog with the pass: stored verifying (a run held, no pass yet); run zero runs under verifying, the candidate under condensing (a run held, saying so); then reproduced with the condensed script and the pass on the record; the verdict carries the pass",
-      _v_before["run_zero"]["status"] == "verifying" and "condensed" not in _v_before and _seen_status == ["verifying", "condensing"] and host.zero_holds({"run_zero": {"status": "condensing"}}) == "the routine's code is still being condensed - run it when it has settled"
-      and _v_after["run_zero"]["status"] == "reproduced" and _v_after["run_zero"]["line"].startswith("reproduced") and _v_after["condensed"]["status"] == "condensed" and "print(len(kept))" not in _v_after["script"] and "print(len(kept))" in _v_after["script_written"]
-      and _verdict_bg["condensed"]["status"] == "condensed" and _verdict_bg["results"][0]["estimate"] == "+3.00", (_v_before.get("run_zero"), _seen_status, _v_after.get("condensed")))
-# a pass that finds nothing to cut leaves no script_written; create without the flag records no pass
-_pc3 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
-_pc3["cells_text"] = _pc3["cells_text"].replace("print(len(kept))\n", "")
-_made_aw = host.create(nb4, _pc3, {"name": "As written", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condense_code=True)
-_v_aw = store.load(_made_aw["routine"]["id"])["versions"][0]
-check("create with a pass that finds nothing to cut: the record says as written, the script is the one written and no script_written is kept; create without the flag records no pass",
-      _v_aw["condensed"]["status"] == "as_written" and _v_aw["condensed"]["line"] == "as written: nothing to cut" and "script_written" not in _v_aw
-      and "condensed" not in store.load(made["routine"]["id"])["versions"][0] and made.get("condensed") is None, (_v_aw.get("condensed"), made.get("condensed")))
+check("create behind the dialog with the pass: stored verifying, the condensed method already its script and the chain as written beside it (a run held, no pass yet); run zero runs under verifying, the chain as written under condensing (a run "
+      "held, saying so); then reproduced, the pass on the record; the verdict carries the pass",
+      _v_before["run_zero"]["status"] == "verifying" and "condensed" not in _v_before and "print(len(kept))" not in _v_before["script"] and "print(len(kept))" in _v_before["script_written"]
+      and _seen_status == ["verifying", "condensing"] and host.zero_holds({"run_zero": {"status": "condensing"}}) == "the routine's code is still being condensed - run it when it has settled"
+      and _v_after["run_zero"]["status"] == "reproduced" and _v_after["run_zero"]["line"].startswith("reproduced") and _v_after["condensed"]["status"] == "condensed" and "print(len(kept))" not in _v_after["script"]
+      and "print(len(kept))" in _v_after["script_written"] and _verdict_bg["condensed"]["status"] == "condensed" and "verdict" not in _verdict_bg["condensed"] and _verdict_bg["results"][0]["estimate"] == "+3.00",
+      (_v_before.get("run_zero"), _seen_status, _v_after.get("condensed")))
+# behind the dialog, the pictures differing: the chain as written becomes the stored script when the pass settles
+_made_bd = {}
+def _differing_runner(script, timeout):
+    out, err, _f, gen = runner(script, timeout)
+    return out, err, [_fig([1, 2] if "print(len(kept))" in script else [7])], gen
+_made_bd.update(host.create(nb4, host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}), {"name": "Differs behind", "purpose": "", "drop_inputs": [], "drop_results": []}, _differing_runner, store,
+                            background=True, condense_code=True))
+_verdict_bd = _made_bd["verify"]()
+_v_bd = store.load(_made_bd["routine"]["id"])["versions"][0]
+check("create behind the dialog, the method drawing other pictures than the chain as written: the stored script becomes the chain as written, nothing kept beside it, the record and the verdict saying why, run zero's record the chain's run",
+      _v_bd["condensed"]["status"] == "as_written" and _v_bd["condensed"]["line"].endswith("the figures: figure 1 differs") and "print(len(kept))" in _v_bd["script"] and "script_written" not in _v_bd
+      and _v_bd["run_zero"]["status"] == "reproduced" and _v_bd["run_zero"]["figures"] == 1 and _verdict_bd["condensed"]["status"] == "as_written", (_v_bd.get("condensed"), _v_bd.get("run_zero")))
 # ---- the consolidation (§19.3): the Condenser seat, opted in, rewrites the method under the kept markers; the candidate runs on the chain's
 # data and is kept provisionally; the first run on new data runs the method it replaced too and keeps or drops the rewrite
 def _runner_with(frame):
@@ -515,15 +643,15 @@ _REWRITE = "```python\n# --- cell 1 ---\nthreshold = INPUTS['threshold']\n# --- 
 def _consolidator(system, user, effort=None):
     _asks.append((system, user, effort))
     return _REWRITE, {"cost": 0.03}
-_k0 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator, runner, 60, "Condenser", "m")
+_k0 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator, runner, 60, "Condenser", "m")
 check("consolidate: a method that runs in under the threshold is left alone - not tried, the line saying how fast it runs, no call made",
       _k0["status"] == "not_tried" and _k0["line"] == f"not consolidated: the method runs in {rt.secs_text(_zero_k['elapsed'])}" and _k0["attempts"] == 0 and _asks == [], _k0)
 _min_keep, host.CONSOLIDATE_MIN_SECONDS = host.CONSOLIDATE_MIN_SECONDS, 0.0
 _runs["n"] = 0
-_k1 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator, _counting_runner, 60, "Condenser", "m")
+_k1 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator, _counting_runner, 60, "Condenser", "m")
 check("consolidate: the brief carries the question, the answer, each cell with the output it printed, the numbered lines, the figure cells, the inputs and the times, at medium effort; the rewrite under the kept markers reproduces the line and is consolidated - provisional, the script, its lines and times on the record",
       len(_asks) == 1 and _asks[0][0] == rt.CONSOLIDATE_SYSTEM and _asks[0][2] == "medium" and "QUESTION:\nHow many rows are above 155?" in _asks[0][1] and "ANSWER:\n" in _asks[0][1]
-      and "# --- cell 1 ---\nthreshold = INPUTS['threshold']\nkept = df[df.v > threshold]\nprint(len(kept))\nOUTPUT:\n3" in _asks[0][1] and "1. [cell 2] rows above the line: +3" in _asks[0][1]
+      and "# --- cell 1 ---\nthreshold = INPUTS['threshold']\nkept = df[df.v > threshold]\nOUTPUT:\n3" in _asks[0][1] and "1. [cell 2] rows above the line: +3" in _asks[0][1]
       and "INPUTS THE CELLS READ:\nthreshold (number): Threshold; default 155" in _asks[0][1] and "TIME EACH CELL TOOK: cell 1: 0.0 s, cell 2: 0.0 s" in _asks[0][1] and "CELLS THAT DRAW FIGURES: none" in _asks[0][1]
       and _k1["status"] == "consolidated" and _k1["cells"] == [2, 2] and _k1["attempts"] == 1 and _k1["cost"] == 0.03 and _k1["seat"] == "Condenser" and _runs["n"] == 1
       and "kept = df" not in _k1["script"] and "(df.v > threshold).sum()" in _k1["script"] and _k1["results"][0]["estimate"] == "+3.00"
@@ -534,10 +662,10 @@ _asks[:] = []
 def _consolidator2(system, user, effort=None):
     _asks.append((user, effort))
     return _replies.pop(0), {"cost": 0.01}
-_k2 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator2, _counting_runner, 60)
-_k3 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: (_REWRITE.replace("df.v > threshold", "df.v > threshold + 10"), {"cost": 0.0}), _counting_runner, 60)
-_k4 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: ("UNCHANGED", {"cost": 0.0}), _counting_runner, 60)
-_k5 = host.consolidate(_pk, None, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: ("```python\n# --- cell 1 ---\nthres", {"cost": 0.0, "truncated": True}), _counting_runner, 60)
+_k2 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator2, _counting_runner, 60)
+_k3 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: (_REWRITE.replace("df.v > threshold", "df.v > threshold + 10"), {"cost": 0.0}), _counting_runner, 60)
+_k4 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: ("UNCHANGED", {"cost": 0.0}), _counting_runner, 60)
+_k5 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: ("```python\n# --- cell 1 ---\nthres", {"cost": 0.0, "truncated": True}), _counting_runner, 60)
 check("consolidate: a RESULT call moved to another cell is refused before running and asked again at low effort, the second reply kept; a number changed twice keeps the method as it was with the differing line; UNCHANGED is nothing to gain; a reply cut at the token limit names the remedy",
       _k2["status"] == "consolidated" and _k2["attempts"] == 2 and [e for _u, e in _asks] == ["medium", "low"] and _asks[1][0].endswith(rt.CONSOLIDATE_RETRY.format(problem="moves or loses the RESULT calls of cell 2 (keep each under the marker it came from)"))
       and _k3["status"] == "as_it_was" and _k3["line"] == "as it was: the rewritten method did not reproduce the result lines: 1 of 1 result lines differ ([cell 2] rows above the line: +3 -> +2.00)" and _k3["attempts"] == 2
