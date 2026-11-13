@@ -26,42 +26,36 @@ The underlying principle is simple: AI-generated analysis should be open to the 
 
 ## Table of Contents
 
-* [Overview](#overview)
-
-  * [How the analysis works](#how-the-analysis-works)
-  * [Inspecting and verifying the work](#inspecting-and-verifying-the-work)
-  * [Review and user control](#review-and-user-control)
-  * [From exploration to reusable analysis](#from-exploration-to-reusable-analysis)
-* [Installation](#installation)
-* [Quick Start](#quick-start)
-* [Features](#features)
-* [How It Works](#how-it-works)
-
-  * [Reports and checks](#reports-and-checks)
-  * [Modes and budgets](#modes-and-budgets)
-  * [Follow-up questions](#follow-up-questions)
-  * [Ask about a plot](#ask-about-a-plot)
-  * [Memory](#memory)
-  * [Routines](#routines)
-* [Configuration](#configuration)
-
-  * [Environment Variables](#environment-variables)
-  * [Models and Seats](#models-and-seats)
-  * [Ollama](#ollama)
-  * [vLLM](#vllm)
-* [Data and Integrations](#data-and-integrations)
-
-  * [Documents](#documents)
-  * [The words beside the numbers](#the-words-beside-the-numbers)
-  * [The settings the data is read against](#the-settings-the-data-is-read-against)
-  * [The Dataset cache and the store](#the-dataset-cache-and-the-store)
-* [Where the Code Runs](#where-the-code-runs)
-* [Command Line](#command-line)
-* [Architecture](#architecture)
-* [Logging and Usage](#logging-and-usage)
-* [Development](#development)
-* [Contributing](#contributing)
-* [Contact](#contact)
+- [Overview](#overview)
+  - [How the analysis works](#how-the-analysis-works)
+  - [Inspecting and verifying the work](#inspecting-and-verifying-the-work)
+  - [Review and user control](#review-and-user-control)
+  - [From exploration to reusable analysis](#from-exploration-to-reusable-analysis)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Using BambooAI](#using-bambooai)
+  - [Runs and actions](#runs-and-actions)
+  - [Analysis modes](#analysis-modes)
+  - [Reports and verification](#reports-and-verification)
+  - [Follow-ups, plots and memory](#follow-ups-plots-and-memory)
+  - [Routines](#routines)
+- [Configuration](#configuration)
+  - [Environment variables](#environment-variables)
+  - [Models and seats](#models-and-seats)
+  - [Ollama](#ollama)
+  - [vLLM](#vllm)
+- [Data and integrations](#data-and-integrations)
+  - [Documents](#documents)
+  - [Intervals.icu context](#intervalsicu-context)
+  - [Rider profile](#rider-profile)
+  - [Dataset cache and Intervals.icu store](#dataset-cache-and-intervalsicu-store)
+- [Where the Code Runs](#where-the-code-runs)
+- [Command line](#command-line)
+- [Architecture](#architecture)
+- [Usage and logs](#usage-and-logs)
+- [Development](#development)
+- [Contributing](#contributing)
+- [Contact](#contact)
 
 ## Overview
 
@@ -126,272 +120,201 @@ nothing to install.
 
 ## Quick Start
 
-1. Start the app with `bambooai serve`. On first use it creates the working folder `~/bambooai`,
-   writes a `.env` file, builds the executor image from the Dockerfile in the package, starts the
-   container, and opens `http://127.0.0.1:5001`. The initial build takes several minutes: it installs
-   pandas, numpy, scipy, statsmodels, scikit-learn, matplotlib, plotly and the other analysis libraries.
-2. Stop the app with Ctrl+C and add your model key to `~/bambooai/.env`. An
-   [OpenRouter](https://openrouter.ai) key is enough for the default preset, `cost`; the
-   `performance` and `max` presets put the Analyst, Figures, Rewriter and Promoter seats on Claude
-   and need an Anthropic key as well. Add `GEMINI_API_KEY` to enable web search. For locally hosted
-   models, use the [Ollama](#ollama) or [vLLM](#vllm) configuration below instead.
-3. Run `bambooai serve` again. Upload a CSV, Parquet, JSON or XLSX file and ask a question. Choose
+1. Run `bambooai serve`. On first use, BambooAI creates `~/bambooai`, generates a `.env` file, builds
+   the Docker executor image and opens the app at `http://127.0.0.1:5001`. The initial build can take
+   several minutes while it installs the analysis stack, including pandas, NumPy, SciPy, statsmodels,
+   scikit-learn, Matplotlib and Plotly.
+2. Stop the app with Ctrl+C and add your provider key to `~/bambooai/.env`. An
+   [OpenRouter](https://openrouter.ai) key covers the default `cost` preset. The `performance` and `max`
+   presets also need an Anthropic key for their Claude seats. Set `GEMINI_API_KEY` to enable web search.
+   For local inference, see [Ollama](#ollama) or [vLLM](#vllm).
+3. Start `bambooai serve` again, upload a CSV, Parquet, JSON or XLSX file, and ask a question. Choose
    *Quick*, *Deep* or *Adaptive* in the composer.
-4. Open **Models & Compute** from the gear menu to choose and save a preset: `cost`, `performance`
-   or `max`. **Usage** shows what the analyses cost and where the money and the time went.
+4. Use **Models & Compute** in the gear menu to select the `cost`, `performance` or `max` model preset.
+   **Usage** shows cost, tokens and time by analysis, model and seat.
 
-The working folder:
+The working directory holds configuration and saved work:
 
-```
+```text
 ~/bambooai/
-├── .env                          keys and settings; read at start, never written by the app
-├── LLM_CONFIG_template.json      the seats per preset: model, provider, reasoning effort, max_tokens, prices
-├── bambooai.sqlite               chains, labels, usage, the saved preset, integration credentials (encrypted)
-├── config/<user>/LLM_CONFIG.json the configuration built from the template for the chosen preset
-├── storage/<user>/threads/       one JSON per thread: runs, cells, reports, reproduction results (a thread not saved is discarded at the next start)
-├── storage/<user>/usage_ledger.jsonl  one line per analysis as it ended - question, mode, outcome - for the Usage dialog; kept
-├── storage/<user>/favourites/    saved chains
-├── storage/<user>/routines/      saved routines: versions, runs and their records
-├── storage/<user>/context/       the codebook and the coded passages of each Intervals.icu subject
-├── memory/<user>/                the memory pack
-└── logs/<user>/                  bambooai_run_log.json: every model call with tokens, time and cost
+├── .env                              provider keys and settings, read at startup
+├── LLM_CONFIG_template.json          model seats, presets, budgets and model properties
+├── bambooai.sqlite                   chains, labels, usage, saved preset, encrypted integration credentials
+├── config/<user>/LLM_CONFIG.json     generated configuration for the selected preset
+├── storage/<user>/threads/           thread records: runs, cells, reports and replay results
+├── storage/<user>/usage_ledger.jsonl  completed-analysis records for Usage
+├── storage/<user>/favourites/        saved chains
+├── storage/<user>/routines/          routine versions, runs and results
+├── storage/<user>/context/           codebooks and coded Intervals.icu passages
+├── memory/<user>/                    dataset memory pack
+└── logs/<user>/                      model calls, tokens, latency and cost
 ```
 
-`serve` uses this folder for your configuration and saved work. Upgrading the package does not change it;
-deleting it starts you fresh. Use `BAMBOO_HOME` or `bambooai serve --home DIR` to choose another location.
-The data the executor loads lives elsewhere: in the Docker volume `bambooai-datasets`, which outlives the
-container (see [The Dataset cache and the store](#the-dataset-cache-and-the-store)).
+Unsaved threads are discarded on the next start; saved chains and usage records persist. Package
+upgrades leave this directory intact. To use another directory, set `BAMBOO_HOME` in your shell
+environment or pass `--home DIR` to `bambooai serve`. Executor datasets are stored separately in the
+persistent Docker volume `bambooai-datasets`, or in the host directory specified by
+`BAMBOO_EXECUTOR_DATASETS`.
 
-## Features
+## Using BambooAI
 
-- **Three analysis modes.** *Quick* for a lookup or definition, *Deep* for a full analysis within
-  a turn budget, and *Adaptive* for longer investigations with periodic review.
-- **Follow-up questions.** Continue with the calculations and variables from the previous run,
-  or start a new question with a fresh workspace. Runs form chains you can step through; see
-  [Follow-up questions](#follow-up-questions) for what happens when the data changes.
-- **Reports and figures.** Keep both the technical report and a plain-language version for
-  non-technical readers. A separate, cheaper model can handle the rewrite. Ask about a plot using
-  its chat button; an image-capable Analyst can receive the picture along with your question.
-- **Data and documents together.** Work with several datasets, load training data from Intervals.icu,
-  Endura or SweatStack, and browse loaded data in the Data tab. Attach up to four papers, notes or
-  transcripts per thread as PDF, Word, Markdown or text; their passages can be read and cited
-  alongside the analysis.
-- **The words beside the numbers.** An Intervals.icu load can bring the messages, notes, calendar
-  entries and planned workouts written around the training. They are coded against a codebook, read
-  in the kernel like any table, quoted verbatim in the report, and set against the numbers; see
-  [The words beside the numbers](#the-words-beside-the-numbers).
-- **Routines.** Save a finished analysis as a method with a few inputs and run it again on another
-  window or file, without a model. Each run is checked against the data it gets, recorded, and
-  compared with the run before; see [Routines](#routines).
-- **A Dataset cache that remembers.** Loaded frames and files stay in the executor and are reused;
-  Intervals.icu activities are kept once parsed, so a new window downloads only what is missing.
-  Datasets the analysis writes appear in the same cache.
-- **Web search with sources.** With a Gemini key, the Analyst can look up published figures using
-  Google AI grounding, compare them with your data, and cite the sources in its report.
-- **Memory across runs.** Saving a run records what was learned about the dataset, including column
-  quirks and approaches that worked, for use in later analyses of the same data.
-- **Your choice of models.** Use OpenRouter, OpenAI, Anthropic, Google, Groq, Mistral, xAI, DeepSeek,
-  Ollama or vLLM. Each role, such as Analyst, Reviewer or Rewriter, has its own model and reasoning
-  settings. See [Models and Seats](#models-and-seats) for configuration.
-- **A workspace you can return to.** Save chains, organise them with labels, review usage and costs,
-  and export reports as PDF. The app has light and dark themes.
+### Runs and actions
 
-## How It Works
+A question starts a **run** consisting of Analyst **turns**. Each turn receives the question, data
+description, working notes, prior cells and outputs, and the remaining budget. Large outputs are
+abbreviated in the prompt but remain available through `SHOW`.
 
-A **run** is the work needed to answer one question. It consists of **turns**: on each turn the
-Analyst reads the question, the dataset's description, its working note, the cells and their outputs,
-and its remaining budget. Long outputs are shortened in the prompt and can be reopened when needed.
-It then takes one action:
-
-| Action | What it does |
+| Action | Purpose |
 |---|---|
-| `CELL` | Run one Python cell in the kernel; its printed output becomes input for the next turn. |
-| `SHOW n` | Reopen the full output of an earlier cell. |
-| `NAMES` | List the variables the kernel holds. |
-| `RECALL` | Consult the memory pack for this dataset. |
-| `SEARCH` | Search the web with Google AI grounding; return a summary with sources. |
-| `READ` | Read relevant passages from attached documents, or from the words loaded beside Intervals.icu data, through the Reader role, when configured. |
-| `ASK` | Ask you a question; your answer continues the thread in the next run. |
-| `REPORT` | Write the report and end the analysis turns. |
+| `CELL` | Execute a Python cell in the persistent kernel. |
+| `SHOW n` | Reopen a previous cell's full output. |
+| `NAMES` | Inspect variables in the kernel. |
+| `RECALL` | Consult saved memory for the dataset. |
+| `SEARCH` | Search the web with Google AI grounding and return sources. |
+| `READ` | Read passages from attached documents or Intervals.icu context using the Reader seat. |
+| `ASK` | Request input from the user; the answer continues in the next run. |
+| `REPORT` | Finish the investigation and write the report. |
 
-The Analyst follows the rules in `analyst/contract.md`, shared across models. These ask for a
-**best estimate** and its uncertainty, the **conditions** it holds under, **how it was established**,
-and references to the cells that support it. They also ask the Analyst to make exclusions visible,
-distinguish association from causation, account for repeated observations rather than treating them
-as independent subjects, and say what the available data or budget could not establish.
+The Analyst follows [`analyst/contract.md`](analyst/contract.md), which asks for estimates and
+uncertainty, the conditions under which findings hold, supporting cell references and explicit
+limitations. It also asks for appropriate treatment of repeated observations, exclusions and causal
+claims. These are instructions to the model, not a guarantee that its methods or conclusions are
+correct. Calculations take place in `CELL`; report figures are generated afterward.
 
-During the analysis, cells perform calculations rather than draw plots. Figures are created once
-the report is written.
+### Analysis modes
 
-### Reports and checks
+| Mode | Turns in `performance` | Dollar budget | Review |
+|---|---:|---:|---|
+| **Quick** | 4 | $0.30 | None |
+| **Deep** | 15 | $1.50 | None |
+| **Adaptive** | Up to 50 | $4.00 | Every 8 turns |
 
-After `REPORT`:
+Turn limits and Adaptive review frequency come from `tier_properties` in `LLM_CONFIG_template.json`. The
+dollar budgets are set in the application, **not** in `tier_properties`. The Adaptive depth control can
+reduce the turn allowance within the preset's limit.
 
-1. **Figures.** The `Figures` role receives the report and the cells, then writes one Plotly cell
-   drawing the one to three figures the reader needs from the objects already in the kernel. It can
-   reply `NONE` when a number or table is sufficient. A failed cell is returned with its error for
-   up to three corrections. The report gains a *Figures* section citing the cell and discloses when
-   the requested figures could not be drawn.
-2. **Plain-language version.** The `Rewriter` role produces a version for a non-technical reader.
-   Both versions are kept, and both open with the report's **title** - its first line, written by
-   the Analyst as a statement of what was found - which heads the Answer tab and the PDF export.
-   The export's top section puts it above the question as the Analyst understood it (its own
-   statement of what it answered, so a follow-up reads whole without the thread), what data the
-   report stands on (the source, the window, the files), and the day, mode and reproduction
-   verdict, so a report can be handed to someone who has never seen BambooAI or the data; the body
-   is whichever version is on screen, with its figures on a print layout and its citations marked.
-   The browser offers the title as the file's name.
-3. **Reproduction check.** The successful cells are assembled in execution order, through the last
-   cited cell or the run's last figure cell, and rerun against the original data in a fresh kernel.
-   Earlier cells are retained so their imports, variables and changes to the data are available.
-   Numerical values from the original cited cell outputs are compared with the fresh output.
-   The closing card shows the outcome and how many numbers were checked; the figures produced by
-   the replay appear in the Plots tab.
+In Adaptive mode, a separate `Reviewer` examines the work at intervals, including the code and outputs
+supporting current results. It can request another test, narrow a claim or recommend reporting. A report
+verdict only binds when the cited cells have been checked. The Reviewer also assesses the completed
+report against the question. The Analyst and Reviewer can use different models.
 
-BambooAI also checks the technical report's numbers against its recorded evidence and the
-plain-language version's numbers against the technical report. Unmatched numbers are flagged for
-the reader rather than silently changed. These checks help expose discrepancies, but an analysis
-can reproduce and still use an unsuitable method or draw an unsupported conclusion.
+### Reports and verification
 
-4. **Code map.** When a chain ends, BambooAI builds a map of how it got from its data to its numbers,
-   read mechanically from the committed cells and the kernel's record - no model is asked, so the
-   same chain always gives the same map, and nothing of it reaches a prompt. **Code map** on the
-   closing card (or the eye on a chain's box in the thread map) opens it, and a `[cell n]` citation in
-   the report opens it on that number's recipe: one row per cell with the
-   inputs it read, what came out (the RESULT lines by status, the figures), and for each number its
-   recipe - the data it rests on, the tables and values the code made in order, the settings typed
-   into the code, the choices (seeds, thresholds, resample counts) - with a short list worth
-   checking (an input never read, a value typed into the code that every result rests on, a result
-   that came out empty or was replaced). The map shows how a number was made, not whether it is
-   right. `docs/CODEMAP_DESIGN.md` has the design.
+After `REPORT`, BambooAI performs several distinct steps:
 
-5. **Reach report.** The kernel records what each cell touched outside the data: the hosts it
-   connected to and the bytes each way, the files it opened outside the data, the environment names
-   it read, the programs it started - and whether the question asked for it (the host, the file or
-   the name appears in the question). The closing card lists the reaches with their cells, the
-   cells the executor refused (the restricted-module list; a refused cell is shown as not run,
-   not as a failure), and the box the cells ran on in one line; the same tags sit on the cell rows,
-   in the Investigation tab and in the code map. `tools/reaches_report.py` tallies the record over
-   the stored threads per model. Nothing of it reaches a prompt; it observes and reports, it does
-   not prevent (the one address the kernel refuses is the cloud instance metadata service).
-   `docs/REACH_DESIGN.md` has the design.
+- **Figures.** The `Figures` seat uses objects already in the kernel to create up to three Plotly
+  figures, or returns `NONE`. Failed figure code can be retried up to three times; failures are
+  disclosed in the report.
+- **Report versions and export.** The `Rewriter` produces a second, less technical version alongside the
+  Analyst's report. The Answer tab and PDF use the Analyst's report title. The PDF includes the question
+  as understood by the Analyst, data source and window, date, mode, replay verdict, figures and
+  citations.
+- **Numerical checks.** The technical report's numbers are checked against recorded computational
+  evidence; the rewritten report is checked against the technical one. Unmatched values are flagged, not
+  silently corrected.
+- **Reproduction.** Committed cells are replayed in order in a fresh kernel, through the last cited or
+  figure-producing cell. Numerical outputs are compared with the original run. The closing card shows
+  the verdict and number of values checked; replayed figures appear in **Plots**.
+- **Code map.** Built from committed code and kernel records, without an LLM. It traces each result to
+  its cells, input data, intermediate values and choices such as seeds or thresholds. Open it from the
+  closing card or a report's `[cell n]` citation. It documents *how* a result was obtained, not whether
+  the method was sound. See [`docs/CODEMAP_DESIGN.md`](docs/CODEMAP_DESIGN.md).
+- **Reach report.** Records activity outside the supplied data: network hosts and transfer sizes, files,
+  environment-variable names and spawned programs, with the responsible cells. It also marks refused
+  cells and whether a resource was named in the question. Most activity is observed and reported;
+  restricted-module use and access to cloud instance metadata can be refused. See
+  [`docs/REACH_DESIGN.md`](docs/REACH_DESIGN.md).
 
-### Modes and budgets
+These checks catch reproducibility and reporting problems; reproducing a calculation does not validate
+its statistical design or interpretation.
 
-Each mode sets a turn budget and a dollar budget the Analyst can see. The budgets are set per
-preset through `tier_properties` in the configuration. In the `performance` preset, Quick allows
-4 turns, Deep 15, and Adaptive 50, with a review after every 8th turn.
+### Follow-ups, plots and memory
 
-In Adaptive mode, the `Reviewer` has its own brief and can use a stronger model. It reads the
-question, the working note, the results so far, the Analyst's turns since the last review, and the
-code and output of the cells supporting the current answer. The session supplies that evidence
-in one call per review. The Reviewer returns one verdict: run another test, narrow the conclusion,
-or write the report now. A verdict to report is binding only when every cell it cites has been
-checked by a review.
+A follow-up continues from the preceding run's Python state; a new question starts a fresh workspace.
+Runs form navigable chains. If the dataset changes, BambooAI starts a fresh kernel and keeps earlier
+chains as context, marked as using other data. Replay and routines then use only calculations made on
+the current dataset. Data continuity is determined from file and dataset metadata, not a byte-for-byte
+file comparison.
 
-After the report, in Adaptive mode, the same Reviewer checks it against the original question and
-adds a short note for the reader.
+Use the chat button on a figure to ask about it. The image is included only when the Analyst supports
+images and its `model_properties` entry sets `"multimodal": "true"`; otherwise the question is sent
+without the image, and the app indicates that limitation.
 
-### Follow-up questions
-
-A follow-up continues with the variables the previous run left in the Python workspace; a new
-question starts fresh. Runs form chains that you can step through.
-
-If the loaded data has changed since the earlier chain, for example another date window or a replaced file,
-the follow-up starts in a fresh kernel with the data loaded now. The earlier chains
-remain in the analysis history as context, marked as using other data. The replay and any routine
-made from the follow-up use the cells computed on the current data, not those earlier calculations.
-Reuploading the same file, including in a new session or when reopening a favourite, lets the
-follow-up continue as before.
-
-### Ask about a plot
-
-The chat button on a plot sends the picture with your question when the Analyst's model supports
-images and its `model_properties` entry has `"multimodal": "true"`. Otherwise, only the question is
-sent, and the app tells you that the model has not received the picture.
-
-### Memory
-
-When you save a run, the `Knowledge Distiller` role writes a card about the dataset: what the
-columns mean in practice, what to watch for, and what worked. It is stored in
-`memory/<user>/memory_pack.yaml`; `RECALL` reads it in later runs on the same data.
+Saving a run invokes the `Knowledge Distiller` to capture dataset-specific notes, column quirks and
+useful approaches in `memory/<user>/memory_pack.yaml`. Future analyses of the same data can retrieve
+them using `RECALL`.
 
 ### Routines
 
-A finished analysis can be kept as a method and run again on other data of the same shape. *Save as
-routine* (the save menu on a chain) hands the chain to the `Promoter` seat, which reads it once and
-names the constants that would have to change for other data - a boundary date, a threshold, a
-band - as inputs, at most five; identifiers of this data are never inputs. The routine keeps the
-chain's code as written, with those inputs in place, and proves it on the original data without a
-model. A *run zero* must reproduce every RESULT line the chain recorded. A shorter run - only the
-statements the tracked results and the figures rest on - is then kept when it gives the same lines
-and the same figures. For Intervals.icu data the method is also tried on a day, a week and a month
-of the original data, so the routine says what a shorter interval will give before you run one.
+**Save as routine** turns a completed chain into a reusable Python method. The `Promoter` identifies up
+to five adjustable inputs, such as dates or thresholds, without turning dataset identifiers into
+parameters. Data-dependent values are expected to be computed from the data rather than hardcoded. See
+[`docs/ROUTINES_DESIGN.md`](docs/ROUTINES_DESIGN.md).
 
-A run is then a dialog with the inputs and the load, and no model: the data is loaded the way the
-original was (a window from Intervals.icu for the athlete picked in the dialog - a coach's athletes
-are listed with what the store holds for them - or a file from the Dataset cache), checked against
-the routine - the columns fit, the auxiliary files are bound by kind, the chosen values are in the
-data, what differs is said in sentences - and the script runs, a statement at a time. A statement
-that cannot be computed on this data costs the results that rest on it, not the run: the other
-numbers are recorded and the missing ones are blank, with the reason on hover. A window with no
-data is a blank row, and a run on data emptier than the analysis's is marked. Every RESULT line is
-compared with the run before on the same athlete (or run zero, when it is theirs): moved beyond its
-interval, within it, or not computed; the first run on an athlete has nothing to compare with yet, and runs are
-never compared across athletes. The Comparison tab names the athlete and both runs' windows. Runs are
-recorded with their data, inputs, results, figures and differences, and can be stepped through like
-chains - the arrows within one athlete's runs; the manager shows one athlete's runs at a time when a
-routine has run on several. Data without an athlete (an upload, a race) behaves as one group. A window
-inside a load the executor still holds is cut from that load rather than downloaded again.
+The routine is saved with a verification state. When the original data is available, *run zero*
+re-executes the method and compares its recorded `RESULT` lines. A version still verifying, or one that
+fails verification, cannot run. If the original data is unavailable, the version is marked
+**unverified** and can run without a verified run zero. The routine keeps the chain's code as written,
+with the adjustable inputs in place. A model-free check then tries a shorter run of only the statements
+the tracked results and figures depend on, and keeps it for later runs when it reproduces the same
+results and figures. For Intervals.icu data, the method is also tried on a day, a week and a month of
+the original data, so you can see what a shorter interval will return before running one.
 
-The contract's rule that makes this possible is that a value read off the data - a date in it, an
-identifier, a count - is computed into a variable, never typed as a literal, so the method holds
-when the data changes. `docs/ROUTINES_DESIGN.md` has the design.
+The routine script runs without an LLM. Select an Intervals.icu athlete and a date window or calendar
+interval (day, week, month or year), or a file from the Dataset cache, supply the inputs and run the
+script. BambooAI checks the expected columns, auxiliary files and input values before execution. The
+script runs one statement at a time: a step that cannot be computed on the new data costs only the
+results that depend on it, which are left blank with the reason, and a window with no data is recorded
+as an empty run. BambooAI records results, figures and differences from the previous run for the same
+athlete (or from run zero). Differences are classified against the previous result interval (outside,
+within, or not computed). The first run has no comparison; results are never compared across athletes.
+Upload-based runs without an athlete form a single comparison group. Cached data is reused when it
+covers the requested window.
 
 ## Configuration
 
-### Environment Variables
+### Environment variables
 
-Set these in `~/bambooai/.env`. Lines starting with `#` are ignored; do not put comments after a value.
+Set variables in `~/bambooai/.env`. Use full-line `#` comments; comments appended to values are not
+supported.
 
-| Variable | Meaning |
+| Variable | Purpose |
 |---|---|
-| `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY` | Provider keys; add only those needed by your configured models |
-| `GEMINI_API_KEY` | also enables web search (Google AI grounding); without it `SEARCH` is off |
-| `REMOTE_OLLAMA`, `REMOTE_VLLM` | base URLs of local model servers, e.g. `http://localhost:11434` |
-| `BAMBOO_LEVEL` | `cost` (the default) / `performance` / `max`: the preset before one is saved in the app |
-| `BAMBOO_COMPUTE` | `docker` (default) or `local` |
-| `EXECUTOR_PORT` | the container's published port (default `5055`) |
-| `BAMBOO_EXECUTOR_DATASETS` | a folder for the executor's datasets (the loaded windows, the Intervals.icu store) in place of the Docker volume `bambooai-datasets` |
-| `EXECUTION_MODE`, `EXECUTOR_API_BASE_URL` | to use an executor you run yourself: `api` and its URL. `BAMBOO_COMPUTE` is then ignored |
-| `BAMBOO_USER` | the identity that names the per-user folders (default `local`) |
-| `SWEATSTACK_CLIENT_ID`, `SWEATSTACK_CLIENT_SECRET` | your own SweatStack app registration; without them the SweatStack integration is not offered |
-| `APP_PORT` | the web app's port (default `5001`) |
-| `SESSION_COOKIE_NAME`, `FLASK_SECRET`, `LLM_CONFIG_ENCRYPTION_KEY` | the server; the last two are generated on first use |
+| `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY` | Keys for the providers used by your seats; `GEMINI_API_KEY` also enables grounded web search (`SEARCH`). |
+| `BAMBOO_LEVEL` | Initial model preset: `cost` (default), `performance` or `max`, until one is saved in the app. |
+| `BAMBOO_COMPUTE` | `docker` (default) or `local`. |
+| `EXECUTOR_PORT` | Published executor port (default `5055`). |
+| `BAMBOO_EXECUTOR_DATASETS` | Host directory for executor data, instead of the `bambooai-datasets` Docker volume. |
+| `EXECUTION_MODE`, `EXECUTOR_API_BASE_URL` | Use your own executor with `EXECUTION_MODE=api` and its URL. This overrides `BAMBOO_COMPUTE`. |
+| `REMOTE_OLLAMA`, `REMOTE_VLLM` | Local model server base URLs, for example `http://localhost:11434`. |
+| `BAMBOO_USER` | Identity for per-user paths (default `local`). |
+| `SWEATSTACK_CLIENT_ID`, `SWEATSTACK_CLIENT_SECRET` | SweatStack app registration; the integration is unavailable without these. |
+| `APP_PORT` | Web app port (default `5001`). |
+| `SESSION_COOKIE_NAME`, `FLASK_SECRET`, `LLM_CONFIG_ENCRYPTION_KEY` | Server settings; the last two secrets are generated on first use. |
 
-### Models and Seats
+### Models and seats
 
-A **seat** is a role in the workflow, such as Analyst, Reviewer or Rewriter. Each can use its own
-model and settings; using one primary Analyst does not mean every task must use the same model.
+A **seat** is a model role such as `Analyst`, `Reviewer` or `Reader`. Each seat has its own model,
+provider, reasoning effort and token limit. The working-folder `LLM_CONFIG_template.json` defines four
+seat groups, `free_agent_configs`, `cost_agent_configs`, `performance_agent_configs` and
+`max_agent_configs`, plus `tier_properties` and `model_properties`.
 
-`LLM_CONFIG_template.json` in the working folder defines the seats for each of four presets
-(`free_agent_configs`, `cost_agent_configs`, `performance_agent_configs`, `max_agent_configs`), the
-turn budgets per preset (`tier_properties`), and the properties of every model named
-(`model_properties`). The `performance` preset as shipped:
+The shipped `performance` configuration illustrates the structure (the keys and values below are kept as
+defined in the template):
 
 ```json
 "performance_agent_configs": [
-  {"agent": "Analyst",                   "details": {"model": "claude-sonnet-5-5",             "provider": "anthropic",   "reasoning_effort": "xhigh",  "max_tokens": 32000, "temperature": 0}},
-  {"agent": "Figures",                   "details": {"model": "claude-sonnet-5-5",             "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
-  {"agent": "Rewriter",                  "details": {"model": "claude-sonnet-5-5",             "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
-  {"agent": "Reader",                    "details": {"model": "deepseek/deepseek-v4.1-flash",  "provider": "openrouter",  "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
-  {"agent": "Coder",                     "details": {"model": "deepseek/deepseek-v4.1-flash",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 16000, "temperature": 0}},
-  {"agent": "Reviewer",                  "details": {"model": "openai/gpt-6.1-sol",            "provider": "openrouter",  "reasoning_effort": "high",   "max_tokens": 48000, "temperature": 0}},
-  {"agent": "Promoter",                  "details": {"model": "claude-sonnet-5-5",             "provider": "anthropic",   "reasoning_effort": "medium", "max_tokens": 32000, "temperature": 0}},
-  {"agent": "Knowledge Distiller",       "details": {"model": "deepseek/deepseek-v4.1-flash",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 24000, "temperature": 0}},
-  {"agent": "Google Search Executor",    "details": {"model": "gemini-flash-latest",           "provider": "gemini",      "reasoning_effort": "none",   "max_tokens":  8000, "temperature": 0}},
-  {"agent": "Google Search Summarizer",  "details": {"model": "deepseek/deepseek-v4.1-flash",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 12000, "temperature": 0}},
-  {"agent": "Image Generator",           "details": {"model": "deepseek/deepseek-v4.1-flash",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 28000, "temperature": 0}}
+  {"agent": "Analyst",                   "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "xhigh",  "max_tokens": 32000, "temperature": 0}},
+  {"agent": "Figures",                   "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Rewriter",                  "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Reader",                    "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Coder",                     "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Reviewer",                  "details": {"model": "openai/gpt-6.1-sol",                 "provider": "openrouter",  "reasoning_effort": "high",   "max_tokens": 48000, "temperature": 0}},
+  {"agent": "Promoter",                  "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "medium", "max_tokens": 32000, "temperature": 0}},
+  {"agent": "Knowledge Distiller",       "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 24000, "temperature": 0}},
+  {"agent": "Google Search Executor",    "details": {"model": "gemini-flash-latest",                "provider": "gemini",      "reasoning_effort": "none",   "max_tokens":  8000, "temperature": 0}},
+  {"agent": "Google Search Summarizer",  "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 12000, "temperature": 0}},
+  {"agent": "Image Generator",           "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 28000, "temperature": 0}}
 ],
 "tier_properties": {
   "performance": {"analyst_turns_quick": 4, "analyst_turns_deep": 15, "analyst_turns_adaptive": 50, "analyst_review_every": 8}
@@ -404,48 +327,40 @@ turn budgets per preset (`tier_properties`), and the properties of every model n
 }
 ```
 
-The `cost` preset, the default, keeps every seat on OpenRouter (DeepSeek, with Grok reviewing);
-`max` moves the Claude seats to Opus. `multimodal` indicates whether a model accepts images. For *Ask about a plot*,
-set it to `"true"` for an image-capable Analyst model so the picture is sent with the question.
+The default `cost` preset uses OpenRouter throughout (DeepSeek with Grok for review); `performance` uses
+Claude for several seats, and `max` moves those to Opus. Supported providers include OpenRouter, OpenAI,
+Anthropic, Google, Groq, Mistral, xAI, DeepSeek, Ollama and vLLM.
 
-The available roles:
-
-| Seat | Role |
+| Seat | Function |
 |---|---|
-| `Analyst` | Carries out the analysis: each turn, each cell and the report. |
-| `Reviewer` | Reviews Adaptive runs at the configured interval (every 8th turn in the example), and again after the report. Uses its own brief and can use a stronger model. |
-| `Figures` | Draws the figures after the report, using one cell and the objects already in the kernel. Falls back to the Analyst when absent. |
-| `Rewriter` | Writes the plain-language version of the report. |
-| `Reader` | Reads relevant document or context passages for the Analyst through `READ`. Called once per read; suitable for a cheaper model. |
-| `Coder` | Reads the words loaded beside Intervals.icu data once, in batches, and writes the codes table against the codebook; renders passages not in English. Falls back to the Reader when absent. |
-| `Promoter` | Handles *Save as routine*: reads a finished chain once and identifies its inputs as find/replace edits in a JSON reply. Falls back to the Analyst when absent. |
-| `Knowledge Distiller` | Writes the memory card when a run is saved. |
-| `Google Search Executor` | Performs the grounded search, using a Gemini model. |
-| `Google Search Summarizer` | Condenses search results into a digest with citations. |
-| `Image Generator` | Turns the report into an infographic shown with the answer, using a YAML specification rendered to SVG. |
+| `Analyst` | Investigation, code execution and technical report. |
+| `Reviewer` | Periodic and final review in Adaptive mode. |
+| `Figures` | Plotly figures after the report; falls back to `Analyst` if absent. |
+| `Rewriter` | Second report version. |
+| `Reader` | Targeted document and context reads (`READ`). |
+| `Coder` | Codes Intervals.icu context against the codebook; falls back to `Reader`. |
+| `Promoter` | Extracts routine inputs; falls back to `Analyst`. |
+| `Knowledge Distiller` | Dataset memory on save. |
+| `Google Search Executor` | Grounded Gemini search. |
+| `Google Search Summarizer` | Search digest with citations. |
+| `Image Generator` | SVG infographic for thread synthesis, not every analysis report. |
 
-Use a low reasoning effort for `Figures`: it needs a short code reply, and prolonged reasoning can
-consume the token allowance before any code is returned. For `Promoter`, use a moderate effort and
-a generous `max_tokens` allowance so its JSON reply can finish.
+Seat fields are `model`, `provider`, `reasoning_effort`, `max_tokens` and `temperature`. The effort
+names (`none`, `low`, `medium`, `high`, `xhigh`, or model-specific levels) are mapped to each provider's
+interface. Every configured model must appear in `model_properties`, including pricing per 1,000 tokens
+(cached tokens have separate rates), formatting (`xml` or `text`) and reasoning metadata. The template
+uses the key `templ_formating` as written. Set `multimodal` to `"true"` for image-capable Analyst models
+when using *Ask about a plot*.
 
-Seat fields: `model`, `provider`, `reasoning_effort` (`none`, `low`, `medium`, `high`, `xhigh`;
-mapped to each provider's own vocabulary, or to a thinking budget for models that use one),
-`max_tokens`, `temperature`. Every model a seat names must appear in `model_properties`, which
-supplies its prices per 1K tokens (used for the running cost, cached tokens priced separately), its
-formatting (`xml` or `text`) and its reasoning interface; the remaining keys of an entry are the
-provider's details, used as the template ships them.
-
-The app builds `config/<user>/LLM_CONFIG.json` from the template for the chosen preset, and rebuilds
-it when the template file is newer than the built one.
+For short code or JSON replies, a lower reasoning effort may leave more of `max_tokens` available for
+the actual answer. In particular, keep `Figures` at a low effort and give `Promoter` enough output
+tokens. BambooAI generates `config/<user>/LLM_CONFIG.json` for the chosen preset and rebuilds it when
+the template is newer.
 
 ### Ollama
 
-BambooAI can use models running locally through Ollama, or hosted in Ollama's cloud.
-
-#### Model configuration
-
-In `LLM_CONFIG_template.json`, set the agent's provider to `ollama` and name the model. For example,
-to use `gpt-oss:20b` as the Analyst:
+Set a seat's provider to `ollama` in `LLM_CONFIG_template.json` and add the model to `model_properties`.
+For example, an Analyst using `gpt-oss:20b`:
 
 ```json
 {
@@ -460,8 +375,6 @@ to use `gpt-oss:20b` as the Analyst:
 }
 ```
 
-Add a matching entry under `model_properties` in the same file:
-
 ```json
 "gpt-oss:20b": {
   "capability": "reasoning",
@@ -473,42 +386,28 @@ Add a matching entry under `model_properties` in the same file:
 }
 ```
 
-**Context length.** For local models, `context_window` sets the context length used for each request
-(Ollama's `num_ctx`). Set it to at least 32,768 tokens for the Analyst; the example uses 65,536.
-Without it, Ollama applies its own default, which depends on the machine's memory and can be as low as
-4,096 tokens. A prompt longer than the limit is truncated rather than rejected; BambooAI shows a
-warning when it detects this. Cloud models manage their own context length and do not need the
-setting.
+- **Context:** `context_window` controls Ollama's `num_ctx`. Use at least 32,768 tokens for the Analyst
+  (65,536 in this example). Without it, Ollama's default may be much smaller and long prompts can be
+  truncated; BambooAI warns when detected. Ollama cloud manages context separately.
+- **Reasoning:** `reasoning_efforts` lists the supported levels; `reasoning_effort` selects one. Check
+  them with `ollama show <model>`. Models with only an on/off thinking switch use that instead; `none`
+  disables thinking where supported.
+- **Repetition penalty:** BambooAI sends `repeat_penalty: 1.0` to avoid Ollama's default penalty
+  affecting code or structured output. Override it in `model_properties` if needed.
+- **Cost:** Use `0.0` for local-model token prices. Ollama cloud use is governed by your Ollama account
+  and plan.
 
-**Reasoning.** List the thinking levels the model supports in `reasoning_efforts`, and pick one with
-the agent's `reasoning_effort`. `ollama show <model>` lists the levels a model defines. For models
-that can only switch thinking on or off, BambooAI sends the switch instead; `reasoning_effort: none`
-turns thinking off where the model allows it. Models without thinking support receive no setting.
-
-**Repetition penalty.** Ollama penalises recently used tokens by default (`repeat_penalty` 1.1), which
-degrades code and structured output, so BambooAI sends `1.0` (no penalty) with each request. To use a
-different value for a model, add `repeat_penalty` to its `model_properties` entry.
-
-**Costs.** Set `prompt_tokens` and `completion_tokens` to `0.0` for local models. Cloud usage is
-covered by your Ollama account and plan.
-
-#### Connecting to Ollama
-
-By default, BambooAI connects to Ollama on your own computer at `http://localhost:11434`. To use
-Ollama on another machine, set its address in your `.env` file:
+Ollama defaults to `http://localhost:11434`. For a server on another machine:
 
 ```dotenv
 REMOTE_OLLAMA=http://<server-address>:11434
 ```
 
-All agents using the `ollama` provider share this connection. Pull local models on the machine
-running that Ollama server, and to use cloud models through it, sign in there with `ollama signin`.
+Pull models on the server itself; for Ollama cloud models served through it, run `ollama signin` there.
+To listen beyond the loopback interface, use `OLLAMA_HOST=0.0.0.0` and restrict the network to trusted
+clients. All seats using `ollama` share this connection.
 
-For access from another machine, start the Ollama server with `OLLAMA_HOST=0.0.0.0`, and restrict
-access to a trusted network.
-
-You can also connect to Ollama's cloud directly, without running an Ollama server. Add these settings
-to your `.env` file and choose cloud models in your agent configuration:
+To use Ollama cloud without running a local server:
 
 ```dotenv
 REMOTE_OLLAMA=https://ollama.com
@@ -517,14 +416,8 @@ OLLAMA_API_KEY=your_api_key
 
 ### vLLM
 
-BambooAI can use models served by vLLM on a machine with a suitable GPU. vLLM serves a model as an
-OpenAI-compatible API; BambooAI connects to it the way it connects to any provider.
-
-#### Serving a model
-
-The command below serves Qwen3.8-27B in 8-bit on a single 48 GB GPU, with a 64k context and the
-model's thinking returned separately from its answers. It is the configuration BambooAI was tested
-against (vLLM 0.30, an RTX A6000):
+BambooAI connects to vLLM through its OpenAI-compatible API. The following is the tested setup for
+Qwen3.8-27B, 8-bit quantisation, a 64k context and a single RTX A6000 (48 GB), using vLLM 0.30:
 
 ```bash
 vllm serve ~/models/Qwen3.8-27B \
@@ -538,20 +431,13 @@ vllm serve ~/models/Qwen3.8-27B \
   --host 0.0.0.0 --port 8000
 ```
 
-A few of these flags are worth knowing about. `--reasoning-parser` is what lets BambooAI show the
-model's thinking apart from the answer. `--served-model-name` gives the model the short name you use
-in the agent configuration. `--linear-backend marlin` selects the 8-bit kernels that run on Ampere
-GPUs such as the A6000 and A100; on Ada and Hopper GPUs it is not needed. `--language-model-only`
-skips the model's vision components for this text-only setup; it will not receive plot images.
-The `--compilation-config` line runs the model with CUDA graphs but without `torch.compile`, which
-fails in the tested setup; it is markedly
-faster than `--enforce-eager`. The `--speculative-config` line uses the model's own
-multi-token-prediction head to draft tokens: the same output, noticeably faster. Drop it for a
-model without an MTP head.
+`--served-model-name` is the name used in BambooAI's configuration. `--reasoning-parser` returns
+thinking separately from the answer. The example uses Marlin kernels for an Ampere GPU, disables vision
+components with `--language-model-only`, uses CUDA graphs without `torch.compile`, and enables the
+model's multi-token-prediction head. Remove the speculative configuration for models without that head;
+adapt GPU-specific flags to your hardware.
 
-#### Model configuration
-
-In `LLM_CONFIG_template.json`, set the agent's provider to `vllm` and use the served model name:
+Configure the seat and matching model properties:
 
 ```json
 {
@@ -566,8 +452,6 @@ In `LLM_CONFIG_template.json`, set the agent's provider to `vllm` and use the se
 }
 ```
 
-Add a matching entry under `model_properties`:
-
 ```json
 "qwen3.8-27b": {
   "capability": "reasoning",
@@ -579,191 +463,156 @@ Add a matching entry under `model_properties`:
 }
 ```
 
-**Context length.** vLLM sets the context length when the server starts (`--max-model-len`) and
-refuses a prompt that does not fit, rather than truncating it. Set `context_window` to the same
-value and BambooAI warns before sending a prompt that cannot fit, with the options for fixing it.
+Set `context_window` to match the server's `--max-model-len`. Unlike Ollama, vLLM refuses requests that
+exceed the configured context; BambooAI can warn before sending them. With `--reasoning-parser`, effort
+levels come from `reasoning_efforts` (Qwen3.8 uses `low`, `medium`, `xhigh`); unsupported choices are
+mapped to a supported level, and `none` disables thinking. Use `0.0` token prices for a self-hosted
+server.
 
-**Reasoning.** With `--reasoning-parser`, the agent's `reasoning_effort` is passed to the model;
-list the levels it supports in `reasoning_efforts`, as the model names them (Qwen3.8 takes `low`,
-`medium` and `xhigh`). An agent's effort the model does not define is mapped to the nearest level
-it does. `reasoning_effort: none` turns thinking off.
-
-**Costs.** Set `prompt_tokens` and `completion_tokens` to `0.0`; the server does not bill.
-
-#### Connecting to vLLM
-
-Set the server's address in your `.env` file:
+Set its address in `.env`:
 
 ```dotenv
 REMOTE_VLLM=http://<server-address>:8000/v1
 ```
 
-If the server was started with `--api-key`, add `VLLM_API_KEY` with the same value.
+If vLLM uses `--api-key`, also set `VLLM_API_KEY` in `.env`. With every seat on a locally hosted model,
+LLM requests stay on your network; Ollama cloud, `SEARCH` and external data integrations still contact
+their respective services. Running Python in Docker does not, by itself, keep model requests local.
 
-With every role configured to use models hosted on your own network, LLM requests stay on that
-network. Ollama cloud is not local hosting; web search and external data integrations also make
-requests to their respective services.
+## Data and integrations
 
-## Data and Integrations
-
-- **Primary dataset**: CSV, Parquet, JSON or XLSX, loaded into the kernel as `df`. Browse its rows
-  in the Data tab.
-- **Auxiliary datasets**: additional files uploaded alongside the primary dataset, available to
-  the cells by path.
-- **Intervals.icu** and **Endura**: an API key entered in the app (stored encrypted in the working
-  folder's database). For Intervals.icu a coach keeps one key per athlete: Settings → Intervals ICU
-  lists the athletes with a key (Intervals.icu is asked whose a key is when it is saved), and the
-  load dialog opens on the roster - each athlete with what the store holds for them, the last loaded
-  first; picking one proposes the window from their last held day. Choose a date range; the data is loaded into the executor and
-  described to the analyst - the frame's schema and the heads of the files that came with it. An
-  Intervals.icu load can add the activity summary, the wellness log, the activity intervals and, with
-  the Context option, the words and the planned workouts.
-- **SweatStack**: OAuth; needs your own app registration with SweatStack (`SWEATSTACK_CLIENT_ID`,
-  `SWEATSTACK_CLIENT_SECRET`).
-- **Web search**: `GEMINI_API_KEY`.
+- **Files:** CSV, Parquet, JSON or XLSX as the primary dataset, available as `df` in the kernel and
+  browsable in **Data**. Additional uploaded files are available to cells by path.
+- **Intervals.icu and Endura:** Add API keys in the app; credentials are encrypted in the working-folder
+  database. Intervals.icu supports a separate key per athlete. **Settings → Intervals ICU** lists
+  athletes linked to keys; the load dialog shows their cached data and proposes the next window from the
+  last held day. Choose a date range to load activities, summary, intervals and wellness data, with
+  optional context and profile files.
+- **SweatStack:** OAuth integration, requiring `SWEATSTACK_CLIENT_ID` and `SWEATSTACK_CLIENT_SECRET`
+  from your own app registration.
+- **Web search:** Set `GEMINI_API_KEY` to make `SEARCH` available with grounded sources.
 
 ### Documents
 
-A thread can carry up to four documents, such as papers, notes, meeting or interview transcripts, as PDF,
-Word (`.docx`), Markdown or plain text, each up to 10 MB. Attach one from the paperclip menu
-(**Document**). The file is parsed once, into passages with locators: the page for a PDF, the heading
-trail for the other formats, each passage numbered `D1.17` (document 1, passage 17). Tables become
-rows the kernel can load. A blue **Documents** pill in the top bar shows how many are attached; hover
-it to see them and remove one, click it to open the Documents view, which shows each document's map
-and its text passage by passage.
+Attach up to **four documents per thread**, each up to **10 MB**, using the paperclip's **Document**
+option. Supported formats are PDF, `.docx`, Markdown and text. Documents are parsed into numbered
+passages (`D1.17` means passage 17 of document 1), with page or heading locators. Tables are exposed as
+dataframes.
 
-Rather than receiving each document in full, the Analyst starts with a short map of it: the
-outline, the tables and the figure captions. In the kernel each document is an object: `D1.text`,
-`D1.page(n)`, `D1.grep(pattern, context=1)`, `D1.units(a, b)`, `D1.table(n)` (a dataframe),
-`D1.outline()`. A cell can search a transcript for a name, read a section, or load a table and check it
-against the paragraph that describes it, and the report cites the cell as usual.
+The **Documents** pill opens the document map and passages. The Analyst initially sees the outline,
+tables and figure captions, not the full text. Inside the kernel, a document is exposed through
+`D1.text`, `D1.page(n)`, `D1.grep(pattern, context=1)`, `D1.units(a, b)`, `D1.table(n)` and
+`D1.outline()`.
 
-For questions that need more than a text search, the Analyst can use `READ`. It names a document
-(or all of them, or a stretch of one) and what it is looking for; the passages that match go to the `Reader` seat, which
-quotes the ones that answer, each checked word for word against the document and returned with its
-locator. A `READ` counts as a turn, like a web search, with up to three reads per run.
+The Analyst can also issue `READ` to ask the `Reader` seat about selected passages (up to
+**three reads per run**). Quotations are checked against the parsed text, and reports can cite `[D1.17]`
+alongside `[cell n]`. Citations preview the passage and link to it in Documents.
 
-The report cites a passage as `[D1.17]` beside `[cell n]`; on the page the citation shows the
-passage on hover and opens the Documents view at it on click.
+Files live at `storage/<user>/documents/<thread>/` and are deleted with their thread. Parsing uses
+`pdfplumber` and `python-docx`. Scanned PDFs without a text layer are unsupported (no OCR), as is parsed
+text over **2 MB**. Older seat templates without `Reader` still work, but `READ` requires adding that
+seat.
 
-Documents are kept as files under the working folder's `storage/<user>/documents/<thread>/`, not in
-the database; every chain in the thread sees them, and they are removed with the thread. The parsers
-are `pdfplumber` and `python-docx`, installed with the package. A template from before the `Reader`
-seat keeps working: add the seat from the shipped template to yours to turn `READ` on. A PDF without a
-text layer (a scan) is refused: OCR is not supported. Parsed text above 2 MB is refused as well; the
-pill shows the reason.
+### Intervals.icu context
 
-### The words beside the numbers
+With **Context** enabled in an Intervals.icu load (the default), BambooAI includes activity messages,
+notes, calendar entries and planned workouts alongside the numerical data. Passages retain their date,
+type, author's role and original text. The `Coder` reads them against a user-managed codebook and adds
+labels, with English renderings of non-English passages kept beside the originals. Coded passages are
+cached per athlete.
 
-Training data comes with writing: what the athlete wrote under a ride, what the coach replied, the
-plan's prose, a note on a day, a sick or holiday entry, a tag, a tick. With the **Context** option
-of an Intervals.icu load (on by default) those become a table of passages beside the numbers - one
-row each, with its day, its kind, its author's role and the text as written - and a second table of
-codes: the `Coder` seat reads every passage once against a codebook (fatigue, recovery, instruction,
-deviation, …), labels it, and renders a passage not in English into English, kept beside the original.
-The coded passages are stored per subject, so a window seen before is coded in seconds. A third
-file, the planned workouts, carries the prescription on the numbers side: each planned session, the
-activity it was done as, its compliance, the plan's duration, load and targets, the step lines and
-the structure.
+In the kernel, `CTX.frame()` returns passages and `CTX.codes()` their classifications. Use
+`CTX.grep(pattern)`, `CTX.around(date, days=3)`, `CTX.between(a, b)`, `CTX.on(activity_id)` and
+`CTX.text(ref)` to inspect context; search methods also accept `as_frame=True`. `READ CTX what` asks the
+`Reader` to find relevant passages. The Analyst first receives a summary of passage counts, types,
+languages and codes, not their full text. Reports quote passages under citations such as `[C.417]`,
+identifying translated text as rendered. Code counts reflect model classifications, not verified facts.
 
-The Analyst sees a map of the words in its data description - the span, the passages by kind and
-month, the authors, the languages, the codes with their counts - never the text. In the kernel the
-words are `CTX`: `CTX.frame()` and `CTX.codes()` are the two tables, `CTX.grep(pattern)`,
-`CTX.around(date, days=3)`, `CTX.between(a, b)` and `CTX.on(activity_id)` find passages (as text to
-print; `as_frame=True` returns the rows), `CTX.text(ref)` reads one whole. `READ CTX what` puts a question to the `Reader` over the passages, as over documents.
-The report cites a passage as `[C.417]`, quoted verbatim and marked *rendered* when it was translated;
-a count of codes is reported as the model's reading, not as what was said.
+A separate planned-workout dataset links prescriptions and targets with completed activities, including
+compliance, duration, load, steps and structure. If no codebook entry fits a passage, the `Coder` can
+assign a provisional code for review. The codebook UI lets you accept, rename, merge or reject
+proposals, and import or export JSON. Changes affect subsequent loads; existing passages are not
+automatically re-coded. See [`docs/CONTEXT_DESIGN.md`](docs/CONTEXT_DESIGN.md).
 
-The codebook is yours. When no code fits a passage the `Coder` proposes one, uses it meanwhile with
-its rows marked, and leaves the decision to you: the Context card of the Intervals.icu load dialog
-says how many proposals wait and opens the codebook (the Context pill carries the count too), which
-shows each proposal with the passages it came from - confirm it, confirm it under another name,
-merge it into a code the book has, or decline it - and the codes by group with their definition,
-status and the last load's uses.
-The book can be exported and imported as JSON. A confirmed change applies from the next load;
-nothing already coded is re-coded. The design is `docs/CONTEXT_DESIGN.md`.
+### Rider profile
 
-### The settings the data is read against
+**Rider profile** is enabled by default for Intervals.icu loads. It writes the athlete's settings
+alongside the dataset: weight, height, resting HR and age, per-sport FTP and thresholds, zone
+boundaries, power-duration estimates, custom zone definitions and custom-field metadata (types, units
+and options). When present, a separate file contains time in custom zones per activity. Summary,
+interval and wellness files retain custom fields, including option labels and their numeric values.
 
-The **Rider profile** option of an Intervals.icu load (on by default) writes the account's settings
-as a file beside the data: the rider's weight, height, resting HR and age; per sport, the FTP, the
-thresholds and the zones with their bounds, and the power-duration model's estimates; every custom
-zone set the account defines, zone by zone; and the meaning of every custom field - its code, type,
-units and options - so the columns of the other files explain themselves. When the account defines
-custom zone sets, a second file carries the time in each custom zone per ride. The intervals, wellness
-and summary files carry every custom field under its code - a select as its option's text, with the
-number beside it. Everything comes from the account's own record, nothing is named in code, and
-nothing identifying goes in (the record's e-mail, names and key stay out). The profile also says which end of the
-wellness file's 1–4 scales is the good one for each scale the account tracks - 1, by the platform's convention. The Analyst reads the thresholds from the file's rows in its data
-description, and the summary file carries the settings in force on each day. The design is
-`docs/RIDER_PROFILE_DESIGN.md`.
+The profile excludes names, email and credentials. It records that 1 is the favourable end of each
+wellness 1–4 scale and makes thresholds available in the Analyst's data description; the summary also
+includes settings in force on each day. See
+[`docs/RIDER_PROFILE_DESIGN.md`](docs/RIDER_PROFILE_DESIGN.md).
 
-### The Dataset cache and the store
+### Dataset cache and Intervals.icu store
 
-The executor keeps what it has loaded - the frames with their window and metrics, the files a load
-writes, the datasets an analysis writes with `DS.save` - and the **Dataset cache** dialog (the rail)
-draws it as a tree: the source, the athlete under it, and under the athlete one line per dataset the
-Intervals.icu dialog offers plus the frame - Activities, Activity summary, Activity intervals, Wellness,
-Context (chats and calendar), Rider profile - with its span, what is held and its size, and whether it is
-on the Data tab now or in the store only. A click on a line opens its details - what it is, what is held, the
-files a load writes and their columns - and the actions: **Load <dataset>** (the span held, from the
-store alone - nothing is fetched), **Load <dataset> to today** (through Intervals.icu, only the missing
-days come down) and **Forget <dataset>** (its pill off the Data tab and the data out of the cache,
-after asking); the athlete's line has the same for everything held. Loading one dataset leaves the
-frame as it is; loading Activities brings the datasets on the Data tab with it, to the same window; the
-Data tab holds one athlete at a time (a load for another athlete lets the first's pills go, after
-asking; the thread stays, the kernel starts fresh on the new data, and the model's ledger marks the
-earlier chains as on another subject's data); a *to today* load runs on the athlete's own key, and one
-for an athlete without a key is refused, saying so; a pill's × takes a dataset off the
-Data tab without deleting it. Uploads and generated files keep their own groups. A routine whose window lies inside a
-load the executor still holds runs from the cache without a download.
+The executor retains loaded frames, integration files and datasets written with `DS.save`. The
+**Dataset cache** in the side rail groups them by source and athlete, with each dataset's span, contents
+and size. Selecting an entry shows its files, columns and available actions:
 
-Underneath, every Intervals.icu activity the executor has parsed is kept in a **store** under the
-athlete's folder (the source and the athlete id the profile gives), with the chats and the laps fetched
-for it, the wellness log by day, the calendar by entry and the profile's snapshots. A load is a view
-over the store: the window's activity list is fetched, the activities the store lacks (or whose file
-changed) are downloaded, the rest are assembled from disk, and the chats and laps of activities older
-than sixty days are reused; the wellness and calendar of the window come down and are merged, so the
-span held is the union of every load. *Everything again* in the load dialog fetches the whole window
-again. A load covers at most a year at a time and reaches back four years (three months and a year on
-the free tier, six months and two years on the cost tier); activities fall out of the store once older
-than the plan's reach unless a load used them in the last thirty days; the window files a load writes
-leave after a month.
+| Action | Effect |
+|---|---|
+| **Load dataset** | Put the chosen window (*From → To*, or the *3 m · 6 m · 1 y* picks) on the Data tab. Days already in the cache are reused; missing days are fetched from Intervals.icu, which requires that athlete's API key. |
+| **Clear dataset** | Remove it from the cache and the Data tab after confirmation. |
+| **×** on a Data pill | Remove the dataset from the Data tab without deleting its cached copy. |
 
-The store and the loaded files live in the Docker volume `bambooai-datasets`, which outlives the
-container and its image: an upgrade keeps them. `docker volume rm bambooai-datasets` starts the
-executor empty; `BAMBOO_EXECUTOR_DATASETS` in `.env` names a folder on the host instead of the
-volume.
+On an athlete's line, **Load all datasets** and **Clear the cache** do the same for everything held. The
+Data tab shows one athlete at a time. Switching athletes clears the prior athlete's loaded pills
+after confirmation and starts a fresh kernel; the earlier thread history remains. Loading Activities
+brings its associated datasets into the same window. Routines reuse a cached load when it already covers
+their requested window.
+
+Under the cache, an incremental Intervals.icu store retains parsed activities, messages, laps, wellness
+and calendar records, plus profile snapshots. A load retrieves the requested window's activity list,
+fetches missing or changed details, and reuses older parsed data. Messages and laps from activities in
+the last **60 days** are refreshed; wellness and calendar entries are merged. **Everything again**
+forces a fresh fetch of the window.
+
+Load limits are based on the **compute tier**, not the model preset:
+
+| Compute tier | Maximum window per load | How far back you can load |
+|---|---|---|
+| Free | 3 months | 1 year |
+| Plus | 6 months | 2 years |
+| Pro / local edition | 1 year | 4 years |
+
+Stored activities older than the tier's reach are pruned unless used by a load in the last **30 days**;
+generated window files expire after a month. All executor data survives container and image upgrades in
+`bambooai-datasets`. Set `BAMBOO_EXECUTOR_DATASETS` to use a host folder instead. To reset the
+Docker-backed cache, remove the volume with `docker volume rm bambooai-datasets` after stopping its
+consumers. See [`docs/DATASETS_DESIGN.md`](docs/DATASETS_DESIGN.md) and
+[`docs/INCREMENTAL_LOADS_DESIGN.md`](docs/INCREMENTAL_LOADS_DESIGN.md).
 
 ## Where the Code Runs
 
-The analysis kernel, the reproduction run and the integrations' data fetching all run in the
-**executor container**: a Flask API in front of the persistent kernel, from `containers/executor/`.
-`bambooai serve` builds the image (`bambooai-executor:<package version>-<executor build>`, rebuilt when
-either changes) on first use, starts the container published on `127.0.0.1:5055` with the datasets
-volume mounted at `/app/datasets`, waits until it is ready, and stops it when the app stops
-(`--keep-executor` leaves it running). The **Restart** control in the app restarts it.
+By default, analysis cells, replay and integration data fetching run in the Docker **executor**
+(`containers/executor/`), a Flask API with a persistent Python kernel. `bambooai serve` builds an image
+tagged `bambooai-executor:<package-version>-<executor-build>` when needed, starts it on `127.0.0.1:5055`
+with `/app/datasets` backed by the persistent volume, and stops it when the web app exits.
+`--keep-executor` leaves it running; the app's **Restart** control restarts it.
 
 Alternatives:
 
-- `bambooai serve --compute local` (or `BAMBOO_COMPUTE=local`): the kernel runs in a subprocess of
-  the web app. No Docker needed; no isolation; the integrations are not available, since they fetch
-  inside the executor.
-- An executor you run yourself, `docker run -p 5055:5000 -v bambooai-datasets:/app/datasets bambooai-executor:2.3.0-v56`
-  on this or another machine, with `EXECUTION_MODE=api` and `EXECUTOR_API_BASE_URL` in `.env`. Use
-  the image tag `bambooai serve` built for your installed package (`docker images bambooai-executor`
-  lists it); the one here is an example. Restrict access to trusted hosts.
+- **Local subprocess:** `bambooai serve --compute local` or `BAMBOO_COMPUTE=local`. No Docker required,
+  but there is no container isolation and executor-hosted integrations are unavailable.
+- **Your own executor:** Configure `EXECUTION_MODE=api` and `EXECUTOR_API_BASE_URL` in `.env`. Find the
+  image built for your installed package with `docker images bambooai-executor` and substitute its tag
+  for `IMAGE_TAG`:
 
-The web app listens on `127.0.0.1` unless started with `--host 0.0.0.0`. Model provider keys live in
-`.env` and are read at start; the app does not have a model-key entry form. Integration credentials
-are entered separately as described above.
+```bash
+docker run -p 5055:5000 -v bambooai-datasets:/app/datasets IMAGE_TAG
+```
 
-Local code execution and local model inference are separate choices. When you use a remote model
-provider, the prompts sent to it include analysis context, such as dataset descriptions and cell
-outputs. Use locally hosted models for local LLM inference; Docker isolation alone does not make
-model requests local.
+Restrict access to trusted hosts. The web server binds to `127.0.0.1` by default;
+`bambooai serve --host 0.0.0.0` exposes it on all interfaces. Provider keys are read from `.env` at
+startup rather than entered in the app; integration credentials are managed in the app. When using
+remote models, requests may include dataset descriptions, code and outputs. Local execution is not the
+same as local inference.
 
-## Command Line
+## Command line
 
 ```
 bambooai serve [--home DIR] [--port N] [--host H] [--compute docker|local] [--keep-executor] [--no-browser]
@@ -786,35 +635,31 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
                             └── containers/executor/   the executor image
 ```
 
-- `analyst/contract.md` contains the Analyst's base instructions. `analyst/session.py` runs the
-  loop and assembles each prompt with the question, data, working state and any applicable document
-  or review instructions.
-- `delve/kernel.py` runs cells in a subprocess and keeps a checkpoint per committed cell.
-- `analyst/routines.py` is the pure part of routines (the promoter's prompt, the inputs, the cut, the
-  comparison) and `bambooai/routines_host.py` runs them; `analyst/context.py` and `analyst/coder.py`
-  are the words' tables and the coding pass, `containers/executor/intervals_store.py` the store.
-- `bambooai/models/` adapts each provider, including reasoning-effort vocabularies and prompt caching.
-- `bambooai/db/local_store.py` is a SQLite client with the same query interface the hosted edition
-  uses against Supabase, so the routes above it are shared between the two.
-- `tools/stack/` runs the app, an executor and stand-ins for the external services with a scripted
-  analyst, so the product can be driven end to end offline - including Intervals.icu and Endura, served
-  by `fake_apis.py` from a calendar with the loaders' own variation (FIT files the executor's parser
-  reads, windows without a sensor, a wellness log that ends, a race without power).
+- [`analyst/session.py`](analyst/session.py) drives the turn loop using
+  [`analyst/contract.md`](analyst/contract.md). Reports, replay, the code map and routines are
+  implemented under `analyst/`.
+- [`delve/kernel.py`](delve/kernel.py) runs code in a checkpointed subprocess; successful cells persist
+  and failed cells roll back.
+- [`bambooai/models/`](bambooai/models/) provides model adapters, reasoning-effort mapping and prompt
+  caching. `bambooai/db/local_store.py` uses SQLite behind the same interface as the hosted Supabase
+  store.
+- `analyst/context.py`, `analyst/coder.py` and `containers/executor/intervals_store.py` implement
+  training context, coding and incremental data storage.
+- `tools/stack/` provides an offline test stack with scripted model responses and fake
+  Intervals.icu/Endura services.
 
-## Logging and Usage
+## Usage and logs
 
-- `logs/<user>/bambooai_run_log.json`: every model call of the current thread, including seat, model, prompt,
-  response, tokens, time and cost, overwritten when a new thread starts.
-- `logs/<user>/consolidated_logs.json`: the same across threads, rotated at 5 MB.
-- In the app: **Usage** (gear menu) reads the call records for a period - the last 24 hours, 7, 30 or 90
-  days, this month or last month - against the period before: the model cost, analyses, calls, tokens in
-  (with the share served from the prompt cache and what it saved), tokens out and model time as tiles; a
-  column chart by day stacked by seat, model or mode, measuring cost, tokens, calls or time; the seats and
-  models as sortable tables with the configuration's list prices; every analysis with what it cost and how
-  it ended, and for the one picked its seats, its calls laid out in time and its models; the raw rows; a CSV
-  export. Every number comes from the records; nothing in it is written by a model. The closing card of
-  every run shows its cells, cost and time and opens the per-call telemetry; the prompt button on any
-  turn shows the exact prompt that produced it.
+- `logs/<user>/bambooai_run_log.json`: model calls for the current thread, with seat, prompt, response,
+  tokens, time and cost. Replaced when a new thread starts.
+- `logs/<user>/consolidated_logs.json`: accumulated calls across threads, rotated at 5 MB.
+
+The **Usage** dialog (gear menu) filters by the last 24 hours, 7, 30 or 90 days, or the current or
+previous month. It compares cost, tokens, calls, time and analyses with the preceding period; breaks
+metrics down by seat, model, mode or day; and offers per-analysis call timelines, raw records and CSV
+export. Prompt-cache savings use recorded token accounting. The closing card opens a run's per-call
+telemetry; each turn also exposes the exact prompt used. These figures come from logs, not
+model-generated estimates.
 
 ## Development
 
@@ -834,25 +679,27 @@ python tests/e2e/test_package.py                                  # the wheel in
 python tools/render_gallery.py --out /tmp/gallery                 # every page state, both themes, for visual comparison
 ```
 
-CI (`.github/workflows/ci.yml`) runs the battery and builds the executor image on every push; the
-browser suites and the package test are run locally before a push. A tag `v*` publishes the package
-to PyPI (`.github/workflows/release.yml`).
+CI (`.github/workflows/ci.yml`) runs the test battery and builds the executor image on each push. The
+browser suites and packaging test are run locally. Tags matching `v*` publish to PyPI through
+`.github/workflows/release.yml`.
 
-Design notes: `docs/DESIGN_CHECKLIST.md` (what every change must keep true),
-`docs/OSS_DESIGN.md` (the decisions behind this edition), `docs/ROUTINES_DESIGN.md`,
-`docs/CONTEXT_DESIGN.md` and `docs/INCREMENTAL_LOADS_DESIGN.md` (routines, the words, the store),
-`docs/CODEMAP_DESIGN.md` (the code map), `docs/REACH_DESIGN.md` (the reach record),
-`docs/DATASETS_DESIGN.md` (the store and the keys per athlete), `docs/USAGE_DESIGN.md` (the usage records and
-the dialog), `HANDOVER.md` (the state of the code).
+Further design and maintenance notes: [`docs/DESIGN_CHECKLIST.md`](docs/DESIGN_CHECKLIST.md),
+[`docs/OSS_DESIGN.md`](docs/OSS_DESIGN.md), [`docs/ROUTINES_DESIGN.md`](docs/ROUTINES_DESIGN.md),
+[`docs/CONTEXT_DESIGN.md`](docs/CONTEXT_DESIGN.md),
+[`docs/INCREMENTAL_LOADS_DESIGN.md`](docs/INCREMENTAL_LOADS_DESIGN.md),
+[`docs/CODEMAP_DESIGN.md`](docs/CODEMAP_DESIGN.md), [`docs/REACH_DESIGN.md`](docs/REACH_DESIGN.md),
+[`docs/DATASETS_DESIGN.md`](docs/DATASETS_DESIGN.md), [`docs/USAGE_DESIGN.md`](docs/USAGE_DESIGN.md) and
+[`HANDOVER.md`](HANDOVER.md).
 
 ## Contributing
 
 Issues and pull requests are welcome. Keep changes small and readable, run the battery and the
-end-to-end story before opening a pull request, and say in the description what you tested.
+end-to-end story before opening a pull request, and state what you tested.
 
 ## Contact
 
-palo@bambooai.io · [Issues](https://github.com/pgalko/BambooAI/issues) · [Discussions](https://github.com/pgalko/BambooAI/discussions)
+palo@bambooai.io · [Issues](https://github.com/pgalko/BambooAI/issues) ·
+[Discussions](https://github.com/pgalko/BambooAI/discussions)
 
 ---
 
