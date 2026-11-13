@@ -99,8 +99,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/236/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/140/14/25/4/14/67/41 JS; 1,840 on 2026-11-13; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (141 hosted on 2026-11-13; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (244/215/31/27/18/49/44/72/33/245/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/142/14/25/4/14/67/41 JS; 1,850 on 2026-11-13; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (138 hosted on 2026-11-13; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (144; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -481,6 +481,44 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Routines rebuilt: a run, a statement at a time (2026-11-13, patch 0288; docs/ROUTINES_DESIGN.md §19 rewritten,
+  §22 new).** Palo, after a weekly fill whose rows were mostly red and a *Fix it in the analysis* that produced a
+  second analysis: "the current design is very fragile, and the feature rarely works as intended". The review
+  (`ROUTINES_REVIEW_2026-11-13.md` in the outputs folder) found the core sound and the fragility in what a run asked
+  of a method made on more data. Agreed and built as one change - no rolling look-back (a week stays the week alone),
+  no repair by a model:
+  - **One stored text.** A version keeps the chain as written with the promoter's edits (`method_cells`); the promoter
+    still reads the chain without its exploration (`prune_cells`, `held_out` / `put_back`). `script_written`,
+    `condensed`, `consolidated`, `script_fallback` are gone.
+  - **The run** (`rt.stepwise`, `rt.read_run`, `rt.place_lines`): each top-level statement under a `try` of its own,
+    as plain code - the local kernel refuses a script that names `exec` (`delve/kernel.py`, BLACKLIST), so nothing is
+    held as text. A statement that stops spoils the names it writes, by name and by object; a later statement that
+    reads one is not run; the rest runs. A failing module-level `assert` / `raise` halts what follows. A frame with no
+    rows runs nothing. Lines are known by place (`at: [step, k]` on the manifest's line, learnt at run zero, valid
+    while `version.steps == rt.steps_key(script)`); without places a run is read by position up to the first
+    statement that did not run, and the first whole run teaches them.
+  - **The shorter run** (`rt.needed_steps`, `check_lean`): only the statements the tracked lines and the figures rest
+    on, kept (`version.lean`) when it gives run zero's lines and figures at Save.
+  - **The record**: `results` has one entry per expected line - the line, or a blank with `why`; statuses `ran`,
+    `reproduced`, `empty`, `failed`, `timed_out` (`host.DONE`); `stopped` (cell, line, code, error, later statements
+    not run) and `gaps` (the mark: a watched column emptier than at run zero, `rt.gap_sentences`). One retry when the
+    script could not be carried out (`carry_out`, `_transport`).
+  - **The trials** (`trial_windows`, `try_method`): Save runs the method on the latest complete day, week and month
+    of the analysis's own window (Intervals.icu data with a date column), nothing recorded as a run; `version.tried`
+    is the manager's *Tried on* fact and the Run dialog's note. Run zero, the shorter run and the trials are one proof
+    behind the dialog (`prove_method`, `settle_proof`).
+  - **Removed**: the condensing pass's records, the consolidation with the `Condenser` seat (templates, Usage page,
+    the stack's stand-in), *Fix it in the analysis*, the statuses `differed` / `condensing` and the *not reached* mark,
+    `failed_cell`.
+  - **Earlier records** are brought to this shape once, when a routine is loaded (`RoutineStore._upgrade`, `SHAPE`
+    on the routine); `run.json` files are rewritten with it.
+  - **The page** (routines.js): `build.DONE / KEPT / LOST`, blanks as a dot with the reason on hover, the △ mark, the
+    stopped statements on the Trend tab, *Tried on*, the dialog's note; an empty week is a row of dots.
+  Earlier entries' §19.4 and §19.5 are §19.2 and §19.3 now. Tests: test_routines.py 245, test_app_path.py 215,
+  test_routines.js 142, the battery 1,850, the stack walk 138 (eight checks of the removed pieces out, five in); the
+  integrations walk's edits are unrun here. Known and left: a version still *verifying* when the server restarts stays
+  refused (delete it and save again); nothing detects a number of the original data typed into a method - the trials
+  show its effect.
 - **The athlete pick with one athlete (2026-11-13, patch 0287).** The Routines manager showed the athlete pick only
   when the runs spanned two athletes, so a routine with its first run alone did not say whose data it ran on. The pick
   now shows whenever the runs name an athlete - one option, the name and the count, from run 0 on (`routineBody` in

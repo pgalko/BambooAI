@@ -221,8 +221,8 @@
         },
         routineEnd(r) {
             // the closing card of a routine's run (S4): what came out, the verdict, the tabs
-            const bad = r.status === 'failed' || r.status === 'timed_out' || r.status === 'differed';
-            const title = 'Run ' + esc(r.number) + (r.status === 'failed' ? ' failed' : (r.status === 'timed_out' ? ' timed out' : (r.status === 'differed' ? ' differed' : ' complete'))) + (r.name ? ' · ' + esc(r.name) : '');
+            const bad = r.status === 'failed' || r.status === 'timed_out';
+            const title = 'Run ' + esc(r.number) + (r.status === 'failed' ? ' failed' : (r.status === 'timed_out' ? ' timed out' : (r.status === 'empty' ? ' had no data' : ' complete'))) + (r.name ? ' · ' + esc(r.name) : '');
             const compared = r.compared ? ((r.moved || r.changed || 0) + ' of ' + r.compared) : '—';
             const links = ['Trend'].concat(r.figures ? ['Plots (' + r.figures + ')'] : []).concat(['Results', 'Data']).map(l =>
                 '<a href="#" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'' + l.split(' ')[0] + '\');return false;">' + l + ' →</a>').join('');

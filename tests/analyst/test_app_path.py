@@ -47,9 +47,6 @@ class FakeModels:
             if cut:                                     # the reply cut at the seat's token limit (the adapters record it per request)
                 prompt_cache.record_meta(truncated=True); return cut.pop(0)
             return state.get("promoter") or '{"name": "B against A", "inputs": [{"key": "arm_b", "label": "The arm compared", "type": "choice", "default": "B", "origin": "the analysis compared B", "column": "arm"}], "edits": [{"cell": 2, "find": "m[\'B\']", "replace": "m[INPUTS[\'arm_b\']]"}], "kept": ["A stays the baseline"]}'
-        if messages[0]["content"].startswith("You are rewriting the method of a finished analysis"):      # the consolidation (§19.3): the preparing cell folded into the other
-            state.setdefault("consolidate_efforts", []).append(kw.get("reasoning_effort"))
-            return state.get("consolidator") or "```python\n# --- cell 2 ---\nm = df.groupby('arm')['x'].mean().round(3)\nd = round(m[INPUTS['arm_b']] - m['A'], 3)\n```"
         if messages[0]["content"].startswith("You are the reviewer"):
             return ("###REVIEW###\n- The question requires: B against A.\n- Established: the difference [cell 1].\n"
                     "- Most consequential problem: no interval.\n- Verdict: TEST bootstrap the difference")
@@ -186,13 +183,11 @@ pev = [e for e in pev_all if e.get("type") != "routine_step"]           # the pa
 check("propose_routine: the promoter's call is a quiet card on the pane, accounted to the billing chain; the dialog's steps on the queue too (routine_step, the billing chain on them); the proposal names the input the fake promoter made and the data the run recorded",
       [e.get("type") for e in pev] == ["pane_turn_start", "pane_turn_end"] and pev[0].get("quiet") and pev[0].get("chain_id") == "9001" and pev[0].get("turn") == "routine"
       and [(e["step"], e["state"]) for e in pev_all if e.get("type") == "routine_step"] == [("chain", "done"), ("data", "running"), ("data", "done"), ("model", "running"), ("model", "done"), ("proposal", "running")] and all(e.get("chain_id") == "9001" for e in pev_all)
-      and prop["inputs"][0]["key"] == "arm_b" and prop["data"]["rows"] == 200 and prop["data_state"] == "same" and prop["results"] == [] and "INPUTS['arm_b']" in prop["script"], (pev, prop.get("inputs")))
+      and prop["inputs"][0]["key"] == "arm_b" and prop["data"]["rows"] == 200 and prop["data_state"] == "same" and prop["results"] == [] and "INPUTS['arm_b']" in prop["cells_text"], (pev, prop.get("inputs")))
 _pu = next((u for _, u in state["calls"] if u.startswith("QUESTION:") and "ANSWER SUMMARY:" in u), "")     # the promoter's, not the figures step's
 check("the promoter's prompt carried the question, the two cells and the data's columns", _pu.startswith("QUESTION:\nIs B higher") and "# --- cell 2 ---" in _pu and "arm: " in _pu and "ANSWER SUMMARY:\nB exceeds A by" in _pu, _pu[:300])
 check("the billing chain was charged as a query would be (the fake log manager wrote under it)", any(str(e.get("chain_id")) == "9001" for e in json.load(open(_runlog))), [e.get("chain_id") for e in json.load(open(_runlog))][-3:])
-FakeModels.config["agent_configs"].append({"agent": "Condenser", "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "medium", "max_tokens": 32000}})   # the consolidation opted in (§19.3)
-from bambooai import routines_host as _rh
-_rh.CONSOLIDATE_MIN_SECONDS = 0.0                               # every method is worth it in the test
+_calls_before = len(state["calls"])
 made = BAMBOO.create_routine(prop["proposal_id"], {"name": "B against A", "purpose": "the difference, again", "drop_inputs": [], "drop_results": []})
 cev = [json.loads(q.get()) for _ in range(q.qsize())]
 def _settled(rid, timeout=60):
@@ -201,7 +196,7 @@ def _settled(rid, timeout=60):
     t0 = _t.time()
     while _t.time() - t0 < timeout:
         rz = (BAMBOO.routine_store().load(rid) or {}).get("versions", [{}])[-1].get("run_zero") or {}
-        if rz.get("status") not in ("verifying", "condensing", None, ""):
+        if rz.get("status") not in ("verifying", None, ""):
             return rz
         _t.sleep(0.2)
     return rz
@@ -210,18 +205,15 @@ check("create_routine returns at once with the routine stored as verifying and n
       made["run_zero"]["status"] == "verifying" and not made["run_zero"]["verified"] and "verify" not in made and cev == [] and made["routine"]["origin"] == {"thread_id": "1001", "chain_id": run1.id}
       and os.path.exists(os.path.join(work, "storage", "u1", "routines", made["routine"]["id"], "routine.json")) and _rz.get("status") == "reproduced" and _rz.get("verified") is True
       and q.qsize() == 0, (cev, made.get("run_zero"), _rz))
-# the pass behind the verdict (§19, §19.5): no model, and here no run - this chain has no RESULT line and no figure, so its printed output is
-# what a run keeps: nothing was cut before the promoter read it and the record says so; no pane rows
+# the proof behind the verdict (docs/ROUTINES_DESIGN.md §19, §22): no model call and no pane rows; the version keeps one text - the chain as
+# written with the promoter's edit - and what the proof found: here a chain with no RESULT line and no figure, so every statement runs, and a
+# frame from no loader, so nothing to try it on
 _v1 = BAMBOO.routine_store().load(made["routine"]["id"])["versions"][0]
-_kc = [(a, u) for a, u in state["calls"] if u.startswith("QUESTION:") and "THE METHOD (the cells in execution order" in u]
-check("the pass ran once run zero reproduced, without a model call: nothing to cut in a chain whose prints are its output, the record saying so, no script kept beside the method; then the consolidation on the Condenser seat - one quiet call at "
-      "medium effort with the cells and their outputs, billed to the save's chain, no pane rows - its rewrite (the preparing cell folded in) provisional, the method it replaced waiting under script_fallback; run zero's record is the rewrite's",
-      _v1["condensed"]["status"] == "as_written" and _v1["condensed"]["line"] == "as written: nothing to cut" and _v1["condensed"]["dropped"] == {"cells": [], "lines": 0} and "script_written" not in _v1
-      and len(_kc) == 1 and _kc[0][0] == "Condenser" and "OUTPUT:\nmeans {" in _kc[0][1] and "print('means'" in _kc[0][1].split("THE METHOD")[1] and state.get("consolidate_efforts") == ["medium"]
-      and _v1["consolidated"]["status"] == "consolidated" and _v1["consolidated"]["provisional"] is True and _v1["consolidated"]["seat"] == "Condenser" and _v1["consolidated"]["model"] == "fake/model" and _v1["consolidated"]["cost"] > 0
-      and _v1["consolidated"]["line"].startswith("consolidated: 2 cells → 1, ") and [ln for ln in _v1["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---"]
-      and "print('means'" in _v1["script_fallback"] and "# --- cell 1 ---" in _v1["script_fallback"] and "INPUTS['arm_b']" in _v1["script"] and _v1["run_zero"]["status"] == "reproduced" and _v1["run_zero"]["verified"]
-      and sum(1 for e in json.load(open(_runlog)) if str(e.get("chain_id")) == "9001" and e.get("agent") == "Condenser") == 1 and q.qsize() == 0, (_v1.get("condensed"), _v1.get("consolidated"), _kc[0][1][:400] if _kc else None))
+check("the proof ran once the routine was stored, without a model call: the version holds one script, the chain's two cells with the input in place and their prints; the mark of its statements; every statement runs - there is nothing to "
+      "leave out; no trials; nothing on the pane",
+      [ln for ln in _v1["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 1 ---", "# --- cell 2 ---"] and "print('means'" in _v1["script"] and "INPUTS['arm_b']" in _v1["script"]
+      and not {"script_written", "script_fallback", "condensed", "consolidated"} & set(_v1) and len(_v1["steps"]) == 12 and _v1["lean"]["steps"] is None and _v1["lean"]["line"] == "every statement runs: nothing to leave out"
+      and _v1["tried"] == [] and _v1["run_zero"]["status"] == "reproduced" and _v1["run_zero"]["verified"] and len(state["calls"]) == _calls_before and q.qsize() == 0, (_v1.get("lean"), _v1.get("tried"), sorted(_v1)))
 st = BAMBOO.routine_store()
 check("the store lists it with the favourite's card index pointing at run1", [r["id"] for r in st.all()] == [made["routine"]["id"]] and st.by_origin() == {("1001", run1.id): [{"id": made["routine"]["id"], "name": "B against A", "version": 1, "instruction": ""}]})
 try:
@@ -312,8 +304,8 @@ _rz_r = _settled(_msgs[-1]["routine_made"]["routine"]["id"]) if "routine_made" i
 check("route /routines/create: ends with routine_made at once, the routine verifying; the verdict lands behind it (no pane rows for it)", "routine_made" in _msgs[-1] and _msgs[-1]["routine_made"]["run_zero"]["status"] == "verifying" and _rz_r.get("status") == "reproduced" and not any(m.get("type") == "pane_lookup_start" for m in _msgs), _msgs[-1])
 _rid = _msgs[-1]["routine_made"]["routine"]["id"]
 check("route /routines: the list; /routines/<id>: the versions without scripts; by_origin: the card's index",
-      [x["id"] for x in _wc.get("/routines").get_json()["routines"]] == [_rid] and _wc.get(f"/routines/{_rid}").get_json()["routine"]["versions"][0]["script_chars"] > 100
-      and "script" not in _wc.get(f"/routines/{_rid}").get_json()["routine"]["versions"][0]
+      [x["id"] for x in _wc.get("/routines").get_json()["routines"]] == [_rid] and set(_wc.get(f"/routines/{_rid}").get_json()["routine"]["versions"][0]) == {"number", "created", "promoted_from", "change_note", "manifest", "run_zero", "tried"}
+      and "summary_card" not in _wc.get(f"/routines/{_rid}").get_json()["routine"]
       and _wc.get(f"/routines/by_origin/1001/{run1.id}").get_json()["routines"] == [{"id": _rid, "name": "Route made", "version": 1, "chain_id": run1.id, "instruction": ""}]
       and _wc.get("/routines/by_origin/1001").get_json()["routines"][0]["id"] == _rid and _wc.get("/routines/by_origin/1001/nope").get_json()["routines"] == [])
 # the person's instruction through the routes (§15.6): the prompt carries it; the fake promoter answers no "tracked", so it is asked once
@@ -414,14 +406,12 @@ while not q.empty(): q.get()
 _r = _wc.post(f"/routines/{_rid}/run", json={"values": {}, "compare_with": "previous"})
 _msgs = _lines(_r)
 _types = [m.get("type") or next(iter(m)) for m in _msgs]
-check("route run: the pane's rows (check, run, compare), the Data tab (no Results tab: the condensed script prints nothing, §19), the closing card, then routine_run",
-      _types[:2] == ["pane_lookup_start", "pane_lookup"] and "pane_routine_end" in _types and "dataframe" in _types and "code_exec_results" not in _types and "routine_run" in _msgs[-1]
-      and _msgs[-1]["routine_run"]["run"]["number"] == 1 and _msgs[-1]["routine_run"]["run"]["status"] == "ran" and "no result lines to compare" in _msgs[-1]["routine_run"]["run"]["line"] and _msgs[-1]["routine_run"]["numbers"] == [0, 1]
+check("route run: the pane's rows (check, run, compare), the Data tab, the Results tab with what the chain's cells print (free of the run's own marks), the closing card, then routine_run",
+      _types[:2] == ["pane_lookup_start", "pane_lookup"] and "pane_routine_end" in _types and "dataframe" in _types and "routine_run" in _msgs[-1]
+      and [m["data"].startswith("means {") and "diff " in m["data"] and "ROUTINE_" not in m["data"] for m in _msgs if m.get("type") == "code_exec_results"] == [True]
+      and _msgs[-1]["routine_run"]["run"]["number"] == 1 and _msgs[-1]["routine_run"]["run"]["status"] == "ran" and _msgs[-1]["routine_run"]["run"]["line"] == "ran without error" and _msgs[-1]["routine_run"]["numbers"] == [0, 1]
+      and _msgs[-1]["routine_run"]["run"]["stopped"] == [] and _msgs[-1]["routine_run"]["run"]["gaps"] == []
       and _msgs[-1]["routine_run"]["subject"] == {} and "against_data" in _msgs[-1]["routine_run"], (_types, _msgs[-1].get("routine_error")))      # whose, and the reference's data, ride with the answer (2026-10-30)
-_vr1 = BAMBOO.routine_store().load(_rid)["versions"][0]
-check("the first run of the provisional rewrite ran the pruned method too and the two agreed: confirmed on run 1, script_fallback gone, the pane's check row said so",
-      _msgs[-1]["routine_run"]["run"]["consolidation"].startswith("the rewritten method confirmed on this data (run 1)") and _vr1["consolidated"]["confirmed"]["run"] == 1 and "script_fallback" not in _vr1
-      and any(m.get("type") == "pane_lookup" and m.get("query") == "the rewritten method" for m in _msgs), (_msgs[-1]["routine_run"]["run"].get("consolidation"), _vr1.get("consolidated")))
 check("the run's record names its own folder on the executor's side (datasets/<user>/routines/<id>/<tag>), where its files and datasets go, and the fit it ran under",
       _msgs[-1]["routine_run"]["run"]["run_dir"] == f"datasets/u1/routines/{_rid}/v1_1" and _msgs[-1]["routine_run"]["run"]["fit"]["missing"] == [] and _msgs[-1]["routine_run"]["run"]["bindings"] == [], _msgs[-1]["routine_run"]["run"].get("run_dir"))
 # a routine row's text reaches the page whole up to LOOKUP_PEEK_CHARS (2026-10-16: at 600 a run with seven files lost its closing
@@ -677,7 +667,7 @@ FakeModels.config["agent_configs"].append({"agent": "Promoter", "details": {"mod
 while not q.empty(): q.get()
 prop_b = BAMBOO.propose_routine("1001", run_b.id, billing_chain_id="9008")
 check("Save as routine on the follow-up: the script is its own cell (the earlier chain's cells, on other data, are not in it); a note says what the chain continues",
-      prop_b["cells"] == 1 and "groupby('arm')" not in prop_b["script"] and "z = 1" in prop_b["script"] and prop_b["data_state"] == "same"
+      prop_b["cells"] == 1 and "groupby('arm')" not in prop_b["cells_chain"] and "z = 1" in prop_b["cells_chain"] and prop_b["data_state"] == "same"
       and any("continues 1 earlier chain of the thread that ran on other data (cells 1-2): the method is this chain's own cell 3" in n for n in prop_b["notes"]), (prop_b["cells"], prop_b["notes"]))
 made_b = BAMBOO.create_routine(prop_b["proposal_id"], {"name": "On the new frame", "purpose": ""}, routine_id=None)
 made_b["run_zero"] = dict(made_b["run_zero"], **_settled(made_b["routine"]["id"]))

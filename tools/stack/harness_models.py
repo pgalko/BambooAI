@@ -21,13 +21,9 @@ What it says comes from a scenario (tools/stack/scenarios/<name>.py): `load(name
 question, the turn number, the cell outputs) and answers from it, so the numbers in its report
 are the numbers the kernel printed.
 """
-import ast
 import importlib.util
-import io
 import os
-import re
 import time
-import tokenize
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCENARIO = None
@@ -76,36 +72,10 @@ def _tokens(s):
     return max(1, len(_text(s) if not isinstance(s, str) else s) // 4)
 
 
-def consolidated_reply(user):
-    """The stack's own Condenser (docs/ROUTINES_DESIGN.md §19.3), for every scenario: the method's cells given back without
-    their comment lines - the markers, the code, the RESULT calls and the figures as they were; UNCHANGED when there is
-    none. (The dead stores it used to drop go before the promoter since §19.5.) Enough to walk the consolidation's path -
-    the record, the provisional script, the first run's check - without a model."""
-    body = user.split("THE METHOD (the cells in execution order, each with the output it printed; `df` is loaded before the first cell):\n", 1)
-    if len(body) < 2:
-        return "UNCHANGED"
-    out, changed = [], False
-    for block in re.split(r"(?m)^(?=# --- cell \d+ ---$)", body[1].split("\n\nRESULT LINES THE METHOD PRINTS", 1)[0]):
-        if not block.strip():
-            continue
-        head, code = block.split("\n", 1)
-        code = code.split("\nOUTPUT:\n", 1)[0].rstrip("\n")
-        try:
-            ast.parse(code)
-            comments = {t.start[0] for t in tokenize.generate_tokens(io.StringIO(code).readline) if t.type == tokenize.COMMENT and not t.line[:t.start[1]].strip()}
-        except (SyntaxError, tokenize.TokenError):
-            return "UNCHANGED"
-        changed = changed or bool(comments)
-        out.append(head + "\n" + "\n".join(ln for j, ln in enumerate(code.split("\n"), 1) if j not in comments))
-    return "```python\n" + "\n\n".join(out) + "\n```" if changed else "UNCHANGED"
-
-
 def _reply(messages):
     if SCENARIO is None:
         raise RuntimeError("harness_models: no scenario loaded (call harness_models.load(name))")
     system, user = _split(messages)
-    if system.startswith("You are rewriting the method of a finished analysis"):
-        return "", consolidated_reply(user)
     thinking, text = SCENARIO.reply(system, user)
     return thinking or "", text or ""
 

@@ -1,24 +1,34 @@
 """Routines (docs/ROUTINES_DESIGN.md): an analysis kept as a method and run again, without a model, on new data.
 
 The pure part lives here - nothing in this module talks to a model, an executor or the web app:
-  - a RESULT line read back from printed output (parse_result_line, result_lines_in);
-  - the lines a script is expected to print, from the kernel's records (expected_results);
-  - the promoter's prompt and the reading of its reply (PROMOTER_SYSTEM, promoter_user, parse_promoter);
-  - the edits applied to the cells, grouped by the input they serve (apply_edits, finish_inputs);
-  - the script with its INPUTS block (split_script, join_script, with_inputs);
-  - the check of a run's lines against the expected ones (check_lines);
-  - the store: one folder per routine under <storage>/routines/ (RoutineStore).
+  - a RESULT line read back (parse_result_line) and the lines a chain recorded (expected_results);
+  - the script with its cells and its INPUTS block (split_script, join_script, with_inputs);
+  - the promoter's prompt, the reading of its reply, its pick and its edits (PROMOTER_SYSTEM, promoter_user,
+    parse_promoter, pick_results, apply_edits, finish_inputs);
+  - the reading of the code, a statement at a time - what each reads and writes (read_steps) - which gives the
+    promoter's view of a chain (prune_cells, held_out, put_back) and the statements a run needs (needed_steps);
+  - a run, a statement at a time: the script as a run executes it (stepwise), its output read back (read_run),
+    its lines laid against the expected ones (place_lines);
+  - a run's data made to fit the recorded shape (fit_check, bind_aux, bind_script, conform_prelude, shape_script,
+    cache_match, the value checks);
+  - a run's status, run zero's verdict and two runs compared (run_status, check_zero, compare_runs, same_figures,
+    gap_sentences);
+  - the store: one folder per routine under <storage>/routines/, and the one upgrade of earlier records
+    (RoutineStore).
 
 The standing rule (DESIGN_CHECKLIST C5) holds for every string here: nothing a model reads names a task.
 """
 from __future__ import annotations
 
 import ast
+import hashlib
+import io
 import json
 import os
 import re
 import shutil
 import time
+import tokenize
 import uuid
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -63,17 +73,6 @@ def parse_result_line(line: str) -> Optional[dict]:
             "ci": int(mm.group("ci")) if mm.group("ci") else None, "unit": (mm.group("unit") or "").strip(),
             "direction": (mm.group("dir") or "").strip(), "typed": bool(mm.group("typed")),
             "test": test.group(1) if test else None, "corrects": corr.group(1) if corr else None}
-
-
-def result_lines_in(stdout: str) -> List[dict]:
-    """Every RESULT line a run printed, in order."""
-    out = []
-    for ln in (stdout or "").splitlines():
-        if ln.strip().startswith("RESULT:"):
-            r = parse_result_line(ln)
-            if r is not None:
-                out.append(r)
-    return out
 
 
 def number(s: Optional[str]) -> Optional[float]:
@@ -310,7 +309,7 @@ def tracked_lines(expected: List[dict], tracked: Optional[Iterable]) -> Tuple[Di
 def pick_results(expected: List[dict], compare: Optional[Iterable], extra: Optional[Dict[int, str]] = None) -> List[dict]:
     """The promoter's pick applied to the expected lines (docs/ROUTINES_DESIGN.md §15.1): each entry of `compare` names a
     ledger line by its 1-based number and gives it a short name; the lines named are compared, every other line is
-    dropped - still printed and checked by position, left out of the comparison. `extra` (§15.6) are the lines the
+    dropped - kept on the manifest, left out of the comparison. `extra` (§15.6) are the lines the
     person's instruction reached, compared whatever `compare` says. A pick with no valid line keeps every line, without
     names: the pick is a proposal, never a refusal."""
     picked = {}
@@ -480,13 +479,7 @@ def defaults_of(inputs: List[dict]) -> Dict[str, object]:
     return {p["key"]: p["default"] for p in inputs or []}
 
 
-# ----------------------------------------------------------------------------- the condensing pass (docs/ROUTINES_DESIGN.md §19)
-def secs_text(t) -> str:
-    """A duration as the condensed line says it: 0.8 s, 48 s, 9 min."""
-    t = float(t or 0)
-    return f"{t:.1f} s" if round(t, 1) < 10 else (f"{t:.0f} s" if t < 60 else f"{t / 60:.0f} min")
-
-
+# ----------------------------------------------------------------------------- the reading: what each statement reads and writes
 _CAPTURE_LINE_RE = re.compile(r"^_bamboo_capture\[0\] = (True|False)$")
 _KEEP_ATTRS = {"show", "save", "savefig", "write", "writelines", "to_csv", "to_parquet", "to_excel", "to_json", "to_pickle", "to_hdf", "to_sql", "to_feather",
                "to_html", "to_latex", "to_markdown"}                 # a call by one of these names, or by a write_* name, is an effect the routine keeps
@@ -498,7 +491,7 @@ _ANY = "*"                                                           # every nam
 _MODULES = {"pd", "np", "plt", "matplotlib"}                         # bound before the first cell: the script's preamble, the kernel's start
 _RANDOM, _NP_RANDOM = "<random>", "<numpy.random>"                   # the state of a global generator, as a name: a draw reads it and moves it on
 _GENERATORS = {"default_rng", "RandomState", "Generator", "Random"}  # a call by one of these names makes a generator of its own
-HELD = "\x00"                                                        # a line of the chain held out of the method (held_out): no fragment of code matches it
+HELD = "\x00"                                                        # a line of the chain held out of the promoter's view (held_out): no fragment of code matches it
 
 
 def _root(node):
@@ -537,13 +530,14 @@ def _whole(target) -> set:
 class _Facts:
     """What a run of top-level statements does, from the code alone: the names it binds or changes in place (`defines`),
     the names it reads before binding them - what earlier code must give (`reads`), the names it binds whole, so that
-    what they held before is not read after it (`kills`), and whether something rests on it (`anchored`): a RESULT
-    line, a figure shown, a file saved or written, a check that can stop the run (assert, raise), a bare call on a
-    module (a setting, a seed, a folder made). `fixed` marks an import, which stays wherever it is. The reads follow
+    what they held before is not read after it (`kills`), and whether something rests on it, by its reason: it prints
+    a RESULT line (`prints`); it is a check of the method's own that can stop the run - assert, raise (`checks`); it
+    has an effect outside the names - a figure shown, a file saved or written, a bare call on a module such as a
+    setting, a seed or a folder made (`anchored`). `fixed` marks an import, which stays wherever it is. The reads follow
     Python's scopes: a name bound by an earlier statement, a loop or with target, a function's parameters and locals, a
     comprehension's or lambda's own names, is not read from outside. Names the code reads without spelling them are
-    read too: those inside a query or eval string; `namespace` marks a read through globals(), whose names the
-    pruning settles from the strings the kept code holds; eval and exec read every name (_ANY) and stay.
+    read too: those inside a query or eval string; `namespace` marks a read through globals(), whose names are
+    settled from the strings the code holds; eval and exec read every name (_ANY) and stay.
 
     `known` is what the chain's earlier statements established, and takes what these add: the functions defined - a
     call does what the body does: something may rest on it, it may change names outside itself and the objects it is
@@ -552,7 +546,8 @@ class _Facts:
     on the object it is called on and on the objects it is handed."""
 
     def __init__(self, stmts, known: Optional[dict] = None):
-        self.defines, self.reads, self.kills, self.anchored, self.fixed, self.namespace = set(), set(), set(), False, False, False
+        self.defines, self.reads, self.kills, self.fixed, self.namespace = set(), set(), set(), False, False
+        self.prints, self.checks, self.anchored = False, False, False
         self.known = known if known is not None else _known()
         self._bound, self._inside, self._params, self._handed = set(), 0, set(), set()
         for st in stmts:
@@ -622,21 +617,22 @@ class _Facts:
         it, the outside names it changes and those it reads (as they are when it is called), whether it reads names
         through the namespace, its positional parameters and the parameters it changes in place. Defining it changes
         nothing; what its body reads is read where it is defined as well, the function being a value from there on."""
-        held = (self.anchored, self.defines, self.reads, self.namespace, self._params, self._handed)
-        self.anchored, self.defines, self.reads, self.namespace, self._params, self._handed = False, set(), set(), False, params, set()
+        held = (self.anchored, self.defines, self.reads, self.namespace, self._params, self._handed, self.prints)
+        self.anchored, self.defines, self.reads, self.namespace, self._params, self._handed, self.prints = False, set(), set(), False, params, set(), False
         self._inside += 1
         for s2 in stmts:
             self._stmt(s2, local)
         self._inside -= 1
-        does = {"anchored": self.anchored, "changes": frozenset(self.defines), "reads": frozenset(self.reads), "namespace": self.namespace,
-                "positional": tuple(positional), "handed": frozenset(self._handed)}
-        self.anchored, self.defines, self._params, self._handed = held[0], held[1], held[4], held[5]
+        does = {"anchored": self.anchored, "prints": self.prints, "changes": frozenset(self.defines), "reads": frozenset(self.reads),
+                "namespace": self.namespace, "positional": tuple(positional), "handed": frozenset(self._handed)}
+        self.anchored, self.defines, self._params, self._handed, self.prints = held[0], held[1], held[4], held[5], held[6]
         self.reads, self.namespace = held[2] | self.reads, held[3] or self.namespace
         return does
 
     def _call(self, node, does: dict, local: frozenset):
         """A call of a function the chain defined: what its body does, done here."""
         self.anchored = self.anchored or does["anchored"]
+        self.prints = self.prints or does["prints"]
         self.namespace = self.namespace or does["namespace"]
         self.reads |= does["reads"] - self._bound - local - {_RANDOM, _NP_RANDOM}
         for name in does["changes"]:
@@ -719,7 +715,7 @@ class _Facts:
                     self._bind(t, local)
         else:                                                  # Expr, Return, Raise, Assert, Global, Nonlocal, Pass, Break, Continue
             if isinstance(st, (ast.Assert, ast.Raise)) and not self._inside:
-                self.anchored = True                           # a check that can stop the run is the method's
+                self.checks = True                             # a check that can stop the run is the method's
             for child in ast.iter_child_nodes(st):
                 if isinstance(child, ast.expr):
                     self._expr(child, local)
@@ -757,7 +753,7 @@ class _Facts:
         if isinstance(node, ast.Call):
             f, name = node.func, _dotted(node.func)
             if isinstance(f, ast.Name) and f.id == "RESULT":
-                self.anchored = True
+                self.prints = True
             elif isinstance(f, ast.Name) and f.id in self.known["functions"] and f.id not in local:
                 self._call(node, self.known["functions"][f.id], local)
             elif isinstance(f, ast.Attribute):
@@ -792,8 +788,8 @@ def _known() -> dict:
 
 
 def _units(body) -> List[Tuple[int, int, list]]:
-    """A cell's top-level statements as the pieces the pruning takes or leaves: (first line, last line, statements).
-    Statements that share a line (a = 1; b = 2) are one piece."""
+    """A cell's top-level statements as the pieces that are kept, dropped or run one at a time: (first line, last
+    line, statements). Statements that share a line (a = 1; b = 2) are one piece."""
     units: List[Tuple[int, int, list]] = []
     for st in body:
         a = min([st.lineno] + [d.lineno for d in getattr(st, "decorator_list", [])])
@@ -805,91 +801,104 @@ def _units(body) -> List[Tuple[int, int, list]]:
     return units
 
 
-def _pruning(cells: str, figure_cells: Iterable[int]) -> Tuple[List[Tuple[int, List[str], set, bool]], str]:
-    """The reading prune_cells and held_out share (docs/ROUTINES_DESIGN.md §19.5): for each cell (its number, its lines
-    with the marker first, the lines that go, whether the whole cell goes), and the problem - a cell that does not
-    parse prunes nothing. A statement stays when something rests on it - a RESULT line, a figure (its cell named, or
-    a show / save / write call), a check that can stop the run, an input no other kept statement reads - or when a
-    later kept statement reads a name it defines or changes before binding that name whole itself; every other
-    statement goes, with the comment lines standing on it. Imports and the capture switches stay wherever they are; a
-    cell left with nothing else goes, marker included."""
-    figs = {int(c) for c in figure_cells or []}
-    known = _known()
-    plan, units = [], []
+def read_steps(cells: str) -> Tuple[List[_Facts], List[Tuple[int, List[str]]], str]:
+    """The cells read a statement at a time: (steps, blocks, problem). A step is a top-level statement's _Facts, which
+    also knows where it stands - `cell` (the cell's number), `block` (which of the cells, by position), `first` and
+    `last` (its lines within the cell, the marker being line 0), `source` (its text), `keys` (the inputs it reads),
+    `strings` (the names its code holds as strings) - and `fixed` covers the capture switches between cells beside the
+    imports. A block is a cell's (number, lines). A cell that does not parse leaves nothing read, and the problem
+    says which."""
+    known, steps, blocks = _known(), [], []
     for n, start, end in cell_blocks(cells):
         lines = cells[start:end].removesuffix("\n").split("\n")
         try:
             body = ast.parse("\n".join(lines[1:])).body
         except SyntaxError as exc:
-            return [], f"cell {n} could not be parsed ({exc.msg})"
+            return [], [], f"cell {n} could not be parsed ({exc.msg})"
         for a, b, stmts in _units(body):
             f = _Facts(stmts, known)
-            f.at = (len(plan), a, b)
-            f.keys = set(_KEY_REF_RE.findall("\n".join(lines[a:b + 1])))
+            f.cell, f.block, f.first, f.last = n, len(blocks), a, b
+            f.source = "\n".join(lines[a:b + 1])
+            f.keys = set(_KEY_REF_RE.findall(f.source))
             f.strings = {c.value for st in stmts for c in ast.walk(st) if isinstance(c, ast.Constant) and isinstance(c.value, str) and c.value.isidentifier()}
             f.fixed = f.fixed or all(_CAPTURE_LINE_RE.match(ln) for ln in lines[a:b + 1])
-            f.anchored = f.anchored or n in figs
-            units.append(f)
-        plan.append((n, lines, set(), False))
+            steps.append(f)
+        blocks.append((n, lines))
+    return steps, blocks, ""
+
+
+def _stay(steps: List[_Facts], wanted: Iterable[int], inputs: bool = False) -> set:
+    """The steps that stay when only `wanted` are asked for: those, the fixed ones, and every step a later staying step
+    reads a name from - read from the last step to the first, a name bound whole ending the reading of what defined
+    it before. A step that reads names through globals() reads the strings the staying code holds, so the answer is
+    taken down to what holds itself up. With `inputs`, an input no staying step reads keeps its first reader."""
+    wanted = set(wanted)
 
     def sweep(strings: set) -> set:
-        """The statements that stay, read from the last to the first; a statement that reads names through globals()
-        reads the strings the kept code holds - a name looked up by its string is one of them."""
         live, kept = set(), set()
-        for j in range(len(units) - 1, -1, -1):
-            f = units[j]
-            if f.fixed or f.anchored or (f.defines & live) or (f.defines and _ANY in live):
+        for j in range(len(steps) - 1, -1, -1):
+            f = steps[j]
+            if f.fixed or j in wanted or (f.defines & live) or (f.defines and _ANY in live):
                 kept.add(j)
                 live = (live - f.kills) | f.reads | (strings if f.namespace else set())
         return kept
-    kept = set(range(len(units)))
-    while True:                                                    # down to what holds itself up: the strings count while their statement stays
-        was, kept = kept, sweep({w for j in kept for w in units[j].strings})
-        unread = {k for f in units for k in f.keys} - {k for j in kept for k in units[j].keys}
-        if unread:                                                 # an input read by nothing kept stays read: its first reader stays
-            for k in unread:
-                next(f for f in units if k in f.keys).anchored = True
-            kept = set(range(len(units)))
+    kept = set(range(len(steps)))
+    while True:
+        was, kept = kept, sweep({w for j in kept for w in steps[j].strings})
+        unread = ({k for f in steps for k in f.keys} - {k for j in kept for k in steps[j].keys}) if inputs else set()
+        if unread:
+            wanted |= {next(j for j, f in enumerate(steps) if k in f.keys) for k in unread}
+            kept = set(range(len(steps)))
         elif kept == was:
-            break
-    stays = {units[j].at[0] for j in kept if not units[j].fixed}
+            return kept
+
+
+# ----------------------------------------------------------------------------- the promoter's view: the chain without its exploration
+def _pruning(cells: str, figure_cells: Iterable[int]) -> Tuple[List[Tuple[int, List[str], set, bool]], str]:
+    """What prune_cells and held_out share: for each cell (its number, its lines with the marker first, the lines that
+    go, whether the whole cell goes), and the problem - a cell that does not parse prunes nothing. A statement stays
+    when something rests on it - a RESULT line, a figure (its cell named, or a show / save / write call), a check
+    that can stop the run, an input no other kept statement reads - or when a later kept statement reads a name it
+    defines or changes; every other statement goes, with the comment lines standing on it. Imports and the capture
+    switches stay wherever they are; a cell left with nothing else goes, marker included."""
+    figs = {int(c) for c in figure_cells or []}
+    steps, blocks, problem = read_steps(cells)
+    if problem:
+        return [], problem
+    kept = _stay(steps, {j for j, f in enumerate(steps) if f.anchored or f.prints or f.checks or f.cell in figs}, inputs=True)
+    plan = [(n, lines, set(), False) for n, lines in blocks]
+    stays = {steps[j].block for j in kept if not steps[j].fixed}
     for i, (n, lines, gone, _) in enumerate(plan):
         if i not in stays:                                         # nothing of the cell is kept but what stays wherever it is
-            plan[i] = (n, lines, set(range(len(lines))) - {x for f in units if f.fixed and f.at[0] == i for x in range(f.at[1], f.at[2] + 1)}, True)
-    for j, f in enumerate(units):
-        i, a, b = f.at
-        if i in stays and j not in kept:
-            gone, lines = plan[i][2], plan[i][1]
-            gone.update(range(a, b + 1))
+            plan[i] = (n, lines, set(range(len(lines))) - {x for f in steps if f.fixed and f.block == i for x in range(f.first, f.last + 1)}, True)
+    for j, f in enumerate(steps):
+        if f.block in stays and j not in kept:
+            gone, lines, a = plan[f.block][2], plan[f.block][1], f.first
+            gone.update(range(a, f.last + 1))
             while a > 1 and lines[a - 1].lstrip().startswith("#"):   # the comment lines standing on it
                 a -= 1
                 gone.add(a)
     return plan, ""
 
 
-def _dropped_lines(plan) -> int:
-    return sum(1 for n, lines, gone, _ in plan for x in gone if x and lines[x].strip())
-
-
 def prune_cells(cells: str, figure_cells: Iterable[int]) -> Tuple[str, List[int], int, str]:
-    """The cells without the exploration (docs/ROUTINES_DESIGN.md §19.1, §19.5), from the code alone: the statements
-    the result lines and the figures rest on, by the reading of _pruning - a check on one row picked by eye, a table
-    printed to look at, a second way of computing set beside the first, all go, with the cells left empty. Markers
-    keep their numbers. Returns (cells, the cells dropped, the lines dropped, problem); cells that need no pruning, or
+    """The cells as the promoter reads them: without the exploration - a check on one row picked by eye, a table
+    printed to look at, a second way of computing set beside the first - by the reading of _pruning. Markers keep
+    their numbers. Returns (cells, the cells dropped, the lines dropped, problem); cells that need no pruning, or
     cannot be read, come back as they are."""
     plan, problem = _pruning(cells, figure_cells)
     if problem or not any(gone for _, _, gone, _ in plan):
         return cells, [], 0, problem
     out = [ln for _, lines, gone, _ in plan for x, ln in enumerate(lines) if x not in gone]
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip("\n")
-    return "\n" + text + "\n", [n for n, _, _, whole in plan if whole], _dropped_lines(plan), ""
+    return "\n" + text + "\n", [n for n, _, _, whole in plan if whole], sum(1 for _, lines, gone, _ in plan for x in gone if x and lines[x].strip()), ""
 
 
 def held_out(cells: str, figure_cells: Iterable[int]) -> Tuple[str, List[str]]:
-    """The whole chain with the pruning's lines held out (§19.5): each line prune_cells drops replaced by a HELD line,
-    and those lines in order. The promoter's edits were found in the pruned method; applied to this text they land
-    exactly where they landed there - a fragment cannot match in a line that is held out, however often the chain
-    repeats it - and put_back returns the lines: the chain as written with the same edits, run zero's fallback."""
+    """The whole chain with the lines prune_cells drops held out: each replaced by a HELD line, and those lines in
+    order. The promoter's edits were found in the pruned view; applied to this text they land exactly where they
+    landed there - a fragment cannot match in a line that is held out, however often the chain repeats it - and
+    put_back returns the lines: the chain as written, with the same edits."""
     plan, _problem = _pruning(cells, figure_cells)
     if not plan:
         return cells, []
@@ -905,111 +914,276 @@ def put_back(cells: str, lines: List[str]) -> str:
     return "\n".join(next(it, "") if ln == HELD else ln for ln in cells.split("\n"))
 
 
-# ----------------------------------------------------------------------------- the consolidation (§19.3): a model, opt in, checked twice
-CONSOLIDATE_SYSTEM = """You are rewriting the method of a finished analysis as the lean code of a routine: the same computation, the same printed results and figures, run again on data of the same shape by a person who sets a few inputs and never edits the code. The analysis explored; the routine should run what the answer rests on, once, and fast.
+# ----------------------------------------------------------------------------- a run, a statement at a time
+STEP_MARK = "ROUTINE_AT:"                   # printed before each statement runs: the output that follows is that statement's
+RUN_MARK = "ROUTINE_RUN:"                   # printed last: the statements that stopped and those skipped for resting on them
 
-You receive the question, the answer, the cells of the method in execution order with the output each printed when the analysis ran, the RESULT lines the method prints (the record every run is checked against), the cells that draw figures, the inputs the cells read, and the time each cell took.
+STEPWISE = """# --- the cells, a statement at a time: one that stops costs what rests on it, not the run
+def _routine_steps(steps, frame, watch):
+    import inspect, json
+    g, missing, say = globals(), object(), print
+    plain = (int, float, complex, str, bytes, bool, type(None))
+    names, objects, stopped, skipped, now = {}, {}, [], [], {"halted": None}
+    df, gaps = g.get("df"), {}
+    try:                                    # how much of each watched column is empty: [rows empty, rows, groups empty, groups]
+        by = (watch or {}).get("by")
+        columns = [c for c in (watch or {}).get("columns") or [] if c in df]
+        filled = df.groupby(by)[columns].count() if by and columns else []
+        for c in columns:
+            gaps[c] = [int(df[c].isna().sum()), int(len(df))] + ([int((filled[c] == 0).sum()), int(len(filled))] if len(filled) else [])
+    except Exception:
+        gaps = {}
+    try:
+        empty = bool(frame) and len(df) == 0
+    except Exception:
+        empty = False
 
-Write the method again under the same cell markers "# --- cell N ---", keeping the markers of the cells that print a RESULT line or draw a figure, in their order, with their numbers; a cell that only prepares may go, its work moved under a kept marker. Each RESULT(...) call stays under the marker of the cell it came from, in the same order, with the same label text and arguments, computing the same values. Each figure is drawn by the same calls on the same values. Every INPUTS[...] key is read as before. The data is loaded as before (DS.load(), the files by their written names) and every DS.save(...) stays.
+    def spoil(written, origin):
+        for w in written:
+            names[w] = origin
+            v = g.get(w, missing)
+            if v is not missing and not isinstance(v, plain):
+                objects[id(v)] = origin
 
-Compute once what the cells computed several times. Make faster what can be made faster with the same answer: vectorised operations for loops over rows, cumulative or rolling sums for a window recomputed at every step, one grouped aggregation for a loop over groups. Never faster by a different answer: no sampling, no fewer draws or iterations, no other seed, threshold or tolerance, no approximation; a loop that draws random numbers keeps its draws in their order, or the numbers change. A number that would print differently is a changed method and is refused.
-
-Reply with the cells only: one python code block holding the cells with their markers, nothing before or after it. When the method is already as lean as it can be, reply with the word UNCHANGED."""
-
-CONSOLIDATE_RETRY = "Your rewritten method {problem}. Reply again with the cells, as specified - the same RESULT lines under the same markers and the same figures - or with UNCHANGED."
-
-
-def consolidate_user(question: str, summary: str, cells: Iterable[Tuple[int, str, str]], ledger: Iterable[str], figure_cells: Iterable[int],
-                     inputs: Iterable[dict], times: Optional[Dict] = None, output_chars: int = 1500) -> str:
-    """The consolidation's brief: the question and the answer, each cell with the output it printed in the analysis
-    (clipped), the numbered RESULT lines, the figure cells, the inputs, the times."""
-    parts = []
-    for n, code, out in cells:
-        out = (out or "").strip()
-        if len(out) > output_chars + 200:
-            out = out[:output_chars].rstrip() + f"\n... [{len(out) - output_chars} more characters]"
-        parts.append(f"# --- cell {n} ---\n{code.strip()}\nOUTPUT:\n{out or '(no output)'}")
-    ins = [f"{p.get('key')} ({p.get('type')}): {p.get('label')}; default {json.dumps(p.get('default'))}" for p in inputs or []]
-    took = ", ".join(f"cell {n}: {secs_text(t)}" for n, t in sorted(((int(k), float(v or 0)) for k, v in (times or {}).items()), key=lambda x: x[0]))
-    return "\n\n".join([f"QUESTION:\n{(question or '').strip()}", f"ANSWER:\n{(summary or '(none)').strip()}",
-                        "THE METHOD (the cells in execution order, each with the output it printed; `df` is loaded before the first cell):\n" + "\n\n".join(parts),
-                        "RESULT LINES THE METHOD PRINTS (numbered; every one must still be printed, identical, under its cell's marker):\n" + ("\n".join(ledger) or "(none)"),
-                        "CELLS THAT DRAW FIGURES: " + (", ".join(str(c) for c in figure_cells or []) or "none"),
-                        "INPUTS THE CELLS READ:\n" + ("\n".join(ins) or "none"),
-                        "TIME EACH CELL TOOK: " + (took or "not recorded")])
-
-
-def parse_cells(text: str) -> Optional[str]:
-    """The cells from a reply's code block (the one with cell markers); None for UNCHANGED. Raises ValueError with a
-    readable reason."""
-    t = (text or "").strip()
-    if not t:
-        raise ValueError("the reply was empty")
-    if re.fullmatch(r"`*\s*UNCHANGED\.?\s*`*", t, re.I):
+    def rests_on(reads):
+        if now["halted"] is not None:
+            return now["halted"]
+        for r in reads:
+            if r in names:
+                return names[r]
+        if "*" in reads and names:
+            return next(iter(names.values()))
+        for r in reads:
+            v = g.get(r, missing)
+            if v is not missing and not isinstance(v, plain) and id(v) in objects:
+                return objects[id(v)]
         return None
-    blocks = re.findall(r"```(?:python|py)?[ \t]*\n(.*?)```", t, re.S)
-    cells = next((b for b in blocks if _CELL_MARK_RE.search(b)), None) if blocks else (t if _CELL_MARK_RE.search(t) else None)
-    if cells is None:
-        raise ValueError("no cells with their markers in the reply")
-    return "\n" + cells.strip("\n") + "\n"
+
+    def go(j):
+        if empty:                           # nothing to run on: the statements are left alone
+            return False
+        cell, first, reads, writes, binds, check = steps[j]
+        origin = rests_on(reads)
+        if origin is not None:
+            skipped.append([j, cell, origin])
+            spoil(writes, origin)
+            return False
+        say("__AT__ %d" % j)
+        now.update(step=j, line=inspect.currentframe().f_back.f_lineno + 2, held=[id(g[w]) for w in writes if w in g and not isinstance(g[w], plain)])
+        return True
+
+    def end(exc=None):
+        j = now["step"]
+        cell, first, reads, writes, binds, check = steps[j]
+        if exc is None:
+            for w in binds:
+                names.pop(w, None)
+            return
+        stopped.append({"step": j, "cell": cell, "line": first + exc.__traceback__.tb_lineno - now["line"], "error": ("%s: %s" % (type(exc).__name__, exc))[:300]})
+        for i in now["held"]:
+            objects[i] = j
+        spoil(writes, j)
+        if check or isinstance(exc, SystemExit):
+            now["halted"] = j
+
+    def close():
+        say("__RUN__ " + json.dumps({"empty": empty, "stopped": stopped, "skipped": skipped, "gaps": gaps}))
+    return go, end, close
 
 
-def result_calls(cells: str) -> Dict[int, int]:
-    """How many RESULT(...) calls each cell's text carries - the static check that a rewrite kept them under their markers."""
-    return {n: cells[a:b].count("RESULT(") for n, a, b in cell_blocks(cells)}
+_routine_go, _routine_end, _routine_close = _routine_steps(__STEPS__, __FRAME__, __WATCH__)
+""".replace("__AT__", STEP_MARK).replace("__RUN__", RUN_MARK)
+
+STEP = """if _routine_go({j}):
+    try:
+{code}
+    except (Exception, SystemExit) as _routine_exc:
+        _routine_end(_routine_exc)
+    else:
+        _routine_end()
+"""
 
 
-def check_consolidated(original: str, cells: str, figure_cells: Iterable[int], keys: Iterable[str]) -> str:
-    """check_condensed, and every RESULT call still under the marker it came from (by count per cell)."""
-    problem = check_condensed(original, cells, figure_cells, keys)
+def needed_steps(cells: str, tracked: Iterable[int], figure_cells: Iterable[int]) -> Optional[List[int]]:
+    """The statements a run needs for the lines it tracks and the figures it draws: the steps that printed a tracked
+    line (`tracked`, by their place among the steps), every statement of a figure cell, a file saved or written, a
+    check that can stop the run, and what those read - by the same reading that prunes the promoter's view. The
+    rest of the chain - the lines nobody tracks and what only they needed - is not run. None when a cell cannot be
+    read."""
+    steps, _blocks, problem = read_steps(cells)
     if problem:
-        return problem
-    before, after = result_calls(original), result_calls(cells)
-    moved = [n for n, k in before.items() if k and after.get(n, 0) != k]
-    if moved:
-        return f"moves or loses the RESULT calls of cell {moved[0]} (keep each under the marker it came from)"
-    return ""
+        return None
+    figs, tracked = {int(c) for c in figure_cells or []}, set(tracked or [])
+    return sorted(_stay(steps, {j for j, f in enumerate(steps) if f.anchored or f.checks or j in tracked or f.cell in figs}))
 
 
-def same_lines(expected: Iterable[dict], got: Iterable[dict]) -> Tuple[bool, str]:
-    """Two runs' RESULT lines against each other by position - the same count, the same numbers as printed. (ok, why)."""
-    a, b = list(expected or []), list(got or [])
-    if len(a) != len(b):
-        return False, f"{len(b)} result line{'s' if len(b) != 1 else ''} came back, {len(a)} expected"
-    for i, (x, y) in enumerate(zip(a, b), 1):
-        if not all((number(x.get(k)) == number(y.get(k))) or (x.get(k) == y.get(k)) for k in ("estimate", "low", "high")):
-            return False, f"line {i} ({str(x.get('what') or x.get('label') or '')[:50]}): {x.get('estimate')} -> {y.get('estimate')}"
-    return True, (f"{len(a)} result line{'s' if len(a) != 1 else ''} identical" if a else "no result lines")
+def _moved_in(source: str, by: str = "        ") -> Optional[str]:
+    """A statement's lines moved in under a `try:` - every line but those that begin inside a string, whose text is
+    the string's own. None when the statement cannot be read as tokens."""
+    inside, opened = set(), []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(source + "\n").readline):
+            kind = tokenize.tok_name[tok.type]
+            if kind.endswith("STRING_START"):                      # an f-string's parts are tokens of their own (python 3.12)
+                opened.append(tok.start[0])
+            elif kind.endswith("STRING_END") and opened:
+                first = opened.pop()
+                if not opened:
+                    inside.update(range(first + 1, tok.end[0] + 1))
+            elif tok.type == tokenize.STRING and not opened:
+                inside.update(range(tok.start[0] + 1, tok.end[0] + 1))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return None
+    return "\n".join(ln if n in inside or not ln.strip() else by + ln for n, ln in enumerate(source.split("\n"), 1))
 
 
-def condensed_line(before: int, after: int, lines: int, t0, t1) -> str:
-    """The Summary's words for a condensing that stood: what went, and the time - the chain as written's before the
-    method's, when the chain as written was run beside it."""
-    cut = (f"{before} cell{'s' if before != 1 else ''} → {after}" if after != before else f"{before} cell{'s' if before != 1 else ''} kept") + (f", {lines} line{'s' if lines != 1 else ''} dropped" if lines else "")
-    return f"condensed: {cut}, " + (f"{secs_text(t0)} → " if t0 is not None else "") + secs_text(t1)
+def stepwise(script: str, only: Optional[Iterable[int]] = None, watch: Optional[dict] = None) -> str:
+    """The script as a run executes it: everything before the first cell as it is, then each of the cells' statements
+    under a try of its own, in the script's own namespace. A statement that stops with an error spoils the names it
+    writes; a later statement that reads a spoiled name - or, at that moment, an object a spoiled name is bound to -
+    is skipped and spoils what it writes in turn; everything else runs. A check of the method's own that stops
+    (assert, raise) stops what follows it. `only` names the statements to run (needed_steps), by their place among
+    the steps; the others are left out. A frame with no rows, when the statements read the frame, runs none of them.
+    `watch` ({columns, by}) names the frame's columns whose empty share the run reports, by rows and, with `by`, by
+    the groups of that column. Each statement's output follows a STEP_MARK line, and a RUN_MARK line closes the run
+    with what stopped, what was skipped and the empty shares (read_run). A script whose cells cannot be read, or
+    whose statements cannot be laid out so, comes back as it is and runs as one piece."""
+    header, cells, tail, order = split_script(script)
+    steps, _blocks, problem = read_steps(cells) if order else ([], [], "")
+    want = None if only is None else set(only)
+    taken = [(j, f, _moved_in(f.source)) for j, f in enumerate(steps) if want is None or j in want]
+    if problem or not taken or any(code is None for _j, _f, code in taken):
+        return script
+    table = {j: [f.cell, f.first, sorted(f.reads | (f.strings if f.namespace else set())), sorted(f.defines), sorted(f.kills), bool(f.checks)] for j, f, _code in taken}
+    frame = any(f.reads & {"df", "DS"} for _j, f, _code in taken)
+    text = (header + "\n" + STEPWISE.replace("__STEPS__", repr(table)).replace("__FRAME__", repr(frame)).replace("__WATCH__", repr(dict(watch or {})))
+            + "".join(STEP.format(j=j, code=code) for j, _f, code in taken) + "_routine_close()\n" + tail.lstrip("\n"))
+    try:
+        ast.parse(text)
+    except SyntaxError:
+        return script
+    return text
 
 
-def check_condensed(original: str, cells: str, figure_cells: Iterable[int], keys: Iterable[str]) -> str:
-    """What is wrong with the condensed cells before they run: '' when nothing. The cells kept are a subsequence of the
-    original's, by number; every figure cell is kept; the same inputs are read."""
-    before = [int(n) for n in _CELL_MARK_RE.findall(original or "")]
-    after = [int(n) for n in _CELL_MARK_RE.findall(cells or "")]
-    if not after:
-        return "has no cells"
-    if len(set(after)) != len(after):
-        return "repeats a cell marker"
-    it = iter(before)
-    if not all(any(n == o for o in it) for n in after):
-        return "renumbers or reorders the cells (keep the markers of the cells you keep, in their order)"
-    gone = [c for c in figure_cells or [] if int(c) not in after]
-    if gone:
-        return f"drops cell {gone[0]}, which draws a figure"
-    want, got = set(keys or []), set(keys_read(cells))
-    if want != got:
-        return "reads other inputs than the script (" + ", ".join(sorted((want ^ got))) + ")"
-    return ""
+def names_in(cells: str) -> set:
+    """The names the cells' code spells as strings or as attributes: df['x'], df.x, by='x' all give x. Empty when a
+    cell cannot be read."""
+    out = set()
+    for _n, start, end in cell_blocks(cells):
+        try:
+            tree = ast.parse(cells[start:end].split("\n", 1)[1] if "\n" in cells[start:end] else "")
+        except SyntaxError:
+            return set()
+        out |= {c.value for c in ast.walk(tree) if isinstance(c, ast.Constant) and isinstance(c.value, str)} | {a.attr for a in ast.walk(tree) if isinstance(a, ast.Attribute)}
+    return out
 
 
+def steps_key(script: str) -> str:
+    """A mark of the statements the script's cells read into, in order. A place among them - a line's `at`, the
+    statements of the shorter run - holds while the mark is the same; '' when the cells cannot be read."""
+    _header, cells, _tail, order = split_script(script)
+    steps = read_steps(cells)[0] if order else []
+    return hashlib.sha256("\x00".join(f.source for f in steps).encode("utf-8")).hexdigest()[:12] if steps else ""
+
+
+def read_run(stdout: str) -> dict:
+    """A stepwise run's output read back: {lines: the RESULT lines in order, each (step, k, line) - the statement that
+    printed it and its place among that statement's lines; stopped: the statements that stopped ({step, cell, line,
+    error}); skipped: those skipped ([step, cell, the step that stopped]); empty: the frame had no rows and
+    nothing was run; gaps: the watched columns' empty shares; stdout: the output without the marks; stepwise: whether
+    the run closed with its RUN_MARK}. Output with no marks (a script run as one piece) gives its lines with no step."""
+    lines, kept, step, count, report = [], [], None, {}, None
+    for ln in (stdout or "").splitlines():
+        s = ln.strip()
+        if s.startswith(STEP_MARK):
+            try:
+                step = int(s[len(STEP_MARK):])
+            except ValueError:
+                step = None
+            continue
+        if s.startswith(RUN_MARK):
+            try:
+                report = json.loads(s[len(RUN_MARK):])
+            except ValueError:
+                report = None
+            continue
+        kept.append(ln)
+        if s.startswith("RESULT:"):
+            r = parse_result_line(ln)
+            if r is not None:
+                lines.append((step, count.get(step, 0), r))
+                count[step] = count.get(step, 0) + 1
+    report = report if isinstance(report, dict) else None
+    return {"lines": lines, "stopped": list((report or {}).get("stopped") or []), "skipped": [list(x) for x in (report or {}).get("skipped") or []],
+            "empty": bool((report or {}).get("empty")), "gaps": dict((report or {}).get("gaps") or {}),
+            "stdout": "\n".join(kept) + ("\n" if kept and (stdout or "").endswith("\n") else ""), "stepwise": report is not None}
+
+
+NO_NUMBER = "no number on this data"           # the reasons a line has no number: it printed nan,
+NO_DATA = "no data in this window"             # the frame had no rows,
+NO_LINE = "not printed on this data"           # nothing printed it and nothing stopped,
+NO_ESTIMATE = "not a number in the analysis"   # the analysis itself had none
+
+
+def _blank(why: str, line: Optional[dict] = None) -> dict:
+    """An expected line that did not come back with a number, and why."""
+    return dict(line or {}, estimate=None, low=None, high=None, why=why)
+
+
+def place_lines(expected: List[dict], run: dict) -> dict:
+    """A run's lines laid against the expected ones: {results, at}. `results` has one entry per expected line,
+    in their order - the line as printed, or a blank that says why it is missing ({estimate: None, why}): the
+    statement that should have printed it stopped, or rests on one that stopped (the reason names that one), or the
+    line came without a number. Lines are known by the statement that printed them and their place among its lines
+    (`at` on the expected line: [step, k]); a version that does not know them yet is read by position, up to the
+    first statement that did not run. `at` is what a complete run teaches: each expected line's [step, k] (None
+    when the run was not complete, or was not stepwise)."""
+    exp = list(expected or [])
+    if run.get("empty"):
+        return {"results": [_blank(NO_DATA) for _e in exp], "at": None}
+    lines = run.get("lines") or []
+    stopped = {int(s["step"]): s for s in run.get("stopped") or [] if s.get("step") is not None}
+    skipped = {int(j): (cell, origin) for j, cell, origin in run.get("skipped") or []}
+
+    def why(step) -> str:                                          # the statement that stopped: the line's own, or the one it rests on
+        origin = stopped.get(step) or stopped.get(skipped.get(step, (None, None))[1])
+        return f"cell {origin['cell']} stopped: {origin['error']}" if origin else NO_LINE
+
+    def read(line: dict) -> dict:
+        v = number(line.get("estimate"))
+        return _blank(NO_NUMBER, line) if v is not None and v != v else dict(line)
+    counted = [e for e in exp if e.get("estimate") is not None]
+    known = bool(counted) and all(isinstance(e.get("at"), (list, tuple)) and len(e["at"]) == 2 for e in counted)
+    results = []
+    if known and run.get("stepwise"):
+        by_place = {(s, k): ln for s, k, ln in lines}
+        for e in exp:
+            at = tuple(e["at"]) if e.get("estimate") is not None else None
+            if at is None:
+                results.append(_blank(NO_ESTIMATE))
+            elif at in by_place:
+                results.append(read(by_place[at]))
+            else:
+                results.append(_blank(why(at[0])))
+    else:                                                          # by position: sure only up to the first statement that did not run
+        troubled = min(list(stopped) + list(skipped), default=None)
+        sure = [ln for s, k, ln in lines if troubled is None or (s is not None and s < troubled)]
+        it = iter(sure)
+        for e in exp:
+            ln = next(it, None) if e.get("estimate") is not None else None
+            if ln is not None:
+                results.append(read(ln))
+            elif e.get("estimate") is None:
+                results.append(_blank(NO_ESTIMATE))
+            else:
+                results.append(_blank(why(troubled)))
+    complete = run.get("stepwise") and not stopped and not skipped and len(lines) == len(counted)
+    places = iter(lines)
+    at = [list(next(places)[:2]) if e.get("estimate") is not None else None for e in exp] if complete else None
+    return {"results": results, "at": at}
+
+
+# ----------------------------------------------------------------------------- two runs' figures, compared
 def _fig_payload(fig):
     """The figure under the tabs' wrapper ({type, data, format, id, chain_id}): the Plotly object when the data is JSON,
     else the data as it is (a PNG's base64)."""
@@ -1073,30 +1247,6 @@ def same_figures(expected: Iterable, got: Iterable) -> Tuple[bool, str]:
         if not _close(_fig_payload(x), _fig_payload(y)):
             return False, f"figure {i} differs"
     return True, (f"{len(exp)} figure{'s' if len(exp) != 1 else ''} identical" if exp else "no figures")
-
-
-# ----------------------------------------------------------------------------- the check of a run
-def check_lines(expected: List[dict], got: List[dict], error: str = "") -> Tuple[str, str, List[dict]]:
-    """A run's RESULT lines against the expected ones, by position. Returns (status, line, details):
-    reproduced | differed | failed. Identical numbers (as printed) reproduce; a different count, or a different
-    estimate or interval at a position, differs; an error fails."""
-    if error:
-        last = str(error).strip().splitlines()[-1][:200] if str(error).strip() else "unknown error"
-        return "failed", f"the script stopped with an error ({last})", []
-    exp = [e for e in expected if e.get("estimate") is not None]
-    if not exp:
-        return "reproduced", "ran without error" + (f"; {len(got)} result line(s) printed" if got else " (no result lines to compare)"), []
-    if len(got) != len(exp):
-        return "differed", f"{len(got)} result line(s) came back, {len(exp)} expected", []
-    diffs = []
-    for e, g in zip(exp, got):
-        same = all((number(e.get(k)) == number(g.get(k))) or (e.get(k) == g.get(k)) for k in ("estimate", "low", "high"))
-        if not same:
-            diffs.append({"cell": e.get("cell"), "index": e.get("index"), "label": e.get("label"), "expected": e.get("estimate"), "got": g.get("estimate")})
-    if diffs:
-        shown = "; ".join(f"[cell {d['cell']}] {d['label'][:50]}: {d['expected']} -> {d['got']}" for d in diffs[:4])
-        return "differed", f"{len(diffs)} of {len(exp)} result lines differ ({shown}{'; ...' if len(diffs) > 4 else ''})", diffs
-    return "reproduced", f"reproduced: {len(exp)} result line(s) identical", []
 
 
 # ----------------------------------------------------------------------------- a run: the checks before it
@@ -1544,15 +1694,6 @@ def cut_rule(path: str) -> Tuple[str, str]:
     return CUT_RULES.get(aux_kind(path), ("auto", ""))
 
 
-def cut_name(path: str, start: str, end: str) -> str:
-    """The loader's name for this file had it been loaded for the window: the kind's prefix with the window's dates;
-    a file of another kind keeps its name."""
-    k = aux_kind(path)
-    if k in CUT_RULES or kind_prefix(k):
-        return f"{kind_prefix(k)}{str(start).replace('-', '')}_to_{str(end).replace('-', '')}.csv"
-    return os.path.basename(path)
-
-
 CUT_SNIPPET = """def _routine_cut_frame(frame, col, start, end):
     import pandas as _pd
     if frame is None or not col or col not in frame.columns:
@@ -1710,6 +1851,16 @@ def conform_prelude(columns: Iterable[dict], files: Optional[Iterable[Tuple[str,
         ctx = "\n# the words the method reads: CTX over this run's own context and codes files\n" + kernel_api_source(str(context[0]), str(context[1] or ""))
     return ("_ROUTINE_COLUMNS = " + json.dumps(cols) + "\n_ROUTINE_FILES = " + json.dumps(fl) + "\n_ROUTINE_SPAN = " + json.dumps(sp)
             + "\n_ROUTINE_CUT = " + ("None" if ct is None else json.dumps(ct)) + "\n" + CONFORM_PRELUDE + ctx)
+
+
+def remove_script(folder: str) -> str:
+    """A script that removes a folder a run made, with what is in it."""
+    return ("import pathlib as _pl\n"
+            "_root = _pl.Path(" + json.dumps(str(folder)) + ")\n"
+            "for _p in sorted(_root.rglob('*'), reverse=True) if _root.is_dir() else []:\n"
+            "    _p.rmdir() if _p.is_dir() and not _p.is_symlink() else _p.unlink()\n"
+            "if _root.is_dir():\n"
+            "    _root.rmdir()\n")
 
 
 SHAPE_MARK = "SHAPE:"
@@ -1963,23 +2114,6 @@ def value_checks(parameters: List[dict], values: Dict[str, object]) -> Dict[str,
     return out
 
 
-def missing_values(checks: Dict[str, List[str]], found: Optional[dict]) -> List[str]:
-    """What the precheck did not find: 'x is not in column c' (naming the file when the column lives in one); a
-    column neither the frame nor the files loaded have counts for every value."""
-    out = []
-    vals = (found or {}).get("values") or {}
-    where = (found or {}).get("where") or {}
-    for col, wanted in (checks or {}).items():
-        have = vals.get(col)
-        table = str(where.get(col) or "")
-        kind = aux_kind(table) if table and table != "the frame" else ""
-        of = "" if not table or table == "the frame" else (f" of the {kind} file" if kind and not kind.startswith("file:") else f" of {table}")
-        for v in wanted:
-            if have is None or not have.get(str(v)):
-                out.append(f"'{v}' is not in column {col}{of}" if have is not None else f"column {col} is not in this data (for '{v}')")
-    return out
-
-
 def value_verdict(parameters: List[dict], values: Dict[str, object], found: Optional[dict]) -> Tuple[List[str], List[str]]:
     """What the precheck found for each choice input, as (refusals, notes): a column in neither the frame nor the files
     loaded, or a single value absent, or every chosen value absent, refuses - nothing to run on for that input; one of
@@ -2045,66 +2179,63 @@ def error_line(err: str) -> str:
     return ""
 
 
-def failed_line_no(error: str) -> Optional[int]:
-    """The script line a traceback stopped at: the executor's condensed traceback names it first ("Error on line N:";
-    its frames may be cut at 1,000 characters), else the last frame in the script."""
-    nums = [int(n) for n in re.findall(r'File "<string>", line (\d+)', error or "")]
-    head = re.search(r"^Error on line (\d+):", error or "", re.M)
-    if head:
-        nums = [int(head.group(1))] + nums
-    if not nums:
-        return None
-    return nums[0] if head else nums[-1]
+def same_numbers(a: dict, b: dict) -> bool:
+    """Whether two lines carry the same estimate and interval: equal as printed, or equal as numbers (+1,234 is +1234)."""
+    def same(k):
+        x, y = number(a.get(k)), number(b.get(k))
+        return a.get(k) == b.get(k) or (x is not None and y is not None and x == y)
+    return all(same(k) for k in ("estimate", "low", "high"))
 
 
-def failed_statement(script: str, error: str) -> str:
-    """The line of the script a run stopped at, as written (§22: the question Fix it in the analysis asks names it);
-    '' when the traceback names no line in the script."""
-    n = failed_line_no(error)
-    lines = (script or "").splitlines()
-    return lines[n - 1].strip() if n and 1 <= n <= len(lines) else ""
-
-
-def failed_cell(script: str, error: str) -> Optional[int]:
-    """The cell a run failed in, from the traceback's line number in the script (the markers count the lines)."""
-    line_no = failed_line_no(error)
-    if line_no is None:
-        return None
-    cell = None
-    for i, ln in enumerate((script or "").splitlines(), 1):
-        if i > line_no:
-            break
-        m = _CELL_MARK_RE.match(ln)
-        if m:
-            cell = int(m.group(1))
-    return cell
-
-
-def run_status(expected: List[dict], got: List[dict], error: str, reference: Optional[List[dict]], script: str = "") -> Tuple[str, str]:
-    """The run's status: failed (with the cell), timed_out, differed (a line missing), reproduced (every number as the
-    reference run's) or ran (the normal case on new data)."""
+def run_status(expected: List[dict], results: List[dict], run: dict, error: str, reference: Optional[List[dict]]) -> Tuple[str, str]:
+    """A run's status and the line that says it. `results` are the run's lines laid against the expected ones
+    (place_lines), `run` what read_run read, `error` what the runner gave back when the script could not be carried
+    through. failed: the run could not be carried out (the error is not a statement's - those cost their own lines);
+    timed_out; empty: the frame had no rows and nothing was run; reproduced: every tracked number as the reference
+    run's; ran: the statements ran - the line says how many tracked lines came back with a number, and why the first
+    missing one did not."""
     if error:
         text = str(error).strip()
         last = (error_line(text) or "unknown error")[:200]
         if "TIMEOUT" in text.upper() or "timed out" in text.lower():
             return "timed_out", "timed out: " + last
-        cell = failed_cell(script, text)
-        return "failed", (f"failed at cell {cell}: " if cell else "failed: ") + last
-    exp = [e for e in expected if e.get("estimate") is not None]
-    if not exp:
-        return "ran", "ran without error (no result lines to compare)" + (f"; {len(got)} line(s) printed" if got else "")
-    if len(got) < len(exp):
-        gone = exp[len(got):]
-        return "differed", f"{len(exp) - len(got)} of {len(exp)} result lines did not come back (" + "; ".join(f"[cell {e['cell']}] {str(e.get('label', ''))[:50]}" for e in gone[:3]) + ")"
-    if len(got) > len(exp):
-        return "differed", f"{len(got)} result lines came back, {len(exp)} expected"
-    blank = [g for g in got if number(g.get("estimate")) is not None and number(g["estimate"]) != number(g["estimate"])]   # nan: the line printed, no number in it
+        return "failed", "failed: " + last
+    if run.get("empty"):
+        return "empty", NO_DATA
+    tracked = [(i, e) for i, e in enumerate(expected or []) if not e.get("dropped") and e.get("estimate") is not None]
+    stopped = run.get("stopped") or []
+    if not tracked:
+        return "ran", ("ran without error" if not stopped else f"ran; {len(stopped)} statement{'s' if len(stopped) != 1 else ''} stopped (cell {stopped[0]['cell']}: {stopped[0]['error']})")
+    got = [(i, results[i] if i < len(results) else _blank(NO_LINE)) for i, _e in tracked]
+    blank = [r for _i, r in got if r.get("estimate") is None]
+    n = len(tracked)
     if blank:
-        return "differed", f"{len(blank)} of {len(got)} result line{'s' if len(got) != 1 else ''} came back without a number (nan)"
-    if reference is not None and len(reference) == len(got) and all(
-            all((number(a.get(k)) == number(b.get(k))) or (a.get(k) == b.get(k)) for k in ("estimate", "low", "high")) for a, b in zip(got, reference)):
-        return "reproduced", f"reproduced: every result line as the run before ({len(got)} line{'s' if len(got) != 1 else ''})"
-    return "ran", f"ran: {len(got)} result line{'s' if len(got) != 1 else ''}" + (", 0 to compare" if not exp else "")
+        return "ran", f"ran: {n - len(blank)} of {n} result line{'s' if n != 1 else ''}; {len(blank)} not computed ({str(blank[0].get('why') or '')[:160]})"
+    if reference is not None and all(i < len(reference) and same_numbers(r, reference[i]) for i, r in got):
+        return "reproduced", f"reproduced: every result line as the run before ({n} line{'s' if n != 1 else ''})"
+    return "ran", f"ran: {n} result line{'s' if n != 1 else ''}"
+
+
+def check_zero(expected: List[dict], run: dict, error: str = "") -> Tuple[str, str]:
+    """Run zero's verdict, (status, line): reproduced when the method ran whole on the chain's own data and printed
+    the chain's lines, in order, with the same numbers; differed when another count came back, or a line differs -
+    the line names the first four; failed when the script, or a statement of it, stopped."""
+    stopped = run.get("stopped") or []
+    if not error and stopped:
+        error = f"cell {stopped[0]['cell']} stopped on the chain's own data: {stopped[0]['error']}"
+    if error:
+        return "failed", f"the script stopped with an error ({(error_line(error) or 'unknown error')[:200]})"
+    exp = [e for e in expected if e.get("estimate") is not None]
+    got = [ln for _s, _k, ln in run.get("lines") or []]
+    if not exp:
+        return "reproduced", "ran without error" + (f"; {len(got)} result line(s) printed" if got else " (no result lines to compare)")
+    if len(got) != len(exp):
+        return "differed", f"{len(got)} result line(s) came back, {len(exp)} expected"
+    off = [(e, g) for e, g in zip(exp, got) if not same_numbers(e, g)]
+    if off:
+        shown = "; ".join(f"[cell {e.get('cell')}] {str(e.get('label') or '')[:50]}: {e.get('estimate')} -> {g.get('estimate')}" for e, g in off[:4])
+        return "differed", f"{len(off)} of {len(exp)} result lines differ ({shown}{'; ...' if len(off) > 4 else ''})"
+    return "reproduced", f"reproduced: {len(exp)} result line(s) identical"
 
 
 def _ivl(r: Optional[dict]) -> Optional[Tuple[float, float]]:
@@ -2114,39 +2245,25 @@ def _ivl(r: Optional[dict]) -> Optional[Tuple[float, float]]:
     return (lo, hi) if lo is not None and hi is not None else None
 
 
-def cell_text(script: str, cell: int) -> str:
-    """The code of cell `cell` in a script - from its marker to the next marker or the tail - without the marker."""
-    lines = (script or "").splitlines()
-    start = next((i for i, ln in enumerate(lines) if _CELL_MARK_RE.match(ln) and int(_CELL_MARK_RE.match(ln).group(1)) == int(cell)), None)
-    if start is None:
-        return ""
-    end = next((i for i in range(start + 1, len(lines)) if _CELL_MARK_RE.match(lines[i]) or lines[i].startswith(_TAIL_MARK.strip("\n"))), len(lines))
-    return "\n".join(lines[start + 1:end]).strip("\n")
-
-
-def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional[List[dict]], failed: bool = False) -> dict:
-    """This run's lines against a reference run's, by position: the change, whether the intervals overlap, what is
-    missing on either side. Dropped lines are printed but not compared. Marks: up / down when the intervals do not
-    overlap (or, without intervals, when the estimate changed), same when they do, missing when a side lacks the line
-    - and, in a run that failed (`failed`), unreached for a line the run did not get to: the lines printed before
-    the failure are compared like any other (step 4, 2026-10-11), the rest said as not reached, not as missing."""
+def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional[List[dict]]) -> dict:
+    """This run's lines against a reference run's, both laid against the manifest's lines: the change, whether the
+    intervals overlap, what is missing on either side. Dropped lines are not compared. Marks: up / down when the
+    intervals do not overlap (or, without intervals, when the estimate changed), same when they do, missing when a
+    side has no number for the line - the row then says why this run has none (`why`)."""
     rows = []
-    moved = within = missing = changed = unreached = 0
+    moved = within = missing = changed = 0
     for i, m in enumerate(manifest_results or []):
         if m.get("dropped") or m.get("estimate") is None:
             continue
         a = now[i] if i < len(now or []) else None
         b = before[i] if before is not None and i < len(before) else None
+        why = str((a or {}).get("why") or "")
+        a = a if a and a.get("estimate") is not None else None
+        b = b if b and b.get("estimate") is not None else None
         row = {"cell": m.get("cell"), "index": m.get("index"), "label": m.get("label", ""), "name": m.get("name", ""), "unit": m.get("unit", ""), "direction": m.get("direction", ""), "typed": bool(m.get("typed")),
                "now": {"estimate": a.get("estimate"), "low": a.get("low"), "high": a.get("high")} if a else None,
                "before": {"estimate": b.get("estimate"), "low": b.get("low"), "high": b.get("high")} if b else None,
-               "change": None, "overlap": None, "mark": "missing"}
-        if failed and a is None:
-            row["mark"] = "unreached"; unreached += 1
-            rows.append(row)
-            continue
-        if a and number(a.get("estimate")) is not None and (number(a["estimate"]) != number(a["estimate"])):   # nan: no number came out
-            a = None
+               "change": None, "overlap": None, "mark": "missing", "why": why}
         if a and b:
             ea, eb = number(a.get("estimate")), number(b.get("estimate"))
             ia, ib = _ivl(a), _ivl(b)
@@ -2168,25 +2285,71 @@ def compare_runs(manifest_results: List[dict], now: List[dict], before: Optional
         else:
             missing += 1
         rows.append(row)
-    compared = len(rows) - missing - unreached
+    compared = len(rows) - missing
     if before is None:
-        line = "nothing to compare with: the first run of this version" + (f" ({unreached} line{'s' if unreached != 1 else ''} not reached)" if unreached else "")
+        line = "nothing to compare with: the first run of this version"
     elif compared == 0:
-        line = (f"no result line came before the failure ({unreached} not reached)" if unreached else "no result line to compare")
+        line = "no result line to compare"
     else:
         parts = [f"{moved} of {compared} moved beyond their intervals" if any(r["overlap"] is not None for r in rows) else f"{changed} of {compared} changed"]
-        if unreached:
-            parts[0] += " before the failure"
-            parts.append(f"{unreached} not reached")
         if missing:
             parts.append(f"{missing} missing")
         line = ", ".join(parts)
-    return {"rows": rows, "moved": moved, "within": within, "changed": changed, "missing": missing, "unreached": unreached, "compared": compared, "line": line}
+    return {"rows": rows, "moved": moved, "within": within, "changed": changed, "missing": missing, "compared": compared, "line": line}
+
+
+def gap_sentences(recorded: Optional[dict], now: Optional[dict], by: str = "") -> List[str]:
+    """Where this run's data is emptier than the data the analysis was made on, in sentences: a watched column whose
+    share of empty values - by the groups of `by` when the run counted them, else by rows - is at least ten points
+    above the recorded one. Both sides are the driver's counts per column: [rows empty, rows, groups empty, groups].
+    Nothing when no shares were recorded: there is nothing to hold the run to."""
+    def share(c):
+        if not c:
+            return None, None, None
+        if len(c) >= 4 and c[3]:
+            return c[2] / c[3], c[2], c[3]
+        return (c[0] / c[1], None, None) if len(c) >= 2 and c[1] else (None, None, None)
+    out = []
+    for col, counts in (now or {}).items() if recorded is not None else []:
+        here, k, n = share(counts)
+        there = share(recorded.get(col))[0] or 0.0
+        if here is None or here < there + 0.10:
+            continue
+        out.append(f"{col} is empty for {k} of {n} {by} values" if n and by else f"{col} is empty in {round(100 * here)}% of the rows")
+    return out
 
 
 # ----------------------------------------------------------------------------- the store
+SHAPE = 2                                   # the shape of a stored routine; one stored in an earlier shape is brought to this one when it is loaded
+
+
 def _safe(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "", str(s or ""))
+
+
+def _as_now(run: dict, expected: List[dict]) -> None:
+    """One stored run - its summary, or its record - from an earlier shape to today's (RoutineStore._upgrade): its
+    lines laid against the expected ones, a blank with its reason where none came back; a run that printed fewer
+    lines `ran`; a line the run failed before, missing; the cell it failed at, the statement that stopped. One
+    already in today's shape is left as it is (an upgrade cut short is taken up again)."""
+    if "gaps" in run:
+        return
+    if run.get("status") == "differed":
+        run["status"] = "ran"
+    line, lost = str(run.get("line") or ""), run.get("status") in ("failed", "timed_out")
+    laid = place_lines(expected, {"lines": [(None, k, r) for k, r in enumerate(run.get("results") or [])]})["results"]
+    run["results"] = [dict(r, why=line) if lost and r.get("estimate") is None else r for r in laid]
+    run["gaps"] = []
+    cmp = run.get("comparison") or {}
+    if "unreached" in cmp:
+        cmp["missing"] = int(cmp.get("missing") or 0) + int(cmp.pop("unreached") or 0)
+    for row in cmp.get("rows") or []:
+        row.update({"mark": "missing" if row.get("mark") == "unreached" else row.get("mark"), "why": "" if row.get("now") else line})
+    if "failed_cell" in run:
+        cell = run.pop("failed_cell") or {}
+        run["stopped"] = [{"cell": cell["number"], "line": None, "code": cell.get("statement") or cell.get("code") or "", "error": error_line(run.get("error") or ""),
+                           "skipped": 0}] if cell.get("number") else []
+    run.pop("consolidation", None)
 
 
 class RoutineStore:
@@ -2209,22 +2372,35 @@ class RoutineStore:
             return None
         with open(f, encoding="utf-8") as fh:
             routine = json.load(fh)
-        if self._name_subjects(routine):            # runs recorded before 2026-10-30: whose data, from each run's own record, once
+        if routine.get("shape") != SHAPE:
+            self._upgrade(routine)
             self.save(routine)
         return routine
 
-    def _name_subjects(self, routine: dict) -> bool:
-        """Put the subject (the load's, by id and name) on each run's summary that lacks it, from the run's record; True
-        when any changed. A summary from before 2026-10-30 has none; a record without a load's subject gives {}."""
-        changed = False
+    def _upgrade(self, routine: dict) -> None:
+        """A routine stored in an earlier shape, brought to today's, its runs' records with it - the one place that
+        knows the earlier shapes. A version keeps one script: a rewrite that was never confirmed gives way to the
+        method it replaced, and the records of the passes that shortened or rewrote it go. Every run is as _as_now
+        leaves it, and its summary names whose data it ran on (the load's subject, from the run's record)."""
+        expected = {}
+        for v in routine.get("versions") or []:
+            if "script_fallback" in v:
+                v["script"] = v.pop("script_fallback")
+            for k in ("script_written", "condensed", "consolidated"):
+                v.pop(k, None)
+            if (v.get("run_zero") or {}).get("status") == "condensing":      # the pass after a verdict of reproduced, cut short
+                v["run_zero"]["status"] = "reproduced"
+            expected[v.get("number")] = (v.get("manifest") or {}).get("results") or []
         for run in routine.get("runs") or []:
-            d = run.get("data")
-            if not isinstance(d, dict) or "subject" in d:
-                continue
-            rec = self.load_run(routine.get("id", ""), f"v{run.get('version', 1)}_{run.get('number')}") or {}
-            d["subject"] = subject_of_record(rec.get("data"))
-            changed = True
-        return changed
+            tag = f"v{run.get('version', 1)}_{run.get('number')}"
+            record = self.load_run(routine.get("id", ""), tag)
+            for r in (run, record) if record else (run,):
+                _as_now(r, expected.get(run.get("version")) or [])
+            if record:
+                self.save_run(routine["id"], tag, record)
+            if isinstance(run.get("data"), dict):
+                run["data"].setdefault("subject", subject_of_record((record or {}).get("data")))
+        routine["shape"] = SHAPE
 
     def save(self, routine: dict) -> dict:
         rid = routine["id"]

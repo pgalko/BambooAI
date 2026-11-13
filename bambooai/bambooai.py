@@ -181,29 +181,6 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Promoter' if 'Promoter' in agents else self._seat()
 
-    def _condenser_seat(self):
-        """The seat that consolidates a routine's method (docs/ROUTINES_DESIGN.md §19.3): 'Condenser' when the config
-        carries one, else None - the consolidation is opted in by configuring the seat, never a fallback."""
-        agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
-        return 'Condenser' if 'Condenser' in agents else None
-
-    def _llm_quiet(self, system: str, user: str, seat: str, chain_id, effort=None):
-        """A model call from a thread after its request has ended (the consolidation, §19.3): nothing goes to the pane -
-        the page's queue would carry a stream into the next request - and the cost is read off the chain the call is
-        billed to, not the session's. `effort` lowers the seat's reasoning effort for this call."""
-        class _Silent:
-            def print_wrapper(self, *a, **k): pass
-            def display_tool_info(self, *a, **k): pass
-            def send_html_content(self, *a, **k): pass
-            def display_system_messages(self, message, *a, **k): logger.info("quiet model call: %s", message)
-        before = self._cost_of(chain_id)
-        text = self.llm_stream(self.prompts, self.log_and_call_manager, _Silent(), [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                               agent=seat, chain_id=chain_id, reasoning_models=self.reasoning_models, **({"reasoning_effort": effort} if effort else {}))
-        if isinstance(text, tuple):
-            text = text[0]
-        from bambooai.models import prompt_cache
-        return text or "", {"cost": max(0.0, self._cost_of(chain_id) - before), "truncated": bool(prompt_cache.last_meta().get("truncated"))}
-
     def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, image: str = None,
              effort=None, **hints):
         """The model call the session uses: the app's model layer (streaming,
@@ -241,11 +218,8 @@ class BambooAI:
                             "declined": meta.get("declined") or "", "effort": meta.get("seat_effort") or ""}
 
     def _chain_cost(self):
-        return self._cost_of(self.chain_id)
-
-    def _cost_of(self, chain_id):
         ts = self.log_and_call_manager.token_summary
-        summary = ts.get(chain_id) or ts.get(str(chain_id)) or {}
+        summary = ts.get(self.chain_id) or ts.get(str(self.chain_id)) or {}
         return float(summary.get('total_cost', 0.0) or 0.0)
 
     # ---------------------------------------------------------------- kernel
@@ -518,8 +492,8 @@ class BambooAI:
 
     # ---------------------------------------------------------- the replay
     def run_script(self, script, timeout, what="Replay", generated_dir=None):
-        """One script through the executor against the loaded data, as the replay runs (2026-10-10: a routine's run
-        zero takes the same path; a routine's run passes its own folder, where its files and datasets go). Returns
+        """One script through the executor against the loaded data, as the replay runs (2026-10-10: a routine's proof
+        and its runs take the same path; a run passes its own folder, where its files and datasets go). Returns
         (stdout, error, figures as the tabs' JSON strings, generated datasets)."""
         generated_datasets_path = generated_dir or self._generated_dir()
         self._sync_documents("replay")              # a cited cell may have read a document file
@@ -532,12 +506,10 @@ class BambooAI:
             self.output_manager, self.kill_signal, script, self.df, self.df_id, generated_datasets_path,
             persist_df=False, timeout=timeout)
         if error and offset:
-            # the traceback's line numbers back in the caller's text, which the prelude pushed down (a routine's run names
-            # the failed cell by them, 2026-10-10)
+            # the traceback's line numbers back in the caller's text, which the prelude pushed down - in its frames, and in
+            # the executor's own head line, which names the line first
             import re as _re
             error = _re.sub(r'(File "<string>", line )(\d+)', lambda m: m.group(1) + str(max(1, int(m.group(2)) - offset)), str(error))
-            # ... and the executor's own head line, which names the line first and is what failed_cell reads (2026-10-11: with
-            # documents in the thread a failure in cell 2 was named at cell 3)
             error = _re.sub(r'^(Error on line )(\d+)(:)', lambda m: m.group(1) + str(max(1, int(m.group(2)) - offset)) + m.group(3), error, flags=_re.M)
         if error:
             logger.warning("%s failed (timeout %ds): %s", what, timeout,
@@ -686,7 +658,6 @@ class BambooAI:
                                              runner=lambda s, t: self.run_script(s, t, what="Shape"), instruction=instruction or "")
         finally:
             self.chain_id = keep
-        proposal["billing_chain_id"] = str(billing_chain_id or self.chain_id or "")      # the consolidation's call is billed there too (§19.3)
         pending = getattr(self, "_proposals", None)
         if pending is None:
             pending = self._proposals = {}
@@ -730,9 +701,10 @@ class BambooAI:
 
     def run_routine(self, routine_id, values=None, compare_with="previous", aux=None, load=None, interval=None, quiet=False):
         """One run of the routine on the data loaded now (F2): the checks, the script with its INPUTS block through the
-        executor, the lines read by position, the comparison with the run before, the record stored; then the tabs as an
-        analysis has them (Data, Results, Plots) and the closing card for the pane. `interval` (docs/ROUTINES_DESIGN.md
-        §14.1): the calendar unit the window is. `quiet` (a fill's runs): the record alone - no rows, tabs or card."""
+        executor a statement at a time, its lines laid against the tracked ones, the comparison with the run before,
+        the record stored; then the tabs as an analysis has them (Data, Results, Plots) and the closing card for the
+        pane. `interval` (docs/ROUTINES_DESIGN.md §14.1): the calendar unit the window is. `quiet` (a fill's runs):
+        the record alone - no rows, tabs or card."""
         from bambooai import routines_host
         routine = self.routine_store().load(routine_id)
         if routine is None:
@@ -756,7 +728,7 @@ class BambooAI:
             except Exception:                                      # noqa: BLE001
                 logger.warning("The run's tabs could not be sent", exc_info=True)
             self._pane('pane_routine_end', number=r["number"], name=routine.get("name", ""), version=r["version"], status=r["status"], line=r["line"],
-                       results=len(r["results"]), compared=c["compared"], moved=c["moved"], changed=c["changed"], missing=c["missing"], figures=r["figures"],
+                       results=sum(1 for x in r["results"] if x.get("estimate") is not None), compared=c["compared"], moved=c["moved"], changed=c["changed"], missing=c["missing"], figures=r["figures"],
                        elapsed=r["elapsed"], against=r["against"], comparison_line=c["line"])
         logger.info("Routine %s run %d (v%d%s): %s; %s", routine_id, r["number"], r["version"], f", {interval}" if interval else "", r["line"], c["line"])
         return {k: out[k] for k in ("run", "summary", "routine", "numbers", "name", "subject", "against_data")}     # whose, and the reference run's data (2026-10-30)
@@ -785,8 +757,9 @@ class BambooAI:
         return self.fill_status()
 
     def create_routine(self, proposal_id, choices, routine_id=None):
-        """Save as routine, step two: the person's choices, run zero on the chain's data through the executor, the
-        routine stored. Raises RoutineRefused when run zero does not reproduce the chain's lines."""
+        """Save as routine, step two: the person's choices applied and the routine stored; the proof on the chain's
+        own data - run zero, the shorter run, the trials on smaller pieces (routines_host.prove_method) - runs in a
+        thread and lands on the stored version. Raises RoutineRefused when the proposal is gone or cannot be stored."""
         from bambooai import routines_host
         pending = getattr(self, "_proposals", None) or {}
         proposal = pending.get(proposal_id)
@@ -806,23 +779,18 @@ class BambooAI:
                 proposal["data_state"] = "gone"
         # the version choice is the request's (2026-10-12): None makes a new routine even when the proposal was drawn for a
         # next version of one - the dialog's "A new routine" means that
-        # run zero behind the dialog (2026-10-15: it re-executes every cell of the chain - nine minutes on a heavy one): the
-        # routine is stored at once as verifying, the verdict lands on it from a thread, a run is refused until it has
-        # settled, and after a verdict that is not reproduced; the condensing pass (§19) follows the verdict in the same thread,
-        # and the consolidation (§19.3) when a Condenser seat is configured - a quiet call, billed to the save's chain
-        seat = self._condenser_seat()
-        model = ''
-        if seat:
-            try:
-                model = self.models.get_model_name(seat)
-                model = model[0] if isinstance(model, (tuple, list)) else model
-            except Exception:                                          # noqa: BLE001
-                model = ''
-        billing = proposal.get("billing_chain_id") or self.chain_id
-        made = routines_host.create(nb, proposal, choices or {}, lambda script, timeout: self.run_script(script, timeout, what="Run zero"),
-                                    self.routine_store(), emit=self._emit_routine, routine_id=routine_id, background=True, condense_code=True,
-                                    consolidator=(lambda s, u, effort=None: self._llm_quiet(s, u, seat, billing, effort)) if seat else None,
-                                    consolidator_seat=seat or '', consolidator_model=model or '')
+        # the proof behind the dialog (2026-10-15: run zero re-executes every cell of the chain - nine minutes on a heavy
+        # one): the routine is stored at once as verifying, the verdict lands on it from a thread, a run is refused until
+        # it has settled, and after a verdict that is not reproduced. The proof is of the data loaded now: it stops when
+        # the Data tab holds something else
+        frame = self.df_id
+
+        def runner(script, timeout, folder=None):
+            if self.df_id != frame:
+                raise RuntimeError("the data on the Data tab changed while the routine was being verified")
+            return self.run_script(script, timeout, what="Run zero", generated_dir=folder)
+        made = routines_host.create(nb, proposal, choices or {}, runner, self.routine_store(), emit=self._emit_routine, routine_id=routine_id, background=True,
+                                    runs_root=os.path.join('datasets', self.user_id or '', 'routines'))
         pending.pop(proposal_id, None)
         verify = made.pop("verify", None)
         logger.info("Routine %s v%d made from chain %s: %s", made["routine"]["id"], made["version"], proposal["chain_id"], made["run_zero"]["line"])
@@ -831,9 +799,9 @@ class BambooAI:
 
             def work():
                 try:
-                    verdict = verify()
-                    logger.info("Routine %s v%d verified: %s (%.0f s); %s; %s", rid, vnum, verdict.get("line"), float(verdict.get("elapsed") or 0),
-                                (verdict.get("condensed") or {}).get("line") or "not condensed", (verdict.get("consolidated") or {}).get("line") or "no consolidation")
+                    proof = verify()
+                    logger.info("Routine %s v%d verified: %s (%.0f s); %s; tried: %s", rid, vnum, proof.get("line"), float(proof.get("elapsed") or 0), (proof.get("lean") or {}).get("line") or "-",
+                                "; ".join(f"{t['interval']} {t['came']} of {t['of']}" for t in proof.get("tried") or []) or "-")
                 except Exception as exc:                            # noqa: BLE001
                     logger.error("Routine %s v%d: the verification failed: %s", rid, vnum, exc)
             threading.Thread(target=work, daemon=True, name=f"routine-verify-{rid}").start()

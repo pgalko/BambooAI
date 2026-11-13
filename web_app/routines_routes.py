@@ -30,13 +30,13 @@ def _store():
 def _view(proposal):
     """The proposal as the dialog shows it: no scripts, no edit lists."""
     keys = ("proposal_id", "thread_id", "chain_id", "name", "purpose", "question", "summary", "data", "data_state", "source", "inputs", "notes",
-            "kept", "results", "figures", "cells", "chain_cells", "pruned", "cost", "routine_id", "routine_name", "next_version", "instruction")
+            "kept", "results", "figures", "cells", "cost", "routine_id", "routine_name", "next_version", "instruction")
     return {k: proposal.get(k) for k in keys}
 
 
 def _version_view(v):
-    return {k: v.get(k) for k in ("number", "created", "promoted_from", "change_note", "manifest", "run_zero", "condensed", "consolidated")} | {
-        "script_chars": len(v.get("script") or ""), "written_chars": len(v.get("script_written") or "")}        # the script as written, when condensed (§19)
+    """A version as the manager shows it: no script."""
+    return {k: v.get(k) for k in ("number", "created", "promoted_from", "change_note", "manifest", "run_zero", "tried")}
 
 
 def _stream(instance, work):
@@ -111,7 +111,6 @@ def get_routine(rid):
         return jsonify({'error': 'no such routine'}), 404
     out = {k: r.get(k) for k in ("id", "name", "created", "updated", "purpose", "question", "summary", "origin", "source", "current_version", "runs", "instruction")}
     out["versions"] = [_version_view(v) for v in r.get("versions", [])]
-    out["summary_card"] = _store().summary(r)
     try:
         import os
         a = _app()
@@ -147,8 +146,7 @@ def rename_routine(rid):
 @routines_bp.route('/routines/<rid>/script', methods=['GET'])
 @requires_auth
 def routine_script(rid):
-    """The current version's script as a file, the INPUTS block at the top with the defaults; `?written=1` the script
-    as the analysis wrote it, when the version was condensed (§19)."""
+    """A version's script as a file (the current one's, or `?version=N`), the INPUTS block at the top with the defaults."""
     from analyst.routines import script_with_defaults
     import re
     r = _store().load(rid)
@@ -162,10 +160,8 @@ def routine_script(rid):
     if not v:
         return jsonify({'error': 'no such version'}), 404
     name = re.sub(r'[^A-Za-z0-9_-]+', '_', r.get('name') or 'routine').strip('_') or 'routine'
-    written = bool(request.args.get('written')) and bool(v.get('script_written'))
-    shown = dict(v, script=v['script_written']) if written else v
-    body = f"# {r.get('name')} - v{number} - made with BambooAI from the analysis of {r.get('origin', {}).get('chain_id')}" + (" - as the analysis wrote it" if written else "") + "\n" + script_with_defaults(shown)
-    return Response(body, mimetype='text/x-python', headers={'Content-Disposition': f'attachment; filename="{name}_v{number}{"_as_written" if written else ""}.py"'})
+    body = f"# {r.get('name')} - v{number} - made with BambooAI from the analysis of {r.get('origin', {}).get('chain_id')}\n" + script_with_defaults(v)
+    return Response(body, mimetype='text/x-python', headers={'Content-Disposition': f'attachment; filename="{name}_v{number}.py"'})
 
 
 @routines_bp.route('/routines/<rid>/cached', methods=['POST'])

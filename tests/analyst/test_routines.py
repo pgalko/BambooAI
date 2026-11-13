@@ -11,6 +11,7 @@ from analyst.notebook import Notebook, Turn, Run
 from analyst.replay import assemble
 from kernel import PersistentKernel
 
+os.chdir(tempfile.mkdtemp())                           # a routine's run folders are named from where the kernel runs: this file's land in a folder of their own
 passed, failed = [], []
 def check(name, cond, detail=""):
     (passed if cond else failed).append(name); print(("  ok   " if cond else "  FAIL ") + name + ("" if cond else f"  <- {detail}"))
@@ -26,8 +27,8 @@ check("parse_result_line: a colon inside the label, thousands separators, no uni
 r3 = rt.parse_result_line("RESULT: share of rows kept: +0.912")
 check("parse_result_line: an estimate alone", r3 and r3["estimate"] == "+0.912" and r3["low"] is None and r3["unit"] == "" and r3["direction"] == "", r3)
 check("parse_result_line: not a result line -> None; a blank -> None", rt.parse_result_line("hello world") is None and rt.parse_result_line("") is None)
-lines = rt.result_lines_in("noise\nRESULT: a: +1 (95% CI +0 to +2) u, up\nmore\nRESULT: b: +2.50\n")
-check("result_lines_in: every RESULT line in order", [x["what"] for x in lines] == ["a", "b"] and lines[1]["estimate"] == "+2.50")
+lines = [ln for _s, _k, ln in rt.read_run("noise\nRESULT: a: +1 (95% CI +0 to +2) u, up\nmore\nRESULT: b: +2.50\n")["lines"]]
+check("read_run: every RESULT line of a printed output, in order", [x["what"] for x in lines] == ["a", "b"] and lines[1]["estimate"] == "+2.50")
 
 # ---- expected lines from the kernel's records, keyed by position ----
 cells = [Turn(kind="cell", cell_no=1, code="x", results=[{"text": "first: +1.0 (95% CI +0.5 to +1.5) u, up", "typed": False}]),
@@ -178,16 +179,18 @@ except ValueError as exc:
 check("parse_promoter: 'tracked' is read as a list when given and refused otherwise; absent, it is left absent (the host asks again about that)",
       _tr_bad and rt.parse_promoter('{"tracked": [{"asked": "a", "lines": []}]}')["tracked"] == [{"asked": "a", "lines": []}] and "tracked" not in rt.parse_promoter('{}'))
 
-# ---- the check of a run ----
+# ---- run zero's verdict: the chain's lines, printed again on its own data ----
 exp = [{"cell": 1, "index": 0, "label": "a", "estimate": "+1.0", "low": "+0.5", "high": "+1.5"}, {"cell": 2, "index": 0, "label": "b", "estimate": "+2", "low": None, "high": None}]
 got_same = [{"estimate": "+1.0", "low": "+0.5", "high": "+1.5"}, {"estimate": "+2", "low": None, "high": None}]
-check("check_lines: identical numbers reproduce", rt.check_lines(exp, got_same)[0] == "reproduced" and "2 result line(s) identical" in rt.check_lines(exp, got_same)[1])
-check("check_lines: a different estimate differs, naming the line", rt.check_lines(exp, [{"estimate": "+1.1", "low": "+0.5", "high": "+1.5"}, got_same[1]])[0] == "differed" and "[cell 1] a: +1.0 -> +1.1" in rt.check_lines(exp, [{"estimate": "+1.1", "low": "+0.5", "high": "+1.5"}, got_same[1]])[1])
-check("check_lines: a missing line differs by count; an error fails; nothing expected reproduces when it ran",
-      rt.check_lines(exp, got_same[:1])[0] == "differed" and "1 result line(s) came back, 2 expected" in rt.check_lines(exp, got_same[:1])[1]
-      and rt.check_lines(exp, [], "Traceback\nKeyError: 'x'")[0] == "failed" and "KeyError" in rt.check_lines(exp, [], "Traceback\nKeyError: 'x'")[1]
-      and rt.check_lines([], [])[0] == "reproduced")
-check("check_lines: the same value printed with a different sign of zero or separators still reproduces", rt.check_lines([{"estimate": "+1,234", "low": None, "high": None, "cell": 1, "index": 0, "label": "x"}], [{"estimate": "+1234", "low": None, "high": None}])[0] == "reproduced")
+_printed = lambda lines: {"lines": [(None, k, ln) for k, ln in enumerate(lines)]}
+check("check_zero: identical numbers reproduce", rt.check_zero(exp, _printed(got_same)) == ("reproduced", "reproduced: 2 result line(s) identical"))
+check("check_zero: a different estimate differs, naming the line", rt.check_zero(exp, _printed([{"estimate": "+1.1", "low": "+0.5", "high": "+1.5"}, got_same[1]])) == ("differed", "1 of 2 result lines differ ([cell 1] a: +1.0 -> +1.1)"))
+check("check_zero: a missing line differs by count; an error fails with its line; nothing expected reproduces when it ran",
+      rt.check_zero(exp, _printed(got_same[:1])) == ("differed", "1 result line(s) came back, 2 expected")
+      and rt.check_zero(exp, _printed([]), "Traceback\nKeyError: 'x'") == ("failed", "the script stopped with an error (KeyError: 'x')") and rt.check_zero([], _printed([]))[0] == "reproduced")
+check("same_numbers: the same value written with separators is the same; equal as printed is the same (a line without a number against itself); two different words are not",
+      rt.check_zero([{"estimate": "+1,234", "low": None, "high": None, "cell": 1, "index": 0, "label": "x"}], _printed([{"estimate": "+1234", "low": None, "high": None}]))[0] == "reproduced"
+      and rt.same_numbers({"estimate": "nan"}, {"estimate": "nan"}) and not rt.same_numbers({"estimate": "linear"}, {"estimate": "cubic"}) and not rt.same_numbers({"estimate": "+1", "low": "+0"}, {"estimate": "+1", "low": None}))
 
 # ---- the records: a run keeps its data; the store ----
 nb3 = Notebook.from_dict({"thread_id": "t3", "runs": {"r": {"id": "r", "parent": None, "question": "q", "turns": [], "report": "", "rewrite": "", "replay_status": "", "replay_script": "", "status": "answered", "created": 1.0}}})
@@ -213,6 +216,7 @@ check("source_kind: the executor's names map to the four kinds", rt.source_kind(
 
 # ---- the host's path: propose and create over a real kernel with a scripted promoter ----
 from bambooai import routines_host as host
+host.RETRY_PAUSE = 0.0                                  # a script that could not be carried out is tried once more at once here
 df = pd.DataFrame({"v": [100, 150, 160, 170, 200], "g": ["a", "a", "b", "b", "b"]})
 nb4 = Notebook("t4")
 run4 = nb4.new_run("How many rows are above 155?")
@@ -239,7 +243,7 @@ p = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, emit
 check("propose: the promoter is called with the question, the cells, the ledger and the cell the report cites; the proposal carries the inputs, the results, the figures and the edited script",
       prompts and prompts[0][0] == rt.PROMOTER_SYSTEM and "How many rows" in prompts[0][1] and "1. [cell 2] rows above the line: +3" in prompts[0][1]
       and "THE REPORT CITES (the cells the answer was read from): cell 2" in prompts[0][1]
-      and p["name"] == "Rows above a line" and p["inputs"][0]["key"] == "threshold" and p["results"][0]["label"] == "rows above the line" and "INPUTS['threshold']" in p["script"] and p["data"]["name"] == "small.csv" and p["data_state"] == "same", (p.get("inputs"), p.get("data_state"), [e.get("type") for e in events]))
+      and p["name"] == "Rows above a line" and p["inputs"][0]["key"] == "threshold" and p["results"][0]["label"] == "rows above the line" and "INPUTS['threshold']" in p["cells_text"] and "script" not in p and p["data"]["name"] == "small.csv" and p["data_state"] == "same", (p.get("inputs"), p.get("data_state"), [e.get("type") for e in events]))
 check("propose: the pane saw a quiet turn start and its end; the dialog's checklist (§17) saw the steps - the chain read with its facts, the data checked (running, then its facts), the model running then done around the turn, the proposal running",
       [e.get("type") for e in events if e.get("type") != "step"] == ["turn_start", "turn_end"] and [e for e in events if e.get("type") == "turn_start"][0].get("quiet")
       and [(e["step"], e.get("state", "done"), e.get("detail", "")) for e in events if e.get("type") == "step"] == [("chain", "done", "2 cells · 1 result · 0 figures"), ("data", "running", ""), ("data", "done", "5 rows · 2 columns"), ("model", "running", ""), ("model", "done", ""), ("proposal", "running", "")]
@@ -268,17 +272,9 @@ except host.RoutineRefused as exc:
     refused = str(exc)
 check("create: a rewrite whose run zero differs is refused, naming the line; nothing is stored", refused and "differ" in refused and "rows above the line" in refused and len(store.all()) == before, refused)
 
-# ---- the condensing pass (docs/ROUTINES_DESIGN.md §19): the cells pruned from the code alone, run on the chain's own data and kept
-# only when the lines and the figures are run zero's; the prints alone when a dropped cell turns out to matter; else as written
+# ---- the reading of the chain (docs/ROUTINES_DESIGN.md §19): what each statement reads and writes, from the code alone. It gives the
+# promoter's view - the chain without its exploration - and the statements a run needs; two runs' figures are compared as pictures
 import base64 as _b64
-_orig_cells = "\n# --- cell 1 ---\na = INPUTS['k']\n# --- cell 2 ---\nprint(a)\n# --- cell 3 ---\nfig.show()\n"
-check("check_condensed: the cells kept are a subsequence of the original's by number, every figure cell is kept, the same inputs are read; each fault named",
-      rt.check_condensed(_orig_cells, "\n# --- cell 1 ---\na = INPUTS['k']\n# --- cell 3 ---\nfig.show()\n", [3], ["k"]) == ""
-      and rt.check_condensed(_orig_cells, "\n# --- cell 3 ---\nfig.show()\n# --- cell 1 ---\na = INPUTS['k']\n", [3], ["k"]).startswith("renumbers or reorders")
-      and rt.check_condensed(_orig_cells, "\n# --- cell 1 ---\na = INPUTS['k']\n", [3], ["k"]) == "drops cell 3, which draws a figure"
-      and rt.check_condensed(_orig_cells, "\n# --- cell 1 ---\na = INPUTS['j']\n# --- cell 3 ---\nfig.show()\n", [3], ["k"]) == "reads other inputs than the script (j, k)"
-      and rt.check_condensed(_orig_cells, "\n# --- cell 4 ---\nx\n", [], ["k"]).startswith("renumbers") and rt.check_condensed(_orig_cells, "nothing", [], []) == "has no cells"
-      and rt.check_condensed(_orig_cells, "\n# --- cell 1 ---\na = INPUTS['k']\n# --- cell 1 ---\nb\n", [], ["k"]) == "repeats a cell marker")
 def _fig(y, fmt="json", chain="c1"):
     return json.dumps({"type": "plot", "data": json.dumps({"data": [{"type": "bar", "y": y}], "layout": {"title": {"text": "t"}}}) if fmt == "json" else y, "format": fmt, "id": "plot_1", "chain_id": chain})
 _arr = lambda xs: {"dtype": "f8", "bdata": _b64.b64encode(np.array(xs, dtype="f8").tobytes()).decode()}
@@ -289,10 +285,7 @@ check("same_figures: the same picture under another chain id and wrapper is the 
       and not rt.same_figures([{"data": {"data": [{"y": _arr([1.0, 2.0])}]}, "format": "json"}], [{"data": {"data": [{"y": _arr([1.0, 2.5])}]}, "format": "json"}])[0]
       and rt.same_figures([_fig([float("nan"), 1])], [_fig([float("nan"), 1])])[0] and rt.same_figures([_fig("iVBOR...", "png")], [_fig("iVBOR...", "png")])[0] and not rt.same_figures([_fig("iVBOR...", "png")], [_fig("iVBOQ...", "png")])[0]
       and rt.same_figures([_fig([1])], []) == (False, "0 figures came back, 1 expected") and rt.same_figures([], []) == (True, "no figures"))
-check("the durations and the words of the condensed line", (rt.secs_text(0.84), rt.secs_text(48.3), rt.secs_text(542), rt.secs_text(None)) == ("0.8 s", "48 s", "9 min", "0.0 s")
-      and rt.condensed_line(12, 5, 23, 190.2, 184.0) == "condensed: 12 cells → 5, 23 lines dropped, 3 min → 3 min" and rt.condensed_line(3, 3, 1, 1.2, 1.1) == "condensed: 3 cells kept, 1 line dropped, 1.2 s → 1.1 s"
-      and rt.condensed_line(4, 2, 0, 9.96, 8.0) == "condensed: 4 cells → 2, 10 s → 8.0 s" and rt.condensed_line(7, 5, 201, None, 48.3) == "condensed: 7 cells → 5, 201 lines dropped, 48 s")
-# prune_cells over a made-up script (§19.5: by statement): a statement stays when a RESULT line, a figure, a file written or the only read
+# prune_cells over a made-up script (§19.3: by statement): a statement stays when a RESULT line, a figure, a file written or the only read
 # of an input rests on it, or when a later kept statement reads what it makes; everything else goes - the prints, a check nothing reads, a
 # loop that only prints, a list filled through a function that nothing reads - with the cells left empty; imports and the capture switches
 # stay wherever they are; a cell that does not parse prunes nothing
@@ -348,7 +341,7 @@ check("prune_cells: cells 1 and 4 go (nothing reads what they make) and cell 5 w
       and [ln for ln in _pruned.splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (2, 3, 6, 7, 8)]
       and "print(" not in _pruned and "for a_" not in _pruned and "note(" not in _pruned and "names" not in _pruned and "_bamboo_capture[0] = False" in _pruned and "_bamboo_capture[0] = True" in _pruned
       and _pruned.startswith("\nimport numpy as np, pandas as pd\n# --- cell 2 ---\n") and "INPUTS['scale']" in _pruned and "lbl = INPUTS['label']" in _pruned and "tab.to_csv('out.csv')" in _pruned
-      and rt.check_condensed(_script, _pruned, [7], ["scale", "label"]) == "" and "\n\n\n" not in _pruned, (_dropped, _cut, _pruned))
+      and "\n\n\n" not in _pruned, (_dropped, _cut, _pruned))
 check("prune_cells: pruning the pruned changes nothing; a script with nothing to cut comes back as it is; a cell that does not parse prunes nothing and says which",
       rt.prune_cells(_pruned, [7]) == (_pruned, [], 0, "")
       and rt.prune_cells("\n# --- cell 1 ---\nx = 1\nRESULT('x', float(x), None, None, '', 'n/a')\n", []) == ("\n# --- cell 1 ---\nx = 1\nRESULT('x', float(x), None, None, '', 'n/a')\n", [], 0, "")
@@ -371,27 +364,27 @@ def _left(code, figs=()):
 # the case 0283 missed (2026-11-13, Palo's power-curve chain): every cell loads the frame again, so a cell that only looked was held by the
 # next reader of df; a name bound whole again cuts that link, and a check written inside a cell the method needs goes with its comment
 _looked = rt.prune_cells("\n# --- cell 1 ---\ndf = DS.load()\nlook = df[df.g == 'b']\nprint(len(look))\n# --- cell 2 ---\ndf = DS.load()\n" + _R % "len(df)" + "\n# --- cell 3 ---\nfig = draw(df)\nfig.show()\n", [3])
-check("prune_cells (§19.5): a cell that only looked goes although it loaded the frame a later cell reads - the cell between loads it whole again; a check inside a cell the method needs goes, the comment standing on it too, the comment on a kept "
+check("prune_cells (§19.3): a cell that only looked goes although it loaded the frame a later cell reads - the cell between loads it whole again; a check inside a cell the method needs goes, the comment standing on it too, the comment on a kept "
       "statement stays; a statement over two lines goes whole; statements sharing a line stay or go together",
       _looked[1] == [1] and "df.g == 'b'" not in _looked[0] and _looked[0].count("df = DS.load()") == 1
       and _left("kept = df[df.v > 155]\n# a look at group b\none = df[df.g == 'b']\nprint(len(one), 'rows of b')\n# the count\n" + _R % "len(kept)") == ["kept = df[df.v > 155]", "# the count", _R % "len(kept)"]
       and _left("x = (1 +\n     2)\nprint(x)\ny = 3\n" + _R % "y") == ["y = 3", _R % "y"]
       and _left("a = 1; b = 2\nc = 3; print(c)\n" + _R % "b") == ["a = 1; b = 2", _R % "b"], _looked)
-check("prune_cells (§19.5): a call does what the function's body does - a loop that fills a list through a function stays, a function that changes what it is handed keeps the statement that hands it over, a call of a function that records a RESULT "
-      "line stays; a function nothing kept calls goes; what the reading cannot see is an alias (the fallback's case)",
+check("prune_cells (§19.3): a call does what the function's body does - a loop that fills a list through a function stays, a function that changes what it is handed keeps the statement that hands it over, a call of a function that records a RESULT "
+      "line stays; a function nothing kept calls goes; what the reading cannot see is an alias (the shorter run is held to run zero for that)",
       _left("flags = []\ndef flag(v):\n    flags.append(v)\nfor v in df.v:\n    if v > 150:\n        flag(v)\nprint(len(flags))\n" + _R % "len(flags)")
       == ["flags = []", "def flag(v):", "    flags.append(v)", "for v in df.v:", "    if v > 150:", "        flag(v)", _R % "len(flags)"]
       and _left("def mark(t):\n    t['seen'] = True\ntab = {}\nok = mark(tab)\nshown = mark({})\n" + _R % "len(tab)") == ["def mark(t):", "    t['seen'] = True", "tab = {}", "ok = mark(tab)", _R % "len(tab)"]
       and _left("def record(x):\n    RESULT('x', float(x), None, None, '', 'n/a')\ndef unused(x):\n    return x\nrecord(3)") == ["def record(x):", "    RESULT('x', float(x), None, None, '', 'n/a')", "record(3)"]
       and _left("flags = []\nalso = flags\nalso.append(1)\n" + _R % "len(flags)") == ["flags = []", _R % "len(flags)"])
-check("prune_cells (§19.5): a bare call is there for its effect - on the object it is called on (kept when that object is read later), on a module (a setting, a seed: kept); a check that can stop the run is the method's, with what it reads; a del "
+check("prune_cells (§19.3): a bare call is there for its effect - on the object it is called on (kept when that object is read later), on a module (a setting, a seed: kept); a check that can stop the run is the method's, with what it reads; a del "
       "of a column changes the frame; a figure cell is kept whole, its prints too",
       _left("fig = make()\nfig.update_layout(title='t')\nother = make()\nother.update_layout(title='u')\nfig.show()") == ["fig = make()", "fig.update_layout(title='t')", "fig.show()"]
       and _left("import warnings\nwarnings.filterwarnings('ignore')\npd.set_option('display.width', 200)\nx = 1\n" + _R % "x") == ["import warnings", "warnings.filterwarnings('ignore')", "pd.set_option('display.width', 200)", "x = 1", _R % "x"]
       and _left("chk = df.v.sum()\nspare = df.v.max()\nassert chk > 0\n" + _R % "len(df)") == ["chk = df.v.sum()", "assert chk > 0", _R % "len(df)"]
       and _left("tmp = df.copy()\ndel tmp['g']\nprint(tmp.shape)\n" + _R % "tmp.shape[1]") == ["tmp = df.copy()", "del tmp['g']", _R % "tmp.shape[1]"]
       and _left("print('drawing')\nfig = 1", figs=[1]) == ["print('drawing')", "fig = 1"])
-check("prune_cells (§19.5): a draw reads the generator's state and moves it on, so a draw nothing else reads stays when a later draw is kept - the global generators and one made by default_rng alike; a seed set again cuts the link; without a later "
+check("prune_cells (§19.3): a draw reads the generator's state and moves it on, so a draw nothing else reads stays when a later draw is kept - the global generators and one made by default_rng alike; a seed set again cuts the link; without a later "
       "draw the look goes",
       _left("np.random.seed(1)\nlook = np.random.rand(3)\nprint(look)\nx = np.random.rand()\n" + _R % "x") == ["np.random.seed(1)", "look = np.random.rand(3)", "x = np.random.rand()", _R % "x"]
       and _left("rng = np.random.default_rng(0)\npeek = rng.normal(size=2)\nprint(peek)\nx = rng.normal()\n" + _R % "x") == ["rng = np.random.default_rng(0)", "peek = rng.normal(size=2)", "x = rng.normal()", _R % "x"]
@@ -399,14 +392,14 @@ check("prune_cells (§19.5): a draw reads the generator's state and moves it on,
       and _left("rng = np.random.default_rng(0)\npeek = rng.normal(size=2)\nx = 2\n" + _R % "x") == ["x = 2", _R % "x"]
       and _left("def boot(a, gen):\n    return gen.choice(a).mean()\nrng = np.random.default_rng(0)\ntrial = boot(df.v, rng)\nx = boot(df.v, gen=rng)\n" + _R % "x")
       == ["def boot(a, gen):", "    return gen.choice(a).mean()", "rng = np.random.default_rng(0)", "trial = boot(df.v, rng)", "x = boot(df.v, gen=rng)", _R % "x"])
-check("prune_cells (§19.5): what the code does not show on its face - a name read inside a query or eval string is read; a function handed to a call may be called by it; a function's global is the chain's own name; a print by another name "
+check("prune_cells (§19.3): what the code does not show on its face - a name read inside a query or eval string is read; a function handed to a call may be called by it; a function's global is the chain's own name; a print by another name "
       "(pprint) only shows",
       _left("thr = 150\nspare = 3\nsub = df.query('v > @thr')\n" + _R % "len(sub)") == ["thr = 150", "sub = df.query('v > @thr')", _R % "len(sub)"]
       and _left("a = df.v\nb = 2\nspare = 9\nz = pd.eval('a * b')\n" + _R % "z.sum()") == ["a = df.v", "b = 2", "z = pd.eval('a * b')", _R % "z.sum()"]
       and _left("seen = []\ndef keep(v):\n    seen.append(v)\n    return v\ndoubled = df.v.apply(keep)\n" + _R % "len(seen)") == ["seen = []", "def keep(v):", "    seen.append(v)", "    return v", "doubled = df.v.apply(keep)", _R % "len(seen)"]
       and _left("n = 0\ndef bump():\n    global n\n    n += 1\nbump()\nspare = 5\n" + _R % "n") == ["n = 0", "def bump():", "    global n", "    n += 1", "bump()", _R % "n"]
       and _left("import pprint\nlook = df[df.g == 'b']\npprint.pprint(look)\nx = 1\n" + _R % "x") == ["import pprint", "x = 1", _R % "x"])
-check("prune_cells (§19.5): names read through globals() are the names whose strings the kept code holds - spelled where they are read, or kept in a table the reader goes through; a string only dropped code holds keeps nothing (so pruning the "
+check("prune_cells (§19.3): names read through globals() are the names whose strings the kept code holds - spelled where they are read, or kept in a table the reader goes through; a string only dropped code holds keeps nothing (so pruning the "
       "pruned changes nothing); a write through globals() stays; eval may read any name and keeps what came before it",
       _left("well = 1\nwell2 = 2\nspare = 3\nw = globals().get('well2', globals().get('well'))\n" + _R % "w") == ["well = 1", "well2 = 2", "w = globals().get('well2', globals().get('well'))", _R % "w"]
       and _left("fat_b = 1\nsor_b = 2\nspare = 3\nstored = {'f': ['fat_b'], 's': ['sor_b']}\ntot = sum(globals().get(nm) for k in stored for nm in stored[k])\n" + _R % "tot")
@@ -415,7 +408,7 @@ check("prune_cells (§19.5): names read through globals() are the names whose st
       and (lambda once: rt.prune_cells(once, [])[0] == once)(rt.prune_cells("\n# --- cell 1 ---\ntired = 1\nif 'tired' in globals():\n    print('have it')\nfresh = 2\nw = globals().get('fresh')\n" + _R % "w" + "\n", [])[0])
       and _left("globals()['made'] = 5\nspare = 1\n" + _R % "made") == ["globals()['made'] = 5", _R % "made"]
       and _left("x = 1\ny = 2\nz = eval('x + 1')\nlate = 4\n" + _R % "z") == ["x = 1", "y = 2", "z = eval('x + 1')", _R % "z"])
-check("prune_cells (§19.5): a call reads what the function's body reads when it is called - a change made between the definition and the call stays; numpy's global generator and the standard library's are two states - a seed of one does not "
+check("prune_cells (§19.3): a call reads what the function's body reads when it is called - a change made between the definition and the call stays; numpy's global generator and the standard library's are two states - a seed of one does not "
       "cut the draws of the other",
       _left("d = {}\ndef size(x):\n    d['a'] = x\n    return len(d)\nd['b'] = 1\nn = size(3)\n" + _R % "n") == ["d = {}", "def size(x):", "    d['a'] = x", "    return len(d)", "d['b'] = 1", "n = size(3)", _R % "n"]
       and _left("np.random.seed(0)\nlook = np.random.rand()\nimport random\nrandom.seed(1)\nx = np.random.rand()\n" + _R % "x")
@@ -435,19 +428,150 @@ for _ in range(400):
     if _rp[3] or _chain_values(_rp[0]) != _as_written or rt.prune_cells(_rp[0], []) != (_rp[0], [], 0, ""):
         _differ.append(_rc)
 np.random.set_state(_np_state); _random.setstate(_py_state)
-check("prune_cells over 400 random chains (§19.5): each gives the same RESULT values as written and as pruned, and pruning the pruned changes nothing", _tried > 350 and not _differ, (_tried, _differ[:1]))
-# the chain as written with the same edits (run zero's fallback): an edit was found in the pruned method, where its fragment occurs once; in
+check("prune_cells over 400 random chains (§19.3): each gives the same RESULT values as written and as pruned, and pruning the pruned changes nothing", _tried > 350 and not _differ, (_tried, _differ[:1]))
+# the chain as written with the same edits (what a version stores): an edit was found in the promoter's view, where its fragment occurs once; in
 # the chain the fragment may occur again in a line that was dropped - held out, that line cannot take the edit
 _chain_e = "\n# --- cell 1 ---\nthreshold = 155\nprint('threshold = 155 is the line')\nkept = df[df.v > threshold]\n# --- cell 2 ---\nprint(df.shape)\n# --- cell 3 ---\n" + _R % "len(kept)" + "\n"
 _held_e, _lines_e = rt.held_out(_chain_e, [])
 _edit_e = [{"cell": 1, "find": "threshold = 155", "replace": "threshold = INPUTS['threshold']"}]
-check("held_out / put_back (§19.5): the chain with the pruning's lines held out has the pruned method's cells and nothing of the dropped lines; put back, it is the chain; an edit whose fragment the chain repeats in a dropped line fails on the chain "
+check("held_out / put_back (§19.3): the chain with the pruning's lines held out has the pruned method's cells and nothing of the dropped lines; put back, it is the chain; an edit whose fragment the chain repeats in a dropped line fails on the chain "
       "as it is and lands on the kept line of the chain held out, the dropped line back untouched; a chain with nothing to hold out comes back as it is",
       [n for n, _a, _b in rt.cell_blocks(_held_e)] == [1, 3] and _held_e.split("\n").count(rt.HELD) == 3 and _lines_e == ["print('threshold = 155 is the line')", "# --- cell 2 ---", "print(df.shape)"]
       and rt.put_back(_held_e, _lines_e) == _chain_e and rt.apply_edits(_chain_e, _edit_e)[2] and rt.apply_edits(_held_e, _edit_e)[2] == []
       and rt.put_back(rt.apply_edits(_held_e, _edit_e)[0], _lines_e) == _chain_e.replace("\nthreshold = 155\n", "\nthreshold = INPUTS['threshold']\n")
       and rt.held_out("\n# --- cell 1 ---\nx = 1\n" + _R % "x" + "\n", []) == ("\n# --- cell 1 ---\nx = 1\n" + _R % "x" + "\n", []), (_held_e, _lines_e))
-# the host's path: run4's chain prints a count nothing rests on - the print goes before the promoter reads the chain, both cells stay
+# ---- a run, a statement at a time (docs/ROUTINES_DESIGN.md §22): the script laid out with each statement under a try of its own, as
+# plain code; a statement that stops costs what rests on it, not the run; the output read back by statement
+import ast as _ast2, contextlib as _ctx, io as _io
+_HEAD = "def RESULT(what, value, *a, **k):\n    print('RESULT: %s: %+.2f' % (what, float(value)))\n    return value\n"
+_TAIL = "\n# --- the executor's own display options back ---\npass\n"
+def _laid(cells, only=None, watch=None):
+    return rt.stepwise(rt.with_inputs(rt.join_script(_HEAD, cells, _TAIL), {}), only, watch)
+def _exec(text, **names):
+    """A script run here, its printed output read back (rt.read_run); an error outside the statements is the test's."""
+    buf = _io.StringIO()
+    with _ctx.redirect_stdout(buf):
+        exec(compile(text, "<string>", "exec"), dict(names))
+    return rt.read_run(buf.getvalue())
+_SW = """
+# --- cell 1 ---
+x = [1, 2, 3]
+text = '''two
+  lines'''
+note = f\"\"\"{len(x)} values,
+  said\"\"\"
+print(note)
+
+# --- cell 2 ---
+total = sum(x)
+RESULT('total', total)
+half = (total /
+        zero)
+RESULT('half', half)
+RESULT('half again', half / 2)
+
+# --- cell 3 ---
+RESULT('count', len(x)); RESULT('text', len(text) + len(note))
+"""
+_sw = _laid(_SW)
+_steps_sw = rt.read_steps(_SW)[0]
+check("read_steps: the cells' top-level statements in order, each with its cell, its lines in it and its text; statements sharing a line are one; a cell that does not parse leaves nothing read and says which",
+      [(f.cell, f.first, f.last) for f in _steps_sw] == [(1, 1, 1), (1, 2, 3), (1, 4, 5), (1, 6, 6), (2, 1, 1), (2, 2, 2), (2, 3, 4), (2, 5, 5), (2, 6, 6), (3, 1, 1)]
+      and _steps_sw[6].source == "half = (total /\n        zero)" and _steps_sw[9].source.count("RESULT") == 2 and len(_steps_sw) == 10
+      and rt.read_steps("\n# --- cell 1 ---\nx = (\n") == ([], [], "cell 1 could not be parsed ('(' was never closed)"), [(f.cell, f.first, f.last) for f in _steps_sw])
+check("steps_key: a mark of the statements a script reads into - the same for the same statements whatever stands around them, another when one changes; none when there are none to read",
+      re.fullmatch(r"[0-9a-f]{12}", rt.steps_key(rt.join_script(_HEAD, _SW, _TAIL))) and rt.steps_key(rt.join_script(_HEAD, _SW, _TAIL)) == rt.steps_key(rt.join_script("import os\n", _SW.replace("\n# --- cell 2", "\n# a note\n# --- cell 2"), _TAIL))
+      and rt.steps_key(rt.join_script(_HEAD, _SW, _TAIL)) != rt.steps_key(rt.join_script(_HEAD, _SW.replace("total = sum(x)", "total = sum(x) "), _TAIL)) and rt.steps_key("x = 1\n") == "" and rt.steps_key("\n# --- cell 1 ---\nx = (\n") == "")
+check("stepwise: the script as plain code - every statement once, under a try of its own, nothing held as text and nothing the local kernel's check refuses; a string that runs over lines keeps its text (its lines are not moved in); a "
+      "script whose cells cannot be read comes back as it is; `only` leaves the other statements out",
+      _sw.count("if _routine_go(") == 10 and _sw.count("_routine_close()\n") == 1 and _sw.index("_routine_close()\n") > _sw.index("if _routine_go(9):") and _ast2.parse(_sw) is not None and "        half = (total /\n                zero)\n" in _sw and "        text = '''two\n  lines'''\n" in _sw
+      and not re.search(r"\b(exec|eval|__import__|sys|shutil)\b", _sw) and PersistentKernel._security_word(_sw) is None
+      and rt.stepwise("x = 1\n") == "x = 1\n" and _laid("\n# --- cell 1 ---\nx = (\n") == rt.with_inputs(rt.join_script(_HEAD, "\n# --- cell 1 ---\nx = (\n", _TAIL), {})
+      and _laid(_SW, only=[0, 9]).count("if _routine_go(") == 2, _sw[-900:])
+_part, _all = _exec(_sw), _exec(_sw, zero=2)
+check("a run with one statement that stops: the statements before it ran, the two that rest on it were not run, the one after ran; the report names the statement by its cell and the line in it, with the error; the output is free of the "
+      "marks; a whole run reports nothing",
+      [(s, k, ln["what"], ln["estimate"]) for s, k, ln in _part["lines"]] == [(5, 0, "total", "+6.00"), (9, 0, "count", "+3.00"), (9, 1, "text", "+27.00")]
+      and _part["stopped"] == [{"step": 6, "cell": 2, "line": 4, "error": "NameError: name 'zero' is not defined"}] and _part["skipped"] == [[7, 2, 6], [8, 2, 6]] and _part["stepwise"] and not _part["empty"]
+      and _part["stdout"].split("\n")[:2] == ["3 values,", "  said"] and "ROUTINE_" not in _part["stdout"]
+      and [ln["what"] for s, k, ln in _all["lines"]] == ["total", "half", "half again", "count", "text"] and _all["stopped"] == [] and _all["skipped"] == [], (_part["lines"], _part["stopped"], _part["skipped"]))
+_exp_sw = [{"cell": c, "index": i, "label": w, "estimate": "+1", "low": None, "high": None} for c, i, w in ((2, 0, "total"), (2, 1, "half"), (2, 2, "half again"), (3, 0, "count"), (3, 1, "text"))]
+_placed_all = rt.place_lines(_exp_sw, _all)
+_exp_at = [dict(e, at=at) for e, at in zip(_exp_sw, _placed_all["at"])]
+_placed = rt.place_lines(_exp_at, _part)
+_by_pos = rt.place_lines(_exp_sw, _part)
+_why_sw = "cell 2 stopped: NameError: name 'zero' is not defined"
+check("place_lines: a whole run teaches each expected line its place - the statement that printed it and its order there; with the places known, a run that lost a statement gives every other line, and a blank that names the statement "
+      "that stopped for the line it printed and for those resting on it; without them the lines are read by position, sure only up to the first statement that did not run",
+      _placed_all["at"] == [[5, 0], [7, 0], [8, 0], [9, 0], [9, 1]] and [r["estimate"] for r in _placed_all["results"]] == ["+6.00", "+3.00", "+1.50", "+3.00", "+27.00"]
+      and [r["estimate"] for r in _placed["results"]] == ["+6.00", None, None, "+3.00", "+27.00"] and [r.get("why") for r in _placed["results"]] == [None, _why_sw, _why_sw, None, None] and _placed["at"] is None
+      and [r["estimate"] for r in _by_pos["results"]] == ["+6.00", None, None, None, None] and {r.get("why") for r in _by_pos["results"][1:]} == {_why_sw}, (_placed, _by_pos))
+_nan = {"lines": [(0, 0, {"what": "a", "estimate": "+nan", "low": None, "high": None})], "stopped": [], "skipped": [], "stepwise": True}
+check("place_lines: a line printed without a number is a blank that says so; a frame with no rows leaves every line blank for that reason; a line that was no number in the analysis is never looked for",
+      rt.place_lines([dict(_exp_sw[0], at=[0, 0])], _nan)["results"][0]["why"] == rt.NO_NUMBER == "no number on this data" and rt.place_lines([dict(_exp_sw[0], at=[0, 0])], _nan)["results"][0]["estimate"] is None
+      and rt.place_lines(_exp_at, {"empty": True})["results"] == [{"estimate": None, "low": None, "high": None, "why": "no data in this window"}] * 5
+      and rt.place_lines([dict(_exp_sw[0], estimate=None), _exp_sw[1]], _all)["results"][0]["why"] == "not a number in the analysis")
+check("needed_steps: what a tracked line's statement reads, back to where it begins - the count's statement with x, text and note, nothing of cell 2; a check that can stop the run and a cell that draws stay; none when a cell cannot be read",
+      rt.needed_steps(_SW, {9}, []) == [0, 1, 2, 9] and rt.needed_steps(_SW, {5}, []) == [0, 4, 5]
+      and rt.needed_steps("\n# --- cell 1 ---\na = 1\nb = 2\nassert a > 0\nprint(b)\n# --- cell 2 ---\nc = 3\nprint(c)\n", set(), [2]) == [0, 2, 4, 5] and rt.needed_steps("\n# --- cell 1 ---\nx = (\n", {0}, []) is None)
+_lean = _exec(_laid(_SW, only=[0, 1, 2, 9]), zero=2)
+check("a run of the needed statements alone prints the tracked lines at the places the whole run taught", [(s, k, ln["estimate"]) for s, k, ln in _lean["lines"]] == [(9, 0, "+3.00"), (9, 1, "+27.00")] and _lean["stopped"] == [])
+_HALT = "\n# --- cell 1 ---\na = 1\nassert a > 5, 'too few'\nRESULT('a', a)\n# --- cell 2 ---\nb = 2\nRESULT('b', b)\n"
+_halt, _quit = _exec(_laid(_HALT)), _exec(_laid(_HALT.replace("assert a > 5, 'too few'", "raise SystemExit('enough')")))
+check("a check of the method's own that stops - an assert, a raise, an exit - stops everything after it: nothing later runs, whatever it reads",
+      _halt["stopped"][0]["error"] == "AssertionError: too few" and [j for j, _c, o in _halt["skipped"]] == [2, 3, 4] and _halt["lines"] == []
+      and _quit["stopped"][0]["error"] == "SystemExit: enough" and [j for j, _c, o in _quit["skipped"]] == [2, 3, 4], (_halt["stopped"], _halt["skipped"]))
+_ALIAS = "\n# --- cell 1 ---\nbox = {}\nsame = box\n# --- cell 2 ---\nbox['n'] = 1 / zero\n# --- cell 3 ---\nRESULT('n', len(same))\nRESULT('one', 1)\n"
+_alias = _exec(_laid(_ALIAS))
+check("a statement that stops while changing an object spoils the object, not only the name: a line read through a second name for it is not printed either", [ln["what"] for _s, _k, ln in _alias["lines"]] == ["one"] and [j for j, _c, _o in _alias["skipped"]] == [3], (_alias["lines"], _alias["skipped"]))
+_FRAME = "\n# --- cell 1 ---\nn = len(df)\nRESULT('rows', n)\n"
+_g = pd.DataFrame({"sid": ["a", "a", "b", "c"], "v": [1.0, None, None, 3.0], "w": [1, 2, 3, 4]})
+_empty = _exec(_laid(_FRAME, watch={"columns": ["v"], "by": ""}), df=_g.iloc[0:0])
+_gaps = _exec(_laid(_FRAME, watch={"columns": ["v", "w", "gone"], "by": "sid"}), df=_g)
+check("a frame with no rows, when the statements read the frame: none of them runs, and the run says so; the columns watched are counted - rows empty of rows, and with a column to group by, groups wholly empty of groups",
+      _empty["empty"] and _empty["lines"] == [] and _empty["stopped"] == [] and _empty["gaps"] == {"v": [0, 0]} and not _exec(_laid("\n# --- cell 1 ---\nRESULT('one', 1)\n"), df=_g.iloc[0:0])["empty"]
+      and _gaps["gaps"] == {"v": [2, 4, 1, 3], "w": [0, 4, 0, 3]} and [ln["estimate"] for _s, _k, ln in _gaps["lines"]] == ["+4.00"], (_empty, _gaps["gaps"]))
+check("read_run: output without the marks - a script run as one piece - gives its lines with no statement, and says it was not read by statement",
+      rt.read_run("noise\nRESULT: a: +1\nRESULT: b: +2\n") == {"lines": [(None, 0, rt.parse_result_line("RESULT: a: +1")), (None, 1, rt.parse_result_line("RESULT: b: +2"))], "stopped": [], "skipped": [], "empty": False, "gaps": {},
+                                                             "stdout": "noise\nRESULT: a: +1\nRESULT: b: +2\n", "stepwise": False})
+check("gap_sentences: a watched column emptier than it was in the analysis by ten points or more is said - by the groups of the key column when the run counted them, else by rows; less than that, or no share on record, nothing",
+      rt.gap_sentences({"v": [0, 100, 0, 6], "w": [0, 100, 0, 6]}, {"v": [50, 100, 3, 6], "w": [5, 100, 0, 6]}, "sid") == ["v is empty for 3 of 6 sid values"]
+      and rt.gap_sentences({"v": [10, 100]}, {"v": [70, 100]}) == ["v is empty in 70% of the rows"] and rt.gap_sentences({"v": [65, 100]}, {"v": [70, 100]}) == []
+      and rt.gap_sentences(None, {"v": [70, 100]}) == [] and rt.gap_sentences({}, {"v": [70, 100, 3, 6]}, "sid") == ["v is empty for 3 of 6 sid values"])
+# random small chains, each run a statement at a time with one statement made to stop: every line that still came back is the line the whole
+# run printed at that place, no other statement stopped, and the run of the needed statements alone prints the tracked lines the same
+_rnd2, _np_state, _py_state = _random.Random(20261114), np.random.get_state(), _random.getstate()
+_tested = _wrong = _back = _lines_all = _lean_bad = 0
+_SLOW = "def RESULT(what, value, *a, **k):\n    print('RESULT: %s: %+.9f' % (what, float(value)))\n    return value\nimport numpy as np, pandas as pd\n"
+for _ in range(300):
+    _rc = _random_chain(_rnd2)
+    _plain = rt.with_inputs(rt.join_script(_SLOW, _rc, _TAIL), {})
+    _txt = rt.stepwise(_plain)
+    _full = _exec(_txt)
+    if _full["stopped"] or not _full["stepwise"]:
+        continue
+    _n1 = sum(1 for f in rt.read_steps(_rc)[0] if f.cell == 1)
+    _j = _rnd2.randrange(_n1, len(rt.read_steps(_rc)[0]))
+    _at = _txt.index("if _routine_go(%d):\n    try:\n" % _j) + len("if _routine_go(%d):\n    try:\n" % _j)
+    _end = _txt.index("    except (Exception, SystemExit) as _routine_exc:\n", _at)
+    _boom = "        raise RuntimeError('made to stop')\n"
+    _got = _exec(_txt[:_at] + _boom + _txt[_at:] if _rnd2.random() < 0.5 else _txt[:_end] + _boom + _txt[_end:])
+    _tested += 1
+    _whole_lines = {(s, k): ln["estimate"] for s, k, ln in _full["lines"]}
+    _came = {(s, k): ln["estimate"] for s, k, ln in _got["lines"]}
+    _wrong += any(_whole_lines.get(key) != v for key, v in _came.items()) or [s["step"] for s in _got["stopped"]] != [_j]
+    _back += len(_came); _lines_all += len(_whole_lines)
+    _tracked = [key for key in _whole_lines if _rnd2.random() < 0.5] or list(_whole_lines)[:1]
+    _short = _exec(rt.stepwise(_plain, rt.needed_steps(_rc, {s for s, _k in _tracked}, [])))
+    _short_lines = {(s, k): ln["estimate"] for s, k, ln in _short["lines"]}
+    _lean_bad += bool(_short["stopped"]) or bool(_short["skipped"]) or any(_short_lines.get(key) != _whole_lines[key] for key in _tracked)
+np.random.set_state(_np_state); _random.setstate(_py_state)
+check("300 random chains run a statement at a time with one statement made to stop: no line that came back differs from the whole run's and no other statement stopped; most lines still come back; the needed statements alone print the "
+      "tracked lines as the whole run did",
+      _tested > 250 and _wrong == 0 and _back > 0.8 * _lines_all and _lean_bad == 0, (_tested, _wrong, _back, _lines_all, _lean_bad))
+
+# ---- a version stores one text - the chain as written, with the promoter's edits - and Save proves it on the chain's own data: run zero
+# (every statement), then the shorter run (only what the tracked lines and the figures rest on), held to run zero's lines and pictures
 _pc1 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
 _runs = {"n": 0}
 def _counting_runner(script, timeout):
@@ -461,42 +585,41 @@ def _drawing(figs_of):
         return out, err, figs_of(script, _runs["n"]), gen
     return run_
 def _made_with(run_, nb_=nb4, pc=None, **kw):
-    """create in the foreground with the pass, on a fresh proposal: (the made record, the stored version, the runs it took)."""
+    """create in the foreground on a fresh proposal: (the made record, the stored version, the runs it took)."""
     _runs["n"] = 0
-    made_ = host.create(nb_, pc or host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}), {"name": "Pass", "purpose": "", "drop_inputs": [], "drop_results": []}, run_, store, condense_code=True, **kw)
+    made_ = host.create(nb_, pc or host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}), {"name": "Proved", "purpose": "", "drop_inputs": [], "drop_results": []}, run_, store, **kw)
     return made_, store.load(made_["routine"]["id"])["versions"][0], _runs["n"]
-check("propose (§19.5): the print is pruned before the promoter reads the chain - no cell goes, one line does, the proposal carries the chain as written beside the method",
-      _pc1["pruned"] == [] and _pc1["pruned_lines"] == 1 and _pc1["cells"] == _pc1["chain_cells"] == 2 and "print(len(kept))" not in _pc1["cells_text"] and "print(len(kept))" in _pc1["cells_chain"]
-      and "print(len(kept))" not in prompts[-1][1] and "kept = df[df.v > threshold]" in prompts[-1][1], (_pc1.get("pruned"), _pc1.get("pruned_lines")))
+_whole = lambda script: "print(len(kept))" in script          # every statement of run4's chain is in the executed text; the shorter run leaves the print out
+check("propose: the print is left out of what the promoter reads - no cell goes, one line does - and the proposal carries the chain as written beside that view; it says the chain's cells and holds no script",
+      _pc1["pruned_lines"] == 1 and _pc1["cells"] == 2 and "print(len(kept))" not in _pc1["cells_text"] and "print(len(kept))" in _pc1["cells_chain"]
+      and "print(len(kept))" not in prompts[-1][1] and "kept = df[df.v > threshold]" in prompts[-1][1] and not {"script", "pruned", "chain_cells"} & set(_pc1), (_pc1.get("pruned_lines"), sorted(_pc1)))
 _made_c, _vc, _n_c = _made_with(_counting_runner, pc=_pc1)
-check("create with the pass, a method that draws nothing: one run - run zero on the condensed method; the version's script is the condensed one, the chain as written (its edit included) kept beside it, the pass's record on it and on the made "
-      "record, the time run zero's; the run files are its output",
-      _n_c == 1 and _made_c["condensed"] == _vc["condensed"] and _vc["condensed"]["status"] == "condensed" and _vc["condensed"]["cells"] == [2, 2] and _vc["condensed"]["dropped"] == {"cells": [], "lines": 1}
-      and _vc["condensed"]["elapsed"] == [None, _vc["run_zero"]["elapsed"]] and _vc["condensed"]["line"] == "condensed: 2 cells kept, 1 line dropped, " + rt.secs_text(_vc["run_zero"]["elapsed"])
-      and "print(len(kept))" not in _vc["script"] and "print(len(kept))" in _vc["script_written"] and "INPUTS['threshold']" in _vc["script_written"]
-      and _vc["run_zero"]["status"] == "reproduced" and _vc["run_zero"]["verified"] and _vc["run_zero"]["results"][0]["estimate"] == "+3.00"
-      and open(os.path.join(store.path(_made_c["routine"]["id"]), "runs", "v1_0", "stdout.txt")).read().strip() == "RESULT: rows above the line: +3.00 rows, n/a"
-      and host.zero_holds(_vc) == "", (_n_c, _vc.get("condensed")))
-# a method that draws is held to the figures of the chain as written, run once beside it
+check("create: the version stores one text - the chain as written with the edit, the print included; two runs prove it: run zero, every statement, and the shorter run without the print, which stands - its statements and what there are on "
+      "the version, each line's place on the manifest, its time as what a run takes; run zero's output is every statement's; no trials on a file",
+      _n_c == 2 and "print(len(kept))" in _vc["script"] and "INPUTS['threshold']" in _vc["script"] and not {"script_written", "condensed", "consolidated"} & set(_vc)
+      and _vc["lean"]["steps"] == [0, 1, 3] and _vc["lean"]["line"] == "runs 3 of 4 statements" and _vc["manifest"]["results"][0]["at"] == [3, 0] and _vc["steps"] == rt.steps_key(_vc["script"]) and host.places_hold(_vc)
+      and _vc["run_zero"]["status"] == "reproduced" and _vc["run_zero"]["verified"] and _vc["run_zero"]["results"][0]["estimate"] == "+3.00" and _vc["run_zero"]["elapsed"] == _vc["lean"]["elapsed"][1]
+      and _vc["tried"] == [] and _made_c["tried"] == [] and host.run_steps(_vc) == [0, 1, 3] and host.run_steps(dict(_vc, script=_vc["script"].replace("print(len(kept))", "pass\npass"))) is None
+      and open(os.path.join(store.path(_made_c["routine"]["id"]), "runs", "v1_0", "stdout.txt")).read().split() == ["3", "RESULT:", "rows", "above", "the", "line:", "+3.00", "rows,", "n/a"]
+      and host.zero_holds(_vc) == "", (_n_c, _vc.get("lean"), _vc["run_zero"]))
+# a method that draws is held to its pictures: the shorter run must draw what run zero drew
 _made_f, _vf, _n_f = _made_with(_drawing(lambda script, n: [_fig([1, 2, 3])]))
-_made_d, _vd, _n_d = _made_with(_drawing(lambda script, n: [_fig([1, 2, 3] if "print(len(kept))" in script else [9])]))
+_made_d, _vd, _n_d = _made_with(_drawing(lambda script, n: [_fig([1, 2, 3] if _whole(script) else [9])]))
 _made_j, _vj, _n_j = _made_with(_drawing(lambda script, n: [_fig([n])]))
-def _written_fails(script, timeout):
+def _short_stops(script, timeout):
     _runs["n"] += 1
     out, err, _f, gen = runner(script, timeout)
-    return (out, "NameError: name 'gone' is not defined", [], gen) if "print(len(kept))" in script else (out, err, [_fig([1])], gen)
-_made_w, _vw, _n_w = _made_with(_written_fails)
-check("the pass, a method that draws (§19.5): the chain as written runs once beside it - the same pictures, and the condensed method stands, both times on the record (two runs); other pictures, the same again from a second run of the method, "
-      "and the chain as written is the method from then on, the record saying why, nothing kept as written beside it (three runs); pictures that differ from one run of the method to the next hold it to nothing, and it stands (three runs); a chain "
-      "as written that fails where the method ran leaves the method standing (two runs)",
-      _n_f == 2 and _vf["condensed"]["status"] == "condensed" and _vf["condensed"]["elapsed"][0] is not None and _vf["condensed"]["elapsed"][1] == _vf["run_zero"]["elapsed"] and " → " in _vf["condensed"]["line"].split("dropped, ")[1]
-      and "print(len(kept))" not in _vf["script"] and "print(len(kept))" in _vf["script_written"] and _vf["run_zero"]["figures"] == 1
-      and _n_d == 3 and _vd["condensed"]["status"] == "as_written" and _vd["condensed"]["line"] == "as written: the condensed code did not reproduce the figures: figure 1 differs"
-      and _vd["condensed"]["cells"] == [2, 2] and _vd["condensed"]["dropped"] == {"cells": [], "lines": 0} and _vd["condensed"]["elapsed"][1] is None and "print(len(kept))" in _vd["script"] and "script_written" not in _vd
-      and _vd["run_zero"]["status"] == "reproduced" and _vd["run_zero"]["elapsed"] == _vd["condensed"]["elapsed"][0] and _made_d["condensed"]["status"] == "as_written" and "verdict" not in _made_d["condensed"]
-      and _n_j == 3 and _vj["condensed"]["status"] == "condensed" and "print(len(kept))" not in _vj["script"]
-      and _n_w == 2 and _vw["condensed"]["status"] == "condensed" and _vw["condensed"]["elapsed"][0] is None and "print(len(kept))" not in _vw["script"], (_n_f, _n_d, _n_j, _n_w, _vd.get("condensed")))
-# a chain whose condensing drops something that mattered - a list filled through another name for it, which the code reading cannot see
+    return (out, err, [], gen) if _whole(script) else (out, 'Traceback (most recent call last):\n  File "<string>", line 3, in <module>\nNameError: name \'gone\' is not defined', [], gen)
+_made_w, _vw, _n_w = _made_with(_short_stops)
+check("the shorter run of a method that draws: the same pictures and it stands (two runs); another picture, while a second run of every statement draws run zero's again, and every statement runs from then on, the version saying why (three "
+      "runs); pictures that differ from one run of every statement to the next hold it to nothing, and it stands (three runs); a shorter run that stops is not taken (two runs)",
+      _n_f == 2 and _vf["lean"]["steps"] == [0, 1, 3] and _vf["run_zero"]["figures"] == 1
+      and _n_d == 3 and _vd["lean"]["steps"] is None and _vd["lean"]["line"] == "every statement runs: the shorter run did not hold - the figures differ (figure 1 differs)" and host.run_steps(_vd) is None
+      and _vd["run_zero"]["status"] == "reproduced" and _vd["lean"]["elapsed"][1] is None
+      and _n_j == 3 and _vj["lean"]["steps"] == [0, 1, 3]
+      and _n_w == 2 and _vw["lean"]["steps"] is None and _vw["lean"]["line"].startswith("every statement runs: the shorter run did not hold - it stopped (NameError") and _vw["run_zero"]["status"] == "reproduced",
+      (_n_f, _n_d, _n_j, _n_w, _vd.get("lean"), _vw.get("lean")))
+# a chain whose shorter run would drop something that mattered - a list filled through another name for it, which the reading cannot see
 nb5 = Notebook("t5")
 run5c = nb5.new_run("How many flags?")
 run5c.turns = [Turn(kind="cell", cell_no=1, code="print(df.shape)\nprint(df.dtypes.to_string())", results=[], stdout="(5, 2)"),
@@ -514,27 +637,21 @@ def flags_promoter(s_, u_):
     return '{"name": "Flags", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}
 _flags_events = []
 _pc5 = host.propose(nb5, run5c.id, flags_promoter, current_data={"df_id": "df4"}, emit=_flags_events.append)
-check("propose (§19.5): the exploration is pruned before the promoter reads the chain - cells 1 and 3 go (cell 3 fills the list through another name for it, which the code does not show), the second name with them; the promoter sees cells 2 and 4, "
-      "the checklist says 2 of 4 cells, the proposal carries the count, the cells and lines dropped and the chain as written",
-      _pc5["pruned"] == [1, 3] and _pc5["pruned_lines"] == 7 and _pc5["cells"] == 2 and _pc5["chain_cells"] == 4 and "# --- cell 3 ---" not in _pc5["cells_text"] and "also" not in _pc5["cells_text"]
+check("propose: the exploration is left out of what the promoter reads - cells 1 and 3 (cell 3 fills the list through another name for it, which the code does not show), the second name with them; the promoter sees cells 2 and 4; the "
+      "checklist says the chain's four cells, and the proposal carries the lines left out and the chain as written",
+      _pc5["pruned_lines"] == 7 and _pc5["cells"] == 4 and "# --- cell 3 ---" not in _pc5["cells_text"] and "also" not in _pc5["cells_text"]
       and "# --- cell 3 ---" in _pc5["cells_chain"] and "also.append(v)" in _pc5["cells_chain"] and "# --- cell 3 ---" not in _flags_prompts[0] and "# --- cell 2 ---" in _flags_prompts[0] and "print(df.shape)" not in _flags_prompts[0]
-      and [e.get("detail") for e in _flags_events if e.get("type") == "step" and e.get("step") == "chain"] == ["2 of 4 cells · 1 result · 0 figures"], (_pc5.get("pruned"), _pc5.get("pruned_lines"), _pc5.get("cells_text")))
-_zero5p = host.verify_zero("f", _pc5["script"], _pc5["results"], {}, runner, 60)
-check("the condensed method of the flags chain does not reproduce on its own: the dropped loop made the count nought", _zero5p["status"] == "differed" and "+3 -> +0.00" in _zero5p["line"], _zero5p.get("line"))
+      and [e.get("detail") for e in _flags_events if e.get("type") == "step" and e.get("step") == "chain"] == ["4 cells · 1 result · 0 figures"], (_pc5.get("pruned_lines"), _pc5.get("cells_text")))
 _runs["n"] = 0
 made5 = host.create(nb5, _pc5, {"name": "Flags"}, _counting_runner, store)
 _v5 = store.load(made5["routine"]["id"])["versions"][0]
-check("create (§19.4): run zero fell back to the chain as written, which reproduced - two runs; the version's script is the chain with all four cells, no script as written stands beside it, and without the pass no record of it",
+check("create: the stored text is the chain with all four cells, and run zero reproduces on it; the shorter run leaves the loop out, prints a count of nought and is not taken - every statement runs, the version saying which line differed",
       _runs["n"] == 2 and made5["run_zero"]["status"] == "reproduced" and [ln for ln in _v5["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell %d ---" % n for n in (1, 2, 3, 4)]
-      and "also.append(v)" in _v5["script"] and "script_written" not in _v5 and "condensed" not in _v5 and "pruned" not in _v5, (_runs, made5.get("run_zero")))
-_made5p, _v5p, _n5p = _made_with(_counting_runner, nb_=nb5, pc=host.propose(nb5, run5c.id, flags_promoter, current_data={"df_id": "df4"}))
-check("create with the pass after run zero fell back: no further run; the record says the code runs as written and why - the line the condensed method got wrong",
-      _n5p == 2 and _v5p["condensed"] == {"status": "as_written", "line": "as written: the condensed code did not reproduce the result lines: 1 of 1 result lines differ ([cell 4] flags: +3 -> +0.00)", "cells": [4, 4],
-                                           "dropped": {"cells": [], "lines": 0}, "elapsed": [_v5p["run_zero"]["elapsed"], None]}
-      and "also.append(v)" in _v5p["script"] and "script_written" not in _v5p, (_n5p, _v5p.get("condensed")))
+      and "also.append(v)" in _v5["script"] and _v5["lean"]["steps"] is None and _v5["lean"]["line"] == "every statement runs: the shorter run did not hold - a tracked line differs ([cell 4] flags: +3.00 -> +0.00)"
+      and host.run_steps(_v5) is None, (_runs, made5.get("run_zero"), _v5.get("lean")))
 # the case that brought the pruning forward (2026-11-08) and the one that brought it down to statements (2026-11-13): a row named by its
 # identifier, picked by looking, and only printed about - in a cell of its own, or inside the cell that holds the method; the promoter never
-# sees it, so the identifier rule has nothing to refuse, and the version keeps the chain as written beside the method
+# sees it, so the identifier rule has nothing to refuse; the version keeps it, and the shorter run does not run it
 def _literal_chain(thread, cells):
     nb_ = Notebook(thread)
     run_ = nb_.new_run("How many rows are above 155?")
@@ -555,29 +672,25 @@ nb5b, run5d = _literal_chain("t5b", [("one = df[df.g == 'b']\nprint(len(one), 'r
 nb5m, run5m = _literal_chain("t5m", [("kept = df[df.v > 155]\n# the first of group b, looked at\none = df[df.g == 'b']\nprint(len(one), 'rows in group b')\nRESULT('rows above the line', float(len(kept)), None, None, 'rows', 'n/a')", _ROWS)])
 _pc5d = host.propose(nb5b, run5d.id, literal_promoter, current_data={"df_id": "df4"})
 _pc5m = host.propose(nb5m, run5m.id, literal_promoter, current_data={"df_id": "df4"})
-_runs["n"] = 0
-made5d = host.create(nb5b, _pc5d, {"name": "Rows"}, _counting_runner, store)
-made5m = host.create(nb5m, _pc5m, {"name": "Rows"}, _counting_runner, store)
+made5d = host.create(nb5b, _pc5d, {"name": "Rows"}, runner, store)
+made5m = host.create(nb5m, _pc5m, {"name": "Rows"}, runner, store)
 _v5d, _v5m = store.load(made5d["routine"]["id"])["versions"][0], store.load(made5m["routine"]["id"])["versions"][0]
-check("propose (§19.4, §19.5): the literal never reaches the promoter - in a cell of its own (the cell goes) or inside the cell that holds the method (the check and its comment go, the cell stays) - so a promoter that would refuse on it proposes "
-      "instead; create: the condensed method reproduces in one run and stands, the chain as written (the literal included) beside it under script_written",
-      _pc5d["pruned"] == [1] and _pc5d["cells"] == 1 and _pc5m["pruned"] == [] and _pc5m["pruned_lines"] == 3 and _pc5m["cells"] == 1 and _runs["n"] == 2
+check("propose: the literal never reaches the promoter - in a cell of its own, or inside the cell that holds the method (the check and its comment left out) - so a promoter that would refuse on it proposes instead; create: the stored text is "
+      "the chain as written, the literal included, and the shorter run leaves its statements out",
+      _pc5d["pruned_lines"] == 2 and _pc5d["cells"] == 2 and "df.g == 'b'" not in _pc5d["cells_text"] and _pc5m["pruned_lines"] == 3 and _pc5m["cells"] == 1 and "df.g == 'b'" not in _pc5m["cells_text"]
       and made5d["run_zero"]["status"] == "reproduced" and made5m["run_zero"]["status"] == "reproduced"
-      and [ln for ln in _v5d["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---"] and "# --- cell 1 ---" in _v5d["script_written"] and "df.g == 'b'" in _v5d["script_written"]
-      and "df.g == 'b'" not in _v5m["script"] and "looked at" not in _v5m["script"] and "kept = df[df.v > 155]" in _v5m["script"] and "df.g == 'b'" in _v5m["script_written"], (_pc5d.get("pruned"), _pc5m.get("pruned_lines"), _runs))
-# an edit found in the pruned method lands on the same line of the chain as written, although the chain repeats its fragment in a dropped print
+      and "# --- cell 1 ---" in _v5d["script"] and "df.g == 'b'" in _v5d["script"] and _v5d["lean"]["steps"] == [2, 3] and _v5d["lean"]["line"] == "runs 2 of 4 statements"
+      and "df.g == 'b'" in _v5m["script"] and "looked at" in _v5m["script"] and _v5m["lean"]["steps"] == [0, 3] and _v5m["lean"]["line"] == "runs 2 of 4 statements", (_pc5d.get("pruned_lines"), _pc5m.get("pruned_lines"), _v5d.get("lean"), _v5m.get("lean")))
+# an edit found in the promoter's view lands on the same line of the chain as written, although the chain repeats its fragment in a print the view left out
 nb5e, run5x = _literal_chain("t5e", [("threshold = 155\nprint('threshold = 155 is the line')\nkept = df[df.v > threshold]", []),
                                      ("RESULT('rows above the line', float(len(kept)), None, None, 'rows', 'n/a')", _ROWS)])
 _pc5x = host.propose(nb5e, run5x.id, promoter_llm, current_data={"df_id": "df4"})
 made5x = host.create(nb5e, _pc5x, {"name": "Edit"}, runner, store)
 _v5x = store.load(made5x["routine"]["id"])["versions"][0]
-check("create (§19.5): the edit that made the input, found in the pruned method, is on the same line of the chain as written; the dropped print that repeats its fragment is untouched",
-      [p_["key"] for p_ in _pc5x["inputs"]] == ["threshold"] and "threshold = INPUTS['threshold']" in _v5x["script"] and "is the line" not in _v5x["script"]
-      and "threshold = INPUTS['threshold']\nprint('threshold = 155 is the line')\nkept = df[df.v > threshold]" in _v5x["script_written"], (_pc5x.get("inputs"), _v5x.get("script_written", "")[-400:]))
-check("a chain with nothing to prune before the promoter keeps its count and leaves nothing beside the method; the first routine of this file, made without the pass, has no record of one",
-      rt.prune_cells(_pc5d["cells_chain"], [])[1:3] == ([1], 2) and rt.prune_cells(_pc5["cells_chain"], [])[1:3] == ([1, 3], 7) and rt.prune_cells(_pc1["cells_chain"], [])[1:3] == ([], 1)
-      and "condensed" not in store.load(made["routine"]["id"])["versions"][0] and made.get("condensed") is None and "print(len(kept))" in store.load(made["routine"]["id"])["versions"][0]["script_written"])
-# a chain with nothing to anchor the pruning - no RESULT line, no figure (its printed output is what a run keeps): the whole chain is the method
+check("create: the edit that made the input, found in the promoter's view, is on the same line of the stored chain; the print that repeats its fragment is untouched",
+      [p_["key"] for p_ in _pc5x["inputs"]] == ["threshold"] and "threshold = INPUTS['threshold']\nprint('threshold = 155 is the line')\nkept = df[df.v > threshold]" in _v5x["script"]
+      and made5x["run_zero"]["status"] == "reproduced", (_pc5x.get("inputs"), _v5x.get("script", "")[-400:]))
+# a chain with nothing for the reading to rest on - no RESULT line, no figure (its printed output is what a run keeps): the whole chain is the method
 nb5c = Notebook("t5c")
 run5e = nb5c.new_run("Just the means?")
 run5e.turns = [Turn(kind="cell", cell_no=1, code="m = df.groupby('g')['v'].mean()\nprint(m.to_dict())", results=[], stdout="{}"),
@@ -589,11 +702,10 @@ run5e.replay_script, _ = assemble(run5e.cells(), run5e.report)
 nb5c.runs[run5e.id] = run5e
 _pc5e = host.propose(nb5c, run5e.id, lambda s_, u_: ('{"name": "Means", "inputs": [], "edits": [], "kept": []}', {"cost": 0.0}), current_data={"df_id": "df4"})
 _made_n, _vn, _n_n = _made_with(_counting_runner, nb_=nb5c, pc=_pc5e)
-check("propose (§19.4): a chain without a RESULT line or a figure is not pruned - both cells stay with their prints, nothing dropped, no chain kept beside; the pass then has nothing to say but that, without a run of its own",
-      _pc5e["pruned"] == [] and _pc5e["pruned_lines"] == 0 and _pc5e["cells"] == 2 and _pc5e["chain_cells"] == 2 and "print(m.to_dict())" in _pc5e["cells_text"] and "# --- cell 2 ---" in _pc5e["cells_text"]
-      and _n_n == 1 and _vn["condensed"] == {"status": "as_written", "line": "as written: nothing to cut", "cells": [2, 2], "dropped": {"cells": [], "lines": 0}, "elapsed": [_vn["run_zero"]["elapsed"], None]}
-      and "script_written" not in _vn, (_pc5e.get("pruned"), _pc5e.get("cells"), _vn.get("condensed")))
-# behind the dialog: verifying while run zero runs, condensing while the chain as written runs beside a method that draws (the store says so), then settled
+check("a chain without a RESULT line or a figure: the promoter reads all of it, and one run proves it - there is nothing to leave out, so every statement runs",
+      _pc5e["pruned_lines"] == 0 and _pc5e["cells"] == 2 and "print(m.to_dict())" in _pc5e["cells_text"] and "# --- cell 2 ---" in _pc5e["cells_text"]
+      and _n_n == 1 and _vn["lean"] == {"steps": None, "line": "every statement runs: nothing to leave out", "elapsed": [_vn["run_zero"]["elapsed"], None]}, (_pc5e.get("pruned_lines"), _vn.get("lean")))
+# behind the dialog: stored at once as verifying; the proof - run zero and the shorter run, both under verifying - lands on the stored version
 _seen_status = []
 def _watching_runner(script, timeout):
     if _made_bg.get("routine"):
@@ -602,115 +714,17 @@ def _watching_runner(script, timeout):
     return out, err, [_fig([1, 2])], gen
 _made_bg = {}
 _pc2 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
-_made_bg.update(host.create(nb4, _pc2, {"name": "Condensed behind", "purpose": "", "drop_inputs": [], "drop_results": []}, _watching_runner, store, background=True, condense_code=True))
+_made_bg.update(host.create(nb4, _pc2, {"name": "Proved behind", "purpose": "", "drop_inputs": [], "drop_results": []}, _watching_runner, store, background=True))
 _v_before = store.load(_made_bg["routine"]["id"])["versions"][0]
-_verdict_bg = _made_bg["verify"]()
+_proof_bg = _made_bg["verify"]()
 _v_after = store.load(_made_bg["routine"]["id"])["versions"][0]
-check("create behind the dialog with the pass: stored verifying, the condensed method already its script and the chain as written beside it (a run held, no pass yet); run zero runs under verifying, the chain as written under condensing (a run "
-      "held, saying so); then reproduced, the pass on the record; the verdict carries the pass",
-      _v_before["run_zero"]["status"] == "verifying" and "condensed" not in _v_before and "print(len(kept))" not in _v_before["script"] and "print(len(kept))" in _v_before["script_written"]
-      and _seen_status == ["verifying", "condensing"] and host.zero_holds({"run_zero": {"status": "condensing"}}) == "the routine's code is still being condensed - run it when it has settled"
-      and _v_after["run_zero"]["status"] == "reproduced" and _v_after["run_zero"]["line"].startswith("reproduced") and _v_after["condensed"]["status"] == "condensed" and "print(len(kept))" not in _v_after["script"]
-      and "print(len(kept))" in _v_after["script_written"] and _verdict_bg["condensed"]["status"] == "condensed" and "verdict" not in _verdict_bg["condensed"] and _verdict_bg["results"][0]["estimate"] == "+3.00",
-      (_v_before.get("run_zero"), _seen_status, _v_after.get("condensed")))
-# behind the dialog, the pictures differing: the chain as written becomes the stored script when the pass settles
-_made_bd = {}
-def _differing_runner(script, timeout):
-    out, err, _f, gen = runner(script, timeout)
-    return out, err, [_fig([1, 2] if "print(len(kept))" in script else [7])], gen
-_made_bd.update(host.create(nb4, host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}), {"name": "Differs behind", "purpose": "", "drop_inputs": [], "drop_results": []}, _differing_runner, store,
-                            background=True, condense_code=True))
-_verdict_bd = _made_bd["verify"]()
-_v_bd = store.load(_made_bd["routine"]["id"])["versions"][0]
-check("create behind the dialog, the method drawing other pictures than the chain as written: the stored script becomes the chain as written, nothing kept beside it, the record and the verdict saying why, run zero's record the chain's run",
-      _v_bd["condensed"]["status"] == "as_written" and _v_bd["condensed"]["line"].endswith("the figures: figure 1 differs") and "print(len(kept))" in _v_bd["script"] and "script_written" not in _v_bd
-      and _v_bd["run_zero"]["status"] == "reproduced" and _v_bd["run_zero"]["figures"] == 1 and _verdict_bd["condensed"]["status"] == "as_written", (_v_bd.get("condensed"), _v_bd.get("run_zero")))
-# ---- the consolidation (§19.3): the Condenser seat, opted in, rewrites the method under the kept markers; the candidate runs on the chain's
-# data and is kept provisionally; the first run on new data runs the method it replaced too and keeps or drops the rewrite
-def _runner_with(frame):
-    def run_(script, timeout, d=None):
-        k = PersistentKernel(df=frame)
-        try:
-            out, err, _ = k.execute(script)
-        finally:
-            k.cleanup()
-        return out or "", err or "", [], []
-    return run_
-_pk = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
-_zero_k = host.verify_zero("x", _pk["script"], _pk["results"], rt.defaults_of(_pk["inputs"]), runner, 60)
-_asks = []
-_REWRITE = "```python\n# --- cell 1 ---\nthreshold = INPUTS['threshold']\n# --- cell 2 ---\nRESULT('rows above the line', float((df.v > threshold).sum()), None, None, 'rows', 'n/a')\n```"
-def _consolidator(system, user, effort=None):
-    _asks.append((system, user, effort))
-    return _REWRITE, {"cost": 0.03}
-_k0 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator, runner, 60, "Condenser", "m")
-check("consolidate: a method that runs in under the threshold is left alone - not tried, the line saying how fast it runs, no call made",
-      _k0["status"] == "not_tried" and _k0["line"] == f"not consolidated: the method runs in {rt.secs_text(_zero_k['elapsed'])}" and _k0["attempts"] == 0 and _asks == [], _k0)
-_min_keep, host.CONSOLIDATE_MIN_SECONDS = host.CONSOLIDATE_MIN_SECONDS, 0.0
-_runs["n"] = 0
-_k1 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator, _counting_runner, 60, "Condenser", "m")
-check("consolidate: the brief carries the question, the answer, each cell with the output it printed, the numbered lines, the figure cells, the inputs and the times, at medium effort; the rewrite under the kept markers reproduces the line and is consolidated - provisional, the script, its lines and times on the record",
-      len(_asks) == 1 and _asks[0][0] == rt.CONSOLIDATE_SYSTEM and _asks[0][2] == "medium" and "QUESTION:\nHow many rows are above 155?" in _asks[0][1] and "ANSWER:\n" in _asks[0][1]
-      and "# --- cell 1 ---\nthreshold = INPUTS['threshold']\nkept = df[df.v > threshold]\nOUTPUT:\n3" in _asks[0][1] and "1. [cell 2] rows above the line: +3" in _asks[0][1]
-      and "INPUTS THE CELLS READ:\nthreshold (number): Threshold; default 155" in _asks[0][1] and "TIME EACH CELL TOOK: cell 1: 0.0 s, cell 2: 0.0 s" in _asks[0][1] and "CELLS THAT DRAW FIGURES: none" in _asks[0][1]
-      and _k1["status"] == "consolidated" and _k1["cells"] == [2, 2] and _k1["attempts"] == 1 and _k1["cost"] == 0.03 and _k1["seat"] == "Condenser" and _runs["n"] == 1
-      and "kept = df" not in _k1["script"] and "(df.v > threshold).sum()" in _k1["script"] and _k1["results"][0]["estimate"] == "+3.00"
-      and _k1["line"].startswith("consolidated: 2 cells → 2, ") and _k1["line"].endswith("; checked on the original data, the first run on new data checks it again"), (_k1.get("line"), _asks[0][1][:600] if _asks else None))
-# a rewrite that moves the RESULT call is refused before running and asked again, at low effort; one that changes the number, twice, keeps the method as it was
-_replies = ["```python\n# --- cell 1 ---\nthreshold = INPUTS['threshold']\nRESULT('rows above the line', float((df.v > threshold).sum()), None, None, 'rows', 'n/a')\n# --- cell 2 ---\npass\n```", _REWRITE]
-_asks[:] = []
-def _consolidator2(system, user, effort=None):
-    _asks.append((user, effort))
-    return _replies.pop(0), {"cost": 0.01}
-_k2 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, _consolidator2, _counting_runner, 60)
-_k3 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: (_REWRITE.replace("df.v > threshold", "df.v > threshold + 10"), {"cost": 0.0}), _counting_runner, 60)
-_k4 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: ("UNCHANGED", {"cost": 0.0}), _counting_runner, 60)
-_k5 = host.consolidate(_pk, _pk["cells_text"], _pk["results"], rt.defaults_of(_pk["inputs"]), _zero_k, lambda s, u, e=None: ("```python\n# --- cell 1 ---\nthres", {"cost": 0.0, "truncated": True}), _counting_runner, 60)
-check("consolidate: a RESULT call moved to another cell is refused before running and asked again at low effort, the second reply kept; a number changed twice keeps the method as it was with the differing line; UNCHANGED is nothing to gain; a reply cut at the token limit names the remedy",
-      _k2["status"] == "consolidated" and _k2["attempts"] == 2 and [e for _u, e in _asks] == ["medium", "low"] and _asks[1][0].endswith(rt.CONSOLIDATE_RETRY.format(problem="moves or loses the RESULT calls of cell 2 (keep each under the marker it came from)"))
-      and _k3["status"] == "as_it_was" and _k3["line"] == "as it was: the rewritten method did not reproduce the result lines: 1 of 1 result lines differ ([cell 2] rows above the line: +3 -> +2.00)" and _k3["attempts"] == 2
-      and _k4 == {"status": "as_it_was", "line": "as it was: the Condenser found nothing to gain", "cells": [2, 2], "elapsed": [_zero_k["elapsed"], None], "attempts": 1, "cost": 0.0, "seat": "", "model": ""}
-      and _k5["line"] == "as it was: the Condenser's reply was cut off at its token limit (the seat needs a larger max_tokens)", (_k2.get("line"), _k3.get("line"), _k5.get("line")))
-# create with both passes: the pruned script waits under script_fallback, the rewrite runs provisionally; run 1 on other data confirms it
-_made_k = host.create(nb4, _pk, {"name": "Consolidated", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condense_code=True, consolidator=_consolidator, consolidator_seat="Condenser", consolidator_model="m")
-_vk = store.load(_made_k["routine"]["id"])["versions"][0]
-check("create with the pass and the consolidation: the version runs the rewrite, provisional; the pruned script waits under script_fallback, the chain's under script_written; both records on the version and the made record; run zero's record is the rewrite's",
-      _vk["condensed"]["status"] == "condensed" and _vk["consolidated"]["status"] == "consolidated" and _vk["consolidated"]["provisional"] is True and _vk["consolidated"]["confirmed"] is None
-      and "(df.v > threshold).sum()" in _vk["script"] and "kept = df[df.v > threshold]" in _vk["script_fallback"] and "print(len(kept))" not in _vk["script_fallback"] and "print(len(kept))" in _vk["script_written"]
-      and _made_k["consolidated"]["status"] == "consolidated" and _vk["run_zero"]["elapsed"] == _vk["consolidated"]["elapsed"][1] and host.zero_holds(_vk) == "", (_vk.get("consolidated"), _made_k.get("consolidated")))
-_df6 = pd.DataFrame({"v": [100, 150, 160, 170, 200, 210], "g": list("aabbbb")})
-_data6 = {"df_id": "df6", "name": "six.csv", "source": "csv", "columns": [{"name": "v", "dtype": "int64"}, {"name": "g", "dtype": "object"}], "rows": 6, "aux": []}
-_ev_k = []
-_out_k = host.run(store.load(_made_k["routine"]["id"]), {}, _data6, _runner_with(_df6), store, emit=_ev_k.append)
-_vk2 = store.load(_made_k["routine"]["id"])["versions"][0]
-check("run 1 on other data of a provisional rewrite: the method it replaced runs too, the two agree (4 rows), the rewrite is confirmed - script_fallback gone, the record and the line say so, the pane saw the check; the run's line is the rewrite's",
-      _out_k["run"]["results"][0]["estimate"] == "+4.00" and _out_k["run"]["consolidation"] == "the rewritten method confirmed on this data (run 1): 1 result line identical, no figures"
-      and _vk2["consolidated"]["provisional"] is False and _vk2["consolidated"]["confirmed"]["run"] == 1 and "script_fallback" not in _vk2 and "(df.v > threshold).sum()" in _vk2["script"]
-      and _vk2["consolidated"]["line"].startswith("consolidated: 2 cells → 2, ") and _vk2["consolidated"]["line"].endswith("; confirmed on run 1")
-      and any(e.get("type") == "lookup" and e.get("kind") == "check" and e.get("query") == "the rewritten method" and e.get("peek", "").startswith("the rewritten method confirmed") for e in _ev_k), (_out_k["run"].get("consolidation"), _vk2.get("consolidated")))
-_out_k2 = host.run(store.load(_made_k["routine"]["id"]), {}, _data6, _runner_with(_df6), store)
-check("run 2: nothing more to check - the record carries no verdict", _out_k2["run"]["consolidation"] == "" and _out_k2["run"]["results"][0]["estimate"] == "+4.00")
-# a rewrite that agrees on the chain's data and not on the next: the version falls back to the method it replaced, whose output is the run's
-_pk2 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
-_made_f = host.create(nb4, _pk2, {"name": "Falls back", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, condense_code=True,
-                      consolidator=lambda s, u, e=None: (_REWRITE.replace("float((df.v > threshold).sum())", "float(3)"), {"cost": 0.0}))
-_vf = store.load(_made_f["routine"]["id"])["versions"][0]
-_out_f = host.run(store.load(_made_f["routine"]["id"]), {}, _data6, _runner_with(_df6), store)
-_vf2 = store.load(_made_f["routine"]["id"])["versions"][0]
-check("a rewrite that typed the number (3) passed run zero and is provisional; on other data the method it replaced says 4 - the version falls back to that method, the run's line is its, the record says why; the chain's script stays as written",
-      _vf["consolidated"]["status"] == "consolidated" and "float(3)" in _vf["script"]
-      and _out_f["run"]["results"][0]["estimate"] == "+4.00" and _out_f["run"]["consolidation"] == "fell back at run 1: the rewritten method differed on this data (line 1 (rows above the line): +4.00 -> +3.00)"
-      and _vf2["consolidated"]["status"] == "fell_back" and _vf2["consolidated"]["fell_back"]["run"] == 1 and "script_fallback" not in _vf2 and "kept = df[df.v > threshold]" in _vf2["script"] and "float(3)" not in _vf2["script"]
-      and _vf2["consolidated"]["line"] == "as it was since run 1: the rewritten method differed on new data (line 1 (rows above the line): +4.00 -> +3.00)" and "print(len(kept))" in _vf2["script_written"], (_out_f["run"].get("consolidation"), _vf2.get("consolidated")))
-# behind the dialog with both: the statuses, the verdict's records
-_pk3 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"})
-_made_kb = host.create(nb4, _pk3, {"name": "Behind, both", "purpose": "", "drop_inputs": [], "drop_results": []}, runner, store, background=True, condense_code=True, consolidator=_consolidator)
-_verdict_kb = _made_kb["verify"]()
-_vkb = store.load(_made_kb["routine"]["id"])["versions"][0]
-check("create behind the dialog with both passes: the verdict carries both records; the version runs the rewrite, provisional, with the pruned script under script_fallback",
-      _verdict_kb["condensed"]["status"] == "condensed" and _verdict_kb["consolidated"]["status"] == "consolidated" and _vkb["run_zero"]["status"] == "reproduced" and _vkb["consolidated"]["provisional"] is True
-      and "(df.v > threshold).sum()" in _vkb["script"] and "kept = df" in _vkb["script_fallback"], (_verdict_kb.get("consolidated"), _vkb.get("run_zero")))
-host.CONSOLIDATE_MIN_SECONDS = _min_keep
+check("create behind the dialog: stored verifying with its one text and nothing proved yet (a run held, saying so); both runs of the proof run under verifying; then reproduced, the shorter run and the lines' places on the stored "
+      "version; the proof handed back carries them",
+      _v_before["run_zero"]["status"] == "verifying" and "lean" not in _v_before and "print(len(kept))" in _v_before["script"] and "at" not in _v_before["manifest"]["results"][0]
+      and host.zero_holds(_v_before) == "the routine is still being verified on its chain's own data - run it when it has settled" and _seen_status == ["verifying", "verifying"]
+      and _v_after["run_zero"]["status"] == "reproduced" and _v_after["run_zero"]["line"].startswith("reproduced") and _v_after["lean"]["steps"] == [0, 1, 3] and _v_after["manifest"]["results"][0]["at"] == [3, 0]
+      and _v_after["run_zero"]["figures"] == 1 and _proof_bg["lean"]["steps"] == [0, 1, 3] and _proof_bg["tried"] == [] and _proof_bg["results"][0]["estimate"] == "+3.00",
+      (_v_before.get("run_zero"), _seen_status, _v_after.get("lean")))
 # the next version: the manifest rides to the promoter, the inputs carry over, v1 stays
 p4 = host.propose(nb4, run4.id, promoter_llm, current_data={"df_id": "df4"}, routine=store.load(made["routine"]["id"]))
 made4 = host.create(nb4, p4, {"name": "", "purpose": "", "drop_inputs": [], "drop_results": [], "change_note": "the same, again"}, runner, store, routine_id=made["routine"]["id"])
@@ -738,8 +752,8 @@ def as_is_promoter(system, user):
     return '{"name": "As is", "inputs": [], "edits": []}', {"cost": 0.0}
 p4b = host.propose(nb4, run4b.id, as_is_promoter, current_data={"df_id": "df4b"}, runner=runner)
 check("propose on a follow-up after a change of data: the script is the follow-up's own cell (the parent's cells, on other data, left out), one result line, and a note saying what the chain continues",
-      p4b["cells"] == 1 and "# --- cell 3 ---" in p4b["script"] and "# --- cell 1 ---" not in p4b["script"] and "threshold = 155" not in p4b["script"]
-      and [r["cell"] for r in p4b["results"]] == [3] and any("continues 1 earlier chain of the thread that ran on other data (cells 1-2): the method is this chain's own cell 3" in n for n in p4b["notes"]), (p4b["cells"], p4b["notes"], p4b["script"][-400:]))
+      p4b["cells"] == 1 and "# --- cell 3 ---" in p4b["cells_text"] and "# --- cell 1 ---" not in p4b["cells_text"] and "threshold = 155" not in p4b["cells_text"]
+      and [r["cell"] for r in p4b["results"]] == [3] and any("continues 1 earlier chain of the thread that ran on other data (cells 1-2): the method is this chain's own cell 3" in n for n in p4b["notes"]), (p4b["cells"], p4b["notes"], p4b["cells_text"][-400:]))
 made4b = host.create(nb4, p4b, {"name": "Rows in the frame", "purpose": ""}, runner, store)
 check("...and run zero on the follow-up's data reproduces its line", made4b["run_zero"]["status"] == "reproduced" and made4b["routine"]["origin"]["chain_id"] == run4b.id, made4b["run_zero"])
 store.delete(made4b["routine"]["id"])
@@ -841,7 +855,7 @@ def adding_promoter(system, user):
     return reply.replace("threshold = INPUTS['threshold']", "threshold = INPUTS['threshold']\\nRESULT('rows', float(len(df)), None, None, 'rows', 'n/a')"), {"cost": 0.0}
 p9c = host.propose(nb4, run4.id, adding_promoter, current_data={"df_id": "other"}, instruction="track the row count too")
 check("propose (§15.6): an edit that writes a RESULT call into the method is refused as a whole - the input goes with the reason in a note, the script stays as written",
-      "RESULT('rows'" not in p9c["script"] and p9c["inputs"] == [] and any("adds or removes a RESULT call" in n_ for n_ in p9c["notes"]), (p9c.get("inputs"), p9c.get("notes")))
+      "RESULT('rows'" not in p9c["cells_text"] and p9c["inputs"] == [] and any("adds or removes a RESULT call" in n_ for n_ in p9c["notes"]), (p9c.get("inputs"), p9c.get("notes")))
 made9 = host.create(nb4, p9, {"name": "Tracked", "instruction": "  track the rows above   the line "}, None, store)
 _r9 = store.load(made9["routine"]["id"])
 check("create (§15.6): the instruction is kept on the routine, whitespace folded; the summary and the by-origin index carry it",
@@ -901,7 +915,7 @@ check("propose: cut twice is refused, the reason saying twice", len(cut_calls) =
 def empty_promoter(system, user):
     return '{"name": "As is", "inputs": [], "edits": []}', {"cost": 0.0}
 p7 = host.propose(nb4, run4.id, empty_promoter, current_data={"df_id": "df4"})
-check("propose: no inputs is a valid proposal - the method runs as it is", p7["inputs"] == [] and p7["script"].count("# --- cell") == 2)
+check("propose: no inputs is a valid proposal - the method runs as it is", p7["inputs"] == [] and p7["cells_chain"].count("# --- cell") == 2)
 
 # ---- step 2: a run on the data loaded now - the checks, the status, the comparison, the record ----
 rid4 = made["routine"]["id"]
@@ -955,39 +969,130 @@ check("a file with none of the routine's columns: refused before anything runs, 
 ev_drop = []
 out_drop = host.run(store.load(rid4), {}, {"df_id": "x", "name": "other.csv", "columns": [{"name": "v", "dtype": "int64"}]}, runner_on(df.drop(columns=["g"])), store, emit=ev_drop.append)
 check("a file with a column dropped: the CHECK row says the column is empty in this data, the method runs on the frame with it added empty, the record keeps the fit",
-      out_drop["run"]["status"] in ("ran", "reproduced", "differed") and out_drop["run"]["fit"]["missing"] == ["g"] and any(e.get("kind") == "check" and "empty in this data: g" in (e.get("peek") or "") for e in ev_drop)
+      out_drop["run"]["status"] in ("ran", "reproduced") and out_drop["run"]["fit"]["missing"] == ["g"] and any(e.get("kind") == "check" and "empty in this data: g" in (e.get("peek") or "") for e in ev_drop)
       and "_ROUTINE_COLUMNS" in rt.with_inputs(host.prepare(host.version_of(store.load(rid4)), {"columns": []}, None, "r")["script"], {}, host.prepare(host.version_of(store.load(rid4)), {"columns": []}, None, "r")["prelude"]),
       (out_drop["run"]["status"], out_drop["run"]["line"], [e.get("peek") for e in ev_drop if e.get("kind") == "check"]))
 def broken_runner(script, timeout):
     return "", 'Traceback (most recent call last):\n  File "<string>", line 999, in <module>\nKeyError: \'v\'', [], []
 out5 = host.run(store.load(rid4), {}, data_now, broken_runner, store)
-check("a script error: the run is kept with status failed, naming the cell; its line not printed is 'not reached', not missing; the failed cell's code is on the record (step 4)",
-      out5["run"]["status"] == "failed" and out5["run"]["line"].startswith("failed at cell 2:") and out5["run"]["comparison"]["missing"] == 0 and out5["run"]["comparison"]["unreached"] == 1
-      and out5["run"]["comparison"]["rows"][0]["mark"] == "unreached" and "not reached" in out5["run"]["comparison"]["line"]
-      and out5["run"]["failed_cell"]["number"] == 2 and "RESULT(" in out5["run"]["failed_cell"]["code"] and "# --- cell" not in out5["run"]["failed_cell"]["code"]
-      and store.load(rid4)["runs"][-1]["status"] == "failed" and store.load(rid4)["runs"][-1]["comparison"]["unreached"] == 1, (out5["run"]["line"], out5["run"]["comparison"], out5["run"].get("failed_cell")))
-# the lines printed before a failure are compared like any other (step 4, 2026-10-11): a runner that prints the first line and dies
-def half_runner(script, timeout):
-    return "RESULT: rows above the line: +3\n", 'Traceback (most recent call last):\n  File "<string>", line 999, in <module>\nKeyError: \'v\'', [], []
-_m4 = store.load(rid4)
-_exp4 = host.version_of(_m4)["manifest"]["results"]
-_cmp_half = rt.compare_runs(_exp4 + [dict(_exp4[0], index=1, label="a second line", estimate="4")], [{"estimate": "3", "low": None, "high": None}], [{"estimate": "3", "low": None, "high": None}, {"estimate": "4", "low": None, "high": None}], failed=True)
-check("compare_runs: a row carries the manifest's name for the line (empty without one)",
-      rt.compare_runs([dict(_exp4[0], name="the count")], [{"estimate": "3"}], None)["rows"][0]["name"] == "the count" and rt.compare_runs(_exp4, [{"estimate": "3"}], None)["rows"][0]["name"] == "")
-check("compare_runs of a failed run: the line printed before the failure compared (same), the one after it not reached; the line says so",
-      [r["mark"] for r in _cmp_half["rows"]] == ["same", "unreached"] and _cmp_half["compared"] == 1 and _cmp_half["unreached"] == 1 and _cmp_half["missing"] == 0
-      and _cmp_half["line"] == "0 of 1 changed before the failure, 1 not reached", _cmp_half)
-check("compare_runs: without a reference, a failed run's unreached lines are counted in the line; a completed run's absent line is still 'missing'",
-      "1 line not reached" in rt.compare_runs(_exp4, [], None, failed=True)["line"] and rt.compare_runs(_exp4, [], [{"estimate": "3"}], failed=False)["rows"][0]["mark"] == "missing"
-      and rt.compare_runs(_exp4, [], [{"estimate": "3"}], failed=True)["line"] == "no result line came before the failure (1 not reached)")
-check("cell_text: a cell's code from the script without its marker; nothing for a cell that is not there",
-      rt.cell_text("# --- cell 1 ---\na = 1\n\n# --- cell 2 ---\nb = 2\n_bamboo_capture[0] = True\n\n# --- the executor's own display options back ---\npd.reset_option('x')\n", 2) == "b = 2\n_bamboo_capture[0] = True"
-      and rt.cell_text("# --- cell 1 ---\na = 1\n", 1) == "a = 1" and rt.cell_text("# --- cell 1 ---\na = 1\n", 3) == "")
+check("a script that could not be carried through: the run is kept with status failed and the error's line, every line blank for that reason, the comparison's row missing with it; no statement is named - none was reached",
+      out5["run"]["status"] == "failed" and out5["run"]["line"] == "failed: KeyError: 'v'" and out5["run"]["results"] == [{"estimate": None, "low": None, "high": None, "why": "failed: KeyError: 'v'"}]
+      and out5["run"]["comparison"]["rows"][0]["mark"] == "missing" and out5["run"]["comparison"]["rows"][0]["why"] == "failed: KeyError: 'v'" and out5["run"]["comparison"]["missing"] == 1 and "unreached" not in out5["run"]["comparison"]
+      and out5["run"]["stopped"] == [] and "KeyError" in out5["run"]["error"] and store.load(rid4)["runs"][-1]["status"] == "failed" and store.load(rid4)["runs"][-1]["gaps"] == [], (out5["run"]["line"], out5["run"]["comparison"]))
 out6 = host.run(store.load(rid4), {}, data_now, lambda s, t: ("", "TIMEOUT: Code execution exceeded 300 seconds.", [], []), store)
 check("a timeout: status timed_out", out6["run"]["status"] == "timed_out" and out6["run"]["line"].startswith("timed out"))
 R6 = store.load(rid4)
 ref_after_failures = host.reference_run(R6, host.version_of(R6), "previous")
 check("the reference skips failed and timed-out runs: the last run that ran", ref_after_failures[0] == 5, ref_after_failures[0])
+# the status of a run and its comparison, from the lines laid against the expected ones
+_res_all, _res_part = _placed_all["results"], _placed["results"]
+check("run_status: every tracked line back - ran, or reproduced when each is the reference run's; some missing - ran, saying how many came and why the first did not; the frame without rows - empty; a script that could not be carried "
+      "through - failed, or timed out; a dropped line is not counted; nothing tracked - ran, naming a statement that stopped",
+      rt.run_status(_exp_at, _res_all, _all, "", None) == ("ran", "ran: 5 result lines") and rt.run_status(_exp_at, _res_all, _all, "", _res_all) == ("reproduced", "reproduced: every result line as the run before (5 lines)")
+      and rt.run_status(_exp_at, _res_part, _part, "", _res_all) == ("ran", "ran: 3 of 5 result lines; 2 not computed (cell 2 stopped: NameError: name 'zero' is not defined)")
+      and rt.run_status(_exp_at, [rt._blank(rt.NO_DATA)] * 5, {"empty": True}, "", None) == ("empty", "no data in this window")
+      and rt.run_status(_exp_at, [], {}, "HTTPConnectionPool(host='executor'): Max retries exceeded", None) == ("failed", "failed: HTTPConnectionPool(host='executor'): Max retries exceeded")
+      and rt.run_status(_exp_at, [], {}, "TIMEOUT: Code execution exceeded 300 seconds.", None)[0] == "timed_out"
+      and rt.run_status([dict(e, dropped=(i in (1, 2))) for i, e in enumerate(_exp_at)], _res_part, _part, "", None) == ("ran", "ran: 3 result lines")
+      and rt.run_status([], [], _all, "", None) == ("ran", "ran without error") and rt.run_status([], [], _part, "", None) == ("ran", "ran; 1 statement stopped (cell 2: NameError: name 'zero' is not defined)"))
+check("check_zero: the chain's lines printed whole and the same - reproduced; a statement that stopped on the chain's own data, or the script - failed, saying which; another number, or another count - differed",
+      rt.check_zero([dict(e, estimate=x) for e, x in zip(_exp_sw, ("6", "3", "1.5", "3", "27"))], _all) == ("reproduced", "reproduced: 5 result line(s) identical")
+      and rt.check_zero(_exp_sw, _part) == ("failed", "the script stopped with an error (cell 2 stopped on the chain's own data: NameError: name 'zero' is not defined)")
+      and rt.check_zero(_exp_sw, {"lines": []}, "Traceback\nKeyError: 'x'") == ("failed", "the script stopped with an error (KeyError: 'x')")
+      and rt.check_zero(_exp_sw, _all)[0] == "differed" and rt.check_zero(_exp_sw[:2], _all) == ("differed", "5 result line(s) came back, 2 expected"))
+_m4 = store.load(rid4)
+_exp4 = host.version_of(_m4)["manifest"]["results"]
+_two = _exp4 + [dict(_exp4[0], index=1, label="a second line", estimate="4")]
+_cmp_part = rt.compare_runs(_two, [{"estimate": "3", "low": None, "high": None}, rt._blank("cell 2 stopped: KeyError: 'b'")], [{"estimate": "3", "low": None, "high": None}, {"estimate": "4", "low": None, "high": None}])
+check("compare_runs: a row carries the manifest's name for the line (empty without one); a line this run has no number for is missing and the row says why; one the reference lacks is missing without a reason; the line counts them",
+      rt.compare_runs([dict(_exp4[0], name="the count")], [{"estimate": "3"}], None)["rows"][0]["name"] == "the count" and rt.compare_runs(_exp4, [{"estimate": "3"}], None)["rows"][0]["name"] == ""
+      and [(r["mark"], r["why"]) for r in _cmp_part["rows"]] == [("same", ""), ("missing", "cell 2 stopped: KeyError: 'b'")] and _cmp_part["compared"] == 1 and _cmp_part["missing"] == 1
+      and _cmp_part["line"] == "0 of 1 changed, 1 missing" and set(_cmp_part) == {"rows", "moved", "within", "changed", "missing", "compared", "line"}
+      and rt.compare_runs(_exp4, [{"estimate": "3"}], [rt._blank("x")])["rows"][0] ["mark"] == "missing" and rt.compare_runs(_exp4, [{"estimate": "3"}], [rt._blank("x")])["rows"][0]["why"] == "", _cmp_part)
+# ---- a run on data the method cannot be computed whole on (docs/ROUTINES_DESIGN.md §22): one statement stops and costs its own numbers; a
+# window with no rows is a blank; a column emptier than in the analysis is said; a script that could not be carried out is tried once more
+nb6 = Notebook("t6")
+run6 = nb6.new_run("How do the groups compare?")
+run6.turns = [Turn(kind="cell", cell_no=1, code="per = df.groupby('g')['v'].mean()\nprint(per.to_dict())", results=[], stdout=""),
+              Turn(kind="cell", cell_no=2, code="RESULT('mean of the group means', float(per.mean()), None, None, 'u', 'n/a')\nb = float(per['b'])\nRESULT('group b', b, None, None, 'u', 'n/a')\n"
+                                                "RESULT('b over a', b / float(per['a']), None, None, '', 'n/a')", results=[], stdout=""),
+              Turn(kind="cell", cell_no=3, code="RESULT('rows', float(len(df)), None, None, 'rows', 'n/a')", results=[], stdout="")]
+run6.report = "## Groups\n\nGroup b is higher [cell 2], over five rows [cell 3]."
+run6.status = "answered"
+run6.data = dict(run4.data)
+_printed6 = iter(ln for _s, _k, ln in rt.read_run(runner(assemble(run6.cells(), run6.report)[0], 60)[0])["lines"])
+for _turn, _n in ((run6.turns[1], 3), (run6.turns[2], 1)):
+    _turn.results = [{"text": "{what}: {estimate}".format(**next(_printed6)), "typed": False} for _ in range(_n)]
+nb6.runs[run6.id] = run6
+made6 = host.create(nb6, host.propose(nb6, run6.id, as_is_promoter, current_data={"df_id": "df4"}), {"name": "Groups"}, runner, store)
+rid6 = made6["routine"]["id"]
+_v6 = store.load(rid6)["versions"][0]
+_why_b = "cell 2 stopped: KeyError: 'b'"
+out_a = host.run(store.load(rid6), {}, dict(data_now, rows=2), runner_on(df[df.g == "a"]), store)
+ra = out_a["run"]
+check("the routine over two groups made: every line knows its place, the columns the code names are counted on the chain's own data, and the print is left out of a run",
+      made6["run_zero"]["status"] == "reproduced" and [e["at"] for e in _v6["manifest"]["results"]] == [[2, 0], [4, 0], [5, 0], [6, 0]] and _v6["manifest"]["data"]["gaps"] == {"v": [0, 5], "g": [0, 5]}
+      and _v6["lean"]["steps"] == [0, 2, 3, 4, 5, 6] and host.watch_of(_v6) == {"columns": ["v", "g"], "by": ""}, (made6["run_zero"], _v6.get("lean"), _v6["manifest"]["data"].get("gaps")))
+check("a run on data without one of the groups: ran - the two numbers that do not rest on the statement that stopped, a blank with the reason for the two that do; the record names that statement (its cell, the line in it, its code, the "
+      "error, the later statements not run for it) and no error of the run; the comparison's rows carry the reason; the routine's line of the run too",
+      ra["status"] == "ran" and ra["line"] == "ran: 2 of 4 result lines; 2 not computed (" + _why_b + ")" and [r["estimate"] is not None for r in ra["results"]] == [True, False, False, True]
+      and ra["results"][1] == {"estimate": None, "low": None, "high": None, "why": _why_b} and ra["results"][2]["why"] == _why_b
+      and ra["stopped"] == [{"cell": 2, "line": 2, "code": "b = float(per['b'])", "error": "KeyError: 'b'", "skipped": 2}] and ra["error"] == "" and ra["against"] == 0
+      and [(x["mark"], x["why"]) for x in ra["comparison"]["rows"]] == [("down", ""), ("missing", _why_b), ("missing", _why_b), ("down", "")] and ra["comparison"]["missing"] == 2
+      and store.load(rid6)["runs"][-1]["results"][1]["why"] == _why_b and store.load(rid6)["runs"][-1]["status"] == "ran", (ra["status"], ra["line"], ra["stopped"], ra["comparison"]["rows"]))
+out_e = host.run(store.load(rid6), {}, dict(data_now, rows=0), runner_on(df.iloc[0:0]), store)
+re_ = out_e["run"]
+check("a run on a frame with no rows: empty - nothing was run, every line a blank that says there was no data, no statement stopped; it is no reference for a later run",
+      re_["status"] == "empty" and re_["line"] == "no data in this window" and re_["results"] == [{"estimate": None, "low": None, "high": None, "why": "no data in this window"}] * 4 and re_["stopped"] == []
+      and re_["comparison"]["missing"] == 4 and host.reference_run(store.load(rid6), _v6, "previous")[0] == 1, (re_["status"], re_["line"], re_["results"]))
+_holes = df.astype({"v": "float64"}); _holes.loc[[0, 3], "v"] = np.nan
+out_g = host.run(store.load(rid6), {}, data_now, runner_on(_holes), store)
+check("a run on data where a column the method reads is partly empty: the run says which column and how much, on the record and on the routine's line of the run; the same data as the analysis's says nothing",
+      out_g["run"]["gaps"] == ["v is empty in 40% of the rows"] and store.load(rid6)["runs"][-1]["gaps"] == ["v is empty in 40% of the rows"] and out_g["run"]["status"] == "ran" and ra["gaps"] == [], out_g["run"]["gaps"])
+_calls = {"n": 0}
+def _once_lost(script, timeout):
+    _calls["n"] += 1
+    return ("", "HTTPConnectionPool(host='executor', port=5000): Max retries exceeded (Connection refused)", [], None) if _calls["n"] == 1 else runner_on(df)(script, timeout)
+out_r = host.run(store.load(rid6), {}, data_now, _once_lost, store)
+out_l = host.run(store.load(rid6), {}, data_now, lambda s, t: ("", "Connection aborted", [], None), store)
+check("a script that could not be carried out - the executor not reached - is tried once more: the run goes through on the second try; lost both times, the run is failed with that line, every number blank for it",
+      _calls["n"] == 2 and out_r["run"]["status"] in ("ran", "reproduced") and out_r["run"]["comparison"]["missing"] == 0
+      and out_l["run"]["status"] == "failed" and out_l["run"]["line"] == "failed: Connection aborted" and {r["why"] for r in out_l["run"]["results"]} == {"failed: Connection aborted"}
+      and not host._transport("Traceback (most recent call last):\n  File \"<string>\", line 3\nKeyError: 'v'") and not host._transport("TIMEOUT: Code execution exceeded 300 seconds.") and not host._transport(""),
+      (_calls, out_r["run"]["line"], out_l["run"]["line"]))
+def half_runner(script, timeout):
+    return "RESULT: mean of the group means: +151\n", 'Traceback (most recent call last):\n  File "<string>", line 999, in <module>\nKeyError: \'v\'', [], []
+out_h = host.run(store.load(rid6), {}, data_now, half_runner, store)
+check("a script that died after printing a line: failed, and the line printed before stands - read by position, the rest blank with the run's line",
+      out_h["run"]["status"] == "failed" and [r["estimate"] for r in out_h["run"]["results"]] == ["+151", None, None, None] and out_h["run"]["results"][1]["why"] == "failed: KeyError: 'v'", out_h["run"]["results"])
+# a version made before the lines knew their places reads a run by position, and learns the places at its first whole run
+_old6 = store.load(rid6); _old6["id"] = "r6old"; _old6["runs"] = []
+for _e in _old6["versions"][0]["manifest"]["results"]:
+    _e.pop("at")
+_old6["versions"][0]["manifest"]["data"].pop("gaps"); _old6["versions"][0].pop("lean"); _old6["versions"][0].pop("steps")
+store.save(_old6)
+_o6_first = host.run(store.load("r6old"), {}, dict(data_now, rows=2), runner_on(df[df.g == "a"]), store)
+_o6_mid = json.loads(json.dumps(host.version_of(store.load("r6old"))))
+out_o2 = host.run(store.load("r6old"), {}, data_now, runner_on(_holes), store)
+_o6_last = host.version_of(store.load("r6old"))
+out_o3 = host.run(store.load("r6old"), {}, dict(data_now, rows=2), runner_on(df[df.g == "a"]), store)
+_ed6 = store.load(rid6); _ed6["id"] = "r6edit"; _ed6["runs"] = []      # a script changed after its shorter run was proven
+_v_ed = _ed6["versions"][0]
+_v_ed["script"] = _v_ed["script"].replace("b = float(per['b'])", "b = float(per.get('b'))")
+_v_ed["lean"]["elapsed"], _v_ed["run_zero"]["elapsed"] = [400.0, 5.0], 5.0
+store.save(_ed6)
+host.run(store.load("r6edit"), {}, data_now, runner, store)
+_v_after = host.version_of(store.load("r6edit"))
+check("a version without the places: a run that lost a statement is read by position up to it - the first line, then blanks - and teaches nothing; a whole run teaches every line its place, with the mark of the statements they are among; "
+      "from then on a run that loses a statement keeps the lines after it; with no shares on record nothing is said of an emptier column; every statement runs; a script changed since is read by position again, every statement "
+      "under what run zero took with every one, and its first whole run puts the shorter run aside",
+      [r["estimate"] is not None for r in _o6_first["run"]["results"]] == [True, False, False, False] and "at" not in _o6_mid["manifest"]["results"][0] and "steps" not in _o6_mid
+      and [e.get("at") for e in _o6_last["manifest"]["results"]] == [[2, 0], [4, 0], [5, 0], [6, 0]] and _o6_last["steps"] == rt.steps_key(_o6_last["script"]) and _o6_last["lean"] is None
+      and [r["estimate"] is not None for r in out_o3["run"]["results"]] == [True, False, False, True] and out_o2["run"]["gaps"] == [] and host.run_steps(_o6_last) is None
+      and not host.places_hold(dict(_o6_last, script=_o6_last["script"].replace("b = float(per['b'])", "b = float(per.get('b'))")))
+      and _v_ed["lean"]["steps"] and (host.run_steps(_v_ed), host.run_timeout(_v_ed)) == (None, host.time_allowed(400.0)) and host.run_timeout({"run_zero": {"elapsed": 5.0}}) == 300 and host.run_timeout({"run_zero": {}}) == 600
+      and _v_after["lean"] is None and host.places_hold(_v_after) and _v_after["run_zero"]["elapsed"] == 400.0,
+      ([r["estimate"] for r in _o6_first["run"]["results"]], _o6_last["manifest"]["results"], [r["estimate"] for r in out_o3["run"]["results"]]))
 # ---- whose runs (2026-10-30, docs/DATASETS_DESIGN.md §17 step 3): the comparison and the history stay within one subject's runs ----
 check("subject_of_record: the load's subject by id and name; {} without one (an upload, a race, a record from before the subject was kept)",
       rt.subject_of_record({"load": {"source": "intervals", "subject": {"source": "intervals", "id": "i0", "name": "The subject"}}}) == {"id": "i0", "name": "The subject"}
@@ -1039,15 +1144,50 @@ _cmp7 = next((e for e in _ev7 if e.get("kind") == "compare"), {})
 check("the run's answer carries whose it is, the numbers the arrows step through (that subject's alone) and the reference run's data for the Comparison tab; the COMPARE row names the reference run with its date (no window on an upload's record)",
       _o7c["subject"] == {"id": "i1", "name": "The other subject"} and _o7c["numbers"] == [_o7a["run"]["number"], _o7c["run"]["number"]] and _o7c["against_data"]["subject"] == {"id": "i1", "name": "The other subject"}
       and _o7a["against_data"] is None and _o7b["against_data"]["subject"] == {"id": "i0", "name": "The subject"} and _cmp7.get("query", "").startswith(f"with run {_o7a['run']['number']} (") and _cmp7.get("peek") == _o7c["run"]["comparison"]["line"], (_o7c.get("numbers"), _cmp7))
-# the summaries of runs recorded before 2026-10-30 get their subject from each run's own record, once, as the routine is loaded
+# a routine stored in an earlier shape is brought to today's when it is loaded, once, its runs' records with it (RoutineStore._upgrade): one
+# script per version, every run's lines laid against the version's expected lines, the statuses and the words of today
 _tmp_s = tempfile.mkdtemp(); _st2 = rt.RoutineStore(_tmp_s)
-_st2.save({"id": "rold", "name": "n", "current_version": 1, "versions": [V0], "runs": [{"number": 1, "version": 1, "status": "ran", "data": {"name": "", "source": "intervals"}}, {"number": 2, "version": 1, "status": "ran", "data": {"name": "", "source": "intervals"}}]})
-_st2.save_run("rold", "v1_1", {"number": 1, "data": {"load": {"source": "intervals", "subject": _sub("i0", "The subject")}}})
+_two_lines = {"data": {}, "results": [{"cell": 1, "index": 0, "label": "a", "estimate": "+0"}, {"cell": 2, "index": 0, "label": "b", "estimate": "+0"}]}
+_fail_line = "failed at cell 2: ZeroDivisionError: division by zero"
+_st2.save({"id": "rold", "name": "n", "current_version": 2,
+           "versions": [dict(V0, script="# shortened", script_written="# as written", condensed={"status": "condensed"}, run_zero={"verified": True, "status": "condensing", "results": [{"estimate": "+0"}]}, manifest=_two_lines),
+                        {"number": 2, "script": "# rewritten", "script_fallback": "# before the rewrite", "consolidated": {"status": "consolidated", "provisional": True}, "run_zero": {"verified": True, "status": "reproduced"}, "manifest": _two_lines}],
+           "runs": [{"number": 1, "version": 1, "status": "differed", "line": "1 of 2 result lines did not come back", "results": [{"estimate": "+1"}], "data": {"name": "", "source": "intervals"}, "comparison": {"moved": 0, "missing": 1, "unreached": 0}},
+                    {"number": 2, "version": 1, "status": "failed", "line": _fail_line, "results": [{"estimate": "+1"}], "data": {"name": "", "source": "intervals"}, "comparison": {"moved": 0, "missing": 0, "unreached": 1}},
+                    {"number": 3, "version": 2, "status": "ran", "line": "ran: 2 result lines", "results": [{"estimate": "+1"}, {"estimate": "+nan"}], "data": {"subject": {"id": "i9"}}, "comparison": {}}]})
+_st2.save_run("rold", "v1_1", {"number": 1, "version": 1, "status": "differed", "line": "1 of 2 result lines did not come back", "results": [{"estimate": "+1"}], "data": {"load": {"source": "intervals", "subject": _sub("i0", "The subject")}}, "failed_cell": None})
+_st2.save_run("rold", "v1_2", {"number": 2, "version": 1, "status": "failed", "line": _fail_line, "results": [{"estimate": "+1"}], "data": {}, "error": "Traceback (most recent call last):\n  File \"<string>\", line 9, in <module>\nZeroDivisionError: division by zero",
+                               "failed_cell": {"number": 2, "code": "x = 1\nb = 1 / 0", "statement": "b = 1 / 0"}, "consolidation": None,
+                               "comparison": {"rows": [{"mark": "same", "now": {"estimate": "+1"}}, {"mark": "unreached", "now": None}], "missing": 0, "unreached": 1}})
+with open(_st2.file("rold"), encoding="utf-8") as _fh:
+    _raw = json.load(_fh)
+_raw.pop("shape", None)
+with open(_st2.file("rold"), "w", encoding="utf-8") as _fh:
+    json.dump(_raw, _fh)
 _got = _st2.load("rold")
 with open(_st2.file("rold"), encoding="utf-8") as _fh:
     _saved = json.load(_fh)
-check("RoutineStore.load names the subject on an older run's summary from its record ({} for one whose record names none, or is missing) and saves it, once: the file carries it after",
-      _got["runs"][0]["data"]["subject"] == {"id": "i0", "name": "The subject"} and _got["runs"][1]["data"]["subject"] == {} and _saved["runs"][0]["data"]["subject"]["id"] == "i0" and not _st2._name_subjects(_saved), _got["runs"])
+_rec2, _rec1 = _st2.load_run("rold", "v1_2"), _st2.load_run("rold", "v1_1")
+_twice = {"status": "ran", "line": "ran", "results": [{"estimate": "+1"}, {"estimate": "+2"}]}      # a run of a method with a line that was no number in the analysis
+_exp_twice = [{"estimate": "+0"}, {"estimate": None}, {"estimate": "+0"}]
+rt._as_now(_twice, _exp_twice)
+_once = json.loads(json.dumps(_twice))
+rt._as_now(_twice, _exp_twice)
+check("an earlier routine as it is loaded: each version keeps one script - the one that ran, or, for a rewrite never confirmed, the one it replaced - and nothing of the passes; a verdict cut short while a pass ran is the verdict; the file "
+      "carries today's shape after, and a second load changes nothing - nor does a run taken through the upgrade twice (an upgrade cut short is taken up again)",
+      _got["shape"] == rt.SHAPE == _saved["shape"] and [v["script"] for v in _got["versions"]] == ["# shortened", "# before the rewrite"]
+      and not {"script_written", "condensed", "consolidated", "script_fallback"} & (set(_got["versions"][0]) | set(_got["versions"][1])) and _got["versions"][0]["run_zero"]["status"] == "reproduced"
+      and _st2.load("rold") == _got and [r["estimate"] for r in _once["results"]] == ["+1", None, "+2"] and _twice == _once, ([sorted(v) for v in _got["versions"]], _once, _twice))
+check("an earlier routine's runs: one that printed fewer lines `ran`; every run's lines laid against the expected ones - a blank where none came back, with the run's line when it failed, and a line without a number a blank that says so; "
+      "the lines a failed run did not reach are missing; each summary names whose data it ran on, from the run's record ({} when the record names none, or is gone)",
+      [x["status"] for x in _got["runs"]] == ["ran", "failed", "ran"] and [[r["estimate"] for r in x["results"]] for x in _got["runs"]] == [["+1", None], ["+1", None], ["+1", None]]
+      and [x["results"][1]["why"] for x in _got["runs"]] == ["not printed on this data", _fail_line, "no number on this data"] and all(x["gaps"] == [] for x in _got["runs"])
+      and _got["runs"][0]["comparison"] == {"moved": 0, "missing": 1} and _got["runs"][1]["comparison"] == {"moved": 0, "missing": 1}
+      and [x["data"].get("subject") for x in _got["runs"]] == [{"id": "i0", "name": "The subject"}, {}, {"id": "i9"}], _got["runs"])
+check("an earlier run's own record: the cell it failed at is the statement that stopped, with its code and the error's line; the lines it did not reach are missing, with the run's line as the reason; nothing of the rewrite's check",
+      _rec2["stopped"] == [{"cell": 2, "line": None, "code": "b = 1 / 0", "error": "ZeroDivisionError: division by zero", "skipped": 0}] and not {"failed_cell", "consolidation"} & set(_rec2) and _rec2["status"] == "failed"
+      and _rec2["comparison"] == {"rows": [{"mark": "same", "now": {"estimate": "+1"}, "why": ""}, {"mark": "missing", "now": None, "why": _fail_line}], "missing": 1} and _rec2["results"][1]["why"] == _fail_line
+      and _rec1["status"] == "ran" and _rec1["stopped"] == [] and store.load(rid6)["shape"] == rt.SHAPE, (_rec2, _rec1))
 # ---- the interval (2026-11-06, docs/ROUTINES_DESIGN.md §14): a run's calendar unit on the record, the reference the one before it, the fill ----
 _w = lambda n, sid, kind, win, status="ran", est="+1": {"number": n, "version": 1, "status": status, "interval": kind, "data": {"subject": ({"id": sid, "name": "x"} if sid else {}), "window": win}, "results": [{"estimate": est}]}
 RI = {"versions": RS["versions"], "runs": [_w(1, "i0", None, ["2026-01-01", "2026-06-30"], est="+5"), _w(2, "i0", "week", ["2026-10-12", "2026-10-18"], est="+6"), _w(3, "i0", "week", ["2026-10-19", "2026-10-25"], "failed"),
@@ -1266,8 +1406,9 @@ check("precheck with the summary absent: ok (the coach decides), the line says t
 ev5c = []
 out5c = host.run(store.load(rid5), {}, now5c, runner_on(df), store, emit=ev5c.append, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_2"))
 r5c = out5c["run"]
-check("a run with the summary absent: an empty table with the recorded columns stood in, the method failed on it (nothing to count), the run is kept and names the cell, the record lists the absent file",
-      r5c["status"] == "failed" and r5c["line"].startswith("failed at cell 1") and r5c["aux_absent"] == ["summary"] and any("summary absent" in (e.get("peek") or "") for e in ev5c if e.get("kind") == "check")
+check("a run with the summary absent: an empty table with the recorded columns stood in, the statement that needs its rows stopped on it (nothing to count) and cost its own line, the record names it and lists the absent file",
+      r5c["status"] == "ran" and r5c["line"].startswith("ran: 1 of 2 result lines; 1 not computed (cell 1 stopped: ValueError") and r5c["stopped"][0]["cell"] == 1 and r5c["aux_absent"] == ["summary"]
+      and any("summary absent" in (e.get("peek") or "") for e in ev5c if e.get("kind") == "check")
       and os.path.exists(rt.mirror_path(os.path.join(aux_dir, "routines", rid5, "v1_2"), aux_old)) and r5c["sources"] == {}, (r5c["status"], r5c["line"], r5c.get("aux_absent")))
 # a loader's file named with something other than the recorded dates (2026-10-10, Palo's second live run: the promoter had
 # written the loaded window into the summary's name as an f-string on an input, so the recorded name was gone from the text
@@ -1315,10 +1456,10 @@ def probe_fails(script, timeout, *rest):
 ev5d = []
 out5d = host.run(store.load(rid5), {}, now5c, probe_fails, store, emit=ev5d.append, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_3"))
 r5d = out5d["run"]
-check("the probe failed and the summary is absent: the CHECK row says the files could not be prepared, the stand-in path is still what the executed text names (never a cache path), the prelude wrote it, and the method failed on the empty table - not on a missing file",
+check("the probe failed and the summary is absent: the CHECK row says the files could not be prepared, the stand-in path is still what the executed text names (never a cache path), the prelude wrote it, and the statement that stopped did so on the empty table - not on a missing file",
       any("could not be prepared" in (e.get("peek") or "") for e in ev5d if e.get("kind") == "check") and r5d["bindings"] and r5d["bindings"][0][2] == "placeholder" and r5d["bindings"][0][1] == rt.mirror_path(os.path.join(aux_dir, "routines", rid5, "v1_3"), aux_old)
-      and os.path.exists(rt.mirror_path(os.path.join(aux_dir, "routines", rid5, "v1_3"), aux_old)) and "FileNotFoundError" not in (r5d.get("error") or "") and r5d["status"] == "failed",
-      (r5d.get("bindings"), r5d.get("status"), (r5d.get("error") or "")[-160:]))
+      and os.path.exists(rt.mirror_path(os.path.join(aux_dir, "routines", rid5, "v1_3"), aux_old)) and r5d["status"] == "ran" and [s["error"].split(":")[0] for s in r5d["stopped"]] == ["ValueError"],
+      (r5d.get("bindings"), r5d.get("status"), r5d.get("stopped")))
 # a bound file that is not there when the cells run (the loader's file gone between the probe and the run): stood in for and said
 now5e = dict(now5, aux=[os.path.join(aux_dir, "activity_summary_20260501_to_20260630.csv")])
 def probe_then_gone(script, timeout, *rest):
@@ -1429,7 +1570,7 @@ insp_c["auxiliary_datasets"].append({"filename": "custom_zone_times_20260712_to_
 cmr3 = rt.cache_match({"source": "intervals", "aux_kinds": ["summary", "rider"], "metrics": []}, insp_c, "2026-07-12", "2026-10-10")
 check("the rider profile and the zone times: their kinds, prefixes and cut rules (whole; by the activity's day); no hit without the profile beside the cached load, a hit with it and no zone times file (none defined), the zone times taken when there",
       rt.aux_kind("datasets/u/k/rider_profile_20260712_to_20261010.csv") == "rider" and rt.aux_kind("custom_zone_times_20260712_to_20261010.csv") == "zones" and rt.kind_prefix("rider") == "rider_profile_" and rt.kind_prefix("zones") == "custom_zone_times_"
-      and rt.cut_rule("rider_profile_x.csv") == ("whole", "") and rt.cut_rule("custom_zone_times_x.csv") == ("date", "start_date_local") and rt.cut_name("datasets/u/rider_profile_20260712_to_20261010.csv", "2026-08-01", "2026-08-31") == "rider_profile_20260801_to_20260831.csv"
+      and rt.cut_rule("rider_profile_x.csv") == ("whole", "") and rt.cut_rule("custom_zone_times_x.csv") == ("date", "start_date_local")
       and not cmr1["hit"] and "without rider" in cmr1["line"] and cmr2["hit"] and cmr2["files"] == ["datasets/u/activity_summary_20260712_to_20261010.csv", "datasets/u/rider_profile_20260712_to_20261010.csv"]
       and cmr3["hit"] and cmr3["files"][-1] == "datasets/u/custom_zone_times_20260712_to_20261010.csv" and "with summary, rider, zones" in cmr3["line"], (cmr1, cmr2, cmr3))
 # whose file (2026-10-29, one subject at a time on the Data tab): a loader's file - every kind the Intervals loader writes, by its name -
@@ -1545,11 +1686,36 @@ run9.replay_script, _ = assemble(run9.cells(), run9.report)
 nb9.runs[run9.id] = run9
 p9 = host.propose(nb9, run9.id, empty_promoter, current_data={"df_id": "df9", "aux": [orig_s, orig_w, orig_i]}, runner=runner_on(df9))
 p9["inputs"] = [{"key": "span", "label": "Span", "type": "date_window", "default": ["2026-08-01", "2026-08-01"], "derived": "span"}]   # follows the frame: the cut frame's dates
-p9["cells_text"] = p9["cells_text"].replace("RESULT('sessions in the frame', float(n)", "RESULT(f\"sessions in the frame {INPUTS['span'][0]} to {INPUTS['span'][1]}\", float(n)")
-p9["script"] = rt.join_script(p9["header"], p9["cells_text"], p9["tail"])
+p9["cells_text"], p9["applied"], _f9 = rt.apply_edits(p9["cells_original"], [{"cell": 2, "find": "RESULT('sessions in the frame', float(n)", "replace": "RESULT(f\"sessions in the frame {INPUTS['span'][0]} to {INPUTS['span'][1]}\", float(n)"}])
+assert not _f9, _f9
 made9 = host.create(nb9, p9, {"name": "Cut", "purpose": "", "drop_inputs": [], "drop_results": []}, runner_on(df9), store)
 rid9 = made9["routine"]["id"]
 check("the routine on three loader files and a frame made (run zero reproduced)", made9["run_zero"]["status"] == "reproduced", made9["run_zero"])
+# Save tries the method on smaller pieces of the analysis's own data (docs/ROUTINES_DESIGN.md §22): the latest day, week and month in its
+# window that hold rows, each cut as a fill cuts a unit from its span; nothing is recorded as a run, and the trials' folder goes
+_v9 = store.load(rid9)["versions"][0]
+check("the trials of the routine on three loader files: its frame holds rows on one day, so the pieces are that day, its week and its month; on each, every tracked line came back; no run is on record and the trials' folder is gone",
+      [(t["interval"], t["window"], t["status"], t["came"], t["of"]) for t in _v9["tried"]]
+      == [("day", ["2026-08-01", "2026-08-01"], "ran", 4, 4), ("week", ["2026-07-27", "2026-08-02"], "ran", 4, 4), ("month", ["2026-08-01", "2026-08-31"], "ran", 4, 4)]
+      and made9["tried"] == _v9["tried"] and _v9["tried"][0]["line"] == "ran: 4 result lines" and store.load(rid9)["runs"] == []
+      and os.path.isdir(os.path.join("routines", rid9)) and not os.path.exists(os.path.join("routines", rid9, "v1_0_trial")), _v9.get("tried"))
+_tw = {"source": "intervals", "load": {"start_date": "2026-09-01", "end_date": "2026-10-26"}}
+check("trial_windows: the latest complete day, week (Monday to Sunday) and month inside the window - with the days that hold rows known, the latest of each that holds any (a week that begins before the window is none); a piece as long as the window is no trial; nothing without a "
+      "window, from a source whose runs have no intervals, or when no day holds rows",
+      host.trial_windows(_tw) == [("day", "2026-10-25", "2026-10-25"), ("week", "2026-10-19", "2026-10-25"), ("month", "2026-09-01", "2026-09-30")]
+      and host.trial_windows(_tw, ["2026-09-03", "2026-10-24"]) == [("day", "2026-10-24", "2026-10-24"), ("week", "2026-10-19", "2026-10-25"), ("month", "2026-09-01", "2026-09-30")]
+      and host.trial_windows(_tw, ["2026-09-03"]) == [("day", "2026-09-03", "2026-09-03"), ("month", "2026-09-01", "2026-09-30")]
+      and host.trial_windows({"source": "intervals", "load": {"start_date": "2026-10-20", "end_date": "2026-10-26"}}) == [("day", "2026-10-25", "2026-10-25")]
+      and host.trial_windows({"source": "intervals", "load": {"start_date": "2025-10-27", "end_date": "2026-10-31"}})[2] == ("month", "2026-10-01", "2026-10-31")
+      and host.trial_windows(_tw, []) == [] and host.trial_windows(dict(_tw, source="csv")) == [] and host.trial_windows({"source": "intervals"}) == [], host.trial_windows(_tw, ["2026-09-03"]))
+_days9 = host.read_marked(runner_on(df9)(host.days_script("datetime"), 60)[0], host.DAYS_MARK)
+_gone = os.path.join(tempfile.mkdtemp(), "trial"); os.makedirs(os.path.join(_gone, "a", "b")); open(os.path.join(_gone, "a", "b", "f.csv"), "w").write("x\n1\n")
+_rm = runner_on(df)(rt.remove_script(_gone), 60)
+check("the scripts beside the trials pass the local kernel's check and do what they say: the days a frame holds rows on, by its date column; a folder removed with what is in it, and nothing said when it is not there",
+      _days9 == {"days": ["2026-08-01"]} and _rm[1] == "" and not os.path.exists(_gone) and runner_on(df)(rt.remove_script(_gone), 60)[1] == "", (_days9, _rm))
+check("try_method: nothing without a date column to cut by; a piece the method cannot be tried on says so and the others go on",
+      host.try_method({"manifest": {"data": dict(_tw, columns=[{"name": "v", "dtype": "int64"}])}}, runner_on(df), 60, "x") == [] and host.date_column_of({"columns": [{"name": "t", "dtype": "datetime64[ns]"}]}) == "t"
+      and host.date_column_of({"span": {"column": "day"}, "columns": [{"name": "t", "dtype": "datetime64[ns]"}]}) == "day" and host.date_column_of(None) == "")
 # the cached load: Jan-June, five sessions in the frame (one per month), the run asks Feb-May
 df9c = pd.DataFrame({"activity_id": ["a1", "a2", "a3", "a4", "a1"], "datetime": pd.to_datetime(["2026-01-20 07:00", "2026-02-10 08:00", "2026-04-01 09:00", "2026-06-20 07:00", "2026-01-20 07:01"]), "v": [1, 2, 3, 4, 5]})
 now9 = {"df_id": "df9c", "name": "", "source": "intervals", "columns": run9.data["columns"], "rows": 5, "date_range": "2026-01-01 to 2026-06-30", "aux": [cut_summary, cut_wellness, cut_intervals, cut_own],
@@ -1562,7 +1728,7 @@ out9 = host.run(store.load(rid9), {}, now9, runner_on(df9c), store, emit=ev9.app
 r9 = out9["run"]
 got9 = {x["what"]: x["estimate"] for x in r9["results"]}
 check("the run on a cached load around the window: the frame cut to Feb-May (2 of 4 sessions), the summary by its start dates (2 of 4 rows), the wellness file by its date (1 of 3), the intervals file by the sessions kept (3 of 4 rows: a2's two laps and a3's... no, a2's two); the window input written from the cut frame; the CHECK row says the cut",
-      r9["status"] in ("ran", "differed") and got9.get("rows in the summary") == "+2.00" and got9.get("rows in the wellness file") == "+1.00" and got9.get("rows in the intervals file") == "+2.00"
+      r9["status"] == "ran" and got9.get("rows in the summary") == "+2.00" and got9.get("rows in the wellness file") == "+1.00" and got9.get("rows in the intervals file") == "+2.00"
       and any(k.startswith("sessions in the frame 2026-02-10 to 2026-04-01") for k in got9) and got9[next(k for k in got9 if k.startswith("sessions in the frame"))] == "+2.00"
       and r9["inputs"] == {"span": ["2026-02-10", "2026-04-01"]} and any(e.get("kind") == "check" and "cut to 2026-02-01 → 2026-05-31 from the cached load 2026-01-01 → 2026-06-30" in (e.get("peek") or "") for e in ev9), (r9["status"], got9, r9["inputs"], [e.get("peek") for e in ev9 if e.get("kind") == "check"], (r9.get("error") or "")[-300:]))
 check("the executed text names the cut copies at the mirror of the recorded paths under the run's folder (2026-10-15); the record's bindings say cut and the sources name the cached load's files; the data record says the window and the rows the method saw; the files are there, cut",
@@ -1573,6 +1739,17 @@ check("the executed text names the cut copies at the mirror of the recorded path
 check("the CHECK row of the cut run: the summary's 2 rows and the intervals file's 2 against the original's 1, the wellness file's 1 as the original, the frame's 2 against the original's 3 - what the method sees, said before it runs",
       "2 rows where the original had 3" in r9["check"] and "the summary file: 2 rows where the original had 1" in r9["check"] and "the intervals file: 2 rows where the original had 1" in r9["check"] and "the wellness file: 1 row as the original" in r9["check"]
       and any(e.get("kind") == "check" and "the summary file: 2 rows where the original had 1" in (e.get("peek") or "") for e in ev9), r9["check"])
+# the same cached load, a window no row falls in (a fill's week without a session): the cut leaves nothing, nothing is run, the run is a blank on record
+_e9 = store.load(rid9); _e9["id"] = "r9empty"; _e9["runs"] = []
+store.save(_e9)
+out9e = host.run(store.load("r9empty"), {}, dict(now9, load=dict(now9["load"], start_date="2026-03-01", end_date="2026-03-31")), runner_on(df9c), store,
+                 run_dir=os.path.join(aux_dir, "routines", "r9empty", "v1_1"), interval="month")
+r9e = out9e["run"]
+check("a window of the cached load that holds no rows: nothing is run and the run is kept as one with no data - every line blank for that reason, nothing stopped, no error, the interval and the window on it; it is no reference for a later run",
+      r9e["status"] == "empty" and r9e["line"] == "no data in this window" and {x["why"] for x in r9e["results"]} == {"no data in this window"} and all(x["estimate"] is None for x in r9e["results"]) and r9e["stopped"] == []
+      and not r9e["error"] and r9e["interval"] == "month" and out9e["summary"]["data"]["window"] == ["2026-03-01", "2026-03-31"] and r9e["data"]["rows"] == 0
+      and host.reference_run(store.load("r9empty"), host.version_of(store.load("r9empty")), interval="month", window=("2026-04-01", "2026-04-30"), subject_id="") == (None, None),
+      (r9e["status"], r9e["line"], (r9e.get("error") or "")[-300:], r9e["data"].get("rows"), out9e["summary"]["data"]))
 pc9 = host.precheck(store.load(rid9), now9, runner_on(df9c))
 R9 = store.load(rid9); v9 = host.version_of(R9)
 v9["manifest"]["parameters"].append({"key": "which", "label": "Which", "type": "choice", "default": ["a1", "a2"], "column": "activity_id", "multiple": True, "origin": "x"})
@@ -1629,7 +1806,7 @@ r10 = out10["run"]
 got10 = {x["what"]: x["estimate"] for x in r10["results"]}
 ctx_mirror = rt.mirror_path(run10_dir, orig_c); codes_mirror = rt.mirror_path(run10_dir, orig_k)
 check("the cut run's words are the window's: the method's CTX reads the mirror copies cut to Feb-May - 3 of the cached load's 5 passages and the 4 codes on them (not the 7 of the whole load the host's CTX would give); the context file cut by its day, the codes file by the passages kept; the prelude defines CTX last, over the mirror paths",
-      r10["status"] in ("ran", "differed") and got10.get("passages") == "+3.00" and got10.get("codes on them") == "+4.00"
+      r10["status"] == "ran" and got10.get("passages") == "+3.00" and got10.get("codes on them") == "+4.00"
       and pd.read_csv(ctx_mirror)["id"].tolist() == ["C.2", "C.3", "C.4"] and pd.read_csv(codes_mirror)["id"].tolist() == ["C.2", "C.2", "C.3", "C.4"]
       and rt.cut_rule(cut_ctx) == ("date", "date") and rt.cut_rule(cut_codes) == ("passages", "id")
       and f"CTX = _BambooContext({ctx_mirror!r}, {codes_mirror!r})" in rt.conform_prelude([], [], [], None, (ctx_mirror, codes_mirror)) and "CTX" not in rt.conform_prelude([], [], [], None, None),
@@ -1641,7 +1818,7 @@ check("the CHECK row of a cut run says the rows the method sees - the frame's an
 now10b = dict(now10, aux=[cut_summary, cut_ctx])
 out10b = host.run(store.load(rid10), {}, now10b, runner_ctx(df9c, cut_ctx, ""), store, run_dir=os.path.join(aux_dir, "routines", rid10, "v1_2"))
 got10b = {x["what"]: x["estimate"] for x in out10b["run"]["results"]}
-check("with no codes file in this load: CTX.codes() in the run is the empty stand-in at the recorded path, the passages still the window's", out10b["run"]["status"] in ("ran", "differed") and got10b.get("passages") == "+3.00" and got10b.get("codes on them") == "+0.00" and out10b["run"]["aux_absent"] == ["codes"], (got10b, out10b["run"].get("aux_absent"), (out10b["run"].get("error") or "")[-200:]))
+check("with no codes file in this load: CTX.codes() in the run is the empty stand-in at the recorded path, the passages still the window's", out10b["run"]["status"] == "ran" and got10b.get("passages") == "+3.00" and got10b.get("codes on them") == "+0.00" and out10b["run"]["aux_absent"] == ["codes"], (got10b, out10b["run"].get("aux_absent"), (out10b["run"].get("error") or "")[-200:]))
 # a choice input whose value is not in the data: refused by the value check through the kernel
 R7 = store.load(rid4); v7 = host.version_of(R7)
 v7["manifest"]["parameters"].append({"key": "grp", "label": "Group", "type": "choice", "default": "a", "column": "g", "multiple": False, "origin": "x"})
@@ -1671,7 +1848,7 @@ check("a choice column in the summary file: the values found there, ok; one of s
       (pc8a["values_missing"], pc8b["values_missing"], pc8b["values_notes"], pc8b2["values_missing"], pc8c["values_missing"]))
 ev8 = []
 out8n = host.run(store.load(rid5), {"notes": ["a", "zzz"]}, now8n, runner_on(df), store, emit=ev8.append, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_9"))
-check("the run with one of the chosen values absent goes ahead and the CHECK row carries the note", out8n["run"]["status"] in ("ran", "reproduced", "differed", "failed") and any(e.get("kind") == "check" and "keeps the other value" in (e.get("peek") or "") for e in ev8), [e.get("peek") for e in ev8 if e.get("kind") == "check"])
+check("the run with one of the chosen values absent goes ahead and the CHECK row carries the note", out8n["run"]["status"] in ("ran", "reproduced") and any(e.get("kind") == "check" and "keeps the other value" in (e.get("peek") or "") for e in ev8), [e.get("peek") for e in ev8 if e.get("kind") == "check"])
 ps = rt.precheck_script({"note": ["a"]}, [aux_notes, "datasets/x/own_notes.csv"])
 check("precheck_script reads the frame first, then each file's header and only the column it needs; a file that cannot be read is skipped", "_pd.read_csv(_p, nrows=0)" in ps and "usecols=[_col]" in ps and "own_notes.csv" in ps)
 v8["manifest"]["parameters"].pop(); store.save(R8)
@@ -1696,7 +1873,7 @@ pc8d = host.precheck(store.load(rid5), now8n, runner_on(df))
 check("a routine saved with a choice over a computed column: the precheck no longer refuses it - nothing is looked for, ok", pc8d["ok"] and pc8d["values_missing"] == [] and "is not in this data" not in pc8d["line"], (pc8d["ok"], pc8d["line"]))
 ev8d = []
 out8d = host.run(store.load(rid5), {"kw": ["VT1", "hill"]}, now8n, runner_on(df), store, emit=ev8d.append, run_dir=os.path.join(aux_dir, "routines", rid5, "v1_10"))
-check("...and the run goes ahead with the words as given", out8d["run"]["status"] in ("ran", "reproduced", "differed", "failed") and out8d["run"].get("inputs", {}).get("kw") == ["VT1", "hill"], (out8d["run"]["status"], out8d["run"].get("inputs")))
+check("...and the run goes ahead with the words as given", out8d["run"]["status"] in ("ran", "reproduced") and out8d["run"].get("inputs", {}).get("kw") == ["VT1", "hill"], (out8d["run"]["status"], out8d["run"].get("inputs")))
 v8b["manifest"]["parameters"].pop(); store.save(R8b)
 ok7 = host.precheck(store.load(rid4), data_now, runner_on(df), values={"grp": "a"})
 check("a choice value in the data passes", ok7["ok"], ok7["line"])
@@ -1704,7 +1881,7 @@ view0 = host.run_view(store.load(rid4), store, 0)
 view2 = host.run_view(store.load(rid4), store, 2)
 check("run_view: run zero from the version's record with its files; run 2 from its record with the comparison, the output and the numbers to step through",
       view0["run"]["number"] == 0 and view0["run"]["zero"] and view0["run"]["results"][0]["estimate"] == "+3.00" and "RESULT:" in view0["stdout"]
-      and view2["run"]["number"] == 2 and view2["run"]["comparison"]["rows"][0]["mark"] == "down" and "RESULT: rows above the line: +2.00" in view2["stdout"] and view2["numbers"][:3] == [0, 1, 2] and view2["manifest_results"][0]["label"] == "rows above the line", (view0["run"].get("results"), view2.get("numbers")))
+      and view2["run"]["number"] == 2 and view2["run"]["comparison"]["rows"][0]["mark"] == "down" and "RESULT: rows above the line: +2.00" in view2["stdout"] and view2["numbers"][:3] == [0, 1, 2] and "manifest_results" not in view2, (view0["run"].get("results"), view2.get("numbers")))
 check("run_view says whose the run is (none for an upload's) and carries the reference run's data: run 2's reference is run 1's summary, run zero has none",
       view2["subject"] == {} and view0["subject"] == {} and view2["against_data"] is not None and view2["against_data"].get("name") == "small.csv" and view0["against_data"] is None, (view2.get("subject"), view2.get("against_data")))
 try:
@@ -1712,33 +1889,6 @@ try:
 except host.RoutineRefused as exc:
     nope = str(exc)
 check("run_view of a run that does not exist is refused", "no run 99" in nope)
-# Fix it in the analysis (§22): a run that failed at a cell of the method carries the question and the data to load; a run that ran,
-# run zero and a timeout carry none
-_R = store.load(rid4)
-view5 = host.run_view(_R, store, out5["run"]["number"])
-view6 = host.run_view(_R, store, out6["run"]["number"])
-_q5 = (view5.get("fix") or {}).get("question", "")
-check("run_view (§22): the failed run offers the fix - the question names the routine, its version and purpose, the tracked metric by its recorded wording and cell, the inputs with their defaults, the run's number, the file it ran on (to load first) and the error at its cell, then the one standing ask; the data source and the load spec ride with it",
-      view5["fix"] is not None and view5["fix"]["source"] == "file" and view5["fix"]["load"] is None
-      and _q5.startswith("This analysis was saved as the routine \"" + _R["name"] + "\" (v" + str(out5["run"]["version"]) + "): count the rows above a line. Each run recomputes these metrics and compares them with the run before: \"rows above the line\" (cell 2).")
-      and " Its inputs: Threshold (threshold) = 155; Group (grp) = \"a\"." in _q5 and f"Run {out5['run']['number']} failed on other data than the analysis was made on: the file small.csv - load that data before you send this. It stopped at cell 2 with `KeyError: 'v'`." in _q5
-      and "Find why the method fails on this data and change it so it runs on any data of the same shape: where this data cannot give one of the tracked metrics, record it as missing rather than fail. Keep the tracked metrics, their order and their meaning, and keep the inputs as inputs, so the runs stay comparable." in _q5
-      and "printed" not in _q5, _q5)
-check("run_view (§22): no fix on a run that ran, on run zero, or on a timeout", view2.get("fix") is None and view0.get("fix") is None and view6.get("fix") is None, (view2.get("fix"), view6.get("fix")))
-_fq = host.fix_question({"name": "A curve", "purpose": "the curve each month", "instruction": "track every step of it"},
-                        {"number": 3, "manifest": {"results": [{"cell": 5, "index": 0, "label": "best over 5 s, whole window", "name": "Best 5 s"}, {"cell": 5, "index": 1, "label": "best over 1 h, whole window", "name": "Best 1 h"}, {"cell": 6, "index": 0, "label": "a check", "dropped": True}],
-                                                    "parameters": [{"key": "shortest", "label": "Shortest session (min)", "default": 20}, {"key": "kinds", "label": "Kinds", "default": ["Ride"]}]}},
-                        {"number": 66, "status": "failed", "line": "failed at cell 3: KeyError: 3600", "error": "Traceback (most recent call last):\n  File \"<string>\", line 40, in <module>\nKeyError: 3600",
-                         "failed_cell": {"number": 3, "code": "x", "statement": "best_1h = best[3600]"}, "results": [{"what": "best over 5 s"}],
-                         "data": {"source": "intervals", "load": {"source": "intervals", "start_date": "2026-10-01", "end_date": "2026-10-31", "subject": {"id": "i1", "name": "First Athlete"}}}})
-check("fix_question on an Intervals run: the purpose after the name, the tracked metrics named with their wording and cells (the dropped one left out), the inputs with their defaults, the custom instructions; the data as source · whose · window, loaded now; the statement the run stopped at; the lines printed before the failure",
-      _fq.startswith("This analysis was saved as the routine \"A curve\" (v3): the curve each month. Each run recomputes these metrics and compares them with the run before: Best 5 s (\"best over 5 s, whole window\", cell 5), Best 1 h (\"best over 1 h, whole window\", cell 5). Its inputs: Shortest session (min) (shortest) = 20; Kinds (kinds) = [\"Ride\"]. Custom instructions: \"track every step of it\".\n\n")
-      and "Run 66 failed on other data than the analysis was made on: Intervals.icu · First Athlete · 2026-10-01 → 2026-10-31, the data loaded now. It stopped at cell 3 with `KeyError: 3600` at `best_1h = best[3600]`. It printed 1 of its 3 lines first. Find why" in _fq
-      and "a check" not in _fq, _fq)
-check("failed_line_no and failed_statement: the executor's own line first, else the last frame; the line of the script, stripped; nothing beyond the script or without a frame",
-      rt.failed_line_no("Error on line 3: x\n  File \"<string>\", line 9") == 3 and rt.failed_line_no("  File \"<string>\", line 2, in f\n  File \"<string>\", line 7, in <module>") == 7 and rt.failed_line_no("boom") is None
-      and rt.failed_statement("a = 1\n  b = best[3600]\nc = 2\n", "File \"<string>\", line 2") == "b = best[3600]" and rt.failed_statement("a = 1\n", "File \"<string>\", line 9") == "" and rt.failed_statement("a = 1\n", "") == ""
-      and out5["run"]["failed_cell"]["statement"] == "" and out5["run"]["failed_cell"]["number"] == 2)
 shutil.rmtree(tmp, ignore_errors=True)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")

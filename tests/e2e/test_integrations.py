@@ -60,7 +60,7 @@ def wait_verified(routine_json, timeout=240):
         try:
             rj = json.load(open(routine_json))
             rz = (rj.get("versions") or [{}])[-1].get("run_zero") or {}
-            if rz.get("status") not in (None, "", "verifying", "condensing"):
+            if rz.get("status") not in (None, "", "verifying"):
                 return rj
         except (OSError, ValueError):
             pass
@@ -296,6 +296,7 @@ def main():
                   (rj.get("versions") or [{}])[0].get("run_zero", {}).get("status") == "reproduced" and (rj.get("versions") or [{}])[0].get("run_zero", {}).get("verified") is True, (rj.get("versions") or [{}])[0].get("run_zero"))
             rec = rj["versions"][0]["manifest"]["data"] if rdirs else {}
             vs = rj["versions"][0] if rdirs else {}
+            lean_on = bool((vs.get("lean") or {}).get("steps"))     # the shorter run stood at Save (docs/ROUTINES_DESIGN.md §22.2): a run leaves out the line set aside
             check("the stored manifest carries the pick as the dialog left it: the session count dropped (printed and checked still), the two compared lines named",
                   [(r_.get("dropped"), r_.get("name")) for r_ in vs.get("manifest", {}).get("results", [])] == [(True, None), (False, "Peak start hour"), (False, "Share in the band")], vs.get("manifest", {}).get("results"))
             check("the stored script: the band read from INPUTS, the summary still read by the loader's dated name (the refused edit left no trace), the band the only parameter",
@@ -356,7 +357,7 @@ def main():
                   any("LOAD" in r and f"Intervals.icu · The subject · {b_start.isoformat()} → {b_end.isoformat()}" in r and "summary" in r and "wellness" in r for r in rv["rows"])
                   and any("CHECK" in r and "columns empty in this data: power" in r and "wellness absent in this data" in r and "'Ride' is not in column type of the summary file - the method keeps the other value" in r for r in rv["rows"])
                   and any("RUN" in r and "run 1" in r for r in rv["rows"]) and any("COMPARE" in r and "run 0" in r for r in rv["rows"])
-                  and "Run 1 complete" in rv["done"] and ("ran: 3 result lines" in rv["done"] or "reproduced" in rv["done"]) and "against run 0" in rv["done"] and not rv["warn"] and rv["locked"] and rv["chip"] == "Ready", (rv["rows"], rv["done"][:240], rv["chip"]))
+                  and "Run 1 complete" in rv["done"] and ("ran: 2 result lines" in rv["done"] or "reproduced" in rv["done"]) and "against run 0" in rv["done"] and not rv["warn"] and rv["locked"] and rv["chip"] == "Ready", (rv["rows"], rv["done"][:240], rv["chip"]))
             check("the Comparison tab opened with the two compared lines under their names against run 0, each marked; the session count, set aside, is not a row", "tab-comparison" in rv["tabs"] and "Peak start hour" in rv["cmp"] and "Share in the band" in rv["cmp"] and "sessions in the window" not in rv["cmp"] and "against run 0" in rv["cmp"] and ("within" in rv["cmp"] or "same" in rv["cmp"] or "moved" in rv["cmp"]), rv["cmp"][:300])
             # whose and when (2026-10-30): the heading names the athlete once (both runs are theirs), each column its window; the position names them
             cmp1 = page.evaluate("() => ({ head: (document.querySelector('#content-comparison .rt-sec .h') || {}).textContent || '', when: [...document.querySelectorAll('#content-comparison thead th .when')].map(e => e.textContent), labels: [...document.querySelectorAll('#content-comparison td.label')].map(e => [e.textContent, getComputedStyle(e).whiteSpace]), position: document.getElementById('chainPosition').textContent, compare: ([...document.querySelectorAll('.sp-row.tool')].find(e => /COMPARE/.test(e.textContent)) || {}).textContent || '' })")
@@ -388,9 +389,9 @@ def main():
             run_dir = os.path.join(workdir, "executor", run1["run_dir"])
             check("the run's record carries the store's part of its load (window, held, fetched, refresh) and the stored run's Data tab says it", run1["data"]["load"].get("store") == {"window": 60, "held": 19, "fetched": 41, "refresh": False} and "19 of 60 activities from the store, 41 downloaded" in dtab, (run1["data"]["load"].get("store"), dtab[:300]))
             sp = run1.get("inputs", {}).get("span") or ["", ""]
-            check("the dates input was written from this window's frame: its first and last dates on the record, inside the window loaded and not the original's; the label printed carries them; the output keeps no marker line",
+            check("the dates input was written from this window's frame: its first and last dates on the record, inside the window loaded and not the original's; the label printed carries them - or, under the shorter run, the line set aside is not computed; the output keeps no marker line",
                   b_start.isoformat() <= sp[0] <= sp[1] <= b_end.isoformat() and sp != [a_start.isoformat(), a_end.isoformat()] and run1["inputs"].get("band") == [9, 11]
-                  and (run1.get("results") or [{}])[0].get("what") == f"sessions in the window {sp[0]} to {sp[1]}"
+                  and ((run1.get("results") or [{}])[0].get("estimate") is None if lean_on else (run1.get("results") or [{}])[0].get("what") == f"sessions in the window {sp[0]} to {sp[1]}")
                   and "ROUTINE_INPUTS" not in open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "stdout.txt"), encoding="utf-8").read(), (sp, run1.get("inputs"), (run1.get("results") or [{}])[0]))
             check("on disk: the run's record keeps the bindings, the absent file, the fit (power missing) and the shape it made (the summary copy with the columns this window lacked added); the copy and the wellness placeholder are in the run's own folder on the executor's side, nothing in the user's cache",
                   run1["status"] in ("ran", "reproduced") and run1["aux_absent"] == ["wellness"] and "power" in run1["fit"]["missing"] and run1["data"]["load"]["start_date"] == b_start.isoformat()
@@ -453,12 +454,12 @@ def main():
             n_days = (c_end - c_start).days + 1
             got4 = {x.get("what", ""): x.get("estimate") for x in (run4.get("results") or [])}
             sessions4 = next((v for k, v in got4.items() if k.startswith("sessions in the window")), None)
-            check("run 4 was cut from the cached load: the LOAD and CHECK rows say so, nothing downloaded, the record's load names the window and the cached load it was cut from, the data record says the window and fewer rows than the cached load, the file the method names is bound to its cut copy under the window's name, the session count is the window's days (one a day in the fake data) and the dates input is the cut frame's first and last",
+            check("run 4 was cut from the cached load: the LOAD and CHECK rows say so, nothing downloaded, the record's load names the window and the cached load it was cut from, the data record says the window and fewer rows than the cached load, the file the method names is bound to its cut copy under the window's name, the session count is the window's days (one a day in the fake data; not computed under the shorter run) and the dates input is the cut frame's first and last",
                   any("LOAD" in r and f"Intervals.icu · The subject · {c_start.isoformat()} → {c_end.isoformat()}" in r and "cut from the cache" in r for r in r4["rows"]) and any("CHECK" in r and f"cut to {c_start.isoformat()} → {c_end.isoformat()} from the cached load {a_start.isoformat()} → {a_end.isoformat()}" in r for r in r4["rows"])
                   and "Run 4 complete" in r4["done"] and fits_after4 == fits_after and run4["data"]["load"].get("cached_from") == [a_start.isoformat(), a_end.isoformat()] and run4["data"]["load"]["start_date"] == c_start.isoformat()
                   and run4["data"]["date_range"] == f"{c_start.isoformat()} to {c_end.isoformat()}" and run4["data"]["rows"] < run3["data"]["rows"] and all(b[2] == "cut" for b in run4["bindings"])
                   and [os.path.basename(b[1]) for b in run4["bindings"]] == [f"activity_summary_{tag_a}.csv"] and run4["bindings"][0][1] == aux_mirror(run4["run_dir"], run4["bindings"][0][0])   # the method names the summary only, at its mirror path; the wellness file is cut beside it, unnamed
-                  and sessions4 is not None and float(sessions4) == n_days and run4["inputs"].get("span") == [c_start.isoformat(), c_end.isoformat()] and run4["status"] in ("ran", "reproduced"),
+                  and (sessions4 is None if lean_on else sessions4 is not None and float(sessions4) == n_days) and run4["inputs"].get("span") == [c_start.isoformat(), c_end.isoformat()] and run4["status"] in ("ran", "reproduced"),
                   (r4["rows"], (fits_after, fits_after4), run4["data"].get("load"), run4["data"].get("date_range"), run4["data"].get("rows"), run4.get("bindings"), got4, run4.get("inputs"), run4.get("status"), (run4.get("error") or "")[-200:]))
             check("the Data tab's pills after the cut run show what the session holds - the cached load's window - not the run's", any(f"Intervals ICU (59 days [W+S]) loaded" in p for p in r4["pills"]), r4["pills"])
 
@@ -701,10 +702,10 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-interval')", timeout=30000)
             page.wait_for_function("() => { const s = document.querySelector('#routineRunModal select[data-load=\"athlete\"]'); return !!s && s.getAttribute('data-state') === 'ready' && s.value === 'i0'; }", timeout=15000)
-            dlg_c = page.evaluate("() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), segs: [...document.querySelectorAll('#routineRunModal .rt-interval [data-interval]')].map(e => e.textContent), pickers: document.querySelector('#routineRunModal .rt-loadwin').style.display, plan: (document.querySelector('#routineRunModal .rt-plan') || {}).textContent || '', label: document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent })")
+            dlg_c = page.evaluate("() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), segs: [...document.querySelectorAll('#routineRunModal .rt-interval [data-interval]')].map(e => e.textContent), pickers: document.querySelector('#routineRunModal .rt-loadwin').style.display, plan: (document.querySelector('#routineRunModal .rt-plan:not(.rt-tried)') || {}).textContent || '', label: document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent })")
             page.click("#routineRunModal .rt-interval [data-interval='week']")
-            page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-plan') && /Run \\d+ weeks/.test(document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent)", timeout=15000)
-            dlg_w = page.evaluate("""() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), plan: document.querySelector('#routineRunModal .rt-plan').textContent, box: (document.querySelector('#routineRunModal .rt-fillbox') || {}).textContent || '', boxOn: !!(document.querySelector('#routineRunModal input[data-load="fill"]') || {}).checked,
+            page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-plan:not(.rt-tried)') && /Run \\d+ weeks/.test(document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent)", timeout=15000)
+            dlg_w = page.evaluate("""() => ({ on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), plan: document.querySelector('#routineRunModal .rt-plan:not(.rt-tried)').textContent, box: (document.querySelector('#routineRunModal .rt-fillbox') || {}).textContent || '', boxOn: !!(document.querySelector('#routineRunModal input[data-load="fill"]') || {}).checked,
                 pickers: document.querySelector('#routineRunModal .rt-loadwin').style.display, text: document.querySelector('#routineRunModal .ui-dlg-b').textContent,
                 compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '', radios: document.querySelectorAll('#routineRunModal input[name="rt-compare"]').length,
                 label: document.querySelector('#routineRunModal [data-act="run"] span').textContent, cache: !!document.querySelector('#routineRunModal .rt-cache'), note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })""")
@@ -736,7 +737,7 @@ def main():
                   and bar0["runOff"] and bar0["runTitle"] == "a fill is running — wait for it, or stop it below" and bar0["deleteOff"]
                   and fill_end.get("running") is False and fill_end.get("done") == len(weeks) and fill_end.get("total") == len(weeks) and fill_end.get("failed") == 0 and fill_end.get("stopped") is False and fill_end.get("interval") == "week", (bar0, fill_end))
             check("the weeks landed as runs, oldest first, each with interval 'week' and its calendar window on the summary, the first against nothing and each next against the week before; all ran; the Summary, re-read, has no bar any more - the toast said the last word (Filled N weeks in …) - with Run back, and the composer is the run view's again (the fill's reason gone)",
-                  len(rj_f.get("runs") or []) == n_before_fill + len(weeks) and [tuple(x["data"]["window"]) for x in wk_runs] == [(a_.isoformat(), b_.isoformat()) for a_, b_ in weeks] and all(x["status"] in ("ran", "reproduced", "differed") and x["data"]["subject"] == {"id": "i0", "name": "The subject"} for x in wk_runs)
+                  len(rj_f.get("runs") or []) == n_before_fill + len(weeks) and [tuple(x["data"]["window"]) for x in wk_runs] == [(a_.isoformat(), b_.isoformat()) for a_, b_ in weeks] and all(x["status"] in ("ran", "reproduced") and x["data"]["subject"] == {"id": "i0", "name": "The subject"} for x in wk_runs)
                   and wk_runs[0]["against"] is None and all(wk_runs[i]["against"] == wk_runs[i - 1]["number"] for i in range(1, len(wk_runs))) and wk_runs[0]["comparison"]["line"] == "nothing to compare with: no earlier week on record for this subject"
                   and not after_fill["bar"] and re.fullmatch(r"Filled \d+ weeks in .+", after_fill["toast"]) and not after_fill["stop"] and not after_fill["runOff"]
                   and after_fill["locked"] and after_fill["placeholder"] == "A run is a record: to go further, open the analysis it was made from" and after_fill["picked"] == "i0" and not after_fill["list"],
@@ -751,12 +752,12 @@ def main():
             rec_w = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", f"v1_{wk_runs[1]['number']}", "run.json")))
             check("a filled week's record: cut to its week from the span's load, the interval on it, its CHECK line saying the cut and the week's rows; its summary file bound to the span's and cut",
                   rec_w["interval"] == "week" and rec_w["data"]["load"]["start_date"] == weeks[1][0].isoformat() and rec_w["data"]["load"]["end_date"] == weeks[1][1].isoformat() and rec_w["data"]["load"]["cached_from"] == [weeks[0][0].isoformat(), weeks[-1][1].isoformat()]
-                  and f"cut to {weeks[1][0].isoformat()} → {weeks[1][1].isoformat()} from the cached load {weeks[0][0].isoformat()} → {weeks[-1][1].isoformat()}" in rec_w["check"] and rec_w["status"] in ("ran", "reproduced", "differed") and 0 < int(rec_w["data"]["rows"] or 0)
+                  and f"cut to {weeks[1][0].isoformat()} → {weeks[1][1].isoformat()} from the cached load {weeks[0][0].isoformat()} → {weeks[-1][1].isoformat()}" in rec_w["check"] and rec_w["status"] in ("ran", "reproduced") and 0 < int(rec_w["data"]["rows"] or 0)
                   and any(k == "cut" for _, _, k in rec_w.get("bindings") or []), (rec_w.get("check"), rec_w.get("bindings"), rec_w["data"].get("rows")))
             # the dialog opens on the interval last run, with nothing left to fill: Run runs the latest week again
             page.click("#routinesModal [data-act='run']")
             page.wait_for_function("() => !!document.querySelector('#routineRunModal .rt-interval .on') && document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval') === 'week' && /Run again/.test(document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent)", timeout=30000)
-            dlg_again = page.evaluate("() => ({ plans: [...document.querySelectorAll('#routineRunModal .rt-plan')].map(e => e.textContent), box: !!document.querySelector('#routineRunModal input[data-load=\"fill\"]'), label: document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent, compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '' })")
+            dlg_again = page.evaluate("() => ({ plans: [...document.querySelectorAll('#routineRunModal .rt-plan:not(.rt-tried)')].map(e => e.textContent), box: !!document.querySelector('#routineRunModal input[data-load=\"fill\"]'), label: document.querySelector('#routineRunModal [data-act=\"run\"] span').textContent, compare: (document.querySelector('#routineRunModal .rt-compare-sec') || {}).textContent || '' })")
             check("the run dialog opens on Week now (the interval last run): the last week is said to be run already and that Run runs it again, every week back to the horizon run already - no box - the button 'Run again'; nothing about the comparison (the rule)",
                   dlg_again["plans"][0] == f"Last complete week: {_wshort(*weeks[-1])} — run already; Run runs it again" and dlg_again["plans"][1] == f"Every week back to {weeks[0][0].day} {weeks[0][0]:%b} {weeks[0][0].year} is run already ({len(weeks)} weeks)." and not dlg_again["box"] and dlg_again["label"] == "Run again"
                   and dlg_again["compare"] == "", dlg_again)

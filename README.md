@@ -321,22 +321,23 @@ columns mean in practice, what to watch for, and what worked. It is stored in
 A finished analysis can be kept as a method and run again on other data of the same shape. *Save as
 routine* (the save menu on a chain) hands the chain to the `Promoter` seat, which reads it once and
 names the constants that would have to change for other data - a boundary date, a threshold, a
-band - as inputs, at most five; identifiers of this data are never inputs. The routine is stored
-only once a *run zero* on the original data reproduces every RESULT line the chain recorded. Then
-the script is condensed from the code itself, without a model: the cells nothing rests on and the
-prints go, and the condensed code replaces the chain's only when it reproduces run zero's lines
-and figures on the same data; otherwise the script stays as written, and the routine's Summary
-says which. A slow method is also rewritten once by the `Condenser` seat - vectorised, computed
-once - under the same checks, and the rewrite stays provisional until the routine's first run on
-new data has run the old method beside it and found them to agree.
+band - as inputs, at most five; identifiers of this data are never inputs. The routine keeps the
+chain's code as written, with those inputs in place, and proves it on the original data without a
+model. A *run zero* must reproduce every RESULT line the chain recorded. A shorter run - only the
+statements the tracked results and the figures rest on - is then kept when it gives the same lines
+and the same figures. For Intervals.icu data the method is also tried on a day, a week and a month
+of the original data, so the routine says what a shorter interval will give before you run one.
 
 A run is then a dialog with the inputs and the load, and no model: the data is loaded the way the
 original was (a window from Intervals.icu for the athlete picked in the dialog - a coach's athletes
 are listed with what the store holds for them - or a file from the Dataset cache), checked against
 the routine - the columns fit, the auxiliary files are bound by kind, the chosen values are in the
-data, what differs is said in sentences - and the script runs. Every RESULT line is compared with
-the run before on the same athlete (or run zero, when it is theirs): moved beyond its interval,
-within it, or not reached; the first run on an athlete has nothing to compare with yet, and runs are
+data, what differs is said in sentences - and the script runs, a statement at a time. A statement
+that cannot be computed on this data costs the results that rest on it, not the run: the other
+numbers are recorded and the missing ones are blank, with the reason on hover. A window with no
+data is a blank row, and a run on data emptier than the analysis's is marked. Every RESULT line is
+compared with the run before on the same athlete (or run zero, when it is theirs): moved beyond its
+interval, within it, or not computed; the first run on an athlete has nothing to compare with yet, and runs are
 never compared across athletes. The Comparison tab names the athlete and both runs' windows. Runs are
 recorded with their data, inputs, results, figures and differences, and can be stepped through like
 chains - the arrows within one athlete's runs; the manager shows one athlete's runs at a time when a
@@ -418,7 +419,6 @@ The available roles:
 | `Reader` | Reads relevant document or context passages for the Analyst through `READ`. Called once per read; suitable for a cheaper model. |
 | `Coder` | Reads the words loaded beside Intervals.icu data once, in batches, and writes the codes table against the codebook; renders passages not in English. Falls back to the Reader when absent. |
 | `Promoter` | Handles *Save as routine*: reads a finished chain once and identifies its inputs as find/replace edits in a JSON reply. Falls back to the Analyst when absent. |
-| `Condenser` | After a routine's run zero and the pruning, rewrites the method once as lean code when the method takes 15 s or more; the rewrite is kept only when it reproduces run zero's lines and figures, and stays provisional until the first run on new data confirms it against the method it replaced. The template puts it on the Analyst's model at medium effort. No fallback: remove the entry and the step does not run. |
 | `Knowledge Distiller` | Writes the memory card when a run is saved. |
 | `Google Search Executor` | Performs the grounded search, using a Gemini model. |
 | `Google Search Summarizer` | Condenses search results into a digest with citations. |

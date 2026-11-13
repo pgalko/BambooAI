@@ -1,7 +1,12 @@
-"""The host's side of a routine (docs/ROUTINES_DESIGN.md, F1): propose - the chain read, the promoter called once,
-its edits applied, the proposal for the dialog; create - the person's choices applied, run zero on the chain's data,
-the routine stored with its first (or next) version. Pure over its arguments: the model call, the runner and the
-store are handed in, so the path runs in a test with a scripted promoter and a local kernel.
+"""The host's side of a routine (docs/ROUTINES_DESIGN.md):
+  - propose (F1): the chain read, the promoter called once, its edits applied, the proposal for the dialog;
+  - create (F1): the person's choices applied, the routine stored with its first (or next) version, and the proof on
+    the chain's own data - run zero, the shorter run, the trials on smaller pieces (prove_method, §22);
+  - run (F2): the data loaded now made to fit, the method run a statement at a time, its lines laid against the
+    tracked ones, the comparison, the record (§22);
+  - Fill (§14.3): the routine run on each window of a set interval.
+Pure over its arguments: the model call, the runner and the store are handed in, so the path runs in a test with a
+scripted promoter and a local kernel.
 
 The standing rule (DESIGN_CHECKLIST C5) holds for every string here that a model may read.
 """
@@ -23,13 +28,15 @@ from analyst.report import cited_cells
 
 logger = logging.getLogger(__name__)
 
-INTERVALS = ("day", "week", "month", "year")      # a run's calendar unit (docs/ROUTINES_DESIGN.md §14.1); none recorded is custom
+INTERVALS = ("day", "week", "month", "year")      # a run's calendar unit; none recorded is custom
+DONE = ("ran", "reproduced")                      # the statuses of a run whose lines count: in the history, and as a reference
 
 
 class RoutineRefused(Exception):
     """A reason the person can read: why no routine was made from this chain."""
 
 
+# ----------------------------------------------------------------------------- what the promoter and the dialogs read of a chain and its data
 def describe_data(data: Optional[dict]) -> str:
     """The data as the promoter reads it: name, size, columns with their types, the range, the auxiliary files."""
     d = data or {}
@@ -68,11 +75,6 @@ def summary_of(run: Run) -> str:
             out = " ".join(split_sentences(re.sub(r"\s+", " ", " ".join(lines)))[:2])
             return out if len(out) <= 420 else out[:417].rstrip() + "..."
     return ""
-
-
-def _timeout(cells) -> int:
-    took = sum(float(getattr(c, "elapsed", 0.0) or 0.0) for c in cells)
-    return int(min(1800, max(300, 2 * took + 120)))
 
 
 def _ledger(expected: List[dict]) -> List[str]:
@@ -121,8 +123,23 @@ def data_state(run_data: Optional[dict], current: Optional[dict]) -> str:
     return "same" if cur and same_data(run_data, current) else "gone"
 
 
+def _dates_of(d: dict) -> Tuple[Optional[str], Optional[str]]:
+    load = d.get("load") or {}
+    if load.get("start_date") and load.get("end_date"):
+        return str(load["start_date"]), str(load["end_date"])
+    m = re.match(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-|→)\s*(\d{4}-\d{2}-\d{2})\s*$", str(d.get("date_range") or ""))
+    return (m.group(1), m.group(2)) if m else (None, None)
+
+
+def date_column_of(data: Optional[dict]) -> str:
+    """The frame's date column, from a data record: the one recorded at promotion, else the first date column on
+    record; '' without one."""
+    return str(((data or {}).get("span") or {}).get("column") or "") or rt.date_column((data or {}).get("columns") or [])
+
+
 AUXSHAPE_MARK = "AUXSHAPE:"
 SPAN_MARK = "SPAN:"
+DAYS_MARK = "DAYS:"
 
 
 def shape_probe_script(paths: List[str], date_column: str = "") -> str:
@@ -151,6 +168,13 @@ def shape_probe_script(paths: List[str], date_column: str = "") -> str:
             "        pass\n")
 
 
+def days_script(column: str) -> str:
+    """A script that prints after DAYS: the days the frame has rows on, by its date column."""
+    return ("import json as _j\nimport pandas as _pd\n"
+            "_s = _pd.to_datetime(df[" + json.dumps(str(column)) + "], errors='coerce').dropna()\n"
+            "print(" + repr(DAYS_MARK + " ") + " + _j.dumps({'days': sorted(_s.dt.normalize().drop_duplicates().dt.strftime('%Y-%m-%d'))}))\n")
+
+
 def read_marked(stdout: str, mark: str) -> Optional[dict]:
     """The JSON object printed after `mark` on its own line (the last such line)."""
     for ln in reversed((stdout or "").splitlines()):
@@ -163,10 +187,6 @@ def read_marked(stdout: str, mark: str) -> Optional[dict]:
     return None
 
 
-def read_aux_shape(stdout: str) -> Optional[dict]:
-    return read_marked(stdout, AUXSHAPE_MARK)
-
-
 def record_data_shape(data: dict, runner: Optional[Callable]) -> dict:
     """The data record with each auxiliary file's columns (`aux_shape`) and the period the frame covers (`span`: the
     date column, its first and last dates), read through the runner; left as it is when nothing can be read now (the
@@ -177,7 +197,7 @@ def record_data_shape(data: dict, runner: Optional[Callable]) -> dict:
         return data
     try:
         stdout, err, _f, _g = runner(shape_probe_script(paths if not data.get("aux_shape") else [], col if not data.get("span") else ""), 120)
-        found = read_aux_shape(stdout or "")
+        found = read_marked(stdout or "", AUXSHAPE_MARK)
         span = read_marked(stdout or "", SPAN_MARK)
     except Exception as exc:                                           # noqa: BLE001
         logger.warning("the data's shape could not be read: %s", exc)
@@ -189,9 +209,6 @@ def record_data_shape(data: dict, runner: Optional[Callable]) -> dict:
         if span and span.get("first") and span.get("last"):
             data["span"] = {"column": str(span.get("column") or col), "first": str(span["first"]), "last": str(span["last"])}
     return data
-
-
-record_aux_shape = record_data_shape                                   # the name before the span was recorded
 
 
 def derive_inputs(inputs: List[dict], data: Optional[dict]) -> List[dict]:
@@ -228,10 +245,16 @@ def derived_window_values(params: List[dict], data: Optional[dict]) -> Dict[str,
 
 
 def span_inputs(params: List[dict], data: Optional[dict]) -> List[Tuple[str, str]]:
-    """(key, date column) for the inputs that follow the frame's own dates; the column recorded at promotion, else
-    the first date column on record."""
-    col = str(((data or {}).get("span") or {}).get("column") or "") or rt.date_column((data or {}).get("columns") or [])
+    """(key, date column) for the inputs that follow the frame's own dates."""
+    col = date_column_of(data)
     return [(p["key"], col) for p in params or [] if p.get("derived") == "span" and col]
+
+
+# ----------------------------------------------------------------------------- Save as routine: the proposal (F1)
+def time_allowed(took: float) -> int:
+    """What a script may take when it is run again, in seconds, from what it took: twice that plus two minutes, within
+    five and thirty minutes."""
+    return int(min(1800, max(300, 2 * float(took) + 120)))
 
 
 def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dict] = None, emit: Optional[Callable] = None,
@@ -261,17 +284,16 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         raise RoutineRefused("this chain has no cells to run again (nothing was computed)")
     figures = [c.cell_no for c in run.cells() if c.figures and c.cell_no in chain_order]
     nfig = sum(len(c.figures) for c in run.cells() if c.cell_no in figures)
-    # the method is the statements the result lines and figures rest on (§19.5): the exploration - a row named by its
-    # identifier and printed about, a check by hand, a table shown - goes before the promoter reads the chain; run zero
-    # falls back to the chain as written when the condensed method does not reproduce
+    # the promoter reads the chain without its exploration - a row named by its identifier and printed about, a check by
+    # hand, a table shown: the statements no result line or figure rests on. The version stores the chain as written
+    # with the edits made here (method_cells)
     body, pruned, lines_cut, problem = rt.prune_cells(chain, figures)
-    if problem or len(pruned) == len(chain_order):        # a cell that cannot be read, or nothing anchors (no RESULT line, no figure): the whole chain is the method
+    if problem or len(pruned) == len(chain_order):        # a cell that cannot be read, or nothing to rest on (no RESULT line, no figure): the chain as it is
         body, pruned, lines_cut = chain, [], 0
     order = [n for n in chain_order if n not in pruned]
     expected = rt.expected_results(path, order)
     step = emit or (lambda ev: None)                      # the dialog's checklist (§17): a line as each step passes
-    step({"type": "step", "step": "chain", "detail": (f"{len(order)} of {len(chain_order)} cells" if pruned else f"{len(order)} cell{'s' if len(order) != 1 else ''}")
-          + f" · {len(expected)} result{'s' if len(expected) != 1 else ''} · {nfig} figure{'s' if nfig != 1 else ''}"})
+    step({"type": "step", "step": "chain", "detail": f"{len(chain_order)} cell{'s' if len(chain_order) != 1 else ''} · {len(expected)} result{'s' if len(expected) != 1 else ''} · {nfig} figure{'s' if nfig != 1 else ''}"})
     state = data_state(run.data, current_data)
     data = dict(run.data or {}) if state != "assumed" else dict(current_data or {})
     if state in ("same", "assumed"):
@@ -364,109 +386,73 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
         notes.append("The custom instructions were not applied this time; try Update the list again.")
     return {"proposal_id": rt.new_id(), "thread_id": nb.thread_id, "chain_id": run.id, "name": name, "purpose": "", "question": run.question, "instruction": instruction,
             "summary": summary, "data": data, "data_state": state, "source": rt.source_kind(data), "inputs": inputs, "notes": notes,
-            "kept": [str(k) for k in (obj.get("kept") or [])][:12], "results": results, "figures": {"count": sum(len(c.figures) for c in run.cells() if c.cell_no in figures), "cells": figures},
-            "cells": len(order), "chain_cells": len(chain_order), "pruned": pruned, "pruned_lines": lines_cut, "cells_chain": chain,      # the chain as written, for run zero's fallback (§19.5)
-            "script": rt.join_script(header, edited, tail), "header": header, "tail": tail, "cells_text": edited, "cells_original": body,
-            "cell_outputs": {str(c.cell_no): (c.stdout or "") for c in path if c.cell_no in order},          # the consolidation's brief (§19.3)
-            "cell_times": {str(c.cell_no): round(float(c.elapsed or 0), 1) for c in path if c.cell_no in order},
-            "applied": applied, "timeout": _timeout(path), "cost": round(cost, 4), "routine_id": routine.get("id") if routine else None,
+            "kept": [str(k) for k in (obj.get("kept") or [])][:12], "results": results, "figures": {"count": nfig, "cells": figures},
+            "cells": len(chain_order), "header": header, "tail": tail,
+            "cells_text": edited, "cells_original": body, "pruned_lines": lines_cut, "cells_chain": chain,      # the promoter's view after and before its edits; the chain as written (method_cells)
+            "applied": applied, "timeout": time_allowed(sum(float(getattr(c, "elapsed", 0.0) or 0.0) for c in path)), "cost": round(cost, 4), "routine_id": routine.get("id") if routine else None,
             "routine_name": routine.get("name") if routine else None, "next_version": (routine.get("current_version", 1) + 1) if routine else None}
 
 
+# ----------------------------------------------------------------------------- Save as routine: the routine stored (F1)
 UNVERIFIED_LINE = "not verified: the analysis's data is no longer loaded, so the method was not checked - the first run will show whether it still runs"
+VERIFYING_LINE = "verifying: the method is being run on the chain's own data"
 
 
-VERIFYING_LINE = "verifying: the method is being run once on the chain's own data"
+def method_cells(proposal: dict, drop_inputs: set) -> str:
+    """The cells a version stores: the chain as written, with the promoter's edits. The edits were found in the
+    promoter's view - the chain without its exploration - so they are applied to the chain with the view's dropped
+    lines held out (each lands where it landed there, however often the chain repeats the fragment) and the lines
+    are put back. Where the view dropped nothing, or an edit does not land on the chain, the view is the text."""
+    view = rt.strip_keys(proposal["cells_text"], proposal["cells_original"], proposal["applied"], drop_inputs) if drop_inputs else proposal["cells_text"]
+    if not (proposal.get("pruned_lines") and proposal.get("cells_chain")):
+        return view
+    held, lines = rt.held_out(proposal["cells_chain"], (proposal.get("figures") or {}).get("cells") or [])
+    text, applied, failed = rt.apply_edits(held, proposal.get("applied") or [])
+    if failed:
+        return view
+    return rt.put_back(rt.strip_keys(text, held, applied, drop_inputs) if drop_inputs else text, lines)
 
 
 def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callable], store: rt.RoutineStore, emit: Optional[Callable] = None,
-           routine_id: Optional[str] = None, background: bool = False, condense_code: bool = False,
-           consolidator: Optional[Callable] = None, consolidator_seat: str = "", consolidator_model: str = "") -> dict:
+           routine_id: Optional[str] = None, background: bool = False, runs_root: str = "routines") -> dict:
     """Apply the person's choices (name, purpose, inputs dropped, results dropped) and store the routine (a new one, or
-    the next version of `routine_id`); then run zero - the method once on the chain's own data, the proof that it
-    reproduces the chain's lines. In the foreground (the default, as the tests and the library use it) a method whose
-    run zero does not reproduce is refused and not kept. In the background (`background=True`, 2026-10-15: run zero
-    re-executes every cell of the chain, nine minutes on a heavy one, and nobody waits for a dialog that long) the
-    routine is stored at once as *verifying*, the result carries `verify`, a callable the host runs in a thread, and the
-    verdict - reproduced, differed, failed - lands on the record when it is in; a run is refused until it has settled,
-    and after a verdict that is not reproduced. With the chain's data gone the routine is created unverified and says so.
-    The method is the chain condensed (§19.5): run zero holds it to the chain's lines and falls back to the chain as
-    written when it does not reproduce them. `condense_code` (§19): the pass after run zero reproduced - a method that
-    draws is held to the figures of the chain as written, run once beside it - and its record on the version.
-    `consolidator` (§19.3): the model that rewrites the method once, when there is time to gain; its script is
-    provisional until the first run on new data confirms it."""
+    the next version of `routine_id`); then prove the method on the chain's own data (prove_method): run zero, the
+    shorter run, the trials. In the foreground (the default, as the tests and the library use it) a method whose run
+    zero does not reproduce is refused and not kept. In the background the routine is stored at once as *verifying*,
+    the result carries `verify`, a callable the host runs in a thread, and the outcome lands on the record when it is
+    in; a run is refused until it has settled, and after a verdict that is not reproduced. With the chain's data gone
+    the routine is created unverified and says so. `runs_root` is the folder the runs' own folders live under on the
+    runner's side; the trials write theirs there and remove it."""
     name = (choices.get("name") or proposal.get("name") or "").strip()[:80] or "Routine"
     purpose = (choices.get("purpose") or "").strip()[:300]
-    instruction = " ".join(str(choices.get("instruction") or "").split())[:rt.MAX_INSTRUCTION]       # the person's line on what to track (§15.6), kept for the next version
+    instruction = " ".join(str(choices.get("instruction") or "").split())[:rt.MAX_INSTRUCTION]       # the person's line on what to track, kept for the next version
     drop_inputs = {str(k) for k in (choices.get("drop_inputs") or [])}
     # the lines left out of the comparison: the whole set as the page sends it (the promoter's pick with the person's
-    # changes, §15.2); without the key, the proposal's pick stands
+    # changes); without the key, the proposal's pick stands
     drop_results = ({(int(r[0]), int(r[1])) for r in choices["drop_results"] if isinstance(r, (list, tuple)) and len(r) == 2}
                     if isinstance(choices.get("drop_results"), (list, tuple)) else {(r["cell"], r["index"]) for r in proposal["results"] if r.get("dropped")})
     inputs = [p for p in proposal["inputs"] if p["key"] not in drop_inputs]
-    cells = rt.strip_keys(proposal["cells_text"], proposal["cells_original"], proposal["applied"], drop_inputs) if drop_inputs else proposal["cells_text"]
+    cells = method_cells(proposal, drop_inputs)
     unknown = rt.unknown_keys(cells, inputs)
     if unknown:
         raise RoutineRefused("the script still reads an input that was dropped (" + ", ".join(unknown) + ")")
-    script = rt.join_script(proposal["header"], cells, proposal["tail"])
-    # the method the promoter read is the chain condensed (§19.5); the chain as written, with the same edits, is run zero's
-    # fallback and the script as written. The edits were found in the condensed text, so they are applied to the chain with
-    # the dropped lines held out - each lands where it landed there, however often the chain repeats the fragment - and the
-    # lines are put back; an edit that does not land leaves no fallback
-    whole = None
-    if proposal.get("pruned_lines") and proposal.get("cells_chain"):
-        held, lines = rt.held_out(proposal["cells_chain"], (proposal.get("figures") or {}).get("cells") or [])
-        w_text, w_applied, w_failed = rt.apply_edits(held, proposal.get("applied") or [])
-        if not w_failed:
-            w_cells = rt.put_back(rt.strip_keys(w_text, held, w_applied, drop_inputs) if drop_inputs else w_text, lines)
-            whole = {"cells": w_cells, "script": rt.join_script(proposal["header"], w_cells, proposal["tail"])}
-    method = {"cells": cells, "script": script, "stood": True, "why": ""}      # stood: the condensed method is the one that runs; why, when it is not
     results = [dict(r, dropped=((r["cell"], r["index"]) in drop_results)) for r in proposal["results"]]
     manifest = {"data": proposal["data"], "parameters": inputs, "results": results, "figures": proposal.get("figures") or {"count": 0, "cells": []}, "notes": proposal.get("notes") or []}
     now = time.time()
     run_zero = {"created": now, "status": "unverified", "line": UNVERIFIED_LINE, "verified": False, "results": [], "figures": 0, "data": proposal["data"], "inputs": rt.defaults_of(inputs)}
     verifying = runner is not None and proposal.get("data_state") != "gone"
     timeout = int(proposal.get("timeout") or 300)
-
-    def zero(emit_: Optional[Callable]) -> dict:
-        """Run zero on the condensed method; when it does not reproduce and there is a chain as written to try, run zero
-        on that (§19.4) - the chain as written is then the method, `method` saying so and why."""
-        verdict = verify_zero(name, method["script"], results, run_zero["inputs"], runner, timeout, emit_)
-        if verdict["status"] != "reproduced" and whole:
-            again = verify_zero(name, whole["script"], results, run_zero["inputs"], runner, timeout, emit_)
-            if again["status"] == "reproduced":
-                method.update({"cells": whole["cells"], "script": whole["script"], "stood": False, "why": "the result lines: " + verdict["line"]})
-                return again
-        return verdict
-    stdout, figs = "", []
-    condensed = consolidated = None
-    if verifying and not background:
-        verdict = zero(emit)
-        if verdict["status"] != "reproduced":
-            raise RoutineRefused(f"run zero on this chain's own data did not reproduce the analysis: {verdict['line']}")
-        if condense_code:
-            condensed = condense(proposal, method, whole, results, run_zero["inputs"], verdict, runner, timeout)
-            verdict = condensed.pop("verdict", verdict)             # the chain as written's run, when the figures sent the method back to it
-        run_zero.update({k: verdict[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
-        stdout, figs = verdict["stdout"], verdict["figs"]
-        if consolidator is not None:
-            consolidated = consolidate(proposal, method["cells"], results, run_zero["inputs"], verdict, consolidator, runner, timeout, consolidator_seat, consolidator_model)
-            if consolidated["status"] == "consolidated":
-                stdout, figs = consolidated["stdout"], consolidated["figs"]
-                run_zero.update({"results": consolidated["results"], "figures": len(consolidated["figs"]), "elapsed": consolidated["elapsed"][1]})
-    elif verifying:
-        run_zero.update({"status": "verifying", "line": VERIFYING_LINE})
     routine = store.load(routine_id) if routine_id else None
     if routine_id and routine is None:
         raise RoutineRefused("the routine this version was meant for no longer exists")
     if routine is None:
-        routine = {"id": rt.new_id(), "name": name, "created": now, "purpose": purpose, "question": proposal.get("question", ""), "summary": proposal.get("summary", ""),
+        routine = {"id": rt.new_id(), "shape": rt.SHAPE, "name": name, "created": now, "purpose": purpose, "question": proposal.get("question", ""), "summary": proposal.get("summary", ""),
                    "origin": {"thread_id": str(nb.thread_id), "chain_id": str(proposal["chain_id"])}, "source": proposal.get("source", "file"), "current_version": 0, "versions": [], "runs": [],
                    "instruction": instruction}
         change_note = "first version"
     else:
         change_note = (choices.get("change_note") or "").strip()[:200] or "a new version"
-        if choices.get("name") and name != routine["name"]:           # renamed only when the person typed another name (2026-10-12)
+        if choices.get("name") and name != routine["name"]:           # renamed only when the person typed another name
             routine["name"] = name
         if purpose:
             routine["purpose"] = purpose
@@ -474,256 +460,284 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
             routine["instruction"] = instruction
     number = len(routine["versions"]) + 1
     version = {"number": number, "created": now, "promoted_from": {"thread_id": str(nb.thread_id), "chain_id": str(proposal["chain_id"])},
-               "script": method["script"], "manifest": manifest, "change_note": change_note, "run_zero": run_zero}
-    settle_method(version, method, whole, condensed)
-    if consolidated is not None:
-        settle_consolidated(version, consolidated)
+               "script": rt.join_script(proposal["header"], cells, proposal["tail"]), "manifest": manifest, "change_note": change_note, "run_zero": run_zero}
+    trial_dir = f"{runs_root.rstrip('/')}/{routine['id']}/{run_tag(number, 0)}_trial"
+
+    def prove(emit_: Optional[Callable]) -> dict:
+        return prove_method(name, version, runner, timeout, trial_dir, emit_)
+    files = {"stdout": "", "figs": []}
+    if verifying and not background:
+        proof = prove(emit)
+        if proof["status"] != "reproduced":
+            raise RoutineRefused(f"run zero on this chain's own data did not reproduce the analysis: {proof['line']}")
+        files = settle_proof(version, proof)
+    elif verifying:
+        run_zero.update({"status": "verifying", "line": VERIFYING_LINE})
     routine["versions"].append(version)
     routine["current_version"] = number
     store.save(routine)
     try:
-        store.save_run_files(routine["id"], f"v{number}_0", stdout or "", figs or [])
+        store.save_run_files(routine["id"], run_tag(number, 0), files["stdout"], files["figs"])
     except OSError:
         pass
-    made = {"routine": rt.RoutineStore.summary(routine), "version": number, "run_zero": run_zero, "name": routine["name"], "condensed": version.get("condensed"),
-            "consolidated": version.get("consolidated")}
+    made = {"routine": rt.RoutineStore.summary(routine), "version": number, "run_zero": run_zero, "name": routine["name"], "tried": version.get("tried") or []}
     if verifying and background:
-        rid, inputs_defaults = routine["id"], run_zero["inputs"]
+        rid = routine["id"]
 
-        def write(verdict: dict, status: Optional[str] = None, condensed_: Optional[dict] = None, consolidated_: Optional[dict] = None) -> bool:
-            """The verdict on the stored version (and the passes' outcomes, §19); False when the routine was deleted
-            meanwhile and there is nothing to write on."""
+        def verify() -> dict:
+            """The proof behind the dialog, written on the stored version when it is in. No pane rows - nobody is
+            watching a pane for it (a row emitted after the dialog's stream closed would land in the next request's);
+            the toast and the manager's chip say what happened. Nothing is written when the routine was deleted
+            meanwhile."""
+            proof = prove(None)
             r = store.load(rid)
             v = next((x for x in (r or {}).get("versions", []) if x.get("number") == number), None) if r else None
-            if v is None:
-                return False
-            v["run_zero"].update({k: verdict[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
-            if status:
-                v["run_zero"].update({"status": status, "line": CONDENSING_LINE})
-            settle_method(v, method, whole, condensed_)             # the chain as written when run zero, or the pass, fell back to it
-            if consolidated_ is not None:
-                settle_consolidated(v, consolidated_)
-            store.save(r)
-            ran = consolidated_ if (consolidated_ or {}).get("status") == "consolidated" else verdict     # the files are the script that runs from now on
-            try:
-                store.save_run_files(rid, f"v{number}_0", ran.get("stdout") or "", ran.get("figs") or [])
-            except OSError:
-                pass
-            return True
-
-        def verify():
-            """Run zero behind the dialog: the verdict written on the stored version when it is in. No pane rows - nobody
-            is watching a pane for it (a row emitted after the dialog's stream closed would land in the next request's);
-            the toast and the manager's chip say what happened. Then the condensing pass (§19) and, with a consolidator,
-            the consolidation (§19.3), the version marked condensing while they run."""
-            verdict = zero(None)
-            if not (condense_code or consolidator is not None) or verdict["status"] != "reproduced":
-                write(verdict)
-                return verdict
-            if not write(verdict, status="condensing"):
-                return verdict                                        # deleted meanwhile: nothing to write on
-            c = condense(proposal, method, whole, results, inputs_defaults, verdict, runner, timeout) if condense_code else None
-            if c:
-                verdict = c.pop("verdict", verdict)                   # the chain as written's run, when the figures sent the method back to it
-            k = consolidate(proposal, method["cells"], results, inputs_defaults, verdict, consolidator, runner, timeout, consolidator_seat, consolidator_model) if consolidator is not None else None
-            if k and k["status"] == "consolidated":
-                verdict = dict(verdict, results=k["results"], figures=len(k["figs"]), elapsed=k["elapsed"][1])
-            write(verdict, condensed_=c, consolidated_=k)
-            verdict["condensed"], verdict["consolidated"] = c, k
-            return verdict
+            if v is not None:
+                kept = settle_proof(v, proof)
+                store.save(r)
+                try:
+                    store.save_run_files(rid, run_tag(number, 0), kept["stdout"], kept["figs"])
+                except OSError:
+                    pass
+            return proof
         made["verify"] = verify
     return made
 
 
-def verify_zero(name: str, script: str, results: List[dict], inputs: Dict[str, object], runner: Callable, timeout: int, emit: Optional[Callable] = None) -> dict:
-    """Run zero: the method once on the chain's own data with its inputs at their defaults, its lines against the
-    chain's. Returns {status, line, verified, results, figures, elapsed, stdout, figs}: reproduced (verified) or
-    differed / failed with the line that says how."""
+# ----------------------------------------------------------------------------- the method through the runner, a statement at a time (§22)
+RETRY_PAUSE = 2.0                                  # seconds before a script that could not be carried out is tried once more
+WATCH_MAX = 12                                     # the most columns a run reports the empty share of
+
+
+def _call_runner(runner: Callable, script: str, timeout: int, run_dir: str = ""):
+    """The runner with the run's folder when it takes one (the instance's run_script does; a test's may not)."""
+    try:
+        import inspect
+        takes_dir = len(inspect.signature(runner).parameters) >= 3
+    except (TypeError, ValueError):
+        takes_dir = False
+    return runner(script, timeout, run_dir) if takes_dir and run_dir else runner(script, timeout)
+
+
+def _transport(err: str) -> bool:
+    """Whether a runner's error says the script could not be carried out - the executor not reached, a connection
+    dropped - rather than that it stopped: nothing of a traceback in it, and no time limit hit."""
+    text = str(err or "")
+    return bool(text.strip()) and not ("TIMEOUT" in text.upper() or "timed out" in text.lower()) and "Traceback" not in text and "Error on line" not in text and 'File "<' not in text
+
+
+def carry_out(runner: Callable, script: str, timeout: int, run_dir: str = "") -> Tuple[str, str, list, Optional[list]]:
+    """One script through the runner: (the printed output, the error, the figures, the files written). A script that
+    could not be carried out (_transport) is tried once more after RETRY_PAUSE."""
+    stdout, err, figs, generated = "", "", [], None
+    for attempt in range(2):
+        try:
+            stdout, err, figs, generated = _call_runner(runner, script, timeout, run_dir)
+        except Exception as exc:                                       # noqa: BLE001
+            stdout, err, figs, generated = "", f"the run could not start: {exc}", [], None
+        if attempt or not _transport(err):
+            break
+        logger.info("routine: a script could not be carried out (%s) - once more", str(err).strip().splitlines()[-1][:200])
+        time.sleep(RETRY_PAUSE)
+    return stdout or "", str(err or ""), list(figs or []), generated
+
+
+def run_method(script: str, runner: Callable, timeout: int, run_dir: str = "", only: Optional[List[int]] = None, watch: Optional[dict] = None) -> dict:
+    """The executed text through the runner a statement at a time (rt.stepwise) and read back (rt.read_run), with what
+    the runner returned beside it: error, figs, generated, elapsed."""
+    t0 = time.time()
+    stdout, err, figs, generated = carry_out(runner, rt.stepwise(script, only, watch), timeout, run_dir)
+    out = rt.read_run(stdout)
+    out.update({"error": err, "figs": figs, "generated": generated, "elapsed": round(time.time() - t0, 1)})
+    return out
+
+
+def watch_of(version: dict) -> dict:
+    """The frame's columns whose empty share a run of this version reports: those the method's code names, the first
+    WATCH_MAX of them, counted by the groups of the frame's key column when it has one ({columns, by})."""
+    columns = [str(c.get("name")) for c in ((version.get("manifest") or {}).get("data") or {}).get("columns") or [] if c.get("name") is not None]
+    by = next((c for c in columns if rt.key_column(c)), "")
+    named = rt.names_in(rt.split_script(version.get("script") or "")[1])
+    return {"columns": [c for c in columns if c in named and c != by][:WATCH_MAX], "by": by}
+
+
+def places_hold(version: dict) -> bool:
+    """Whether the places the version keeps - each line's `at`, the shorter run's statements - are places in the
+    script as it reads now: the mark taken when they were learnt (`steps`) is still the script's."""
+    return bool(version.get("steps")) and version["steps"] == rt.steps_key(version.get("script") or "")
+
+
+def run_steps(version: dict) -> Optional[List[int]]:
+    """The statements a run of this version executes: the shorter run that stood at Save (`lean.steps`) while its
+    places hold; else every statement (None)."""
+    steps = (version.get("lean") or {}).get("steps")
+    return [int(j) for j in steps] if steps and places_hold(version) else None
+
+
+# ----------------------------------------------------------------------------- the proof at Save: run zero, the shorter run, the trials (§22.7)
+TRIAL_UNITS = ("day", "week", "month")             # the calendar units Save tries a method on, inside the analysis's own window
+
+
+def verify_zero(name: str, version: dict, runner: Callable, timeout: int, emit: Optional[Callable] = None) -> dict:
+    """Run zero: the method once on the chain's own data, every statement, its inputs at their defaults; its lines
+    against the chain's. Returns {status, line, verified, results (laid against the manifest's lines), at (each
+    line's place, when reproduced), figures, elapsed, stdout, figs, gaps}: reproduced (verified), or differed / failed
+    with the line that says how."""
+    manifest = version.get("manifest") or {}
+    expected = manifest.get("results") or []
     if emit:
         emit({"type": "lookup_start", "kind": "routine", "query": name})
-    t0 = time.time()
-    try:
-        stdout, err, figs, _generated = runner(rt.with_inputs(script, inputs), timeout)
-    except Exception as exc:                                   # noqa: BLE001
-        stdout, err, figs = "", f"the run could not start: {exc}", []
-    got = rt.result_lines_in(stdout or "")
-    status, line, _diffs = rt.check_lines(results, got, err or "")
-    elapsed = round(time.time() - t0, 1)
+    run = run_method(rt.with_inputs(version["script"], (version.get("run_zero") or {}).get("inputs") or {}), runner, timeout, watch=watch_of(version))
+    status, line = rt.check_zero(expected, run, run["error"])
+    placed = rt.place_lines([{k: v for k, v in e.items() if k != "at"} for e in expected], run)
     if emit:
-        emit({"type": "lookup", "kind": "routine", "query": name, "peek": line, "elapsed": elapsed})
-    return {"status": status, "line": line, "verified": status == "reproduced", "results": got, "figures": len(figs or []), "elapsed": elapsed,
-            "stdout": stdout or "", "figs": figs or []}
+        emit({"type": "lookup", "kind": "routine", "query": name, "peek": line, "elapsed": run["elapsed"]})
+    return {"status": status, "line": line, "verified": status == "reproduced", "results": placed["results"], "at": placed["at"] if status == "reproduced" else None,
+            "figures": len(run["figs"]), "elapsed": run["elapsed"], "stdout": run["stdout"], "figs": run["figs"], "gaps": run["gaps"]}
 
 
-CONDENSING_LINE = "condensing: the code is being condensed and checked against run zero"
-
-
-def condense(proposal: dict, method: dict, whole: Optional[dict], results: List[dict], inputs: Dict[str, object], zero: dict, runner: Callable,
-             timeout: int) -> dict:
-    """The pass after run zero (docs/ROUTINES_DESIGN.md §19, §19.5): what became of the condensing, and its last check.
-    The method was condensed before the promoter read it (rt.prune_cells) and run zero held it to the chain's result
-    lines. A method that draws is held to the figures too: the chain as written runs once beside it, and the condensed
-    method stands when the figures are the same pictures (same_figures) - or when its own figures differ from one run
-    to the next, which no code can be held to. Else the chain as written is the method from here on (`method` is
-    changed in place) and its run comes back under `verdict`: run zero's record from then on. Returns {status:
-    condensed | as_written, line, cells: [the chain's, the method's], dropped: {cells, lines}, elapsed: [the chain as
-    written's, the method's]}."""
-    before = int(proposal.get("chain_cells") or len(rt.cell_blocks(method["cells"])))
-    out = {"status": "as_written", "line": "as written: nothing to cut", "cells": [before, before], "dropped": {"cells": [], "lines": 0}, "elapsed": [zero.get("elapsed"), None]}
-    if not whole:
+def check_lean(version: dict, zero: dict, runner: Callable, timeout: int) -> dict:
+    """The shorter run, held to run zero: only the statements the tracked lines and the figures rest on
+    (rt.needed_steps) are run, and the run stands when nothing stops, every tracked line comes back as run zero
+    printed it and the figures are the same pictures - or run zero's own figures differ from one run to the next,
+    which no code can be held to. Returns {steps: the statements to run (None: every one), line, elapsed: [every
+    statement's, the shorter run's]}."""
+    manifest = version.get("manifest") or {}
+    expected = [dict(e, at=at) for e, at in zip(manifest.get("results") or [], zero["at"] or [])]
+    script = rt.with_inputs(version["script"], (version.get("run_zero") or {}).get("inputs") or {})
+    cells = rt.split_script(version["script"])[1]
+    figure_cells = (manifest.get("figures") or {}).get("cells") or []
+    tracked = {i for i, e in enumerate(expected) if not e.get("dropped") and e.get("at")}
+    of = len(rt.read_steps(cells)[0])
+    out = {"steps": None, "line": "every statement runs: nothing to leave out", "elapsed": [zero.get("elapsed"), None]}
+    only = rt.needed_steps(cells, {expected[i]["at"][0] for i in tracked}, figure_cells) if (tracked or figure_cells) else None
+    if only is None or len(only) >= of:
         return out
-    if not method["stood"]:
-        out["line"] = "as written: the condensed code did not reproduce " + method["why"]
-        return out
-    took = None
-    if zero.get("figs"):
-        written = verify_zero("", whole["script"], results, inputs, runner, timeout)
-        if written["status"] == "reproduced":
-            took = written["elapsed"]
-            same, why = rt.same_figures(written["figs"], zero["figs"])
-            if not same and rt.same_figures(zero["figs"], verify_zero("", method["script"], results, inputs, runner, timeout)["figs"])[0]:
-                method.update({"cells": whole["cells"], "script": whole["script"], "stood": False, "why": "the figures: " + why})
-                out.update({"line": "as written: the condensed code did not reproduce " + method["why"], "elapsed": [took, None], "verdict": written})
-                return out
-    after, cut = len(rt.cell_blocks(method["cells"])), int(proposal.get("pruned_lines") or 0)
-    out.update({"status": "condensed", "cells": [before, after], "dropped": {"cells": list(proposal.get("pruned") or []), "lines": cut}, "elapsed": [took, zero.get("elapsed")],
-                "line": rt.condensed_line(before, after, cut, took, zero.get("elapsed"))})
-    return out
-
-
-def settle_method(version: dict, method: dict, whole: Optional[dict], condensed: Optional[dict] = None) -> None:
-    """The method that stood, on a version (§19.5): its script; the chain as written beside it under script_written
-    while the condensed method is the one that runs; the pass's record when the pass ran."""
-    version["script"] = method["script"]
-    version.pop("script_written", None)
-    if whole and method["stood"]:
-        version["script_written"] = whole["script"]
-    if condensed is not None:
-        version["condensed"] = {k: condensed.get(k) for k in ("status", "line", "cells", "dropped", "elapsed")}
-
-
-CONSOLIDATE_MIN_SECONDS = float(os.environ.get("BAMBOO_CONSOLIDATE_MIN_SECONDS", "15"))      # below this, a method is left alone: nothing to gain
-
-
-def consolidate(proposal: dict, cells: str, results: List[dict], inputs: Dict[str, object], zero: dict, llm: Callable, runner: Callable,
-                timeout: int, seat: str = "", model: str = "") -> dict:
-    """The consolidation (docs/ROUTINES_DESIGN.md §19.3): the Condenser seat, opted in, rewrites the method once - given
-    the question, the answer, the method's cells with the output each printed in the analysis, the RESULT lines, the
-    figure cells, the inputs and the times - under the kept markers; the candidate runs on the chain's own data and is
-    accepted only when its RESULT lines are run zero's and its figures the same pictures, as a provisional script: the
-    first run on new data checks it against the method it replaced (run), and keeps or drops it. A failure goes back once
-    with the reason; the second keeps the method as it was. Nothing is tried when the method already runs in under
-    CONSOLIDATE_MIN_SECONDS. Returns {status: consolidated | as_it_was | not_tried, line, cells, elapsed, attempts, cost,
-    seat, model} and, when consolidated, script, results, stdout, figs."""
-    before_time = float(zero.get("elapsed") or 0)
-    n_before = len(rt.cell_blocks(cells))
-    out = {"status": "not_tried", "line": "", "cells": [n_before, n_before], "elapsed": [before_time, None], "attempts": 0, "cost": 0.0, "seat": seat, "model": model}
-    if before_time < CONSOLIDATE_MIN_SECONDS:
-        out["line"] = f"not consolidated: the method runs in {rt.secs_text(before_time)}"
-        return out
-    header, tail = proposal.get("header") or "", proposal.get("tail") or ""
-    figure_cells = [int(c) for c in ((proposal.get("figures") or {}).get("cells") or [])]
-    keys = rt.keys_read(cells)
-    outputs = proposal.get("cell_outputs") or {}
-    shown = [(n, cells[a:b].split("\n", 1)[1] if "\n" in cells[a:b] else "", outputs.get(str(n), "")) for n, a, b in rt.cell_blocks(cells)]
-    user = rt.consolidate_user(proposal.get("question", ""), proposal.get("summary", ""), shown, _ledger(results), figure_cells,
-                               (proposal.get("inputs") or []), proposal.get("cell_times") or {})
-    note, problem = "", ""
-    for attempt in range(2):
-        out["attempts"] = attempt + 1
-        try:
-            text, usage = llm(rt.CONSOLIDATE_SYSTEM, user if not note else user + "\n\n" + note, "medium" if not attempt else "low")
-        except Exception as exc:                                   # noqa: BLE001 - the seat down: the method as it was, said
-            out.update({"status": "as_it_was", "line": f"as it was: the Condenser could not be called ({str(exc).strip().splitlines()[-1][:160] if str(exc).strip() else exc})"})
-            return out
-        out["cost"] = round(out["cost"] + float((usage or {}).get("cost") or 0.0), 4)
-        if (usage or {}).get("truncated"):
-            out.update({"status": "as_it_was", "line": "as it was: the Condenser's reply was cut off at its token limit (the seat needs a larger max_tokens)"})
-            return out
-        try:
-            new = rt.parse_cells(text)
-        except ValueError as exc:
-            problem = f"could not be read ({exc})"
-            note = rt.CONSOLIDATE_RETRY.format(problem=problem)
-            continue
-        if new is None or new.strip() == cells.strip():
-            out.update({"status": "as_it_was", "line": "as it was: the Condenser found nothing to gain"})
-            return out
-        problem = rt.check_consolidated(cells, new, figure_cells, keys)
-        if problem:
-            note = rt.CONSOLIDATE_RETRY.format(problem=problem)
-            continue
-        script = rt.join_script(header, new, tail)
-        t0 = time.time()
-        try:
-            stdout, err, figs, _generated = runner(rt.with_inputs(script, inputs), timeout)
-        except Exception as exc:                                   # noqa: BLE001
-            stdout, err, figs = "", f"the run could not start: {exc}", []
-        elapsed = round(time.time() - t0, 1)
-        got = rt.result_lines_in(stdout or "")
-        status, line, _diffs = rt.check_lines(results, got, err or "")
-        if status == "failed":
-            cell = rt.failed_cell(rt.with_inputs(script, inputs), err or "")
-            problem = (f"failed at cell {cell}: " if cell else "failed: ") + (rt.error_line(err or "") or line)[:200]
-        elif status != "reproduced":
-            problem = "did not reproduce the result lines: " + line
+    run = run_method(script, runner, timeout, only=only)
+    why = ""
+    if run["error"] or run["stopped"] or run["skipped"] or not run["stepwise"]:
+        why = "it stopped (" + (rt.error_line(run["error"]) or (run["stopped"][0]["error"] if run["stopped"] else "a statement was skipped"))[:160] + ")"
+    else:
+        got = rt.place_lines(expected, run)["results"]
+        off = next((i for i in sorted(tracked) if not rt.same_numbers(got[i], zero["results"][i])), None)
+        if off is not None:
+            why = f"a tracked line differs ([cell {expected[off].get('cell')}] {str(expected[off].get('label') or '')[:50]}: {zero['results'][off].get('estimate')} -> {got[off].get('estimate')})"
         else:
-            ok, why = rt.same_figures(zero.get("figs") or [], figs or [])
-            if ok:
-                after = len(rt.cell_blocks(new))
-                out.update({"status": "consolidated", "cells": [n_before, after], "elapsed": [before_time, elapsed], "script": script, "results": got, "stdout": stdout or "", "figs": figs or [],
-                            "line": f"consolidated: {n_before} cell{'s' if n_before != 1 else ''} → {after}, {rt.secs_text(before_time)} → {rt.secs_text(elapsed)}; checked on the original data, the first run on new data checks it again"})
-                return out
-            problem = "did not reproduce the figures: " + why
-        note = rt.CONSOLIDATE_RETRY.format(problem=problem)
-    out.update({"status": "as_it_was", "line": "as it was: the rewritten method " + problem})
+            same, how = rt.same_figures(zero["figs"], run["figs"])
+            if not same and rt.same_figures(zero["figs"], run_method(script, runner, timeout)["figs"])[0]:
+                why = "the figures differ (" + how + ")"
+    if why:
+        out["line"] = "every statement runs: the shorter run did not hold - " + why
+        return out
+    out.update({"steps": only, "line": f"runs {len(only)} of {of} statements", "elapsed": [zero.get("elapsed"), run["elapsed"]]})
     return out
 
 
-def settle_consolidated(version: dict, consolidated: dict) -> None:
-    """The consolidation's outcome on a version: the record; when consolidated, the rewritten script runs, provisional,
-    and the script it replaced waits under script_fallback for the first run on new data."""
-    version["consolidated"] = {k: consolidated.get(k) for k in ("status", "line", "cells", "elapsed", "attempts", "cost", "seat", "model")}
-    if consolidated.get("status") == "consolidated":
-        version["consolidated"].update({"provisional": True, "confirmed": None, "fell_back": None})
-        version["script_fallback"] = version["script"]
-        version["script"] = consolidated["script"]
-
-
-def check_consolidated_run(ver: dict, prep: dict, script_vals: Dict[str, object], run_dir: str, runner: Callable, timeout: int, number: int,
-                           result: Tuple[str, str, list]) -> Tuple[Tuple[str, str, list], str]:
-    """The first run on new data of a version whose script is provisional (§19.3): the method it replaced runs once
-    more on the same data, and the two are compared - the same RESULT lines as printed, the same figures. Agree, and
-    the rewrite is confirmed; disagree, and the version falls back to the method it replaced, whose output becomes
-    this run's. Returns ((stdout, err, figs) of the run that stands, the verdict's words); the version is changed in
-    place and the caller saves it."""
-    c = ver.get("consolidated") or {}
-    if not ver.get("script_fallback") or not c.get("provisional"):
-        return result, ""
-    other, _subs = rt.bind_script(ver["script_fallback"], prep["bound"], run_dir, prep.get("datasets_dir") or "", prep["placeholders"])
+def trial_windows(data: Optional[dict], days: Optional[List[str]] = None) -> List[Tuple[str, str, str]]:
+    """The pieces Save tries a method on: the latest complete day, week (Monday to Sunday) and month inside the
+    window the analysis was made on that hold rows (`days`: the days the frame has rows on; not known, the latest
+    complete ones) - [(unit, start, end)] as ISO days - each only when it is shorter than the window. Nothing for
+    data without a window, or from a source whose runs have no intervals."""
+    import datetime as _dt
+    d = data or {}
+    start, end = _dates_of(d)
+    if rt.source_kind(d) != "intervals" or not (start and end):
+        return []
     try:
-        o_out, o_err, o_figs, _g = _call_runner(runner, rt.with_inputs(other, script_vals, prep["prelude"]), timeout, run_dir)
-    except Exception as exc:                                       # noqa: BLE001
-        o_out, o_err, o_figs = "", f"the run could not start: {exc}", []
-    stdout, err, figs = result
-    if o_err or err:
-        if err and not o_err:                                      # the rewrite failed where the method it replaced ran: back to that
-            why = "fell back at run %d: the rewritten method failed on this data (%s)" % (number, (rt.error_line(str(err)) or "error")[:120])
-            ver["script"] = ver.pop("script_fallback")
-            c.update({"status": "fell_back", "provisional": False, "fell_back": {"run": number, "why": why}, "line": "as it was since run %d: the rewritten method failed on new data" % number})
-            return (o_out, o_err, o_figs), why
-        return result, "no verdict on the rewritten method at run %d: %s" % (number, "both methods failed on this data" if o_err else "the method it replaced failed on this data")
-    ok, why = rt.same_lines(rt.result_lines_in(o_out or ""), rt.result_lines_in(stdout or ""))
-    if ok:
-        ok, fig_why = rt.same_figures(o_figs or [], figs or [])
-        why = f"{why}, {fig_why}" if ok else fig_why
-    if ok:
-        ver.pop("script_fallback", None)
-        c.update({"provisional": False, "confirmed": {"run": number, "when": time.time()}, "line": re.sub(r"; checked on the original data.*$", "", c.get("line") or "") + f"; confirmed on run {number}"})
-        return result, f"the rewritten method confirmed on this data (run {number}): {why}"
-    ver["script"] = ver.pop("script_fallback")
-    c.update({"status": "fell_back", "provisional": False, "fell_back": {"run": number, "why": why}, "line": f"as it was since run {number}: the rewritten method differed on new data ({why})"})
-    return (o_out, o_err, o_figs), f"fell back at run {number}: the rewritten method differed on this data ({why})"
+        s, e = _dt.date.fromisoformat(start), _dt.date.fromisoformat(end)
+    except ValueError:
+        return []
+    one = _dt.timedelta(days=1)
+
+    def units(unit):                                                   # the complete units inside the window, the latest first
+        if unit == "day":
+            b = e - one
+            while b >= s:
+                yield b, b
+                b -= one
+        elif unit == "week":
+            b = e - (e.weekday() + 1) % 7 * one                        # the last Sunday on or before the window's end
+            while b - 6 * one >= s:
+                yield b - 6 * one, b
+                b -= 7 * one
+        else:
+            b = e if (e + one).day == 1 else e.replace(day=1) - one    # the last month that ends inside the window
+            while b.replace(day=1) >= s:
+                yield b.replace(day=1), b
+                b = b.replace(day=1) - one
+    out = []
+    for unit in TRIAL_UNITS:
+        for a, b in units(unit):
+            if (b - a) < (e - s) and (days is None or any(a.isoformat() <= x <= b.isoformat() for x in days)):
+                out.append((unit, a.isoformat(), b.isoformat()))
+                break
+    return out
+
+
+def try_method(version: dict, runner: Callable, timeout: int, run_dir: str) -> List[dict]:
+    """The trials: the method run on each piece of trial_windows, cut from the chain's own data as a fill cuts a unit
+    from its span, with the inputs at their defaults. Nothing is recorded as a run. Returns one entry per piece:
+    {interval, window, status, line, came, of} - how many of the tracked lines came back with a number. Nothing
+    without a date column to cut by."""
+    manifest = version.get("manifest") or {}
+    data = manifest.get("data") or {}
+    column, span = date_column_of(data), _dates_of(data)
+    if not column or not trial_windows(data):
+        return []
+    days = (read_marked(carry_out(runner, days_script(column), 120)[0], DAYS_MARK) or {}).get("days")
+    out = []
+    for unit, start, end in trial_windows(data, days):
+        d = dict(data, load=dict(data.get("load") or {}, start_date=start, end_date=end, cached_from=list(span)), date_range=f"{start} to {end}")
+        vals = dict((version.get("run_zero") or {}).get("inputs") or {})
+        vals.update(derived_window_values(manifest.get("parameters") or [], d))
+        try:
+            got = attempt(version, d, vals, runner, run_dir, timeout)
+            status, line = rt.run_status(manifest.get("results") or [], got["results"], got["run"], got["run"]["error"], None)
+        except Exception as exc:                                       # noqa: BLE001 - a trial that cannot be made says so and the others go on
+            got, status, line = {"results": []}, "failed", f"could not be tried: {exc}"
+        tracked = [i for i, e in enumerate(manifest.get("results") or []) if not e.get("dropped") and e.get("estimate") is not None]
+        came = sum(1 for i in tracked if i < len(got["results"]) and got["results"][i].get("estimate") is not None)
+        out.append({"interval": unit, "window": [start, end], "status": status, "line": line, "came": came, "of": len(tracked)})
+    if out:                                                            # the trials' files are no run's: their folder goes
+        try:
+            _call_runner(runner, rt.remove_script(run_dir), 60)
+        except Exception:                                              # noqa: BLE001
+            pass
+    return out
+
+
+def prove_method(name: str, version: dict, runner: Callable, timeout: int, trial_dir: str, emit: Optional[Callable] = None) -> dict:
+    """What Save proves about a method, on the chain's own data: run zero (every statement; the chain's lines
+    reproduced), then - when it reproduced - the shorter run (check_lean) and the trials on smaller pieces
+    (try_method). Returns run zero's verdict with `steps` (the mark of the statements the places are among), `lean`
+    and `tried` beside it; settle_proof writes it on the version."""
+    proof = verify_zero(name, version, runner, timeout, emit)
+    proof.update({"steps": "", "lean": None, "tried": []})
+    if proof["status"] != "reproduced":
+        return proof
+    proof["steps"] = rt.steps_key(version["script"])
+    proof["lean"] = check_lean(version, proof, runner, timeout)
+    manifest = version.get("manifest") or {}
+    settled = dict(version, steps=proof["steps"], lean=proof["lean"], manifest=dict(manifest, results=[dict(e, at=at) for e, at in zip(manifest.get("results") or [], proof["at"] or [])]))
+    proof["tried"] = try_method(settled, runner, timeout, trial_dir)
+    return proof
+
+
+def settle_proof(version: dict, proof: dict) -> dict:
+    """The proof on the version: run zero's verdict and lines; when it reproduced, each line's place and the mark of
+    the statements they are among, the empty shares of the chain's own data, the shorter run (and its time as what
+    a run takes), the trials. Returns the printed output and the figures to keep as run zero's ({stdout, figs})."""
+    rz = version["run_zero"]
+    rz.update({k: proof[k] for k in ("status", "line", "verified", "results", "figures", "elapsed")})
+    if proof["status"] == "reproduced":
+        manifest = version["manifest"]
+        for e, at in zip(manifest.get("results") or [], proof["at"] or []):
+            e["at"] = at
+        manifest["data"] = dict(manifest.get("data") or {}, gaps=proof.get("gaps") or {})
+        version.update({k: proof[k] for k in ("steps", "lean", "tried")})
+        if (proof["lean"] or {}).get("steps") and proof["lean"]["elapsed"][1] is not None:
+            rz["elapsed"] = proof["lean"]["elapsed"][1]
+    return {"stdout": proof.get("stdout") or "", "figs": proof.get("figs") or []}
 
 
 # ----------------------------------------------------------------------------- a run on the data loaded now (F2)
@@ -746,14 +760,6 @@ def light_data(data: Optional[dict]) -> dict:
             "date_range": d.get("date_range"), "aux": [str(a).split("/")[-1] for a in (d.get("aux") or [])], "extra": d.get("extra") or {},
             "subject": rt.subject_of_record(d),          # whose data (2026-10-30): the history and the comparisons stay within one subject's runs
             "window": [start, end] if start and end else None}      # and when: the window the run asked for (a cut run's, not the cached load's)
-
-
-def _dates_of(d: dict) -> Tuple[Optional[str], Optional[str]]:
-    load = d.get("load") or {}
-    if load.get("start_date") and load.get("end_date"):
-        return str(load["start_date"]), str(load["end_date"])
-    m = re.match(r"^\s*(\d{4}-\d{2}-\d{2})\s*(?:to|->|-|→)\s*(\d{4}-\d{2}-\d{2})\s*$", str(d.get("date_range") or ""))
-    return (m.group(1), m.group(2)) if m else (None, None)
 
 
 def load_plan(routine: dict, version_number: Optional[int] = None) -> dict:
@@ -795,14 +801,13 @@ def load_plan(routine: dict, version_number: Optional[int] = None) -> dict:
 
 def cut_window(ver: dict, current_data: Optional[dict]) -> Optional[dict]:
     """The window a run on a cached load is cut to (2026-10-11): when the page says the load came from a cached load
-    around it (`load.cached_from`), {start, end, column} - the window asked and the frame's date column (the one
-    recorded at promotion, else the first date column on record); None when nothing is to be cut."""
+    around it (`load.cached_from`), {start, end, column} - the window asked and the frame's date column; None when
+    nothing is to be cut."""
     d = current_data or {}
     load = d.get("load") or {}
     if not load.get("cached_from") or not (load.get("start_date") and load.get("end_date")):
         return None
-    rec = (ver.get("manifest") or {}).get("data") or {}
-    col = str(((rec.get("span") or {}).get("column")) or "") or rt.date_column(rec.get("columns") or []) or rt.date_column(d.get("columns") or [])
+    col = date_column_of((ver.get("manifest") or {}).get("data")) or rt.date_column(d.get("columns") or [])
     return {"start": str(load["start_date"]), "end": str(load["end_date"]), "column": col}
 
 
@@ -897,9 +902,8 @@ def reference_run(routine: dict, version: dict, compare_with="previous", subject
     (§14.1) is compared with the one before it: the latest earlier run of the same interval on the same subject, by
     its window's end - never a custom run, nor run zero; the first on a subject has nothing before it."""
     runs = [r for r in routine.get("runs", []) if r.get("version") == version.get("number")]
-    done_states = ("ran", "reproduced", "differed")
     if interval:
-        before = [r for r in runs if r.get("status") in done_states and r.get("interval") == interval and same_subject(r, subject_id or "")
+        before = [r for r in runs if r.get("status") in DONE and r.get("interval") == interval and same_subject(r, subject_id or "")
                   and (((r.get("data") or {}).get("window") or [None, None])[1] or "") < (window or ("", ""))[0]]
         if not before:
             return None, None
@@ -916,7 +920,7 @@ def reference_run(routine: dict, version: dict, compare_with="previous", subject
             return zero if zero else (None, None)
         r = next((x for x in routine.get("runs", []) if x.get("number") == want), None)
         return (r["number"], r.get("results") or []) if r else (None, None)
-    done = [r for r in runs if r.get("status") in done_states and not r.get("interval") and (subject_id is None or same_subject(r, subject_id))]
+    done = [r for r in runs if r.get("status") in DONE and not r.get("interval") and (subject_id is None or same_subject(r, subject_id))]
     if done:
         return done[-1]["number"], done[-1].get("results") or []
     return zero_own if zero_own else (None, None)
@@ -930,8 +934,6 @@ def zero_holds(ver: dict) -> str:
     status = str(rz.get("status") or "")
     if status == "verifying":
         return "the routine is still being verified on its chain's own data - run it when it has settled"
-    if status == "condensing":
-        return "the routine's code is still being condensed - run it when it has settled"
     if status in ("differed", "failed"):
         return f"run zero on this chain's own data did not reproduce the analysis ({rz.get('line') or status}) - the method is not run on other data; delete the routine, or make it again from the chain"
     return ""
@@ -978,12 +980,44 @@ def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Calla
     return out
 
 
+def attempt(ver: dict, d: dict, vals: Dict[str, object], runner: Callable, run_dir: str, timeout: int, prep: Optional[dict] = None) -> dict:
+    """The method once on data `d`: the data made to fit (prepare, unless `prep` is handed in), the executed text run
+    a statement at a time - the version's shorter run when it has one - and its lines laid against the manifest's,
+    by their places while those hold, else by position. Returns {prep, script, run (rt.read_run with the runner's
+    error, figs, generated, elapsed), results, at}."""
+    prep = prep or prepare(ver, d, runner, run_dir)
+    script = rt.with_inputs(prep["script"], vals, prep["prelude"])
+    run_ = run_method(script, runner, timeout, run_dir, only=run_steps(ver), watch=watch_of(ver))
+    expected = (ver.get("manifest") or {}).get("results") or []
+    placed = rt.place_lines(expected if places_hold(ver) else [{k: v for k, v in e.items() if k != "at"} for e in expected], run_)
+    return {"prep": prep, "script": script, "run": run_, "results": placed["results"], "at": placed["at"]}
+
+
+def run_timeout(ver: dict) -> int:
+    """What a run of this version may take (time_allowed), from what run zero took with every statement - a version
+    whose places no longer hold runs them all; ten minutes when run zero did not run."""
+    took = ((ver.get("lean") or {}).get("elapsed") or [None])[0] or (ver.get("run_zero") or {}).get("elapsed")
+    return time_allowed(took) if took else 600
+
+
+def stopped_of(got: dict) -> List[dict]:
+    """The statements that stopped in a run, as its record keeps them: the cell, the line in it, the statement's code,
+    the error, and how many later statements were not run for resting on it."""
+    stopped = got["run"]["stopped"]
+    if not stopped:
+        return []
+    steps = rt.read_steps(rt.split_script(got["script"])[1])[0]
+    skipped = [origin for _j, _cell, origin in got["run"]["skipped"]]
+    return [{"cell": s["cell"], "line": s.get("line"), "code": (steps[s["step"]].source if s["step"] < len(steps) else "")[:4000], "error": s["error"],
+             "skipped": skipped.count(s["step"])} for s in stopped]
+
+
 def run(routine: dict, values: Optional[dict], current_data: Optional[dict], runner: Callable, store: rt.RoutineStore, emit: Optional[Callable] = None,
         compare_with="previous", version_number: Optional[int] = None, run_dir: str = "", interval: Optional[str] = None) -> dict:
-    """One run of the routine's version on the data loaded now: the checks (refused before anything runs), the
-    script with the INPUTS block, the lines read by position, the status against the reference run, the comparison,
-    the record stored (a failed run too). Returns the record with the printed output and the figures for the tabs.
-    `interval` (§14.1): the calendar unit the window is - the record keeps it and the reference is the one before."""
+    """One run of the routine's version on the data loaded now: the checks (refused before anything runs), the method
+    a statement at a time (attempt), the status, the comparison with the reference run, the record stored. Returns
+    the record with the printed output and the figures for the tabs. `interval`: the calendar unit the window is -
+    the record keeps it and the reference is the one before."""
     ver = version_of(routine, version_number)
     held = zero_holds(ver)
     if held:
@@ -1042,85 +1076,70 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     dates = _dates_of(d)
     interval = interval if interval in INTERVALS and all(dates) else None        # a set interval is a window; without one the run is custom
     ref_number, ref_results = reference_run(routine, ver, compare_with, subject_id=subject_id, interval=interval, window=dates)     # within this subject's runs (2026-10-30)
-    cells = (manifest.get("figures") or {}).get("cells")
-    n_cells = len(re.findall(r"^# --- cell \d+ ---$", ver.get("script") or "", re.M))
+    n_cells = len(rt.split_script(ver.get("script") or "")[3])
     rz = ver.get("run_zero") or {}
-    timeout = int(min(1800, max(300, 2 * float(rz.get("elapsed") or 0) + 120))) if rz.get("elapsed") else 600
     if emit:
         emit({"type": "lookup_start", "kind": "run", "query": f"run {number} · v{vnum} · {n_cells} cell{'s' if n_cells != 1 else ''}"})
     t0 = time.time()
-    script = rt.with_inputs(prep["script"], vals, prep["prelude"])
-    try:
-        stdout, err, figs, generated = _call_runner(runner, script, timeout, run_dir)
-    except Exception as exc:                                           # noqa: BLE001
-        stdout, err, figs, generated = "", f"the run could not start: {exc}", [], None
-    # a provisional rewrite (§19.3): the method it replaced runs once more on this data, and the two are compared
-    (stdout, err, figs), consolidation = check_consolidated_run(ver, prep, vals, run_dir, runner, timeout, number, (stdout, err, figs))
-    if consolidation:
-        if consolidation.startswith("fell back"):
-            script = rt.with_inputs(prep["script"], vals, prep["prelude"])     # the failed cell is read off the script that stands (the fallback's binding is the same text)
-        if emit:
-            emit({"type": "lookup", "kind": "check", "query": "the rewritten method", "peek": consolidation})
-    elapsed = round(time.time() - t0, 1)
+    got = attempt(ver, d, vals, runner, run_dir, run_timeout(ver), prep)
+    run_, results = got["run"], got["results"]
+    stdout, err, figs = run_["stdout"], run_["error"], run_["figs"]
     # the inputs that follow the frame's own dates were written by the prelude: the values go on the record, the line off the output
-    written = read_marked(stdout or "", rt.INPUTS_MARK_OUT)
+    written = read_marked(stdout, rt.INPUTS_MARK_OUT)
     if written:
         vals.update({k: v for k, v in written.items() if k in vals})
-    seen = read_marked(stdout or "", rt.DATA_MARK_OUT)         # a cut run: the rows the method saw
+    seen = read_marked(stdout, rt.DATA_MARK_OUT)               # a cut run: the rows the method saw
     if seen and seen.get("rows") is not None:
         d = dict(d, rows=int(seen["rows"]))
     if written or seen:
-        stdout = "\n".join(ln for ln in (stdout or "").splitlines() if not ln.strip().startswith((rt.INPUTS_MARK_OUT, rt.DATA_MARK_OUT)))
-    got = rt.result_lines_in(stdout or "")
-    status, line = rt.run_status(expected, got, err or "", ref_results, script)
+        stdout = "\n".join(ln for ln in stdout.splitlines() if not ln.strip().startswith((rt.INPUTS_MARK_OUT, rt.DATA_MARK_OUT)))
+    status, line = rt.run_status(expected, results, run_, err, ref_results)
+    if status in ("failed", "timed_out"):                      # the run was not carried through: every line it lacks, for that reason
+        results = [r if r.get("estimate") is not None else dict(r, why=line) for r in results]
+    if got["at"] and not places_hold(ver):                     # a version whose lines do not know their places learns them at its first whole run;
+        for e, at in zip(expected, got["at"]):                 # a shorter run proven on the script as it read before goes, its time with it
+            e["at"] = at
+        rz["elapsed"] = ((ver.get("lean") or {}).get("elapsed") or [rz.get("elapsed")])[0]
+        ver.update(steps=rt.steps_key(ver["script"]), lean=None)
+    gaps = rt.gap_sentences((manifest.get("data") or {}).get("gaps"), run_["gaps"], watch_of(ver)["by"])
+    elapsed = run_["elapsed"]
     if emit:
         emit({"type": "lookup", "kind": "run", "query": f"run {number} · v{vnum} · {n_cells} cell{'s' if n_cells != 1 else ''}",
-              "peek": f"{line} · {len(figs or [])} figure{'s' if len(figs or []) != 1 else ''} · {elapsed} s"})
-    cmp = rt.compare_runs(expected, got, ref_results, failed=bool(err))     # the lines printed before a failure compared, the rest said as not reached
+              "peek": f"{line} · {len(figs)} figure{'s' if len(figs) != 1 else ''} · {elapsed} s"})
+    cmp = rt.compare_runs(expected, results, ref_results)
     if ref_results is None and interval:
         cmp["line"] = f"nothing to compare with: no earlier {interval} on record" + (" for this subject" if subject_id else "")
-    elif ref_results is None and subject_id and any(x.get("version") == vnum and x.get("status") in ("ran", "reproduced", "differed") for x in routine.get("runs", [])):
-        cmp["line"] = cmp["line"].replace("the first run of this version", "the first run on this subject")       # the version's other runs are other subjects' (2026-10-30)
-    cell_no = rt.failed_cell(script, str(err)) if err else None
-    failed_cell = {"number": cell_no, "code": rt.cell_text(script, cell_no), "statement": rt.failed_statement(script, str(err))} if cell_no else None       # beside the traceback on the Comparison tab (step 4); the statement for the fix's question (§22)
+    elif ref_results is None and subject_id and any(x.get("version") == vnum and x.get("status") in DONE for x in routine.get("runs", [])):
+        cmp["line"] = cmp["line"].replace("the first run of this version", "the first run on this subject")       # the version's other runs are other subjects'
     if emit and ref_results is not None:
         ref_run = next((x for x in routine.get("runs", []) if x.get("number") == ref_number), None)
         when = _when(ref_run.get("created") if ref_run else rz.get("created"))
-        window = window_text(ref_run.get("data") if ref_run else manifest.get("data"))      # and its window, so the coach sees what is compared (2026-10-30)
+        window = window_text(ref_run.get("data") if ref_run else manifest.get("data"))      # and its window, so the coach sees what is compared
         emit({"type": "lookup", "kind": "compare", "query": f"with run {ref_number}" + (f" ({', '.join(x for x in (when, window) if x)})" if when or window else ""), "peek": cmp["line"]})
     now = time.time()
+    generated = run_["generated"]
     record = {"number": number, "version": vnum, "created": t0, "finished": now, "elapsed": elapsed, "status": status, "line": line, "interval": interval,
-              "data": d, "inputs": vals, "results": got, "figures": len(figs or []), "stdout_chars": len(stdout or ""), "cells": n_cells,
-              "against": ref_number, "comparison": cmp, "narrative": "", "error": (str(err).strip()[-2000:] if err else ""),
+              "data": d, "inputs": vals, "results": results, "figures": len(figs), "cells": n_cells,
+              "against": ref_number, "comparison": cmp, "narrative": "", "error": (err.strip()[-2000:] if err else ""), "stopped": stopped_of(got), "gaps": gaps,
               "fit": {k: fit[k] for k in ("missing", "extra", "retyped", "line")}, "bindings": prep["subs"], "sources": prep["sources"], "aux_absent": [rt.aux_kind(p) for p in prep["binding"]["absent"]],
-              "differences": differences, "check": check_line, "failed_cell": failed_cell, "consolidation": consolidation,
+              "differences": differences, "check": check_line,
               "shape": prep["shape"], "run_dir": run_dir, "generated": list(generated or []) if isinstance(generated, (list, tuple)) else []}
-    summary = {k: record[k] for k in ("number", "version", "created", "finished", "elapsed", "status", "line", "interval", "inputs", "results", "figures", "against", "cells")}
+    summary = {k: record[k] for k in ("number", "version", "created", "finished", "elapsed", "status", "line", "interval", "inputs", "results", "figures", "against", "cells", "gaps")}
     summary["data"] = light_data(d)
-    summary["comparison"] = {k: cmp[k] for k in ("moved", "within", "changed", "missing", "unreached", "compared", "line")}
+    summary["comparison"] = {k: cmp[k] for k in ("moved", "within", "changed", "missing", "compared", "line")}
     routine.setdefault("runs", []).append(summary)
     store.save(routine)
     tag = run_tag(vnum, number)
     store.save_run(routine["id"], tag, record)
     try:
-        store.save_run_files(routine["id"], tag, stdout or "", figs or [])
+        store.save_run_files(routine["id"], tag, stdout, figs)
     except OSError:
         pass
     return {"run": record, "summary": summary, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, vnum, subject_id), "subject": rt.subject_of_record(d),
-            "against_data": reference_data(routine, ver, ref_number), "stdout": stdout or "", "figures": figs or [], "name": routine.get("name"),
-            "fix": fix_offer(routine, ver, record)}
+            "against_data": reference_data(routine, ver, ref_number), "stdout": stdout, "figures": figs, "name": routine.get("name")}
 
 
-def _call_runner(runner: Callable, script: str, timeout: int, run_dir: str = ""):
-    """The runner with the run's folder when it takes one (the instance's run_script does; a test's may not)."""
-    try:
-        import inspect
-        takes_dir = len(inspect.signature(runner).parameters) >= 3
-    except (TypeError, ValueError):
-        takes_dir = False
-    return runner(script, timeout, run_dir) if takes_dir and run_dir else runner(script, timeout)
-
-
+# ----------------------------------------------------------------------------- the runs on record
 def _when(ts) -> str:
     try:
         return time.strftime("%d %b", time.localtime(float(ts))) if ts else ""
@@ -1180,51 +1199,6 @@ def delete_run(routine: dict, store: rt.RoutineStore, number: int) -> dict:
     return summary
 
 
-def data_words(data: Optional[dict]) -> str:
-    """A run's data in a few words: the source, whose, the window - or the file's name."""
-    d = data or {}
-    kind = rt.source_kind(d)
-    label = {"intervals": "Intervals.icu", "sweatstack": "SweatStack", "endura": "Endura"}.get(kind)
-    if label:
-        sub = rt.subject_of_record(d)
-        return " · ".join(x for x in (label, sub.get("name") or sub.get("id") or "", window_text(d)) if x)
-    return f"the file {d.get('name')}" if d.get("name") else "other data"
-
-
-def fix_question(routine: dict, version: dict, record: dict) -> str:
-    """The question *Fix it in the analysis* puts in the composer (docs/ROUTINES_DESIGN.md §22): what the routine is, from
-    its record - the name, the purpose, the tracked metrics with their names and recorded wording, the inputs, the custom
-    instructions - then the failed run's facts and the one standing ask. Nothing of what went wrong is diagnosed here:
-    the analyst does that, with the failing data in front of it."""
-    m = version.get("manifest") or {}
-    lines = m.get("results") or []
-    tracked = [x for x in lines if not x.get("dropped")]
-
-    def one(x):
-        label, name = str(x.get("label") or "").strip(), str(x.get("name") or "").strip()
-        return f"{name} (\"{label}\", cell {x.get('cell')})" if name and label else f"\"{label or name}\" (cell {x.get('cell')})"
-    purpose = str(routine.get("purpose") or "").strip()
-    head = f"This analysis was saved as the routine \"{routine.get('name') or ''}\" (v{version.get('number', 1)})" + (f": {purpose}." if purpose else ".")
-    head += (" Each run recomputes these metrics and compares them with the run before: " + ", ".join(one(x) for x in tracked) + "." if tracked
-             else " Its runs keep their printed output and figures; no metric is compared number by number.")
-    ins = "; ".join(f"{p.get('label') or p.get('key')} ({p.get('key')}) = {json.dumps(p.get('default'))}" for p in (m.get("parameters") or []))
-    head += f" Its inputs: {ins}." if ins else " It has no inputs."
-    if routine.get("instruction"):
-        head += f" Custom instructions: \"{routine['instruction']}\"."
-    d = record.get("data") or {}
-    fc = record.get("failed_cell") or {}
-    err = rt.error_line(record.get("error") or "") or str(record.get("line") or "")
-    where = f" at `{fc['statement'].strip()}`" if fc.get("statement") else ""
-    printed = len(record.get("results") or [])
-    data = data_words(d) + (", the data loaded now" if rt.source_kind(d) in ("intervals", "sweatstack", "endura") else " - load that data before you send this")
-    body = (f"Run {record.get('number')} failed on other data than the analysis was made on: {data}. It stopped at cell {fc.get('number')} with `{err}`{where}."
-            + ((" It printed all its lines first." if printed >= len(lines) else f" It printed {printed} of its {len(lines)} lines first.") if printed and lines else "")
-            + " Find why the method fails on this data and change it so it runs on any data of the same shape: where this data cannot give one of the tracked"
-              " metrics, record it as missing rather than fail. Keep the tracked metrics, their order and their meaning, and keep the inputs as inputs, so the"
-              " runs stay comparable.")
-    return head + "\n\n" + body
-
-
 def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
     """A stored run as the main panes show it: the record, its printed output and figures, the routine's summary,
     the numbers to step through. Run zero is the current version's."""
@@ -1235,8 +1209,9 @@ def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
             raise RoutineRefused("this version has no run zero (it was created unverified)")
         record = {"number": 0, "version": ver.get("number", 1), "created": rz.get("created"), "finished": rz.get("created"), "elapsed": rz.get("elapsed"),
                   "status": rz.get("status", "reproduced"), "line": rz.get("line", ""), "data": rz.get("data") or (ver.get("manifest") or {}).get("data") or {},
-                  "inputs": rz.get("inputs") or {}, "results": rz.get("results") or [], "figures": rz.get("figures", 0), "cells": len(re.findall(r"^# --- cell \d+ ---$", ver.get("script") or "", re.M)),
-                  "against": None, "comparison": rt.compare_runs((ver.get("manifest") or {}).get("results") or [], rz.get("results") or [], None), "narrative": "", "zero": True}
+                  "inputs": rz.get("inputs") or {}, "results": rz.get("results") or [], "figures": rz.get("figures", 0), "cells": len(rt.split_script(ver.get("script") or "")[3]),
+                  "against": None, "comparison": rt.compare_runs((ver.get("manifest") or {}).get("results") or [], rz.get("results") or [], None), "narrative": "", "zero": True,
+                  "stopped": [], "gaps": []}
         tag = run_tag(ver.get("number", 1), 0)
     else:
         summary = next((x for x in routine.get("runs", []) if x.get("number") == int(number)), None)
@@ -1248,19 +1223,10 @@ def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
     subject = rt.subject_of_record(record.get("data"))                   # whose run: the arrows step through this subject's runs alone (2026-10-30)
     ver = version_of(routine, record.get("version"))
     return {"run": record, "stdout": stdout, "figures": figs, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, subject_id=str(subject.get("id") or "")),
-            "subject": subject, "against_data": reference_data(routine, ver, record.get("against")), "name": routine.get("name"),
-            "manifest_results": [x for x in (ver.get("manifest") or {}).get("results", []) if not x.get("dropped")], "fix": fix_offer(routine, ver, record)}
+            "subject": subject, "against_data": reference_data(routine, ver, record.get("against")), "name": routine.get("name")}
 
 
-def fix_offer(routine: dict, version: dict, record: dict) -> Optional[dict]:
-    """What *Fix it in the analysis* needs (§22), on a run that failed at a cell of the method: the question, the data's
-    source and the load to repeat. A load that failed, a timeout, an executor lost and run zero are not the method's
-    fault and offer nothing."""
-    if record.get("status") != "failed" or not (record.get("failed_cell") or {}).get("number") or not record.get("number"):
-        return None
-    return {"question": fix_question(routine, version, record), "source": rt.source_kind(record.get("data")), "load": (record.get("data") or {}).get("load") or None}
-
-
+# ----------------------------------------------------------------------------- the fill (§14.3)
 class Fill:
     """A fill (docs/ROUTINES_DESIGN.md §14.3): the routine run on each window of a set interval, oldest first, in a
     thread on the session's instance - every window a cut of the span the page loaded once (the load's dates become

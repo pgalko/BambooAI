@@ -419,8 +419,8 @@ def main():
                 results: [...document.querySelectorAll('#routineMakeModal .rt-results .r .l')].map(e => e.textContent), data: document.querySelector('#routineMakeModal .rt-data').textContent,
                 state: [...document.querySelectorAll('#routineMakeModal .rt-line')].map(e => e.textContent).join(' | '), card: !![...document.querySelectorAll('.sp-turn .n')].find(e => e.textContent === 'Routine'),
                 seat: (() => { const c = [...document.querySelectorAll('.sp-turn')].find(t => (t.querySelector('.n') || {}).textContent === 'Routine'); return c ? ((c.querySelector('.sp-prompt') || {}).dataset || {}).agent || '' : ''; })() })""")
-            check("Save as routine: the dialog shows the promoter's proposal - the name, the regime as the one input (B), the chain's RESULT line, the data, and that the check runs on this chain's own data; the header counts 2 of 3 cells (the inspection cell pruned before the promoter, §19.4); the pane shows the promoter's card on the Promoter seat",
-                  dlg["name"] == "Regime contrast within soil, plot means" and dlg["inputs"] == [["regime", "B"]] and len(dlg["results"]) == 1 and "regime B vs A" in dlg["results"][0] and "2 of 3 cells" in dlg["sub"]
+            check("Save as routine: the dialog shows the promoter's proposal - the name, the regime as the one input (B), the chain's RESULT line, the data, and that the check runs on this chain's own data; the header counts the chain's 3 cells; the pane shows the promoter's card on the Promoter seat",
+                  dlg["name"] == "Regime contrast within soil, plot means" and dlg["inputs"] == [["regime", "B"]] and len(dlg["results"]) == 1 and "regime B vs A" in dlg["results"][0] and "· 3 cells ·" in dlg["sub"]
                   and "field_trial.csv" in dlg["data"] and "Checked once" in dlg["state"] and dlg["card"] and "Promoter" in dlg["seat"], dlg)
             page.fill("#routineMakeModal [data-field='purpose']", "the within-soil regime contrast, for the next season")
             # the custom instructions (§15.6): the coach's line goes to the promoter again with Update the list; the scripted promoter
@@ -452,7 +452,7 @@ def main():
             # the manager's chip say it); wait for the verdict on disk before reading the record
             t_v = time.time()
             rj = json.load(open(rdirs[0])) if rdirs else {}
-            while rdirs and (rj.get("versions") or [{}])[0].get("run_zero", {}).get("status") in ("verifying", "condensing", None) and time.time() - t_v < 240:
+            while rdirs and (rj.get("versions") or [{}])[0].get("run_zero", {}).get("status") in ("verifying", None) and time.time() - t_v < 240:
                 time.sleep(1.0)
                 rj = json.load(open(rdirs[0]))
             pane_rows = page.evaluate("() => [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent)")
@@ -461,30 +461,19 @@ def main():
                   len(rdirs) == 1 and rj.get("current_version") == 1 and rj["versions"][0]["run_zero"]["verified"] and rj["versions"][0]["run_zero"]["status"] == "reproduced"
                   and [p["key"] for p in rj["versions"][0]["manifest"]["parameters"]] == ["regime"] and "INPUTS['regime']" in rj["versions"][0]["script"]
                   and rj["origin"]["thread_id"] == str(page.evaluate("() => currentData.thread_id")) and rj.get("purpose", "").startswith("the within-soil"), (len(rdirs), rj.get("versions", [{}])[0].get("run_zero")))
-            # the method was condensed before the promoter read it (§19.5): the inspection cell (nothing reads what it makes), the prints and
-            # the two tables only printed (tab, raw) went; run zero ran it, and the pass behind the verdict ran the chain as written beside
-            # it - the same line and both figures (the matplotlib PNG byte for byte, the Plotly figure by its data) - so it stands, the
-            # chain's script kept as written
+            # one stored text (docs/ROUTINES_DESIGN.md §19, §22): the chain as written with the promoter's edit - the inspection cell, the prints and
+            # the two tables only printed (tab, raw) included; the proof behind the verdict ran every statement (run zero), then only what the
+            # tracked line and the two figures rest on, held to run zero's line and pictures (the matplotlib PNG, the Plotly figure by its data)
             v1 = (rj.get("versions") or [{}])[0]
-            cells_v1 = v1.get("script_fallback") or v1.get("script") or ""
-            check("the method was condensed before the promoter read it (§19.5): 3 cells → 2, cell 1 dropped, twelve lines in all - the prints and the two tables that were only printed; the figure cell whole, its print too; the pass ran the "
-                  "chain as written beside it and the figures were the same, both times on the record; the RESULT call and the figure cell kept with their numbers, the chain's script kept as written, run zero's figures two; no pruning "
-                  "record of the 0283 kind",
-                  (v1.get("condensed") or {}).get("status") == "condensed" and v1["condensed"]["cells"] == [3, 2] and v1["condensed"]["dropped"] == {"cells": [1], "lines": 12}
-                  and re.match(r"^condensed: 3 cells → 2, 12 lines dropped, [\d.]+ (s|min) → [\d.]+ (s|min)$", v1["condensed"]["line"]) and v1["condensed"]["elapsed"][0] is not None and "pruned" not in v1
-                  and [ln for ln in cells_v1.splitlines() if ln.startswith("# --- cell")] == ["# --- cell 2 ---", "# --- cell 3 ---"]
-                  and [ln for ln in cells_v1.splitlines() if ln.startswith("print(")] == ["print('figure drawn: yield by regime within soil')"] and not re.search(r"^(tab|raw) = ", cells_v1, re.M)
-                  and "RESULT(" in v1["script"] and "pfig.show()" in v1["script"] and "print(df.shape)" in v1.get("script_written", "") and "# --- cell 1 ---" in v1.get("script_written", "")
-                  and re.search(r"^raw = plot_means\[plot_means.regime == 'B'\]", v1.get("script_written", ""), re.M) and "b=INPUTS['regime']" in v1.get("script_written", "")
-                  and v1["run_zero"]["figures"] == 2 and v1["run_zero"]["elapsed"] == v1["consolidated"]["elapsed"][1], (v1.get("condensed"), [ln for ln in cells_v1.splitlines() if ln.startswith(("# --- cell", "print(", "tab", "raw"))]))
-            # the consolidation (§19.3): the stack's Condenser seat gave the method's cells back without their comment lines; the rewrite
-            # reproduced the line and both figures, so it runs - provisional, the method it replaced waiting under script_fallback for run 1
-            _comments = lambda text: [ln for ln in text.split("# --- cell 2 ---", 1)[-1].split("# --- the executor's own display options back ---", 1)[0].splitlines() if ln.lstrip().startswith("#") and not ln.startswith("# --- cell")]
-            check("the method was consolidated behind the pass, on the stack's Condenser seat: the comment lines gone, the rewrite provisional until the first run on new data, the method it replaced waiting under script_fallback",
-                  (v1.get("consolidated") or {}).get("status") == "consolidated" and v1["consolidated"]["provisional"] is True and v1["consolidated"]["seat"] == "Condenser" and v1["consolidated"]["line"].startswith("consolidated: 2 cells → 2, ")
-                  and v1["consolidated"]["line"].endswith("; checked on the original data, the first run on new data checks it again")
-                  and _comments(v1["script"]) == [] and len(_comments(v1.get("script_fallback", ""))) >= 3
-                  and "RESULT(" in v1["script"] and v1["consolidated"]["cost"] > 0, (v1.get("consolidated"), _comments(v1.get("script", ""))))
+            lean = v1.get("lean") or {}
+            runs_of = re.match(r"^runs (\d+) of (\d+) statements$", lean.get("line") or "")
+            check("the version keeps one script, the chain's three cells as written with the input in place; the proof left the statements nothing tracked or drawn rests on out of a run and says how many run, each line knows its "
+                  "place among the statements and the version their mark; run zero drew two figures; a file has no smaller pieces to try; nothing of an earlier pass",
+                  [ln for ln in v1["script"].splitlines() if ln.startswith("# --- cell")] == ["# --- cell 1 ---", "# --- cell 2 ---", "# --- cell 3 ---"] and "print(df.shape)" in v1["script"]
+                  and re.search(r"^raw = plot_means\[plot_means.regime == 'B'\]", v1["script"], re.M) and "b=INPUTS['regime']" in v1["script"] and "RESULT(" in v1["script"] and "pfig.show()" in v1["script"]
+                  and runs_of and int(runs_of.group(1)) < int(runs_of.group(2)) and len(lean.get("steps") or []) == int(runs_of.group(1)) and re.fullmatch(r"[0-9a-f]{12}", v1.get("steps") or "")
+                  and all(isinstance(e.get("at"), list) for e in v1["manifest"]["results"] if e.get("estimate") is not None) and v1["run_zero"]["figures"] == 2 and v1.get("tried") == []
+                  and not {"script_written", "script_fallback", "condensed", "consolidated", "pruned"} & set(v1), (lean, v1.get("steps"), v1.get("tried"), sorted(v1)))
             fav1 = os.path.join(workdir, "webapp", "storage", USER, "favourites", rj["origin"]["thread_id"], rj["origin"]["chain_id"] + ".json") if rdirs else ""
             def _fav_type():
                 try:
@@ -508,17 +497,16 @@ def main():
             mgr = page.evaluate("""() => ({ items: [...document.querySelectorAll('#routinesModal .rt-side .it b')].map(e => e.textContent), title: document.querySelector('#routinesModal .rt-right .title').textContent,
                 sub: document.querySelector('#routinesModal .rt-right .sub').textContent, origin: !!document.querySelector('#routinesModal .rt-origin'), checked: (document.querySelector('#routinesModal .rt-status') || {}).textContent,
                 facts: [...document.querySelectorAll('#routinesModal .rt-facts > b')].map(e => e.textContent), version: (document.querySelector('#routinesModal .rt-vers .v') || {}).textContent, results: [...document.querySelectorAll('#routinesModal .rt-facts > span')].map(e => e.textContent).find(t => /per run/.test(t)) || '',
-                written: (document.querySelector('#routinesModal a.rt-written') || { getAttribute: () => null }).getAttribute('href'), inputs: [...document.querySelectorAll('#routinesModal .rt-facts .rt-input')].map(e => e.textContent),
+                links: document.querySelectorAll('#routinesModal .rt-vers a').length, inputs: [...document.querySelectorAll('#routinesModal .rt-facts .rt-input')].map(e => e.textContent),
                 instruction: (() => { const bs = [...document.querySelectorAll('#routinesModal .rt-facts > b')]; const i = bs.findIndex(e => e.textContent === 'Custom instructions'); return i < 0 ? null : [...document.querySelectorAll('#routinesModal .rt-facts > span')][i].textContent; })(),
                 badge: !!document.getElementById('routinesBadge') || !!document.querySelector('#routinesPill .rb-badge'), scrolls: [...document.querySelectorAll('#routinesModal .rt-right *')].filter(e => { const o = getComputedStyle(e).overflowY; return (o === 'auto' || o === 'scroll') && e.scrollHeight > e.clientHeight; }).map(e => e.className) })""")
-            check("the Routines manager (S2, 2026-11-08) lists the routine; the header's sub-line carries the source, the version and the link to the analysis it was made from, nothing of the columns or the favourite; the facts - Purpose, Inputs (the one input with its default and origin), Tracked (what a run records), Custom instructions (the line typed in the dialog, §15.6), Version (verified with the lines reproduced, the condensed code's cells and time, the as-written download) - and no scroll inside the body's; the rail entry carries no count badge",
+            check("the Routines manager (S2, 2026-11-08) lists the routine; the header's sub-line carries the source, the version and the link to the analysis it was made from, nothing of the columns or the favourite; the facts - Purpose, Inputs (the one input with its default and origin), Tracked (what a run records), Custom instructions (the line typed in the dialog, §15.6), Version (verified with the lines reproduced, nothing of how the code is run) - and no scroll inside the body's; the rail entry carries no count badge",
                   mgr["items"] == ["Regime contrast within soil, plot means"] and mgr["origin"] and mgr["checked"] == "verified" and mgr["sub"].startswith("File · v1 · from the analysis of ") and "columns" not in mgr["sub"] and "a favourite" not in mgr["sub"] and mgr["badge"] is False
                   and mgr["facts"] == ["Purpose", "Inputs", "Tracked", "Custom instructions", "Version"] and mgr["inputs"] == ["The regime compared with A B the analysis compared B against A"]
-                  and mgr["results"] == "1 metric and 2 charts per run" and mgr["instruction"] == "track the yield contrast and the plot count" and re.search(r"^v1(?:[A-Z][a-z]{2} \d+|\d+ [A-Z][a-z]{2}) · verified, 1 line reproduced · 2 cells · [\d.]+ s · rewritten, the next run on new data checks it · as written ↓$", mgr["version"])
-                  and mgr["written"] == "/routines/" + rj["id"] + "/script?written=1" and set(mgr["scrolls"]) <= {"rt-body"}, mgr)
-            script_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes(\"'regime': 'B'\") && !t.includes('print(df.shape)'))", rj["id"])
-            written_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script?written=1').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes('print(df.shape)') && t.includes('as the analysis wrote it'))", rj["id"])
-            check("the .py download carries the INPUTS block with the default and is the condensed code; ?written=1 is the chain's code with the same block, said so in its first line", script_status is True and written_status is True, (script_status, written_status))
+                  and mgr["results"] == "1 metric and 2 charts per run" and mgr["instruction"] == "track the yield contrast and the plot count" and re.search(r"^v1(?:[A-Z][a-z]{2} \d+|\d+ [A-Z][a-z]{2}) · verified, 1 line reproduced$", mgr["version"])
+                  and mgr["links"] == 0 and set(mgr["scrolls"]) <= {"rt-body"}, mgr)
+            script_status = page.evaluate("(id) => window.authService.fetch('/routines/' + id + '/script').then(r => r.text()).then(t => t.includes('INPUTS = {') && t.includes(\"'regime': 'B'\") && t.includes('print(df.shape)'))", rj["id"])
+            check("the .py download carries the INPUTS block with the default and the chain's code as written", script_status is True, script_status)
             page.click("#routinesModal .rt-origin")
             page.wait_for_function("() => document.getElementById('routinesModal').style.display === 'none' && /chain 1 of 4/.test(document.getElementById('chainPosition').textContent)", timeout=15000)
             check("open the analysis: the routine's origin loads from favourites into the main panes", True)
@@ -685,13 +673,17 @@ def main():
             page.wait_for_timeout(600)
             r4 = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
                 cmp: (document.getElementById('content-comparison') || {}).textContent || '', pos: document.getElementById('chainPosition').textContent })""")
-            check("run 4 on the file without soil: the CHECK row says the column is empty, the method fails at cell 2 dividing by a count that is zero (kept as a run, the card in the warning tone, the error on the Comparison tab)",
-                  any("CHECK" in r and "empty in this data: soil" in r for r in r4["rows"]) and "Run 4 failed" in r4["done"] and "failed at cell 2" in r4["done"] and "ZeroDivisionError" in r4["done"] and r4["warn"]
-                  and "ZeroDivisionError" in r4["cmp"] and "run 4 of 4" in r4["pos"], (r4["rows"][-3:], r4["done"][:200]))
-            # fail well (step 4, 2026-10-11): the cell that failed, with its code, beside the traceback; the line it did not reach said as such
-            check("the Comparison tab of the failed run shows cell 2's code (the adjusted difference) beside the error, and its result line as not reached - not missing",
-                  "cell 2 — the code that failed" in r4["cmp"] and "def adj_diff" in r4["cmp"] and "not reached" in r4["cmp"] and "missing" not in r4["cmp"].split("Nothing here")[0].split("not reached")[-1]
-                  and any("COMPARE" in r and "not reached" in r for r in r4["rows"]), r4["cmp"][:500])
+            check("run 4 on the file without soil: the CHECK row says the column is empty; the statement of cell 2 that divides by a count of zero stops and costs its own line - the run is kept as one that ran, 0 of 1 result line "
+                  "with the reason beside it; no warning tone",
+                  any("CHECK" in r and "empty in this data: soil" in r for r in r4["rows"]) and "Run 4 complete" in r4["done"] and "ran: 0 of 1 result line; 1 not computed (cell 2 stopped: ZeroDivisionError" in r4["done"] and not r4["warn"]
+                  and "run 4 of 4" in r4["pos"], (r4["rows"][-3:], r4["done"][:300]))
+            # the statement that stopped (docs/ROUTINES_DESIGN.md §22): one line on the Trend tab - its cell, the error - opening on its code; the line it cost is not computed
+            r4s = page.evaluate("""() => ({ stopped: [...document.querySelectorAll('#content-comparison details.rt-stopped summary')].map(e => e.textContent), code: [...document.querySelectorAll('#content-comparison details.rt-stopped code')].map(e => e.textContent),
+                words: [...document.querySelectorAll('#content-comparison .rt-cmp-table tbody tr')].map(tr => tr.querySelectorAll('td')[4].textContent.trim()), why: [...document.querySelectorAll('#content-comparison .rt-cmp-table tbody tr')].map(tr => tr.querySelectorAll('td')[4].getAttribute('title') || ''),
+                error: !!document.querySelector('#content-comparison .rt-error') })""")
+            check("the Trend tab of run 4 names the statement that stopped - cell 2, the error - with its code under it (the call of the adjusted difference); its result line is not computed, the reason on hover; no error block; the COMPARE row says nothing was compared",
+                  len(r4s["stopped"]) >= 1 and r4s["stopped"][0].startswith("cell 2 stopped: ZeroDivisionError") and "adj_diff" in r4s["code"][0] and "def adj_diff" not in r4s["code"][0] and r4s["words"] == ["· not computed"]
+                  and r4s["why"][0].startswith("cell 2 stopped: ZeroDivisionError") and not r4s["error"] and any("COMPARE" in r and "no result line to compare" in r for r in r4["rows"]), (r4s, r4["rows"][-2:]))
             # what differs, said in sentences (step 4, 2026-10-11): the CHECK row says the rows against the original's; the Data tab lists it
             check("the CHECK rows say the rows against the original's: run 3's file the same rows as the original, run 4's too, the column empty said beside it",
                   any("CHECK" in r and "rows as the original" in r for r in r3["rows"]) and any("CHECK" in r and "rows as the original" in r and "empty in this data: soil" in r for r in r4["rows"]), (r3["rows"], r4["rows"]))
@@ -705,23 +697,6 @@ def main():
             page.click("#nextResponse")
             wait_text(page, "#chainPosition", "run 4 of 4", 30000)
             page.wait_for_timeout(300)
-            # Fix it in the analysis (§22): the failed run's view offers the button; pressed, it opens the origin analysis with the prepared
-            # question in the composer, unsent - what the routine is, from its record, the run's facts, the one standing ask; a file routine's
-            # data is left to the coach to load, and the words under the button say so
-            fx = page.evaluate("""() => ({ btn: (document.querySelector('#content-comparison .rt-fix button[data-act="fix-run"]') || {}).textContent || '', note: (document.querySelector('#content-comparison .rt-fix .n') || {}).textContent || '' })""")
-            check("the failed run's Comparison tab offers Fix it in the analysis, its line saying the analysis opens with the question and the file is loaded first",
-                  fx["btn"] == "Fix it in the analysis" and fx["note"] == "Opens the analysis and writes the question; load this run’s data first.", fx)
-            page.click("#content-comparison .rt-fix button[data-act='fix-run']")
-            page.wait_for_function("() => (document.getElementById('queryInput') || {}).value && document.getElementById('queryInput').value.startsWith('This analysis was saved as the routine')", timeout=30000)
-            page.wait_for_timeout(500)
-            fq = page.evaluate("""() => ({ q: document.getElementById('queryInput').value, pos: document.getElementById('chainPosition').textContent, running: !!(typeof queryRunning !== 'undefined' && queryRunning),
-                locked: !!document.getElementById('queryInput').disabled, turns: document.querySelectorAll('.sp-turn').length })""")
-            check("Fix it in the analysis: the origin analysis is open (chain 1 of the thread, the composer unlocked, nothing sent) and the composer holds the question - the routine by name, version and purpose, the tracked metric named as the instruction had it with its recorded wording and cell, the input with its default, the custom instructions, then run 4's file, the cell and the error, and the standing ask",
-                  "chain 1 of" in fq["pos"] and not fq["running"] and not fq["locked"]
-                  and fq["q"].startswith('This analysis was saved as the routine "Regime contrast within soil, plot means" (v1): the within-soil regime contrast, for the next season. Each run recomputes these metrics and compares them with the run before: Yield, B vs A ("yield, regime B vs A within soil type, plot means", cell 2). Its inputs: The regime compared with A (regime) = "B". Custom instructions: "track the yield contrast and the plot count".')
-                  and "Run 4 failed on other data than the analysis was made on: the file " in fq["q"] and "no_soil.csv - load that data before you send this. It stopped at cell 2 with `ZeroDivisionError" in fq["q"]
-                  and fq["q"].endswith("Find why the method fails on this data and change it so it runs on any data of the same shape: where this data cannot give one of the tracked metrics, record it as missing rather than fail. Keep the tracked metrics, their order and their meaning, and keep the inputs as inputs, so the runs stay comparable."), fq)
-            page.evaluate("() => { const b = document.getElementById('queryInput'); b.value = ''; b.dispatchEvent(new Event('input', { bubbles: true })); }")
             # the Dataset cache's pick (step 4, 2026-10-11): a file routine's dialog offers the files the executor's cache holds - the
             # uploads of this walk - and a run on one of them; the local edition has no executor cache, so the choice stays hidden
             page.click("#routinesPill")
@@ -761,30 +736,33 @@ def main():
             run1 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "run.json"))) if "v1_1" in run_files else {}
             _n_runs = 5 if edition == "hosted" else 4
             run5 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_5", "run.json"))) if "v1_5" in run_files else {}
-            check("on disk: runs/v1_0 (run zero) to the last run with run.json and stdout.txt; routine.json lists the runs with their status, data and comparison; the failed run keeps its traceback, the fit it ran under and its own folder on the executor's side; the cache-picked run's load says the file and the cache",
+            check("on disk: runs/v1_0 (run zero) to the last run with run.json and stdout.txt; routine.json lists the runs with their status, data and comparison; the run that lost a statement keeps it - the cell, the code, the error - with the line it cost blank for that reason, the fit it ran under and its own folder on the executor's side; the cache-picked run's load says the file and the cache",
                   run_files == ["v1_%d" % i for i in range(_n_runs + 1)] and os.path.exists(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_1", "stdout.txt"))
-                  and [x["number"] for x in rj2.get("runs", [])] == list(range(1, _n_runs + 1)) and [x["status"] for x in rj2["runs"]][:4] == ["reproduced", "ran", "reproduced", "failed"] and rj2["runs"][1]["inputs"] == {"regime": "C"}
+                  and [x["number"] for x in rj2.get("runs", [])] == list(range(1, _n_runs + 1)) and [x["status"] for x in rj2["runs"]][:4] == ["reproduced", "ran", "reproduced", "ran"] and rj2["runs"][1]["inputs"] == {"regime": "C"}
                   and (edition != "hosted" or (rj2["runs"][4]["status"] == "reproduced" and run5.get("data", {}).get("load") == {"source": "file", "name": "field_trial.csv", "cached": True} and run5.get("data", {}).get("name") == "field_trial.csv"))
                   and run1.get("against") == 0 and run1.get("comparison", {}).get("compared") == 1 and run1.get("data", {}).get("name") == "field_trial.csv" and len(run1.get("results", [])) == 1
-                  and run1.get("consolidation", "").startswith("the rewritten method confirmed on this data (run 1): 1 result line identical, 2 figures identical") and rj2["versions"][0]["consolidated"]["confirmed"]["run"] == 1 and "script_fallback" not in rj2["versions"][0]
-                  and rj2["versions"][0]["consolidated"]["line"].endswith("; confirmed on run 1")
-                  and "ZeroDivisionError" in run4.get("error", "") and run4.get("fit", {}).get("missing") == ["soil"] and run4.get("run_dir", "").endswith("/v1_4") and run4.get("data", {}).get("load", {}).get("source") == "file",
+                  and run1.get("stopped") == [] and run1.get("gaps") == [] and run4.get("error") == "" and [(s["cell"], s["error"].split(":")[0]) for s in run4.get("stopped", [])][:1] == [(2, "ZeroDivisionError")]
+                  and "adj_diff" in run4["stopped"][0]["code"] and run4["results"][0]["estimate"] is None and run4["results"][0]["why"].startswith("cell 2 stopped: ZeroDivisionError")
+                  and rj2["runs"][3]["results"][0]["why"].startswith("cell 2 stopped: ZeroDivisionError") and run4.get("fit", {}).get("missing") == ["soil"] and run4.get("run_dir", "").endswith("/v1_4") and run4.get("data", {}).get("load", {}).get("source") == "file",
                   (run_files, [(x.get("number"), x.get("status"), x.get("inputs")) for x in rj2.get("runs", [])], run4.get("fit"), run4.get("run_dir")))
-            # a run deleted from the history (2026-11-08, docs/ROUTINES_DESIGN.md §21): the failed run 4 is named under the Custom table with
-            # Open and Delete; Delete asks, the line and the folder go, the Summary is read again, the other runs stand
+            # a run deleted from the history (2026-11-08, docs/ROUTINES_DESIGN.md §21): run 4 - the one that lost its line - is a column of the Custom
+            # table like the others, its cell a dot that says why; Delete in its head asks, the line and the folder go, the Summary is read again
             page.click("#routinesPill")
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
-            page.wait_for_selector("#routinesModal .rt-foot .rt-failed[data-run='4']", timeout=15000)
-            expected_heads = [str(n) for n in range(0, 4)] + (["5"] if edition == "hosted" else [])       # the runs that ran, run 0 first; the Summary freshly read
-            page.wait_for_function("(want) => [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run).join(',') === want", arg=",".join(expected_heads), timeout=15000)
-            before_del = page.evaluate("() => ({ failed: [...document.querySelectorAll('#routinesModal .rt-foot .rt-failed')].map(e => [e.dataset.run, [...e.querySelectorAll('.acts a')].map(a => a.textContent)]), heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run) })")
+            all_heads = [str(n) for n in range(0, _n_runs + 1)]                                             # run 0, then every run: each ran
+            page.wait_for_function("(want) => [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run).join(',') === want", arg=",".join(all_heads), timeout=15000)
+            before_del = page.evaluate("""() => ({ heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run), failed: document.querySelectorAll('#routinesModal .rt-foot .rt-failed').length,
+                acts: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run="4"] .acts a')].map(a => a.textContent), cells: [...document.querySelectorAll('#routinesModal .rt-runs tbody td.num')].map(td => td.textContent),
+                why: ([...document.querySelectorAll('#routinesModal .rt-runs tbody td.num')].filter(td => td.querySelector('.rt-mark.missing')).map(td => td.getAttribute('title'))[0] || '') })""")
             page.once("dialog", lambda d: d.accept())
-            page.click("#routinesModal .rt-foot .rt-failed[data-run='4'] [data-act='delete-run']")
-            page.wait_for_function("() => !document.querySelector('#routinesModal .rt-foot .rt-failed[data-run=\"4\"]') && document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]').length > 0", timeout=15000)
-            after_del = page.evaluate("() => ({ failed: [...document.querySelectorAll('#routinesModal .rt-foot .rt-failed')].map(e => e.dataset.run), heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run), side: (document.querySelector('#routinesModal .rt-side .it span') || {}).textContent || '' })")
+            page.click("#routinesModal .rt-runs thead th[data-run='4'] [data-act='delete-run']")
+            page.wait_for_function("() => !document.querySelector('#routinesModal .rt-runs thead th[data-run=\"4\"]') && document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]').length > 0", timeout=15000)
+            after_del = page.evaluate("() => ({ heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run), side: (document.querySelector('#routinesModal .rt-side .it span') || {}).textContent || '' })")
             rj3 = json.load(open(rdirs[0]))
-            check("Delete on the failed run's line: the run asked about and gone - off the table's foot, off routine.json, its folder off the disk - the other runs standing with their numbers, the rail's count down by one",
-                  before_del["failed"] == [["4", ["Open", "Delete"]]] and after_del["failed"] == [] and after_del["heads"] == expected_heads and before_del["heads"] == expected_heads and [x["number"] for x in rj3.get("runs", [])] == [n for n in range(1, _n_runs + 1) if n != 4]
+            check("the run that lost its line is a column of the Custom table - a dot where its number would be, the reason on hover - and nothing is named under the table as failed; Delete in its head: the run asked about and gone - off the "
+                  "table, off routine.json, its folder off the disk - the other runs standing with their numbers, the rail's count down by one",
+                  before_del["heads"] == all_heads and before_del["failed"] == 0 and before_del["acts"] == ["Open", "Delete"] and before_del["cells"][4] == "·" and before_del["why"].startswith("cell 2 stopped: ZeroDivisionError")
+                  and after_del["heads"] == [h for h in all_heads if h != "4"] and [x["number"] for x in rj3.get("runs", [])] == [n for n in range(1, _n_runs + 1) if n != 4]
                   and not os.path.isdir(run4_folder) and f"{_n_runs - 1} runs" in after_del["side"], (before_del, after_del, [x["number"] for x in rj3.get("runs", [])]))
             page.evaluate("RoutinesUI.closeManager()")
             # back to the thread for the rest of the walk

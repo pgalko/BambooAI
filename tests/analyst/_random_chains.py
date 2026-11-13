@@ -1,10 +1,12 @@
-"""Random small chains for the pruning's own test (test_routines.py; docs/ROUTINES_DESIGN.md §19.5): each is run as
-written and as pruned, and the RESULT values must be the same. The statements are of the kinds the reading claims to
-see - assignments, in-place changes, deletions, functions that change or read what is outside them or change what they
-are handed, bare calls, draws from numpy's global generator, the standard library's and one made by default_rng, names
-read through strings, loops and branches, prints. A second name for one object is left out: the reading does not claim
-it (run zero's fallback is for that). Found with it, 2026-11-13: a call reads what the function's body reads when it is
-called, not when it was defined; numpy's global generator and the standard library's are two states, not one."""
+"""Random small chains for the tests of the reading (test_routines.py; docs/ROUTINES_DESIGN.md §19, §22): each is run
+as written and as pruned, and the RESULT values must be the same; each is run a statement at a time with one statement
+made to stop, and no line that still comes back may differ. The statements are of the kinds the reading claims to see -
+assignments, in-place changes, deletions, functions that change or read what is outside them or change what they are
+handed, bare calls, draws from numpy's global generator, the standard library's and one made by default_rng, names read
+through strings, loops and branches, prints. A second name for one object is left out: the reading does not claim it
+(the shorter run is held to run zero for that, and a run checks the objects themselves). Found with it, 2026-11-13: a
+call reads what the function's body reads when it is called, not when it was defined; numpy's global generator and the
+standard library's are two states, not one."""
 import contextlib, io
 
 import numpy as np

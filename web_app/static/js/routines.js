@@ -19,10 +19,6 @@
         if (!ts) return '';
         try { return new Date(Number(ts) * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); } catch (e) { return ''; }
     }
-    function fmtDateTime(ts) {
-        if (!ts) return '';
-        try { return new Date(Number(ts) * 1000).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
-    }
     function chainDate(chainId) {
         // a chain id is a unix timestamp (the app mints them so); a date for "the analysis of 10 Oct"
         const n = Number(chainId);
@@ -196,7 +192,7 @@
                 '<div class="rt-right"><div class="ui-dlg-h"><div><div class="title"></div><div class="sub"></div></div><span class="sp"></span><div class="rt-actions"></div><button class="x" aria-label="Close">×</button></div><div class="rt-body"></div></div></div>';
         },
         sideItem(r, on) {
-            const st = r.run_zero_status === 'verifying' ? ' · verifying…' : (r.run_zero_status === 'condensing' ? ' · condensing…' : (r.run_zero_status === 'differed' || r.run_zero_status === 'failed' ? ' · did not reproduce' : ''));
+            const st = r.run_zero_status === 'verifying' ? ' · verifying…' : (r.run_zero_status === 'differed' || r.run_zero_status === 'failed' ? ' · did not reproduce' : '');
             return '<div class="it' + (on ? ' on' : '') + '" data-id="' + esc(r.id) + '"><b>' + esc(r.name) + '</b><span>' + esc(sourceLabel(r.source)) + ' · v' + esc(r.current_version) + (r.runs ? ' · ' + r.runs + ' run' + (r.runs === 1 ? '' : 's') : '') + st + ' · ' + esc(fmtDate(r.updated || r.created)) + '</span></div>';
         },
         empty() {
@@ -209,8 +205,9 @@
                 : '<span class="ui-muted">from the analysis of ' + esc(chainDate(o.chain_id) || o.chain_id) + ' — no longer in Saved workflows</span>';
             return { title: esc(r.name), sub: esc(sourceLabel(r.source)) + ' · v' + esc(r.current_version) + ' · ' + link };
         },
-        // the manager's body (S2, redesigned 2026-11-08: one column, one scroll): the facts - Purpose, Inputs, Tracked, Custom
-        // instructions when the routine has them (§15.6), Version(s) - then the runs of the interval and athlete picked as a table.
+        // the manager's body (S2, redesigned 2026-11-08: one column, one scroll): the facts - Purpose, Inputs, Tracked, what the
+        // method gave on smaller pieces when Save tried it, Custom instructions when the routine has them (§15.6), Version(s) -
+        // then the runs of the interval and athlete picked as a table.
         // `fill` is the session's fill when it is this routine's (§14.3); `opts` {today, horizon} the units a set interval's view
         // spans (§14.6: the last year, or the plan's day limit)
         routineBody(r, fill, opts) {
@@ -218,6 +215,7 @@
             const m = v.manifest || {};
             let h = '<div class="ui-kv rt-facts">' + (r.purpose ? '<b>Purpose</b><span>' + esc(r.purpose) + '</span>' : (r.question ? '<b>Question</b><span>' + esc(r.question) + '</span>' : '')) +
                 '<b>Inputs</b><span>' + build.inputsFacts(m.parameters || []) + '</span><b>Tracked</b><span>' + esc(build.resultsFacts(m)) + '</span>' +
+                ((v.tried || []).length ? '<b>Tried on</b><span class="rt-tried">' + build.triedFacts(v.tried) + '</span>' : '') +
                 (r.instruction ? '<b>Custom instructions</b><span>' + esc(r.instruction) + '</span>' : '') +
                 '<b>Version' + ((r.versions || []).length > 1 ? 's' : '') + '</b><span class="rt-vers">' + build.versionRows(r) + '</span></div><div class="rt-sep"></div>';
             // the runs by athlete (2026-10-30): a choice when the runs span more than one, the latest run's athlete first - and the
@@ -253,65 +251,75 @@
             if (!n && !k) return 'none recorded: runs keep their printed output';
             return (nums && charts ? nums + ' and ' + charts : nums || 'no metrics recorded, ' + charts) + ' per run';
         },
+        // what Save found when it tried the method on smaller pieces of the analysis's own data: per piece, how many of the
+        // tracked metrics came back with a number; the piece's dates and the reason for the first missing one on hover
+        triedText(t) {
+            if (t.status === 'failed' || t.status === 'timed_out') return 'could not be run';
+            if (t.status === 'empty') return 'no data';
+            return t.of ? (t.came === t.of ? 'all ' + t.of : t.came + ' of ' + t.of) : 'ran';
+        },
+        triedFacts(tried) {
+            return tried.map(t => '<span title="' + esc((t.window || []).join(' → ') + ' — ' + (t.line || '')) + '">a ' + esc(t.interval) + ': ' + esc(build.triedText(t)) + '</span>').join(' · ');
+        },
         // the Version rows, newest first: the number, the date, the chain it came from when there are several, run zero's verdict (the
-        // lines reproduced; the reason when it did not), the condensed code's size and time or that the code runs as written (§19),
-        // the consolidation's state (§19.3),
-        // the code as written to take away, the change note after the first version
+        // lines reproduced; the reason when it did not), the change note after the first version
         versionRows(r) {
             const vs = (r.versions || []).slice().reverse(), several = vs.length > 1;
             return vs.map(x => {
                 const rz = x.run_zero || {}, st = rz.status || (rz.verified ? 'reproduced' : 'unverified');
                 const n = (((x.manifest || {}).results) || []).length;
                 let t = esc(fmtDate(x.created)) + (several ? ' · from the analysis of ' + esc(chainDate((x.promoted_from || {}).chain_id) || (x.promoted_from || {}).chain_id) : '') + ' · ' + build.zeroStatus(rz);
-                if (st === 'reproduced' || (rz.verified && st !== 'verifying' && st !== 'condensing')) t += n ? ', ' + n + ' line' + (n === 1 ? '' : 's') + ' reproduced' : '';
+                if (st === 'reproduced' || (rz.verified && st !== 'verifying')) t += n ? ', ' + n + ' line' + (n === 1 ? '' : 's') + ' reproduced' : '';
                 else if (st === 'differed' || st === 'failed') t += rz.line ? ' — ' + esc(rz.line) : '';
-                const c = x.condensed || {};
-                if (c.status === 'condensed' && c.cells) t += ' · ' + esc(c.cells[1]) + ' cell' + (c.cells[1] === 1 ? '' : 's') + (c.elapsed && c.elapsed[1] != null ? ' · ' + build.secsText(c.elapsed[1]) : '');
-                else if (c.status === 'as_written') t += ' · <span class="rt-aswritten" title="' + esc(c.line || '') + '">as written</span>';     // the chain's code runs: why on hover
-                const k = x.consolidated || {};
-                if (k.status === 'consolidated') t += ' · ' + (k.confirmed ? 'rewritten, confirmed on run ' + esc(k.confirmed.run) : 'rewritten, the next run on new data checks it');
-                else if (k.status === 'fell_back') t += ' · rewrite dropped on run ' + esc((k.fell_back || {}).run);
-                if (x.written_chars > 0 && r.id) t += ' · <a class="rt-written" href="/routines/' + esc(r.id) + '/script?written=1" download title="the code as the analysis wrote it, before it was condensed">as written ↓</a>';
                 if (x.change_note && x.change_note !== 'first version') t += ' · “' + esc(x.change_note) + '”';
                 return '<span class="v" data-version="' + esc(x.number) + '"><b>v' + esc(x.number) + '</b>' + t + '</span>';
             }).join('');
         },
-        secsText(t) { t = Number(t) || 0; return Math.round(t * 10) / 10 < 10 ? (Math.round(t * 10) / 10) + ' s' : fmtTook(t); },
         shown(estimate) { return esc(String(estimate == null ? '' : estimate).replace(/^\+/, '')); },     // a value as the Summary's tables show it: the sign only when negative (2026-11-08)
         // ---- the Summary by interval (§14.6): the counts and the filter bar, the series of one interval on one athlete, the table by
-        // unit with a thumbnail per line, the enlarged chart. The runs that count are the current version's that ran.
+        // unit with a thumbnail per line, the enlarged chart.
         INTERVAL_NAMES: { day: 'Daily', week: 'Weekly', month: 'Monthly', year: 'Yearly', custom: 'Custom' },
-        doneRuns(r, athleteId) {
-            return (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && (athleteId == null || build.subjectId(x) === String(athleteId)));
+        // the current version's runs by how they ended: DONE has lines - the history, and what a later run is compared with;
+        // KEPT adds a run whose window had no data, which stays on record as a blank row; LOST could not be carried out
+        DONE: ['ran', 'reproduced'], KEPT: ['ran', 'reproduced', 'empty'], LOST: ['failed', 'timed_out'],
+        runsOf(r, statuses, athleteId) {
+            return (r.runs || []).filter(x => x.version === r.current_version && statuses.includes(x.status) && (athleteId == null || build.subjectId(x) === String(athleteId)));
         },
+        doneRuns(r, athleteId) { return build.runsOf(r, build.DONE, athleteId); },
+        has(x) { return !!x && x.estimate != null; },      // a line that came back with a number
+        // a line that did not: a dot in its cell, and why on the cell's hover
+        BLANK: '<span class="rt-mark missing">·</span>',
+        why(x) { return x && x.why ? ' title="' + esc(x.why) + '"' : ''; },
+        // a run whose data was emptier than the original's: a small mark, and what was empty on hover
+        gapMark(run) { const g = (run && run.gaps) || []; return g.length ? ' <span class="rt-gapmark" title="' + esc(g.join('; ')) + '">△</span>' : ''; },
         // how many runs each interval has on the athlete; run zero counts as custom when it is theirs
         intervalCounts(r, athleteId) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
             const out = { day: 0, week: 0, month: 0, year: 0, custom: 0 };
-            build.doneRuns(r, athleteId).forEach(x => { out[x.interval in out ? x.interval : 'custom'] += 1; });
+            build.runsOf(r, build.KEPT, athleteId).forEach(x => { out[x.interval in out ? x.interval : 'custom'] += 1; });
             if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) out.custom += 1;
             return out;
         },
         openInterval(r, athleteId) {    // the interval the Summary opens on: the latest run's, custom without one
-            const runs = build.doneRuns(r, athleteId);
+            const runs = build.runsOf(r, build.KEPT, athleteId);
             return runs.length && runs[runs.length - 1].interval ? runs[runs.length - 1].interval : 'custom';
         },
         filterBar(counts, on) {
             return '<span class="ui-seg rt-filter">' + Object.keys(build.INTERVAL_NAMES).map(k => { const n = counts[k] || 0;
                 return '<span class="' + [k === on ? 'on' : '', n ? '' : 'off'].filter(Boolean).join(' ') + '" data-filter="' + k + '"' + (n ? '' : ' title="no run with this interval yet"') + '>' + build.INTERVAL_NAMES[k] + (n ? '<span class="k">' + n + '</span>' : '') + '</span>'; }).join('') + '</span>';
         },
-        // the series: the manifest's lines with estimates; the horizon's units, each with the latest run on it that ran and that run's
-        // values by line - a unit whose runs all failed carries its latest failed run under `failed`, a row that says why (2026-11-08),
-        // and counts as not run; the rows (the units with a run, the latest first); the first and last unit run; what is missing
+        // the series: the manifest's lines with estimates; the horizon's units, each with the latest run kept on it and that run's
+        // values by line (a line that did not come back is a blank with its reason) - a unit whose runs could not be carried out
+        // carries the latest of them under `failed`, a row that says why (2026-11-08), and counts as not run; the rows (the units
+        // with a run, the latest first); the first and last unit run; what is missing
         series(r, kind, athleteId, units) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
             const all = (v.manifest || {}).results || [];
             const lines = all.filter(x => !x.dropped && x.estimate != null);
             const byUnit = {}, failedBy = {};
             const key = x => { const w = (x.data || {}).window || []; return w[0] + ' ' + w[1]; };
-            build.doneRuns(r, athleteId).filter(x => x.interval === kind).forEach(x => { if (!byUnit[key(x)] || x.number > byUnit[key(x)].number) byUnit[key(x)] = x; });
-            (r.runs || []).filter(x => x.version === r.current_version && ['failed', 'timed_out'].includes(x.status) && x.interval === kind && (athleteId == null || build.subjectId(x) === String(athleteId)))
-                .forEach(x => { if (!failedBy[key(x)] || x.number > failedBy[key(x)].number) failedBy[key(x)] = x; });
+            build.runsOf(r, build.KEPT, athleteId).filter(x => x.interval === kind).forEach(x => { if (!byUnit[key(x)] || x.number > byUnit[key(x)].number) byUnit[key(x)] = x; });
+            build.runsOf(r, build.LOST, athleteId).filter(x => x.interval === kind).forEach(x => { if (!failedBy[key(x)] || x.number > failedBy[key(x)].number) failedBy[key(x)] = x; });
             const points = units.map(w => { const k = w[0] + ' ' + w[1], run = byUnit[k] || null;
                 return { unit: w, run, failed: run ? null : failedBy[k] || null, values: run ? lines.map(l => (run.results || [])[all.indexOf(l)] || null) : null }; });
             const have = points.map((p, i) => p.run ? i : -1).filter(i => i >= 0);
@@ -335,14 +343,14 @@
             const th = '<th>' + one.charAt(0).toUpperCase() + one.slice(1) + '</th>' + s.lines.map((l, i) => '<th class="m" title="' + esc(l.label) + '"><span class="lab">' + esc(heads[i]) + '</span>' + build.thumb(s, i) + '</th>').join('');
             const body = s.rows.map((p, ri) => {
                 const run = p.run || p.failed;
-                const w = '<td class="w">' + esc(build.unitText(one, p.unit, true)) + '<span class="open">open →</span><span class="r">run ' + esc(run.number) + '</span></td>';
+                const w = '<td class="w">' + esc(build.unitText(one, p.unit, true)) + build.gapMark(run) + '<span class="open">open →</span><span class="r">run ' + esc(run.number) + '</span></td>';
                 if (!p.run) return '<tr class="failed" data-run="' + esc(run.number) + '">' + w + '<td class="f" colspan="' + s.lines.length + '">' + esc(run.line || run.status.replace('_', ' ')) + '</td></tr>';
-                let below = null;                                   // the unit before it that ran: the next row below with values
-                for (let k = ri + 1; k < s.rows.length && !below; k++) if (s.rows[k].run) below = s.rows[k];
+                let below = null;                                   // the unit before it that ran: the next row below with lines, as the run itself was compared
+                for (let k = ri + 1; k < s.rows.length && !below; k++) if (s.rows[k].run && build.DONE.includes(s.rows[k].run.status)) below = s.rows[k];
                 const tds = s.lines.map((l, i) => {
                     const x = p.values[i], b = below ? below.values[i] : null;
-                    const mark = x && b ? build.markOf(x, b) : '';
-                    return '<td class="num"' + (x ? ' title="run ' + esc(p.run.number) + (build.ivl(x) ? ' · ' + build.ivl(x).replace(/"/g, '') : '') + '"' : '') + '>' + (x ? build.shown(x.estimate) : '<span class="rt-mark missing">·</span>') +
+                    const mark = build.has(x) && build.has(b) ? build.markOf(x, b) : '';
+                    return '<td class="num"' + (build.has(x) ? ' title="run ' + esc(p.run.number) + (build.ivl(x) ? ' · ' + build.ivl(x).replace(/"/g, '') : '') + '"' : build.why(x)) + '>' + (build.has(x) ? build.shown(x.estimate) : build.BLANK) +
                         (mark && mark !== 'missing' ? ' <span class="rt-mark ' + esc(mark) + '">' + build.markText(mark) + '</span>' : '') + '</td>';
                 }).join('');
                 return '<tr' + (ri === 0 ? ' class="latest"' : '') + ' data-run="' + esc(p.run.number) + '">' + w + tds + '</tr>';
@@ -429,19 +437,17 @@
             if (v.run_zero && v.run_zero.verified) add(build.zeroSubject(v), ((((v.manifest || {}).data || {}).load || {}).subject || {}).name || '');
             return out;
         },
-        // run zero's verdict as a status chip (2026-10-15: run zero runs behind the dialog, so a routine can be verifying; since
-        // §19 condensing too, the pass after a verdict of reproduced)
+        // run zero's verdict as a status chip (2026-10-15: run zero runs behind the dialog, so a routine can be verifying)
         zeroStatus(rz) {
             const st = (rz && rz.status) || (rz && rz.verified ? 'reproduced' : 'unverified');
-            const cls = st === 'verifying' || st === 'condensing' ? 'verifying' : (st === 'reproduced' || (rz && rz.verified) ? 'reproduced' : (st === 'differed' || st === 'failed' ? 'differed' : 'unverified'));
-            const word = st === 'condensing' ? 'condensing…' : (cls === 'verifying' ? 'verifying…' : (cls === 'reproduced' ? 'verified' : (cls === 'differed' ? 'did not reproduce' : 'unverified')));
+            const cls = st === 'verifying' ? 'verifying' : (st === 'reproduced' || (rz && rz.verified) ? 'reproduced' : (st === 'differed' || st === 'failed' ? 'differed' : 'unverified'));
+            const word = cls === 'verifying' ? 'verifying…' : (cls === 'reproduced' ? 'verified' : (cls === 'differed' ? 'did not reproduce' : 'unverified'));
             return '<span class="rt-status ' + cls + '">' + word + '</span>';
         },
         zeroHold(r) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const st = (v.run_zero || {}).status || r.run_zero_status || '';
             if (st === 'verifying') return 'still being verified on its chain’s own data — run it when it has settled';
-            if (st === 'condensing') return 'its code is still being condensed — run it when it has settled';
             if (st === 'differed' || st === 'failed') return 'run zero did not reproduce the chain’s analysis — the method is not run on other data; delete it, or make it again from the chain';
             return '';
         },
@@ -508,26 +514,21 @@
             if (kind === 'month') return (short ? build.MONTHS : build.MONTHS_LONG)[a.getMonth()] + ' ' + a.getFullYear();
             return String(a.getFullYear());
         },
-        nextDay(iso) { const d = build.dayOf(iso); return d ? build.isoDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) : ''; },
         // what Run would do on the interval (§14.2): the units in the horizon, those not run yet on this athlete under the current
-        // version (a failed run counts as not run), how many are kept, the last complete unit and whether it is run already
+        // version (a run that could not be carried out counts as not run; one whose window had no data is run), how many are
+        // kept, the last complete unit and whether it is run already
         fillPlan(r, kind, athleteId, units) {
-            const done = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && x.interval === kind && build.subjectId(x) === String(athleteId || ''));
-            const has = w => done.some(x => { const win = (x.data || {}).window || []; return win[0] === w[0] && win[1] === w[1]; });
+            const kept = build.runsOf(r, build.KEPT, athleteId || '').filter(x => x.interval === kind);
+            const has = w => kept.some(x => { const win = (x.data || {}).window || []; return win[0] === w[0] && win[1] === w[1]; });
             const toRun = units.filter(w => !has(w));
             const last = units.length ? units[units.length - 1] : null;
-            return { kind, units, toRun, kept: units.length - toRun.length, last, lastRun: !!(last && has(last)), done };
+            return { kind, units, toRun, kept: units.length - toRun.length, last, lastRun: !!(last && has(last)) };
         },
         // the windows one press of Run runs: with the fill, every unit not run yet (the last again when nothing is missing); without, the last alone
         fillWindows(plan, fill) { if (!plan || !plan.last) return []; return fill && plan.toRun.length ? plan.toRun : [plan.last]; },
-        // the run a set interval is compared with (§14.1): the latest earlier run of the kind on the athlete, by its window's end
-        before(plan, w) {
-            const earlier = plan.done.filter(x => (((x.data || {}).window || [])[1] || '') < w[0]);
-            return earlier.length ? earlier.reduce((a, x) => (x.data.window[1] > a.data.window[1] || (x.data.window[1] === a.data.window[1] && x.number > a.number) ? x : a)) : null;
-        },
         tookOf(r) {          // what a run takes, from the last one that ran (or run zero): said before Run, and the fill's cost
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
-            const runs = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status));
+            const runs = build.doneRuns(r);
             const last = runs.length ? runs[runs.length - 1] : null;
             return Number((last && last.elapsed) || (v.run_zero && v.run_zero.elapsed) || 0);
         },
@@ -537,8 +538,7 @@
             const took = build.tookOf(r);
             if (!(took >= 1)) return '';
             if (units > 1) return 'about ' + fmtTook(units * took);
-            const runs = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status));
-            return 'the ' + (runs.length ? 'last run' : 'check on the original data') + ' took ' + fmtTook(took);
+            return 'the ' + (build.doneRuns(r).length ? 'last run' : 'check on the original data') + ' took ' + fmtTook(took);
         },
         lastInterval(r) {    // the interval the routine was last run on under the current version: the dialog opens on it
             const runs = (r.runs || []).filter(x => x.version === r.current_version);
@@ -549,12 +549,15 @@
             return '<span class="ui-seg rt-interval">' + Object.keys(names).map(k => '<span' + (k === kind ? ' class="on"' : '') + ' data-interval="' + k + '">' + names[k] + '</span>').join('') + '</span>';
         },
         // under the row (§16.1): the last complete unit (never the one under way) and whether it is run, then the box to fill the
-        // units not run yet - or that every unit is run already, or that the horizon holds no complete unit
-        intervalPlan(plan, maxDays, fill) {
+        // units not run yet - or that every unit is run already, or that the horizon holds no complete unit; `tried`, what one
+        // unit of the original data gave when the routine was saved, is said when it gave less than every metric
+        intervalPlan(plan, maxDays, fill, tried) {
             const one = plan.kind, many = plan.kind + 's';
             if (!plan.last) return '<div class="rt-plan warn">No complete ' + one + ' within the last ' + esc(Math.min(maxDays, 365)) + ' days.</div>';
             const more = plan.toRun.filter(w => w !== plan.last).length;
-            let h = '<div class="rt-plan">Last complete ' + one + ': <b>' + esc(build.unitText(one, plan.last, true)) + '</b> <span class="n">— ' + (plan.lastRun ? 'run already' + (more ? '' : '; Run runs it again') : 'not run yet') + '</span></div>';
+            const less = tried && tried.status !== 'empty' && !(tried.status === 'ran' && tried.came === tried.of)
+                ? '<div class="rt-plan rt-tried warn" title="' + esc((tried.window || []).join(' → ') + ' — ' + (tried.line || '')) + '">One ' + one + ' of the original data ' + (tried.status === 'ran' ? 'gave ' + esc(tried.came) + ' of the ' + esc(tried.of) + ' metrics.' : 'could not be run.') + '</div>' : '';
+            let h = less + '<div class="rt-plan">Last complete ' + one + ': <b>' + esc(build.unitText(one, plan.last, true)) + '</b> <span class="n">— ' + (plan.lastRun ? 'run already' + (more ? '' : '; Run runs it again') : 'not run yet') + '</span></div>';
             if (plan.units.length < 2) return h;
             const back = 'back to ' + esc(build.dateText(plan.units[0][0]));
             if (!more) return h + '<div class="rt-plan"><span class="n">Every ' + one + ' ' + back + ' is run already (' + plan.kept + ' ' + many + ').</span></div>';
@@ -652,7 +655,7 @@
         // the Compare row (§16.1; another run since 2026-11-08, §21): the run before, run 0 when it is this athlete's, and any
         // earlier custom run on the athlete - two periods compared whatever ran in between; no row with one choice
         compareSection(r, v, athleteId) {
-            const mine = (r.runs || []).filter(x => x.version === r.current_version && ['ran', 'reproduced', 'differed'].includes(x.status) && build.subjectId(x) === String(athleteId || ''));
+            const mine = build.doneRuns(r, athleteId || '');
             const last = mine.length ? mine[mine.length - 1] : null;
             const zero = v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId || '');
             const others = mine.filter(x => x !== last && !x.interval).reverse();
@@ -665,10 +668,9 @@
         },
         num(x) { return x == null || x === '' ? '' : String(x); },
         ivl(s) { return s && s.low != null && s.high != null ? '[' + esc(s.low) + ', ' + esc(s.high) + ']' : ''; },
-        markText(m) { return ({ up: '↑', down: '↓', same: '=', missing: '·', unreached: '·', changed: '≠' })[m] || ''; },
+        markText(m) { return ({ up: '↑', down: '↓', same: '=', missing: '·', changed: '≠' })[m] || ''; },
         markWord(row) {
-            if (row.mark === 'missing') return 'missing';
-            if (row.mark === 'unreached') return 'not reached';
+            if (row.mark === 'missing') return row.now ? 'no earlier value' : 'not computed';
             if (row.overlap === true) return 'within';
             if (row.overlap === false) return 'moved';
             return row.mark === 'same' ? 'same' : 'changed';
@@ -706,32 +708,30 @@
             const th = (n, data) => { const when = kind ? build.unitText(kind, build.windowOf(data), true) : build.whenOf(data); return kind && when ? '<th class="num">' + esc(when) + '<span class="when">run ' + esc(n) + '</span></th>' : '<th class="num">Run ' + esc(n) + (when ? '<span class="when">' + esc(when) + '</span>' : '') + '</th>'; };
             const lineOf = x => series ? series.lines.findIndex(l => l.cell === x.cell && l.index === x.index) : -1;       // the comparison's row as the manifest's line, for its thumbnail
             const trendTh = kind ? '<th class="trend">' + esc(build.INTERVAL_NAMES[kind]) + ' trend</th>' : '', trendTd = x => (kind ? '<td class="trend">' + (lineOf(x) >= 0 ? build.thumb(series, lineOf(x)) : '') + '</td>' : '');
-            if (run.status === 'failed' || run.status === 'timed_out') {
-                // the failed cell's code beside the traceback (step 4, 2026-10-11): what ran, and where it stopped; a failure in the
-                // method's own code offers the fix (§22): the question prepared from the record, the data loaded again, the analysis opened
-                const fc = run.failed_cell || null;
-                h += '<div class="rt-error"><div class="msg">' + esc(run.line || '') + '</div>' +
-                    (fc && fc.code ? '<div class="rt-error-cell"><div class="h">cell ' + esc(fc.number) + ' — the code that failed</div><pre class="ui-code"><code class="language-python">' + esc(fc.code) + '</code></pre></div>' : '') +
-                    (run.error ? '<div class="rt-error-tb"><div class="h">the error</div><pre class="ui-code">' + esc(run.error) + '</pre></div>' : '') +
-                    (view.fix ? '<div class="rt-fix"><button type="button" class="ui-btn" data-act="fix-run" onclick="RoutinesUI.fixRun()">Fix it in the analysis</button>' +
-                        '<span class="n">' + (view.fix.source === 'intervals' ? 'Loads this run’s data, opens the analysis and writes the question; you read it and send it.' : 'Opens the analysis and writes the question; load this run’s data first.') + '</span></div>' : '') + '</div>';
-            }
+            // a run that could not be carried out says why, with the error; a run on a window with no data says so and shows no
+            // table; the statements that stopped, one line each with the code under it; what was emptier than the original's data
+            if (build.LOST.includes(run.status)) h += '<div class="rt-error"><div class="msg">' + esc(run.line || '') + '</div>' + (run.error ? '<div class="rt-error-tb"><div class="h">the error</div><pre class="ui-code">' + esc(run.error) + '</pre></div>' : '') + '</div>';
+            h += (run.stopped || []).map(s => '<details class="rt-stopped"><summary>cell ' + esc(s.cell) + ' stopped: ' + esc(s.error) + (s.skipped ? ' <span class="n">· ' + esc(s.skipped) + ' later step' + (s.skipped === 1 ? '' : 's') + ' not run</span>' : '') + '</summary>' +
+                '<pre class="ui-code"><code class="language-python">' + esc(s.code) + '</code></pre></details>').join('');
+            h += (run.gaps || []).map(g => '<div class="rt-fit note">△ ' + esc(g) + '</div>').join('');
             const rows = c.rows || [];
-            if (!rows.length) {
+            if (run.status === 'empty') {
+                h += '<div class="rt-line">No data in this window, so nothing was run.</div>';
+            } else if (!rows.length) {
                 h += '<div class="rt-line">' + (run.number === 0 || run.against == null ? 'Nothing to compare with: the first run of this version. Its results are on the Results tab.' : 'No result line to compare.') + '</div>';
             } else if (run.against == null) {
                 // nothing to compare with - the first run on this athlete, or of the version: the record's own line says which
                 h += (run.number !== 0 && c.line ? '<div class="rt-line muted">' + esc(c.line) + '</div>' : '') +
                     '<table class="ui-table rt-cmp-table' + (kind ? ' with-trend' : '') + '"><thead><tr><th>Result</th>' + th(run.number, d) + trendTh + '</tr></thead><tbody>' +
-                    rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(build.lineName(x)) + '</td><td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' + trendTd(x) + '</tr>').join('') + '</tbody></table>';
+                    rows.map(x => '<tr><td class="label" title="' + esc(x.label) + '">' + esc(build.lineName(x)) + '</td><td class="num"' + (x.now ? '' : build.why(x)) + '>' + (x.now ? esc(build.num(x.now.estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div>' : build.BLANK) + '</td>' + trendTd(x) + '</tr>').join('') + '</tbody></table>';
             } else {
                 h += '<table class="ui-table rt-cmp-table' + (kind ? ' with-trend' : '') + '"><thead><tr><th>Result</th>' + th(run.against, ref) + th(run.number, d) + '<th class="num">Change</th><th>Intervals</th>' + trendTh + '</tr></thead><tbody>' +
                     rows.map(x => '<tr class="' + esc(x.mark) + '"><td class="label" title="' + esc(x.label) + '">' + esc(build.lineName(x)) + '</td>' +
                         '<td class="num">' + esc(build.num((x.before || {}).estimate)) + '<div class="ci">' + build.ivl(x.before) + '</div></td>' +
-                        '<td class="num">' + esc(build.num((x.now || {}).estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div></td>' +
+                        '<td class="num"' + (x.now ? '' : build.why(x)) + '>' + (x.now ? esc(build.num(x.now.estimate)) + '<div class="ci">' + build.ivl(x.now) + '</div>' : build.BLANK) + '</td>' +
                         '<td class="num change">' + (x.change == null ? '' : esc((x.change > 0 ? '+' : '') + Number(x.change.toPrecision(3)))) + '</td>' +
-                        '<td><span class="rt-mark ' + esc(x.mark) + '">' + build.markText(x.mark) + '</span> ' + build.markWord(x) + '</td>' + trendTd(x) + '</tr>').join('') + '</tbody></table>' +
-                    '<div class="rt-legend">Estimates with their 95% intervals, as the routine printed them. "moved" means the two intervals do not overlap; "within" means they do; without intervals, "changed" and "same" compare the estimates' + ((c.unreached || 0) ? '; "not reached" is a line the run failed before printing' : '') + (kind ? '. The trend is each line over the ' + kind + 's run on this athlete, oldest to newest' : '') + '. Nothing here is written by a model.</div>';
+                        '<td' + build.why(x) + '><span class="rt-mark ' + esc(x.mark) + '">' + build.markText(x.mark) + '</span> ' + build.markWord(x) + '</td>' + trendTd(x) + '</tr>').join('') + '</tbody></table>' +
+                    '<div class="rt-legend">Estimates with their 95% intervals, as the routine printed them. "moved" means the two intervals do not overlap; "within" means they do; without intervals, "changed" and "same" compare the estimates' + (kind ? '. The trend is each line over the ' + kind + 's run on this athlete, oldest to newest' : '') + '. Nothing here is written by a model.</div>';
             }
             return h + '</div></div>';
         },
@@ -755,7 +755,7 @@
                 '<b>Columns</b><span>' + (Array.isArray(cols) && cols.length && typeof cols[0] === 'object' ? cols.map(c => esc(c.name) + (c.dtype ? ' <span class="ui-muted">' + esc(c.dtype) + '</span>' : '')).join(', ') : esc(String(cols))) + '</span></div></div></div>';
         },
         markOf(now, before) {
-            if (!now || !before) return 'missing';
+            if (!build.has(now) || !build.has(before)) return 'missing';
             const a = parseFloat(String(now.estimate).replace(/,/g, '')), b = parseFloat(String(before.estimate).replace(/,/g, ''));
             const ia = now.low != null && now.high != null ? [parseFloat(String(now.low).replace(/,/g, '')), parseFloat(String(now.high).replace(/,/g, ''))] : null;
             const ib = before.low != null && before.high != null ? [parseFloat(String(before.low).replace(/,/g, '')), parseFloat(String(before.high).replace(/,/g, ''))] : null;
@@ -769,20 +769,21 @@
         },
         // the custom runs (§14.6): a column per run in the order they were run, each against the one before - not a series, so no
         // trend is drawn across them; the head says the run's day and its window's length, the window itself on hover, and carries
-        // Open and Delete (§21); the custom runs that failed are named under the table with their reason, with the same two words
+        // Open and Delete (§21); the custom runs that could not be carried out, or whose window had no data, are named under the
+        // table with their reason, with the same two words
         runsTable(r, athleteId) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || {};
             const lines = ((v.manifest || {}).results || []).filter(x => !x.dropped && x.estimate != null);
             const cols = [];
             const days = d => { const w = build.windowOf(d), a = build.dayOf(w[0]), b = build.dayOf(w[1]); return a && b ? Math.round((b - a) / 86400000) : null; };     // start to end, as the Data tab's pill and the run dialog count a window
             if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [], when: build.whenOf(((v.manifest || {}).data) || {}), days: days(((v.manifest || {}).data) || {}) });
-            build.doneRuns(r, athleteId).filter(x => !x.interval).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [], when: build.whenOf(x.data || {}), days: days(x.data || {}) }));
-            const failed = (r.runs || []).filter(x => x.version === r.current_version && ['failed', 'timed_out'].includes(x.status) && !x.interval && (athleteId == null || build.subjectId(x) === String(athleteId))).reverse();
+            build.doneRuns(r, athleteId).filter(x => !x.interval).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [], when: build.whenOf(x.data || {}), days: days(x.data || {}), mark: build.gapMark(x) }));
+            const failed = build.runsOf(r, build.LOST.concat('empty'), athleteId).filter(x => !x.interval).reverse();
             const foot = failed.length ? '<div class="rt-foot">' + failed.map(x => '<span class="rt-failed" data-run="' + esc(x.number) + '">run ' + esc(x.number) + ' · ' + esc(fmtDate(x.created)) + ' · ' + esc(x.line || x.status.replace('_', ' ')) + build.runActs(x.number) + '</span>').join('') + '</div>' : '';
             if (!lines.length || !cols.length) return '<div class="rt-line muted">' + (!lines.length ? 'This routine records no result lines; its runs keep their output and figures.' : 'No custom run yet.') + '</div>' + foot;
             const all = ((v.manifest || {}).results || []);
             // the mark sits between the two numbers it compares, in a column of its own (2026-10-10: beside the second number it read as a misplaced Trend)
-            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num" data-run="' + esc(c.number) + '"' + (c.when ? ' title="' + esc(c.when) + '"' : '') + '>Run ' + esc(c.number) + '<span class="d">' + esc(fmtDate(c.created)) + (c.days ? ' · ' + esc(c.days) + ' days' : '') + '</span>' + build.runActs(c.number) + '</th>').join('') + '</tr></thead>';
+            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num" data-run="' + esc(c.number) + '"' + (c.when ? ' title="' + esc(c.when) + '"' : '') + '>Run ' + esc(c.number) + (c.mark || '') + '<span class="d">' + esc(fmtDate(c.created)) + (c.days ? ' · ' + esc(c.days) + ' days' : '') + '</span>' + build.runActs(c.number) + '</th>').join('') + '</tr></thead>';
             const body = lines.map(line => {
                 const pos = all.indexOf(line);
                 const cells = cols.map(c => c.results[pos] || null);
@@ -792,7 +793,7 @@
                         const mark = build.markOf(x, cells[i - 1]);
                         tds += '<td class="mark">' + (mark === 'missing' ? '' : '<span class="rt-mark ' + esc(mark) + '">' + build.markText(mark) + '</span>') + '</td>';
                     }
-                    tds += '<td class="num"' + (x ? ' title="' + build.ivl(x).replace(/"/g, '') + '"' : '') + '>' + (x ? build.shown(x.estimate) : '<span class="rt-mark missing">·</span>') + '</td>';
+                    tds += '<td class="num"' + (build.has(x) ? ' title="' + build.ivl(x).replace(/"/g, '') + '"' : build.why(x)) + '>' + (build.has(x) ? build.shown(x.estimate) : build.BLANK) + '</td>';
                 });
                 return '<tr>' + tds + '</tr>';
             }).join('');
@@ -1102,7 +1103,7 @@
             st.asideOpen = false;
             const pr = st.proposal;
             const under = st.threadRoutines;
-            p.sub.textContent = 'from this chain · ' + (pr.chain_cells && pr.chain_cells !== pr.cells ? pr.cells + ' of ' + pr.chain_cells + ' cells' : pr.cells + ' cell' + (pr.cells === 1 ? '' : 's')) + ' · ' + (pr.results || []).length + ' metric' + ((pr.results || []).length === 1 ? '' : 's') + (pr.figures && pr.figures.count ? ' · ' + pr.figures.count + ' figure' + (pr.figures.count === 1 ? '' : 's') : '') + (pr.cost ? ' · $' + Number(pr.cost).toFixed(2) : '');
+            p.sub.textContent = 'from this chain · ' + pr.cells + ' cell' + (pr.cells === 1 ? '' : 's') + ' · ' + (pr.results || []).length + ' metric' + ((pr.results || []).length === 1 ? '' : 's') + (pr.figures && pr.figures.count ? ' · ' + pr.figures.count + ' figure' + (pr.figures.count === 1 ? '' : 's') : '') + (pr.cost ? ' · $' + Number(pr.cost).toFixed(2) : '');
             p.body.innerHTML = build.proposal(pr, under);
             p.createBtn.style.display = '';
             p.createBtn.disabled = false;
@@ -1496,7 +1497,8 @@
         p.d.querySelectorAll('.rt-fit[data-for="now"]').forEach(el => { el.style.display = choice === 'now' ? '' : 'none'; });
         const box = p.d.querySelector('.rt-interval-plan'); if (!box) return;
         const plan = intervalPlan();
-        box.innerHTML = plan ? build.intervalPlan(plan, Number((st.limits || {}).max_days) || 365, fillOn(p)) : '';
+        const v = (st.routine.versions || []).find(x => x.number === st.routine.current_version) || {};
+        box.innerHTML = plan ? build.intervalPlan(plan, Number((st.limits || {}).max_days) || 365, fillOn(p), (v.tried || []).find(t => t.interval === plan.kind)) : '';
         p.d.querySelectorAll('.rt-custom').forEach(el => { el.style.display = st.interval && st.interval !== 'custom' ? 'none' : ''; });
         p.d.querySelectorAll('.rt-row[data-row="athlete"], .rt-row[data-row="interval"]').forEach(el => el.classList.toggle('off', choice !== 'load'));
     }
@@ -1595,26 +1597,24 @@
     }
     // the load, as the original load asked for its data (the integration routes the Data tab uses; its pills and the
     // dataframe tab refreshed the way the Data tab refreshes them)
-    // `spec` (§22): a record's load - {asked, routineId, say} - in place of the dialog's fields, when a failed run's data is loaded again
-    async function loadData(plan, p, spec) {
+    async function loadData(plan, p) {
         const src = plan.source;
-        const q = sel => (p && p.d ? p.d.querySelector(sel) : null);
-        const say = spec && spec.say ? spec.say : progress;
+        const q = sel => p.d.querySelector(sel);
         const dfTab = job => { if (job && job.dataframe && typeof createOrUpdateTab === 'function') { try { const o = JSON.parse(job.dataframe); createOrUpdateTab('dataframe', o.data); } catch (e) { /* no tab */ } } };
-        const asked = spec && spec.asked ? spec.asked : loadAsked(plan, p);
+        const asked = loadAsked(plan, p);
         // the cache asked here, for the window or the event as it stands when Run is pressed - not the line's earlier answer,
         // which can lag behind a date typed and committed by the click on Run itself (2026-10-11: a window loaded minutes
         // before was downloaded again)
         let cached = null;
         if (src === 'intervals' || src === 'endura') {
-            say('Asking the cache…', 'loading');
-            const c = await askCache(spec && spec.routineId ? { id: spec.routineId } : runState, asked);
+            progress('Asking the cache…', 'loading');
+            const c = await askCache(runState, asked);
             cached = c && c.hit ? c : null;
         }
         if (cached) {
             // the load is in the cache with every file the routine wants: the cached frame and files are taken through the
             // Dataset cache's own routes, the pills as a load's, no download
-            say('Taking it from the cache…', 'loading');
+            progress('Taking it from the cache…', 'loading');
             const res = await fetchJson('/cache/load_primary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ df_id: cached.df_id, folder: cached.folder || '' }) });     // whose frame: the other athletes' files leave the session with it (2026-10-29)
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the cached data could not be loaded');
             for (const fp of cached.files || []) {
@@ -1642,7 +1642,7 @@
         if (src === 'intervals') {
             const start = asked.start_date, end = asked.end_date;          // the window as typed, or a set interval's span (§14.2; a day's start is its end)
             if (!start || !end || start > end) throw new Error('the window needs a start before its end');
-            say('Starting the load from Intervals.icu…', 'loading');
+            progress('Starting the load from Intervals.icu…', 'loading');
             const who = asked.subject || {};                      // whose key (2026-10-30): the app refuses, naming them, when none is stored
             const res = await fetchJson('/intervals/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ start_date: start, end_date: end, metrics: plan.metrics || [], aux_datasets: plan.aux_kinds || [] }, who.id ? { athlete: who.id, athlete_name: who.name || '' } : {})) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load could not start');
@@ -1658,7 +1658,7 @@
                     // the coding pass behind the load (2026-10-14): a routine's counts depend on the codes, so the run waits for it here
                     let coding = job.result && job.result.context && job.result.context.coding;
                     while (coding && coding.status === 'running' && Date.now() - t0 < 600000) {
-                        say(coding.message || 'Coding the context…', 'loading', coding.percent);
+                        progress(coding.message || 'Coding the context…', 'loading', coding.percent);
                         await sleep(2000);
                         const cr = await fetchJson('/intervals/context_coding/' + encodeURIComponent(jobId));
                         coding = cr.json || null;
@@ -1673,7 +1673,7 @@
                     return { source: 'intervals', start, end, aux: files, load: Object.assign({}, asked, store ? { store } : {}), store, loaded: 'Intervals.icu' + (who.name ? ' · ' + who.name + ' ·' : '') + ' ' + start + ' → ' + end + ((plan.aux_kinds || []).length ? ' · ' + plan.aux_kinds.join(', ') : '') + (coding && coding.line ? ' · ' + coding.line : '') };
                 }
                 if (job.status === 'error' || job.status === 'not_found') throw new Error(job.error || 'the load failed');
-                say(job.message || 'Loading…', 'loading', job.total > 0 ? job.percent : null);
+                progress(job.message || 'Loading…', 'loading', job.total > 0 ? job.percent : null);
             }
             throw new Error('the load did not finish in ten minutes');
         }
@@ -1681,7 +1681,7 @@
             const race = q('select[data-load="race"]'); const raceId = race && race.value;
             if (!raceId) throw new Error('pick a race');
             const title = race.options[race.selectedIndex].textContent;
-            say('Loading ' + title + ' from Endura…', 'loading');
+            progress('Loading ' + title + ' from Endura…', 'loading');
             const res = await fetchJson('/endura/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ race_id: raceId, aux_datasets: plan.aux_kinds || ['profile'] }) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load failed');
             if (typeof createOrUpdateDatasetPill === 'function') {
@@ -1693,7 +1693,7 @@
         }
         if (src === 'sweatstack') {
             const start = q('input[data-load="start"]').value, end = q('input[data-load="end"]').value;
-            say('Loading from SweatStack…', 'loading');
+            progress('Loading from SweatStack…', 'loading');
             const res = await fetchJson('/sweatstack/load_data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sports: plan.sports || [], metrics: plan.metrics || [], users: plan.users || [], start_date: start, end_date: end }) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the load failed');
             if (typeof createSweatStackPill === 'function') createSweatStackPill({ start_date: start, end_date: end, sports: plan.sports || [], users: plan.users || [] });
@@ -1705,7 +1705,7 @@
             const pick = q('select[data-load="cached"]');
             if (!pick || !pick.value) throw new Error('choose a file from the cache');
             const name = pick.options[pick.selectedIndex].getAttribute('data-name') || 'the cached file';
-            say('Taking ' + name + ' from the Dataset cache…', 'loading');
+            progress('Taking ' + name + ' from the Dataset cache…', 'loading');
             const res = await fetchJson('/cache/load_primary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ df_id: pick.value }) });
             if (!res.ok) throw new Error((res.json && res.json.error) || 'the cached file could not be loaded');
             if (typeof createOrUpdateDatasetPill === 'function') createOrUpdateDatasetPill('primary-dataset-pill-' + Date.now(), 'Primary (' + name + ') loaded', 'primary', 'success', false, null);
@@ -1717,7 +1717,7 @@
         const f = q('input[data-load="file"]');
         if (!f || !f.files || !f.files.length) throw new Error('choose a file');
         const file = f.files[0];
-        say('Uploading ' + file.name + '…', 'loading');
+        progress('Uploading ' + file.name + '…', 'loading');
         const fd = new FormData(); fd.append('file', file);
         const r = await window.authService.fetch('/upload', { method: 'POST', body: fd });
         let data = {}; try { data = await r.json(); } catch (e) { data = {}; }
@@ -1885,7 +1885,7 @@
     function finishRunView(out) {
         if (!viewState) return;
         const run = out.run, numbers = out.numbers || viewState.numbers;
-        viewState.numbers = numbers; viewState.index = Math.max(0, numbers.indexOf(run.number)); viewState.pending = false; viewState.routine = out.routine || viewState.routine; viewState.view = out;
+        viewState.numbers = numbers; viewState.index = Math.max(0, numbers.indexOf(run.number)); viewState.pending = false; viewState.routine = out.routine || viewState.routine;
         if (out.subject) viewState.subject = out.subject;
         if (typeof paneRunIds === 'function') paneRunIds({ name: viewState.routine.name, run: run.number + ' · v' + run.version + whoLine(), df_id: (run.data || {}).df_id || '' });
         const c = run.comparison || {};
@@ -1911,7 +1911,6 @@
             const view = res.json, run = view.run;
             const numbers = view.numbers || [number];
             enterRunView(view.routine, numbers, Math.max(0, numbers.indexOf(run.number)), { version: run.version, subject: view.subject || {} });
-            viewState.view = view;
             const d = run.data || {};
             const cells = run.cells != null ? run.cells + ' cell' + (run.cells === 1 ? '' : 's') : '';
             if (typeof paneLookup === 'function') {
@@ -1923,7 +1922,7 @@
                 if (run.against != null) { const w = build.whenOf(view.against_data); paneLookup({ kind: 'compare', query: 'with run ' + run.against + (w ? ' (' + w + ')' : ''), peek: (run.comparison || {}).line || '', sources: [], passages: [] }); }
             }
             const c = run.comparison || {};
-            if (typeof paneRoutineEnd === 'function') paneRoutineEnd({ number: run.number, name: view.name, version: run.version, status: run.status, line: run.line, results: (run.results || []).length, compared: c.compared || 0, moved: c.moved || 0, changed: c.changed || 0, missing: c.missing || 0, figures: run.figures || 0, elapsed: run.elapsed, against: run.against, comparison_line: c.line });
+            if (typeof paneRoutineEnd === 'function') paneRoutineEnd({ number: run.number, name: view.name, version: run.version, status: run.status, line: run.line, results: (run.results || []).filter(build.has).length, compared: c.compared || 0, moved: c.moved || 0, changed: c.changed || 0, missing: c.missing || 0, figures: run.figures || 0, elapsed: run.elapsed, against: run.against, comparison_line: c.line });
             if (typeof createOrUpdateTab === 'function') {
                 createOrUpdateTab('comparison', build.comparisonTab(view));
                 (view.figures || []).forEach(f => createOrUpdateTab('plot', f.data, f.id, f.format));
@@ -1939,28 +1938,6 @@
     function exitRunView() {
         viewState = null;
         composerUnlock();
-    }
-    // Fix it in the analysis (§22): the failed run's data back in the session - an Intervals window through the cache, else downloaded
-    // - then the origin analysis opened with the prepared question in the composer, unsent: the coach reads it, adds what the record
-    // cannot know, and sends it; a file is left to the coach to load
-    async function fixRun() {
-        const v = viewState && viewState.view; if (!v || !v.fix || !v.routine) return;
-        if (typeof queryRunning !== 'undefined' && queryRunning) { toast('An analysis is running; wait for it to finish.'); return; }
-        const r = v.routine, ld = v.fix.load || {};
-        if (v.fix.source === 'intervals' && ld.start_date && ld.end_date) {
-            try {
-                toast('Loading the data of run ' + v.run.number + '…');
-                await clearLoaded('all');
-                await loadData({ source: 'intervals', metrics: ld.metrics || [], aux_kinds: ld.aux_kinds || [] }, null, { asked: ld, routineId: r.id, say: () => {} });
-                toast('The data of run ' + v.run.number + ' is loaded.');
-            } catch (e) {
-                toast('The run’s data could not be loaded: ' + ((e && e.message) || e) + '. Load it from the paperclip, then send the question.', 'error');
-            }
-        }
-        const o = r.origin || {};
-        if (typeof loadThreadContent === 'function') await loadThreadContent(o.thread_id, o.chain_id);
-        const box = document.getElementById('queryInput');
-        if (box) { box.value = v.fix.question; box.dispatchEvent(new Event('input', { bubbles: true })); box.focus(); }
     }
     function navigateRuns(direction) {
         if (!viewState || viewState.pending) return;
@@ -1979,28 +1956,25 @@
     }
 
     // ------------------------------------------------------------ the rail entry
-    // run zero behind the dialog (2026-10-15): the page follows the verdict and says it when it lands; the manager, open on
-    // the routine, shows the chip change and the Run button come alive. The condensing pass (§19) follows the verdict: the
-    // chip says condensing… meanwhile, and the toast carries the pass's line
+    // the proof behind the dialog (2026-10-15): the page follows the verdict and says it when it lands - with what a smaller
+    // piece of the data gave, when one gave less than every metric; the manager, open on the routine, shows the chip change
+    // and the Run button come alive
     const watching = {};
     function watchVerification(id, name, version) {
         if (watching[id]) return;
-        watching[id] = 'verifying';
+        watching[id] = true;
         const t0 = Date.now();
         const tick = () => fetchJson('/routines/' + encodeURIComponent(id)).then(res => {
             const r = res.json && res.json.routine;
             const v = r && (r.versions || []).find(x => x.number === version);
             const st = v && v.run_zero ? v.run_zero.status : '';
-            if (!r || (st && st !== 'verifying' && st !== 'condensing')) {
+            if (!r || (st && st !== 'verifying')) {
                 delete watching[id];
-                if (v) toast(name + ' · v' + version + (v.run_zero.verified ? ' · verified on the original data' + (v.condensed && v.condensed.line ? ' · ' + v.condensed.line : '') : ' · run zero did not reproduce: ' + (v.run_zero.line || '')));
+                const less = v ? (v.tried || []).filter(t => t.status !== 'empty' && !(t.status === 'ran' && t.came === t.of)) : [];
+                if (v) toast(name + ' · v' + version + (v.run_zero.verified ? ' · verified on the original data' + (less.length ? ' · ' + less.map(t => 'a ' + t.interval + ' gives ' + build.triedText(t)).join(', ') : '') : ' · run zero did not reproduce: ' + (v.run_zero.line || '')));
                 if (manager && manager.style.display !== 'none') loadManager(id);
                 if (window.WorkflowModal && typeof window.WorkflowModal.refresh === 'function') window.WorkflowModal.refresh();
                 return;
-            }
-            if (st && st !== watching[id]) {                 // verifying → condensing: the open manager's chip follows
-                watching[id] = st;
-                if (manager && manager.style.display !== 'none') loadManager(id);
             }
             if (Date.now() - t0 < 3600000) setTimeout(tick, 3000); else delete watching[id];
         }).catch(() => { setTimeout(tick, 5000); });
@@ -2052,7 +2026,7 @@
         setTimeout(probeFill, 1500);
     }
 
-    window.RoutinesUI = { initialize, openMake, openManager, closeManager, toggleSaveMenu: toggleMenu, hideSaveMenu: hideMenu, forgetOrigins, fixRun,
+    window.RoutinesUI = { initialize, openMake, openManager, closeManager, toggleSaveMenu: toggleMenu, hideSaveMenu: hideMenu,
                           cardButton: build.cardButton, cardCount, bindCardButton, composerLock, composerUnlock, build,
                           openRun, viewRun, exitRunView, inRunView, navigateRuns, updateRunNav, enterRunView, runNumbers, clearLoaded, fillRunning };
     window.composerLock = composerLock; window.composerUnlock = composerUnlock;

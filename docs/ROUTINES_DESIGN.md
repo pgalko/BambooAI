@@ -5,7 +5,8 @@ on new data — a later window from Intervals.icu, another athlete's data behind
 Endura, an updated lab file — and compared, run against run. This document is the map of the feature: the
 vocabulary, what it builds on, the records, the flows with their failure states, the model's two calls, the screens,
 the storage, the build order and the open decisions. Steps 1 (Save as routine) and 2 (Run on current data) are
-built; the rest is design.
+built; the rest is design. The sections are dated as they were written; where a later one changed an earlier one,
+the earlier says so. How a version is stored and how a run executes it were rebuilt on 2026-11-13 (§19, §22).
 
 The story in one paragraph. A coach explores a question with the analyst and lands on something worth keeping.
 *Save → Save as routine* keeps the chain as a favourite and turns it into a routine: the method with its few inputs
@@ -29,8 +30,8 @@ the data**. The routine records the shape of the data the analysis ran on — th
 auxiliary file with its name and columns, how the load was asked for — and a run loads new data the same way, then
 makes it fit that shape before the cells run: the recorded file names open this load's files, a column this load
 lacks is added empty, a type that changed is read back. The stored method is never edited after promotion; the
-coach is told what differs before anything runs; a failure is a run, kept and named at its cell. Nothing in the
-loaders, the analyst, the kernel or the cache changes for this.
+coach is told what differs before anything runs; a step that cannot be computed on this data costs its own numbers,
+not the run (§22). Nothing in the loaders, the analyst, the kernel or the cache changes for this.
 
 ## 1. Vocabulary
 
@@ -69,7 +70,7 @@ Facts about the code as of 2.2.2 (patches to 0110), so the design claims nothing
 - `RESULT(...)` prints one regular line per estimate — `RESULT: {tags}{what}: {est} (95% CI {lo} to {hi}) {unit},
   {direction}` — and marks a typed one with ` - typed: ...`. The line is parseable (`analyst/routines.py`
   `parse_result_line`); the kernel also keeps a structured record per cell, and the routine's expected lines come
-  from those records, keyed by position.
+  from those records, in order; a run knows each by the statement that prints it (§22.1).
 - A run now records what it ran on (`Run.data`, 2026-10-10): the frame's `df_id`, name, source as the executor's
   cache knows it (csv | intervals | endura | sweatstack), columns with dtypes, rows, the loader's details, the
   auxiliary files. The `dataset_metadata` table of the hosted dump is not written by the app; the run's record is.
@@ -90,9 +91,12 @@ in both editions, like favourites; nothing in the database.
 origin's), summary (the origin report's opening), origin (thread id, chain id — the favourite), source
 (file | intervals | endura | sweatstack | none), current_version, versions, runs.
 
-**version** — number, created, promoted_from (thread id, chain id), script (the assembled text with the cell
-markers and an `# --- INPUTS ---` mark between the preamble and the first cell), manifest, change_note ("first
-version"; later the coach's one line), run_zero (status, line, verified, results, figures, data, inputs).
+**version** — number, created, promoted_from (thread id, chain id), script (the one text a version keeps, §19.1:
+the chain as written with the promoter's edits - the assembled text with the cell markers and an `# --- INPUTS ---`
+mark between the preamble and the first cell), manifest, change_note ("first version"; later the coach's one line),
+run_zero (status, line, verified, results, figures, data, inputs), and what the proof at Save found (§22): `steps`
+(a mark of the statements the script reads into), `lean` (the statements a run executes), `tried` (what the method
+gave on smaller pieces of the analysis's data).
 
 **manifest**:
 - `data`: the run's data record (above) — the columns with their types, which a later run is made to fit; `load`,
@@ -101,27 +105,32 @@ version"; later the coach's one line), run_zero (status, line, verified, results
   subjects, the window; a file — its name), which a run repeats; `aux`, the auxiliary files' paths; `aux_shape`,
   each file's columns with their types and its row count, read at promotion while the files are still there (the
   table's rows, read whole - 2026-10-16, patch 0171: a line count had put a passage's every line on the CHECK row);
-  `span`, the period the frame itself covers (its date column, first and last dates), read by the same probe.
+  `span`, the period the frame itself covers (its date column, first and last dates), read by the same probe;
+  `gaps`, how much of each column the method names was empty in the analysis's own data, counted at run zero (§22.4).
 - `parameters`: at most five, each `{key, label, type (number | numbers | date_window | choice | toggle), default,
   origin ("the exploration used …"), column? (choice), multiple? (choice), derived? (span | window)}`. The script
   reads `INPUTS[key]`; the runner writes the `INPUTS = {...}` block at the mark before each run. A derived input is
   not asked: the run writes it from the data (§4.8).
 - `results`: the expected RESULT lines in order, each `{cell, index, label, typed, dropped, estimate, low, high,
-  unit, direction, name?}` — the identity of a line is `(cell, index)`, never the label. `typed` comes from the kernel's
-  records; a dropped line stays in the manifest, so the check by position still maps the chain's lines to the
-  routine's. `name` is the promoter's short name for a compared line (§15), shown wherever the line is; `label` stays
-  the wording the chain recorded.
+  unit, direction, name?, at?}` — the identity of a line is `(cell, index)`, never the label. `typed` comes from the
+  kernel's records; a dropped line stays in the manifest, so every run's lines are laid against the same list. `name`
+  is the promoter's short name for a compared line (§15), shown wherever the line is; `label` stays the wording the
+  chain recorded. `at` is the line's place in a run - the statement that prints it and its order among that
+  statement's lines - learnt at run zero (§22.1).
 - `figures`: how many the script draws, and which cells. Since 2026-10-11 a chain draws in one cell, the figures
   step's after the report (a cell that draws during the analysis is not run), so a routine's figures are that
   cell's; the report's *Figures* section cites it as `[fig n]`, which is how the assembly reaches it.
 - `notes`: what the promotion left out and why (an input whose edit did not apply, a sixth input).
 
-**run** — built (step 2): number (0 is run zero), version, created, finished, elapsed, status (reproduced | ran |
-differed | failed | timed_out), line (the status in words), data (the loaded data's record: source, name, columns
-with their types, rows, range, auxiliaries, how it was loaded), inputs (the values the run was given), results (the
-lines parsed from the printed output by position), figures (the count; the files beside it), stdout_chars, cells,
+**run** — built (step 2; its lines and statuses as §22.3 since 2026-11-13): number (0 is run zero), version,
+created, finished, elapsed, status (ran | reproduced | empty | failed | timed_out), line (the status in words), data
+(the loaded data's record: source, name, columns with their types, rows, range, auxiliaries, how it was loaded),
+inputs (the values the run was given), results (one entry per expected line, in the manifest's order: the line as
+printed, or a blank with the reason it is missing), figures (the count; the files beside it), cells,
 against (the reference run's number), comparison (rows, moved, within, changed, missing, compared, line), narrative
-(step 3; empty until then), error; and, since the rebuild of F2, how the data was made to fit: `fit` (the columns
+(step 3; empty until then), error (when the script could not be carried through), `stopped` (the statements that
+stopped: cell, line, code, error, how many later ones were not run), `gaps` (what was emptier than in the
+analysis); and, since the rebuild of F2, how the data was made to fit: `fit` (the columns
 missing, extra, retyped; the line), `bindings` (each recorded file name and the path it opened in this run),
 `aux_absent` (the recorded files this load lacked, by kind), `shape` (what the probe found in each bound file and
 the copies it wrote), `run_dir` (the run's own folder on the executor's side), `generated` (the files the run
@@ -129,12 +138,15 @@ wrote). Each run is `runs/v<version>_<number>/run.json` with `stdout.txt` and `f
 light summary — the data without its columns, the comparison's counts — is appended to `routine.json`'s `runs`
 list, which the manager and the run dialog read.
 
-Status meanings: *reproduced* — every expected line reappeared with the same numbers (run zero, or a run on the same
-data with the same inputs); *ran* — every line reappeared, numbers differ (the normal case on new data); *differed* —
-a line is missing, or more came back than expected; *failed* — the script stopped at cell n (the run is kept, so the
-history shows it); *timed_out* — likewise; *unverified* — run zero could not run because the analysis's data was no
-longer loaded; the first run on data tells. A line that comes back without a number (nan, from a column that was
-empty in this data) counts as *differed*. Data with nothing of the method's in it is not a run: the check before
+Status meanings (§22.3): *reproduced* — every tracked line came back with the reference run's numbers (run zero, or
+a run on the same data with the same inputs); *ran* — the statements ran; the line says how many tracked lines came
+back with a number and why the first missing one did not (the normal case on new data is all of them); *empty* — the
+window had no rows and nothing was run; *failed* — the script could not be carried through (the executor not
+reached, an error outside the statements; the run is kept, so the history shows it); *timed_out* — likewise; run
+zero alone can be *differed* (a line or the count differs on the chain's own data) or *unverified* — it could not
+run because the analysis's data was no longer loaded; the first run on data tells. A line that comes back without a
+number (nan, from a column that was empty in this data) is a blank that says so. Data with nothing of the method's
+in it is not a run: the check before
 the run says so in the dialog and nothing is recorded (the design had a *did_not_fit* status; built as a refusal,
 since a record of nothing would only pad the table); data that differs - a column empty, a file absent - is said and
 the coach decides.
@@ -279,10 +291,13 @@ as routine; the first item then reads "Saved as favourite".
    On Create the routine is stored, v1 (or the next version) with its manifest and `run_zero.status = verifying`,
    the dialog closes, the chain is saved as a favourite (silently, no rank) when it is not one yet, and a toast
    says "Routine made: <name> · v1 · verifying on the original data in the background". Then, in a thread of the
-   app, the runner executes the script with the defaults on the chain's data through the executor (the replay's
-   path and timeout). The RESULT lines that come back are checked by position against the chain's records:
-   identical numbers *reproduced* (verified); a different count or a different number *differed*, an error *failed*
-   — the verdict and its line land on the stored version (`verify_zero`; the output and figures saved as `v1_0`),
+   app, the proof (§22.7). Run zero first: the runner executes every statement of the script with the defaults on
+   the chain's data through the executor (the replay's path and timeout), and the RESULT lines that come back are
+   checked in order against the chain's records: identical numbers *reproduced* (verified); a different count or a
+   different number *differed*; a statement that stops, or the script, *failed*. When it reproduced, the shorter
+   run (§22.2) and the trials on smaller pieces (§22.6) follow
+   — the verdict and what the proof found land on the stored version (`settle_proof`; the output and figures saved
+   as `v1_0`),
    and the page, which follows the routine every three seconds, says it in a toast and refreshes the manager if
    it is open. No pane row: a row emitted after the dialog's stream closed would land in the next request's. The
    refusal creation used to give moves to the run: **a run and the precheck are held** while the version is
@@ -446,9 +461,9 @@ version's data record, `load`), and offers the data loaded now beside it.
    *COMPARE with run k*; the Plots, Results and frame tabs through the stream; the closing card; then the Comparison
    tab, opened. The timeout is twice run zero's time plus two minutes, within five and thirty minutes (ten minutes
    when run zero did not run).
-5. **Results** parsed from the printed output by position against the manifest's lines (a dropped line is printed
-   but not compared); the status (a line that comes back without a number counts as differed); the figures and the
-   output kept beside the record.
+5. **Results**: the method runs a statement at a time (§22.1) and its lines are laid against the manifest's - one
+   entry per expected line, the line as printed or a blank with the reason it is missing (a dropped line is not
+   compared); the status (§22.3); the figures and the output kept beside the record.
 6. **The comparison** against the reference run: for each expected line, this run's estimate and interval against
    the reference's; the change; whether the intervals overlap (*moved* when they do not, *within* when they do;
    without intervals, *changed* / *same* on the estimates); a line missing on either side marked. The line reads
@@ -458,19 +473,17 @@ version's data record, `load`), and offers the data loaded now beside it.
 
 Failure states, as built: nothing of the method's data in this data - said in the dialog, *Run* off, nothing
 recorded; a value not in the data - said in the dialog, nothing runs; a load that fails (no activities in the
-window, a key not set) - the loader's own message in the dialog, nothing runs; failed at cell n - the run kept with
-status failed, the closing card in the warning tone with the line that names the error (never the kernel's rollback
-notice), the Comparison tab with the error block - the failed cell's code under its own heading beside the
-traceback (`failed_cell` on the record, step 4, 2026-10-11) - and the result lines the run printed before the
-failure compared like any other, the ones it did not reach marked *not reached* (`compare_runs(..., failed=True)`;
-the COMPARE row reads *1 of 3 moved beyond their intervals before the failure, 2 not reached*). The executor
-returns what a failed script printed before it failed, beside the error (image v57, 2026-10-16, patch 0176: it
-had returned nothing, so through the executor every failed run read *no result line came before the failure*
-while the local kernel kept the lines - the two editions now agree). Timed out -
-likewise, though a timed-out script's output is lost; a result line missing or without a number - status differed, the count in the line; the stream broke -
-the pane says so and the view returns to the last recorded run. The cell named is the right one with documents in
-the thread too: the executor's *Error on line n* head is moved back by the kernel prelude's lines as the frames
-are (a failure in cell 2 had been named at cell 3).
+window, a key not set) - the loader's own message in the dialog, nothing runs. Since 2026-11-13 (§22) a statement
+of the method that stops on this data is no failure of the run: the run is kept as one that *ran*, with the numbers
+that do not rest on that statement, a blank with the reason for those that do, and the statement on the record -
+its cell, the line in it, its code, the error (`stopped`); the Trend tab lists it, opening on its code. A window
+with no rows is *empty*: nothing is run, the row is blank. *Failed* is a script that could not be carried through -
+the executor not reached (tried once more first, §22.5), an error outside the statements: the run kept, the closing
+card in the warning tone with the line that names the error (never the kernel's rollback notice), the Trend tab
+with the error block, every line blank for that reason; the lines such a script printed before it died stand (the
+executor returns what a failed script printed, beside the error - image v57, 2026-10-16, patch 0176). Timed out -
+likewise, though a timed-out script's output is lost; the stream broke -
+the pane says so and the view returns to the last recorded run.
 
 ### F3 — Narrate (step 3)
 
@@ -586,10 +599,9 @@ Left: the routines (name; source · version · runs · date). Right: the name; "
 **facts** as label and value - *Purpose* (the question when none was written), *Inputs* (none, or a line per input:
 label, default, where it came from; one that follows the data says so), *Tracked* (what a run records: *9 metrics and
 2 charts per run*; *Results* until §15.6), *Custom instructions* when the routine has them (§15.6), *Version(s)* (newest first: the date, the chain it came from when there are several, the verdict -
-*verified, 17 lines reproduced*, or *did not reproduce — …* - the condensed code's size and time (§19: *10 cells ·
-0.8 s*), the consolidation's state (§19.3: *rewritten, the next run on new data checks it* / *confirmed on run 3* /
-*rewrite dropped on run 2*), *as written ↓* - or *as written* with the pass's reason on hover when the chain's code is the
-one that runs - the change note after the first version); a rule; **Runs** with the
+*verified, 17 lines reproduced*, or *did not reproduce — …* - the change note after the first version; nothing of
+how the code is run), *Tried on* after *Tracked* when Save tried the method on smaller pieces (§22.6: *a day: 2 of
+11 · a week: 9 of 11 · a month: all 11*); a rule; **Runs** with the
 interval filter and the athlete pick (§14.6) and the table, whose rows are the runs. A set interval: the table by
 unit, every row a run that opens (*open →* on hover), a unit whose runs all failed a row with the reason, the values
 without a plus sign, and under it the count of the units not run with *fill them* as a link into the Run dialog on
@@ -635,7 +647,8 @@ this data: power, temperature; wellness absent in this data*, *RUN run 3 · v1 �
 figure · 31 s*, *COMPARE with run 2 — 3 of 5 moved beyond their intervals* (step 3 adds the narrative card), then the
 closing card: *Run 3 complete · <routine>* with Results 6, Moved 3 of 5, Figures 1, Time 31 s, the status line, the
 line against run 2, and Comparison → Plots (1) → Results → Data links (What changed with step 3). A failed or
-differed run's card is in the warning tone. The position reads "run 3 of 3" and the arrows move between the
+timed-out run's card is in the warning tone; a run on a window with no data reads *Run 3 had no data*. The position
+reads "run 3 of 3" and the arrows move between the
 routine's runs, run 0 included when verified (its view: the version's own check, its line with the estimate and the
 interval, nothing it is against); while a run is under way the position reads "run 3 · running" and both arrows are
 off. No Save pill: the run is already recorded. The composer is disabled, its placeholder saying why ("A run is a
@@ -720,7 +733,8 @@ own `_user_code` variable (delve/kernel.py) is unrelated and stays.
    the scripted promoter names the regime as the one input, run zero reproduces the chain's line through the
    executor, the routine is stored and linked, the manager and the card show it). The first live test is a Titanic
    chain with the real promoter.
-2. **Run on current data** — built (2026-10-10): the runner, the fit and value checks, results by position, the
+2. **Run on current data** — built (2026-10-10; how a run executes and what it records rebuilt 2026-11-13, §22):
+   the runner, the fit and value checks, results by position, the
    run record and its files, the comparison, the run dialog on the data loaded now, S4's rows, strip and tabs, the
    arrows between runs (run 0 included), the composer locked, the manager's runs table and list. Accepted by: the
    pure module (the fit, the value check, the status, the comparison with the overlap flags, a failed cell named)
@@ -756,7 +770,8 @@ own `_user_code` variable (delve/kernel.py) is unrelated and stays.
    key. **The sentences — built (2026-10-11, patch 0131)**: the dialog's line, the CHECK row, the record and the
    stored run's Data tab (F2.2); the pure cases in test_routines.py, the host path on a later window (the summary's
    rows against the original's, the column added), the two walks (the file routine's rows as the original; the
-   Intervals routine's summary rows and columns added). **Fail well — built (2026-10-11, patch 0132)**: the failed
+   Intervals routine's summary rows and columns added). **Fail well — built (2026-10-11, patch 0132; superseded by
+   §22, where a statement that stops costs its own lines)**: the failed
    cell's code beside the traceback, the lines printed before the failure compared and the rest *not reached*, the
    cell named right with documents in the thread; the pure module, the host path, the markup and the stack walk
    (the run without `soil`: cell 2's code on the Comparison tab, its line not reached).
@@ -868,7 +883,8 @@ Which units: the complete units whose whole window lies within the plan's horizo
 is never asked (the clamp would hand the cut an empty frame), and at most a year back, the span the Summary's charts
 cover. A complete year fits within 365 days on 1 January alone (after a common year); otherwise the dialog says *No
 complete year within the last 365 days* and Run stays off. Already run: a run on record with the same
-athlete, interval and window whose status is ran, reproduced or differed - a failed one is run again. Coming back
+athlete, interval and window whose status is ran, reproduced or empty (a window with no data stays a blank row,
+§22.3) - a failed one is run again. Coming back
 after three months, the three missing months are what the fill runs; the rest are kept. The arithmetic is the
 page's, in pure functions the tests read (`build.units`, `build.fillPlan`); the server runs the windows it is given,
 checked against the span.
@@ -1081,8 +1097,7 @@ its payload, all domain-free (C5):
 - *a series*: lines that form a series - one quantity over durations, bands, groups or periods - are compared whole,
   every line of the series from the cell that printed it last, or none of them.
 
-Nothing else moved: the reply's shape, `pick_results`, the dialog, the manifest. The condensing pass (§19) runs after
-the pick and never touches a RESULT line, so the prints it drops have no part in this.
+Nothing else moved: the reply's shape, `pick_results`, the dialog, the manifest.
 
 ### 15.6 Custom instructions (2026-11-08)
 
@@ -1273,268 +1288,77 @@ fake promoter (the key column named in the data description; a keyed reply asked
 marked as asked again; a second keyed reply refused; an unfit reply refused; the recomputed clause a note), the C5
 scan over the new text, and the walks unchanged.
 
-## 19. The condensing pass (2026-11-07)
+## 19. What a version stores, and what the promoter reads (rewritten 2026-11-13)
 
-A routine runs the chain's cells as the analyst wrote them, and the analyst explores: inspections, printed tables,
-a computation redone three ways, a loop over rows where a rolling sum would do. The routine inherits all of it. Two
-things went wrong with that in practice: the time (the MMC chain computed its curve by brute force - minutes per run,
-and a fill runs forty of them), and the clutter (an output full of exploration a coach never asked for). Palo's first
-thought was a fourth analysis mode that primes the analyst to write routine-ready code; dropped, since it would cost the
-analysis its exploring and touch every chain for the few that become routines. The shaping belongs after the chain,
-when the outputs are known - and not in the promoter's pass, which is a reading job (verbatim fragments, find/replace)
-that run zero can check.
+This section stood for four patches that each added a pass over the method at Save: the condensing pass (0272), the
+consolidation by a model (0274), the exploration going before the promoter (0283) and the pruning by statements
+(0286). The review of 13 November found the feature fragile for what it asked of the method *after* it was saved,
+and the rebuild of §22 took the passes out. What stands of them is here; what went, and why, is in §22.8.
 
-Patch 0272 shipped the pass as a model's job: a Condenser seat given the cells, asked for the kept cells, its
-candidate run and compared. On the first live chain (the MMC, twelve cells, 2026-11-07) the seat it fell back to - the
-analyst's, tuned for long reasoning on short replies - spent its whole token allowance reasoning and returned nothing;
-the floor held and the routine stayed as written, but the design was fragile in three ways: the reply grew with the
-chain, the model saw code without the context that made it, and equivalence was checked on one dataset. Palo: "this
-feels a little fragile". 0273 took the model out of the pass; what remains needs none.
+### 19.1 One text
 
-### 19.1 The pass
+A version stores one script: **the chain as written, with the promoter's edits** (`routines_host.method_cells`).
+Nothing shortens or rewrites it at Save - no code, no model - and nothing is kept beside it. The `.py` download is
+that text with its inputs at the top. What a run executes of it is decided when it runs (§22.2).
 
-*Since 0286 the pruning reads statements and runs before the promoter, and the pass holds the method to its figures
-(§19.5); what follows is the pass as it was made.*
+### 19.2 The promoter's view
 
-After run zero reproduces, the cells are pruned from the code alone (`rt.prune_cells`). Each cell is parsed; the pass
-reads what it defines - names bound, names it mutates in place (a subscript or attribute assignment, an in-place call,
-`inplace=True`), functions, classes - what it reads from before it, and whether anything rests on it: a RESULT call,
-a figure (its cell named in the manifest, or a show / savefig call), a save or write (`to_csv` and its kind,
-`write_*`), an input read that no other kept cell makes. The reads are walked in statement order with Python's
-scopes: a name the cell binds before reading it - an earlier statement's, a loop or with target, a function's
-parameters and locals, a comprehension's or lambda's own - is not read from outside, so the `g`, `s` and `n` the
-analyst reuses in every cell do not chain the cells together (the first live chain, twelve cells, kept all twelve
-under the naive rule and ten under this one, the two that went being the inspection and a check). A walk from the
-last cell to the first keeps a cell when it is anchored so, or when a later kept cell reads a name it defines; every
-other cell goes - its imports kept in place, since they are cheap and a later cell may lean on them - as do the
-top-level `print` and `display` statements of the cells kept (a print inside a loop or a branch stays). Markers and
-numbers stay, as do the capture switches between cells. A cell that does not parse prunes nothing, with the reason on
-the record.
+The promoter does not read the chain's exploration - a row named by its identifier and printed about, a check by
+hand, a table shown. The statements no result line or figure rests on are left out of what it reads
+(`rt.prune_cells`): an identifier that was only looked at is not there to refuse (§18), and the prompt is shorter. A
+chain with nothing to rest on - no RESULT line, no figure - is read whole: its printed output is what a run keeps.
 
-The candidate is not trusted; it is run. `condense` in the host checks its cells against the original's
-(`check_condensed`: a subsequence of the markers, every figure cell kept, the same inputs read), joins the script and
-runs it on the chain's own data through the same runner as run zero, and accepts it only when `check_lines` says
-reproduced - every RESULT line identical as printed, the same count - and `same_figures` says the same pictures: the
-same number, each figure's Plotly data and layout equal with numbers within a relative 1e-9 (plotly's typed arrays
-decoded and compared the same way; nan as nan), a PNG byte for byte. When the pruning of cells fails that test - a
-dropped cell mattered through a path the code does not show, a function mutating a list it was handed - the prints
-alone are tried; when that fails too, or there is nothing to cut, the script stays as written, the line saying why.
-Two runs at most, no model, no cost beyond them.
+The promoter's edits are found in that view and applied to the chain. The view's dropped lines are held out
+(`rt.held_out`: each replaced by a line no fragment of code can match), the edits land exactly where they landed in
+the view however often the chain repeats a fragment (`print('threshold = 155 ...')` beside `threshold = 155`), and
+the lines are put back (`rt.put_back`). Where the view dropped nothing, or an edit does not land on the chain, the
+view is the text.
 
-### 19.2 What is kept, and what the coach sees
+The dialog's header says the chain's cells: *from this chain · 9 cells · 12 results · 2 figures*.
 
-When the candidate is accepted the version's `script` is the condensed one and the chain's stays as
-`script_written`; run zero's record - its results, figure count, time and the files under `runs/v1_0` - becomes the
-condensed run's, since that is the script every later run is read against; the pass itself is on the version as
-`condensed` {status, line, cells [before, after], dropped {cells, prints}, elapsed [run zero's, the candidate's]}.
-Kept as written, the version carries the record and no `script_written`.
+### 19.3 The reading
 
-Behind the dialog the verdict's thread runs the pass after run zero: the version is written as `condensing`
-meanwhile - `zero_holds` holds a run, the manager's chip says *condensing…* and the list row too - then settled. The
-page's watch (`watchVerification`) goes on through it, reloads an open manager when the status turns so the chip
-follows, and its toast carries the pass's line: *verified on the original data · condensed: 12 cells → 5, 23 prints
-dropped, 190 s → 184 s*, or *· as written: the pruned code did not reproduce the figures: figure 2 differs*. The
-Summary's version row (the Checked row until §20) carries the outcome after the verdict - *10 cells · 0.8 s* - with
-*as written ↓* beside it when the condensed code is the one that runs - `/routines/<id>/script?written=1`, the chain's
-code with the INPUTS block, named `_as_written.py`. Nothing else speaks: no pane rows, no figures shown (the
-candidate's exist to be compared).
+The view, and a run (§22), stand on one reading of the code (`rt._Facts`, `rt.read_steps`): every top-level
+statement of every cell - statements sharing a line are one - with the names it binds or changes in place, the names
+it reads before binding them, the names it binds whole, and whether something rests on it:
 
-The pass runs only where it can be checked: a routine made with the chain's data gone (unverified) is left as
-written, as is one whose run zero differed or failed. A run's Results tab may be empty afterwards when the method
-printed nothing but what the pass dropped - the RESULT lines, when there are any, still print there. The time the
-pass saves is the dropped cells'; the slow cell that stays is the consolidation's (§19.3).
+- it prints a RESULT line, itself or through a function of the chain's that does;
+- it is a check of the method's own that can stop the run - a module-level `assert` or `raise`;
+- it has an effect outside the names - a figure shown, a file saved or written, a bare call on a module (a setting, a
+  seed, a folder made), a write through `globals()`, `eval` / `exec`.
 
-### 19.3 The consolidation (patch 0274)
+From the last statement to the first, a statement stays when it is wanted, or when a later staying statement reads
+a name it defines or changes; a statement that binds a name whole (`x = ...`, a `def`, an import) ends the reading
+of what the name held before it (`rt._stay`). Imports and the capture switches stay wherever they are.
 
-The speed. The MMC method's cost is one computation the cells redo several ways, and no pruning touches it. A rewrite
-of that is a model's job again - done, this time, on the footing §19 set out: the unit is the method, not a cell; the
-model gets the context the analyst had; the rewrite is checked on two datasets; and the step is opted in by seat,
-never a fallback.
-
-**The seat.** `Condenser` in the model config. Without the entry the step does not run (`_condenser_seat` is None):
-the one fallback 0272 made - the analyst's seat, tuned for long reasoning on short replies - was the failure. Since
-0275 the shipped template carries the seat in every preset (Palo: "add it to the template as default, the same model
-as the analyst"): the preset's analyst model and provider, medium effort, the Promoter's token allowance - a seat at
-medium, not the analyst's xhigh, and the call asks for medium in any case (`_effective_effort` only ever lowers).
-Removing the entry turns the step off; the stack's copy of the template puts it on the harness like every seat, so
-the walks exercise the path. The call is a quiet one from the verdict's thread (`_llm_quiet`: a silent output
-manager, the cost read off the save's chain, which the proposal carries as `billing_chain_id`; the Usage dialog lists
-it there under *Condenser*), at medium effort, low on the second try.
-
-**When.** After the pruning, and only when the method takes time: run zero's elapsed - the pruned run's when there
-was one - at or above `CONSOLIDATE_MIN_SECONDS` (15; the environment `BAMBOO_CONSOLIDATE_MIN_SECONDS` sets it, the
-stack sets 0). Below it the record says *not consolidated: the method runs in 2.3 s* and nothing is called.
-
-**The brief** (`CONSOLIDATE_SYSTEM`, `consolidate_user`): the question, the answer, the cells of the method - the
-pruned script's - each with the output it printed when the analysis ran (`cell_outputs` on the proposal, from the
-kernel's record of each cell, clipped at 1,500 characters), the numbered RESULT lines, the figure cells, the inputs
-with their labels and defaults, the time each cell took. The method is to be written again under the same markers:
-the cells that print a RESULT line or draw a figure keep their markers, numbers and order; a cell that only prepares
-may go, its work moved under a kept marker; each RESULT call stays under the marker of the cell it came from, in its
-order, with its label and arguments; each figure is drawn by the same calls; every INPUTS key is read; loads and
-DS.save stay. Compute once what the cells computed several times; vectorise; never faster by a different answer -
-no sampling, no fewer draws, no other seed, a loop that draws random numbers keeps its draws in their order. One code
-block, or UNCHANGED.
-
-**The check at creation** (`consolidate`): the reply read (`parse_cells`), the cells checked before anything runs
-(`check_consolidated`: `check_condensed`'s subsequence, figure cells and inputs, and every RESULT call still under the
-marker it came from, by count per cell), the script run on the chain's own data and accepted only when `check_lines`
-says reproduced and `same_figures` the same pictures. A fault goes back once (`CONSOLIDATE_RETRY`); the second keeps
-the method as it was (*as it was: the rewritten method did not reproduce the result lines: …*); UNCHANGED is *nothing
-to gain*; a reply cut at the token limit names the remedy. Accepted, the rewrite becomes the version's `script` and
-the script it replaced waits under `script_fallback`; the record `consolidated` {status, line, cells, elapsed,
-attempts, cost, seat, model, provisional: true, confirmed, fell_back}; run zero's record is the rewrite's. The
-Summary's line: *consolidated: 10 cells → 4, 190 s → 6 s; checked on the original data, the first run on new data
-checks it again*.
-
-**The check on the next data** (`check_consolidated_run`, inside `run`): on the first run of a provisional version,
-the method it replaced runs once more on the same data - bound the same way (`prepare` hands out the datasets
-folder for the second binding), the same inputs and prelude - and the two outputs are compared: the same RESULT lines
-as printed (`same_lines`), the same figures. Agree, and the rewrite is confirmed - `script_fallback` goes, the line
-ends *; confirmed on run 1*, the run's record and the pane's CHECK row say *the rewritten method confirmed on this
-data*. Disagree, and the version falls back to the method it replaced, whose output becomes this run's - the line
-reads *as it was since run 1: the rewritten method differed on new data (line 3 (…): +4.00 -> +3.00)*, the run's
-record says *fell back at run 1: …*. The rewrite failing where the old method ran falls back the same way; both
-failing, or the old method alone, gives no verdict and the rewrite stays provisional for the next run. A fill's first
-window does the check like any run. Two datasets are not a proof; a rewrite that survives the window it was made on
-and the next is on the footing of everything else here.
-
-**What the coach sees.** The chip says *condensing…* through both passes; the toast carries the pass's line and then
-the consolidation's, and the Summary's version row their outcome in a few words (*10 cells · 0.8 s · rewritten, the
-next run on new data checks it*, then *confirmed on run 3* or *rewrite dropped on run 2*); *as written ↓* is there
-whenever a script as written is stored (`written_chars` on the version view). Nothing else speaks.
-
-Accepted by (patch 0274): the pure module (`parse_cells`, `check_consolidated`, `same_lines`, the brief), `consolidate`
-over the kernel (left alone under the threshold; the brief's contents and the effort; a rewrite kept provisionally;
-a RESULT call moved refused before running and asked again at low effort; a number changed twice; UNCHANGED; a cut
-reply), `create` with both passes in the foreground and behind the dialog (the scripts, the records), `run` on other
-data (a rewrite confirmed, the record and the pane; a rewrite that typed a number falls back, the run's output the
-old method's; a second run with nothing to check), the app path (the quiet call on the Condenser seat at medium
-effort, billed to the save's chain; the route's first run confirming), the page's line, the stack walk (the stack's
-own Condenser drops the dead stores; the rewrite provisional, then confirmed on run 1) and the C5 scan.
-
-### 19.4 The exploration goes before the promoter (2026-11-08, patch 0283)
-
-Palo's save of a power-curve chain was refused under the identifier rule (§18): cell 4 named one ride by its activity
-id, picked by looking, and printed about it. The ride fed nothing - cells 5 and 6 held the method, and the pass of 19.1
-would have dropped cell 4 after run zero. The refusal came first because the promoter read every cell that ran. And a
-diagnostic cell that is not refused stays in the routine and breaks on other data: a filter on one ride's id gives an
-empty table, and row 0 of an empty table is the IndexError Palo saw at cell 4 of an earlier routine.
-
-**Now the pruning runs first.** `propose` calls `prune_cells(chain, figures, keep_prints=True)` - the cells the result
-lines and figures rest on, by the reading of 19.1, their prints left in for now - and hands the promoter those cells
-alone: the ledger, the cited cells, the edits, the proposal's script are all the pruned method's. The checklist and the
-dialog's header say *2 of 6 cells*. A chain where nothing anchors (no RESULT line, no figure: its printed output is
-what a run keeps) is not pruned. The proposal carries the whole chain beside the method (`cells_chain`, `pruned`,
-`chain_cells`).
-
-**Run zero's fallback.** The reading of 19.1 is static and can miss a dependency the code does not show (a list
-mutated through a function, a file written by one cell and read by another). So `create` runs run zero on the pruned
-method and, when it does not reproduce, once more on the whole chain with the same edits applied; whichever reproduces
-is the version's script. The version records `pruned: {before, after, dropped, stood}`; while the pruned method stands,
-the chain as written (edits included) is kept under `script_written`, so *as written ↓* is there from the start; when
-run zero fell back, the version row says *the whole chain kept: the pruned method did not reproduce*. The condensing
-pass after the verdict runs as before and usually finds only the prints to drop.
-
-Accepted by: the pure module (`prune_cells` with `keep_prints`), the host's path (the flags chain - cells 1 and 3
-pruned before the promoter, the pruned method differing, run zero falling back to the whole chain in two runs, the
-record; a chain whose exploration cell names a row by looking - the promoter never sees it, the pruned method stands,
-the chain as written beside it; a chain with nothing to anchor, not pruned), the markup (the version row's note, the
-header's count), the stack walk (the inspection cell gone before the promoter, the pass dropping the prints alone).
-
-### 19.5 The pruning reads statements; the pass holds the figures (2026-11-13, patch 0286)
-
-Palo, on a refusal that named three sessions in cells 2, 3 and 4 of a power-curve chain - six of its seven cells kept:
-"this issue keeps bugging us ... is there really nothing we can do to address this properly in a more robust way?"
-There was. Whether a row named by its identifier feeds a result line is a fact of the code, not a judgement, and the
-pruning of 19.4 read the code too coarsely, in two ways:
-
-- **It took or left whole cells.** A check on one session written inside a cell that also holds the method stayed with
-  the cell.
-- **A cell stayed when a later kept cell read any name it bound** - and nearly every cell of a real chain begins
-  `df = DS.load()`. The walk never took a name out of the names still read when a kept cell bound it whole, so a cell
-  that only looked was held by the last reader of `df`, across every cell that loaded the frame again. Run on the chain
-  of 8 November - the one 19.4 was written for - 0283's pruning drops nothing: 19.4's "the pass would have dropped cell
-  4" was assumed, not measured.
-
-**The reading now.** `_pruning` (analyst/routines.py) takes the chain statement by statement - top-level statements;
-those sharing a line are one piece. From the last statement to the first, a statement stays when something rests on it,
-or when a later kept statement reads a name it defines or changes; a statement that binds a name whole (`x = ...`, a
-`def`, an import) ends the reading of what the name held before it. What rests: a RESULT call; a figure (every
-statement of a figure cell; a show / save / write call); an `assert` or a `raise` (a check that can stop the run is
-the method's); a bare call on a module (a setting, a seed, a folder made); the only read of an input. Everything else
-goes - the prints, a table made to be looked at, a second way of computing set beside the first, a row picked by eye
-and what was derived from it - with the comment lines standing on it. Imports and the capture switches stay wherever
-they are; a cell left with nothing else goes, marker included.
-
-What the code does not show on its face is read all the same (`_Facts`):
+What the code does not show on its face is read all the same:
 
 - a call does what the function's body does: a function that records a RESULT line, changes a name outside itself (a
   list appended to, a `global`) or changes what it is handed (`t['k'] = ...` on a parameter) makes the statement that
-  calls it do so, and the statement that hands it to another call (`apply(f)`);
+  calls it do so, and the statement that hands it to another call (`apply(f)`); it reads what the body reads *when it
+  is called*;
 - a bare call, whose value nobody takes, is there for its effect on the object it is called on and on the objects it
   is handed (`fig.update_layout(...)`, `random.shuffle(xs)`);
-- a draw reads its generator's state and moves it on - the global generators, and one made by `default_rng` or
-  `RandomState` - so the draws before a kept draw stay, back to the seed;
+- a draw reads its generator's state and moves it on - numpy's global generator, the standard library's (two states,
+  not one), and one made by `default_rng` or `RandomState` - so the draws before a wanted draw stay, back to the seed;
 - the names in a `query` / `eval` string are read; `globals()`, `locals()` and `vars()` read the names whose strings
-  the kept code holds (to a fixed point: a string counts while its statement stays - the figures step reads this way,
-  `globals().get('well2')`); `eval` / `exec` keep everything before them; a write through `globals()` stays.
+  the staying code holds; `eval` / `exec` keep everything before them.
 
-What it cannot see: a second name for the same object (`also = flags; also.append(v)`), state inside a library (an
-unseeded draw in `df.sample`). Those are run zero's to catch.
+What it cannot see: a second name for the same object (`also = flags; also.append(v)`), and state inside a library
+(an unseeded draw in `df.sample`). The reading is never trusted for those: the shorter run is held to run zero
+(§22.2), and a run checks the objects themselves (§22.1).
 
-**Held to the lines, then to the figures.** Run zero runs the condensed method against the chain's result lines and
-falls back to the chain as written when it fails them (19.4). A method that draws is held to its figures too, by the
-pass behind the verdict (`condense`): the chain as written runs once beside it, and the condensed method stands when
-the figures are the same pictures (`same_figures`) - or when its own figures differ from one run to the next (an
-unseeded jitter), which no code can be held to; otherwise the chain as written is the method from then on, and its run
-is run zero's record. 0283 had left this check behind: its pruning ran before run zero, which reads the lines alone.
-The pass no longer prunes - what it dropped goes before the promoter - and its record is the one the Summary already
-shows: `condensed: 7 cells → 5, 189 lines dropped, 2 min → 48 s` (one time when the chain as written did not run), or
-*as written* with the reason on hover (`the condensed code did not reproduce the result lines: ...`, `... the figures:
-figure 1 differs`). 0283's `pruned` record and its row note are gone; `dropped` counts lines, not prints. A chain with
-nothing to anchor (no RESULT line, no figure) is not touched: its prints are what a run keeps, and the old pass's
-dropping them was a fault.
+Measured on the seventeen real chains at hand (9,480 lines of code): the view keeps 61% of the lines and every
+RESULT call; nothing kept reads a name only dropped code gave; pruning the pruned changes nothing; the held-out form
+gives each chain back. The chains read into 5,607 statements, each of which stands as code on its own.
 
-**The same edits on the chain as written.** The promoter's edits are found in the condensed text, where each fragment
-occurs once; the chain may repeat a fragment in a line that was dropped (`print('threshold = 155 ...')`). `held_out`
-gives the chain with every dropped line replaced by a line no fragment can match, `apply_edits` runs on that, and
-`put_back` returns the lines: each edit lands where it landed in the method. An edit that cannot land - a fragment
-that ran across a dropped line - leaves no fallback rather than a half-edited one.
-
-**Measured (2026-11-13).** On the seventeen real chains at hand (the run logs and routine files Palo sent; 9,480 lines
-of code): 61% of the lines kept; every RESULT call there; nothing kept reads a name only dropped code gave; pruning
-the pruned changes nothing; the held-out form gives each chain back. Ten rows named by identifier in the code, three
-left - the three that mark sessions for a column the method uses, §18's case: the promoter's to turn into the rule the
-chain has, or to refuse. The chain of 8 November run as written and as condensed, in separate processes, on two sets
-of stand-in data of its shape: the same 23 RESULT lines and both figures, 189 lines fewer, a quarter of the printed
-output. A second power-curve chain stopped *as written* on the stand-in data in a print that reads a duration the data
-has no effort for - the failure of §22, in a line the condensed method no longer has. And a fuzz: random small chains
-of the statement kinds the reading claims to see, each run as written and as pruned, the RESULT values compared
-(`tests/analyst/_random_chains.py`; 400 of them in the battery, 46,000 while it was built, and 3,000 over pandas frames
-with the in-place idioms). It found two faults in the first draft, both fixed and pinned as cases: a call reads what
-the function's body reads *when it is called* (a dict changed between the definition and the call), and numpy's global
-generator and the standard library's are two states (a `random.seed` does not cut numpy's draws).
-
-**Limits.** The unit is the top-level statement: a check written inside a loop or a branch the method needs stays
-with it, and the promoter refuses it as before. A literal the method rests on is §18's: only the analysis can replace
-it with a rule. Both want §22's way out on the refusal itself (the question written for the coach) - not built here.
-
-Accepted by: the pure module (the made-up script by statement - 16 lines, three cells; the re-loaded frame; the check
-inside the method's cell with its comment; a call through a function, a parameter changed, a RESULT in a function, the
-alias the reading cannot see; bare calls, a module setting, an assert, a del of a column, a figure cell whole; the
-draws, global and by generator, the seed set again; names in query and eval strings, a function handed to a call, a
-function's global, globals() and eval, pprint; a change between a function's definition and its call; the two
-generators; 400 random chains as written against as pruned; `held_out` / `put_back` with an edit whose fragment the
-chain repeats),
-the host (the print pruned before the promoter; the pass with nothing drawn - one run; the figures the same - two
-runs, both times on the record; other pictures - the chain as written takes over; pictures that differ run to run -
-the method stands; a chain as written that fails; the alias chain falling back, with and without the pass; the
-literal in a cell of its own and inside the method's cell; the edit on the same line of the chain as written; a chain
-with nothing to anchor; behind the dialog, standing and falling), the app path (a chain whose prints are its output:
-nothing to cut), the markup (the as-written note alone), the stack walk (3 cells → 2, twelve lines, the chain as
-written run beside it, the figures the same; the Condenser's stand-in, which now drops comment lines).
-
+Accepted by: the pure module (the made-up script by statement; the re-loaded frame; a check inside the method's cell
+with its comment; a call through a function, a parameter changed, a RESULT in a function, the alias the reading
+cannot see; bare calls, a module setting, an assert, a del of a column, a figure cell whole; the draws, global and by
+generator; names in query and eval strings, a function handed to a call, `globals()` and `eval`; 400 random chains as
+written against as pruned, `tests/analyst/_random_chains.py`; `held_out` / `put_back` with an edit whose fragment the
+chain repeats), and the host (the print left out of the promoter's view and kept in the stored text; the literal in
+a cell of its own and inside the method's cell; the edit on the same line of the chain as written).
 
 ## 20. The Summary, one column (2026-11-08)
 
@@ -1553,13 +1377,14 @@ around the table (its head sticks to the body's top), no runs box.
 
 **The facts** (S2): *Purpose*, *Inputs*, *Results* (*Tracked* since §15.6, with *Custom instructions* under it when there are any), *Version(s)* as label and value. Gone from the header: the columns
 count and *(a favourite; continue it there)* (the link's hover says it); gone from the body: the Question when a
-purpose was written, the Checked row (its verdict and the passes' outcomes are the version row's, in a few words:
-*verified, 17 lines reproduced · 10 cells · 0.8 s · as written ↓*), the inputs table (a line per input), the Results
+purpose was written, the Checked row (its verdict is the version row's, in a few words: *verified, 17 lines
+reproduced*), the inputs table (a line per input), the Results
 list (it repeated the table's column heads line for line; *9 numbers and 2 charts per run* says what a run records),
 the Versions list (the version rows), the *first version* note.
 
 **The runs** are the table: a set interval's rows and the custom table's heads open the run (*open →* on hover in the
-unit's cell); a unit whose runs all failed is a row with the reason (`run.line`: *failed at cell 6: ValueError: …*),
+unit's cell); a unit whose runs could not be carried out is a row with the reason (`run.line`: *failed: …*; since §22 a
+statement that stops is a blank in its own cell, not a failed row),
 the custom runs that failed are named under their table, each opening; the runs list with its pills went. The values
 show without the plus sign the RESULT format writes (`build.shown`; the sign stays on a negative). The legends went;
 the gap line is a link - *18 weeks in the last year not run yet · fill them* - that opens the Run dialog on the
@@ -1600,47 +1425,196 @@ the deletion, the count, run 0 and a run already gone refused, a later run still
 handlers and the choice sent), the stack walk (the failed run deleted through the Summary - off the foot, off the
 record, off the disk, the rail's count down by one), the integrations walk (the heads read without their two words).
 
-## 22. Fix it in the analysis (2026-11-08, patch 0284)
+## 22. A run, a statement at a time (2026-11-13)
 
-Palo, after a monthly fill of eleven failures on another athlete's data (KeyError on a duration the month had no ride
-for, row 0 of an empty table): "quite honestly it is really difficult to create a working transportable routine". A
-method written on one athlete's data assumes what that data had. No rule in the promoter can see it; it shows up on
-other data, and then the coach diagnoses it by hand and starts a follow-up from scratch. The way out after the routine
-is created: turn the failed run into the next version with one button.
+Palo, 13 November, after a weekly fill whose rows were mostly red and a repair that produced a second analysis: "the
+current design is very fragile, and the feature rarely works as intended ... can you do a complete review of our
+logic, to see if it can be made more robust". The review found the core sound - the method runs without a model,
+costs nothing per run, and gives the same numbers on the same data - and the fragility in what was asked of the
+method after it was saved: one step that failed lost the whole run, even a step nobody tracked; the method was proven on
+its own data only; and the only repair was a new analysis. What was agreed and built, for the five ways a run on
+less data than the analysis had goes wrong:
 
-**What the coach sees.** In the run view of a run that failed at a cell of the method, under the error and the failed
-cell's code, one button: **Fix it in the analysis**, with one line beside it - *Loads this run's data, opens the
-analysis and writes the question; you read it and send it.* (an Intervals run) or *Opens the analysis and writes the
-question; load this run's data first.* (a file). Pressed: the run's data comes back into the session (the window
-through the cache the fill filled, as a run loads it - `loadData` with the record's load in place of the dialog's
-fields - else downloaded; a file is left to the coach), the origin analysis opens at its chain, and the prepared
-question stands in the composer, unsent. The coach reads it, adds what the record cannot know (*this athlete never
-rides two hours; drop that point for him*), and sends it. The analyst fixes the method on the very data that broke it;
-*Save as routine* offers *Next version of …* (the coach picks it; a later chain still defaults to a new routine, as
-decided on 2026-10-12), run zero checks the new version on that athlete's month, the custom instructions carry over,
-and *fill them* re-runs the failed months, which count as not run.
+| What happens | What the coach sees |
+|---|---|
+| No ride long enough for one duration; a fit with too few points | That number blank, the others shown (22.1, 22.3) |
+| Nothing to calculate from - no rows in the window | A blank row (22.3) |
+| A column partly empty - a power meter broken for some days | A small mark on the row; hover says what (22.4) |
+| Something of the original data typed into the method | Save tries it on smaller pieces and says what came back (22.6) |
+| A dropped connection | One more try (22.5) |
 
-**Where the question comes from.** Not from a diagnosis - the host cannot know that `KeyError: 3600` means "no
-one-hour ride"; that is the analyst's job, with the code, the error and the data in front of it. The host writes two
-things it has for every failed run (`fix_question`): what the routine is, from its record - the name, the version and
-the purpose; the tracked metrics in order, each with its name and the recorded wording it comes from and its cell;
-the inputs with their defaults; the custom instructions - and the run's facts - its number, the data (source · whose ·
-window, or the file's name), the cell, the error line and the statement it stopped at (`failed_statement`, kept on
-the record's `failed_cell` since this patch), the lines printed before the failure. Then one standing ask, the same
-every time: *find why the method fails on this data and change it so it runs on any data of the same shape: where this
-data cannot give one of the tracked metrics, record it as missing rather than fail; keep the tracked metrics, their
-order and their meaning, and keep the inputs as inputs, so the runs stay comparable.* Nothing in it depends on what
-was analysed or where the data came from, and nothing names the domain (C5). Without it the analyst in the origin
-thread would see the chain and the new data and nothing of the routine - not that the chain became one, not which of
-its printed lines are tracked, not which constants became inputs - and might reshape the very lines the runs compare.
+Not built, on purpose: a rolling look-back (a week stays the week alone - a coach who saves a year's power curve
+expects any one week's), a repair by a model, a rewrite of the method as "clean code".
 
-**Where the button does not appear.** A load that failed, a timeout, an executor lost, run zero: not the method's
-fault (`fix_offer` returns nothing without a failed cell). The offer rides on the run view (`GET /routines/<id>/runs/<n>`)
-and on a live run's closing message alike, as `fix: {question, source, load}`.
+### 22.1 The run
 
-Accepted by: the pure module (`failed_line_no`, `failed_statement`), the host (`fix_question` on an Intervals run with
-a purpose, names, inputs and custom instructions, and on a file run without; `run_view` offering the fix on the failed
-run and none on a run that ran, on run zero, on a timeout; the statement on the record), the mini DOM (the button, its
-words for the two sources, none without the offer; the page's source), the stack walk (the failed run on the file
-without soil: the button, pressed, opens chain 1 of the origin with the question in the composer, unsent, and the
-question read back whole).
+A run executes the version's script **a statement at a time** (`rt.stepwise`). The executed text is laid out when
+the run starts - after the paths are bound and the inputs and the prelude are in place: everything before the first
+cell as it is, then each top-level statement of each cell (§19.3) under a `try` of its own, in the script's own
+namespace:
+
+```
+if _routine_go(12):
+    try:
+        e, lo, hi, sd = trend(ind, y)
+    except (Exception, SystemExit) as _routine_exc:
+        _routine_end(_routine_exc)
+    else:
+        _routine_end()
+```
+
+- A statement that stops with an error **spoils the names it writes**. A later statement that reads a spoiled name
+  is not run, and spoils what it writes in turn. Everything else runs. Lines printed before a failure stand.
+- The reading cannot see a second name for one object, so the run checks the objects too: a statement that stops
+  while changing an object spoils the object, and a statement that reads it under any name is not run.
+- A check of the method's own that stops - a module-level `assert` or `raise`, an exit - stops everything after it.
+- A frame with no rows, when the statements read the frame, runs none of them (22.3).
+
+It is plain code: no statement is held as text and nothing is handed to `exec`. The local kernel's check reads the
+code a run executes and refuses a script that names `exec` (`delve/kernel.py`, BLACKLIST), and the promoter's edits
+stay under that check as the chain's cells were. A statement's lines are moved in under the `try` by tokens: a line
+that begins inside a string is left as it is, so a string that runs over lines keeps its text (`rt._moved_in`). A
+script whose cells cannot be read, or cannot be laid out so, runs as one piece, as before.
+
+The run prints a mark before each statement and one report at its end - the statements that stopped (cell, line in
+the cell, error), those not run for resting on one, whether the frame was empty, the watched columns' empty shares -
+and `rt.read_run` reads the output back by statement and takes the marks out of it.
+
+**A line is known by its place** - the statement that printed it and its order among that statement's lines
+(`at: [step, k]` on the manifest's line), learnt at run zero. With the places known, a run that loses a statement
+still gives every other line (`rt.place_lines`). The places hold for the script they were learnt on: the version
+keeps a mark of its statements (`steps`, `rt.steps_key`), and where the script reads differently the lines are read
+by position, sure only up to the first statement that did not run, until a whole run teaches the places again.
+
+Prototyped before it was built: 20,000 random chains with one statement made to stop - no statement that still ran
+printed a wrong number, and 90% of the lines came back; the same without the skipping printed a wrong number in 86
+of 3,000; the names alone let 10 of 4,000 through where one object had two names, and the check of the objects
+brought that to none.
+
+### 22.2 The shorter run
+
+A run executes only the statements the tracked lines and the figures rest on (`rt.needed_steps`: the statements
+that printed a tracked line at run zero, every statement of a figure cell, a file saved or written, a check that can
+stop the run, and what those read - §19.3's reading). A line nobody tracks, and what only it needed, is not
+computed: on the fill that started the review, the statement that stopped was a fit whose four lines were not
+tracked.
+
+The reading is not trusted for this. At Save, after run zero, the shorter run is run once on the chain's own data
+(`check_lean`) and stands only when nothing stops, every tracked line comes back as run zero printed it, and the
+figures are the same pictures (`rt.same_figures`) - or run zero's own figures differ from one run of every statement
+to the next (an unseeded jitter), which no code can be held to. Otherwise every statement runs, and the version
+says why (`lean.line`: *every statement runs: the shorter run did not hold - a tracked line differs (...)*). The
+version keeps the statements to run (`lean.steps`), used while the statements' mark holds. A run may take what run
+zero took with every statement (`run_timeout`): a version whose mark no longer holds runs them all, and its first
+whole run puts the shorter run aside.
+
+### 22.3 What a run records
+
+`results` has **one entry per expected line**, in the manifest's order: the line as printed, or a blank
+`{estimate: null, low: null, high: null, why}`. The reasons: *cell 5 stopped: LinAlgError: Singular matrix* (the
+statement that stopped - the line's own, or the one it rests on), *no number on this data* (the line printed nan),
+*no data in this window*, *not printed on this data*, or the run's own line when the run could not be carried out.
+
+Statuses of a run: **ran** (the line says how many tracked lines came back and why the first missing one did not:
+*ran: 9 of 11 result lines; 2 not computed (cell 5 stopped: ...)*), **reproduced** (every tracked number as the
+reference run's), **empty** (the frame had no rows: nothing was run), **failed** (the script could not be carried
+through: the executor not reached, an error outside the statements), **timed_out**. Run zero keeps *reproduced* /
+*differed* / *failed*. A run with *ran* or *reproduced* has lines: it is in the history, and a later run is compared
+with it (`DONE`); an *empty* one stays on record as a blank row and is not offered to the fill again; a *failed* or
+*timed_out* one counts as not run.
+
+The record also keeps `stopped` - each statement that stopped: its cell, the line in the cell, its code, the error,
+how many later statements were not run for it - and `gaps` (22.4). The comparison's rows carry `why` for a line
+this run has no number for.
+
+On the page: a blank is a dot, the reason on the cell's hover (the Summary by interval, the custom runs' table, the
+Trend tab, where it reads *not computed*; a line the run before lacks reads *no earlier value*). An empty week is a
+row of dots; a custom run on a window with no data is named under the table with the failed ones. The Trend tab of a
+run that lost a statement lists each - *cell 5 stopped: LinAlgError: Singular matrix · 2 later steps not run* -
+opening on its code; a run that could not be carried out keeps the error block. A week is marked against the nearest
+earlier week that ran, as the run itself was compared.
+
+### 22.4 The mark
+
+A run reports, for each column of the frame the method's code names (the first twelve), how much of it is empty -
+by rows and, when the frame has a key column, by its groups (`watch_of`, counted in the script before the first
+statement). Run zero's counts are kept as the analysis's own (`manifest.data.gaps`). A column whose empty share is
+ten points or more above the analysis's is said in a sentence (`rt.gap_sentences`): *power is empty for 3 of 6
+activity_id values*, or *power is empty in 40% of the rows*. The sentences are on the run (`gaps`); the page shows a
+small mark by the run's dates, or in its head, with the sentences on hover, and a line each on the Trend tab. A
+version with no counts on record says nothing.
+
+### 22.5 One more try
+
+A script that could not be carried out - the runner's error has nothing of a traceback in it and no time limit hit:
+the executor not reached, a connection dropped - is tried once more after two seconds (`carry_out`). A statement's
+error never is: it is the method's.
+
+### 22.6 Tried on smaller pieces at Save
+
+After run zero and the shorter run, Save runs the method on up to three smaller pieces of the analysis's own data:
+the latest complete **day**, **week** (Monday to Sunday) and **month** inside its window that hold rows
+(`trial_windows`; the days that hold rows are read once, `days_script`), each shorter than the window, each cut as a
+fill cuts a unit from its span, with the inputs at their defaults (`try_method`). Nothing is recorded as a run; the
+trials' folder is removed. For a routine whose runs have intervals - an Intervals.icu load with a date column.
+
+The version keeps what came back (`tried`: per piece its window, the status, the line, how many of the tracked
+lines came back with a number). The manager shows it as a fact - *Tried on: a day: 2 of 11 · a week: 9 of 11 · a
+month: all 11*, the piece's dates and the run's line on hover; the Run dialog says it under the interval when the
+unit gave less than everything - *One week of the original data gave 9 of the 11 metrics.*; the toast that follows
+the proof says it too. So the coach knows before a fill what an interval will give, and the analysis is still open
+on that data when a piece gives too little.
+
+### 22.7 The proof behind the dialog
+
+Run zero, the shorter run and the trials are one proof (`prove_method`), run in a thread behind the dialog as run
+zero was (§5 F1.4); what it found lands on the stored version at once (`settle_proof`): the verdict, each line's
+place and the statements' mark, the analysis's empty shares, the shorter run, the trials. The proof is of the data
+loaded when Save was pressed: it stops, and says so, when the Data tab holds something else.
+
+### 22.8 What went
+
+- **The condensing pass and the pruning's record** (0272, 0283, 0286): a version no longer keeps a shortened script
+  beside the chain's. The reading that shortened it is the promoter's view (§19.2) and the shorter run (22.2), which
+  is proven at Save and leaves the stored text alone.
+- **The consolidation** (0274, the `Condenser` seat): a model's rewrite of a slow method, provisional until the
+  first run on new data. It moved the risk of a wrong method into a bigger step. The seat is out of the settings
+  templates and the Usage page.
+- **Fix it in the analysis** (0284): the button under a failed run. It opened the origin analysis with a prepared
+  question, and what came back was a second analysis, not the same method made safe - on the fill that started the
+  review: ten cells, 609 lines, other figures, the analyst's own note that comparability was "by design, not verified
+  against the original code". To change a method on purpose, continue the analysis and save the next version.
+- Run statuses *differed* and the *not reached* mark, `failed_cell` on a run's record.
+
+**Earlier records** are brought to this shape when a routine is loaded, once, its runs' records with it
+(`RoutineStore._upgrade`, `shape` on the routine): a version keeps the script that ran (a rewrite never confirmed
+gives way to the method it replaced); every run's lines are laid against the expected ones; a run that printed
+fewer lines is *ran*; the cell a run failed at is the statement that stopped. Such a version has no places and no
+shorter run: its runs execute every statement, read by position, and its first whole run teaches the places.
+
+### 22.9 Build order and acceptance
+
+Built as one change. Accepted by:
+
+- the pure module (`tests/analyst/test_routines.py`): the statements read; the script laid out as plain code that
+  the local kernel's check passes, a string over lines keeping its text; a run with one statement that stops, read
+  back by statement; the places learnt, used, and the reading by position without them; a line without a number, an
+  empty frame; the needed statements; a check that halts; an object with two names; the empty shares counted; the
+  status of a run and run zero's verdict; the comparison's reasons; the sentences of the mark; the statements'
+  mark; 300 random chains with one statement made to stop - no wrong line, and the needed statements alone print the
+  tracked lines the same;
+- the host over a real kernel: one text stored, run zero and the shorter run (two runs; the figures the same, other
+  pictures, pictures that differ run to run, a shorter run that stops); the chain whose list is filled through a
+  second name - the shorter run not taken; a chain with nothing to rest on; behind the dialog; a run on data without
+  one of the groups - two numbers, two blanks with the reason, the statement on the record; no rows, and a window of
+  a cached load that holds none; a column partly empty; one retry, and failed after two; a script that died after a
+  line; a version without places learning them;
+  the trials and their windows; the scripts beside them; an earlier routine brought to today's shape;
+- the app path (`test_app_path.py`): the proof behind the dialog without a model call; a run's Results tab free of
+  the run's own marks;
+- the markup (`test_routines.js`): the Tried on fact, the dialog's note, blanks with their reason, the row of dots,
+  the mark, the stopped statements, the words for a missing line, the counts and the fill plan with an empty week;
+- the stack walk (`tests/e2e/test_stack.py`): one script of three cells with the shorter run proven by the real
+  executor; the run on the file without `soil` - 0 of 1 result line, the statement of cell 2 named with its code;
+- the screens (`tools/routines_screens.py`): a weekly Summary with a week that lost a line and a week with no data,
+  the run that lost a statement, the dialog's note, the manager verifying.

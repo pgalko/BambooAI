@@ -239,7 +239,7 @@ class Scenario:
         return json.dumps({
             "name": "Regime contrast within soil, plot means", **tracked,
             "inputs": [{"key": "regime", "label": "The regime compared with A", "type": "choice", "default": "B", "origin": "the analysis compared B against A", "column": "regime", "multiple": False}],
-            # the edits a promoter makes are on the method it was shown (§19.5): the raw difference is only printed, so it is not there
+            # the edits a promoter makes are on the method it was shown (§19.3): the raw difference is only printed, so it is not there
             "edits": [e for e in [
                 {"cell": cell, "find": "def adj_diff(pm, a='A', b='B', rng=None):", "replace": "def adj_diff(pm, a='A', b=INPUTS['regime'], rng=None):"},
                 {"cell": cell, "find": "raw = plot_means[plot_means.regime == 'B']['yield_t_ha'].mean()", "replace": "raw = plot_means[plot_means.regime == INPUTS['regime']]['yield_t_ha'].mean()"},

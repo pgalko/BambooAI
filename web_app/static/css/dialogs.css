@@ -267,18 +267,21 @@
 @keyframes rt-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 .rt-error { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--chip-fail-border); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-primary); }
 .rt-error .msg { line-height: 1.5; }
-.rt-error .h { font-size: var(--fs-small); color: var(--text-tertiary); margin-bottom: 4px; }     /* the failed cell's code beside the traceback (step 4, 2026-10-11) */
-.rt-error .rt-error-cell pre { max-height: 320px; overflow: auto; }
-.rt-error .rt-fix { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }     /* Fix it in the analysis (§22): the button and what it does */
-.rt-error .rt-fix .n { font-size: var(--fs-small); color: var(--text-quaternary); }
+.rt-error .h { font-size: var(--fs-small); color: var(--text-tertiary); margin-bottom: 4px; }
+/* a statement that stopped in a run: one line, the code under it when opened; what was emptier than the original's data */
+.rt-stopped { margin: 0 0 8px; font-size: var(--fs-meta); color: var(--text-secondary); }
+.rt-stopped summary { cursor: pointer; line-height: 1.5; }
+.rt-stopped summary .n { color: var(--text-quaternary); font-size: var(--fs-small); }
+.rt-stopped pre { max-height: 320px; overflow: auto; margin-top: 6px; }
+.rt-cmp .rt-fit { margin-bottom: 8px; }
+.rt-gapmark { color: var(--c-kernel); font-size: var(--fs-small); cursor: help; }
 .rt-version .ui-choice span { line-height: 1.4; }
 .rt-status { font-size: var(--fs-small); padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--text-tertiary); white-space: nowrap; }
 .rt-status.reproduced { color: var(--c-model); border-color: var(--chip-model-border); }
 .rt-status.unverified { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
-.rt-status.verifying { color: var(--c-kernel); border-color: var(--chip-kernel-border); animation: rt-verifying 1.4s ease-in-out infinite; }   /* run zero behind the dialog (2026-10-15); condensing too (§19) */
-.rt-written { color: var(--text-tertiary); text-decoration: none; border-bottom: 1px dotted var(--text-quaternary); }     /* the code as written, when the code that runs is the condensed one (§19) */
-.rt-aswritten { border-bottom: 1px dotted var(--text-quaternary); cursor: help; }     /* kept as written: the reason on hover */
-.rt-written:hover { color: var(--text-secondary); text-decoration: underline; }
+.rt-status.verifying { color: var(--c-kernel); border-color: var(--chip-kernel-border); animation: rt-verifying 1.4s ease-in-out infinite; }   /* run zero behind the dialog (2026-10-15) */
+.rt-tried span, .rt-plan.rt-tried { cursor: help; }     /* what a smaller piece of the data gave: its dates and the reason on hover */
+.rt-tried span { border-bottom: 1px dotted var(--text-quaternary); }
 @keyframes rt-verifying { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 /* the manager: the shape of the saved-workflows dialog, a list on the left and one routine on the right */
 #routinesModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
@@ -358,10 +361,6 @@
 @keyframes rt-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
 .rt-progress.bad { grid-template-columns: 1fr; color: var(--c-fail); border-color: var(--chip-fail-border); }
 #routineRunModal .ui-dlg-b.rt-busy > .rt-row { opacity: .45; pointer-events: none; }
-.rt-field { display: grid; grid-template-columns: 220px 1fr; gap: 4px 10px; align-items: center; font-size: var(--fs-meta); color: var(--text-secondary); }
-.rt-field > label { color: var(--text-primary); }
-.rt-field .ui-input { height: 28px; }
-.rt-field .help { grid-column: 2; font-size: var(--fs-small); color: var(--text-quaternary); margin-top: -2px; }
 .rt-derived { color: var(--c-model); font-size: var(--fs-small); }
 .rt-inputs .rt-derived { display: block; margin-top: 2px; }
 .rt-derived-row { display: flex; flex-direction: column; gap: 2px; min-height: 28px; justify-content: center; }
@@ -388,8 +387,7 @@
 .rt-mark { display: inline-block; min-width: 14px; text-align: center; font-weight: 700; }
 .rt-mark.up, .rt-mark.down, .rt-mark.changed { color: var(--c-kernel); }
 .rt-mark.same { color: var(--text-quaternary); font-weight: 400; }
-.rt-mark.missing, .rt-mark.unreached { color: var(--text-quaternary); }
-.rt-cmp-table tr.unreached td { color: var(--text-quaternary); }
+.rt-mark.missing { color: var(--text-quaternary); }
 .rt-legend { font-size: var(--fs-small); color: var(--text-quaternary); margin-top: 10px; line-height: 1.5; }
 .rt-foot { font-size: var(--fs-small); color: var(--text-quaternary); margin-top: 8px; line-height: 1.6; }
 .rt-foot a { color: var(--c-model); cursor: pointer; text-decoration: none; }

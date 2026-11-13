@@ -37,7 +37,7 @@ MAX_ROWS = 50000             # the most rows one answer aggregates (the answer s
 _FACTS = {}                  # thread file -> (mtime, {run id: the facts the ledger shows}); re-read when the file changes
 
 # a chain the thread store does not know, named by the seat that spent on it
-_OTHER = {"Promoter": ("routine", "Save as routine: the proposal"), "Condenser": ("routine", "Save as routine: the method consolidated"), "Coder": ("context", "The context coded"), "Reader": ("reading", "A document read"),
+_OTHER = {"Promoter": ("routine", "Save as routine: the proposal"), "Coder": ("context", "The context coded"), "Reader": ("reading", "A document read"),
           "Knowledge Distiller": ("memory", "Memory: the distillation"), "Embedder": ("memory", "Memory: the embeddings")}
 
 
