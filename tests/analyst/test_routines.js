@@ -392,7 +392,15 @@ check('runs table by athlete: the first athlete\'s columns are run 0, 1 and 3; t
   [...tb0.querySelectorAll('thead th')].map(e => headName(e)).filter(Boolean).join('|') === 'Result|Run 0|Run 1|Run 3' && [...tb1.querySelectorAll('thead th')].map(e => headName(e)).filter(Boolean).join('|') === 'Result|Run 2'
   && [...tbAll.querySelectorAll('thead th')].map(e => headName(e)).filter(Boolean).join('|') === 'Result|Run 0|Run 1|Run 2|Run 3', [tb0.textContent, tb1.textContent]);
 const mb2 = el(b.routineBody(Object.assign({}, two, { summary_card: {}, origin: {} })));
-check('the manager with runs on two athletes: a pick in the Runs heading (the latest run\'s athlete selected, each with its count), the table filtered to them; one athlete - no pick',
+const oneAthlete = Object.assign({}, two, { summary_card: {}, origin: {}, runs: two.runs.filter(x => ((x.data || {}).subject || {}).id === 'i0') });
+const mb1 = el(b.routineBody(oneAthlete)), mb0 = el(b.routineBody(Object.assign({}, oneAthlete, { runs: [] })));
+check('the manager with runs on one athlete (2026-11-13): the pick is there with their name alone, so a coach coming back sees whose runs these are - three runs, run 0 among them, and with run 0 alone; the table is every run; runs that name no athlete (a file routine, a run 0 from before the athlete was kept) show no pick',
+  [...mb1.querySelectorAll('.rt-sec .h select[data-pick="athlete"] option')].map(o => o.getAttribute('value') + ':' + o.textContent).join('|') === 'i0:First Athlete · 3 runs'
+  && [...mb1.querySelectorAll('.rt-runs thead th')].map(e => headName(e)).filter(Boolean).join('|') === 'Result|Run 0|Run 1|Run 3'
+  && [...mb0.querySelectorAll('select[data-pick="athlete"] option')].map(o => o.textContent).join('|') === 'First Athlete · 1 run' && [...mb0.querySelectorAll('.rt-runs thead th')].map(e => headName(e)).filter(Boolean).join('|') === 'Result|Run 0'
+  && !el(b.routineBody(Object.assign({}, rt, { summary_card: {}, origin: {} }))).querySelector('select[data-pick="athlete"]')
+  && !el(b.routineBody(Object.assign({}, noZero, { summary_card: {}, origin: {}, runs: [] }))).querySelector('select[data-pick="athlete"]'), mb1.querySelector('.rt-sec .h') && mb1.querySelector('.rt-sec .h').innerHTML);
+check('the manager with runs on two athletes: a pick in the Runs heading (the latest run\'s athlete selected, each with its count), the table filtered to them; a routine whose runs name no athlete - no pick',
   mb2.querySelector('.rt-sec .h select[data-pick="athlete"]') && mb2.querySelector('select[data-pick="athlete"] option[selected]').getAttribute('value') === 'i0' && mb2.querySelector('select[data-pick="athlete"] option[selected]').textContent === 'First Athlete · 3 runs'
   && [...mb2.querySelectorAll('.rt-runs thead th')].map(e => headName(e)).filter(Boolean).join('|') === 'Result|Run 0|Run 1|Run 3' && [...mb2.querySelectorAll('.rt-sec .h')].map(h => h.textContent).join('|').startsWith('Runs — each run against the one before it')
   && !el(b.routineBody(Object.assign({}, rt, { summary_card: {}, origin: {} }))).querySelector('select[data-pick="athlete"]'), mb2.querySelector('select[data-pick="athlete"]') && mb2.querySelector('select[data-pick="athlete"]').outerHTML);

@@ -220,11 +220,13 @@
                 '<b>Inputs</b><span>' + build.inputsFacts(m.parameters || []) + '</span><b>Tracked</b><span>' + esc(build.resultsFacts(m)) + '</span>' +
                 (r.instruction ? '<b>Custom instructions</b><span>' + esc(r.instruction) + '</span>' : '') +
                 '<b>Version' + ((r.versions || []).length > 1 ? 's' : '') + '</b><span class="rt-vers">' + build.versionRows(r) + '</span></div><div class="rt-sep"></div>';
-            // the runs by athlete (2026-10-30): a choice when the runs span more than one; the latest run's athlete first
+            // the runs by athlete (2026-10-30): a choice when the runs span more than one, the latest run's athlete first - and the
+            // one athlete's name when the runs are all theirs (2026-11-13: a coach coming back sees whose runs these are without
+            // opening one); runs that name no athlete show no pick
             const athletes = build.runAthletes(r);
             const picked = athletes.find(a => a.id === managerState.athlete) ? managerState.athlete : (athletes[0] ? athletes[0].id : '');
             const many = athletes.length > 1;
-            const pick = many ? '<select class="ui-input rt-athlete-pick" data-pick="athlete" title="whose runs">' + athletes.map(a => '<option value="' + esc(a.id) + '"' + (a.id === picked ? ' selected' : '') + '>' + esc(a.name || a.id || 'athlete not recorded') + ' · ' + a.n + ' run' + (a.n === 1 ? '' : 's') + '</option>').join('') + '</select>' : '';
+            const pick = many || (athletes[0] && (athletes[0].name || athletes[0].id)) ? '<select class="ui-input rt-athlete-pick" data-pick="athlete" title="whose runs">' + athletes.map(a => '<option value="' + esc(a.id) + '"' + (a.id === picked ? ' selected' : '') + '>' + esc(a.name || a.id || 'athlete not recorded') + ' · ' + a.n + ' run' + (a.n === 1 ? '' : 's') + '</option>').join('') + '</select>' : '';
             // the runs by interval (§14.6): the filter bar's pick - the one asked, else the latest run's; a set interval is the table by
             // unit over the horizon's units, custom the table by run
             const athleteId = many ? picked : null;

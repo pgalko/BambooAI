@@ -99,7 +99,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/236/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/139/14/25/4/14/67/41 JS; 1,839 on 2026-11-13; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (244/216/31/27/18/49/44/72/33/236/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/140/14/25/4/14/67/41 JS; 1,840 on 2026-11-13; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (141 hosted on 2026-11-13; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (144; hosted only - the loaders need the executor; the
@@ -481,6 +481,11 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **The athlete pick with one athlete (2026-11-13, patch 0287).** The Routines manager showed the athlete pick only
+  when the runs spanned two athletes, so a routine with its first run alone did not say whose data it ran on. The pick
+  now shows whenever the runs name an athlete - one option, the name and the count, from run 0 on (`routineBody` in
+  routines.js); runs that name none (a file routine) show no pick, and the tables read as before. Tests:
+  test_routines.js 140.
 - **The pruning reads statements; the pass holds the figures (2026-11-13, patch 0286; docs/ROUTINES_DESIGN.md §19.5).**
   Palo's saves of power-curve chains kept being refused under the identifier rule - a session named by its id in a
   check, inside cells the method needs. 0283's pruning took whole cells and kept any cell that bound a name a later

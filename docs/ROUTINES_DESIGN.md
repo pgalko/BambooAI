@@ -365,6 +365,10 @@ version's data record, `load`), and offers the data loaded now beside it.
    subject_id)`) stay within one athlete's runs - run zero counts as its athlete's; one naming none (from before the
    subject was kept) is nobody's but the subject-less runs' (0252). The Comparison tab names the athlete and each
    run's window (`against_data`, the reference run's light record, rides on the view and the run's answer).
+   **Since 2026-11-13 (patch 0287) the manager's athlete pick is there with one athlete too** - one option, their name
+   and count - from run 0 on: Palo, on a routine with its first run alone, "when the coach returns to routines after a
+   while they don't know whom the run belongs to, unless they click on open". Runs that name no athlete (a file
+   routine, a run 0 from before the subject was kept) still show no pick.
    The kinds a run's load can ask for are summary, wellness, intervals, context and, since 2026-10-15, plan - the
    planned workouts table written with the context (docs/CONTEXT_DESIGN.md §3.1a), cut to a window by its `date`.
    **Below the cache, the store** (2026-10-15, docs/INCREMENTAL_LOADS_DESIGN.md): a miss no longer downloads the
