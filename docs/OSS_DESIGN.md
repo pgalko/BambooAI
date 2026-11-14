@@ -310,6 +310,14 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-11-14: 2.7.4 (patches 0291-0293).** Routines across athletes and without data
+  (docs/ROUTINES_DESIGN.md §23, §24). The Summary's *All athletes* sets each athlete's run of one week, month or set
+  of dates side by side and offers the run where there is none; the position by the arrows counts the athlete's own
+  runs, and its name switches to another athlete's run of the same period. A chain that used no dataset - a
+  simulation - is saved verified and its routine runs without data: the inputs are the values its code starts from
+  (the promoter has a brief of its own for such a chain), several points one input as rows of numbers. For every
+  routine the custom runs' table says the inputs the runs differ in, a run's Data tab lists its inputs, and a routine
+  that records no result lines lists its runs. Image v74 stands; no migration.
 - **Status 2026-11-14: 2.7.3 (patches 0281-0290).** Routines rebuilt (docs/ROUTINES_DESIGN.md §19, §22): a version
   keeps the chain's code as written; a run executes it a statement at a time, so a step that cannot be computed on
   the data costs its own lines - blank, with the reason - and not the run; a window with no data is an empty run; a
