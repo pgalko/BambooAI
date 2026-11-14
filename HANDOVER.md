@@ -99,10 +99,10 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/215/31/27/18/49/44/72/33/245/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/142/14/25/4/14/67/41 JS; 1,850 on 2026-11-13; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (138 hosted on 2026-11-13; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (244/215/31/27/18/49/44/72/33/245/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/156/14/25/4/14/67/41 JS; 1,864 on 2026-11-14; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (138 hosted on 2026-11-14; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
-  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (144; hosted only - the loaders need the executor; the
+  `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (147; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
 - **Decided not to do, for now:** PRs #61 (LiteLLM SDK as a provider: heavy dependency, duplicated
   capability) and #62 (Requesty: good work, but a copy of the OpenRouter adapter that would drift). The
@@ -481,6 +481,38 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **Athletes side by side (2026-11-14, patch 0291; docs/ROUTINES_DESIGN.md §23).** Palo, with a routine run monthly
+  on two athletes: the position by the arrows read *run 22 of 22* (a run's number, read as a count) while the arrows
+  stepped through one athlete's eleven runs, and a coach had no way to set two athletes' runs of one period side by
+  side. A run has two coordinates, when and who; the page walked *when* and only filtered by *who*. The page alone
+  changed (routines.js, dialogs.css) - the routine's record already carried each run's athlete, interval and dates:
+  - **The position** counts the runs the arrows step through: *3 of 11 · First Athlete* (`updateRunNav`; a run under
+    way reads *run 12 · running · …* as before). Where another athlete has a run of the same period the name is a
+    switch (`a.rt-who`): the menu `#routinePeers` (`build.peers`, `build.peersMenu`, `showPeers` / `hidePeers` /
+    `bindPeers`) lists the period's athletes and opens the one picked. `withSeries` is `withRoutine`: one read of the
+    routine per view gives the athletes of the period and, on a set interval, the Trend series.
+  - **All athletes** is the pick's first option wherever the runs name an athlete (`build.ALL`): one period, a row per
+    athlete by name (`build.byAthleteTable`), a step over the periods any athlete has run (`build.periods`,
+    `build.periodStep`, `managerState.period`), *not run for this week · run it* on an athlete without one and *Run
+    this week for another athlete* under the table. No marks between athletes. `routineBody` takes its picks in
+    `opts` ({athlete, interval, period}) so the tests read it without the manager.
+  - **The rules**: one run stands for an athlete on a period - the latest kept, else the latest that could not be
+    carried out (`build.periodRuns`, read by the table and the switch); the current version only; the same interval
+    and dates only (run 0 is its athlete's run of the original's dates, `build.zeroRun`); a run made with other inputs
+    than most of the rows says so on the row's mark (`build.inputsNotes`; an input that follows the data is not
+    compared).
+  - **The Run dialog asked** (`runPeriod` → `openRun(id, {interval, window, athlete | skip, back})`): a set interval's
+    period is one unit that runs alone (`runState.unit`, `fillPlan(…, only)`: *Week: 2 – 8 Nov — not run yet*, no fill
+    box), custom dates go into the pickers, the athlete is the row's or the first on the roster without a run kept
+    for the period, and the Summary opens again when the run has landed. All athletes opens on the interval in view;
+    a fill opens the Summary on the interval it fills.
+  The tables by unit and by athlete share `build.heads`, `rowHead`, `numCell`, `lostRow`, `NO_LINES`; `gapMark` is
+  `noteMark` over a run's gaps. Not built: a chart with a line per athlete, one press for several athletes. Tests:
+  test_routines.js 156 (three driven on the mini DOM from the server's answers; `minidom.js` has an empty
+  `getBoundingClientRect`), the battery 1,864, the stack walk 138 (`wait_position`: the position whole, since a chain's
+  reads *chain 3 of 3*), `tools/routines_screens.py` 32 screens (seven new, on a routine run on four athletes); the
+  integrations walk's edits (147 checks, three new) - the positions, the switch between two subjects on the original's
+  dates, All athletes over the three dates run, *run it* opening the dialog - are unrun here.
 - **Routines rebuilt: a run, a statement at a time (2026-11-13, patch 0288; docs/ROUTINES_DESIGN.md §19 rewritten,
   §22 new).** Palo, after a weekly fill whose rows were mostly red and a *Fix it in the analysis* that produced a
   second analysis: "the current design is very fragile, and the feature rarely works as intended". The review

@@ -45,7 +45,7 @@ with sync_playwright() as p:
     b = p.chromium.launch()
     page = b.new_page(viewport={"width": 1280, "height": 700})
     page.goto("file://" + path)
-    page.evaluate("() => { const nav = document.querySelector('.topbar .tab-navigation'); nav.style.display = 'flex'; document.getElementById('chainPosition').textContent = 'run 2 of 3'; }")
+    page.evaluate("() => { const nav = document.querySelector('.topbar .tab-navigation'); nav.style.display = 'flex'; document.getElementById('chainPosition').textContent = '2 of 3 · First Athlete'; }")
     page.evaluate("() => { const c = document.getElementById('datasetStatusPillsContainer'); c.appendChild(pill(0, false)); c.appendChild(pill(1, true)); }")
     page.wait_for_timeout(150)
     few = page.evaluate("""() => { const c = document.getElementById('datasetStatusPillsContainer'), nav = document.querySelector('.topbar .tab-navigation'), bar = document.querySelector('.topbar');

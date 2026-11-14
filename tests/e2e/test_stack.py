@@ -52,6 +52,12 @@ def wait_text(page, selector, text, timeout=180000):
                            arg=[selector, text], timeout=timeout)
 
 
+def wait_position(page, text, timeout=180000):
+    """A run's place among the runs the arrows step through, as the top bar says it: "3 of 3" - whole, since a chain's reads
+    "chain 3 of 3" (docs/ROUTINES_DESIGN.md §23)."""
+    page.wait_for_function("(t) => document.getElementById('chainPosition').textContent === t", arg=text, timeout=timeout)
+
+
 def usage_rows(wa, edition, user):
     """The usage rows the logger wrote, read from outside the app: the stand-in's journal (hosted) or the SQLite file (local)."""
     if edition == "hosted":
@@ -543,7 +549,7 @@ def main():
             live = page.evaluate("() => ({ pos: document.getElementById('chainPosition').textContent, locked: document.getElementById('queryInput').disabled, pill: getComputedStyle(document.getElementById('rankButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled] })")
             check("while run 1 runs: the position says so, both arrows are off, the composer is locked and the Save pill is hidden",
                   "running" in live["pos"] and live["locked"] and live["pill"] == "none" and live["arrows"] == [True, True], live)
-            wait_text(page, "#chainPosition", "run 1 of 1", 180000)
+            wait_position(page, "2 of 2", 180000)
             page.wait_for_timeout(600)
             rv = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
                 tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id), active: (document.querySelector('#contentOutput .tab-content.active') || {}).id, strip: (document.querySelector('.sp-strip') || {}).textContent || '',
@@ -559,18 +565,18 @@ def main():
                   "run 1" in rv["strip"] and "v1" in rv["strip"] and "run 0" in rv["strip"] and "Routine:" in rv["ids"] and "Run:1·v1" in rv["ids"].replace(" ", "")
                   and rv["tabs"] and rv["tabs"][0] == "tab-comparison" and rv["active"] == "content-comparison" and "against run 0" in rv["cmp"] and "within" in rv["cmp"] and "Yield, B vs A" in rv["cmp"], (rv["strip"], rv["ids"], rv["tabs"], rv["active"], rv["cmp"][:200]))
             check("run 1 in the panes: the Plots and Results tabs came through the stream as an analysis's do", "tab-plot" in rv["tabs"] and "tab-code_exec_results" in rv["tabs"], rv["tabs"])
-            check("after run 1: the composer stays locked with the reason as its placeholder, the Save pill stays hidden, the position reads run 1 of 1 with the next arrow off and the previous one on (run 0)",
+            check("after run 1: the composer stays locked with the reason as its placeholder, the Save pill stays hidden, the position reads 2 of 2 - run 0 and run 1 - with the next arrow off and the previous one on (run 0)",
                   rv["locked"] and "open the analysis" in rv["placeholder"] and rv["pill"] == "none" and rv["arrows"] == [False, True], (rv["locked"], rv["placeholder"], rv["pill"], rv["arrows"]))
             # the run before (run 0) through the arrow, then forward again
             page.click("#prevResponse")
-            wait_text(page, "#chainPosition", "run 0 of 1", 30000)
+            wait_position(page, "1 of 2", 30000)
             page.wait_for_timeout(400)
             r0 = page.evaluate("() => ({ cmp: (document.getElementById('content-comparison') || {}).textContent || '', done: (document.querySelector('.sp-done') || {}).textContent || '', arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled], tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id) })")
             check("the previous arrow opens run 0 (the version's own check): its own line with the estimate and the interval, nothing it is against, the Results and Data tabs of the stored run, the previous arrow off",
                   r0["cmp"].startswith("Run 0 — the original data") and "against" not in r0["cmp"] and "Yield, B vs A" in r0["cmp"] and re.search(r"\[[+-]?\d", r0["cmp"]) is not None
                   and "Run 0 complete" in r0["done"] and r0["arrows"] == [True, False] and "tab-code_exec_results" in r0["tabs"] and "tab-dataframe" in r0["tabs"], r0)
             page.click("#nextResponse")
-            wait_text(page, "#chainPosition", "run 1 of 1", 30000)
+            wait_position(page, "2 of 2", 30000)
             # the favourite unlocks the composer (Saved workflows -> the card)
             page.click("#workflowManagerPill")
             page.wait_for_selector("#workflowManagerModal .workflow-card", timeout=15000)
@@ -599,7 +605,7 @@ def main():
             check("the run dialog after run 1 has the Compare row - the run before (on) and run 0 - and the footer the last run's time", cmp_choices["choices"] == [["previous", True], ["zero", False]] and cmp_choices["note"].startswith("the last run took "), cmp_choices)
             page.fill("#routineRunModal [data-key='regime']", "C")
             page.click("#routineRunModal [data-act='run']")
-            wait_text(page, "#chainPosition", "run 2 of 2", 180000)
+            wait_position(page, "3 of 3", 180000)
             page.wait_for_timeout(600)
             r2 = page.evaluate("""() => ({ done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'), cmp: (document.getElementById('content-comparison') || {}).textContent || '',
                 marks: [...document.querySelectorAll('#content-comparison .rt-mark')].map(e => e.textContent.trim()), strip: (document.querySelector('.sp-strip') || {}).textContent || '', arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled],
@@ -618,13 +624,13 @@ def main():
                   [h[0] for h in mg2["heads"]] == ["0", "1", "2"] and mg2["acts"] == [["Open"], ["Open", "Delete"], ["Open", "Delete"]] and mg2["rows"] == 1 and all(not v.startswith("+") for v in mg2["values"]) and len(mg2["values"]) == 3
                   and sum(1 for c in mg2["cols"] if re.match(r"Run [012]", c)) == 3 and "Trend" not in mg2["cols"] and mg2["filter"] == ["day:off:", "week:off:", "month:off:", "year:off:", "custom:on:3"] and not mg2["list"], mg2)
             page.click("#routinesModal .rt-runs thead th[data-run='1']")
-            wait_text(page, "#chainPosition", "run 1 of 2", 30000)
+            wait_position(page, "2 of 3", 30000)
             page.wait_for_timeout(400)
             opened = page.evaluate("() => ({ cmp: (document.getElementById('content-comparison') || {}).textContent || '', pos: document.getElementById('chainPosition').textContent, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled], locked: document.getElementById('queryInput').disabled })")
             check("a run's head in the manager's table opens run 1 in the main panes: its comparison against run 0, both arrows on, the composer locked again",
                   "against run 0" in opened["cmp"] and opened["arrows"] == [False, False] and opened["locked"], opened)
             page.click("#nextResponse")
-            wait_text(page, "#chainPosition", "run 2 of 2", 30000)
+            wait_position(page, "3 of 3", 30000)
             # the dialog loads the data itself (2026-10-10): a file routine offers an upload beside the data loaded now; the same file
             # again, compared with run 0, reproduces, and the pane opens with a LOAD row
             page.click("#routinesPill")
@@ -640,7 +646,7 @@ def main():
             check("choosing a file switches the choice to the upload and keeps Run on", up_state["upload"] and up_state["runOn"], up_state)
             page.click("#routineRunModal input[name='rt-compare'][value='zero']")
             page.click("#routineRunModal [data-act='run']")
-            wait_text(page, "#chainPosition", "run 3 of 3", 240000)
+            wait_position(page, "4 of 4", 240000)
             page.wait_for_timeout(600)
             r3 = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '',
                 pills: [...document.querySelectorAll('.primary-dataset-pill')].map(p => p.textContent), data: (document.getElementById('content-dataframe') || {}).textContent || '' })""")
@@ -669,14 +675,14 @@ def main():
             check("with no_soil.csv loaded the run dialog says under Data that soil will be empty in this data (the frame being the choice, the line shows) - not a refusal: the run adds the column empty and the coach decides; Run stays on",
                   not nofit["bad"] and nofit["shown"] and "1 of 6 columns empty in this data: soil" in nofit["fit"] and "no_soil.csv" in nofit["data"] and nofit["runOn"], nofit)
             page.click("#routineRunModal [data-act='run']")
-            wait_text(page, "#chainPosition", "run 4 of 4", 240000)
+            wait_position(page, "5 of 5", 240000)
             page.wait_for_timeout(600)
             r4 = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
                 cmp: (document.getElementById('content-comparison') || {}).textContent || '', pos: document.getElementById('chainPosition').textContent })""")
             check("run 4 on the file without soil: the CHECK row says the column is empty; the statement of cell 2 that divides by a count of zero stops and costs its own line - the run is kept as one that ran, 0 of 1 result line "
                   "with the reason beside it; no warning tone",
                   any("CHECK" in r and "empty in this data: soil" in r for r in r4["rows"]) and "Run 4 complete" in r4["done"] and "ran: 0 of 1 result line; 1 not computed (cell 2 stopped: ZeroDivisionError" in r4["done"] and not r4["warn"]
-                  and "run 4 of 4" in r4["pos"], (r4["rows"][-3:], r4["done"][:300]))
+                  and r4["pos"] == "5 of 5", (r4["rows"][-3:], r4["done"][:300], r4["pos"]))
             # the statement that stopped (docs/ROUTINES_DESIGN.md §22): one line on the Trend tab - its cell, the error - opening on its code; the line it cost is not computed
             r4s = page.evaluate("""() => ({ stopped: [...document.querySelectorAll('#content-comparison details.rt-stopped summary')].map(e => e.textContent), code: [...document.querySelectorAll('#content-comparison details.rt-stopped code')].map(e => e.textContent),
                 words: [...document.querySelectorAll('#content-comparison .rt-cmp-table tbody tr')].map(tr => tr.querySelectorAll('td')[4].textContent.trim()), why: [...document.querySelectorAll('#content-comparison .rt-cmp-table tbody tr')].map(tr => tr.querySelectorAll('td')[4].getAttribute('title') || ''),
@@ -689,13 +695,13 @@ def main():
                   any("CHECK" in r and "rows as the original" in r for r in r3["rows"]) and any("CHECK" in r and "rows as the original" in r and "empty in this data: soil" in r for r in r4["rows"]), (r3["rows"], r4["rows"]))
             # the stored run, opened with the arrow: its CHECK row says what the live one said, and its Data tab lists what differed
             page.click("#prevResponse")
-            wait_text(page, "#chainPosition", "run 3 of 4", 30000)
+            wait_position(page, "4 of 5", 30000)
             page.wait_for_timeout(400)
             r3s = page.evaluate("() => { activateTab('dataframe'); return { rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), data: (document.getElementById('content-dataframe') || {}).textContent || '' }; }")
             check("run 3 opened from its record: the CHECK row carries the recorded line (the rows as the original), and the Data tab lists it under Differs",
                   "rows as the original" in [r for r in r3s["rows"] if "CHECK" in r][-1] and "Differs" in r3s["data"] and "rows as the original" in r3s["data"], (r3s["rows"][-4:], r3s["data"][:200]))
             page.click("#nextResponse")
-            wait_text(page, "#chainPosition", "run 4 of 4", 30000)
+            wait_position(page, "5 of 5", 30000)
             page.wait_for_timeout(300)
             # the Dataset cache's pick (step 4, 2026-10-11): a file routine's dialog offers the files the executor's cache holds - the
             # uploads of this walk - and a run on one of them; the local edition has no executor cache, so the choice stays hidden
@@ -717,7 +723,7 @@ def main():
                 check("choosing a cached file checks its choice and turns Run on", page.evaluate("() => document.querySelector('#routineRunModal input[name=\"rt-data\"][value=\"cache\"]').checked && !document.querySelector('#routineRunModal [data-act=\"run\"]').disabled"))
                 page.click("#routineRunModal input[name='rt-compare'][value='zero']")
                 page.click("#routineRunModal [data-act='run']")
-                wait_text(page, "#chainPosition", "run 5 of 5", 240000)
+                wait_position(page, "6 of 6", 240000)
                 page.wait_for_timeout(600)
                 r5 = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '',
                     pills: [...document.querySelectorAll('.primary-dataset-pill')].map(p => p.textContent) })""")

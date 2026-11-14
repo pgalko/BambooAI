@@ -602,7 +602,8 @@ label, default, where it came from; one that follows the data says so), *Tracked
 *verified, 17 lines reproduced*, or *did not reproduce — …* - the change note after the first version; nothing of
 how the code is run), *Tried on* after *Tracked* when Save tried the method on smaller pieces (§22.6: *a day: 2 of
 11 · a week: 9 of 11 · a month: all 11*); a rule; **Runs** with the
-interval filter and the athlete pick (§14.6) and the table, whose rows are the runs. A set interval: the table by
+interval filter and the athlete pick (§14.6) and the table, whose rows are the runs. The pick opens with *All
+athletes* (§23): one period, a row per athlete. A set interval: the table by
 unit, every row a run that opens (*open →* on hover), a unit whose runs all failed a row with the reason, the values
 without a plus sign, and under it the count of the units not run with *fill them* as a link into the Run dialog on
 that interval. Custom: the table by run - a column per run that ran (run 0 first), each head opening the run, the
@@ -648,7 +649,8 @@ figure · 31 s*, *COMPARE with run 2 — 3 of 5 moved beyond their intervals* (s
 closing card: *Run 3 complete · <routine>* with Results 6, Moved 3 of 5, Figures 1, Time 31 s, the status line, the
 line against run 2, and Comparison → Plots (1) → Results → Data links (What changed with step 3). A failed or
 timed-out run's card is in the warning tone; a run on a window with no data reads *Run 3 had no data*. The position
-reads "run 3 of 3" and the arrows move between the
+counts the runs the arrows step through - *4 of 4* for run 3 after runs 0, 1 and 2, with the athlete after it where
+the runs name one (§23.1; until 2026-11-14 it quoted run numbers, "run 3 of 3") - and the arrows move between the
 routine's runs, run 0 included when verified (its view: the version's own check, its line with the estimate and the
 interval, nothing it is against); while a run is under way the position reads "run 3 · running" and both arrows are
 off. No Save pill: the run is already recorded. The composer is disabled, its placeholder saying why ("A run is a
@@ -1618,3 +1620,98 @@ Built as one change. Accepted by:
   executor; the run on the file without `soil` - 0 of 1 result line, the statement of cell 2 named with its code;
 - the screens (`tools/routines_screens.py`): a weekly Summary with a week that lost a line and a week with no data,
   the run that lost a statement, the dialog's note, the manager verifying.
+
+## 23. Athletes side by side (2026-11-14)
+
+Palo, 14 November, with a routine run monthly on two athletes: the position by the arrows read *run 22 of 22* - a
+run's number, read as a count - while the arrows stepped through the last athlete's eleven runs; and "coach currently
+does not have a way to compare riders. Say I want to run a routine for last month for rider A, and then compare the
+same period against rider B. They can open individual rider's custom runs through the routines modal but it is kind
+of cumbersome. How can we tie it all together allowing custom runs, trends and comparison in a clean simple
+user-friendly way."
+
+Every run has two coordinates: when (its period) and who (its athlete). The page walked *when* in three places - the
+arrows, the table by unit, the Trend tab - and *who* in none: the athlete was a filter. What was agreed and built
+puts *who* where *when* already is. The page alone changed: a routine's record already carried each run's athlete,
+interval and dates (`routine.runs[].data.subject`, `.interval`, `.data.window`).
+
+### 23.1 The position, and the name as a switch
+
+The position reads *3 of 11 · First Athlete*: the run's place among the runs the arrows step through - the athlete's
+own, run 0 among them when it is theirs - not the run's number, which the strip and the id line say. A routine whose
+runs name no athlete reads *3 of 11*. A run under way reads *run 12 · running · First Athlete*, as before.
+
+Where another athlete has a run of the same period, the name is a switch (*First Athlete ▾*): a click opens a menu
+under it, headed by the period (*2 – 8 Nov*, *Oct 2026*, *7 Oct – 14 Nov 2026*), with the period's athletes by name
+and each one's run number, the athlete in view marked. A row opens that athlete's run; the arrows then step through
+their runs. A click elsewhere closes the menu. The view reads the routine once (`withRoutine`): the same read gives a
+set interval's Trend series (§14.6).
+
+### 23.2 The Summary: All athletes
+
+The athlete pick opens with **All athletes** wherever the runs name an athlete - with one athlete too: it is the way
+to a second. The pick stands on the latest run's athlete until All athletes is picked. Picked:
+
+- the heading says *one week, athlete by athlete* (*the same dates, athlete by athlete* under Custom), with the
+  lines' shared words as in the table by unit; the filter counts the runs of every athlete, and stays on the interval
+  that was in view;
+- a **step** beside the filter shows one period between a link to the one before and the one after (*‹ 2 – 8 Nov ›*),
+  over the periods any athlete has run; it opens on the latest. Under Custom the periods are the dates run, run 0's
+  among them;
+- the **table** has a row per athlete the routine has run on, by name: the tracked lines as columns (no thumbnails),
+  the numbers as they are with the run and the interval on hover, a dot with its reason where a line is missing
+  (§22.3), the △ by the name when the run's data was emptier than the original's (§22.4) or when it *ran with other
+  inputs* than the others (*Threshold 300 (the others 250)*). A row opens its run. A run that could not be carried
+  out is a row with the reason. An athlete without a run of the period reads *not run for this week · run it*;
+- under the table, *Run this week for another athlete* (*Run these dates…*).
+
+No mark between two athletes, and no ranking: whether a difference between two people matters is the coach's to
+judge, and no interval rule made for one athlete over time says it.
+
+### 23.3 The rules
+
+- **One run stands for an athlete on a period**: the latest kept (ran, reproduced, or empty), else the latest that
+  could not be carried out. The table and the switch read the same rule (`build.periodRuns`).
+- **The current version only.** Another version is another method.
+- **The same period only**: the same interval and the same dates. Custom dates line up when they are equal to the
+  day, which *run it* sees to. Run 0 is its athlete's run of the original's dates.
+- **Inputs are not forced equal**; a difference is said. An input a run writes from its own data (one that *follows the data*, §4 rule 8)
+  is not compared: it differs by design.
+
+### 23.4 The Run dialog, asked
+
+*run it* and the link under the table open the Run dialog already set (`openRun(id, {interval, window, athlete |
+skip, back})`):
+
+- a set interval's period is **one unit, which runs alone**: *Week: 2 – 8 Nov — not run yet* (or *run already; Run
+  runs it again*), no fill box, the button *Run* or *Run again*. Picking an interval by hand goes back to its last
+  complete unit;
+- custom dates are put in the two pickers;
+- the athlete is the row's (listed without a key when the roster does not have them, as the original's is), or, from
+  the link under the table, the first on the roster without a run kept for the period;
+- when the run has landed, the Summary opens again on the table, with the run's row.
+
+Two things follow for the Summary's picks: All athletes opens on the interval in view, and a fill opens the Summary
+on the interval it fills (before, a filter picked earlier in the session stayed).
+
+### 23.5 Not built
+
+- A chart with a line per athlete (the enlarged chart draws one athlete's units).
+- One press that runs a period for several athletes (a fill is one athlete's; §14.3).
+- Marks or a ranking between athletes (23.2).
+
+### 23.6 Acceptance
+
+- the markup and the page (`tests/analyst/test_routines.js`): the periods of a kind and the run that stands for an
+  athlete; the period's words and the step; the inputs' note; the table by athlete - rows by name, the offer, the
+  marks, a lost run, custom dates with run 0; the manager's body with All athletes, stepped back, on dates, and with
+  nothing to set side by side; the plan of one unit asked for; the athletes of a run's period and their menu; and,
+  driven on the mini DOM from the server's answers, the position, the name as a switch, the menu opened, closed and
+  followed to another athlete's run;
+- the screens (`tools/routines_screens.py`, the real page in a browser): a week and the original's dates with every
+  athlete, a step back, the Run dialog asked from a row and from the link under the table, a run started from it
+  bringing the Summary back, a run's view with the menu open;
+- the stack walk (`tests/e2e/test_stack.py`): the position of a file routine's runs, run 0 among them;
+- the integrations walk (`tests/e2e/test_integrations.py`): two subjects on the original's dates - the switch from
+  one's run to the other's and back, All athletes over the three dates run, *run it* opening the dialog on the other
+  subject and the dates.

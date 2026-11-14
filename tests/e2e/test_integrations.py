@@ -47,6 +47,13 @@ def wait_text(page, selector, text, timeout=180000):
     page.wait_for_function("([sel, t]) => [...document.querySelectorAll(sel)].some(e => e.textContent.includes(t))", arg=[selector, text], timeout=timeout)
 
 
+def wait_position(page, text, timeout=180000):
+    """A run's place among the runs the arrows step through, as the top bar says it (docs/ROUTINES_DESIGN.md §23): "2 of 2", or
+    "2 of 5 · The subject" where the runs name an athlete. Whole, since a chain's reads "chain 2 of 2"; the mark that makes the
+    name a switch is not part of it."""
+    page.wait_for_function("(t) => document.getElementById('chainPosition').textContent.replace(' ▾', '') === t", arg=text, timeout=timeout)
+
+
 def wait_run_end(page, n, timeout=240000):
     wait_text(page, ".sp-done", "Run complete", timeout)
     page.wait_for_function("(n) => typeof queryRunning !== 'undefined' && !queryRunning && typeof responses !== 'undefined' && responses.length >= n", arg=n, timeout=timeout)
@@ -343,7 +350,7 @@ def main():
             band = page.evaluate("() => ({ text: document.querySelector('#routineRunModal .rt-progress .t').textContent, live: !!document.querySelector('#routineRunModal .rt-progress .live'), bar: !!document.querySelector('#routineRunModal .rt-progress .bar'), busy: document.querySelector('#routineRunModal .ui-dlg-b').classList.contains('rt-busy'), runOff: document.querySelector('#routineRunModal [data-act=\"run\"]').disabled })")
             prog = band["text"]
             check("the dialog first clears the data loaded now, then the band (§16.2) shows the loader's words with the dot and a bar, the rows dimmed and Run off", (first.startswith("Clearing") or "Intervals" in first) and ("Intervals" in prog or "Download" in prog or "Pars" in prog or "Load" in prog) and band["live"] and band["bar"] and band["busy"] and band["runOff"], (first, band))
-            wait_text(page, "#chainPosition", "run 1 of 1", 300000)
+            wait_position(page, "2 of 2 · The subject", 300000)
             page.wait_for_timeout(800)
             rv = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
                 cmp: (document.getElementById('content-comparison') || {}).textContent || '', tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id), pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()),
@@ -362,9 +369,9 @@ def main():
             # whose and when (2026-10-30): the heading names the athlete once (both runs are theirs), each column its window; the position names them
             cmp1 = page.evaluate("() => ({ head: (document.querySelector('#content-comparison .rt-sec .h') || {}).textContent || '', when: [...document.querySelectorAll('#content-comparison thead th .when')].map(e => e.textContent), labels: [...document.querySelectorAll('#content-comparison td.label')].map(e => [e.textContent, getComputedStyle(e).whiteSpace]), position: document.getElementById('chainPosition').textContent, compare: ([...document.querySelectorAll('.sp-row.tool')].find(e => /COMPARE/.test(e.textContent)) || {}).textContent || '' })")
             if shots: page.query_selector("#content-comparison").screenshot(path=os.path.join(shots, "comparison_tab_run1.png"))
-            check("the Comparison tab says whose and when: 'Run 1 against run 0 — The subject · v1 · …', the original window under Run 0 and the run's under Run 1, the result labels whole (wrapped, not cut); the position reads 'run 1 of 1 · The subject'; the COMPARE row names run 0 with its window",
+            check("the Comparison tab says whose and when: 'Run 1 against run 0 — The subject · v1 · …', the original window under Run 0 and the run's under Run 1, the result labels whole (wrapped, not cut); the position reads '2 of 2 · The subject' (run 0 and run 1); the COMPARE row names run 0 with its window",
                   cmp1["head"].startswith("Run 1 against run 0 — The subject · v1 · ") and cmp1["when"] == [f"{a_start.isoformat()} → {a_end.isoformat()}", f"{b_start.isoformat()} → {b_end.isoformat()}"] and cmp1["labels"] and all(ws == "normal" for _, ws in cmp1["labels"])
-                  and cmp1["position"] == "run 1 of 1 · The subject" and f", {a_start.isoformat()} → {a_end.isoformat()})" in cmp1["compare"], cmp1)
+                  and cmp1["position"] == "2 of 2 · The subject" and f", {a_start.isoformat()} → {a_end.isoformat()})" in cmp1["compare"], cmp1)
             # what differs, said in sentences (step 4, 2026-10-11): the frame's rows and the summary file's rows against the original's
             _chk1 = next((r for r in rv["rows"] if "CHECK" in r), "")
             check("the CHECK row says what differs from the original in sentences: the frame's rows against the original's, the summary file's rows against the original's and its columns added empty",
@@ -376,9 +383,9 @@ def main():
             page.wait_for_timeout(300)
             # the Data tab after a live run is the executor's frame view; the stored run's Data tab (through the arrows) carries the load and the bindings
             page.click("#prevResponse")
-            wait_text(page, "#chainPosition", "run 0 of 1", 30000)
+            wait_position(page, "1 of 2 · The subject", 30000)
             page.click("#nextResponse")
-            wait_text(page, "#chainPosition", "run 1 of 1", 30000)
+            wait_position(page, "2 of 2 · The subject", 30000)
             page.wait_for_timeout(400)
             page.evaluate("activateTab('dataframe')")
             page.wait_for_timeout(200)
@@ -410,7 +417,7 @@ def main():
             page.click("#routineRunModal input[name='rt-data'][value='now']")
             page.fill("#routineRunModal [data-key='band']", "7, 9")
             page.click("#routineRunModal [data-act='run']")
-            wait_text(page, "#chainPosition", "run 2 of 2", 300000)
+            wait_position(page, "3 of 3 · The subject", 300000)
             page.wait_for_timeout(600)
             r2 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '' })")
             check("run 2 on the data loaded now with the band 7 to 9: no LOAD row, the CHECK row, compared with run 1 - the band's share moved",
@@ -426,7 +433,7 @@ def main():
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
             page.click("#routineRunModal [data-act='run']")              # no preview line any more (§16.1): the load asks the cache itself, and the LOAD row says what it found
-            wait_text(page, "#chainPosition", "run 3 of 3", 300000)
+            wait_position(page, "4 of 4 · The subject", 300000)
             page.wait_for_timeout(800)
             r3 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()) })")
             fits_after = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
@@ -446,7 +453,7 @@ def main():
             page.wait_for_function("() => !!document.querySelector('#routineRunModal input[data-load=\"start\"]')", timeout=30000)
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [c_start.isoformat(), c_end.isoformat()])
             page.click("#routineRunModal [data-act='run']")
-            wait_text(page, "#chainPosition", "run 4 of 4", 300000)
+            wait_position(page, "5 of 5 · The subject", 300000)
             page.wait_for_timeout(800)
             r4 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()) })")
             fits_after4 = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
@@ -600,7 +607,7 @@ def main():
             page.evaluate("([s, e]) => { const a = document.querySelector('#routineRunModal input[data-load=\"start\"]'), b = document.querySelector('#routineRunModal input[data-load=\"end\"]'); a.value = s; b.value = e; b.dispatchEvent(new Event('change', { bubbles: true })); }", [a_start.isoformat(), a_end.isoformat()])
             pills_before5 = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || p.textContent.trim())")
             page.click("#routineRunModal [data-act='run']")
-            wait_text(page, "#chainPosition", "run 5 of 5", 300000)
+            wait_position(page, "1 of 1 · The other subject", 300000)
             page.wait_for_timeout(800)
             r5 = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '' })")
             # one athlete at a time, whatever path brings the pills (2026-10-29): the routine's load for the other subject took the first
@@ -610,11 +617,29 @@ def main():
             probe5 = fetch_json(page, "/remove_auxiliary_dataset", {"file_path": first5[0]}) if first5 else None       # a file no longer in the session's list is 404 here
             check("the routine's load for the other subject, with the first subject's window on the Data tab: the first's pills went as the other's were made - one frame pill, the other's folder on it, the other's files under the pills and none of the first's - and the first's files are out of the session",
                   first5 and tab5["frames"] == 1 and tab5["folder"] == "intervals/i1" and not any("/intervals/i0/views/" in i_ for i_ in tab5["ids"]) and sum(1 for i_ in tab5["ids"] if "/intervals/i1/views/" in i_) >= 1 and probe5["status"] == 404, (pills_before5, tab5, probe5))
+            page.wait_for_selector("#chainPosition .rt-who", timeout=15000)       # the routine's runs read: the first subject has a run of these dates
             view5 = page.evaluate("() => ({ position: document.getElementById('chainPosition').textContent, prev: document.getElementById('prevResponse').disabled, next: document.getElementById('nextResponse').disabled, head: (document.querySelector('#content-comparison .rt-sec .h') || {}).textContent || '', line: (document.querySelector('#content-comparison .rt-line.muted') || {}).textContent || '', when: [...document.querySelectorAll('#content-comparison thead th .when')].map(e => e.textContent), load: ([...document.querySelectorAll('.sp-row.tool')].find(e => /LOAD/.test(e.textContent)) || {}).textContent || '' })")
             if shots: page.query_selector("#content-comparison").screenshot(path=os.path.join(shots, "comparison_tab_run5.png")); page.screenshot(path=os.path.join(shots, "run_view_run5.png"))
-            check("the run view after run 5 (the other subject's first): the position 'run 5 of 5 · The other subject' with both arrows off (their one run); the Comparison tab's heading names them, its line says nothing to compare with - the first run on this subject - over one column with the window; the LOAD row names them",
-                  view5["position"] == "run 5 of 5 · The other subject" and view5["prev"] is True and view5["next"] is True and view5["head"] == "Run 5 — The other subject · v1" and view5["line"] == "nothing to compare with: the first run on this subject"
+            check("the run view after run 5 (the other subject's first): the position '1 of 1 · The other subject' with both arrows off (their one run), the name a switch since the first subject has a run of these dates; the Comparison tab's heading names them, its line says nothing to compare with - the first run on this subject - over one column with the window; the LOAD row names them",
+                  view5["position"] == "1 of 1 · The other subject ▾" and view5["prev"] is True and view5["next"] is True and view5["head"] == "Run 5 — The other subject · v1" and view5["line"] == "nothing to compare with: the first run on this subject"
                   and view5["when"] == [f"{a_start.isoformat()} → {a_end.isoformat()}"] and f"Intervals.icu · The other subject · {a_start.isoformat()} → {a_end.isoformat()}" in view5["load"], view5)
+            # the same dates for another athlete (2026-11-14, docs/ROUTINES_DESIGN.md §23): run 5's dates are the original's, which the first subject ran too - run 0, then run 3,
+            # which stands for them as the latest kept - so the name by the arrows opens the two athletes of these dates; a row opens that athlete's run, and back
+            _dates = lambda a_, b_: f"{a_.day} {a_:%b}{'' if a_.year == b_.year else f' {a_.year}'} – {b_.day} {b_:%b} {b_.year}"
+            page.click("#chainPosition .rt-who")
+            page.wait_for_selector("#routinePeers .it", state="visible", timeout=10000)
+            peers5 = page.evaluate("() => ({ head: document.querySelector('#routinePeers .h').textContent, items: [...document.querySelectorAll('#routinePeers .it')].map(e => [e.className, e.querySelector('b').textContent, e.querySelector('span').textContent]) })")
+            if shots: page.screenshot(path=os.path.join(shots, "run_view_athletes.png"))
+            page.click("#routinePeers .it[data-run='3']")
+            wait_position(page, "4 of 5 · The subject", 30000)
+            page.wait_for_selector("#chainPosition .rt-who", timeout=15000)
+            there5 = page.evaluate("() => ({ menu: document.getElementById('routinePeers').style.display, ids: (document.querySelector('.sp-ids') || {}).textContent || '' })")
+            page.click("#chainPosition .rt-who")
+            page.wait_for_selector("#routinePeers .it", state="visible", timeout=10000)
+            page.click("#routinePeers .it[data-run='5']")
+            wait_position(page, "1 of 1 · The other subject", 30000)
+            check("the name by the arrows is a switch where another athlete has a run of the same dates (§23): its menu is headed by the dates and lists the two athletes by name - the one in view marked, the first subject with run 3 (their latest kept run of these dates; run 0 is of them too); a row closes the menu and opens that athlete's run - '4 of 5 · The subject', run 3 - where the name is a switch as well, and from there back to run 5",
+                  peers5["head"] == _dates(a_start, a_end) and peers5["items"] == [["it on", "The other subject", "run 5"], ["it", "The subject", "run 3"]] and there5["menu"] == "none" and "Run:3·v1·Thesubject" in there5["ids"].replace(" ", ""), (peers5, there5))
             fits_after5 = len([c for c in __import__("requests").get(st.apis_url + "/calls", timeout=5).json()["calls"] if "fit-file" in c[1]])
             run5 = json.load(open(os.path.join(os.path.dirname(rdirs[0]), "runs", "v1_5", "run.json")))
             check("run 5 downloaded the window afresh under the new key (new FIT requests, no 'from the cache'), and its record carries the new key's mark - never the key - and the other subject the profile named",
@@ -642,21 +667,51 @@ def main():
                 s.value = 'i0'; s.dispatchEvent(new Event('change', { bubbles: true }));
                 const b = { picked: document.querySelector('#routinesModal select[data-pick="athlete"]').value, cols: cols(), runs: runs() };
                 return { a, b }; }""")
-            check("the manager's history by athlete (S2, 2026-11-08): a pick in the Runs heading - the other subject (the latest run's) selected with 1 run, the first subject with 5 (run 0 counted) - the table the other subject's run alone, no runs list, the filter bar on Custom (their one run) with the set intervals greyed; the first subject picked: run 0 and runs 1 to 4 as the table's columns, no trend across custom runs (§14.6)",
-                  mg5["a"]["picked"] == "i1" and mg5["a"]["options"] == ["The other subject \u00b7 1 run", "The subject \u00b7 5 runs"] and mg5["a"]["cols"] == ["Result", "Run 5"] and mg5["a"]["runs"] == ["5"] and not mg5["a"]["list"] and any(h.startswith("Runs") for h in mg5["a"]["heads"])
+            check("the manager's history by athlete (S2, 2026-11-08): a pick in the Runs heading - All athletes first, the other subject (the latest run's) selected with 1 run, the first subject with 5 (run 0 counted) - the table the other subject's run alone, no runs list, the filter bar on Custom (their one run) with the set intervals greyed; the first subject picked: run 0 and runs 1 to 4 as the table's columns, no trend across custom runs (§14.6)",
+                  mg5["a"]["picked"] == "i1" and mg5["a"]["options"] == ["All athletes", "The other subject \u00b7 1 run", "The subject \u00b7 5 runs"] and mg5["a"]["cols"] == ["Result", "Run 5"] and mg5["a"]["runs"] == ["5"] and not mg5["a"]["list"] and any(h.startswith("Runs") for h in mg5["a"]["heads"])
                   and mg5["a"]["filter"] == ["day:off:", "week:off:", "month:off:", "year:off:", "custom:on:1"]
                   and mg5["b"]["picked"] == "i0" and mg5["b"]["cols"] == ["Result", "Run 0", "Run 1", "Run 2", "Run 3", "Run 4"] and mg5["b"]["runs"] == ["0", "1", "2", "3", "4"], mg5)
+            # every athlete on one period (2026-11-14, docs/ROUTINES_DESIGN.md §23): All athletes sets the runs of the same dates side by side. Three custom dates were
+            # run - the cut window (the first subject alone), the original's (both subjects) and the next window (the first subject alone) - the latest shown first
+            page.select_option("#routinesModal select[data-pick='athlete']", "*")
+            page.wait_for_selector("#routinesModal .rt-athletes", timeout=10000)
+            _step = lambda: page.evaluate("() => (document.querySelector('#routinesModal .rt-step b') || {}).textContent || ''")
+            _rows = lambda: page.evaluate("() => [...document.querySelectorAll('#routinesModal .rt-athletes tbody tr')].map(tr => [tr.getAttribute('data-run') || tr.className, tr.querySelector('td.w').textContent.replace(/open →.*/, '').replace(' △', ''), (tr.querySelector('td.nr') || {}).textContent || ''])")
+            all5 = page.evaluate("() => ({ picked: document.querySelector('#routinesModal select[data-pick=\"athlete\"]').value, head: document.querySelector('#routinesModal .rt-runsec .h .n').textContent, filter: (document.querySelector('#routinesModal .rt-filter .on') || {}).getAttribute('data-filter'), heads: [...document.querySelectorAll('#routinesModal .rt-athletes thead th')].map(e => e.textContent), thumbs: document.querySelectorAll('#routinesModal .rt-athletes .rt-thumb').length, foot: (document.querySelector('#routinesModal .rt-foot') || {}).textContent || '' })")
+            step_b, rows_b = _step(), _rows()
+            page.click("#routinesModal .rt-step a[data-act='period']")                 # a step back: the original's dates
+            page.wait_for_function("(t) => (document.querySelector('#routinesModal .rt-step b') || {}).textContent === t", arg=_dates(a_start, a_end), timeout=10000)
+            rows_a = _rows()
+            if shots: page.wait_for_timeout(300); page.query_selector("#routinesModal .rt-mgr").screenshot(path=os.path.join(shots, "manager_all_athletes.png"))
+            page.click("#routinesModal .rt-step a[data-act='period']")                 # and one more: the cut window
+            page.wait_for_function("(t) => (document.querySelector('#routinesModal .rt-step b') || {}).textContent === t", arg=_dates(c_start, c_end), timeout=10000)
+            rows_c = _rows()
+            ends_c = page.evaluate("() => [...document.querySelectorAll('#routinesModal .rt-step a')].map(a => a.className)")
+            check("All athletes in the manager's pick (§23): the heading says the same dates, athlete by athlete, the filter stays on Custom, the table's head is Athlete and the two tracked lines without thumbnails, and under it the offer to run these dates for another athlete; the step opens on the latest dates run (the next window: the first subject's row, the other offered the run), goes back to the original's "
+                  "dates - the other subject's run 5 beside the first subject's run 3 - and to the cut window, the earliest, where the step's link back is off",
+                  all5["picked"] == "*" and all5["head"].startswith("— the same dates, athlete by athlete") and all5["filter"] == "custom" and all5["heads"] == ["Athlete", "Peak start hour", "Share in the band"] and all5["thumbs"] == 0 and all5["foot"] == "Run these dates for another athlete"
+                  and step_b == _dates(b_start, b_end) and [r_[1] for r_ in rows_b] == ["The other subject", "The subject"] and rows_b[0][0] == "norun" and rows_b[0][2] == "not run for these dates · run it" and rows_b[1][0] in ("1", "2")
+                  and [r_[:2] for r_ in rows_a] == [["5", "The other subject"], ["3", "The subject"]]
+                  and [r_[:2] for r_ in rows_c] == [["norun", "The other subject"], ["4", "The subject"]] and ends_c == ["off", ""], (all5, step_b, rows_b, rows_a, rows_c, ends_c))
+            # the row's offer opens the Run dialog on that athlete and those dates; cancelled here - nothing runs
+            page.click("#routinesModal .rt-athletes [data-act='run-athlete']")
+            page.wait_for_function("() => { const s = document.querySelector('#routineRunModal select[data-load=\"athlete\"]'); return !!s && s.getAttribute('data-state') === 'ready'; }", timeout=30000)
+            asked5 = page.evaluate("() => ({ athlete: document.querySelector('#routineRunModal select[data-load=\"athlete\"]').value, on: document.querySelector('#routineRunModal .rt-interval .on').getAttribute('data-interval'), dates: [document.querySelector('#routineRunModal input[data-load=\"start\"]').value, document.querySelector('#routineRunModal input[data-load=\"end\"]').value] })")
+            check("'run it' on the other subject's row opens the Run dialog on them, on Custom, with the cut window's dates in the pickers", asked5 == {"athlete": "i1", "on": "custom", "dates": [c_start.isoformat(), c_end.isoformat()]}, asked5)
+            page.click("#routineRunModal [data-act='cancel']")
+            page.select_option("#routinesModal select[data-pick='athlete']", "i0")
+            page.wait_for_selector("#routinesModal .rt-runs thead th[data-run='4']", timeout=10000)
             # the arrows stay within the athlete (2026-10-30): run 4 opened from the manager (its head in the table) steps back through the first subject's runs only
             page.click("#routinesModal .rt-runs thead th[data-run='4']")
-            wait_text(page, "#chainPosition", "run 4 of 4 · The subject", 30000)
+            wait_position(page, "5 of 5 · The subject", 30000)
             nav4 = page.evaluate("() => ({ prev: document.getElementById('prevResponse').disabled, next: document.getElementById('nextResponse').disabled, head: (document.querySelector('#content-comparison .rt-sec .h') || {}).textContent || '' })")
             page.click("#prevResponse")
-            wait_text(page, "#chainPosition", "run 3 of 4 · The subject", 30000)
-            page.click("#prevResponse"); wait_text(page, "#chainPosition", "run 2 of 4 · The subject", 30000)
-            page.click("#prevResponse"); wait_text(page, "#chainPosition", "run 1 of 4 · The subject", 30000)
-            page.click("#prevResponse"); wait_text(page, "#chainPosition", "run 0 of 4 · The subject", 30000)
+            wait_position(page, "4 of 5 · The subject", 30000)
+            page.click("#prevResponse"); wait_position(page, "3 of 5 · The subject", 30000)
+            page.click("#prevResponse"); wait_position(page, "2 of 5 · The subject", 30000)
+            page.click("#prevResponse"); wait_position(page, "1 of 5 · The subject", 30000)
             nav0 = page.evaluate("() => ({ prev: document.getElementById('prevResponse').disabled, next: document.getElementById('nextResponse').disabled, head: (document.querySelector('#content-comparison .rt-sec .h') || {}).textContent || '' })")
-            check("run 4 opened from the manager: 'run 4 of 4 · The subject', the previous arrow on and the next off (run 5 is the other subject's); the arrows step 3, 2, 1, 0 - never run 5 - and run 0 names the athlete; run 4's heading names the athlete once",
+            check("run 4 opened from the manager: '5 of 5 · The subject' - the last of their five, run 0 among them - the previous arrow on and the next off (run 5 is the other subject's); the arrows step 3, 2, 1, 0 - never run 5 - and run 0 names the athlete; run 4's heading names the athlete once",
                   nav4["prev"] is False and nav4["next"] is True and nav4["head"].startswith("Run 4 against run 3 — The subject · v1") and nav0["prev"] is True and nav0["next"] is False and nav0["head"] == "Run 0 — the original data — The subject · v1", (nav4, nav0))
             # the new key has loaded now, so the records say whose it is: the next window (run 1's, the first subject's) is another subject's
             page.click("#routinesPill")
@@ -792,7 +847,7 @@ def main():
                   and len(big2["keys"]) == 2 and big2["keys"][1] == ["Share in the band · right scale", "sw dashed"] and big2["note"] == "The two lines are on different scales — compare their shapes, not their heights." and not big2["footOff"] and big2["right"] and big2["dots"] == 2 * len(weeks)
                   and big3["on"] == "3" and big3["points"] == str(len(weeks)) and big3["sub"].endswith("the latest 3 months"), (big, big2, big3))
             page.click(f"#routinesModal .rt-by tbody tr[data-run='{wk_runs[-1]['number']}'] td.w")
-            wait_text(page, "#chainPosition", f"run {wk_runs[-1]['number']} of {wk_runs[-1]['number']} · The subject", 30000)
+            wait_position(page, f"{5 + len(wk_runs)} of {5 + len(wk_runs)} · The subject", 30000)        # the first subject's runs: run 0, runs 1 to 4 and the weeks
             page.wait_for_function("() => document.querySelectorAll('#content-comparison td.trend .rt-thumb').length >= 1", timeout=15000)
             ttab = page.evaluate("() => ({ tab: document.querySelector('#tab-comparison').textContent, heads: [...document.querySelectorAll('#content-comparison thead th')].map(e => e.textContent), labels: [...document.querySelectorAll('#content-comparison tbody td.label')].map(e => e.textContent), thumbs: document.querySelectorAll('#content-comparison td.trend .rt-thumb').length, legend: (document.querySelector('#content-comparison .rt-legend') || {}).textContent || '', card: ([...document.querySelectorAll('.sp-done a')].map(a => a.textContent)) })")
             if shots: page.query_selector("#content-comparison").screenshot(path=os.path.join(shots, "trend_tab_week.png"))
@@ -845,7 +900,7 @@ def main():
             check("the run dialog of an Endura routine (§16.1): the Data and Race rows, the race list from Endura with the original race (Spring classic) selected; nothing said about the original or its auxiliaries", [o[0] for o in ed["options"]] == ["1", "2", "3"] and ed["options"][0][2] and ed["rows"][:2] == ["data", "race"] and "the original:" not in ed["text"] and "profile, climbs" not in ed["text"], ed)
             page.select_option("#routineRunModal select[data-load='race']", "2")
             page.click("#routineRunModal [data-act='run']")
-            wait_text(page, "#chainPosition", "run 1 of 1", 300000)
+            wait_position(page, "2 of 2", 300000)
             page.wait_for_timeout(600)
             re_ = page.evaluate("() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()) })")
             check("the run on the flat crit: a LOAD row naming the race, the CHECK row saying power is empty in this data (the loader dropped the all-zero channel), the run complete; the Data tab's pills show the race and its files (the climbs file is written empty by the loader, so it is bound, not absent)",
@@ -1262,8 +1317,8 @@ def main():
                   {"summary", "wellness", "context"} <= set(plan_n) and "codes" not in plan_n, plan_n)
             b_start_n, b_end_n = page.evaluate("() => [document.querySelector('#routineRunModal input[data-load=\"start\"]').value, document.querySelector('#routineRunModal input[data-load=\"end\"]').value]")
             page.click("#routineRunModal [data-act='run']")
-            seen_coding = page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && /Coding the context|run 1 of/.test(p.textContent + ' ' + ((document.querySelector('#chainPosition') || {}).textContent || '')); }", timeout=300000)
-            wait_text(page, "#chainPosition", "run 1 of 1", 300000)
+            seen_coding = page.wait_for_function("() => { const p = document.querySelector('#routineRunModal .rt-progress'); return !!p && /Coding the context| 2 of 2 · /.test(p.textContent + ' ' + ((document.querySelector('#chainPosition') || {}).textContent || '')); }", timeout=300000)
+            wait_position(page, "2 of 2 · The subject", 300000)
             page.wait_for_timeout(800)
             rv_n = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
                 cmp: (document.getElementById('content-comparison') || {}).textContent || '', pills: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim()),
@@ -1314,7 +1369,7 @@ def main():
             page.fill("#routineRunModal input[data-load='end']", c_end.isoformat())
             page.wait_for_timeout(700)
             page.click("#routineRunModal [data-act='run']")
-            wait_text(page, "#chainPosition", "run 2 of 2", 300000)
+            wait_position(page, "3 of 3 · The subject", 300000)
             page.wait_for_timeout(800)
             rv_s = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
                 cmp: (document.getElementById('content-comparison') || {}).textContent || '', ctx: (() => { const p = document.getElementById('contextPill'); if (!p) return null; const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, title: c.getAttribute('title'), rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent) }; })() })""")
@@ -1351,7 +1406,7 @@ def main():
                   cl_d.get("hit") is True and f"inside the cached load {a_start.isoformat()} → {a_end.isoformat()}" in cl_d.get("line", "") and all(k_ in cl_d.get("line", "") for k_ in ("summary", "wellness", "context", "codes")) and "no download" in cl_d.get("line", ""), cl_d)
             fits_before_d = calls_of(st, "fit-file")
             page.click("#routineRunModal [data-act='run']")
-            page.wait_for_function("() => /run 3 of 3/.test((document.querySelector('#chainPosition') || {}).textContent || '') || /Maximum|could not be loaded|failed/.test(((document.querySelector('#routineRunModal .rt-progress') || {}).textContent) || '')", timeout=300000)
+            page.wait_for_function("() => /^4 of 4 · /.test((document.querySelector('#chainPosition') || {}).textContent || '') || /Maximum|could not be loaded|failed/.test(((document.querySelector('#routineRunModal .rt-progress') || {}).textContent) || '')", timeout=300000)
             page.wait_for_timeout(800)
             prog_d = page.evaluate("() => ((document.querySelector('#routineRunModal .rt-progress') || {}).textContent) || ''")
             rv_d = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
@@ -1360,7 +1415,7 @@ def main():
             run3_n = json.load(open(run3_path)) if os.path.exists(run3_path) else {}
             _chk_d = next((r for r in rv_d["rows"] if "CHECK" in r), "")
             check("run 3 ran from the cache with all eight files - none refused by the auxiliary limit (derived from the loaders' registry since 0181): no download, the LOAD row 'cut from the cache', the CHECK row - a sentence per file, whole on the page (the 600-character cut had lost its tail) - ending 'cut to the window from the cached load', the context, codes, plan, rider profile, zone times and intervals files among the eight bound, the run complete",
-                  "run 3 of 3" in rv_d["position"] and "Maximum" not in prog_d and calls_of(st, "fit-file") == fits_before_d
+                  rv_d["position"] == "4 of 4 · The subject" and "Maximum" not in prog_d and calls_of(st, "fit-file") == fits_before_d
                   and any("LOAD" in r and "cut from the cache" in r for r in rv_d["rows"]) and f"cut to {d_start.isoformat()} → {d_end.isoformat()} from the cached load" in _chk_d
                   and run3_n.get("status") in ("ran", "reproduced") and sorted(aux_kind(p_) for p_ in (run3_n.get("data") or {}).get("aux") or []) == ["codes", "context", "intervals", "plan", "rider", "summary", "wellness", "zones"]
                   and not run3_n.get("aux_absent") and "Run 3 complete" in rv_d["done"] and not rv_d["warn"],

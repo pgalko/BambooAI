@@ -587,7 +587,7 @@ and when* - the heading names the athlete once when both runs are theirs (*Run 2
 · 0 of 7 moved…*), each run's athlete when they differ (and *athlete not recorded* for a run from before the
 subject was kept); each run's window sits under its column header (a file's name or a race's title for the other
 sources), and the result labels wrap instead of being cut. The run view's id line, its position (*run 3 of 4 ·
-First Athlete*), the LOAD row (*Intervals.icu · First Athlete · window · …*), the Data tab's *Loaded as* and the
+First Athlete*; since 2026-11-14 the athlete's own count, *4 of 5 · First Athlete*, docs/ROUTINES_DESIGN.md §23), the LOAD row (*Intervals.icu · First Athlete · window · …*), the Data tab's *Loaded as* and the
 COMPARE row (*with run 3 (30 Oct, window)*) name the athlete or the window too. *The arrows stay within the
 athlete*: a run opens with its athlete's runs alone (`run_numbers(…, subject_id)` on the host; run zero when it is
 theirs); the other athletes' runs are reached through the manager's pick. *An unrecorded athlete is nobody's*: a run

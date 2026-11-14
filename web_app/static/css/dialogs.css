@@ -418,6 +418,25 @@
 .rt-by td.num { text-align: right; font-family: var(--font-mono); font-size: var(--fs-meta); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rt-by td.num .rt-mark { min-width: 12px; }
 .rt-by tr.latest td { background: color-mix(in srgb, var(--c-model) 6%, transparent); }
+/* every athlete on one period (docs/ROUTINES_DESIGN.md §23): the step between periods in the heading; a row per athlete, one
+   without a run of the period offered it; in a run's view the name by the arrows opens the period's menu of athletes */
+.rt-sec > .h .rt-step { display: inline-flex; align-items: center; height: 24px; padding: 0 2px; border: 1px solid var(--border-color); border-radius: 6px; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.rt-sec > .h .rt-step b { padding: 0 4px; font-weight: 500; color: var(--text-primary); }
+.rt-sec > .h .rt-step a { padding: 0 7px; font-size: 14px; line-height: 22px; color: var(--text-secondary); cursor: pointer; }
+.rt-sec > .h .rt-step a:hover { color: var(--text-primary); }
+.rt-sec > .h .rt-step a.off { opacity: .3; cursor: default; }
+.rt-sec > .h .rt-filter + .rt-step, .rt-sec > .h .rt-step + .rt-athlete-pick { margin-left: 10px; }
+.rt-by tr.norun td.w { color: var(--text-tertiary); }
+.rt-by td.nr { font-size: var(--fs-small); color: var(--text-quaternary); }
+.rt-by td.nr a { color: var(--c-model); cursor: pointer; }
+.rt-by td.nr a:hover { text-decoration: underline; }
+.chain-position .rt-who { color: var(--text-primary); border-bottom: 1px dotted var(--text-quaternary); cursor: pointer; }
+.chain-position .rt-who:hover { border-bottom-color: var(--text-secondary); }
+.save-menu.rt-peers { min-width: 220px; }      /* the pill's menu (shell.css), a row per athlete: the name, their run */
+.save-menu.rt-peers .h { padding: 4px 10px 6px; font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .03em; }
+.save-menu.rt-peers .it { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 18px; }
+.save-menu.rt-peers .it b { font-weight: 500; }
+.save-menu.rt-peers .it.on { background: var(--bg-tertiary); }
 .rt-thumb { display: block; width: 112px; height: 24px; margin-left: auto; cursor: pointer; }
 .rt-thumb polyline { fill: none; stroke: var(--c-model); stroke-width: 1.5; }
 .rt-thumb circle { fill: var(--c-model); }

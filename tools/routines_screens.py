@@ -7,8 +7,9 @@ Screens: the Save pill's menu on a finished chain; the Save-as-routine dialog wi
 choice, and refused; the Routines manager with one routine and empty; the favourites manager with a card's Routine
 button lit; the run dialog on a file, refusing, on an Intervals window, and on Week with the weeks to fill (§14.2);
 the manager while a fill runs (§14.3), the manager redesigned 2026-11-08 (the facts, the runs as a table), a weekly
-Summary with a week that lost a line, a week with no data and what Save found on smaller pieces (§22), and the view
-of a run that lost a statement. The two streaming routes are answered with the lines the server would send, so
+Summary with a week that lost a line, a week with no data and what Save found on smaller pieces (§22), the view
+of a run that lost a statement, and every athlete on one period (§23): a week and the same dates side by side, the
+Run dialog asked for an athlete and a week, a run's view with the menu of athletes open. The two streaming routes are answered with the lines the server would send, so
 routines.js runs its own path - the dialog is driven by the script, not drawn by hand. Exits 1 when a page error or an
 unexpected state shows."""
 import argparse, json, os, sys, importlib.util
@@ -128,6 +129,30 @@ RUN_VIEW_P = {"run": {"number": 4, "version": 1, "created": 1792069000, "finishe
                                      "line": "nothing to compare with: no earlier month on record for this subject", "compared": 0, "moved": 0, "within": 0, "changed": 0, "missing": 3}},
               "stdout": "RESULT: log speed, abroad (sea level) vs Ethiopia altitude laps: +0.120 (95% CI +0.100 to +0.140) log units\n", "figures": [], "routine": None, "numbers": [0, 4], "name": ROUTINE["name"], "subject": {"id": "i2", "name": "Second Athlete"},
               "against_data": None}
+# every athlete on one period (2026-11-14, docs/ROUTINES_DESIGN.md §23): the weekly routine run on three more athletes - the second on
+# the last three weeks (the latest with another threshold) and on the original's dates, the third on the last two (the latest lost a
+# line, on emptier data), the fourth on an earlier week only: the latest week is three rows of numbers and one athlete offered the run
+ROUTINE_A = json.loads(json.dumps(ROUTINE_W))
+ATHLETES = [("i1", "First Athlete"), ("i2", "Second Athlete"), ("i3", "Third Athlete"), ("i4", "Fourth Athlete")]
+def _on(who, window, interval, shift, **more):
+    vals = _lines([(0.11 + shift, 0.02), (0.31 - shift, 0.02), (-0.13 + shift / 2, 0.03), (-0.14 + shift, 0.05), (0.065 + shift / 3, 0.015)])
+    n = len(ROUTINE_A["runs"]) + 1
+    run = {"number": n, "version": 1, "created": 1792500000 + 600 * n, "finished": 1792500031 + 600 * n, "elapsed": 31.0, "status": "ran", "line": "ran: 6 result lines", "interval": interval,
+           "inputs": {"hard_effort_hr": 155, "hr_bands": [130, 145, 155, 165, 175], "exclude": ["athlete07", "athlete09"]}, "results": vals, "figures": 1, "against": None, "cells": 5,
+           "data": {"df_id": f"df_a{n}", "name": "", "source": "intervals", "rows": 1800 + 40 * n, "columns": 49, "date_range": f"{window[0]} to {window[1]}", "aux": [], "extra": {}, "subject": {"id": who, "name": dict(ATHLETES)[who]}, "window": list(window)},
+           "comparison": {"moved": 0, "within": 0, "changed": 0, "missing": 0, "compared": 0, "line": "nothing to compare with"}}
+    run.update(more)
+    ROUTINE_A["runs"].append(run)
+    return run
+_on("i2", ("2026-07-02", "2026-08-30"), None, 0.027)
+for _k, _shift in ((-3, 0.031), (-2, 0.024), (-1, 0.018)): _on("i2", _WEEKS[_k], "week", _shift)
+ROUTINE_A["runs"][-1]["inputs"] = dict(ROUTINE_A["runs"][-1]["inputs"], hard_effort_hr=160)
+_on("i3", _WEEKS[-2], "week", -0.02)
+_third = _on("i3", _WEEKS[-1], "week", -0.012, line="ran: 2 of 3 result lines; 1 not computed (" + _WHY + ")", gaps=["heart_rate is empty for 3 of 6 activity_id values"])
+_third["results"] = _third["results"][:5] + [{"estimate": None, "low": None, "high": None, "why": _WHY}]
+_on("i4", _WEEKS[-4], "week", 0.04)
+_A_ALL = "setTimeout(() => { const s = document.querySelector('#routinesModal select[data-pick=\"athlete\"]'); s.value = '*'; s.dispatchEvent(new Event('change', {bubbles: true})); }, 1200)"
+_A_THEN = "; setTimeout(() => document.querySelector('#routinesModal %s').click(), 1800)"       # then a click in the Summary
 SUMMARY = {"id": "r1", "name": ROUTINE["name"], "created": 1791460000, "updated": 1791460000, "source": "file", "purpose": ROUTINE["purpose"], "question": ROUTINE["question"], "origin": ROUTINE["origin"],
            "current_version": 1, "versions": 1, "runs": 0, "verified": True, "run_zero_status": "reproduced", "run_zero_line": "reproduced: 6 result line(s) identical", "inputs": 4, "results": 3, "figures": 1, "data": PROPOSAL["data"]}
 SCREENS = {
@@ -167,7 +192,27 @@ SCREENS = {
     's6d_trend_enlarged': {"js": "RoutinesUI.openManager('r1'); setTimeout(() => document.querySelector('#routinesModal .rt-thumb').dispatchEvent(new MouseEvent('click', {bubbles: true})), 1200)", "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_W, "wait": 1200},
     's5c_trend_tab':      {"js": "RoutinesUI.viewRun('r1', %d)" % _last["number"], "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_W, "view": RUN_VIEW_W, "wait": 1000},
     's5d_run_partial':    {"js": "RoutinesUI.viewRun('r1', 4)", "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_W, "view": RUN_VIEW_P, "wait": 800},     # a run that lost a statement (§22)
+    # every athlete on one period (§23): the latest week; a step back to the week before; the same dates (the original's, run 0 among the
+    # rows); the Run dialog asked from a row for its athlete and the week, and from the link under the table for the dates on the first
+    # athlete without them; a run started from the asked dialog brings the Summary back; a run's view with the name by the arrows opened
+    's7_athletes_week':   {"js": "RoutinesUI.openManager('r1'); " + _A_ALL, "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_A, "wait": 1500},
+    's7b_athletes_earlier': {"js": "RoutinesUI.openManager('r1'); " + _A_ALL + _A_THEN % '.rt-step a[data-act="period"]', "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_A, "wait": 2000},
+    's7c_athletes_dates': {"js": "RoutinesUI.openManager('r1'); " + _A_ALL + _A_THEN % '.rt-filter [data-filter="custom"]', "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_A, "wait": 2000},
+    's7d_run_dialog_asked': {"js": "RoutinesUI.openManager('r1'); " + _A_ALL + _A_THEN % '.rt-athletes [data-act="run-athlete"]', "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_A,
+                             "precheck": PRECHECK_INTERVALS, "athletes": ATHLETES, "wait": 3000},
+    's7e_run_dialog_dates': {"js": "RoutinesUI.openManager('r1'); " + _A_ALL + _A_THEN % '.rt-filter [data-filter="custom"]' + "; setTimeout(() => document.querySelector('#routinesModal .rt-foot [data-act=\"run-period\"]').click(), 2400)", "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_A,
+                             "precheck": PRECHECK_INTERVALS, "athletes": ATHLETES, "wait": 3600},
+    's7f_asked_run_back': {"js": "RoutinesUI.openManager('r1'); " + _A_ALL + _A_THEN % '.rt-athletes [data-act="run-athlete"]' + "; setTimeout(() => document.querySelector('#routineRunModal [data-act=\"run\"]').click(), 3200)", "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_A,
+                           "precheck": PRECHECK_INTERVALS, "athletes": ATHLETES, "wait": 6500},
+    's7g_run_view_athletes': {"js": "RoutinesUI.viewRun('r1', %d); setTimeout(() => document.querySelector('#chainPosition .rt-who').click(), 1500)" % _last["number"], "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_A, "view": RUN_VIEW_W, "wait": 2000},
 }
+
+
+def _unit(w):
+    """A week as the page says it in a table or a line: 26 Oct – 1 Nov, 19 – 25 Oct."""
+    from datetime import date
+    a, b = date.fromisoformat(w[0]), date.fromisoformat(w[1])
+    return (str(a.day) if a.month == b.month else f"{a.day} {a:%b}") + f" – {b.day} {b:%b}"
 
 
 def render(out, light=False, width=1440, height=900):
@@ -227,7 +272,7 @@ def render(out, light=False, width=1440, height=900):
                     if path == '/intervals/get_data_limits':
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps({"max_days": 365, "compute_tier": "pro"}))
                     if path == '/intervals/athletes':          # the run dialog's athletes (2026-10-30): Run waits for them
-                        return route.fulfill(status=200, content_type='application/json', body=json.dumps({"athletes": [{"id": "i1", "name": "First Athlete"}, {"id": "i2", "name": "Second Athlete"}]}))
+                        return route.fulfill(status=200, content_type='application/json', body=json.dumps({"athletes": [{"id": i, "name": n} for i, n in spec_.get('athletes') or ATHLETES[:2]]}))
                     if path == '/cache/inspect':
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps({"tree": {}, "subjects": []}))
                     if path == '/routines/fill':               # the session's fill (§14.3): running for the manager-with-a-fill screen; a list answers in turn, the last standing
@@ -293,6 +338,9 @@ def render(out, light=False, width=1440, height=900):
                                     " trendDlg: !!document.querySelector('#routineTrendModal') && document.querySelector('#routineTrendModal').style.display === 'flex', chartPoints: Number((document.querySelector('#routineTrendModal .rt-chart') || {}).getAttribute ? document.querySelector('#routineTrendModal .rt-chart').getAttribute('data-points') : 0), chartGaps: document.querySelectorAll('#routineTrendModal .rt-chart rect.rt-gap').length,"
                                     " trendHeads: [...document.querySelectorAll('#content-comparison thead th')].map(e => e.textContent), trendThumbs: document.querySelectorAll('#content-comparison td.trend .rt-thumb').length, keys: document.querySelectorAll('#routineTrendModal .rt-keys .rt-key').length, footOff: !!document.querySelector('#routineTrendModal .ui-dlg-f.off'),"
                                     " inRun: RoutinesUI.inRunView(), stopped: [...document.querySelectorAll('#content-comparison details.rt-stopped summary')].map(e => e.textContent), gapNote: (document.querySelector('#content-comparison .rt-fit.note') || {}).textContent || '', words: [...document.querySelectorAll('#content-comparison tbody tr td:last-child')].map(e => e.textContent.trim()),"
+                                    " athRows: document.querySelectorAll('#routinesModal .rt-athletes tbody tr[data-run]').length, noRun: [...document.querySelectorAll('#routinesModal .rt-athletes tr.norun')].map(e => e.textContent), step: (document.querySelector('#routinesModal .rt-step b') || {}).textContent || '', pickOn: (document.querySelector('#routinesModal select[data-pick=\"athlete\"]') || {}).value || '',"
+                                    " dates: [...document.querySelectorAll('#routineRunModal input[data-load=\"start\"], #routineRunModal input[data-load=\"end\"]')].map(e => e.value),"
+                                    " peers: document.querySelector('#routinePeers') && document.querySelector('#routinePeers').style.display !== 'none' ? [...document.querySelectorAll('#routinePeers .it')].map(e => e.className + ' ' + e.textContent) : [], peersHead: (document.querySelector('#routinePeers .h') || {}).textContent || '',"
                                     " triedFact: (document.querySelector('#routinesModal .rt-tried') || {}).textContent || '', blanks: document.querySelectorAll('#routinesModal .rt-by td.num .rt-mark.missing').length, gapMarks: document.querySelectorAll('#routinesModal .rt-by td.w .rt-gapmark').length, position: document.getElementById('chainPosition').textContent, cmpRows: document.querySelectorAll('#content-comparison tbody tr').length, locked: document.getElementById('queryInput').disabled, done: !!document.querySelector('#streamOutput .sp-done'), runsTable: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, runHeads: document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]').length, runItems: document.querySelectorAll('#routinesModal .rt-run, #routinesModal .rt-runbox, #routinesModal .rt-legend').length, tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent)})")
                 want = {'s0_save_menu': state['pill'] != 'none' and state['menu'], 's1_make_dialog': state['dialog'] and state['inputs'] == 4 and state['derived'] == 1 and state['pane'] and state['kept'] == ['Abroad vs altitude, adjusted', 'Per +1000 m of altitude', 'Abroad vs road, same HR band'] and state['more'] == '▸ 2 more metrics computed, not tracked' and state['aside'] == 0 and state['instr'],
                         's1d_make_dialog_aside': state['dialog'] and state['more'].startswith('▾ 2 more metrics') and state['aside'] == 2,
@@ -305,12 +353,20 @@ def render(out, light=False, width=1440, height=900):
                         's4e_run_dialog_now': state['runDlg'] and state['runBtn'] and state['dataChoice'] == 'now' and state['rowsOff'] == ['athlete', 'interval'] and state['fitNote'] and not state['band'],
                         's4f_run_dialog_loading': state['runDlg'] and not state['runBtn'] and state['busy'] and state['band'] == 'Downloading 12 of 40 activities…' and state['bandBar'] == '30%',
                         's4d_run_dialog_week': state['runDlg'] and state['runBtn'] and state['interval'] == 'week' and state['fillBox'] and state['plan'].startswith('Last complete week: ') and state['pickers'] and state['runLabel'].startswith('Run ') and state['runLabel'].endswith(' weeks') and state['compare'] == '' and not state['band'] and state['tried'] == 'One week of the original data gave 2 of the 3 metrics.',
-                        's5_run_view': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 3 and state['locked'] and state['done'] and state['pill'] == 'none' and state['tabs'][0] == 'Trend',
-                        's5b_run_live': state['inRun'] and state['position'] == 'run 3 of 3' and state['cmpRows'] == 3 and state['locked'] and state['done'] and state['tabs'][0] == 'Trend',
+                        's5_run_view': state['inRun'] and state['position'] == '4 of 4' and state['cmpRows'] == 3 and state['locked'] and state['done'] and state['pill'] == 'none' and state['tabs'][0] == 'Trend',
+                        's5b_run_live': state['inRun'] and state['position'] == '4 of 4' and state['cmpRows'] == 3 and state['locked'] and state['done'] and state['tabs'][0] == 'Trend',
                         's6_manager_runs': state['manager'] and state['runsTable'] == 3 and state['runHeads'] == 4 and state['runItems'] == 0 and state['filterOn'] == 'custom' and state['byRows'] == 0,
                         's6c_manager_weekly': state['manager'] and state['filterOn'] == 'week' and state['byRows'] == 10 and state['thumbs'] == 3 and state['blanks'] == 4 and state['gapMarks'] == 1 and state['triedFact'] == 'a day: 1 of 3 · a week: 2 of 3 · a month: all 3' and state['runItems'] == 0 and state['runsTable'] == 0 and state['foot'].endswith(' weeks in the last year not run yet · fill them') and set(state['scrolls']) <= {'rt-body'},
                         's6d_trend_enlarged': state['trendDlg'] and state['chartPoints'] == 9 and state['chartGaps'] >= 2 and state['keys'] == 1 and state['footOff'],
                         's5c_trend_tab': state['inRun'] and state['tabs'][0] == 'Trend' and state['trendHeads'][-1] == 'Weekly trend' and state['trendThumbs'] == 3 and state['cmpRows'] == 3,
+                        's7_athletes_week': state['manager'] and state['pickOn'] == '*' and state['filterOn'] == 'week' and state['step'] == _unit(_WEEKS[-1]) and state['athRows'] == 3 and state['noRun'] == ['Fourth Athletenot run for this week · run it'] and state['thumbs'] == 0
+                                            and state['blanks'] == 1 and state['gapMarks'] == 2 and state['foot'] == 'Run this week for another athlete' and set(state['scrolls']) <= {'rt-body'},
+                        's7b_athletes_earlier': state['manager'] and state['pickOn'] == '*' and state['step'] == _unit(_WEEKS[-2]) and state['athRows'] == 3 and len(state['noRun']) == 1 and state['gapMarks'] == 0,
+                        's7c_athletes_dates': state['manager'] and state['pickOn'] == '*' and state['filterOn'] == 'custom' and state['step'] == '2 Jul – 30 Aug 2026' and state['athRows'] == 2 and len(state['noRun']) == 2 and state['foot'] == 'Run these dates for another athlete',
+                        's7d_run_dialog_asked': state['runDlg'] and state['runBtn'] and state['athletes'] == 'i4' and state['interval'] == 'week' and state['plan'] == 'Week: ' + _unit(_WEEKS[-1]) + ' — not run yet' and not state['fillBox'] and state['runLabel'] == 'Run' and state['pickers'],
+                        's7e_run_dialog_dates': state['runDlg'] and state['runBtn'] and state['athletes'] == 'i3' and state['interval'] == 'custom' and state['dates'] == ['2026-07-02', '2026-08-30'] and not state['pickers'],
+                        's7f_asked_run_back': state['manager'] and state['inRun'] and not state['runDlg'] and state['pickOn'] == '*' and state['step'] == _unit(_WEEKS[-1]) and state['athRows'] == 3,
+                        's7g_run_view_athletes': state['inRun'] and state['position'] == '10 of 10 · First Athlete ▾' and state['peersHead'] == _unit(_WEEKS[-1]) and state['peers'] == ['it on First Athleterun 10', 'it Second Athleterun 14', 'it Third Athleterun 16'],
                         's5d_run_partial': state['inRun'] and state['stopped'] == ["cell 3 stopped: KeyError: 'venue_altitude_m' · 3 later steps not run"] and state['gapNote'] == '△ heart_rate is empty for 3 of 6 activity_id values' and state['cmpRows'] == 3,
                         's6e_manager_filled': state['manager'] and state['fillGone'] and not state['stopBtn'] and not state['runOff'] and not state['locked'] and state['toast'] == 'Filled 41 weeks in 19 min',
                         's6b_manager_fill': state['manager'] and state['runOff'] and state['fillBar'] == 'Filling the weeks · 12 of 41 done · 2 – 8 Feb running · about 15 min left' and state['stopBtn'] and state['locked'] and state['placeholder'].startswith('A fill is running (Filling the weeks · 12 of 41 done')}[name]

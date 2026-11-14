@@ -33,6 +33,7 @@ class Element extends Node {
   matches(sel) { return this.parent ? this.parent.querySelectorAll(sel).includes(this) : false; }
   closest(sel) { let n = this; while (n && n.nodeType === 1) { if (n.matches(sel)) return n; n = n.parent; } return null; }
   focus() {} select() {} blur() {}
+  getBoundingClientRect() { return { top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 }; }      // no layout here: every box is empty
   get elements() { return this.children.filter(c => c.nodeType === 1); }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   querySelectorAll(sel) {

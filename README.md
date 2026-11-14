@@ -267,9 +267,10 @@ script runs one statement at a time: a step that cannot be computed on the new d
 results that depend on it, which are left blank with the reason, and a window with no data is recorded
 as an empty run. BambooAI records results, figures and differences from the previous run for the same
 athlete (or from run zero). Differences are classified against the previous result interval (outside,
-within, or not computed). The first run has no comparison; results are never compared across athletes.
-Upload-based runs without an athlete form a single comparison group. Cached data is reused when it
-covers the requested window.
+within, or not computed). The first run has no comparison; differences are never calculated across
+athletes. Upload-based runs without an athlete form a single comparison group. In the Summary,
+**All athletes** shows each athlete's results for the same week, month or dates side by side, and
+offers the run for an athlete who has none. Cached data is reused when it covers the requested window.
 
 ## Configuration
 

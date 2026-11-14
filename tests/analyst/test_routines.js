@@ -404,10 +404,10 @@ check('runs table by athlete: the first athlete\'s columns are run 0, 1 and 3; t
 const mb2 = el(b.routineBody(Object.assign({}, two, { origin: {} })));
 const oneAthlete = Object.assign({}, two, { origin: {}, runs: two.runs.filter(x => ((x.data || {}).subject || {}).id === 'i0') });
 const mb1 = el(b.routineBody(oneAthlete)), mb0 = el(b.routineBody(Object.assign({}, oneAthlete, { runs: [] })));
-check('the manager with runs on one athlete (2026-11-13): the pick is there with their name alone, so a coach coming back sees whose runs these are - three runs, run 0 among them, and with run 0 alone; the table is every run; runs that name no athlete (a file routine, a run 0 from before the athlete was kept) show no pick',
-  [...mb1.querySelectorAll('.rt-sec .h select[data-pick="athlete"] option')].map(o => o.getAttribute('value') + ':' + o.textContent).join('|') === 'i0:First Athlete · 3 runs'
+check('the manager with runs on one athlete (2026-11-13): the pick is there with their name selected, so a coach coming back sees whose runs these are - three runs, run 0 among them, and with run 0 alone - under All athletes (§23); the table is every run; runs that name no athlete (a file routine, a run 0 from before the athlete was kept) show no pick',
+  [...mb1.querySelectorAll('.rt-sec .h select[data-pick="athlete"] option')].map(o => o.getAttribute('value') + ':' + o.textContent + (o.hasAttribute('selected') ? ' (on)' : '')).join('|') === '*:All athletes|i0:First Athlete · 3 runs (on)'
   && [...mb1.querySelectorAll('.rt-runs thead th')].map(e => headName(e)).filter(Boolean).join('|') === 'Result|Run 0|Run 1|Run 3'
-  && [...mb0.querySelectorAll('select[data-pick="athlete"] option')].map(o => o.textContent).join('|') === 'First Athlete · 1 run' && [...mb0.querySelectorAll('.rt-runs thead th')].map(e => headName(e)).filter(Boolean).join('|') === 'Result|Run 0'
+  && [...mb0.querySelectorAll('select[data-pick="athlete"] option')].map(o => o.textContent).join('|') === 'All athletes|First Athlete · 1 run' && [...mb0.querySelectorAll('.rt-runs thead th')].map(e => headName(e)).filter(Boolean).join('|') === 'Result|Run 0'
   && !el(b.routineBody(Object.assign({}, rt, { origin: {} }))).querySelector('select[data-pick="athlete"]')
   && !el(b.routineBody(Object.assign({}, noZero, { origin: {}, runs: [] }))).querySelector('select[data-pick="athlete"]'), mb1.querySelector('.rt-sec .h') && mb1.querySelector('.rt-sec .h').innerHTML);
 check('the manager with runs on two athletes: a pick in the Runs heading (the latest run\'s athlete selected, each with its count), the table filtered to them; a routine whose runs name no athlete - no pick',
@@ -437,8 +437,8 @@ check('Run waits for the athletes of an Intervals routine: the select starts as 
 // ---- step 2: the run view's state - the arrows, the position, the composer, the Save pill ----
 w.RoutinesUI.enterRunView({ id: 'r1', name: 'Rows above a line', current_version: 2 }, [0, 1, 2], 2, { version: 2 });
 const pos = doc.querySelector('#chainPosition');
-check('run view: the pane and the tabs cleared, the id line and the strip written for the run, the position reads "run 2 of 2" with the next arrow off, the composer locked, the Save pill asked to hide',
-  w.RoutinesUI.inRunView() && global.__tabsCleared === 1 && global.__ids.run === '2 · v2' && global.__strip.run === 2 && pos.textContent === 'run 2 of 2' && doc.querySelector('#nextResponse').disabled === true && doc.querySelector('#prevResponse').disabled === false
+check('run view: the pane and the tabs cleared, the id line and the strip written for the run, the position counts the runs the arrows step through - run 2, the last of run 0, 1 and 2, reads "3 of 3" - with the next arrow off, the composer locked, the Save pill asked to hide',
+  w.RoutinesUI.inRunView() && global.__tabsCleared === 1 && global.__ids.run === '2 · v2' && global.__strip.run === 2 && pos.textContent === '3 of 3' && doc.querySelector('#nextResponse').disabled === true && doc.querySelector('#prevResponse').disabled === false
   && doc.querySelector('#queryInput').disabled === true && global.__rankSeen === true, [global.__ids, pos.textContent]);
 w.RoutinesUI.enterRunView({ id: 'r1', name: 'x', current_version: 2 }, [0, 1, 2, 3], 3, { version: 2, pending: true });
 check('a run under way: the position says so and both arrows are off', pos.textContent === 'run 3 · running' && doc.querySelector('#prevResponse').disabled === true && doc.querySelector('#nextResponse').disabled === true);
@@ -449,8 +449,8 @@ check('runNumbers: run 0 when verified, then every run', w.RoutinesUI.runNumbers
 check('runNumbers by athlete: the first athlete\'s run 0, 1 and 3; the second\'s run 2 alone; a run 0 naming none belongs to the subject-less group only',
   w.RoutinesUI.runNumbers(two, 'i0').join(',') === '0,1,3' && w.RoutinesUI.runNumbers(two, 'i1').join(',') === '2' && w.RoutinesUI.runNumbers(noZero, 'i0').join(',') === '1,3' && w.RoutinesUI.runNumbers(noZero, '').join(',') === '0' && w.RoutinesUI.runNumbers(two).join(',') === '0,1,2,3');
 w.RoutinesUI.enterRunView({ id: 'r1', name: 'Rows above a line', current_version: 2 }, [0, 1, 3], 1, { version: 2, subject: { id: 'i0', name: 'First Athlete' } });
-check('the run view on an athlete\'s runs: the position reads "run 1 of 3 · First Athlete", the id line carries the name, both arrows on; a pending run on them says running with the name',
-  pos.textContent === 'run 1 of 3 · First Athlete' && global.__ids.run === '1 · v2 · First Athlete' && doc.querySelector('#prevResponse').disabled === false && doc.querySelector('#nextResponse').disabled === false
+check('the run view on an athlete\'s runs (§23): the position counts their runs alone and names them - run 1, the second of their run 0, 1 and 3, reads "2 of 3 · First Athlete" (the name is plain text until another athlete has a run of the period) - the id line carries the name, both arrows on; a pending run on them says running with the name',
+  pos.textContent === '2 of 3 · First Athlete' && !pos.querySelector('.rt-who') && global.__ids.run === '1 · v2 · First Athlete' && doc.querySelector('#prevResponse').disabled === false && doc.querySelector('#nextResponse').disabled === false
   && (w.RoutinesUI.enterRunView({ id: 'r1', name: 'x', current_version: 2 }, [2, 4], 1, { version: 2, pending: true, subject: { id: 'i1', name: 'Second Athlete' } }), pos.textContent === 'run 4 · running · Second Athlete'), [pos.textContent, global.__ids]);
 w.RoutinesUI.exitRunView();
 check('manager actions: the .py download of the current version, Rename, Delete', el(b.actions(routine)).querySelector('a[href="/routines/r1/script"][download]') && el(b.actions(routine)).querySelector('[data-act="rename"]') && el(b.actions(routine)).querySelector('[data-act="delete"]'));
@@ -548,8 +548,8 @@ check('the trimmed label is what the Summary\'s runs table shows, the full label
   mbl.querySelector('.rt-runs td.label').textContent === 'rows above the line' && mbl.querySelector('.rt-runs td.label').getAttribute('title').endsWith('2026-03-01')
   && el(b.comparisonTab({ run: Object.assign({}, run3, { comparison: Object.assign({}, run3.comparison, { rows: run3.comparison.rows.map(x => Object.assign({}, x, { label: 'rows above, all 9 rows' })) }) }), against_data: null })).querySelector('td.label').textContent === 'rows above');
 const rtSrcF = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
-check('the page: more than one unit goes to POST /routines/<id>/fill after the span is loaded and checked, then the Summary opens on the routine and the fill is watched at GET /routines/fill every three seconds; Stop posts to /routines/fill/stop; one unit runs through /run cut to the unit; a reload probes for a fill; the composer stays locked with the reason while a fill runs; Run and Delete refuse during one',
-  rtSrcF.includes("if (windows.length > 1) { startFill(st, plan, windows, values, auxLoaded, loadDone, p); return; }") && rtSrcF.includes("fetchJson('/routines/' + encodeURIComponent(st.id) + '/fill', { method: 'POST'") && rtSrcF.includes("watchFill();\n            openManager(routine.id);")
+check('the page: more than one unit goes to POST /routines/<id>/fill after the span is loaded and checked, then the Summary opens on the routine - on the interval being filled, whatever was in view (2026-11-14) - and the fill is watched at GET /routines/fill every three seconds; Stop posts to /routines/fill/stop; one unit runs through /run cut to the unit; a reload probes for a fill; the composer stays locked with the reason while a fill runs; Run and Delete refuse during one',
+  rtSrcF.includes("if (windows.length > 1) { startFill(st, plan, windows, values, auxLoaded, loadDone, p); return; }") && rtSrcF.includes("fetchJson('/routines/' + encodeURIComponent(st.id) + '/fill', { method: 'POST'") && rtSrcF.includes("managerState.interval = plan.kind;") && rtSrcF.includes("watchFill();\n            openManager(routine.id);")
   && rtSrcF.includes("const tick = () => fetchJson('/routines/fill').then(res => {") && rtSrcF.includes("fillTimer = setTimeout(tick, 3000);") && rtSrcF.includes("fetchJson('/routines/fill/stop', { method: 'POST' })")
   && rtSrcF.includes("Object.assign(loadDone, { start_date: windows[0][0], end_date: windows[0][1], cached_from: loadDone.cached_from || [loaded.start, loaded.end] });")
   && el(b.dataTab({ source: 'intervals', load: { source: 'intervals', start_date: '2026-10-26', end_date: '2026-11-01', cached_from: ['2025-11-10', '2026-11-01'] } }, {})).textContent.includes('Intervals.icu 2026-10-26 → 2026-11-01 · cut from the load 2025-11-10 → 2026-11-01') && rtSrcF.includes("setTimeout(probeFill, 1500);")
@@ -676,15 +676,95 @@ check('the page (2026-11-06, the manager\'s frame 2026-11-08): the header\'s but
   && !dlgCss0().includes('.rt-fillbar.done') && !dlgCss0().includes('.rt-runbox') && !dlgCss0().includes('.rt-runlist') && !/\.rt-byunit \{[^}]*max-height/.test(dlgCss0()) && dlgCss0().includes('.rt-by tbody tr[data-run] { cursor: pointer; }') && dlgCss0().includes('.rt-by tbody tr:hover td.w .open { opacity: 1; }')
   && rtSrcS.includes("const runItem = e.target.closest('[data-act=\"open-run\"], .rt-by tr[data-run], .rt-runs th[data-run], .rt-failed[data-run]');") && rtSrcS.includes("if (fillLink && managerState.current) { openRun(managerState.current.id, { interval: fillLink.getAttribute('data-kind') }); return; }")
   && rtSrcS.includes("if (del && managerState.current) { deleteRun(managerState.current, Number(del.getAttribute('data-run'))); return; }") && rtSrcS.includes("if (!confirm('Delete run ' + number + '?')) return;") && rtSrcS.includes("{ method: 'DELETE' });") && rtSrcS.includes("compare_with: !cmp ? 'previous' : (cmp.value === 'other' && other ? other.value : cmp.value)")
-  && rtSrcS.includes("runState.interval = (opts && opts.interval) || build.lastInterval(r);"));
+  && rtSrcS.includes("runState.interval = ask.interval || build.lastInterval(r);"));
 const crSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'content-rendering.js'), 'utf8'), spSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'stream-pane.js'), 'utf8');
 check('the page: the filter bar\'s pick re-renders the body (a greyed interval is inert), a thumbnail opens the enlarged chart over the manager\'s series, the horizon asked once from the limits route (a year at most), the dialog with 3 m / 6 m / 12 m, also show and PNG; the run view draws the Trend tab\'s series from the routine\'s runs, live and stored; the tab is named Trend and the closing card links to it; the old sparkline is gone',
   rtSrcS.includes("const filter = e.target.closest('.rt-filter [data-filter]');") && rtSrcS.includes("if (!filter.classList.contains('off') && managerState.current) { managerState.interval = filter.getAttribute('data-filter'); renderManagerBody(); }")
   && rtSrcS.includes("openTrend(Number(thumb.getAttribute('data-line')))") && rtSrcS.includes("fetchJson('/intervals/get_data_limits').then(res => Math.min(365, Number((res.json || {}).max_days) || 365))") && rtSrcS.includes("trendDlg.id = 'routineTrendModal'")
   && rtSrcS.includes('<span data-months="3">3 m</span><span data-months="6">6 m</span><span class="on" data-months="12">12 m</span>') && rtSrcS.includes("if (e.target.closest('[data-act=\"png\"]')) savePng();")
-  && rtSrcS.includes("d.querySelector('.rt-keys').innerHTML = build.trendKeys(s, st.line, two ? st.also : -1, colors);") && rtSrcS.includes("two ? 'The two lines are on different scales — compare their shapes, not their heights.' : ''") && rtSrcS.includes("d.querySelector('.ui-dlg-f').classList.toggle('off', !two);") && dlgCss0().includes('#routineTrendModal .ui-dlg-f.off') && rtSrcS.includes("withSeries(routineId, run, subjectIdOf(view.subject), s => createOrUpdateTab('comparison', build.comparisonTab(view, s)));")
-  && rtSrcS.includes("withSeries(viewState.routine.id, run, subjectIdOf(viewState.subject), s =>") && crSrc.includes("tabName = 'Trend';") && spSrc.includes("const links = ['Trend'].concat(") && !rtSrcS.includes('rt-spark') && !dlgCss0().includes('.rt-spark') && ['.rt-filter', '.rt-byunit', '.rt-thumb', '.rt-foot', '#routineTrendModal', '.rt-cmp-table td.trend'].every(c => dlgCss0().includes(c)));
+  && rtSrcS.includes("d.querySelector('.rt-keys').innerHTML = build.trendKeys(s, st.line, two ? st.also : -1, colors);") && rtSrcS.includes("two ? 'The two lines are on different scales — compare their shapes, not their heights.' : ''") && rtSrcS.includes("d.querySelector('.ui-dlg-f').classList.toggle('off', !two);") && dlgCss0().includes('#routineTrendModal .ui-dlg-f.off') && rtSrcS.includes("withRoutine(routineId, run, subjectIdOf(view.subject), s => createOrUpdateTab('comparison', build.comparisonTab(view, s)));")
+  && rtSrcS.includes("withRoutine(viewState.routine.id, run, subjectIdOf(viewState.subject), s =>") && crSrc.includes("tabName = 'Trend';") && spSrc.includes("const links = ['Trend'].concat(") && !rtSrcS.includes('rt-spark') && !dlgCss0().includes('.rt-spark') && ['.rt-filter', '.rt-byunit', '.rt-thumb', '.rt-foot', '#routineTrendModal', '.rt-cmp-table td.trend'].every(c => dlgCss0().includes(c)));
 function dlgCss0() { return fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8'); }
+
+// ---- every athlete on one period (2026-11-14, docs/ROUTINES_DESIGN.md §23): the Summary's table by athlete, the Run dialog asked for a
+// period, the athletes of a run's period. Four athletes: two weeks and the original's dates run on some of them, one run with another
+// input, one on emptier data that lost a line, one refused, one timed out after a kept one, one of an earlier version, one without dates
+const who4 = { i0: 'First Athlete', i1: 'Second Athlete', i2: 'Third Athlete', i3: 'Fourth Athlete' };
+const W1 = ['2026-10-26', '2026-11-01'], W2 = ['2026-11-02', '2026-11-08'], OCT = ['2026-10-01', '2026-10-31'], DATES = ['2026-10-07', '2026-11-14'];
+const runOn = (n, id, interval, win, more) => Object.assign({ number: n, version: 2, created: 1793000000 + n, status: 'ran', interval, data: { source: 'intervals', subject: { id, name: who4[id] }, window: win }, inputs: { threshold: 250, win }, gaps: [],
+  results: [{ estimate: '+' + (100 + n), low: '+90', high: '+120' }, { estimate: '+' + n, low: null, high: null }] }, more || {});
+const side = { id: 'r1', name: 'Power over a week', current_version: 2, origin: {}, versions: [{ number: 1 }, { number: 2,
+    run_zero: { verified: true, created: 1792000000, results: [{ estimate: '+100', low: null, high: null }, { estimate: '+0', low: null, high: null }], inputs: { threshold: 250, win: DATES } },
+    manifest: { parameters: [{ key: 'threshold', label: 'Threshold', type: 'number', default: 250 }, { key: 'win', label: 'Window', type: 'date_window', derived: 'window', default: DATES }],
+      results: [{ label: 'mean maximal power, 5 min', unit: 'W', estimate: '+100' }, { label: 'mean maximal power, 20 min', unit: 'W', estimate: '+0' }],
+      data: { columns: [], load: { source: 'intervals', start_date: DATES[0], end_date: DATES[1], subject: { source: 'intervals', id: 'i0', name: who4.i0 } } } } }],
+  runs: [runOn(1, 'i0', 'week', W1), runOn(2, 'i0', 'week', W2), runOn(3, 'i1', 'week', W1), runOn(4, 'i1', 'week', W2, { inputs: { threshold: 300, win: W2 } }),
+    runOn(5, 'i2', 'week', W2, { results: [{ estimate: '+171', low: null, high: null }, { estimate: null, why: 'cell 5 stopped: too few laps' }], gaps: ['power is empty for 3 of 6 activity_id values'] }),
+    runOn(6, 'i2', 'week', W1, { status: 'failed', line: 'the load was refused' }), runOn(7, 'i3', 'month', OCT), runOn(8, 'i1', null, DATES),
+    runOn(9, 'i1', 'week', W2, { version: 1 }), runOn(10, 'i0', 'week', W2, { status: 'timed_out', line: 'timed out after 60 s' }), runOn(11, 'i3', null, null)] };
+const standing = (kind, win) => Object.entries(b.periodRuns(side, kind, win)).map(([id, x]) => id + ':' + x.number).sort().join(' ');
+check('periods (§23): the periods of a kind that any athlete has run under the current version, oldest first - two weeks, one month, no day; custom: the original\'s dates, which run 0 and a custom run share; runs that do not say their dates make no period',
+  JSON.stringify(b.periods(side, 'week')) === JSON.stringify([W1, W2]) && JSON.stringify(b.periods(side, 'month')) === JSON.stringify([OCT]) && b.periods(side, 'day').length === 0
+  && JSON.stringify(b.periods(side, 'custom')) === JSON.stringify([DATES]) && b.periods(two, 'custom').length === 0, [b.periods(side, 'week'), b.periods(side, 'custom'), b.periods(two, 'custom')]);
+check('periodRuns: one run stands for an athlete on a period - the latest kept (a later run that timed out does not replace it, a run of an earlier version is not counted), else the latest that could not be carried out; run 0 is its athlete\'s run of the original\'s dates',
+  standing('week', W2) === 'i0:2 i1:4 i2:5' && standing('week', W1) === 'i0:1 i1:3 i2:6' && standing('custom', DATES) === 'i0:0 i1:8' && standing('month', W1) === '' && b.periodRuns(side, 'week', W1).i2.status === 'failed', [standing('week', W2), standing('week', W1), standing('custom', DATES)]);
+const stepAt = i => el(b.periodStep('week', [W1, W2], i));
+check('periodText and the step: a set interval\'s unit as the tables say it; custom dates with the year once, twice when the years differ; the step shows the period between a link to the one before and the one after - at an end the link is off and inert',
+  b.periodText('week', W2) === '2 – 8 Nov' && b.periodText('month', OCT) === 'Oct 2026' && b.periodText('custom', DATES) === '7 Oct – 14 Nov 2026' && b.periodText('custom', ['2025-12-20', '2026-01-10']) === '20 Dec 2025 – 10 Jan 2026'
+  && stepAt(1).querySelector('.rt-step b').textContent === '2 – 8 Nov' && stepAt(1).querySelector('a[data-act="period"]').getAttribute('data-period') === '2026-10-26 2026-11-01' && stepAt(1).querySelectorAll('a.off').length === 1 && !stepAt(1).querySelector('a.off').hasAttribute('data-act')
+  && stepAt(0).querySelector('a[data-act="period"]').getAttribute('data-period') === '2026-11-02 2026-11-08' && el(b.periodStep('month', [OCT], 0)).querySelectorAll('a.off').length === 2, stepAt(1).innerHTML);
+const params4 = side.versions[1].manifest.parameters;
+check('inputsNotes: a run made with other inputs than most of the rows is said in a sentence, by its number; an input written from the data (the window) is not compared; the same inputs, or no run - nothing',
+  JSON.stringify(b.inputsNotes(params4, [side.runs[1], side.runs[3], side.runs[4]])) === '{"4":"ran with other inputs: Threshold 300 (the others 250)"}' && JSON.stringify(b.inputsNotes(params4, [side.runs[0], side.runs[1]])) === '{}' && JSON.stringify(b.inputsNotes(params4, [])) === '{}',
+  b.inputsNotes(params4, [side.runs[1], side.runs[3], side.runs[4]]));
+const at2 = el(b.byAthleteTable(side, 'week', W2, 'mean maximal power')), rowsA = [...at2.querySelectorAll('tbody tr')];
+check('the table by athlete (§23): the head is Athlete and the lines without their shared words, no thumbnail; a row per athlete the routine has run on, by name, each opening the run that stands for them - the numbers as they are, with the run and the interval on hover and no mark between athletes, a dot with the reason where a line is missing; an athlete without a run of the week is offered it, and the link under the table offers the week to another athlete',
+  [...at2.querySelectorAll('thead th')].map(e => e.textContent).join('|') === 'Athlete|5 min|20 min' && !at2.querySelector('.rt-thumb') && at2.querySelector('table.rt-by.rt-athletes').getAttribute('data-kind') === 'week' && at2.querySelector('table').getAttribute('data-period') === '2026-11-02 2026-11-08'
+  && rowsA.map(tr => (tr.getAttribute('data-run') || tr.className) + ':' + tr.querySelector('td.w').textContent).join('|') === '2:First Athleteopen →run 2|norun:Fourth Athlete|4:Second Athlete △open →run 4|5:Third Athlete △open →run 5'
+  && rowsA[0].querySelectorAll('td.num')[0].textContent === '102' && rowsA[0].querySelectorAll('td.num')[0].getAttribute('title') === 'run 2 · [+90, +120]' && rowsA[3].querySelectorAll('td.num')[1].querySelector('.rt-mark.missing') && rowsA[3].querySelectorAll('td.num')[1].getAttribute('title') === 'cell 5 stopped: too few laps'
+  && rowsA[1].querySelector('td.nr').textContent === 'not run for this week · run it' && rowsA[1].querySelector('td.nr').getAttribute('colspan') === '2' && rowsA[1].querySelector('a[data-act="run-athlete"]').getAttribute('data-athlete') === 'i3' && rowsA[1].querySelector('a[data-act="run-athlete"]').getAttribute('data-name') === 'Fourth Athlete'
+  && at2.querySelector('.rt-foot a[data-act="run-period"]').textContent === 'Run this week for another athlete' && !at2.querySelector('.rt-mark.up') && !at2.querySelector('.rt-mark.down') && !at2.querySelector('.rt-mark.same'), rowsA.map(tr => tr.textContent));
+const at1 = el(b.byAthleteTable(side, 'week', W1, '')), atD = el(b.byAthleteTable(side, 'custom', DATES, ''));
+check('the table by athlete: the mark by a name says on hover that the run\'s data was emptier than the original\'s, or that it ran with other inputs than the others; a run that could not be carried out is a row with the reason, which opens it; on custom dates run 0 is the original athlete\'s row and the others are offered "these dates"; an athlete the runs do not name is offered nothing; a routine without result lines says so',
+  rowsA[2].querySelector('.rt-gapmark').getAttribute('title') === 'ran with other inputs: Threshold 300 (the others 250)' && rowsA[3].querySelector('.rt-gapmark').getAttribute('title') === 'power is empty for 3 of 6 activity_id values' && !rowsA[0].querySelector('.rt-gapmark')
+  && at1.querySelector('tr.failed[data-run="6"] td.f').textContent === 'the load was refused' && at1.querySelector('tr.failed td.w').textContent === 'Third Athleteopen →run 6'
+  && [...atD.querySelectorAll('tbody tr')].map(tr => (tr.getAttribute('data-run') || tr.className) + ':' + tr.querySelector('td.w').textContent.replace(/open.*/, '')).join('|') === '0:First Athlete|norun:Fourth Athlete|8:Second Athlete|norun:Third Athlete'
+  && atD.querySelector('td.nr').textContent === 'not run for these dates · run it' && atD.querySelector('.rt-foot').textContent === 'Run these dates for another athlete'
+  && el(b.byAthleteTable(Object.assign({}, side, { runs: side.runs.concat([Object.assign(runOn(12, 'i0', 'week', W1), { data: { source: 'intervals', window: W1 } })]) }), 'week', W2, '')).querySelector('tr.norun:not([data-run]) td.nr').textContent.startsWith('not run for this week')
+  && [...el(b.byAthleteTable(Object.assign({}, side, { runs: side.runs.concat([Object.assign(runOn(12, 'i0', 'week', W1), { data: { source: 'intervals', window: W1 } })]) }), 'week', W2, '')).querySelectorAll('tr.norun')].map(tr => tr.textContent).includes('athlete not recordednot run for this week')
+  && b.byAthleteTable(Object.assign({}, side, { versions: [{ number: 2, manifest: { results: [] } }] }), 'week', W2, '') === b.NO_LINES, [at1.innerHTML, atD.textContent]);
+const bodyA = picks => el(b.routineBody(side, null, Object.assign({ today: new Date(2026, 10, 14) }, picks)));
+const allWeek = bodyA({ athlete: b.ALL, interval: 'week' }), allBack = bodyA({ athlete: b.ALL, interval: 'week', period: W1.join(' ') }), allDates = bodyA({ athlete: b.ALL, interval: 'custom' }), oneA = bodyA({});
+check('the manager with All athletes picked (§23): the pick opens with All athletes and has the latest run\'s athlete selected until it is picked; picked, the heading reads "one week, athlete by athlete" with the lines\' shared words, the filter counts the runs of every athlete, the step stands on the latest week any of them ran and the table is by athlete; a step back is the week before; custom is "the same dates"',
+  [...oneA.querySelectorAll('select[data-pick="athlete"] option')].map(o => o.getAttribute('value') + (o.hasAttribute('selected') ? ' (on)' : '')).join('|') === '*|i3 (on)|i0|i1|i2' && !oneA.querySelector('.rt-step') && !oneA.querySelector('.rt-athletes')
+  && allWeek.querySelector('select[data-pick="athlete"] option[selected]').getAttribute('value') === '*' && allWeek.querySelector('.rt-runsec .h .n').textContent === '— one week, athlete by athlete · mean maximal power, W'
+  && allWeek.querySelector('.rt-filter [data-filter="week"]').className === 'on' && allWeek.querySelector('.rt-filter [data-filter="week"] .k').textContent === '5' && allWeek.querySelector('.rt-step b').textContent === '2 – 8 Nov' && allWeek.querySelector('.rt-athletes').getAttribute('data-period') === W2.join(' ')
+  && [...allWeek.querySelector('.rt-runsec .h').children].filter(e => e.nodeType === 1).map(e => e.className.split(' ').pop()).join('|') === 'n|rt-filter|rt-step|rt-athlete-pick'
+  && allBack.querySelector('.rt-step b').textContent === '26 Oct – 1 Nov' && allBack.querySelector('.rt-athletes').getAttribute('data-period') === W1.join(' ') && allBack.querySelector('tr.failed[data-run="6"]')
+  && allDates.querySelector('.rt-runsec .h .n').textContent === '— the same dates, athlete by athlete · mean maximal power, W' && allDates.querySelector('.rt-step b').textContent === '7 Oct – 14 Nov 2026' && allDates.querySelector('.rt-athletes').getAttribute('data-kind') === 'custom',
+  [allWeek.querySelector('.rt-runsec .h').textContent, oneA.querySelector('select[data-pick="athlete"]').outerHTML]);
+check('All athletes without a period: runs that do not say their dates leave nothing to set side by side, said in a line, with no step; a routine whose runs name no athlete has no pick, so the table stays the runs\'',
+  el(b.routineBody(Object.assign({}, two, { origin: {} }), null, { athlete: b.ALL })).querySelector('.rt-runsec .rt-line.muted').textContent === 'No run to set side by side yet.' && !el(b.routineBody(Object.assign({}, two, { origin: {} }), null, { athlete: b.ALL })).querySelector('.rt-step')
+  && !el(b.routineBody(Object.assign({}, rt, { origin: {} }), null, { athlete: b.ALL })).querySelector('.rt-athletes') && el(b.routineBody(Object.assign({}, rt, { origin: {} }), null, { athlete: b.ALL })).querySelector('.rt-runs'));
+const only3 = b.fillPlan(side, 'week', 'i3', [W2], true), only1 = b.fillPlan(side, 'week', 'i1', [W2], true);
+check('the Run dialog asked for a period (§23): the plan of one unit asked for by its dates - it runs alone, named without "Last complete" and with no fill box; the button says Run, or Run again when the athlete has the unit already; a plan over the horizon is as before',
+  only3.only && JSON.stringify(b.fillWindows(only3, true)) === JSON.stringify([W2]) && el(b.intervalPlan(only3, 365, true)).textContent === 'Week: 2 – 8 Nov — not run yet' && !el(b.intervalPlan(only3, 365, true)).querySelector('input[data-load="fill"]') && b.runLabel(only3, true) === 'Run'
+  && el(b.intervalPlan(only1, 365, true)).textContent === 'Week: 2 – 8 Nov — run already; Run runs it again' && b.runLabel(only1, true) === 'Run again' && !plan0.only && el(b.intervalPlan(plan0, 365, true)).querySelector('.rt-plan').textContent.startsWith('Last complete week: '),
+  [el(b.intervalPlan(only3, 365, true)).textContent, el(b.intervalPlan(only1, 365, true)).textContent]);
+const peers4 = b.peers(side, side.runs[3]), menu4 = el(b.peersMenu(peers4, 'i1'));
+check('peers (§23): the athletes with a run of the same period as the run in view, by name, each with the run that stands for them - the week\'s three; run 0\'s are those of the original\'s dates; one athlete alone on a month; none for a run of an earlier version or one that does not say its dates; the menu is headed by the period and marks the athlete in view',
+  peers4.text === '2 – 8 Nov' && peers4.list.map(a => a.id + ':' + a.name + ':' + a.number).join('|') === 'i0:First Athlete:2|i1:Second Athlete:4|i2:Third Athlete:5'
+  && b.peers(side, { number: 0, version: 2, data: {} }).list.map(a => a.id + ':' + a.number).join('|') === 'i0:0|i1:8' && b.peers(side, { number: 0, version: 2, data: {} }).text === '7 Oct – 14 Nov 2026' && b.peers(side, side.runs[6]).list.map(a => a.id).join() === 'i3'
+  && b.peers(side, side.runs[8]).list.length === 0 && b.peers(side, side.runs[10]).list.length === 0 && b.peers(side, null).list.length === 0
+  && menu4.querySelector('.h').textContent === '2 – 8 Nov' && [...menu4.querySelectorAll('.it')].map(e => e.className + ':' + e.getAttribute('data-run') + ':' + e.querySelector('b').textContent + ':' + e.querySelector('span').textContent).join('|') === 'it:2:First Athlete:run 2|it on:4:Second Athlete:run 4|it:5:Third Athlete:run 5', [peers4, menu4.innerHTML]);
+const rtSrcA = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
+check('the page (§23): the step re-renders the body on its period; a row\'s or the table\'s offer opens the Run dialog on the table\'s interval and period - on the row\'s athlete, else skipping the athletes with a run kept for it - and asks to come back; the dialog presets the unit, which runs alone, or the custom dates, picks the athlete asked or the first not skipped, and drops the unit when an interval is picked by hand; the Summary opens again when such a run has landed; All athletes opens on the interval in view, and a fill opens the Summary on the interval it fills',
+  rtSrcA.includes("if (step && managerState.current) { managerState.period = step.getAttribute('data-period'); renderManagerBody(); return; }") && rtSrcA.includes("if (ask && managerState.current) { runPeriod(ask); return; }")
+  && rtSrcA.includes("openRun(r.id, Object.assign({ interval: kind, window: w, back: true },") && rtSrcA.includes("id ? { athlete: { id, name: link.getAttribute('data-name') || '' } } : { skip: Object.keys(standing).filter(a => build.KEPT.includes(standing[a].status)) }));")
+  && rtSrcA.includes("if (src === 'intervals' && ask.window && !custom) runState.unit = ask.window;") && rtSrcA.includes("if (src === 'intervals' && ask.window && custom) ['start', 'end'].forEach((part, i) => {")
+  && rtSrcA.includes("st.unit ? [st.unit] : build.units(st.interval, new Date(), maxDays), !!st.unit);") && rtSrcA.includes("const pick = asked.id || (free ? free.id : (rows.some(a => a.id === mine.id) ? mine.id : rows[0].id));")
+  && rtSrcA.includes("st.interval = kind; st.unit = null;") && rtSrcA.includes("if (st.ask.back) openManager(routine.id);") && rtSrcA.includes("if (shown && pick.value === build.ALL) managerState.interval = shown.getAttribute('data-filter');")
+  && ['.rt-sec > .h .rt-step', '.rt-by tr.norun td.w', '.rt-by td.nr a', '.chain-position .rt-who', '.save-menu.rt-peers .it.on'].every(c => dlgCss0().includes(c)));
 
 // ---- the page and the stylesheets ----
 const html = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'templates', 'index.html'), 'utf8');
@@ -730,6 +810,35 @@ const fm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static',
     && fm.includes('async function removeDatasetPill(pillElement, removeButton, quiet = false)') && fm.includes('return removeDatasetPill(document.getElementById(removeButton.dataset.pillId), removeButton);'), [n1, left, n2]);
   check('startRun clears what the load replaces before loading - the primary for an upload or a cache pick, everything for an integration; a custom window over the plan\'s reach or window is moved into them and said before anything loads (2026-11-08), and Run is pressed again',
     rtSrc.includes("await clearLoaded(choice === 'upload' || choice === 'cache' ? 'primary' : 'all');") && rtSrc.includes("const fit = window.DateWindow.check(window.DateWindow.of(st.limits), a && a.value, b && b.value, st.lastChanged || 'end');") && rtSrc.includes("if (fit.note) { a.value = fit.start; b.value = fit.end; progress('! ' + fit.note, 'bad'); return; }"));
+  // the run view's switch (§23), driven: a run opened from the server's answers - the position counts the athlete's runs, and once the
+  // routine's runs are read the name opens the athletes of the run's period; a row opens their run; alone on a period, the name is plain
+  const viewOf = (i, numbers, id) => ({ run: side.runs[i], routine: { id: 'r1', name: side.name, current_version: 2 }, numbers, subject: { id, name: who4[id] }, name: side.name });
+  const answers = { '/routines/r1/runs/4': viewOf(3, [3, 4, 8, 9], 'i1'), '/routines/r1/runs/5': viewOf(4, [5, 6], 'i2'), '/routines/r1/runs/7': viewOf(6, [7, 11], 'i3'), '/routines/r1': { routine: side }, '/intervals/get_data_limits': { max_days: 365 } };
+  window.authService = { fetch: url => Promise.resolve({ ok: url in answers, status: url in answers ? 200 : 404, json: () => Promise.resolve(answers[url] || {}) }) };
+  const settle = () => new Promise(done => setTimeout(done, 20));
+  w.RoutinesUI.initialize();
+  await w.RoutinesUI.viewRun('r1', 4);
+  const before = pos.textContent;
+  await settle();
+  const who = pos.querySelector('a.rt-who');
+  check('the run view (§23), driven: run 4 opens as "2 of 4 · Second Athlete" - the second of their four runs; once the routine is read the name is a switch, since two other athletes have a run of the week',
+    before === '2 of 4 · Second Athlete' && pos.textContent === '2 of 4 · Second Athlete ▾' && who && who.getAttribute('title') === 'the same period for another athlete' && !doc.querySelector('#routinePeers'), [before, pos.innerHTML]);
+  doc.dispatch('click', who);
+  const menu = doc.querySelector('#routinePeers'), shownOpen = menu && menu.style.display !== 'none', items = menu ? [...menu.querySelectorAll('.it')].map(e => e.className + ':' + e.textContent) : [];
+  doc.dispatch('click', doc.body);
+  const shutByClick = menu && menu.style.display === 'none';
+  doc.dispatch('click', who);
+  menu.dispatch('click', menu.querySelectorAll('.it')[2].querySelector('b'));
+  const shutByPick = menu.style.display === 'none';
+  await settle();
+  check('the switch\'s menu: a click on the name opens it under the name with the week and its three athletes, the one in view marked; a click elsewhere closes it; a row closes it and opens that athlete\'s run of the week - "1 of 2 · Third Athlete", the name a switch there too',
+    shownOpen && menu.className === 'save-menu rt-peers' && items.join('|') === 'it:First Athleterun 2|it on:Second Athleterun 4|it:Third Athleterun 5' && shutByClick && shutByPick
+    && pos.textContent === '1 of 2 · Third Athlete ▾' && global.__ids.run === '5 · v2 · Third Athlete', [items, pos.textContent, global.__ids]);
+  await w.RoutinesUI.viewRun('r1', 7);
+  await settle();
+  doc.dispatch('click', pos);
+  check('an athlete alone on a period: the name is plain text and a click on the position opens nothing; leaving the run view closes the menu',
+    pos.textContent === '1 of 2 · Fourth Athlete' && !pos.querySelector('.rt-who') && menu.style.display === 'none' && (w.RoutinesUI.exitRunView(), menu.style.display === 'none'), pos.innerHTML);
   finish();
 })();
 
