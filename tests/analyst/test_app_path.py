@@ -41,6 +41,7 @@ class FakeModels:
             fs = state.get("figures")
             return fs.pop(0) if isinstance(fs, list) and fs else (fs if isinstance(fs, str) and fs else "NONE")
         if messages[0]["content"].startswith("You are preparing an analysis so that it can be run again"):
+            state["brief"] = messages[0]["content"]             # which of the promoter's briefs the call carried
             from bambooai.models import prompt_cache
             prompt_cache.reset()
             cut = (state.get("cut") or [])
@@ -190,12 +191,12 @@ check("the billing chain was charged as a query would be (the fake log manager w
 _calls_before = len(state["calls"])
 made = BAMBOO.create_routine(prop["proposal_id"], {"name": "B against A", "purpose": "the difference, again", "drop_inputs": [], "drop_results": []})
 cev = [json.loads(q.get()) for _ in range(q.qsize())]
-def _settled(rid, timeout=60):
+def _settled(rid, timeout=60, app=None):
     """Run zero runs behind the dialog (2026-10-15): the stored verdict, waited for."""
     import time as _t
     t0 = _t.time()
     while _t.time() - t0 < timeout:
-        rz = (BAMBOO.routine_store().load(rid) or {}).get("versions", [{}])[-1].get("run_zero") or {}
+        rz = ((app or BAMBOO).routine_store().load(rid) or {}).get("versions", [{}])[-1].get("run_zero") or {}
         if rz.get("status") not in ("verifying", None, ""):
             return rz
         _t.sleep(0.2)
@@ -1481,5 +1482,82 @@ try:
     check("webhook: another event type is acknowledged and ignored", _w.status_code == 200 and len(_credits) == 2)
 except Exception as exc:                                     # noqa: BLE001
     check("subscription routes: the checks ran", False, repr(exc))
+
+# ---- a routine without data (2026-11-14, docs/ROUTINES_DESIGN.md §24): an instance with nothing loaded - the chain's record says so, Save as
+# routine proves the method behind the dialog, a run asks for no data and sends no Data tab; the proof is not tied to the Data tab
+try:
+    from bambooai import routines_host as _rh
+    from analyst import routines as _rt
+    _keep_script, _keep_i, _keep_promoter = state["script"], state["i"], state.get("promoter")
+    state["script"] = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nstart = 1.0\nx = start\nfor _ in range(20):\n    x = x - 0.05 * x\nRESULT('end value', round(x, 4), None, None, '', 'n/a')\n```",
+                       "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# Where it ends\n\n## Answer\nIt ends near 0.36 [cell 1].\n"]
+    state["i"] = 0
+    state["promoter"] = ('{"name": "End value", "inputs": [{"key": "start", "label": "Starting value", "type": "number", "default": "1.0", "origin": "the analysis started at 1"}], '
+                         '"edits": [{"cell": 1, "find": "start = 1.0", "replace": "start = INPUTS[\'start\']"}], "kept": []}')
+    BN = B.BambooAI(df=None, df_id=None, user_id="u2", webui=True, exploratory=True, planning=True)
+    BN.output_manager.add_user_input("Where does it end after twenty steps from 1.0?")
+    BN.pd_agent_converse(thread_id="2001", chain_id=None)
+    qn = BN.output_manager.output_queue
+    _evn = [json.loads(qn.get()) for _ in range(qn.qsize())]
+    runN = BN.notebook.runs[str(BN.chain_id)]
+    check("a chain run with nothing loaded: its record says no data - the source none, no frame, no files - and no Data tab is sent",
+          _rt.without_data(runN.data) and runN.data.get("source") == "none" and "dataframe" not in [e.get("type") for e in _evn] and runN.status == "answered", (runN.data, runN.status))
+    propN = BN.propose_routine("2001", runN.id, billing_chain_id="9101")
+    while not qn.empty(): qn.get()
+    _caught = {}
+    _real_create = _rh.create
+    def _spy(nb, proposal, choices, runner, store, **kw):
+        _caught["runner"] = runner
+        return _real_create(nb, proposal, choices, runner, store, **kw)
+    _rh.create = _spy
+    try:
+        madeN = BN.create_routine(propN["proposal_id"], {"name": "End value"})
+    finally:
+        _rh.create = _real_create
+    _rzN = _settled(madeN["routine"]["id"], app=BN)
+    check("Save as routine on it: the proposal's data state is none, the promoter got the brief for a method that reads no data, and the routine is verified behind the dialog with nothing loaded",
+          propN["data_state"] == "none" and propN["source"] == "none" and state.get("brief") == _rt.PROMOTER_NO_DATA and propN["inputs"][0]["key"] == "start"
+          and madeN["run_zero"]["status"] == "verifying" and _rzN.get("status") == "reproduced" and _rzN.get("verified") is True and madeN["routine"]["source"] == "none", (propN["data_state"], madeN.get("run_zero"), _rzN))
+    BN.df_id = "loaded-later"                                 # a file comes onto the Data tab after the save
+    _still = _caught["runner"]("print('still runs')", 60)
+    BN.df_id = None
+    state["script"], state["i"], state["promoter"] = SCRIPT, 0, _keep_promoter
+    BD = B.BambooAI(df=df, df_id="d1", user_id="u3", webui=True, exploratory=True, planning=True)
+    BD.output_manager.add_user_input("Is B higher than A?")
+    BD.pd_agent_converse(thread_id="3001", chain_id=None)
+    _pb = BD.propose_routine("3001", BD.notebook.runs[str(BD.chain_id)].id, billing_chain_id="9102")
+    _rh.create = _spy
+    try:
+        _mb = BD.create_routine(_pb["proposal_id"], {"name": "Tied to its data"})
+    finally:
+        _rh.create = _real_create
+    _settled(_mb["routine"]["id"], app=BD)
+    BD.df_id = "another"
+    try:
+        _caught["runner"]("print('x')", 60); _tied = ""
+    except RuntimeError as exc:
+        _tied = str(exc)
+    BD.pd_agent_converse(action="reset"); BD.cleanup()
+    check("the proof of a method without data is not tied to the Data tab: its runner still runs after a file is loaded; a method with data stops there, as before",
+          "still runs" in _still[0] and not _still[1] and _tied == "the data on the Data tab changed while the routine was being verified", (_still[:2], _tied))
+    preN = BN.precheck_routine(madeN["routine"]["id"], {})
+    outN = BN.run_routine(madeN["routine"]["id"], {"start": 2.0})
+    _evr = [json.loads(qn.get()) for _ in range(qn.qsize())]
+    BN.df, BN.df_id = df, "d9"                                # the same routine with a frame on the Data tab
+    outN2 = BN.run_routine(madeN["routine"]["id"], {"start": 2.0})
+    _evr2 = [json.loads(qn.get()) for _ in range(qn.qsize())]
+    BN.df, BN.df_id = None, None
+    check("a run of it through the instance: the check before it is ok with nothing loaded and the plan asks for nothing; the run records no data, prints the other value's end, and the page gets the Results tab and "
+          "the closing card - no CHECK row and no Data tab; with a frame on the Data tab the same: the frame is not the run's, and is not sent",
+          preN["ok"] and not preN["loaded"] and preN["plan"]["source"] == "none" and outN["run"]["status"] in ("ran", "reproduced") and _rt.without_data(outN["run"]["data"]) and outN["run"]["inputs"] == {"start": 2.0}
+          and [x.get("estimate") for x in outN["run"]["results"]] == ["+0.72"] and outN["run"]["against"] == 0 and not _rh.reads_data(BN.routine_store().load(madeN["routine"]["id"]))
+          and "dataframe" not in [e.get("type") for e in _evr] and not any(e.get("type") in ("pane_lookup_start", "pane_lookup") and e.get("kind") == "check" for e in _evr)
+          and any(e.get("type") == "pane_routine_end" for e in _evr)
+          and _rt.without_data(outN2["run"]["data"]) and "dataframe" not in [e.get("type") for e in _evr2] and outN2["run"]["number"] == 2, (preN, outN["run"].get("status"), [e.get("type") for e in _evr], [e.get("type") for e in _evr2]))
+    BN.pd_agent_converse(action="reset"); BN.cleanup()
+    state["script"], state["i"], state["promoter"] = _keep_script, _keep_i, _keep_promoter
+except Exception as exc:                                     # noqa: BLE001
+    import traceback
+    check("a routine without data through the instance: the checks ran", False, traceback.format_exc()[-600:])
 
 print(f"\n{len(passed)} passed, {len(failed)} failed"); sys.exit(1 if failed else 0)

@@ -337,9 +337,11 @@
 .rt-row .rt-loadwin { max-width: 360px; }
 .rt-row .rt-fit { margin-top: 6px; }
 .rt-row .rt-files { display: flex; flex-direction: column; gap: 6px; }
+.rt-row .rt-none { color: var(--text-tertiary); }      /* a routine that reads no data: nothing to pick */
 .rt-inputs-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; align-items: center; }
 .rt-inputs-grid .k { color: var(--text-secondary); }
 .rt-inputs-grid .ui-input, .rt-inputs-grid .rt-window { max-width: 260px; }
+.rt-inputs-grid .ui-input[data-rows] { max-width: none; }      /* rows of numbers - several points with a semicolon between them: room to read them whole */
 .rt-plan { margin: 0 0 4px; font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.5; }
 .rt-plan b { color: var(--text-primary); font-weight: 600; }
 .rt-plan .n { font-size: var(--fs-small); color: var(--text-quaternary); }
@@ -384,6 +386,10 @@
 .acts a:hover { text-decoration: underline; }
 .rt-compare-other { height: 26px; margin-left: 6px; font-size: var(--fs-small); }
 .rt-runs td.mark, .rt-runs th.mark { width: 22px; padding-left: 4px; padding-right: 4px; text-align: center; }
+/* the inputs the runs differ in, above the results (docs/ROUTINES_DESIGN.md §24): quieter than a result, and said to be inputs */
+.rt-runs tr.in td, .rt-runs tr.in td.label { color: var(--text-tertiary); vertical-align: top; }
+.rt-runs tr.in td.num { white-space: normal; }      /* a list wraps; rows of numbers stand a row to a line */
+.rt-runs tr.in .k { margin-left: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--text-quaternary); }
 .rt-mark { display: inline-block; min-width: 14px; text-align: center; font-weight: 700; }
 .rt-mark.up, .rt-mark.down, .rt-mark.changed { color: var(--c-kernel); }
 .rt-mark.same { color: var(--text-quaternary); font-weight: 400; }

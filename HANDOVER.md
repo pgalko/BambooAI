@@ -99,8 +99,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (244/215/31/27/18/49/44/72/33/245/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/156/14/25/4/14/67/41 JS; 1,864 on 2026-11-14; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (138 hosted on 2026-11-14; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (244/219/31/27/18/49/44/72/33/261/60/93/27/30/37/15/88/1/1 Python; 60/7/50/72/24/168/14/25/4/14/67/41 JS; 1,896 on 2026-11-14; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (144 hosted on 2026-11-14; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (147; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.
@@ -481,6 +481,50 @@
   e2e walk in both editions (run 1 on the same data reproduces run 0; run 2 with regime C compared with run 1; the
   arrows through runs 0-2; the composer; a copy of the file without `soil` refused with nothing recorded; the files
   on disk).
+- **A routine without data (2026-11-14, patch 0292; docs/ROUTINES_DESIGN.md §24).** Palo: a routine made from a chain
+  that never had a dataset (a simulation from five starting conditions) warned at Save that the chain's data was no
+  longer available, and its Run dialog asked for a file with *Run* off. Three places took *nothing loaded* for *the
+  data is gone*: `data_state` (gone - or, with another file on the Data tab, assumed: that file became the routine's
+  data), the Run dialog (no plan for a source of none) and `run` (*no data is loaded*). The engine never needed data.
+  The rule: a record that says none is a fact about the method (`rt.without_data(record)`: the source none, no frame,
+  no files - what `_data_record` writes with nothing loaded).
+  - **Save**: `data_state` → `none` whatever is loaded; the dialog says *No data* and *This chain used no dataset, so
+    the routine runs without one.*; run zero as for any chain, its lines naming no data (`create`'s line, `zero_holds`,
+    the refusal; `versionState`, the toasts). The proof's runner stops on a changed Data tab only for a method that
+    reads data (`create_routine`: `reads`).
+  - **The promoter** gets a brief of its own (`PROMOTER_NO_DATA` by `promoter_system(data)`; steps 4-7 shared,
+    `_PROMOTER_STEPS`; `promoter_user(..., alone=True)` says DATA none): the inputs are the values a person would set
+    differently to ask the same question of another case - starting values, parameters, steps, a seed; values that
+    belong together one input - a list of numbers, or rows of numbers for several points; at least one where the code
+    has such a constant. No domain words (the test's `_DOMAIN` extended). **Not run live here: a prompt, so Palo's
+    test decides.**
+  - **Rows of numbers**, for every routine: the type `numbers` holds one list or a list of lists (`_rows_of`,
+    `in_rows`, `_coerce_default`) - a promoter's nested list was left out as unreadable. The page writes rows with a
+    semicolon between them (`valueText`, `inRows`; the field's hover says so, and a field of rows takes the row's
+    width, `data-rows`); a typed value keeps the shape its input holds (`coerce_values`: one row typed where it
+    holds rows is one row; rows where it holds one list are refused).
+  - **Run**: `load_plan` source none → the dialog's *Data: none needed* (`dataRows`), then the inputs; `precheck`
+    checks the values alone; `run` takes the routine's record of none whatever is on the Data tab - no CHECK row, no
+    fit (`NOTHING_TO_FIT`), the record's data none; the app sends no Data tab of the frame and logs *no data*
+    (`reads_data(routine)`). A frame with no rows does not stop it either (`version_reads`, `stepwise(...,
+    frame=False)`): the rule that runs no statement on an empty frame is for a method that reads the frame, and a
+    `df` this one's code names is its own.
+  - **What a run was made with**, for every routine: the custom runs' table has a row per input the runs shown differ
+    in above the results (`tr.in`; `usedValue`, `runValue`, `valueLines` - each value whole, rows a row to a line; an
+    empty value *none*); a run's Data tab lists **Inputs**
+    (`inputs_said` in `run_view` and in the run's answer; `finishRunView` builds the tab for a run without data, where
+    no frame's tab streams). `build.alone(x)`, `build.original(x)` (*the original values*). A routine that records
+    no result lines (a method that only draws) has its custom runs in the Summary too - the heads to open them, the
+    input rows, the sentence under the table (`runsTable`; the sentence stood alone and no run could be opened).
+  Also: the Run button's hover is gone; the Run dialog opens on *Reading the routine…*; a refusal before a run with no
+  line of its own in the dialog shows in the band (it was dropped for a file routine); an unreadable value is said by
+  its type in plain words (`READ_AS`: *a list of numbers*, *two dates* - it read *a numbers*, *a date_window*). Limits: random numbers without
+  a seed do not reproduce (held); a chain that read only auxiliary files goes the old way; a routine saved before the
+  patch from such a chain runs as it is - save it again for the check and the inputs. Tests: test_routines.py 261,
+  test_app_path.py 219 (an instance with nothing loaded), test_routines.js 168, the battery 1,896, the stack walk 144
+  (a new workflow, the stand-in's question that needs no data, its promoter replying with inputs only under the
+  no-data brief), `tools/routines_screens.py` 36 screens (four new); the integrations walk is untouched and still
+  unrun here since 0288.
 - **Athletes side by side (2026-11-14, patch 0291; docs/ROUTINES_DESIGN.md §23).** Palo, with a routine run monthly
   on two athletes: the position by the arrows read *run 22 of 22* (a run's number, read as a count) while the arrows
   stepped through one athlete's eleven runs, and a coach had no way to set two athletes' runs of one period side by

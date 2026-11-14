@@ -9,7 +9,8 @@ button lit; the run dialog on a file, refusing, on an Intervals window, and on W
 the manager while a fill runs (§14.3), the manager redesigned 2026-11-08 (the facts, the runs as a table), a weekly
 Summary with a week that lost a line, a week with no data and what Save found on smaller pieces (§22), the view
 of a run that lost a statement, and every athlete on one period (§23): a week and the same dates side by side, the
-Run dialog asked for an athlete and a week, a run's view with the menu of athletes open. The two streaming routes are answered with the lines the server would send, so
+Run dialog asked for an athlete and a week, a run's view with the menu of athletes open; and a routine without data
+(§24): its Save dialog, its Run dialog, its runs with the inputs they differ in, a run's Data tab. The two streaming routes are answered with the lines the server would send, so
 routines.js runs its own path - the dialog is driven by the script, not drawn by hand. Exits 1 when a page error or an
 unexpected state shows."""
 import argparse, json, os, sys, importlib.util
@@ -155,6 +156,46 @@ _A_ALL = "setTimeout(() => { const s = document.querySelector('#routinesModal se
 _A_THEN = "; setTimeout(() => document.querySelector('#routinesModal %s').click(), 1800)"       # then a click in the Summary
 SUMMARY = {"id": "r1", "name": ROUTINE["name"], "created": 1791460000, "updated": 1791460000, "source": "file", "purpose": ROUTINE["purpose"], "question": ROUTINE["question"], "origin": ROUTINE["origin"],
            "current_version": 1, "versions": 1, "runs": 0, "verified": True, "run_zero_status": "reproduced", "run_zero_line": "reproduced: 6 result line(s) identical", "inputs": 4, "results": 3, "figures": 1, "data": PROPOSAL["data"]}
+# a routine without data (2026-11-14, docs/ROUTINES_DESIGN.md §24): a simulation from values typed into its code - a damped pendulum let go
+# from five angles. Saved with nothing loaded; three runs since, with other angles and then another damping
+NO_DATA = {"df_id": None, "name": "", "source": "none", "columns": [], "rows": None, "date_range": None, "aux": [], "extra": {}}
+_S_INPUTS = [{"key": "starts", "label": "Starts (angle °, push °/s)", "type": "numbers", "default": [[10, 0], [30, 0], [60, 0], [90, 0], [120, 0]], "origin": "the five starts the analysis let the pendulum go from"},     # rows of numbers: a start a row (§24.2)
+             {"key": "damping", "label": "Damping", "type": "number", "default": 0.15, "origin": "the analysis damped the swing at 0.15 per second"},
+             {"key": "length", "label": "Length (m)", "type": "number", "default": 1.0, "origin": "a one-metre pendulum"},
+             {"key": "seconds", "label": "Seconds simulated", "type": "number", "default": 30, "origin": "the analysis ran 30 seconds"}]
+_S_RESULTS = [{"cell": 2, "index": 0, "label": "swing left after the run, widest start, degrees", "typed": False, "dropped": False, "name": "Swing left, widest start (°)"},
+              {"cell": 2, "index": 1, "label": "time to fall under 5 degrees, widest start, seconds", "typed": False, "dropped": False, "name": "Time under 5°, widest start (s)"}]
+PROPOSAL_S = {"proposal_id": "p2", "thread_id": "1791460000", "chain_id": "1791460001", "name": "Damped pendulum, five starts", "purpose": "",
+              "question": "Simulate a damped pendulum let go from five angles and plot the swings.", "summary": "Let go from 120°, the swing is down to 1.3° after 30 seconds.",
+              "source": "none", "data_state": "none", "data": NO_DATA, "inputs": _S_INPUTS, "kept": ["the time step", "gravity"], "results": [dict(r) for r in _S_RESULTS],
+              "figures": {"count": 1, "cells": [3]}, "cells": 3, "cost": 0.02, "notes": [], "routine_id": None, "routine_name": None, "next_version": None}
+_S_RUNS = [({"starts": [[10, 0], [30, 0], [60, 0], [90, 0], [120, 0]], "damping": 0.15}, ("+1.34", "+21.2")), ({"starts": [[10, 0], [30, 0], [60, 0], [90, 0], [150, 0]], "damping": 0.15}, ("+1.71", "+22.9")),
+           ({"starts": [[10, 0], [30, 0], [60, 0], [90, 0], [150, 0]], "damping": 0.25}, ("+0.09", "+13.8")), ({"starts": [[5, 0], [15, 0], [45, 0], [90, 0], [170, 20]], "damping": 0.25}, ("+0.11", "+14.4"))]
+def _s_lines(vals): return [{"estimate": v, "low": None, "high": None} for v in vals]
+def _s_inputs(more): return {**{p["key"]: p["default"] for p in _S_INPUTS}, **more}
+def _s_cmp(now, before):
+    rows = [{"cell": m["cell"], "index": m["index"], "label": m["label"], "name": m["name"], "unit": "", "direction": "", "typed": False, "now": a, "before": b, "change": round(float(a["estimate"]) - float(b["estimate"]), 2), "overlap": None,
+             "mark": "same" if a["estimate"] == b["estimate"] else "changed"} for m, a, b in zip(_S_RESULTS, now, before)]
+    changed = sum(1 for r in rows if r["mark"] == "changed")
+    return {"rows": rows, "moved": 0, "within": 0, "changed": changed, "missing": 0, "compared": len(rows), "line": f"{changed} of {len(rows)} changed"}
+ROUTINE_S = {"id": "r1", "name": PROPOSAL_S["name"], "created": 1791460000, "updated": 1791460000, "purpose": "how fast the swing dies, by where it starts", "instruction": "", "question": PROPOSAL_S["question"], "summary": PROPOSAL_S["summary"],
+             "origin": {"thread_id": "1791460000", "chain_id": "1791460001"}, "source": "none", "current_version": 1, "origin_available": True,
+             "versions": [{"number": 1, "created": 1791460000, "promoted_from": {"thread_id": "1791460000", "chain_id": "1791460001"}, "change_note": "first version", "tried": [],
+                           "manifest": {"data": NO_DATA, "parameters": _S_INPUTS, "results": [dict(r, **l) for r, l in zip(_S_RESULTS, _s_lines(_S_RUNS[0][1]))], "figures": PROPOSAL_S["figures"]},
+                           "run_zero": {"status": "reproduced", "line": "reproduced: 2 result line(s) identical", "verified": True, "created": 1791460000, "results": _s_lines(_S_RUNS[0][1]), "elapsed": 2.4, "data": NO_DATA, "inputs": _s_inputs(_S_RUNS[0][0])}}],
+             "runs": []}
+_S_FULL = {}
+for _n in (1, 2, 3):
+    _c = _s_cmp(_s_lines(_S_RUNS[_n][1]), _s_lines(_S_RUNS[_n - 1][1])); _S_FULL[_n] = _c
+    ROUTINE_S["runs"].append({"number": _n, "version": 1, "created": 1791780000 + 86400 * _n, "finished": 1791780003 + 86400 * _n, "elapsed": 2.6, "status": "ran", "line": "ran: 2 result lines", "inputs": _s_inputs(_S_RUNS[_n][0]),
+                              "results": _s_lines(_S_RUNS[_n][1]), "figures": 1, "against": _n - 1, "cells": 3, "data": dict(NO_DATA), "comparison": {k: _c[k] for k in ("moved", "within", "changed", "missing", "compared", "line")}})
+SUMMARY_S = {"id": "r1", "name": ROUTINE_S["name"], "created": 1791460000, "updated": 1791460000, "source": "none", "purpose": ROUTINE_S["purpose"], "question": ROUTINE_S["question"], "origin": ROUTINE_S["origin"],
+             "current_version": 1, "versions": 1, "runs": 3, "verified": True, "run_zero_status": "reproduced", "run_zero_line": "reproduced: 2 result line(s) identical", "inputs": 4, "results": 2, "figures": 1, "data": NO_DATA}
+PRECHECK_S = {"loaded": False, "ok": True, "line": "", "fit": None, "values_missing": [], "values_notes": [], "problems": [], "plan": {"source": "none", "name": "", "aux": [], "aux_kinds": [], "rows": None, "columns": 0, "date_range": None, "subject": {}},
+              "data": {"df_id": None, "name": "", "source": "none", "rows": None, "columns": 0, "date_range": None, "aux": [], "extra": {}, "subject": {}, "window": None}}
+RUN_VIEW_S = {"run": dict(ROUTINE_S["runs"][2], comparison=_S_FULL[3], narrative="", check="", bindings=[]), "stdout": "RESULT: swing left after the run, widest start, degrees: +0.11\nRESULT: time to fall under 5 degrees, widest start, seconds: +14.4\n",
+              "figures": [], "routine": SUMMARY_S, "numbers": [0, 1, 2, 3], "name": ROUTINE_S["name"], "subject": {}, "against_data": dict(NO_DATA),
+              "inputs": [{"key": p["key"], "label": p["label"], "value": ROUTINE_S["runs"][2]["inputs"][p["key"]], "type": p["type"], "derived": ""} for p in _S_INPUTS]}
 SCREENS = {
     's0_save_menu':       {"js": "window.__shot.openMenu()", "routines": []},
     's1_make_dialog':     {"js": "RoutinesUI.openMake('1791460000', '1791460001', {threadRoutines: []})", "routines": []},
@@ -205,6 +246,12 @@ SCREENS = {
     's7f_asked_run_back': {"js": "RoutinesUI.openManager('r1'); " + _A_ALL + _A_THEN % '.rt-athletes [data-act="run-athlete"]' + "; setTimeout(() => document.querySelector('#routineRunModal [data-act=\"run\"]').click(), 3200)", "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_A,
                            "precheck": PRECHECK_INTERVALS, "athletes": ATHLETES, "wait": 6500},
     's7g_run_view_athletes': {"js": "RoutinesUI.viewRun('r1', %d); setTimeout(() => document.querySelector('#chainPosition .rt-who').click(), 1500)" % _last["number"], "routines": [dict(SUMMARY, source="intervals")], "routine": ROUTINE_A, "view": RUN_VIEW_W, "wait": 2000},
+    # a routine without data (§24): Save on a chain that used no dataset - no warning, the values as its inputs; the Run dialog asks for
+    # none; the runs' table says the inputs the runs differ in above the results; a run's Data tab says what it was made with
+    's8_make_dialog_alone': {"js": "RoutinesUI.openMake('1791460000', '1791460001', {threadRoutines: []})", "routines": [], "proposal": PROPOSAL_S},
+    's8b_run_dialog_alone': {"js": "RoutinesUI.openRun('r1')", "routines": [SUMMARY_S], "routine": ROUTINE_S, "precheck": PRECHECK_S},
+    's8c_manager_alone':  {"js": "RoutinesUI.openManager('r1')", "routines": [SUMMARY_S], "routine": ROUTINE_S},
+    's8d_run_view_alone': {"js": "RoutinesUI.viewRun('r1', 3); setTimeout(() => activateTab('dataframe'), 1200)", "routines": [SUMMARY_S], "routine": ROUTINE_S, "view": RUN_VIEW_S, "wait": 1200},
 }
 
 
@@ -249,7 +296,7 @@ def render(out, light=False, width=1440, height=900):
                                      {"routine_error": spec_['propose_error']}]
                         else:
                             lines = [{"type": "pane_turn_start", "turn": "routine", "seat": "Analyst", "model": "anthropic/claude-sonnet-5-5", "quiet": True}, {"type": "pane_turn_end", "turn": "routine", "kind": "routine", "peek": "3 input(s) proposed, 5 edit(s)", "elapsed": 11.2, "cost": 0.04},
-                                     {"routine_proposal": PROPOSAL}]
+                                     {"routine_proposal": spec_.get('proposal') or PROPOSAL}]
                         return route.fulfill(status=200, content_type='application/json', body="\n".join(json.dumps(x) for x in lines) + "\n")
                     if path == '/routines/create':
                         lines = [{"type": "pane_lookup_start", "kind": "routine", "query": PROPOSAL["name"]}, {"type": "pane_lookup", "kind": "routine", "query": PROPOSAL["name"], "peek": "reproduced: 5 result line(s) identical", "sources": [], "passages": []},
@@ -265,7 +312,7 @@ def render(out, light=False, width=1440, height=900):
                     if path == '/routines/r1':
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps({"routine": spec_.get('routine') or ROUTINE}))
                     if spec_.get('view') and path == '/routines/r1/runs/%d' % spec_['view']['run']['number']:
-                        v = json.loads(json.dumps(spec_['view'])); v["routine"] = dict(SUMMARY, source="intervals")
+                        v = json.loads(json.dumps(spec_['view'])); v["routine"] = v.get("routine") or dict(SUMMARY, source="intervals")
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps(v))
                     if path == '/routines/r1/precheck':
                         return route.fulfill(status=200, content_type='application/json', body=json.dumps(spec_.get('precheck') or PRECHECK_OK))
@@ -341,6 +388,9 @@ def render(out, light=False, width=1440, height=900):
                                     " athRows: document.querySelectorAll('#routinesModal .rt-athletes tbody tr[data-run]').length, noRun: [...document.querySelectorAll('#routinesModal .rt-athletes tr.norun')].map(e => e.textContent), step: (document.querySelector('#routinesModal .rt-step b') || {}).textContent || '', pickOn: (document.querySelector('#routinesModal select[data-pick=\"athlete\"]') || {}).value || '',"
                                     " dates: [...document.querySelectorAll('#routineRunModal input[data-load=\"start\"], #routineRunModal input[data-load=\"end\"]')].map(e => e.value),"
                                     " peers: document.querySelector('#routinePeers') && document.querySelector('#routinePeers').style.display !== 'none' ? [...document.querySelectorAll('#routinePeers .it')].map(e => e.className + ' ' + e.textContent) : [], peersHead: (document.querySelector('#routinePeers .h') || {}).textContent || '',"
+                                    " makeData: [(document.querySelector('#routineMakeModal .rt-data .ui-chip .t') || {}).textContent || '', (document.querySelector('#routineMakeModal .rt-data + .rt-line') || {}).textContent || '', !!document.querySelector('#routineMakeModal .rt-line.warn'), (document.querySelector('#routineMakeModal .ui-dlg-f .note') || {}).textContent || ''],"
+                                    " runRows: [...document.querySelectorAll('#routineRunModal .rt-row')].map(e => e.dataset.row + ':' + e.textContent), inRows: [...document.querySelectorAll('#routinesModal .rt-runs tbody tr.in')].map(tr => [...tr.querySelectorAll('td.label, td.num')].map(td => td.innerHTML.replace(/<br>/g, '; ').replace(/<[^>]+>/g, '').trim()).join(' | ')), runField: (document.querySelector('#routineRunModal [data-key=\"starts\"]') || {}).value || '',"
+                                    " dataTab: (document.getElementById('content-dataframe') || {}).textContent || '', dataOpen: ((document.querySelector('#contentOutput .tab-content.active') || {}).id || '') === 'content-dataframe', paneRows: [...document.querySelectorAll('#streamOutput .sp-row.tool')].map(e => (e.textContent.match(/[A-Z]{3,}/) || [''])[0]),"
                                     " triedFact: (document.querySelector('#routinesModal .rt-tried') || {}).textContent || '', blanks: document.querySelectorAll('#routinesModal .rt-by td.num .rt-mark.missing').length, gapMarks: document.querySelectorAll('#routinesModal .rt-by td.w .rt-gapmark').length, position: document.getElementById('chainPosition').textContent, cmpRows: document.querySelectorAll('#content-comparison tbody tr').length, locked: document.getElementById('queryInput').disabled, done: !!document.querySelector('#streamOutput .sp-done'), runsTable: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, runHeads: document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]').length, runItems: document.querySelectorAll('#routinesModal .rt-run, #routinesModal .rt-runbox, #routinesModal .rt-legend').length, tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent)})")
                 want = {'s0_save_menu': state['pill'] != 'none' and state['menu'], 's1_make_dialog': state['dialog'] and state['inputs'] == 4 and state['derived'] == 1 and state['pane'] and state['kept'] == ['Abroad vs altitude, adjusted', 'Per +1000 m of altitude', 'Abroad vs road, same HR band'] and state['more'] == '▸ 2 more metrics computed, not tracked' and state['aside'] == 0 and state['instr'],
                         's1d_make_dialog_aside': state['dialog'] and state['more'].startswith('▾ 2 more metrics') and state['aside'] == 2,
@@ -355,7 +405,19 @@ def render(out, light=False, width=1440, height=900):
                         's4d_run_dialog_week': state['runDlg'] and state['runBtn'] and state['interval'] == 'week' and state['fillBox'] and state['plan'].startswith('Last complete week: ') and state['pickers'] and state['runLabel'].startswith('Run ') and state['runLabel'].endswith(' weeks') and state['compare'] == '' and not state['band'] and state['tried'] == 'One week of the original data gave 2 of the 3 metrics.',
                         's5_run_view': state['inRun'] and state['position'] == '4 of 4' and state['cmpRows'] == 3 and state['locked'] and state['done'] and state['pill'] == 'none' and state['tabs'][0] == 'Trend',
                         's5b_run_live': state['inRun'] and state['position'] == '4 of 4' and state['cmpRows'] == 3 and state['locked'] and state['done'] and state['tabs'][0] == 'Trend',
-                        's6_manager_runs': state['manager'] and state['runsTable'] == 3 and state['runHeads'] == 4 and state['runItems'] == 0 and state['filterOn'] == 'custom' and state['byRows'] == 0,
+                        # the runs differ in one input (run 2 excluded nobody): its row stands above the three results (2026-11-14)
+                        's6_manager_runs': state['manager'] and state['runsTable'] == 4 and state['runHeads'] == 4 and state['runItems'] == 0 and state['filterOn'] == 'custom' and state['byRows'] == 0
+                                           and state['inRows'] == ['Athletes to exclude (sensitivity line) input | athlete07, athlete09 | athlete07, athlete09 | none | athlete07, athlete09'],
+                        's8_make_dialog_alone': state['dialog'] and state['inputs'] == 4 and state['derived'] == 0 and state['makeData'] == ['No data', 'This chain used no dataset, so the routine runs without one.', False,
+                                                'The routine is checked once before it is created; the chain is saved as a favourite, and the routine links to it.'] and not state['error'],
+                        's8b_run_dialog_alone': state['runDlg'] and state['runBtn'] and state['widgets'] == 4 and state['dataChoice'] == '' and state['loadWin'] == 0 and not state['fitBad'] and not state['band']
+                                                and [r.split(':')[0] for r in state['runRows']] == ['data', 'inputs', 'compare'] and state['runRows'][0] == 'data:Datanone needed' and 'run 0 (the original values)' in state['compare']
+                                                and state['runField'] == '10, 0; 30, 0; 60, 0; 90, 0; 120, 0',
+                        's8c_manager_alone': state['manager'] and state['runHeads'] == 4 and state['runsTable'] == 4 and state['filterOn'] == 'custom' and state['chip'] == 'verified'
+                                             and state['inRows'] == ['Starts (angle °, push °/s) input | 10, 0; 30, 0; 60, 0; 90, 0; 120, 0 | 10, 0; 30, 0; 60, 0; 90, 0; 150, 0 | 10, 0; 30, 0; 60, 0; 90, 0; 150, 0 | 5, 0; 15, 0; 45, 0; 90, 0; 170, 20',
+                                                                     'Damping input | 0.15 | 0.15 | 0.25 | 0.25'],
+                        's8d_run_view_alone': state['inRun'] and state['position'] == '4 of 4' and state['dataOpen'] and state['dataTab'].startswith('What this run ran onSourceNo dataInputsStarts (angle °, push °/s) 5, 0; 15, 0; 45, 0; 90, 0; 170, 20')
+                                              and 'Damping 0.25' in state['dataTab'] and 'Columns' not in state['dataTab'] and state['paneRows'] == ['RUN', 'COMPARE'],
                         's6c_manager_weekly': state['manager'] and state['filterOn'] == 'week' and state['byRows'] == 10 and state['thumbs'] == 3 and state['blanks'] == 4 and state['gapMarks'] == 1 and state['triedFact'] == 'a day: 1 of 3 · a week: 2 of 3 · a month: all 3' and state['runItems'] == 0 and state['runsTable'] == 0 and state['foot'].endswith(' weeks in the last year not run yet · fill them') and set(state['scrolls']) <= {'rt-body'},
                         's6d_trend_enlarged': state['trendDlg'] and state['chartPoints'] == 9 and state['chartGaps'] >= 2 and state['keys'] == 1 and state['footOff'],
                         's5c_trend_tab': state['inRun'] and state['tabs'][0] == 'Trend' and state['trendHeads'][-1] == 'Weekly trend' and state['trendThumbs'] == 3 and state['cmpRows'] == 3,

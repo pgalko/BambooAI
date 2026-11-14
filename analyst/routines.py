@@ -33,6 +33,7 @@ import uuid
 from typing import Dict, Iterable, List, Optional, Tuple
 
 INPUT_TYPES = ("number", "numbers", "date_window", "choice", "toggle")
+READ_AS = {"number": "a number", "numbers": "a list of numbers", "date_window": "two dates", "choice": "a choice", "toggle": "a toggle"}     # a type, as a person is told what a value could not be read as
 MAX_INPUTS = 5
 INPUTS_MARK = "# --- INPUTS ---"
 INPUTS_MARK_OUT = "ROUTINE_INPUTS:"          # printed by a run's prelude: the inputs it wrote from the data (date windows that follow it)
@@ -162,6 +163,23 @@ def keys_read(script: str) -> List[str]:
 
 
 # ----------------------------------------------------------------------------- the promoter
+# The promoter's two briefs part in what an input is - a constant that changes with the data, or, for a method that reads
+# no data (docs/ROUTINES_DESIGN.md §24), a value a person would vary - and share how the code is edited, which lines are
+# compared, the person's instruction and the reply's shape (steps 4 to 7).
+_PROMOTER_STEPS = """4. Rewrite the code as find/replace edits, never by retyping it: each edit's "find" is a verbatim fragment that occurs exactly once in the cell it names, and "replace" is the same fragment with the constant replaced by INPUTS["key"] - or, for a literal the chain read off the data, by the expression that computes it. A label written into a RESULT call that carries a constant (a count, an identifier) may read the input through an f-string. Leave the method, the cell markers, the order of the cells and every RESULT call otherwise untouched. The block INPUTS = {...} is written at the top of the script before each run; do not write it yourself.
+5. Say which RESULT lines a run should compare with the runs before it, by their numbers in the ledger, and name each. A line is compared when it is the final form of a quantity the answer rests on. Where the report cites cells, those are the cells the answer was read from: the final forms are among their lines. Not compared: an earlier cell's version of a quantity that a later cell computed again, re-specified or extended; a check or a trial the answer does not rest on - a quantity computed again with part of the data left out, under another cut or a what-if, is a check when another line gives it on all the data. Lines that form a series - one quantity over durations, bands, groups or periods - are compared whole: every line of the series, from the cell that printed it last, or none of them. Every line is still printed and checked; only the comparison leaves the others out. A name reads as a table head: the quantity and what tells it from the other compared lines, at most 40 characters, without the counts, periods and dates that vary with the data.
+6. The person's instruction, when there is one, is not a request to compute anything: the method is fixed, nothing is computed, added or rewritten for what it names, and no input is made for it. For each quantity it names, give the ledger lines that are that quantity - its final form, from the cell that printed it last - with a name for each; a line is a match when it is that quantity, not the nearest one. A quantity no line gives is answered with an empty list and nothing more: no reason, no substitute. Every line given here is compared, whether or not step 5 picked it.
+7. Reply with exactly this object:
+{"name": "a short title for the method, at most 60 characters",
+ "inputs": [{"key": "snake_case", "label": "what the person sees", "type": "number | numbers | date_window | choice | toggle", "default": "the value the analysis used, in the type's form", "origin": "one short clause: where the value came from in the analysis", "column": "for a choice over values of a column the data has (the frame or a loaded file): that column; none for words the script matches or computes", "multiple": false}],
+ "edits": [{"cell": 3, "find": "verbatim fragment", "replace": "the same fragment reading INPUTS[...]"}],
+ "kept": ["one clause per constant left as it is, and why"],
+ "recomputed": ["one clause per literal replaced by the rule that produced it, naming the cell"],
+ "unfit": [{"cell": 10, "what": "what the literal names and why no rule in the chain picks them"}],
+ "compare": [{"line": 7, "name": "the quantity, as a table head"}],
+ "tracked": [{"asked": "a quantity the instruction names, in its words", "lines": [{"line": 5, "name": "the quantity, as a table head"}]}]}
+"""
+_PROMOTER_SHORT = """Keep the object short: each "find" the shortest fragment that still occurs once in its cell, the clauses brief, nothing outside the object."""
 PROMOTER_SYSTEM = """You are preparing an analysis so that it can be run again, unchanged in method, on other data of the same shape - a later period, another subject's data, an updated file - by a person who will only set a few inputs before each run and will never edit the code.
 
 What the result is for. The analysis becomes a routine: the method kept with its few inputs. A person opens it later, picks the data - usually a new window of the same source, often another subject's - sets the inputs in a dialog and runs it, and the result lines are compared with the run before. The data of a run is loaded fresh each time: nothing of this window is there - not its rows, not the identifiers of its sessions or groups, not the dates inside it - only data of the same shape, the same columns and the same files. Before the routine is kept it is run once more on this very data and must reproduce the result lines the chain recorded; a rewrite that changes a number is refused.
@@ -174,20 +192,22 @@ What to do:
 1. Name the constants written into the code that would have to change for the method to apply to other data of the same shape: period boundaries inside the data, thresholds, filters, bin edges, exclusions. Leave alone the constants that belong to the method itself (plausibility bounds, a bootstrap size, a seed, column names) and anything that is the data's own vocabulary. A file name under the datasets folder is the loader's, written for the period it loaded: leave it exactly as it is, dates included - each run binds it to the file that run loads - and never make the loaded period itself an input; the period is chosen when the data is loaded, before the method runs.
 2. Where a date literal is the data's own first or last date, make it the data's range (the column's .min() or .max()) so the period chosen at load time is the only period there is. Where it is a boundary inside the data, make it an input. Where a number is a count the data determines - the rows of a table, the periods in it, the groups - and the code uses it as a loop bound, an index or a divisor, make it that count (len(...)), not an input: the next data has its own. Where a literal names rows, sessions or groups of this data - identifiers, a list of them - replace it with the rule that found them, as the test of an input says.
 3. Propose each remaining constant as an input: at most five, each of one type - number, numbers (a short list of numbers), date_window (two dates), choice (one value of a column, or several when "multiple" is true), toggle. A choice is a pick among the values of a column the person can read by name; never over a key column. Keep a constant a constant when unsure; fewer inputs is better than more.
-4. Rewrite the code as find/replace edits, never by retyping it: each edit's "find" is a verbatim fragment that occurs exactly once in the cell it names, and "replace" is the same fragment with the constant replaced by INPUTS["key"] - or, for a literal the chain read off the data, by the expression that computes it. A label written into a RESULT call that carries a constant (a count, an identifier) may read the input through an f-string. Leave the method, the cell markers, the order of the cells and every RESULT call otherwise untouched. The block INPUTS = {...} is written at the top of the script before each run; do not write it yourself.
-5. Say which RESULT lines a run should compare with the runs before it, by their numbers in the ledger, and name each. A line is compared when it is the final form of a quantity the answer rests on. Where the report cites cells, those are the cells the answer was read from: the final forms are among their lines. Not compared: an earlier cell's version of a quantity that a later cell computed again, re-specified or extended; a check or a trial the answer does not rest on - a quantity computed again with part of the data left out, under another cut or a what-if, is a check when another line gives it on all the data. Lines that form a series - one quantity over durations, bands, groups or periods - are compared whole: every line of the series, from the cell that printed it last, or none of them. Every line is still printed and checked; only the comparison leaves the others out. A name reads as a table head: the quantity and what tells it from the other compared lines, at most 40 characters, without the counts, periods and dates that vary with the data.
-6. The person's instruction, when there is one, is not a request to compute anything: the method is fixed, nothing is computed, added or rewritten for what it names, and no input is made for it. For each quantity it names, give the ledger lines that are that quantity - its final form, from the cell that printed it last - with a name for each; a line is a match when it is that quantity, not the nearest one. A quantity no line gives is answered with an empty list and nothing more: no reason, no substitute. Every line given here is compared, whether or not step 5 picked it.
-7. Reply with exactly this object:
-{"name": "a short title for the method, at most 60 characters",
- "inputs": [{"key": "snake_case", "label": "what the person sees", "type": "number | numbers | date_window | choice | toggle", "default": "the value the analysis used, in the type's form", "origin": "one short clause: where the value came from in the analysis", "column": "for a choice over values of a column the data has (the frame or a loaded file): that column; none for words the script matches or computes", "multiple": false}],
- "edits": [{"cell": 3, "find": "verbatim fragment", "replace": "the same fragment reading INPUTS[...]"}],
- "kept": ["one clause per constant left as it is, and why"],
- "recomputed": ["one clause per literal replaced by the rule that produced it, naming the cell"],
- "unfit": [{"cell": 10, "what": "what the literal names and why no rule in the chain picks them"}],
- "compare": [{"line": 7, "name": "the quantity, as a table head"}],
- "tracked": [{"asked": "a quantity the instruction names, in its words", "lines": [{"line": 5, "name": "the quantity, as a table head"}]}]}
-With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape. "recomputed" and "unfit" are empty when nothing applies; "tracked" is empty when there is no instruction.
-Keep the object short: each "find" the shortest fragment that still occurs once in its cell, the clauses brief, nothing outside the object."""
+""" + _PROMOTER_STEPS + """With nothing worth making an input, return "inputs": [] and "edits": [] - the method then runs as it is on data of the same shape. "recomputed" and "unfit" are empty when nothing applies; "tracked" is empty when there is no instruction.
+""" + _PROMOTER_SHORT
+PROMOTER_NO_DATA = """You are preparing an analysis so that it can be run again, unchanged in method, with other values - by a person who will only set a few inputs before each run and will never edit the code.
+
+What the result is for. This analysis read no data: everything it computes follows from values written into its code. It becomes a routine: the method kept with its few inputs. A person opens it later, sets the inputs in a dialog and runs it, and the result lines are compared with the run before. Before the routine is kept it is run once more as it is and must reproduce the result lines the chain recorded; a rewrite that changes a number is refused.
+
+The test of an input: would the person set it differently to ask the same question of another case? Where the computation starts, a parameter of what is computed, how far and how finely it runs, how many cases it takes, a seed, a switch between variants - yes. A value the code could derive from another - a count that is a length over a step, the size of a list - no: write the expression that derives it, so that two inputs cannot contradict each other. A setting a result should not depend on (a tolerance of the numerical method) and what only shapes the output (a colour, a figure's size, a label) - no.
+
+You receive the question the analysis answered, the summary of its answer, the cells of the script in execution order, the ledger of RESULT lines the cells recorded, the cells the report cites, when it cites any, and - when the person gave one - their instruction on what the runs should track. Reply with one JSON object and nothing else.
+
+What to do:
+1. Name the constants written into the code that the question turns on: starting values, parameters, durations and steps, numbers of cases, seeds, switches. Begin with those the question itself names.
+2. Where a constant follows from another, make it the expression that computes it - a number of steps from a duration and a step, len(...) of a list - not an input.
+3. Propose the remaining constants as inputs: at most five, each of one type - number, numbers (a short list of numbers, or rows of numbers), choice (one word among those the script matches; it has no column), toggle. Values that belong together are one input, which the code reads whole or through an expression over it: one quantity for several cases is a list of numbers; several points, each with its coordinates, are rows - a list of lists, a row a point. With more candidates than five, take those the question turns on and keep the rest constant. A routine without an input can only repeat itself: where the code has such a constant, propose at least one.
+""" + _PROMOTER_STEPS + """Here "column" is none, and "recomputed" and "unfit" are empty; "tracked" is empty when there is no instruction.
+""" + _PROMOTER_SHORT
 
 PROMOTER_RETRY = "Your reply could not be read ({problem}). Reply again with the JSON object only, as specified."
 PROMOTER_KEYS = ("Your reply made an input of identifiers of this data ({inputs}): a person cannot set those before the data is loaded, and the next "
@@ -195,18 +215,25 @@ PROMOTER_KEYS = ("Your reply made an input of identifiers of this data ({inputs}
                  "no such rule. Reply again with the JSON object only.")
 PROMOTER_CUT = ("Your reply was cut off at the token limit before the object was complete ({got} characters arrived). Reply again, shorter: "
                 "the JSON object only, each \"find\" the shortest fragment that still occurs once in its cell, nothing outside the object.")
-PROMOTER_CUT_EMPTY = ("Your reply was cut off at the token limit before anything but reasoning arrived. Decide briefly - the constants that "
-                      "would change for other data of the same shape, and the shortest fragment for each - and reply with the JSON object only.")
+PROMOTER_CUT_EMPTY = ("Your reply was cut off at the token limit before anything but reasoning arrived. Decide briefly - the constants to "
+                      "make inputs, and the shortest fragment for each - and reply with the JSON object only.")
 PROMOTER_TRACKED = ("Your reply left out \"tracked\" though the person gave an instruction. Reply again with the JSON object only, \"tracked\" "
                     "answered from the ledger: for each quantity the instruction names, the lines that are it, or an empty list.")
 MAX_INSTRUCTION = 300
 
 
+def promoter_system(data: Optional[dict]) -> str:
+    """The promoter's brief for a chain, by what it ran on: for a method that reads no data, the values a person would
+    vary; else the constants that change with other data of the same shape."""
+    return PROMOTER_NO_DATA if without_data(data) else PROMOTER_SYSTEM
+
+
 def promoter_user(question: str, summary: str, data_text: str, cells: str, ledger: Iterable[str], manifest: Optional[dict] = None,
-                  cited: Iterable[int] = (), instruction: str = "") -> str:
+                  cited: Iterable[int] = (), instruction: str = "", alone: bool = False) -> str:
+    """What the promoter reads. `alone`: the chain read no data - the DATA section says so and no frame is promised."""
     parts = [f"QUESTION:\n{(question or '').strip()}", f"ANSWER SUMMARY:\n{(summary or '(none)').strip()}",
-             f"DATA (the frame `df` the script ran on):\n{(data_text or '(no description)').strip()}",
-             "THE SCRIPT (the cells in execution order; `df` is loaded before the first cell):\n" + (cells or "").strip(),
+             "DATA:\nnone - the analysis read no dataset, and `df` is not defined" if alone else f"DATA (the frame `df` the script ran on):\n{(data_text or '(no description)').strip()}",
+             ("THE SCRIPT (the cells in execution order):\n" if alone else "THE SCRIPT (the cells in execution order; `df` is loaded before the first cell):\n") + (cells or "").strip(),
              "RESULT LINES THE CELLS RECORDED (numbered; the method's outputs, which must still be produced, in this order):\n" + ("\n".join(ledger) or "(none)")]
     if (instruction or "").strip():                           # the person's instruction (§15.6): answered under "tracked", from the ledger alone
         parts.append("THE PERSON'S INSTRUCTION (what the runs should track; answer it under \"tracked\", from the ledger alone):\n" + instruction.strip())
@@ -336,6 +363,22 @@ def pick_results(expected: List[dict], compare: Optional[Iterable], extra: Optio
     return out
 
 
+def _rows_of(v) -> Optional[list]:
+    """The rows a value of type numbers is written in - a list of lists, a nested list as text ("[[1, 2], [3, 4]]"), or
+    text with semicolons between the rows ("1, 2; 3, 4") - or None when it is one list."""
+    if isinstance(v, (list, tuple)):
+        return list(v) if v and all(isinstance(x, (list, tuple)) for x in v) else None
+    s = str(v).strip()
+    if re.match(r"^[\[(]\s*[\[(]", s):
+        return re.findall(r"[\[(]([^\[\]()]*)[\])]", s[1:-1])
+    return [r for r in s.split(";") if r.strip()] if ";" in s else None
+
+
+def in_rows(v) -> bool:
+    """Whether a value of type numbers holds rows of numbers - several points, each a row - and not one list."""
+    return isinstance(v, (list, tuple)) and bool(v) and isinstance(v[0], (list, tuple))
+
+
 def _coerce_default(typ: str, v, multiple: bool):
     """The default in the type's form, or None when it cannot be read."""
     def num(x):
@@ -351,11 +394,18 @@ def _coerce_default(typ: str, v, multiple: bool):
     if typ == "number":
         return num(v)
     if typ == "numbers":
-        if isinstance(v, str) and len(v.strip()) > 1 and v.strip()[0] in "[(" and v.strip()[-1] in "])":
-            v = v.strip()[1:-1]                        # a list written as text, "[18, 26]" (2026-10-12: a promoter's reply)
-        items = v if isinstance(v, (list, tuple)) else re.split(r"[,\s]+", str(v).strip())
-        out = [num(x) for x in items if str(x).strip() != ""]
-        return out if out and all(x is not None for x in out) and len(out) <= 40 else None
+        def one(x):                                    # one list of numbers, or None
+            if isinstance(x, str) and len(x.strip()) > 1 and x.strip()[0] in "[(" and x.strip()[-1] in "])":
+                x = x.strip()[1:-1]                    # a list written as text, "[18, 26]" (2026-10-12: a promoter's reply)
+            items = x if isinstance(x, (list, tuple)) else re.split(r"[,\s]+", str(x).strip())
+            got = [num(i) for i in items if str(i).strip() != ""]
+            return got if got and all(i is not None for i in got) else None
+        rows = _rows_of(v)                             # several points, each a row (docs/ROUTINES_DESIGN.md §24.2)
+        if rows is None:
+            out = one(v)
+            return out if out and len(out) <= 40 else None
+        out = [one(r) for r in rows]
+        return out if out and all(r is not None for r in out) and sum(len(r) for r in out) <= 40 else None
     if typ == "date_window":
         items = v if isinstance(v, (list, tuple)) else re.split(r"\s*(?:,|to|->|→)\s*", str(v).strip())
         items = [str(x).strip()[:10] for x in items]
@@ -446,7 +496,7 @@ def finish_inputs(inputs: List[dict], cells: str, failed: List[dict]) -> Tuple[L
             notes.append(f"{label}: the script never reads it, left out"); continue
         default = _coerce_default(typ, p.get("default"), multiple)
         if default is None:
-            notes.append(f"{label}: its value could not be read as a {typ}, left out"); continue
+            notes.append(f"{label}: its value could not be read as {READ_AS[typ]}, left out"); continue
         seen.add(key)
         item = {"key": key, "label": label[:80], "type": typ, "default": default, "origin": str(p.get("origin") or "")[:160]}
         if typ == "choice":
@@ -1037,13 +1087,14 @@ def _moved_in(source: str, by: str = "        ") -> Optional[str]:
     return "\n".join(ln if n in inside or not ln.strip() else by + ln for n, ln in enumerate(source.split("\n"), 1))
 
 
-def stepwise(script: str, only: Optional[Iterable[int]] = None, watch: Optional[dict] = None) -> str:
+def stepwise(script: str, only: Optional[Iterable[int]] = None, watch: Optional[dict] = None, frame: bool = True) -> str:
     """The script as a run executes it: everything before the first cell as it is, then each of the cells' statements
     under a try of its own, in the script's own namespace. A statement that stops with an error spoils the names it
     writes; a later statement that reads a spoiled name - or, at that moment, an object a spoiled name is bound to -
     is skipped and spoils what it writes in turn; everything else runs. A check of the method's own that stops
     (assert, raise) stops what follows it. `only` names the statements to run (needed_steps), by their place among
-    the steps; the others are left out. A frame with no rows, when the statements read the frame, runs none of them.
+    the steps; the others are left out. A frame with no rows, when the statements read the frame, runs none of them -
+    unless the method was made without data (`frame` False, docs/ROUTINES_DESIGN.md §24): a `df` its code names is its own.
     `watch` ({columns, by}) names the frame's columns whose empty share the run reports, by rows and, with `by`, by
     the groups of that column. Each statement's output follows a STEP_MARK line, and a RUN_MARK line closes the run
     with what stopped, what was skipped and the empty shares (read_run). A script whose cells cannot be read, or
@@ -1055,8 +1106,8 @@ def stepwise(script: str, only: Optional[Iterable[int]] = None, watch: Optional[
     if problem or not taken or any(code is None for _j, _f, code in taken):
         return script
     table = {j: [f.cell, f.first, sorted(f.reads | (f.strings if f.namespace else set())), sorted(f.defines), sorted(f.kills), bool(f.checks)] for j, f, _code in taken}
-    frame = any(f.reads & {"df", "DS"} for _j, f, _code in taken)
-    text = (header + "\n" + STEPWISE.replace("__STEPS__", repr(table)).replace("__FRAME__", repr(frame)).replace("__WATCH__", repr(dict(watch or {})))
+    rests = frame and any(f.reads & {"df", "DS"} for _j, f, _code in taken)      # whether an empty frame leaves the statements nothing to run on
+    text = (header + "\n" + STEPWISE.replace("__STEPS__", repr(table)).replace("__FRAME__", repr(rests)).replace("__WATCH__", repr(dict(watch or {})))
             + "".join(STEP.format(j=j, code=code) for j, _f, code in taken) + "_routine_close()\n" + tail.lstrip("\n"))
     try:
         ast.parse(text)
@@ -2155,8 +2206,10 @@ def coerce_values(parameters: List[dict], values: Optional[Dict[str, object]]) -
         key = p["key"]
         raw = given.get(key, p.get("default"))
         v = _coerce_default(p["type"], raw, bool(p.get("multiple")))
+        if p["type"] == "numbers" and v is not None and in_rows(v) != in_rows(p.get("default")):
+            v = None if in_rows(v) else [v]            # the shape the input holds: one row typed where it holds rows is one row; rows where it holds one list cannot be read
         if v is None:
-            problems.append(f"{p.get('label', key)}: {raw!r} could not be read as a {p['type']}")
+            problems.append(f"{p.get('label', key)}: {raw!r} could not be read as {READ_AS.get(p['type'], p['type'])}")
             v = p.get("default")
         out[key] = v
     return out, problems
@@ -2504,6 +2557,14 @@ class RoutineStore:
 def script_with_defaults(version: dict) -> str:
     """The version's script as a file for a notebook: the INPUTS block at the top with the defaults."""
     return with_inputs(version.get("script") or "", defaults_of((version.get("manifest") or {}).get("parameters") or []))
+
+
+def without_data(data: Optional[dict]) -> bool:
+    """Whether a data record says the analysis ran with nothing loaded - no frame and no files (the app writes the
+    source "none" then, 2026-10-10). A record that says nothing of its data - a chain from before the record - is not
+    one: what it ran on is not known."""
+    d = data or {}
+    return str(d.get("source") or "").lower() == "none" and not d.get("df_id") and not d.get("aux")
 
 
 def source_kind(data: Optional[dict]) -> str:

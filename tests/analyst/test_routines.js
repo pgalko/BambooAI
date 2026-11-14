@@ -345,9 +345,9 @@ rt.versions[1].run_zero.results = [{ estimate: '+3.00', low: '+2.00', high: '+4.
 const headName = e => e.textContent.replace(/(Open|Delete)+$/, '').replace(/[A-Z][a-z]{2} \d+( · \d+ days)?$/, '').trim();     // a head's name without its date and its two words (§21)
 const tbl = el(b.runsTable(rt));
 check('runs table (the custom runs, §14.6): a column per run that ran (run 0 first), each head with Open and Delete on hover (§21; run 0 has no Delete), the manifest\'s lines as rows (the dropped one left out), the values without the plus sign, the mark in its own column between the two numbers it compares - = within, ↑ moved - and no trend across them (custom windows are not a series); the failed run named under the table with its reason and the same two words; no legend (2026-11-08)',
-  [...tbl.querySelectorAll('thead th')].map(e => headName(e)).join('|') === 'Result|Run 0||Run 1||Run 2' && [...tbl.querySelectorAll('thead th[data-run]')].map(e => e.getAttribute('data-run')).join(',') === '0,1,2' && tbl.querySelectorAll('tbody tr').length === 1
-  && [...tbl.querySelectorAll('tbody td')].map(td => td.className).join('|') === 'label|num|mark|num|mark|num' && [...tbl.querySelectorAll('tbody td.num')].map(td => td.textContent).join('|') === '3.00|3.00|5.00'
-  && [...tbl.querySelectorAll('tbody td.mark')].map(td => td.textContent).join('') === '=↑' && !tbl.querySelector('svg') && !tbl.querySelector('.rt-legend')
+  [...tbl.querySelectorAll('thead th')].map(e => headName(e)).join('|') === 'Result|Run 0||Run 1||Run 2' && [...tbl.querySelectorAll('thead th[data-run]')].map(e => e.getAttribute('data-run')).join(',') === '0,1,2' && tbl.querySelectorAll('tbody tr:not(.in)').length === 1
+  && [...tbl.querySelectorAll('tbody tr:not(.in) td')].map(td => td.className).join('|') === 'label|num|mark|num|mark|num' && [...tbl.querySelectorAll('tbody tr:not(.in) td.num')].map(td => td.textContent).join('|') === '3.00|3.00|5.00'
+  && [...tbl.querySelectorAll('tbody tr:not(.in) td.mark')].map(td => td.textContent).join('') === '=↑' && !tbl.querySelector('svg') && !tbl.querySelector('.rt-legend')
   && tbl.querySelector('.rt-foot .rt-failed[data-run="3"]').textContent.startsWith('run 3 · ') && tbl.querySelector('.rt-foot .rt-failed').textContent.includes(' · failed')
   && [...tbl.querySelectorAll('thead th[data-run] .acts')].map(a => [...a.querySelectorAll('a')].map(x => x.getAttribute('data-act') + ':' + x.textContent).join(',')).join('|') === 'open-run:Open|open-run:Open,delete-run:Delete|open-run:Open,delete-run:Delete'
   && tbl.querySelector('thead th[data-run="2"] .acts a.x[data-act="delete-run"][data-run="2"]') && [...tbl.querySelectorAll('.rt-foot .rt-failed .acts a')].map(x => x.textContent).join(',') === 'Open,Delete' && !tbl.querySelector('thead th[data-run="0"] [data-act="delete-run"]'),
@@ -360,10 +360,43 @@ const tblE = el(b.runsTable(rtE));
 check('runs table with what a run could not give: the run on a window with no data under the table, saying so, beside the failed one; the run that lost its line a column whose cell is a dot with the reason on hover and no mark before it; its head carries the mark for the emptier column',
   [...tblE.querySelectorAll('.rt-foot .rt-failed')].map(e => e.getAttribute('data-run')).join(',') === '4,3' && tblE.querySelector('.rt-foot .rt-failed[data-run="4"]').textContent.includes(' · no data in this window')
   && [...tblE.querySelectorAll('thead th[data-run]')].map(e => e.getAttribute('data-run')).join(',') === '0,1,2,5' && tblE.querySelector('thead th[data-run="5"] .rt-gapmark').getAttribute('title') === 'v is empty in 40% of the rows'
-  && !tblE.querySelector('thead th[data-run="2"] .rt-gapmark') && [...tblE.querySelectorAll('tbody td.num')].map(td => td.textContent).join('|') === '3.00|3.00|5.00|·'
-  && tblE.querySelectorAll('tbody td.num')[3].getAttribute('title') === "cell 2 stopped: KeyError: 'b'" && [...tblE.querySelectorAll('tbody td.mark')].map(td => td.textContent).join('|') === '=|↑|',
+  && !tblE.querySelector('thead th[data-run="2"] .rt-gapmark') && [...tblE.querySelectorAll('tbody tr:not(.in) td.num')].map(td => td.textContent).join('|') === '3.00|3.00|5.00|·'
+  && tblE.querySelectorAll('tbody tr:not(.in) td.num')[3].getAttribute('title') === "cell 2 stopped: KeyError: 'b'" && [...tblE.querySelectorAll('tbody tr:not(.in) td.mark')].map(td => td.textContent).join('|') === '=|↑|',
   [...tblE.querySelectorAll('tbody td')].map(td => td.className + ':' + td.textContent).join(' ') + (tblE.querySelector('.rt-foot') || {}).textContent);
+check('runs table, what each run was made with (2026-11-14, §24): run 2 ran with another threshold, so the table opens with a row for that input - marked "input", the value each run used (the default where a record has none), nothing in the mark columns; runs that share their inputs get no such row',
+  [...tbl.querySelectorAll('tbody tr')].map(tr => tr.className).join('|') === 'in|' && tbl.querySelector('tr.in td.label').textContent === 'Threshold input' && tbl.querySelector('tr.in td.label .k').textContent === 'input'
+  && [...tbl.querySelectorAll('tr.in td')].map(td => td.className + ':' + td.textContent).join('|') === 'label:Threshold input|num:155|mark:|num:155|mark:|num:165'
+  && !el(b.runsTable(Object.assign({}, rt, { runs: rt.runs.slice(0, 1) }))).querySelector('tr.in'), [...tbl.querySelectorAll('tbody tr')].map(tr => tr.className + ' ' + tr.textContent));
 const tbl2 = el(b.runsTable(Object.assign({}, rt, { runs: rt.runs.slice(0, 1) })));
+// rows of numbers - several points, each a row (§24.2) - read with a semicolon between the rows wherever a value is written
+const wP = p => el(b.inputWidget(p)).querySelector('input');
+const ptsP = { key: 'pts', label: 'Starting points', type: 'numbers', default: [[1, 1, 1], [1.001, 1, 1]], origin: 'the two starts' };
+// in the runs' table each point stands on a line of its own, the value whole
+const tblRows = el(b.runsTable(Object.assign({}, rt, { versions: [rt.versions[0], Object.assign({}, rt.versions[1], { manifest: Object.assign({}, rt.versions[1].manifest, { parameters: [ptsP] }),
+  run_zero: Object.assign({}, rt.versions[1].run_zero, { inputs: { pts: ptsP.default } }) })], runs: [Object.assign({}, rt.runs[0], { inputs: { pts: [[1, 1, 1], [2, 2, 2]] } })] })));
+check('rows of numbers on the page: the field of the Run dialog holds them with a semicolon between rows and says so on hover; one list reads as before; the table of the Save dialog and the Data tab of a run write rows the same way; the runs table puts each row on a line of its own',
+  wP(ptsP).getAttribute('value') === '1, 1, 1; 1.001, 1, 1' && wP(ptsP).getAttribute('title') === 'numbers, separated by commas; a semicolon between rows' && wP(ptsP).hasAttribute('data-rows')
+  && !wP({ key: 'xs', type: 'numbers', default: [1, 2] }).hasAttribute('data-rows') && dlgCss0().includes('.rt-inputs-grid .ui-input[data-rows] { max-width: none; }')
+  && wP({ key: 'xs', type: 'numbers', default: [1, 2] }).getAttribute('value') === '1, 2' && wP({ key: 'xs', type: 'numbers', default: [1, 2] }).getAttribute('title') === 'numbers, separated by commas'
+  && el(b.inputsTable([ptsP], [])).querySelector('.val').textContent === '1, 1, 1; 1.001, 1, 1'
+  && el(b.dataTab({ source: 'none' }, {}, [{ label: 'Starting points', type: 'numbers', value: [[1, 2], [3, 4]] }])).textContent === 'What this run ran onSourceNo dataInputsStarting points 1, 2; 3, 4'
+  && [...tblRows.querySelectorAll('tr.in td.num')].map(td => td.querySelectorAll('br').length + ':' + td.textContent).join('|') === '1:1, 1, 11.001, 1, 1|1:1, 1, 12, 2, 2',
+  [wP(ptsP).getAttribute('value'), wP(ptsP).getAttribute('title'), el(b.inputsTable([ptsP], [])).querySelector('.val').textContent]);
+// a routine that records no result lines (a method that only draws): its custom runs are still in the Summary - heads to open, the inputs they differ in
+const drawn = Object.assign({}, rt, { versions: [rt.versions[0], Object.assign({}, rt.versions[1], { manifest: Object.assign({}, rt.versions[1].manifest, { results: [] }) })] });
+const tblDrawn = el(b.runsTable(drawn));
+check('runs table of a routine without result lines: a column per run with Open (and Delete) in its head, no "Result" head, the row of the input the runs differ in, and the sentence under the table; with no run to show, the sentence alone',
+  [...tblDrawn.querySelectorAll('thead th[data-run]')].map(e => e.getAttribute('data-run')).join(',') === '0,1,2' && tblDrawn.querySelector('thead th').textContent === ''
+  && [...tblDrawn.querySelectorAll('thead th[data-run="1"] .acts a')].map(a => a.textContent).join('|') === 'Open|Delete' && [...tblDrawn.querySelectorAll('tbody tr')].map(tr => tr.className).join('|') === 'in'
+  && tblDrawn.querySelector('.rt-line.muted').textContent === 'This routine records no result lines; its runs keep their output and figures.'
+  && b.runsTable(Object.assign({}, drawn, { runs: [], versions: [drawn.versions[0], Object.assign({}, drawn.versions[1], { run_zero: { verified: false } })] })) === b.NO_LINES, tblDrawn.innerHTML.slice(0, 600));
+// an empty value - a list with nothing in it - reads "none" where a run's inputs are said, not a blank: the table's row and the Data tab
+const rtList = Object.assign({}, rt, { versions: [rt.versions[0], Object.assign({}, rt.versions[1], { manifest: Object.assign({}, rt.versions[1].manifest, { parameters: [{ key: 'left_out', label: 'Left out', type: 'choice', multiple: true, default: ['a', 'b'] }] }),
+  run_zero: Object.assign({}, rt.versions[1].run_zero, { inputs: { left_out: ['a', 'b'] } }) })], runs: [Object.assign({}, rt.runs[0], { inputs: { left_out: [] } })] });
+check('a run made with an empty list: its cell in the input row reads "none", and so does the Data tab of its view',
+  [...el(b.runsTable(rtList)).querySelectorAll('tr.in td.num')].map(td => td.textContent).join('|') === 'a, b|none'
+  && el(b.dataTab({ source: 'csv', name: 'a.csv', columns: 3 }, {}, [{ label: 'Left out', type: 'choice', value: [] }])).textContent.endsWith('InputsLeft out none'),
+  [...el(b.runsTable(rtList)).querySelectorAll('tr.in td')].map(td => td.textContent));
 check('runs table with two runs: the mark between the numbers; a run with a window says its length in the head and carries the window on hover',
   [...tbl2.querySelectorAll('thead th')].map(e => headName(e)).join('|') === 'Result|Run 0||Run 1' && tbl2.querySelector('tbody td.mark .rt-mark.same') && !tbl2.textContent.includes('Trend')
   && (() => { const t = el(b.runsTable(Object.assign({}, rt, { runs: [Object.assign({}, rt.runs[0], { data: Object.assign({}, rt.runs[0].data, { window: ['2026-05-01', '2026-11-05'] }) })] }))); const th = t.querySelectorAll('thead th.num')[1]; return th.textContent.includes('· 188 days') && th.getAttribute('title') === '2026-05-01 → 2026-11-05'; })(), tbl2.innerHTML.slice(0, 300));
@@ -714,8 +747,9 @@ check('periodText and the step: a set interval\'s unit as the tables say it; cus
   && stepAt(1).querySelector('.rt-step b').textContent === '2 – 8 Nov' && stepAt(1).querySelector('a[data-act="period"]').getAttribute('data-period') === '2026-10-26 2026-11-01' && stepAt(1).querySelectorAll('a.off').length === 1 && !stepAt(1).querySelector('a.off').hasAttribute('data-act')
   && stepAt(0).querySelector('a[data-act="period"]').getAttribute('data-period') === '2026-11-02 2026-11-08' && el(b.periodStep('month', [OCT], 0)).querySelectorAll('a.off').length === 2, stepAt(1).innerHTML);
 const params4 = side.versions[1].manifest.parameters;
-check('inputsNotes: a run made with other inputs than most of the rows is said in a sentence, by its number; an input written from the data (the window) is not compared; the same inputs, or no run - nothing',
-  JSON.stringify(b.inputsNotes(params4, [side.runs[1], side.runs[3], side.runs[4]])) === '{"4":"ran with other inputs: Threshold 300 (the others 250)"}' && JSON.stringify(b.inputsNotes(params4, [side.runs[0], side.runs[1]])) === '{}' && JSON.stringify(b.inputsNotes(params4, [])) === '{}',
+check('inputsNotes: a run made with other inputs than most of the rows is said in a sentence, by its number; an input written from the data (the window) is not compared; the same inputs, or no run - nothing; a record without the input (from before it was kept) ran at the default, as the table reads it',
+  JSON.stringify(b.inputsNotes(params4, [side.runs[1], side.runs[3], side.runs[4]])) === '{"4":"ran with other inputs: Threshold 300 (the others 250)"}' && JSON.stringify(b.inputsNotes(params4, [side.runs[0], side.runs[1]])) === '{}' && JSON.stringify(b.inputsNotes(params4, [])) === '{}'
+  && JSON.stringify(b.inputsNotes(params4, [side.runs[1], Object.assign({}, side.runs[2], { inputs: {} })])) === '{}',
   b.inputsNotes(params4, [side.runs[1], side.runs[3], side.runs[4]]));
 const at2 = el(b.byAthleteTable(side, 'week', W2, 'mean maximal power')), rowsA = [...at2.querySelectorAll('tbody tr')];
 check('the table by athlete (§23): the head is Athlete and the lines without their shared words, no thumbnail; a row per athlete the routine has run on, by name, each opening the run that stands for them - the numbers as they are, with the run and the interval on hover and no mark between athletes, a dot with the reason where a line is missing; an athlete without a run of the week is offered it, and the link under the table offers the week to another athlete',
@@ -766,6 +800,68 @@ check('the page (§23): the step re-renders the body on its period; a row\'s or 
   && rtSrcA.includes("st.interval = kind; st.unit = null;") && rtSrcA.includes("if (st.ask.back) openManager(routine.id);") && rtSrcA.includes("if (shown && pick.value === build.ALL) managerState.interval = shown.getAttribute('data-filter');")
   && ['.rt-sec > .h .rt-step', '.rt-by tr.norun td.w', '.rt-by td.nr a', '.chain-position .rt-who', '.save-menu.rt-peers .it.on'].every(c => dlgCss0().includes(c)));
 
+// ---- a routine without data (2026-11-14, docs/ROUTINES_DESIGN.md §24): made from a chain that read no dataset - Save's line, the Run dialog
+// with nothing to pick, the records' words, the Data tab, and the inputs as what tells its runs apart
+const noneData = { df_id: null, name: '', source: 'none', columns: [], rows: null, date_range: null, aux: [], extra: {} };
+const sim = { id: 's1', name: 'End state', source: 'none', current_version: 1, origin: {}, versions: [{ number: 1, created: 1794000000,
+    run_zero: { status: 'reproduced', verified: true, created: 1794000000, elapsed: 5, results: [{ estimate: '+26.1', low: null, high: null }], inputs: { start: [1, 1.01], rho: 28, on: true, span: ['2026-01-01', '2026-02-01'] }, data: noneData },
+    manifest: { data: noneData, parameters: [{ key: 'start', label: 'Starting x', type: 'numbers', default: [1, 1.01] }, { key: 'rho', label: 'Rho', type: 'number', default: 28 }, { key: 'on', label: 'Damping', type: 'toggle', default: true },
+      { key: 'span', label: 'Dates', type: 'date_window', derived: 'span', default: ['2026-01-01', '2026-02-01'] }],
+      results: [{ cell: 2, index: 0, label: 'z at the end', estimate: '+26.1' }], figures: { count: 1, cells: [1] } } }], runs: [] };
+const simRun = (n, inputs, est) => ({ number: n, version: 1, created: 1794000000 + 100 * n, status: 'ran', elapsed: 4, data: { source: 'none', name: '', subject: {}, window: null }, inputs, comparison: { moved: 0, compared: 1 }, results: [{ estimate: est, low: null, high: null }] });
+const simRuns = Object.assign({}, sim, { runs: [simRun(1, { start: [1, 1.01], rho: 30, on: true, span: ['2026-03-01', '2026-04-01'] }, '+25.3'), simRun(2, { start: [1, 1.01, 1.02, 1.03, 1.04, 1.05, 1.06], rho: 35, on: true, span: ['2026-05-01', '2026-06-01'] }, '+24.0')] });
+const simWith = rz => Object.assign({}, sim, { versions: [Object.assign({}, sim.versions[0], { run_zero: rz })] });
+check('a routine without data is told by its source - a routine, a proposal or a data record that says none; what run zero ran on is then "the original values", else "the original data"',
+  b.alone(sim) && b.alone(noneData) && !b.alone(routine) && !b.alone(null) && !b.alone({ source: '' }) && b.original(sim) === 'the original values' && b.original(routine) === 'the original data');
+const dlNone = el(b.dataLine({ source: 'none', data_state: 'none', data: noneData }));
+check('Save dialog, a chain with no dataset (§24): the chip says No data, with no name or size; one plain line - the chain used no dataset, so the routine runs without one - and not the warning of data that is gone; the note under the button names no data either, in its three forms; a chain with data reads as before',
+  dlNone.querySelector('.rt-data .ui-chip .t').textContent === 'No data' && !dlNone.querySelector('.rt-data .name') && !dlNone.querySelector('.rt-data .meta')
+  && dlNone.querySelector('.rt-line').textContent === 'This chain used no dataset, so the routine runs without one.' && !dlNone.querySelector('.rt-line.warn')
+  && b.versionState(null, null, { source: 'none', name: 'n' }).note === 'The routine is checked once before it is created; the chain is saved as a favourite, and the routine links to it.'
+  && b.versionState('next', { routine: { name: 'R', version: 1 } }, { source: 'none' }).note === 'The new version is checked once before it replaces the current one; earlier versions stay runnable.'
+  && b.versionState('new', { routine: { name: 'R', version: 1 } }, { source: 'none' }).note === 'The routine is checked once before it is created, apart from “R”; the chain is saved as a favourite, and the routine links to it.'
+  && b.versionState(null, null, { source: 'file', name: 'n' }).note.startsWith('The routine is checked once on this chain’s own data before it is created;')
+  && b.versionState('next', { routine: { name: 'R', version: 1 } }, { source: 'file' }).note.startsWith('The new version is checked once on this chain’s data before it replaces')
+  && el(b.dataLine({ source: 'file', data_state: 'gone', data: { name: 'a.csv' } })).querySelector('.rt-line.warn'), dlNone.innerHTML);
+const rdNone = el(b.runDialog(sim, { loaded: false, ok: true, line: '', data: { source: 'none' }, plan: { source: 'none' } }));
+const rdNone2 = el(b.runDialog(simRuns, { loaded: false, ok: true, line: '', data: { source: 'none' }, plan: { source: 'none' } }));
+check('Run dialog, a routine without data (§24): the Data row says "none needed" - no choice to make, no file, no window, no athlete - then the inputs; no Compare row before the first run; after two, the run before, run 0 as "the original values", or another run',
+  [...rdNone.querySelectorAll('.rt-row')].map(r => r.getAttribute('data-row')).join(',') === 'data,inputs' && rdNone.querySelector('.rt-row[data-row="data"]').getAttribute('data-source') === 'none'
+  && rdNone.querySelector('.rt-row[data-row="data"] .rt-none').textContent === 'none needed' && !rdNone.querySelector('input[name="rt-data"]') && !rdNone.querySelector('input[data-load]') && !rdNone.querySelector('select[data-load]')
+  && [...rdNone.querySelectorAll('.rt-inputs-grid [data-key]')].map(e => e.getAttribute('data-key')).join(',') === 'start,rho,on'
+  && [...rdNone2.querySelectorAll('.rt-compare-sec .rt-check')].map(l => l.textContent.trim().replace(/ run 1 · .*$/, '')).join('|') === 'run 2 (the run before)|run 0 (the original values)|another run'
+  && el(b.runDialog(rt, { loaded: true, ok: true, line: '', data: { name: 'a.csv', source: 'csv' }, plan: { source: 'file' } })).querySelector('.rt-compare-sec').textContent.includes('run 0 (the original data)'),
+  [rdNone.innerHTML.slice(0, 300), rdNone2.querySelector('.rt-compare-sec').textContent]);
+check('the manager of a routine without data: the hold while it is being verified, and after a verdict that did not reproduce, name no data; the Run button carries no hover unless it is held; before the first run the dialog\'s time is "the check took …"',
+  b.zeroHold(simWith({ status: 'verifying' })) === 'still being verified — run it when it has settled'
+  && b.zeroHold(simWith({ status: 'differed' })) === 'run zero did not reproduce the chain’s analysis — the method is not run; delete it, or make it again from the chain'
+  && b.zeroHold(verifying) === 'still being verified on its chain’s own data — run it when it has settled' && b.zeroHold(sim) === ''
+  && !el(b.actions(sim)).querySelector('[data-act="run"]').hasAttribute('title') && !el(b.actions(routine)).querySelector('[data-act="run"]').hasAttribute('title')
+  && el(b.actions(simWith({ status: 'verifying' }))).querySelector('[data-act="run"]').getAttribute('title') === 'still being verified — run it when it has settled'
+  && b.tookLine(sim, 1) === 'the check took 5 s' && b.tookLine(simRuns, 1) === 'the last run took 4 s' && b.tookLine(Object.assign({}, sim, { source: 'file' }), 1) === 'the check on the original data took 5 s', [b.zeroHold(simWith({ status: 'differed' })), b.tookLine(sim, 1), b.zeroHold(verifying)]);
+const tin = el(b.runsTable(simRuns));
+check('the runs of a routine without data are told apart by their inputs (§24): the table opens with a row per input that differs between the runs shown - the list of starting values, whole however long, and Rho 28, 30, 35 - the switch every run shares and the dates the data writes make no row; then the result, each run against the one before',
+  [...tin.querySelectorAll('tbody tr')].map(tr => tr.className + ':' + tr.querySelector('td.label').textContent + ':' + [...tr.querySelectorAll('td.num')].map(td => td.textContent).join('|')).join(' / ')
+    === 'in:Starting x input:1, 1.01|1, 1.01|1, 1.01, 1.02, 1.03, 1.04, 1.05, 1.06 / in:Rho input:28|30|35 / :z at the end:26.1|25.3|24.0'
+  && !tin.querySelectorAll('tr.in td.num')[2].getAttribute('title') && [...tin.querySelectorAll('tr:not(.in) td.mark')].map(td => td.textContent).join('') === '↓↓'
+  && !el(b.runsTable(Object.assign({}, sim, { runs: [simRun(1, { start: [1, 1.01], rho: 28, on: true }, '+26.1')] }))).querySelector('tr.in'), [...tin.querySelectorAll('tbody tr')].map(tr => tr.textContent));
+const dtNone = el(b.dataTab(noneData, { number: 2 }, [{ key: 'start', label: 'Starting x', type: 'numbers', value: [1, 2] }, { key: 'on', label: 'Damping', type: 'toggle', value: false }, { key: 'span', label: 'Dates', type: 'date_window', value: ['2026-03-01', '2026-04-01'], derived: 'span' }]));
+const dtFile = d_ => el(b.dataTab({ source: 'csv', name: 'a.csv', columns: [{ name: 'v', dtype: 'int64' }] }, {}, d_));
+check('the Data tab of a stored run says what it was made with: the inputs by their labels - a list with commas, a switch as on or off, two dates with an arrow; a run without data says Source: No data and has no Columns line; a run on data keeps its columns and gains the inputs; a view without them (an older answer) shows none; run 0 of a routine without data is headed "the original values"',
+  dtNone.textContent === 'What this run ran onSourceNo dataInputsStarting x 1, 2Damping offDates 2026-03-01 → 2026-04-01' && dtFile([{ label: 'Threshold', type: 'number', value: 165 }]).textContent === 'What this run ran onSourceFileNamea.csvColumnsv int64InputsThreshold 165'
+  && dtFile().textContent === 'What this run ran onSourceFileNamea.csvColumnsv int64' && dtFile([]).textContent === 'What this run ran onSourceFileNamea.csvColumnsv int64'
+  && el(b.comparisonTab({ run: { number: 0, version: 1, status: 'reproduced', data: noneData, comparison: { rows: [] }, results: [] }, against_data: null })).querySelector('.rt-sec .h').textContent === 'Run 0 — the original values — v1',
+  [dtNone.textContent, dtFile([{ label: 'Threshold', type: 'number', value: 165 }]).textContent]);
+check('the Summary of a routine without data: the header and the list say No data; the runs are the custom runs - no athlete pick, no interval but Custom',
+  b.routineHeader(Object.assign({}, simRuns, { origin_available: false })).sub.startsWith('No data · v1 · ') && el(b.sideItem({ id: 's1', name: 'End state', source: 'none', current_version: 1, runs: 2, created: 1794000000 }, true)).querySelector('.it span').textContent.startsWith('No data · v1 · 2 runs')
+  && !el(b.routineBody(simRuns)).querySelector('select[data-pick="athlete"]') && el(b.routineBody(simRuns)).querySelector('.rt-filter .on').getAttribute('data-filter') === 'custom' && el(b.routineBody(simRuns)).querySelector('.rt-runs tr.in'));
+const rtSrcN = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
+check('the page (§24): a refusal before a run is said in the frame\'s own line when the dialog has one, else in the band (a routine without data has no such line; a file routine whose data fitted had none either, and its refusal went unsaid); a stored run without data gets no CHECK row; its Data tab is given the view\'s inputs; the toasts name no data for such a routine; the dialog opens on "Reading the routine…"',
+  rtSrcN.includes("const fitEl = choice === 'now' ? p.d.querySelector('.rt-fit') : null;") && rtSrcN.includes("if (fitEl) { fitEl.className = 'rt-fit bad'; fitEl.textContent = line; }\n                else progress(line, 'bad');")
+  && rtSrcN.includes("if (!build.alone(d)) paneLookup({ kind: 'check',") && rtSrcN.includes("createOrUpdateTab('dataframe', build.dataTab(d, run, view.inputs));")
+  && rtSrcN.includes("const on = build.alone(made.routine) ? '' : ' on the original data';") && rtSrcN.includes("build.loading('Reading the routine…')") && !rtSrcN.includes('run the method on the data loaded now')
+  && ['.rt-row .rt-none', '.rt-runs tr.in td', '.rt-runs tr.in .k'].every(c => dlgCss0().includes(c)));
+
 // ---- the page and the stylesheets ----
 const html = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'templates', 'index.html'), 'utf8');
 check('page: the Routines rail entry sits between Saved workflows and the Dataset cache, without a count badge (gone 2026-11-06, §14.5); routines.js is loaded after workflow-modal.js',
@@ -776,7 +872,7 @@ const dlgCss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'stat
 const rtSrcC = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'), 'utf8');
 check('the page follows the proof behind the dialog (§17, §22): the watch goes on while the status is verifying, and the toast at the end says the verdict - with what a smaller piece gave when one gave less than every metric; the open manager is loaded again',
   rtSrcC.includes("if (!r || (st && st !== 'verifying')) {") && rtSrcC.includes("const less = v ? (v.tried || []).filter(t => t.status !== 'empty' && !(t.status === 'ran' && t.came === t.of)) : [];")
-  && rtSrcC.includes("' · verified on the original data' + (less.length ? ' · ' + less.map(t => 'a ' + t.interval + ' gives ' + build.triedText(t)).join(', ') : '')") && rtSrcC.includes("watching[id] = true;")
+  && rtSrcC.includes("' · verified' + (build.alone(r) ? '' : ' on the original data') + (less.length ? ' · ' + less.map(t => 'a ' + t.interval + ' gives ' + build.triedText(t)).join(', ') : '')") && rtSrcC.includes("watching[id] = true;")
   && rtSrcC.includes("if (manager && manager.style.display !== 'none') loadManager(id);"));
 check('stylesheets: the pill\'s menu and its saved and open states in shell.css (the rail badge rule gone with the badge); the dialog, the manager, the card button, the composer lock, the interval row, the plan, the fill box and the fill line in dialogs.css',
   ['.save-menu', '.save-menu .it.done', '#rankButton.saved', '#rankButton.menu-open'].every(c => shellCss.includes(c)) && !shellCss.includes('.rb-badge')

@@ -716,14 +716,19 @@ class BambooAI:
             data["aux"] = [str(p) for p in aux if p]
         if load:                                                  # the load as the page did it (a cached one would otherwise read 'cache')
             data["load"] = {**(data.get("load") or {}), **self._load_as_said(load)}   # over what the loader route noted (the key's mark)
-        logger.info("Routine %s run %d: data %s (%s rows, %d columns, %d auxiliary file(s): %s)", routine_id, number, data.get("source"), data.get("rows"),
-                    len(data.get("columns") or []), len(data.get("aux") or []), ", ".join(os.path.basename(str(p)) for p in (data.get("aux") or [])) or "-")
+        reads = routines_host.reads_data(routine)                 # a method made without data takes nothing from the Data tab
+        if reads:
+            logger.info("Routine %s run %d: data %s (%s rows, %d columns, %d auxiliary file(s): %s)", routine_id, number, data.get("source"), data.get("rows"),
+                        len(data.get("columns") or []), len(data.get("aux") or []), ", ".join(os.path.basename(str(p)) for p in (data.get("aux") or [])) or "-")
+        else:
+            logger.info("Routine %s run %d: no data (the method reads none)", routine_id, number)
         out = routines_host.run(routine, values, data, lambda script, timeout, d=None: self.run_script(script, timeout, what=f"Routine {routine_id}", generated_dir=d),
                                 self.routine_store(), emit=None if quiet else self._emit_routine, compare_with=compare_with, run_dir=run_dir, interval=interval)
         r, c = out["run"], out["run"]["comparison"]
         if not quiet:
             try:
-                self.output_manager.display_results(chain_id=None, execution_mode=self.execution_mode, df_id=self.df_id, df=self.df, api_client=self.api_client,
+                shown = (self.df_id, self.df) if reads else (None, None)      # the Data tab is the run's data
+                self.output_manager.display_results(chain_id=None, execution_mode=self.execution_mode, df_id=shown[0], df=shown[1], api_client=self.api_client,
                                                     code_exec_results=out["stdout"] or None, plot_jsons=out["figures"] or None)
             except Exception:                                      # noqa: BLE001
                 logger.warning("The run's tabs could not be sent", exc_info=True)
@@ -731,7 +736,7 @@ class BambooAI:
                        results=sum(1 for x in r["results"] if x.get("estimate") is not None), compared=c["compared"], moved=c["moved"], changed=c["changed"], missing=c["missing"], figures=r["figures"],
                        elapsed=r["elapsed"], against=r["against"], comparison_line=c["line"])
         logger.info("Routine %s run %d (v%d%s): %s; %s", routine_id, r["number"], r["version"], f", {interval}" if interval else "", r["line"], c["line"])
-        return {k: out[k] for k in ("run", "summary", "routine", "numbers", "name", "subject", "against_data")}     # whose, and the reference run's data (2026-10-30)
+        return {k: out[k] for k in ("run", "summary", "routine", "numbers", "name", "subject", "against_data", "inputs")}     # whose, and the reference run's data (2026-10-30)
 
     def fill_routine(self, routine_id, interval, windows, values=None, aux=None, load=None):
         """A fill (docs/ROUTINES_DESIGN.md §14.3): the routine on each window of a set interval, oldest first, in a
@@ -782,11 +787,12 @@ class BambooAI:
         # the proof behind the dialog (2026-10-15: run zero re-executes every cell of the chain - nine minutes on a heavy
         # one): the routine is stored at once as verifying, the verdict lands on it from a thread, a run is refused until
         # it has settled, and after a verdict that is not reproduced. The proof is of the data loaded now: it stops when
-        # the Data tab holds something else
+        # the Data tab holds something else - unless the method reads no data (docs/ROUTINES_DESIGN.md §24)
         frame = self.df_id
+        reads = proposal.get("data_state") != "none"
 
         def runner(script, timeout, folder=None):
-            if self.df_id != frame:
+            if reads and self.df_id != frame:
                 raise RuntimeError("the data on the Data tab changed while the routine was being verified")
             return self.run_script(script, timeout, what="Run zero", generated_dir=folder)
         made = routines_host.create(nb, proposal, choices or {}, runner, self.routine_store(), emit=self._emit_routine, routine_id=routine_id, background=True,

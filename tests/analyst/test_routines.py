@@ -144,7 +144,7 @@ check("numbers written as a list in text - \"[18, 26]\", \"(9, 11)\" - read as t
 
 # ---- the promoter's prompt under the standing rule (no task vocabulary), and its shape ----
 sys.path.insert(0, os.path.join(ROOT, "tests", "analyst"))
-_DOMAIN = re.compile(r"\b(athletes?|altitude|sea.level|heart.rate|HR|HRmax|hr_max|pace|runners?|race|marathon|venues?|surfaces?|terrain|km|laps?|weekly load|gap years|site name|F1|Formula|drivers?)\b", re.I)
+_DOMAIN = re.compile(r"\b(athletes?|altitude|sea.level|heart.rate|HR|HRmax|hr_max|pace|runners?|race|marathon|venues?|surfaces?|terrain|km|laps?|weekly load|gap years|site name|F1|Formula|drivers?|lorenz|attractors?|orbits?)\b", re.I)
 import ast as _ast
 tree = _ast.parse(open(os.path.join(ROOT, "analyst", "routines.py"), encoding="utf-8").read())
 docs = set()
@@ -1889,6 +1889,153 @@ try:
 except host.RoutineRefused as exc:
     nope = str(exc)
 check("run_view of a run that does not exist is refused", "no run 99" in nope)
+
+# ---- a routine without data (2026-11-14, docs/ROUTINES_DESIGN.md §24): a chain that ran with nothing loaded - a computation from values
+# written into its code - is saved verified whatever is loaded, and a run asks for no data: the inputs are all it takes
+NO_DATA = {"df_id": None, "name": "", "source": "none", "columns": [], "rows": None, "date_range": None, "aux": [], "extra": {}}     # as bambooai._data_record writes it with nothing loaded
+check("without_data: the record the app writes with nothing loaded; not a record that says nothing (a chain from before the record), nor one with a frame, a file's, or files without a frame",
+      rt.without_data(NO_DATA) and not rt.without_data({}) and not rt.without_data(None) and not rt.without_data(dict(NO_DATA, df_id="x")) and not rt.without_data({"source": "csv", "name": "a.csv"})
+      and not rt.without_data(dict(NO_DATA, aux=["datasets/u/a.csv"])))
+check("data_state: none for a chain that ran with nothing loaded, whatever is loaded now; a chain without a record is, as before, taken for the frame loaded now - or its data is gone",
+      host.data_state(NO_DATA, None) == "none" and host.data_state(NO_DATA, {"df_id": "x"}) == "none" and host.data_state({}, {"df_id": "x"}) == "assumed" and host.data_state({}, {}) == "gone"
+      and host.data_state({"df_id": "a"}, {"df_id": "b"}) == "gone")
+check("the promoter's brief by what the chain ran on: without data, the one whose inputs are the values a person would vary - it opens as the other does, says the analysis read no data, asks for at least one input, "
+      "and shares the edits, the pick, the instruction and the reply's shape; nothing of loading data in it",
+      rt.promoter_system(NO_DATA) is rt.PROMOTER_NO_DATA and rt.promoter_system({"df_id": "x", "source": "csv"}) is rt.PROMOTER_SYSTEM and rt.promoter_system({}) is rt.PROMOTER_SYSTEM
+      and rt.PROMOTER_NO_DATA.startswith("You are preparing an analysis so that it can be run again, unchanged in method, with other values")
+      and all(s in rt.PROMOTER_NO_DATA for s in ("This analysis read no data", "The test of an input: would the person set it differently to ask the same question of another case?",
+                                                 "A routine without an input can only repeat itself: where the code has such a constant, propose at least one.", "at most five",
+                                                 "find/replace edits", "never by retyping", "Where the report cites cells, those are the cells the answer was read from",
+                                                 "is not a request to compute anything", '"tracked": [{"asked":', 'Here "column" is none, and "recomputed" and "unfit" are empty'))
+      and not any(s in rt.PROMOTER_NO_DATA for s in ("other data of the same shape", "before the data is loaded", "date_window (two dates)"))
+      and rt.PROMOTER_SYSTEM.count("4. Rewrite the code as find/replace edits") == 1 and rt.PROMOTER_NO_DATA.count("4. Rewrite the code as find/replace edits") == 1)
+_ua = rt.promoter_user("Q?", "A.", "Source: none", "\n# --- cell 1 ---\nx = 1", ["1. [cell 1] a: +1"], alone=True)
+check("promoter_user for a chain without data: the DATA section says none and that df is not defined, and the script's heading promises no frame",
+      "DATA:\nnone - the analysis read no dataset, and `df` is not defined\n\nTHE SCRIPT (the cells in execution order):\n# --- cell 1 ---" in _ua and "`df` is loaded" not in _ua and "Source: none" not in _ua, _ua)
+nbN = Notebook("tN")
+runN = nbN.new_run("Where does it end after 20 steps from 1.0?")
+_N1 = "start = 1.0\nrate = 0.5\nx = start\nfor _ in range(20):\n    x = x - rate * x * 0.1\nend = float(x)"
+_N2 = "RESULT('value after 20 steps', end, None, None, '', 'n/a')"
+_probe = [Turn(kind="cell", cell_no=1, code=_N1, results=[], stdout=""), Turn(kind="cell", cell_no=2, code=_N2, results=[], stdout="")]
+_lineN = next(ln for ln in runner_on(None)(assemble(_probe, "Done [cell 2].")[0], 60)[0].splitlines() if ln.startswith("RESULT: "))[len("RESULT: "):]     # the line as the kernel prints it
+runN.turns = [Turn(kind="cell", cell_no=1, code=_N1, results=[], stdout=""), Turn(kind="cell", cell_no=2, code=_N2, results=[{"text": _lineN, "typed": False}], stdout="RESULT: " + _lineN)]
+runN.report = "## Where it ends\n\nIt ends there [cell 2]."; runN.status = "answered"; runN.data = dict(NO_DATA)
+runN.replay_script, _ = assemble(runN.cells(), runN.report)
+nbN.runs[runN.id] = runN
+_replyN = '```json\n{"name": "End value", "inputs": [{"key": "start", "label": "Starting value", "type": "number", "default": "1.0", "origin": "the analysis started at 1"}], "edits": [{"cell": 1, "find": "start = 1.0", "replace": "start = INPUTS[\'start\']"}], "kept": []}\n```'
+_seenN = []
+def _llmN(system, user):
+    _seenN.append((system, user))
+    return _replyN, {"cost": 0.0}
+_other = {"df_id": "dfX", "name": "other.csv", "source": "csv", "columns": [{"name": "v", "dtype": "int64"}], "rows": 5, "aux": []}
+_evN = []
+pN = host.propose(nbN, runN.id, _llmN, current_data=dict(NO_DATA), emit=_evN.append, runner=runner_on(None))
+pN2 = host.propose(nbN, runN.id, _llmN, current_data=dict(_other), runner=runner_on(df))
+check("propose on a chain without data: its state is none - with nothing loaded and with another file loaded alike, the routine's data staying none, never the file - the checklist's data step says no dataset, "
+      "and the promoter gets the brief for no data with the DATA section saying none",
+      pN["data_state"] == "none" and pN["source"] == "none" and rt.without_data(pN["data"]) and pN2["data_state"] == "none" and pN2["source"] == "none" and rt.without_data(pN2["data"]) and pN2["data"].get("name") == ""
+      and [e.get("detail") for e in _evN if e.get("type") == "step" and e.get("step") == "data"] == ["no dataset"]
+      and _seenN[0][0] is rt.PROMOTER_NO_DATA and "DATA:\nnone - the analysis read no dataset" in _seenN[0][1] and _seenN[1][0] is rt.PROMOTER_NO_DATA
+      and pN["inputs"][0]["key"] == "start" and "INPUTS['start']" in pN["cells_text"], (pN["data_state"], pN2["data_state"], pN2["data"], [e for e in _evN if e.get("type") == "step"]))
+madeN = host.create(nbN, pN, {"name": "End value"}, runner_on(None), store)
+RN = store.load(madeN["routine"]["id"])
+check("create: run zero runs with nothing loaded and reproduces the chain's line - verified, where it was 'unverified: the data is no longer loaded'; the routine's source is none and its load plan asks for nothing",
+      madeN["run_zero"]["status"] == "reproduced" and madeN["run_zero"]["verified"] and madeN["routine"]["source"] == "none" and host.load_plan(RN)["source"] == "none"
+      and host.load_plan(RN)["aux"] == [] and host.zero_holds(host.version_of(RN)) == "", (madeN["run_zero"], host.load_plan(RN)))
+pcN, pcN2, pcN3 = host.precheck(RN, dict(NO_DATA), runner_on(None), {}), host.precheck(RN, dict(_other), runner_on(df), {"start": "2"}), host.precheck(RN, dict(NO_DATA), runner_on(None), {"start": "abc"})
+check("precheck of a routine without data: ok with nothing loaded - nothing is asked for; with another file loaded the answer's data is still none; a value that cannot be read is the one thing it refuses, by its label",
+      pcN["ok"] and not pcN["loaded"] and pcN["line"] == "" and pcN["data"]["source"] == "none" and pcN2["ok"] and pcN2["data"]["source"] == "none" and pcN2["data"]["name"] == ""
+      and not pcN3["ok"] and pcN3["line"] == "Starting value: 'abc' could not be read as a number", (pcN, pcN2, pcN3))
+check("an unreadable value is said in plain words, by its input's type: a list of numbers, two dates - not the type's name",
+      rt.coerce_values([{"key": "s", "label": "Starts", "type": "numbers", "default": [1, 2]}, {"key": "w", "label": "Window", "type": "date_window", "default": ["2026-01-01", "2026-02-01"]}], {"s": "one, two", "w": "soon"})[1]
+      == ["Starts: 'one, two' could not be read as a list of numbers", "Window: 'soon' could not be read as two dates"] and set(rt.READ_AS) == set(rt.INPUT_TYPES))
+_evR = []
+outN1 = host.run(RN, {"start": 2.0}, dict(NO_DATA), runner_on(None), store, emit=_evR.append)
+outN2 = host.run(store.load(RN["id"]), {"start": 2.0}, dict(_other), runner_on(df), store)
+recN1, recN2 = outN1["run"], outN2["run"]
+check("a run without data: with nothing loaded it runs on its inputs alone - another starting value, another number, compared with run 0 - its record's data none, no check line, and the pane gets no CHECK row; "
+      "with another file loaded the run is the same: the file is not looked at, not checked and not on the record, and the numbers are the run before's",
+      recN1["status"] == "ran" and recN1["inputs"] == {"start": 2.0} and recN1["results"][0]["estimate"] not in (None, madeN["run_zero"]["results"][0]["estimate"]) and recN1["against"] == 0 and recN1["comparison"]["line"] == "1 of 1 changed"
+      and rt.without_data(recN1["data"]) and recN1["check"] == "" and recN1["fit"] == {"missing": [], "extra": [], "retyped": [], "line": ""} and recN1["bindings"] == []
+      and [e.get("kind") for e in _evR if e.get("type") in ("lookup_start", "lookup")] == ["run", "run", "compare"]
+      and recN2["status"] == "reproduced" and rt.without_data(recN2["data"]) and recN2["data"].get("name") == "" and recN2["results"][0]["estimate"] == recN1["results"][0]["estimate"] and recN2["against"] == 1
+      and store.load(RN["id"])["runs"][1]["data"]["source"] == "none", (recN1["status"], recN1["results"], recN1["comparison"]["line"], [e.get("kind") for e in _evR], recN2["status"], recN2["data"]))
+viewN = host.run_view(store.load(RN["id"]), store, 1)
+check("run_view carries the run's inputs for a reader: each by its label with the value the run used and its type - and so does the run's own answer, for the view of a run just made; run zero's are the defaults; an input the data writes says what it follows; reads_data tells the routine made without data from one with",
+      viewN["inputs"] == [{"key": "start", "label": "Starting value", "value": 2.0, "type": "number", "derived": ""}] and outN1["inputs"] == viewN["inputs"] and host.run_view(store.load(RN["id"]), store, 0)["inputs"][0]["value"] == 1.0
+      and not host.reads_data(RN) and host.reads_data({"current_version": 1, "versions": [{"number": 1, "manifest": {"data": {"df_id": "a", "source": "csv"}}}]})
+      and host.inputs_said({"manifest": {"parameters": [{"key": "w", "label": "Window", "type": "date_window", "default": ["a", "b"], "derived": "window"}]}}, {})[0] == {"key": "w", "label": "Window", "value": ["a", "b"], "type": "date_window", "derived": "window"},
+      viewN["inputs"])
+_vN = host.version_of(RN)
+_heldN = lambda status: host.zero_holds(dict(_vN, run_zero=dict(_vN["run_zero"], status=status, line="1 of 1 result lines differ")))
+check("the holds of a routine without data name no data: still being verified; did not reproduce - the method is not run; a routine with data reads as before",
+      _heldN("verifying") == "the routine is still being verified - run it when it has settled"
+      and _heldN("differed") == "run zero did not reproduce the analysis (1 of 1 result lines differ) - the method is not run; delete the routine, or make it again from the chain"
+      and host.zero_holds({"run_zero": {"status": "differed", "line": "x"}, "manifest": {"data": {"df_id": "a", "source": "csv"}}}).startswith("run zero on this chain's own data did not reproduce the analysis (x) - the method is not run on other data;"),
+      (_heldN("verifying"), _heldN("differed")))
+runN.turns[1].results = [{"text": "value after 20 steps: +9", "typed": False}]                # a chain whose recorded line the method does not give
+try:
+    host.create(nbN, host.propose(nbN, runN.id, _llmN, current_data=dict(NO_DATA)), {"name": "Off"}, runner_on(None), store); _offN = ""
+except host.RoutineRefused as exc:
+    _offN = str(exc)
+_bgN = host.create(nbN, host.propose(nbN, runN.id, _llmN, current_data=dict(NO_DATA)), {"name": "Behind"}, runner_on(None), store, background=True)
+check("a method without data that does not give the chain's line is refused in the foreground with no word of data; behind the dialog it is stored as verifying, its line saying the method is being run again",
+      _offN.startswith("run zero did not reproduce the analysis: 1 of 1 result lines differ") and _bgN["run_zero"]["status"] == "verifying" and _bgN["run_zero"]["line"] == "verifying: the method is being run again", (_offN, _bgN["run_zero"]))
+# a frame with no rows on the Data tab does not stop a method made without data whose code names a table of its own `df` (§24.3): a
+# method that reads data runs none of its statements on such a frame; this one's `df` is its own
+nbO = Notebook("tO")
+runO = nbO.new_run("What do the steps add up to?")
+_O1 = "import pandas as pd\nsteps = 5\ndf = pd.DataFrame({'t': range(steps)})\ndf['x'] = df['t'] * 2\ntotal = float(df['x'].sum())"
+_O2 = "RESULT('sum of x', total, None, None, '', 'n/a')"
+_probeO = [Turn(kind="cell", cell_no=1, code=_O1, results=[], stdout=""), Turn(kind="cell", cell_no=2, code=_O2, results=[], stdout="")]
+_lineO = next(ln for ln in runner_on(None)(assemble(_probeO, "Done [cell 2].")[0], 60)[0].splitlines() if ln.startswith("RESULT: "))[len("RESULT: "):]
+runO.turns = [Turn(kind="cell", cell_no=1, code=_O1, results=[], stdout=""), Turn(kind="cell", cell_no=2, code=_O2, results=[{"text": _lineO, "typed": False}], stdout="RESULT: " + _lineO)]
+runO.report = "## The sum\n\nIt adds up [cell 2]."; runO.status = "answered"; runO.data = dict(NO_DATA)
+runO.replay_script, _ = assemble(runO.cells(), runO.report)
+nbO.runs[runO.id] = runO
+_replyO = '```json\n{"name": "Sum of the steps", "inputs": [{"key": "steps", "label": "Steps", "type": "number", "default": "5", "origin": "five steps"}], "edits": [{"cell": 1, "find": "steps = 5", "replace": "steps = INPUTS[\'steps\']"}], "kept": []}\n```'
+_emptyO = pd.DataFrame({"v": []})
+_curO = {"df_id": "dfE", "name": "empty.csv", "source": "csv", "columns": [{"name": "v", "dtype": "float64"}], "rows": 0, "aux": []}
+madeO = host.create(nbO, host.propose(nbO, runO.id, lambda s, u: (_replyO, {"cost": 0.0}), current_data=dict(_curO), runner=runner_on(_emptyO)), {"name": "Sum"}, runner_on(_emptyO), store)
+outO = host.run(store.load(madeO["routine"]["id"]), {"steps": "8"}, dict(_curO), runner_on(_emptyO), store)
+_vO = host.version_of(store.load(madeO["routine"]["id"]))
+check("a method made without data whose code builds its own df, saved and run while a frame with no rows is on the Data tab: run zero reproduces and the run runs - not 'no data in this window'; "
+      "the executed text says the frame is not read, where the same statements of a method with data would stop on it",
+      madeO["run_zero"]["status"] == "reproduced" and outO["run"]["status"] == "ran" and outO["run"]["results"][0]["estimate"] not in (None, madeO["run_zero"]["results"][0]["estimate"])
+      and not host.version_reads(_vO) and host.version_reads({"manifest": {"data": {"df_id": "a", "source": "csv"}}})
+      and "_routine_steps(" in rt.stepwise(rt.with_inputs(_vO["script"], {"steps": 5}), frame=False)
+      and rt.stepwise(rt.with_inputs(_vO["script"], {"steps": 5}), frame=False) != rt.stepwise(rt.with_inputs(_vO["script"], {"steps": 5})),
+      (madeO["run_zero"], outO["run"].get("status"), outO["run"].get("line")))
+# rows of numbers (§24.2): several points, each a row, are one input of type numbers - a promoter's nested list is kept, where it was left out
+_cd = lambda v: rt._coerce_default("numbers", v, False)
+check("numbers read as one list or as rows: a list of lists, a nested list as text, text with semicolons between the rows; one list as before; a mixed list, an empty row, more than forty numbers in all - not read",
+      _cd([[1, 1, 1], [1.001, 1, 1]]) == [[1, 1, 1], [1.001, 1, 1]] and _cd("[[1.0, 1.0], [2.5, 3]]") == [[1.0, 1.0], [2.5, 3]] and _cd("1, 1, 1; 1.001, 1, 1;") == [[1, 1, 1], [1.001, 1, 1]] and _cd([(1, 2), (3, 4)]) == [[1, 2], [3, 4]]
+      and _cd("1, 2, 3") == [1, 2, 3] and _cd("[18, 26]") == [18, 26] and _cd([1, 2]) == [1, 2] and _cd([1, [2, 3]]) is None and _cd([[1], []]) is None and _cd("1, 2; x") is None and _cd(";") is None
+      and _cd([list(range(21)), list(range(20))]) is None and _cd(list(range(41))) is None and rt.in_rows([[1]]) and not rt.in_rows([1]) and not rt.in_rows([]) and not rt.in_rows(None))
+_pp = [{"key": "pts", "label": "Points", "type": "numbers", "default": [[1, 1, 1], [2, 2, 2]]}, {"key": "xs", "label": "Values", "type": "numbers", "default": [1, 2]}]
+check("a typed value keeps the shape its input holds: one row typed where it holds rows is one row; rows typed are rows; rows typed where it holds one list are refused by the label; and the script gets the rows as a list of lists",
+      rt.coerce_values(_pp, {"pts": "3, 3, 3"}) == ({"pts": [[3, 3, 3]], "xs": [1, 2]}, []) and rt.coerce_values(_pp, {"pts": "3, 3, 3; 4, 4, 4"})[0]["pts"] == [[3, 3, 3], [4, 4, 4]]
+      and rt.coerce_values(_pp, {"xs": "5; 6"}) == ({"pts": [[1, 1, 1], [2, 2, 2]], "xs": [1, 2]}, ["Values: '5; 6' could not be read as a list of numbers"]) and rt.coerce_values(_pp, {"xs": "5, 6, 7"})[0]["xs"] == [5, 6, 7]
+      and "'pts': [[1, 1, 1], [2.5, 2, 2]]" in rt.inputs_block({"pts": [[1, 1, 1], [2.5, 2, 2]]}), rt.coerce_values(_pp, {"pts": "3, 3, 3"}))
+nbP = Notebook("tP")
+runP = nbP.new_run("How far apart do two nearby starts end?")
+_P1 = "starts = [(1.0, 2.0), (1.5, 2.0)]\nends = []\nfor a, b in starts:\n    for _ in range(10):\n        a, b = a + 0.1 * b, b - 0.1 * a\n    ends.append(a)\ngap = max(ends) - min(ends)"
+_P2 = "RESULT('gap at the end', gap, None, None, '', 'n/a')"
+_probeP = [Turn(kind="cell", cell_no=1, code=_P1, results=[], stdout=""), Turn(kind="cell", cell_no=2, code=_P2, results=[], stdout="")]
+_lineP = next(ln for ln in runner_on(None)(assemble(_probeP, "Done [cell 2].")[0], 60)[0].splitlines() if ln.startswith("RESULT: "))[len("RESULT: "):]
+runP.turns = [Turn(kind="cell", cell_no=1, code=_P1, results=[], stdout=""), Turn(kind="cell", cell_no=2, code=_P2, results=[{"text": _lineP, "typed": False}], stdout="RESULT: " + _lineP)]
+runP.report = "## The gap\n\nThey end apart [cell 2]."; runP.status = "answered"; runP.data = dict(NO_DATA)
+runP.replay_script, _ = assemble(runP.cells(), runP.report)
+nbP.runs[runP.id] = runP
+_replyP = ('```json\n{"name": "Gap of nearby starts", "inputs": [{"key": "starts", "label": "Starting points", "type": "numbers", "default": [[1.0, 2.0], [1.5, 2.0]], "origin": "the two starts"}], '
+           '"edits": [{"cell": 1, "find": "starts = [(1.0, 2.0), (1.5, 2.0)]", "replace": "starts = INPUTS[\'starts\']"}], "kept": []}\n```')
+pP = host.propose(nbP, runP.id, lambda s, u: (_replyP, {"cost": 0.0}), current_data=dict(NO_DATA), runner=runner_on(None))
+madeP = host.create(nbP, pP, {"name": "Gap"}, runner_on(None), store)
+outP = host.run(store.load(madeP["routine"]["id"]), {"starts": "1, 2; 3, 2; 5, 2"}, dict(NO_DATA), runner_on(None), store)
+check("a routine made with several starting points as one input: the promoter's nested list is the input's value - not left out - run zero reproduces with it, and a run with three points typed runs on the three, another number",
+      pP["inputs"] == [{"key": "starts", "label": "Starting points", "type": "numbers", "default": [[1.0, 2.0], [1.5, 2.0]], "origin": "the two starts"}] and pP["notes"] == [] and madeP["run_zero"]["status"] == "reproduced"
+      and outP["run"]["status"] == "ran" and outP["run"]["inputs"] == {"starts": [[1, 2], [3, 2], [5, 2]]} and outP["run"]["comparison"]["line"] == "1 of 1 changed"
+      and outP["inputs"][0]["value"] == [[1, 2], [3, 2], [5, 2]], (pP["inputs"], pP["notes"], madeP["run_zero"], outP["run"].get("line"), outP["run"].get("inputs")))
 shutil.rmtree(tmp, ignore_errors=True)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")

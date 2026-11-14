@@ -43,13 +43,21 @@
         if (s === 'intervals' || s === 'endura' || s === 'sweatstack') return s;
         return s === 'none' || !s ? 'none' : 'file';
     }
+    function inRows(v) { return Array.isArray(v) && v.some(Array.isArray); }      // rows of numbers - several points, each a row (docs/ROUTINES_DESIGN.md §24.2)
     function valueText(p) {
         const v = p.default;
         if (p.type === 'date_window' && Array.isArray(v)) return v[0] + ' → ' + v[1];
-        if (Array.isArray(v)) return v.join(', ');
+        if (Array.isArray(v)) return inRows(v) ? v.map(r => [].concat(r).join(', ')).join('; ') : v.join(', ');     // rows with a semicolon between them
         if (p.type === 'toggle') return v ? 'on' : 'off';
         return String(v == null ? '' : v);
     }
+    // the value a run used for an input - its record's, else the default (a record from before the input was kept) - and how it reads
+    function usedValue(p, values) { return values && p.key in values ? values[p.key] : p.default; }
+    // a value as a run's record says it: an empty one (a list with nothing in it) reads "none", not a blank
+    function valueSaid(type, value) { return valueText({ type, default: value }) || 'none'; }
+    function runValue(p, values) { return valueSaid(p.type, usedValue(p, values)); }
+    // the same in lines, for a table's cell: rows of numbers a row to a line, anything else one line
+    function valueLines(type, value) { return inRows(value) ? value.map(r => [].concat(r).join(', ')) : [valueSaid(type, value)]; }
     // an input that only restates the period the data covers is not asked: it follows the data (docs/ROUTINES_DESIGN.md §4.8)
     function derivedText(p) {
         return p.derived === 'span' ? 'follows the data: its first and last dates, written at each run'
@@ -97,13 +105,18 @@
         error(message, retry) {
             return '<div class="rt-error"><div class="msg">' + esc(message) + '</div>' + (retry ? '<div class="row"><button class="ui-btn sm" data-act="retry">Try again</button></div>' : '') + '</div>';
         },
+        // a routine, a proposal or a data record whose method reads no data (docs/ROUTINES_DESIGN.md §24): its source is none
+        alone(x) { return !!x && x.source === 'none'; },
+        // what run zero ran on, as the lines name it: the original data - the values it was saved with, where it reads none
+        original(x) { return build.alone(x) ? 'the original values' : 'the original data'; },
         dataLine(p) {
             const d = p.data || {};
             const cols = (d.columns || []).length;
             const meta = [d.rows != null ? Number(d.rows).toLocaleString() + ' rows' : '', cols ? cols + ' columns' : '', d.date_range ? esc(d.date_range) : ''].filter(Boolean).join(' · ');
-            const state = p.data_state === 'same' ? 'Checked once on this chain’s own data before it is created.'
+            const state = p.data_state === 'none' ? 'This chain used no dataset, so the routine runs without one.'
+                        : (p.data_state === 'same' ? 'Checked once on this chain’s own data before it is created.'
                         : (p.data_state === 'assumed' ? 'The chain’s data is not on record; the data loaded now is taken for it, and the check runs on that.'
-                        : 'The chain’s data is no longer loaded: the routine will be created unverified, and its first run will show whether the method still runs.');
+                        : 'The chain’s data is no longer loaded: the routine will be created unverified, and its first run will show whether the method still runs.'));
             return '<div class="rt-data"><span class="ui-chip model"><span class="t">' + esc(sourceLabel(p.source)) + '</span></span>' +
                 (d.name ? '<span class="name">' + esc(d.name) + '</span>' : '') + (meta ? '<span class="meta">' + meta + '</span>' : '') + '</div>' +
                 '<div class="rt-line' + (p.data_state === 'gone' ? ' warn' : '') + '">' + state + '</div>';
@@ -162,9 +175,10 @@
         // what the dialog's foot and fields say for a version choice: the button's label, the note under it, whether the
         // What-changed line shows, and the name the field holds (the routine's for a next version, the proposal's for a new one)
         versionState(choice, under, p) {
-            if (!under) return { label: 'Create routine', note: 'The routine is checked once on this chain’s own data before it is created; the chain is saved as a favourite, and the routine links to it.', change: false, name: p ? p.name : '' };
-            if (choice === 'next') return { label: 'Make it v' + (Number(under.routine.version) + 1), note: 'The new version is checked once on this chain’s data before it replaces the current one; earlier versions stay runnable.', change: true, name: under.routine.name };
-            return { label: 'Create routine', note: 'The routine is checked once on this chain’s own data before it is created, apart from “' + under.routine.name + '”; the chain is saved as a favourite, and the routine links to it.', change: false, name: p ? p.name : '' };
+            const own = build.alone(p) ? '' : ' on this chain’s own data';      // a chain that used no dataset (§24) has none to name
+            if (!under) return { label: 'Create routine', note: 'The routine is checked once' + own + ' before it is created; the chain is saved as a favourite, and the routine links to it.', change: false, name: p ? p.name : '' };
+            if (choice === 'next') return { label: 'Make it v' + (Number(under.routine.version) + 1), note: 'The new version is checked once' + own.replace(' own', '') + ' before it replaces the current one; earlier versions stay runnable.', change: true, name: under.routine.name };
+            return { label: 'Create routine', note: 'The routine is checked once' + own + ' before it is created, apart from “' + under.routine.name + '”; the chain is saved as a favourite, and the routine links to it.', change: false, name: p ? p.name : '' };
         },
         proposal(p, threadRoutines) {
             const under = build.underOf(p, threadRoutines);
@@ -426,13 +440,13 @@
         // where an athlete's run was made with other inputs than most of the rows, in a sentence per run - {run number: sentence}.
         // The inputs a run writes from its own data are not compared: they differ by design
         inputsNotes(params, runs) {
-            const typed = (params || []).filter(p => !p.derived), of = (x, p) => JSON.stringify((x.inputs || {})[p.key]);
+            const typed = (params || []).filter(p => !p.derived), of = (x, p) => JSON.stringify(usedValue(p, x.inputs));
             const sig = x => typed.map(p => of(x, p)).join('|'), count = {};
             runs.forEach(x => { count[sig(x)] = (count[sig(x)] || 0) + 1; });
             const usual = runs.reduce((a, x) => (a && count[sig(a)] >= count[sig(x)] ? a : x), null);
-            const text = v => (Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v)), out = {};
+            const out = {};
             runs.filter(x => sig(x) !== sig(usual)).forEach(x => {
-                out[x.number] = 'ran with other inputs: ' + typed.filter(p => of(x, p) !== of(usual, p)).map(p => p.label + ' ' + text((x.inputs || {})[p.key]) + ' (the others ' + text((usual.inputs || {})[p.key]) + ')').join('; ');
+                out[x.number] = 'ran with other inputs: ' + typed.filter(p => of(x, p) !== of(usual, p)).map(p => p.label + ' ' + runValue(p, x.inputs) + ' (the others ' + runValue(p, usual.inputs) + ')').join('; ');
             });
             return out;
         },
@@ -560,8 +574,9 @@
         zeroHold(r) {
             const v = (r.versions || []).find(x => x.number === r.current_version) || (r.versions || [])[(r.versions || []).length - 1] || {};
             const st = (v.run_zero || {}).status || r.run_zero_status || '';
-            if (st === 'verifying') return 'still being verified on its chain’s own data — run it when it has settled';
-            if (st === 'differed' || st === 'failed') return 'run zero did not reproduce the chain’s analysis — the method is not run on other data; delete it, or make it again from the chain';
+            const alone = build.alone(r);
+            if (st === 'verifying') return 'still being verified' + (alone ? '' : ' on its chain’s own data') + ' — run it when it has settled';
+            if (st === 'differed' || st === 'failed') return 'run zero did not reproduce the chain’s analysis — the method is not run' + (alone ? '' : ' on other data') + '; delete it, or make it again from the chain';
             return '';
         },
         // the header's buttons; while a fill runs (§14.3) Run and Delete are greyed with the reason - the kernel is taken, and a
@@ -569,7 +584,7 @@
         actions(r, fill) {
             const busy = fill && fill.running ? (fill.routine_id === r.id ? 'a fill is running — wait for it, or stop it below' : 'a fill is running on ' + (fill.routine_name || 'another routine') + ' — wait for it, or stop it there') : '';
             const hold = busy || build.zeroHold(r);
-            return '<button class="ui-btn primary" data-act="run"' + (hold ? ' disabled title="' + esc(hold) + '"' : ' title="run the method on the data loaded now"') + '>' + ICON_ROUTINE + 'Run</button>' +
+            return '<button class="ui-btn primary" data-act="run"' + (hold ? ' disabled title="' + esc(hold) + '"' : '') + '>' + ICON_ROUTINE + 'Run</button>' +
                 '<a class="ui-btn ghost" href="/routines/' + esc(r.id) + '/script" download title="the script, with its inputs at the top">' + ICON_DOWN + '.py</a>' +
                 '<button class="ui-btn ghost" data-act="rename">Rename</button><button class="ui-btn ghost danger-text" data-act="delete"' + (busy ? ' disabled title="' + esc(busy) + '"' : '') + '>Delete</button>';
         },
@@ -585,9 +600,9 @@
                 const a = Array.isArray(v) ? v : ['', ''];
                 return '<div class="rt-window"><input type="date" class="ui-input" data-key="' + k + '" data-type="date_window" data-part="0" value="' + esc(a[0]) + '"><span class="arrow">→</span><input type="date" class="ui-input" data-key="' + k + '" data-type="date_window" data-part="1" value="' + esc(a[1]) + '"></div>';
             }
-            const text = Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
-            const help = p.type === 'numbers' ? 'numbers, separated by commas' : (p.type === 'choice' ? (p.multiple ? 'values of ' + esc(p.column || 'the column') + ', separated by commas' : 'a value of ' + esc(p.column || 'the column')) : '');
-            return '<input class="ui-input" data-key="' + k + '" data-type="' + esc(p.type) + '" value="' + esc(text) + '"' + (p.type === 'number' ? ' inputmode="decimal"' : '') + (help ? ' title="' + help + '"' : '') + '>';
+            const text = valueText(p);
+            const help = p.type === 'numbers' ? 'numbers, separated by commas' + (inRows(v) ? '; a semicolon between rows' : '') : (p.type === 'choice' ? (p.multiple ? 'values of ' + esc(p.column || 'the column') + ', separated by commas' : 'a value of ' + esc(p.column || 'the column')) : '');
+            return '<input class="ui-input" data-key="' + k + '" data-type="' + esc(p.type) + '"' + (inRows(v) ? ' data-rows' : '') + ' value="' + esc(text) + '"' + (p.type === 'number' ? ' inputmode="decimal"' : '') + (help ? ' title="' + help + '"' : '') + '>';
         },
         isoDay(d) { const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); },   // the local calendar day, as core.js's localIsoDay (2026-10-15: the UTC day put the run a day past the Data tab's load)
         // ---- the interval (docs/ROUTINES_DESIGN.md §14): a run's calendar unit - a day, a week (Monday to Sunday), a month, a
@@ -652,7 +667,7 @@
             const took = build.tookOf(r);
             if (!(took >= 1)) return '';
             if (units > 1) return 'about ' + fmtTook(units * took);
-            return 'the ' + (build.doneRuns(r).length ? 'last run' : 'check on the original data') + ' took ' + fmtTook(took);
+            return 'the ' + (build.doneRuns(r).length ? 'last run' : 'check' + (build.alone(r) ? '' : ' on the original data')) + ' took ' + fmtTook(took);
         },
         lastInterval(r) {    // the interval the routine was last run on under the current version: the dialog opens on it
             const runs = (r.runs || []).filter(x => x.version === r.current_version);
@@ -712,6 +727,8 @@
             const d = (pre && pre.data) || {};
             const loaded = !!(pre && pre.loaded);
             const src = (plan && plan.source) || sourceKind(d.source);
+            // a method that reads no data (§24): nothing to load, upload or pick - the row says so and the run needs the inputs alone
+            if (src === 'none') return '<div class="rt-row" data-row="data" data-source="none"><label>Data</label><div class="rt-choices"><span class="rt-none">none needed</span></div></div>';
             const isLoad = src === 'intervals' || src === 'endura' || src === 'sweatstack';
             const differs = !!(pre && pre.ok && (((pre.fit || {}).missing || []).length || ((pre.aux || {}).absent || []).length || ((pre.fit || {}).retyped || []).length || (pre.values_notes || []).length));
             const fitLine = loaded && (!pre.ok || differs) ? '<div class="rt-fit' + (pre.ok ? ' note' : ' bad') + '" data-for="now"' + (isLoad ? ' style="display:none"' : '') + '>' + (pre.ok ? '△ ' : '! ') + esc(pre.line || '') + '</div>' : '';     // the frame's problems, shown while it is the choice
@@ -777,7 +794,7 @@
             const when = x => { const w = build.windowOf(x.data || {}); return w[0] ? w[0] + ' → ' + w[1] : fmtDate(x.created); };
             return '<div class="rt-row" data-row="compare"><label>Compare</label><div class="rt-choices">' +
                 '<label class="rt-check"><input type="radio" name="rt-compare" value="previous" checked> run ' + esc(last.number) + ' (the run before)</label>' +
-                (zero ? '<label class="rt-check"><input type="radio" name="rt-compare" value="zero"> run 0 (the original data)</label>' : '') +
+                (zero ? '<label class="rt-check"><input type="radio" name="rt-compare" value="zero"> run 0 (' + build.original(r) + ')</label>' : '') +
                 (others.length ? '<label class="rt-check"><input type="radio" name="rt-compare" value="other"> another run <select class="ui-input rt-compare-other">' + others.map(x => '<option value="' + esc(x.number) + '">run ' + esc(x.number) + ' · ' + esc(when(x)) + '</option>').join('') + '</select></label>' : '') + '</div></div>';
         },
         num(x) { return x == null || x === '' ? '' : String(x); },
@@ -815,7 +832,7 @@
             const who = build.whoOf(d), whoRef = ref ? build.whoOf(ref) : '';
             const same = run.against != null && who === whoRef;
             const named = n => n || 'athlete not recorded';
-            const head = run.number === 0 ? 'Run 0 — the original data'
+            const head = run.number === 0 ? 'Run 0 — ' + build.original(d)
                 : ('Run ' + esc(run.number) + (run.against != null && !same ? ' (' + esc(named(who)) + ')' : '') + (run.against != null ? ' against run ' + esc(run.against) + (!same ? ' (' + esc(named(whoRef)) + ')' : '') : ''));
             const whose = (run.against == null || same) && who ? esc(who) + ' · ' : '';
             let h = '<div class="rt-cmp"><div class="rt-sec"><div class="h">' + head + ' <span class="n">— ' + whose + 'v' + esc(run.version) + (run.against != null ? ' · ' + esc(c.line || '') : '') + '</span></div>';
@@ -849,8 +866,10 @@
             }
             return h + '</div></div>';
         },
-        dataTab(d, run) {
+        // `inputs` (a stored run's view): the run's inputs by their labels - what it was made with, beside what it ran on
+        dataTab(d, run, inputs) {
             const cols = d.columns || [];
+            const said = (inputs || []).length ? '<b>Inputs</b><span>' + inputs.map(p => esc(p.label) + ' <span class="ui-muted">' + esc(valueSaid(p.type, p.value)) + '</span>').join('<br>') + '</span>' : '';
             const ld = loadLabel(d.load);
             const subs = (run && run.bindings) || [];
             const absent = (run && run.aux_absent) || [];
@@ -866,7 +885,8 @@
                 '<b>Source</b><span>' + esc(sourceLabel(d.source)) + '</span>' + (ld ? '<b>Loaded as</b><span>' + esc(ld) + '</span>' : '') + (d.name ? '<b>Name</b><span>' + esc(d.name) + '</span>' : '') + bound + differs +
                 (d.rows != null ? '<b>Rows</b><span>' + esc(Number(d.rows).toLocaleString()) + '</span>' : '') + (d.date_range ? '<b>Range</b><span>' + esc(d.date_range) + '</span>' : '') +
                 (d.aux && d.aux.length ? '<b>Auxiliary</b><span>' + d.aux.map(a => esc(String(a).split('/').pop())).join(', ') + '</span>' : '') +
-                '<b>Columns</b><span>' + (Array.isArray(cols) && cols.length && typeof cols[0] === 'object' ? cols.map(c => esc(c.name) + (c.dtype ? ' <span class="ui-muted">' + esc(c.dtype) + '</span>' : '')).join(', ') : esc(String(cols))) + '</span></div></div></div>';
+                (build.alone(d) ? '' : '<b>Columns</b><span>' + (Array.isArray(cols) && cols.length && typeof cols[0] === 'object' ? cols.map(c => esc(c.name) + (c.dtype ? ' <span class="ui-muted">' + esc(c.dtype) + '</span>' : '')).join(', ') : esc(String(cols))) + '</span>') +
+                said + '</div></div></div>';
         },
         markOf(now, before) {
             if (!build.has(now) || !build.has(before)) return 'missing';
@@ -890,15 +910,21 @@
             const lines = ((v.manifest || {}).results || []).filter(x => !x.dropped && x.estimate != null);
             const cols = [];
             const days = d => { const w = build.windowOf(d), a = build.dayOf(w[0]), b = build.dayOf(w[1]); return a && b ? Math.round((b - a) / 86400000) : null; };     // start to end, as the Data tab's pill and the run dialog count a window
-            if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [], when: build.whenOf(((v.manifest || {}).data) || {}), days: days(((v.manifest || {}).data) || {}) });
-            build.doneRuns(r, athleteId).filter(x => !x.interval).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [], when: build.whenOf(x.data || {}), days: days(x.data || {}), mark: build.gapMark(x) }));
+            if (v.run_zero && v.run_zero.verified && build.zeroFits(v, athleteId)) cols.push({ number: 0, created: v.run_zero.created, results: v.run_zero.results || [], inputs: v.run_zero.inputs || {}, when: build.whenOf(((v.manifest || {}).data) || {}), days: days(((v.manifest || {}).data) || {}) });
+            build.doneRuns(r, athleteId).filter(x => !x.interval).forEach(x => cols.push({ number: x.number, created: x.created, results: x.results || [], inputs: x.inputs || {}, when: build.whenOf(x.data || {}), days: days(x.data || {}), mark: build.gapMark(x) }));
             const failed = build.runsOf(r, build.LOST.concat('empty'), athleteId).filter(x => !x.interval).reverse();
             const foot = failed.length ? '<div class="rt-foot">' + failed.map(x => '<span class="rt-failed" data-run="' + esc(x.number) + '">run ' + esc(x.number) + ' · ' + esc(fmtDate(x.created)) + ' · ' + esc(x.line || x.status.replace('_', ' ')) + build.runActs(x.number) + '</span>').join('') + '</div>' : '';
-            if (!lines.length || !cols.length) return (lines.length ? '<div class="rt-line muted">No custom run yet.</div>' : build.NO_LINES) + foot;
+            if (!cols.length) return (lines.length ? '<div class="rt-line muted">No custom run yet.</div>' : build.NO_LINES) + foot;
             const all = ((v.manifest || {}).results || []);
             // the mark sits between the two numbers it compares, in a column of its own (2026-10-10: beside the second number it read as a misplaced Trend)
-            const head = '<thead><tr><th>Result</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num" data-run="' + esc(c.number) + '"' + (c.when ? ' title="' + esc(c.when) + '"' : '') + '>Run ' + esc(c.number) + (c.mark || '') + '<span class="d">' + esc(fmtDate(c.created)) + (c.days ? ' · ' + esc(c.days) + ' days' : '') + '</span>' + build.runActs(c.number) + '</th>').join('') + '</tr></thead>';
-            const body = lines.map(line => {
+            const head = '<thead><tr><th>' + (lines.length ? 'Result' : '') + '</th>' + cols.map((c, i) => (i ? '<th class="mark"></th>' : '') + '<th class="num" data-run="' + esc(c.number) + '"' + (c.when ? ' title="' + esc(c.when) + '"' : '') + '>Run ' + esc(c.number) + (c.mark || '') + '<span class="d">' + esc(fmtDate(c.created)) + (c.days ? ' · ' + esc(c.days) + ' days' : '') + '</span>' + build.runActs(c.number) + '</th>').join('') + '</tr></thead>';
+            // what the runs were made with, where they differ (§24): a row per input that is not the same in every run shown - the
+            // one thing that tells the runs of a method without data apart. An input the data writes is left out: it follows the data.
+            // Each value whole - a list wraps, rows stand a row to a line: a cut could hide the very part two runs differ in
+            const varied = ((v.manifest || {}).parameters || []).filter(p => !p.derived && cols.some(c => JSON.stringify(usedValue(p, c.inputs)) !== JSON.stringify(usedValue(p, cols[0].inputs))));
+            const made = varied.map(p => '<tr class="in"><td class="label">' + esc(p.label) + ' <span class="k">input</span></td>' +
+                cols.map((c, i) => (i ? '<td class="mark"></td>' : '') + '<td class="num">' + valueLines(p.type, usedValue(p, c.inputs)).map(esc).join('<br>') + '</td>').join('') + '</tr>').join('');
+            const body = made + lines.map(line => {
                 const pos = all.indexOf(line);
                 const cells = cols.map(c => c.results[pos] || null);
                 let tds = '<td class="label" title="' + esc(line.label) + '">' + esc(build.lineName(line)) + '</td>';
@@ -911,7 +937,9 @@
                 });
                 return '<tr>' + tds + '</tr>';
             }).join('');
-            return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table>' + foot;
+            // a routine that records no result lines - a method that only draws - still has its runs here: the heads open them, the
+            // input rows tell them apart, and the sentence stands under the table (it stood alone, and no run could be opened)
+            return '<table class="ui-table rt-runs">' + head + '<tbody>' + body + '</tbody></table>' + (lines.length ? '' : build.NO_LINES) + foot;
         },
         // the favourites' cards' button
         cardButton(n) {
@@ -1259,7 +1287,8 @@
             p.d.style.display = 'none'; dialogState = null;
             const name = made.name || choices.name;
             const rz = made.run_zero || {};
-            toast('Routine made: ' + name + ' · v' + made.version + (rz.verified ? ' · verified on the original data' : (rz.status === 'verifying' ? ' · verifying on the original data in the background' : ' · not verified')));
+            const on = build.alone(made.routine) ? '' : ' on the original data';
+            toast('Routine made: ' + name + ' · v' + made.version + (rz.verified ? ' · verified' + on : (rz.status === 'verifying' ? ' · verifying' + on + ' in the background' : ' · not verified')));
             if (rz.status === 'verifying' && made.routine && made.routine.id) watchVerification(made.routine.id, name, made.version);
             if (!st.fromCard) await ensureFavourite(st.chain_id);
             if (typeof updateRankButtonVisibility === 'function') updateRankButtonVisibility();
@@ -1506,7 +1535,7 @@
         const ask = opts || {};
         runState = { id: routineId, routine: null, pre: null, busy: false, interval: 'custom', ask, unit: null };
         const p = runParts();
-        p.d.style.display = 'flex'; p.title.textContent = 'Run'; p.sub.textContent = ''; p.body.innerHTML = build.loading('Reading the routine and checking the data loaded now…');
+        p.d.style.display = 'flex'; p.title.textContent = 'Run'; p.sub.textContent = ''; p.body.innerHTML = build.loading('Reading the routine…');
         progress('');
         p.runBtn.disabled = true; p.cancelBtn.disabled = false;             // Cancel was held while the last run started
         Promise.all([fetchJson('/routines/' + encodeURIComponent(routineId)), fetchJson('/routines/' + encodeURIComponent(routineId) + '/precheck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })]).then(([rr, pr]) => {
@@ -1922,7 +1951,8 @@
             if (!pr.ok || !pr.json.ok) {
                 st.busy = false; p.cancelBtn.disabled = false;
                 const line = '! ' + ((pr.json && (pr.json.line || pr.json.error)) || 'the check failed');
-                if (choice === 'now') { const fitEl = p.d.querySelector('.rt-fit'); if (fitEl) { fitEl.className = 'rt-fit bad'; fitEl.textContent = line; } }
+                const fitEl = choice === 'now' ? p.d.querySelector('.rt-fit') : null;        // the frame's own line, when the dialog has one; else the band
+                if (fitEl) { fitEl.className = 'rt-fit bad'; fitEl.textContent = line; }
                 else progress(line, 'bad');
                 updateRunButton();
                 return;
@@ -2033,7 +2063,11 @@
         if (typeof paneRunIds === 'function') paneRunIds({ name: viewState.routine.name, run: run.number + ' · v' + run.version + whoLine(), df_id: (run.data || {}).df_id || '' });
         const c = run.comparison || {};
         if (typeof paneRunStrip === 'function') paneRunStrip({ mode: 'Routine', run: run.number, version: run.version, idle: true, estimate: run.against != null ? 'run ' + run.against + ' — ' + (c.line || '') : (c.line || '') });
-        if (typeof createOrUpdateTab === 'function') createOrUpdateTab('comparison', build.comparisonTab({ run, against_data: out.against_data || null }));
+        if (typeof createOrUpdateTab === 'function') {
+            createOrUpdateTab('comparison', build.comparisonTab({ run, against_data: out.against_data || null }));
+            // a method without data (§24) streams no Data tab: what the run was made with stands there, as in a stored run's view
+            if (build.alone(run.data)) { createOrUpdateTab('dataframe', build.dataTab(run.data, run, out.inputs)); if (typeof activateTab === 'function') activateTab('comparison'); }
+        }
         withRoutine(viewState.routine.id, run, subjectIdOf(viewState.subject), s => createOrUpdateTab('comparison', build.comparisonTab({ run, against_data: out.against_data || null }, s)));
         updateRunNav();
         toast('Run ' + run.number + ' recorded · ' + (run.line || run.status));
@@ -2064,7 +2098,7 @@
                 const ld = loadLabel(d.load);
                 if (ld && run.number !== 0 && sourceKind((d.load || {}).source) !== 'file') paneLookup({ kind: 'load', query: ld, peek: '', sources: [], passages: [] });
                 // a stored run's CHECK row says what the live one said (the record's line, step 4, 2026-10-11); run 0 and older records the size
-                paneLookup({ kind: 'check', query: d.name || sourceLabel(d.source), peek: run.check || ((d.rows != null ? Number(d.rows).toLocaleString() + ' rows · ' : '') + ((d.columns || []).length || d.columns || 0) + ' columns' + (run.number === 0 ? ' · the analysis\u2019s own data' : '')), sources: [], passages: [] });
+                if (!build.alone(d)) paneLookup({ kind: 'check', query: d.name || sourceLabel(d.source), peek: run.check || ((d.rows != null ? Number(d.rows).toLocaleString() + ' rows · ' : '') + ((d.columns || []).length || d.columns || 0) + ' columns' + (run.number === 0 ? ' · the analysis\u2019s own data' : '')), sources: [], passages: [] });
                 paneLookup({ kind: run.number === 0 ? 'routine' : 'run', query: 'run ' + run.number + ' · v' + run.version + (cells ? ' · ' + cells : ''), peek: (run.line || run.status) + ' · ' + (run.figures || 0) + ' figure' + (run.figures === 1 ? '' : 's') + (run.elapsed != null ? ' · ' + run.elapsed + ' s' : ''), sources: [], passages: [] });
                 if (run.against != null) { const w = build.whenOf(view.against_data); paneLookup({ kind: 'compare', query: 'with run ' + run.against + (w ? ' (' + w + ')' : ''), peek: (run.comparison || {}).line || '', sources: [], passages: [] }); }
             }
@@ -2074,7 +2108,7 @@
                 createOrUpdateTab('comparison', build.comparisonTab(view));
                 (view.figures || []).forEach(f => createOrUpdateTab('plot', f.data, f.id, f.format));
                 if (view.stdout) createOrUpdateTab('code_exec_results', view.stdout);
-                createOrUpdateTab('dataframe', build.dataTab(d, run));
+                createOrUpdateTab('dataframe', build.dataTab(d, run, view.inputs));
                 if (typeof activateTab === 'function') activateTab('comparison');
             }
             withRoutine(routineId, run, subjectIdOf(view.subject), s => createOrUpdateTab('comparison', build.comparisonTab(view, s)));
@@ -2148,7 +2182,7 @@
             if (!r || (st && st !== 'verifying')) {
                 delete watching[id];
                 const less = v ? (v.tried || []).filter(t => t.status !== 'empty' && !(t.status === 'ran' && t.came === t.of)) : [];
-                if (v) toast(name + ' · v' + version + (v.run_zero.verified ? ' · verified on the original data' + (less.length ? ' · ' + less.map(t => 'a ' + t.interval + ' gives ' + build.triedText(t)).join(', ') : '') : ' · run zero did not reproduce: ' + (v.run_zero.line || '')));
+                if (v) toast(name + ' · v' + version + (v.run_zero.verified ? ' · verified' + (build.alone(r) ? '' : ' on the original data') + (less.length ? ' · ' + less.map(t => 'a ' + t.interval + ' gives ' + build.triedText(t)).join(', ') : '') : ' · run zero did not reproduce: ' + (v.run_zero.line || '')));
                 if (manager && manager.style.display !== 'none') loadManager(id);
                 if (window.WorkflowModal && typeof window.WorkflowModal.refresh === 'function') window.WorkflowModal.refresh();
                 return;

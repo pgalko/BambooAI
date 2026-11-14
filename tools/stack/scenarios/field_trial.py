@@ -26,6 +26,10 @@ REVIEW_QUESTION = "Walk through ten small checks of the data, one per turn."    
 # fake integrations service - which the question does not name - so the card, the pane and the map show the record
 REACH_QUESTION = "Is the integrations service answering right now?"
 
+# a question that needs no data (docs/ROUTINES_DESIGN.md §24): asked in a workflow with nothing loaded, its cell computes from
+# values written into it - the routine made from it has those values as its inputs and runs without data
+ALONE_QUESTION = "Starting from 100 and losing 5% at every step, how much is left after 40 steps?"
+
 # a document attached to the thread (docs/DOCUMENTS_DESIGN.md, phase A): the analyst reads it in a cell
 DOC_NAME = "field_notes.md"
 DOC_TEXT = """# Field notes - 2026 season
@@ -170,6 +174,16 @@ print(f"ADJ_DIFF_C={est_c:.3f} CI_LO_C={lo_c:.3f} CI_HI_C={hi_c:.3f} N_PLOTS_C={
 CELL_GENERIC = """# A first look at the columns the question names
 print(df.describe(include='all').round(3).to_string())"""
 
+CELL_ALONE = """# A value that loses a fixed share at every step: what is left after the steps
+start = 100.0
+share = 0.05
+steps = 40
+left = start
+for _ in range(steps):
+    left -= share * left
+print(f"LEFT={left:.3f}")
+RESULT('left after the steps', left, None, None, 'units')"""
+
 SEARCH_DIGEST = (
     "Sourced claims:\n"
     "1. Field trials that compare fertiliser regimes across heterogeneous soils report the within-soil "
@@ -219,15 +233,27 @@ class Scenario:
         if system.startswith("You are the Reader"):
             return "", self.reader(user)
         if system.startswith("You are preparing an analysis so that it can be run again"):
-            return "", self.promoter(user)
+            return "", self.promoter(user, system)
         return "", "OK"
 
     # ------------------------------------------------------------ the promoter (routines, docs/ROUTINES_DESIGN.md)
-    def promoter(self, user):
+    def promoter(self, user, system=""):
         """The routine's inputs for the story's first chain: the regime compared becomes a choice from the regime
         column (the analysis compared B against A); the bootstrap size and seed stay the method's. The edits name
         the cell that defines adj_diff, wherever the chain numbered it. With the person's instruction (§15.6) the answer
-        names the yield line for the contrast and finds no line for the plot count."""
+        names the yield line for the contrast and finds no line for the plot count. For the chain that read no data
+        (§24) the inputs are the values its cell starts from - under the brief for such a chain only, so a proposal
+        with those inputs says which brief the app sent."""
+        alone = re.search(r"# --- cell (\d+) ---\n(?:(?!# --- cell).)*?start = 100\.0", user, re.S)
+        if alone and "This analysis read no data" in system:
+            cell = int(alone.group(1))
+            return json.dumps({
+                "name": "What is left after the steps",
+                "inputs": [{"key": "start", "label": "Starting value", "type": "number", "default": "100.0", "origin": "the analysis started from 100"},
+                           {"key": "steps", "label": "Steps", "type": "number", "default": "40", "origin": "the analysis ran 40 steps"}],
+                "edits": [{"cell": cell, "find": "start = 100.0", "replace": "start = INPUTS['start']"},
+                          {"cell": cell, "find": "steps = 40", "replace": "steps = int(INPUTS['steps'])"}],
+                "kept": ["the share lost at a step is the method's"]})
         m = re.search(r"# --- cell (\d+) ---\n(?:(?!# --- cell).)*?def adj_diff", user, re.S)
         if not m:
             return json.dumps({"name": "As it is", "inputs": [], "edits": [], "kept": ["nothing in this chain varies with the data"]})
@@ -298,6 +324,11 @@ class Scenario:
             if forced or turn >= 3:
                 return self.report_reach(user, q)
             return {1: self.t_reach_refused, 2: self.t_reach_fetch}[turn](q)
+        if q == ALONE_QUESTION:
+            if forced or turn >= 2:
+                return self.report_alone(user, q)
+            return _cell("Nothing is loaded and nothing is needed: the answer follows from the three values in the question.",
+                         _note(q, plan="compute it step by step, then report", names="-"), CELL_ALONE)
         if q == REVIEW_QUESTION:
             if forced or turn >= 10:
                 return _report("Ten checks done.", _note(q, plan="report"), "Ten small checks ran, one per turn [cell 1]; nothing else was computed.")
@@ -465,6 +496,14 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
         return _report("The service answered; that is the answer.", _note(q, est="answering", plan="report"),
                        f"## The service answers\n\nThe integrations service answered its health route [cell {cell}]; it had taken {n} calls at the time. "
                        "The box's process list could not be read: the executor does not run that operation.")
+
+    def report_alone(self, user, q):
+        nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]
+        cell = max(nos) if nos else 1
+        left = _grab(user, "LEFT")
+        said = f"{left:.2f}" if left is not None else "an amount the cell did not print"
+        return _report("The cell printed what is left; that is the answer.", _note(q, est=f"{said} left", plan="report", names="start, share, steps, left"),
+                       f"## What is left\n\nAfter 40 steps of losing 5%, {said} of the 100 is left [cell {cell}]. No data was read: the answer follows from the starting value, the share and the number of steps.")
 
     def report_generic(self, user, q):
         # the cell this chain ran (the newest in the prompt: a follow-up's cells are numbered along the path), cited

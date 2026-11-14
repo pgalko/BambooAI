@@ -113,10 +113,13 @@ def data_facts(data: Optional[dict]) -> str:
 
 
 def data_state(run_data: Optional[dict], current: Optional[dict]) -> str:
-    """same: the chain's data is the data loaded now - the same frame, or the same content loaded again (the same file
-    uploaded in a new session; notebook.same_data, 2026-10-12); gone: other data, or none, is loaded; assumed: the
-    chain predates the record, so the frame loaded now is taken for its data."""
+    """none: the chain ran with nothing loaded, as its record says - the method reads no data, whatever is loaded now
+    (docs/ROUTINES_DESIGN.md §24); same: the chain's data is the data loaded now - the same frame, or the same content
+    loaded again (the same file uploaded in a new session; notebook.same_data, 2026-10-12); gone: other data, or none,
+    is loaded; assumed: the chain predates the record, so the frame loaded now is taken for its data."""
     from analyst.notebook import same_data
+    if rt.without_data(run_data):
+        return "none"
     cur = (current or {}).get("df_id")
     if not run_data or not run_data.get("df_id"):
         return "assumed" if cur else "gone"
@@ -299,14 +302,15 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
     if state in ("same", "assumed"):
         step({"type": "step", "step": "data", "state": "running"})
         data = record_data_shape(data, runner)            # the data is still there: the auxiliary files' columns and the frame's period go on record
-    step({"type": "step", "step": "data", "detail": data_facts(data) if state != "gone" else "no longer loaded — the routine will be made unverified"})
+    step({"type": "step", "step": "data", "detail": {"gone": "no longer loaded — the routine will be made unverified", "none": "no dataset"}.get(state) or data_facts(data)})
     manifest = None
     if routine:
         cur = next((v for v in routine.get("versions", []) if v.get("number") == routine.get("current_version")), None)
         manifest = (cur or {}).get("manifest")
     summary = summary_of(run)
     cited = [n for n in cited_cells(run.report or "") if n in order]     # the cells the report read the answer from (§15.5)
-    user = rt.promoter_user(run.question, summary, describe_data(data), body, _ledger(expected), manifest, cited, instruction)
+    system = rt.promoter_system(data)                     # what an input is depends on whether the method reads data (§24)
+    user = rt.promoter_user(run.question, summary, describe_data(data), body, _ledger(expected), manifest, cited, instruction, alone=state == "none")
     obj, usage, cost = None, {}, 0.0
     problem, note, cut, cuts = "", "", False, 0
     why = ""                                                   # why the model is asked again, when it is: unreadable (§17), identifiers (§18) or the instruction unanswered (§15.6)
@@ -315,7 +319,7 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
             emit({"type": "turn_start", "turn": "routine", "quiet": True, "seat": seat, "model": model})
         step({"type": "step", "step": "model", "state": "running", "again": bool(attempt), "detail": why if attempt else ""})
         t0 = time.time()
-        text, usage = llm(rt.PROMOTER_SYSTEM, user if not attempt else user + "\n\n" + note)
+        text, usage = llm(system, user if not attempt else user + "\n\n" + note)
         cost += float((usage or {}).get("cost") or 0.0)
         cut = bool((usage or {}).get("truncated"))
         cuts += int(cut)
@@ -395,7 +399,6 @@ def propose(nb: Notebook, run_id: str, llm: Callable, current_data: Optional[dic
 
 # ----------------------------------------------------------------------------- Save as routine: the routine stored (F1)
 UNVERIFIED_LINE = "not verified: the analysis's data is no longer loaded, so the method was not checked - the first run will show whether it still runs"
-VERIFYING_LINE = "verifying: the method is being run on the chain's own data"
 
 
 def method_cells(proposal: dict, drop_inputs: set) -> str:
@@ -421,8 +424,9 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     zero does not reproduce is refused and not kept. In the background the routine is stored at once as *verifying*,
     the result carries `verify`, a callable the host runs in a thread, and the outcome lands on the record when it is
     in; a run is refused until it has settled, and after a verdict that is not reproduced. With the chain's data gone
-    the routine is created unverified and says so. `runs_root` is the folder the runs' own folders live under on the
-    runner's side; the trials write theirs there and remove it."""
+    the routine is created unverified and says so; a chain that read no data (§24) is proved as it is, whatever is
+    loaded. `runs_root` is the folder the runs' own folders live under on the runner's side; the trials write theirs
+    there and remove it."""
     name = (choices.get("name") or proposal.get("name") or "").strip()[:80] or "Routine"
     purpose = (choices.get("purpose") or "").strip()[:300]
     instruction = " ".join(str(choices.get("instruction") or "").split())[:rt.MAX_INSTRUCTION]       # the person's line on what to track, kept for the next version
@@ -441,6 +445,7 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     now = time.time()
     run_zero = {"created": now, "status": "unverified", "line": UNVERIFIED_LINE, "verified": False, "results": [], "figures": 0, "data": proposal["data"], "inputs": rt.defaults_of(inputs)}
     verifying = runner is not None and proposal.get("data_state") != "gone"
+    alone = rt.without_data(proposal["data"])                 # a method that reads no data: its lines name none
     timeout = int(proposal.get("timeout") or 300)
     routine = store.load(routine_id) if routine_id else None
     if routine_id and routine is None:
@@ -469,10 +474,10 @@ def create(nb: Notebook, proposal: dict, choices: dict, runner: Optional[Callabl
     if verifying and not background:
         proof = prove(emit)
         if proof["status"] != "reproduced":
-            raise RoutineRefused(f"run zero on this chain's own data did not reproduce the analysis: {proof['line']}")
+            raise RoutineRefused("run zero" + ("" if alone else " on this chain's own data") + f" did not reproduce the analysis: {proof['line']}")
         files = settle_proof(version, proof)
     elif verifying:
-        run_zero.update({"status": "verifying", "line": VERIFYING_LINE})
+        run_zero.update({"status": "verifying", "line": "verifying: the method is being run " + ("again" if alone else "on the chain's own data")})
     routine["versions"].append(version)
     routine["current_version"] = number
     store.save(routine)
@@ -542,14 +547,22 @@ def carry_out(runner: Callable, script: str, timeout: int, run_dir: str = "") ->
     return stdout or "", str(err or ""), list(figs or []), generated
 
 
-def run_method(script: str, runner: Callable, timeout: int, run_dir: str = "", only: Optional[List[int]] = None, watch: Optional[dict] = None) -> dict:
+def run_method(script: str, runner: Callable, timeout: int, run_dir: str = "", only: Optional[List[int]] = None, watch: Optional[dict] = None,
+               frame: bool = True) -> dict:
     """The executed text through the runner a statement at a time (rt.stepwise) and read back (rt.read_run), with what
-    the runner returned beside it: error, figs, generated, elapsed."""
+    the runner returned beside it: error, figs, generated, elapsed. `frame`: whether the method reads the data loaded
+    (version_reads) - one made without data is not stopped by a frame with no rows."""
     t0 = time.time()
-    stdout, err, figs, generated = carry_out(runner, rt.stepwise(script, only, watch), timeout, run_dir)
+    stdout, err, figs, generated = carry_out(runner, rt.stepwise(script, only, watch, frame), timeout, run_dir)
     out = rt.read_run(stdout)
     out.update({"error": err, "figs": figs, "generated": generated, "elapsed": round(time.time() - t0, 1)})
     return out
+
+
+def version_reads(version: dict) -> bool:
+    """Whether the version's method reads data: one made from a chain that had nothing loaded does not (§24) - a run of
+    it takes nothing from the Data tab, and nothing there stops it."""
+    return not rt.without_data((version.get("manifest") or {}).get("data"))
 
 
 def watch_of(version: dict) -> dict:
@@ -587,7 +600,7 @@ def verify_zero(name: str, version: dict, runner: Callable, timeout: int, emit: 
     expected = manifest.get("results") or []
     if emit:
         emit({"type": "lookup_start", "kind": "routine", "query": name})
-    run = run_method(rt.with_inputs(version["script"], (version.get("run_zero") or {}).get("inputs") or {}), runner, timeout, watch=watch_of(version))
+    run = run_method(rt.with_inputs(version["script"], (version.get("run_zero") or {}).get("inputs") or {}), runner, timeout, watch=watch_of(version), frame=version_reads(version))
     status, line = rt.check_zero(expected, run, run["error"])
     placed = rt.place_lines([{k: v for k, v in e.items() if k != "at"} for e in expected], run)
     if emit:
@@ -613,7 +626,7 @@ def check_lean(version: dict, zero: dict, runner: Callable, timeout: int) -> dic
     only = rt.needed_steps(cells, {expected[i]["at"][0] for i in tracked}, figure_cells) if (tracked or figure_cells) else None
     if only is None or len(only) >= of:
         return out
-    run = run_method(script, runner, timeout, only=only)
+    run = run_method(script, runner, timeout, only=only, frame=version_reads(version))
     why = ""
     if run["error"] or run["stopped"] or run["skipped"] or not run["stepwise"]:
         why = "it stopped (" + (rt.error_line(run["error"]) or (run["stopped"][0]["error"] if run["stopped"] else "a statement was skipped"))[:160] + ")"
@@ -624,7 +637,7 @@ def check_lean(version: dict, zero: dict, runner: Callable, timeout: int) -> dic
             why = f"a tracked line differs ([cell {expected[off].get('cell')}] {str(expected[off].get('label') or '')[:50]}: {zero['results'][off].get('estimate')} -> {got[off].get('estimate')})"
         else:
             same, how = rt.same_figures(zero["figs"], run["figs"])
-            if not same and rt.same_figures(zero["figs"], run_method(script, runner, timeout)["figs"])[0]:
+            if not same and rt.same_figures(zero["figs"], run_method(script, runner, timeout, frame=version_reads(version))["figs"])[0]:
                 why = "the figures differ (" + how + ")"
     if why:
         out["line"] = "every statement runs: the shorter run did not hold - " + why
@@ -751,6 +764,12 @@ def version_of(routine: dict, number: Optional[int] = None) -> dict:
 
 def run_tag(version: int, number: int) -> str:
     return f"v{version}_{number}"
+
+
+def reads_data(routine: dict, version_number: Optional[int] = None) -> bool:
+    """Whether the routine's method reads data: one made from a chain that had none loaded does not (§24), and a run
+    of it takes nothing from the Data tab."""
+    return version_reads(version_of(routine, version_number))
 
 
 def light_data(data: Optional[dict]) -> dict:
@@ -932,25 +951,33 @@ def zero_holds(ver: dict) -> str:
     the run instead; '' when the version may run (reproduced, or unverified because the data was gone)."""
     rz = ver.get("run_zero") or {}
     status = str(rz.get("status") or "")
+    alone = not version_reads(ver)                            # a method that reads no data (§24): the lines name none
     if status == "verifying":
-        return "the routine is still being verified on its chain's own data - run it when it has settled"
+        return "the routine is still being verified" + ("" if alone else " on its chain's own data") + " - run it when it has settled"
     if status in ("differed", "failed"):
-        return f"run zero on this chain's own data did not reproduce the analysis ({rz.get('line') or status}) - the method is not run on other data; delete the routine, or make it again from the chain"
+        return ("run zero" + ("" if alone else " on this chain's own data") + f" did not reproduce the analysis ({rz.get('line') or status}) - the method is not run"
+                + ("" if alone else " on other data") + "; delete the routine, or make it again from the chain")
     return ""
 
 
 def precheck(routine: dict, current_data: Optional[dict], runner: Optional[Callable], values: Optional[dict] = None, version_number: Optional[int] = None) -> dict:
     """What the run dialog shows before Run: whether data is loaded, whether it fits the routine's columns, and
-    whether every chosen value of a choice input is in the data."""
+    whether every chosen value of a choice input is in the data. A method that reads no data (§24) asks for none:
+    its record stands for what is loaded, and the values are all there is to check."""
     ver = version_of(routine, version_number)
     manifest = ver.get("manifest") or {}
     params = rt.own_columns(manifest.get("parameters") or [], manifest.get("data"))[0]   # a routine made before 2026-10-15 may still declare one
-    d = current_data or {}
+    alone = not version_reads(ver)
+    d = dict(manifest["data"]) if alone else (current_data or {})
     loaded = bool(d.get("df_id")) or bool(d.get("columns"))
     out = {"loaded": loaded, "data": light_data(d), "fit": None, "values_missing": [], "values_notes": [], "problems": [], "ok": False, "line": ""}
     held = zero_holds(ver)
     if held:
         out["line"] = held
+        return out
+    if alone:
+        out["problems"] = rt.coerce_values(params, values)[1]
+        out["ok"], out["line"] = not out["problems"], "; ".join(out["problems"])
         return out
     if not loaded:
         out["line"] = "no data is loaded: load the data on the Data tab, then run"
@@ -987,7 +1014,7 @@ def attempt(ver: dict, d: dict, vals: Dict[str, object], runner: Callable, run_d
     error, figs, generated, elapsed), results, at}."""
     prep = prep or prepare(ver, d, runner, run_dir)
     script = rt.with_inputs(prep["script"], vals, prep["prelude"])
-    run_ = run_method(script, runner, timeout, run_dir, only=run_steps(ver), watch=watch_of(ver))
+    run_ = run_method(script, runner, timeout, run_dir, only=run_steps(ver), watch=watch_of(ver), frame=version_reads(ver))
     expected = (ver.get("manifest") or {}).get("results") or []
     placed = rt.place_lines(expected if places_hold(ver) else [{k: v for k, v in e.items() if k != "at"} for e in expected], run_)
     return {"prep": prep, "script": script, "run": run_, "results": placed["results"], "at": placed["at"]}
@@ -998,6 +1025,9 @@ def run_timeout(ver: dict) -> int:
     whose places no longer hold runs them all; ten minutes when run zero did not run."""
     took = ((ver.get("lean") or {}).get("elapsed") or [None])[0] or (ver.get("run_zero") or {}).get("elapsed")
     return time_allowed(took) if took else 600
+
+
+NOTHING_TO_FIT = {"fits": True, "missing": [], "extra": [], "retyped": [], "line": ""}       # the fit of a method that reads no data
 
 
 def stopped_of(got: dict) -> List[dict]:
@@ -1017,7 +1047,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     """One run of the routine's version on the data loaded now: the checks (refused before anything runs), the method
     a statement at a time (attempt), the status, the comparison with the reference run, the record stored. Returns
     the record with the printed output and the figures for the tabs. `interval`: the calendar unit the window is -
-    the record keeps it and the reference is the one before."""
+    the record keeps it and the reference is the one before. A method that reads no data (§24) runs on its record of
+    none, whatever is loaded now: nothing is asked for, checked against it or said about it."""
     ver = version_of(routine, version_number)
     held = zero_holds(ver)
     if held:
@@ -1026,20 +1057,22 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     manifest = ver.get("manifest") or {}
     params = rt.own_columns(manifest.get("parameters") or [], manifest.get("data"))[0]
     expected = manifest.get("results") or []
-    d = current_data or {}
-    if not (d.get("df_id") or d.get("columns")):
+    alone = not version_reads(ver)
+    d = dict(manifest["data"]) if alone else (current_data or {})
+    if not (alone or d.get("df_id") or d.get("columns")):
         raise RoutineRefused("no data is loaded: load the data on the Data tab, then run")
+    said = None if alone else emit                            # the CHECK row: such a method has nothing to check
     vals, problems = rt.coerce_values(params, values)
     if problems:
         raise RoutineRefused("; ".join(problems))
     vals.update(derived_window_values(params, d))         # an input that follows the load window takes this run's
     name = d.get("name") or d.get("source") or "the data loaded now"
-    if emit:
-        emit({"type": "lookup_start", "kind": "check", "query": name})
-    fit = rt.fit_check((manifest.get("data") or {}).get("columns") or [], d.get("columns") or [])
+    if said:
+        said({"type": "lookup_start", "kind": "check", "query": name})
+    fit = dict(NOTHING_TO_FIT) if alone else rt.fit_check((manifest.get("data") or {}).get("columns") or [], d.get("columns") or [])
     if not fit["fits"]:
-        if emit:
-            emit({"type": "lookup", "kind": "check", "query": name, "peek": fit["line"]})
+        if said:
+            said({"type": "lookup", "kind": "check", "query": name, "peek": fit["line"]})
         raise RoutineRefused("the data does not fit the routine: " + fit["line"])
     cut = cut_window(ver, d)
     if cut:                                                    # the record says the window the method saw, not the cached load's
@@ -1051,8 +1084,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         found = rt.read_precheck(stdout or "")
         miss, value_notes = rt.value_verdict(params, vals, found) if found is not None else ([], [])
         if miss:
-            if emit:
-                emit({"type": "lookup", "kind": "check", "query": name, "peek": "; ".join(miss)})
+            if said:
+                said({"type": "lookup", "kind": "check", "query": name, "peek": "; ".join(miss)})
             raise RoutineRefused("; ".join(miss))
     number = len(routine.get("runs", [])) + 1
     # the data made to fit the recorded shape: the auxiliary files bound by kind (copies with the missing columns added,
@@ -1070,8 +1103,8 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
         check_line += f"; cut to {prep['cut']['start']} → {prep['cut']['end']} from the cached load" + (f" {(d.get('load') or {}).get('cached_from')[0]} → {(d.get('load') or {}).get('cached_from')[1]}" if len((d.get("load") or {}).get("cached_from") or []) == 2 else "")
     if prep["note"]:
         check_line += "; " + prep["note"]
-    if emit:
-        emit({"type": "lookup", "kind": "check", "query": name, "peek": check_line})
+    if said:
+        said({"type": "lookup", "kind": "check", "query": name, "peek": check_line})
     subject_id = str(rt.subject_of_record(d).get("id") or "")
     dates = _dates_of(d)
     interval = interval if interval in INTERVALS and all(dates) else None        # a set interval is a window; without one the run is custom
@@ -1136,7 +1169,7 @@ def run(routine: dict, values: Optional[dict], current_data: Optional[dict], run
     except OSError:
         pass
     return {"run": record, "summary": summary, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, vnum, subject_id), "subject": rt.subject_of_record(d),
-            "against_data": reference_data(routine, ver, ref_number), "stdout": stdout, "figures": figs, "name": routine.get("name")}
+            "against_data": reference_data(routine, ver, ref_number), "stdout": stdout, "figures": figs, "name": routine.get("name"), "inputs": inputs_said(ver, vals)}
 
 
 # ----------------------------------------------------------------------------- the runs on record
@@ -1199,9 +1232,17 @@ def delete_run(routine: dict, store: rt.RoutineStore, number: int) -> dict:
     return summary
 
 
+def inputs_said(ver: dict, values: Optional[dict]) -> List[dict]:
+    """A run's inputs as a reader sees them: each input of the version by its label, with the value the run used
+    (the default where the record has none), its type - how the value reads - and what it follows when the data
+    writes it."""
+    return [{"key": p["key"], "label": p.get("label") or p["key"], "value": (values or {}).get(p["key"], p.get("default")), "type": p.get("type") or "", "derived": p.get("derived") or ""}
+            for p in (ver.get("manifest") or {}).get("parameters") or []]
+
+
 def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
     """A stored run as the main panes show it: the record, its printed output and figures, the routine's summary,
-    the numbers to step through. Run zero is the current version's."""
+    the numbers to step through, its inputs by their labels. Run zero is the current version's."""
     if int(number) == 0:
         ver = version_of(routine)
         rz = ver.get("run_zero") or {}
@@ -1223,7 +1264,7 @@ def run_view(routine: dict, store: rt.RoutineStore, number: int) -> dict:
     subject = rt.subject_of_record(record.get("data"))                   # whose run: the arrows step through this subject's runs alone (2026-10-30)
     ver = version_of(routine, record.get("version"))
     return {"run": record, "stdout": stdout, "figures": figs, "routine": rt.RoutineStore.summary(routine), "numbers": run_numbers(routine, subject_id=str(subject.get("id") or "")),
-            "subject": subject, "against_data": reference_data(routine, ver, record.get("against")), "name": routine.get("name")}
+            "subject": subject, "against_data": reference_data(routine, ver, record.get("against")), "name": routine.get("name"), "inputs": inputs_said(ver, record.get("inputs"))}
 
 
 # ----------------------------------------------------------------------------- the fill (§14.3)

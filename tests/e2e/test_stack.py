@@ -618,10 +618,12 @@ def main():
             page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
             page.wait_for_function("() => document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]').length >= 3", timeout=15000)
             mg2 = page.evaluate("""() => ({ heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => [e.dataset.run, e.textContent.trim(), e.getAttribute('title')]), acts: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => [...e.querySelectorAll('.acts a')].map(a => a.textContent)),
-                cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.trim()), rows: document.querySelectorAll('#routinesModal .rt-runs tbody tr').length, values: [...document.querySelectorAll('#routinesModal .rt-runs tbody td.num')].map(e => e.textContent), sub: document.querySelector('#routinesModal .rt-right .sub').textContent,
+                cols: [...document.querySelectorAll('#routinesModal .rt-runs thead th')].map(e => e.textContent.trim()), rows: document.querySelectorAll('#routinesModal .rt-runs tbody tr:not(.in)').length, values: [...document.querySelectorAll('#routinesModal .rt-runs tbody tr:not(.in) td.num')].map(e => e.textContent), sub: document.querySelector('#routinesModal .rt-right .sub').textContent,
+                ins: [...document.querySelectorAll('#routinesModal .rt-runs tbody tr.in')].map(tr => [...tr.querySelectorAll('td.label, td.num')].map(td => td.textContent.trim())),
                 filter: [...document.querySelectorAll('#routinesModal .rt-filter [data-filter]')].map(e => e.dataset.filter + ':' + e.className + ':' + ((e.querySelector('.k') || {}).textContent || '')), list: !!document.querySelector('#routinesModal .rt-run, #routinesModal .rt-runbox, #routinesModal .rt-legend') })""")
-            check("the manager after two runs: the filter bar on Custom with its 3 runs, the set intervals greyed (none run); the runs table has a column per run (0, 1, 2), each head with Open and Delete on hover (run 0 without Delete), a row for the routine's line with the values without a plus sign, no trend across custom runs; no runs list and no legend (2026-11-08)",
+            check("the manager after two runs: the filter bar on Custom with its 3 runs, the set intervals greyed (none run); the runs table has a column per run (0, 1, 2), each head with Open and Delete on hover (run 0 without Delete), a row for the routine's line with the values without a plus sign and, above it, a row for the input the runs differ in (2026-11-14: the regime - B, B, C), no trend across custom runs; no runs list and no legend (2026-11-08)",
                   [h[0] for h in mg2["heads"]] == ["0", "1", "2"] and mg2["acts"] == [["Open"], ["Open", "Delete"], ["Open", "Delete"]] and mg2["rows"] == 1 and all(not v.startswith("+") for v in mg2["values"]) and len(mg2["values"]) == 3
+                  and mg2["ins"] == [["The regime compared with A input", "B", "B", "C"]]
                   and sum(1 for c in mg2["cols"] if re.match(r"Run [012]", c)) == 3 and "Trend" not in mg2["cols"] and mg2["filter"] == ["day:off:", "week:off:", "month:off:", "year:off:", "custom:on:3"] and not mg2["list"], mg2)
             page.click("#routinesModal .rt-runs thead th[data-run='1']")
             wait_position(page, "2 of 3", 30000)
@@ -758,7 +760,7 @@ def main():
             all_heads = [str(n) for n in range(0, _n_runs + 1)]                                             # run 0, then every run: each ran
             page.wait_for_function("(want) => [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run).join(',') === want", arg=",".join(all_heads), timeout=15000)
             before_del = page.evaluate("""() => ({ heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run), failed: document.querySelectorAll('#routinesModal .rt-foot .rt-failed').length,
-                acts: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run="4"] .acts a')].map(a => a.textContent), cells: [...document.querySelectorAll('#routinesModal .rt-runs tbody td.num')].map(td => td.textContent),
+                acts: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run="4"] .acts a')].map(a => a.textContent), cells: [...document.querySelectorAll('#routinesModal .rt-runs tbody tr:not(.in) td.num')].map(td => td.textContent),
                 why: ([...document.querySelectorAll('#routinesModal .rt-runs tbody td.num')].filter(td => td.querySelector('.rt-mark.missing')).map(td => td.getAttribute('title'))[0] || '') })""")
             page.once("dialog", lambda d: d.accept())
             page.click("#routinesModal .rt-runs thead th[data-run='4'] [data-act='delete-run']")
@@ -1026,6 +1028,88 @@ def main():
             status = page.evaluate("(t) => window.authService.fetch('/delete_thread/' + t, { method: 'DELETE' }).then(r => r.status)", tid)   # as the page does: its auth header rides along
             check("the thread's documents folder existed with its manifest, and deleting the thread removed it",
                   had_docs and status == 200 and not os.path.exists(docs_dir), (had_docs, status, os.path.exists(docs_dir)))
+
+            # a routine without data (2026-11-14, docs/ROUTINES_DESIGN.md §24), last and in a workflow of its own: New workflow leaves
+            # nothing loaded; a question that needs no data is answered from the values in its cell; Save as routine checks it like any
+            # chain - no warning of data that is gone - with those values as its inputs (the stand-in promoter gives them only under the
+            # brief for such a chain); the Run dialog asks for no data; the runs' table says the input the runs differ in
+            page.evaluate("handleNewConversation()")
+            page.wait_for_url("**/?new=true", timeout=60000)
+            page.wait_for_selector("#queryInput", state="visible", timeout=60000)
+            page.app_ready()
+            page.wait_for_function("() => /Ready|Local|Docker/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+            page.fill("#queryInput", mod.ALONE_QUESTION)
+            page.click("#submitQuery")
+            wait_run_end(page, 1)
+            alone_run = page.evaluate("() => ({ pills: document.querySelectorAll('.primary-dataset-pill').length, done: document.querySelector('.sp-done').textContent, cells: document.querySelectorAll('.sp-row.cell, .sp-row.ok').length })")
+            check("a new workflow has no dataset, and a question that needs none is answered from the values in its cell: the replay reproduces the number",
+                  alone_run["pills"] == 0 and "Replay reproduced" in alone_run["done"], alone_run)
+            page.hover("#rankButton")
+            page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+            page.click("#saveMenu .it[data-act='routine']")
+            page.wait_for_selector("#routineMakeModal .rt-inputs", timeout=120000)
+            mk = page.evaluate("""() => { const m = document.getElementById('routineMakeModal'); return { chip: m.querySelector('.rt-data .ui-chip .t').textContent, warn: !!m.querySelector('.rt-line.warn'),
+                lines: [...m.querySelectorAll('.rt-line')].map(e => e.textContent).join(' | '), note: m.querySelector('.ui-dlg-f .note').textContent, name: m.querySelector('[data-field="name"]').value,
+                inputs: [...m.querySelectorAll('.rt-inputs tbody tr')].map(r => [r.dataset.key, r.querySelector('.val').textContent]), results: [...m.querySelectorAll('.rt-results .r .l')].map(e => e.textContent) }; }""")
+            check("Save as routine on it: the dialog says No data and that the routine runs without one - no warning of data that is gone, nothing about this chain's own data - with the chain's line, and the "
+                  "starting value and the steps as its inputs (given only under the promoter's brief for a chain that read no data)",
+                  mk["chip"] == "No data" and "This chain used no dataset, so the routine runs without one." in mk["lines"] and not mk["warn"] and "own data" not in mk["lines"] + mk["note"] and "no longer loaded" not in mk["lines"]
+                  and mk["note"].startswith("The routine is checked once before it is created;") and mk["name"] == "What is left after the steps" and mk["inputs"] == [["start", "100"], ["steps", "40"]]
+                  and mk["results"] == ["left after the steps"], mk)
+            page.click("#routineMakeModal [data-act='create']")
+            page.wait_for_function("() => document.querySelector('#routineMakeModal').style.display === 'none' || !!document.querySelector('#routineMakeModal .rt-error')", timeout=180000)
+
+            def _alone_routine():
+                for p_ in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "routines", "*", "routine.json")):
+                    r_ = json.load(open(p_, encoding="utf-8"))
+                    if r_.get("name") == "What is left after the steps":
+                        return r_
+                return {}
+            t_end = time.time() + 120
+            while time.time() < t_end and (((_alone_routine().get("versions") or [{}])[-1].get("run_zero") or {}).get("status") or "verifying") == "verifying":
+                page.wait_for_timeout(500)
+            ar = _alone_routine()
+            av = (ar.get("versions") or [{}])[-1]
+            arz, amf = av.get("run_zero") or {}, av.get("manifest") or {}
+            check("the routine is created and verified with nothing loaded: run zero reproduced the chain's line, the record of its data says none, the two inputs are stored",
+                  arz.get("status") == "reproduced" and arz.get("verified") is True and (amf.get("data") or {}).get("source") == "none" and not (amf.get("data") or {}).get("df_id")
+                  and [p_["key"] for p_ in amf.get("parameters") or []] == ["start", "steps"], (arz.get("status"), arz.get("line"), amf.get("data")))
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_selector(f"#routinesModal .rt-side .it[data-id='{ar.get('id')}']", timeout=15000)
+            page.click(f"#routinesModal .rt-side .it[data-id='{ar.get('id')}']")
+            page.wait_for_function("() => (document.querySelector('#routinesModal .rt-right .title') || {}).textContent === 'What is left after the steps'", timeout=15000)
+            page.click("#routinesModal [data-act='run']")
+            page.wait_for_selector("#routineRunModal .rt-row[data-row='data']", timeout=30000)
+            ard = page.evaluate("""() => { const m = document.getElementById('routineRunModal'); return { rows: [...m.querySelectorAll('.rt-row')].map(r => r.dataset.row), data: m.querySelector('.rt-row[data-row="data"]').textContent,
+                choices: m.querySelectorAll('input[name="rt-data"]').length, file: !!m.querySelector('input[type="file"]'), fit: (m.querySelector('.rt-fit') || {}).textContent || null,
+                start: m.querySelector('[data-key="start"]').value, steps: m.querySelector('[data-key="steps"]').value, runOn: !m.querySelector('[data-act="run"]').disabled }; }""")
+            check("its Run dialog asks for no data: the Data row reads 'none needed' - no choice, no file to pick, no line about what is loaded - then the two inputs with the values the analysis used, and Run is on",
+                  ard["rows"] == ["data", "inputs"] and ard["data"] == "Datanone needed" and ard["choices"] == 0 and not ard["file"] and ard["fit"] is None
+                  and float(ard["start"]) == 100.0 and float(ard["steps"]) == 40.0 and ard["runOn"], ard)
+            page.fill("#routineRunModal [data-key='start']", "200")
+            page.click("#routineRunModal [data-act='run']")
+            wait_position(page, "2 of 2", 180000)
+            page.wait_for_timeout(600)
+            arv = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '',
+                active: (document.querySelector('#contentOutput .tab-content.active') || {}).id, cmp: (document.getElementById('content-comparison') || {}).textContent || '', data: (document.getElementById('content-dataframe') || {}).textContent || '' })""")
+            check("the run from another starting value: RUN and COMPARE rows and no CHECK row - there is no data to check; the closing card says the line changed against run 0; the Comparison tab is open, "
+                  "and the Data tab says what the run ran on: no data, and the two inputs it was made with",
+                  not any("CHECK" in r for r in arv["rows"]) and any("RUN" in r and "run 1" in r for r in arv["rows"]) and any("COMPARE" in r and "run 0" in r for r in arv["rows"])
+                  and "Run 1 complete" in arv["done"] and "1 of 1 changed" in arv["done"] and arv["active"] == "content-comparison" and "against run 0" in arv["cmp"]
+                  and arv["data"].startswith("What this run ran onSourceNo data") and "Starting value 200" in arv["data"] and "Steps 40" in arv["data"] and "Columns" not in arv["data"], arv)
+            page.click("#routinesPill")
+            page.wait_for_selector("#routinesModal", state="visible", timeout=10000)
+            page.wait_for_function("() => document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]').length >= 2", timeout=15000)
+            atab = page.evaluate("""() => ({ heads: [...document.querySelectorAll('#routinesModal .rt-runs thead th[data-run]')].map(e => e.dataset.run), sub: document.querySelector('#routinesModal .rt-right .sub').textContent,
+                ins: [...document.querySelectorAll('#routinesModal .rt-runs tbody tr.in')].map(tr => [...tr.querySelectorAll('td.label, td.num')].map(td => td.textContent.trim())),
+                vals: [...document.querySelectorAll('#routinesModal .rt-runs tbody tr:not(.in) td.num')].map(td => td.textContent.trim()) })""")
+            check("the manager: the header says No data; the runs' table has run 0 and run 1 and, above the result, one row for the input the two runs differ in - the starting value, 100 and 200; "
+                  "the steps, the same in both, have none",
+                  atab["heads"] == ["0", "1"] and atab["sub"].startswith("No data · v1") and atab["ins"] == [["Starting value input", "100", "200"]]
+                  and len(atab["vals"]) == 2 and atab["vals"][0] != atab["vals"][1], atab)
+            page.evaluate("RoutinesUI.closeManager()")
+            errs = errs + page.evaluate("window.__stackErrors || []")
             b.close()
 
         calls = st.orchestrator_calls()

@@ -252,13 +252,16 @@ parameters. Data-dependent values are expected to be computed from the data rath
 [`docs/ROUTINES_DESIGN.md`](docs/ROUTINES_DESIGN.md).
 
 The routine is saved with a verification state. When the original data is available, *run zero*
-re-executes the method and compares its recorded `RESULT` lines. A version still verifying, or one that
-fails verification, cannot run. If the original data is unavailable, the version is marked
-**unverified** and can run without a verified run zero. The routine keeps the chain's code as written,
-with the adjustable inputs in place. A model-free check then tries a shorter run of only the statements
-the tracked results and figures depend on, and keeps it for later runs when it reproduces the same
-results and figures. For Intervals.icu data, the method is also tried on a day, a week and a month of
-the original data, so you can see what a shorter interval will return before running one.
+re-executes the method and compares its recorded `RESULT` lines. A version still verifying, or one
+that fails verification, cannot run. If the original data is unavailable, the version is marked
+**unverified** and can run without a verified run zero. A chain that used no dataset, such as a
+simulation, is verified the same way and its routine runs without data: the inputs are the values
+the code starts from, such as starting conditions, parameters or a seed. The routine keeps the
+chain's code as written, with the adjustable inputs in place. A model-free check then tries a
+shorter run of only the statements the tracked results and figures depend on, and keeps it for later
+runs when it reproduces the same results and figures. For Intervals.icu data, the method is also
+tried on a day, a week and a month of the original data, so you can see what a shorter interval will
+return before running one.
 
 The routine script runs without an LLM. Select an Intervals.icu athlete and a date window or calendar
 interval (day, week, month or year), or a file from the Dataset cache, supply the inputs and run the

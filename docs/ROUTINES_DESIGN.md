@@ -162,7 +162,8 @@ The promoter proposes the inputs; the coach confirms them; the runner writes the
    names the athlete; changing athletes is changing the API key. Only a dataset with several athletes (a file) gets a
    choice parameter, and only if the exploration filtered on one.
 3. **At most five parameters**, of five plain types: a number, a short list of numbers (bands, bins: "130, 145,
-   155, 165, 175"), a date window, a choice from a column's values (one or several), a toggle. A range is two
+   155, 165, 175"; or rows of numbers for several points, "1, 1, 1; 1.001, 1, 1" - §24.2), a date window, a choice
+   from a column's values (one or several), a toggle. A range is two
    numbers. A constant the promoter is unsure about stays a constant; the dialog lets the coach keep a proposed one
    fixed ("keep fixed" drops it), never add a free-form one. If the method needs a new input, that is the analysis
    continued and a next version.
@@ -261,7 +262,8 @@ as routine; the first item then reads "Saved as favourite".
 2. **The promoter**, one call on the Promoter seat (its own entry in the model config since 2026-10-10 — a moderate
    effort and a roomy `max_tokens`, because the reply is a JSON object of edits that a seat tuned for long reasoning
    can spend its whole allowance thinking about; the Analyst seat when the config has no Promoter) with a generic
-   prompt (`analyst/routines.py` PROMOTER_SYSTEM; no domain words, DESIGN_CHECKLIST C5): name the constants that
+   prompt (`analyst/routines.py` PROMOTER_SYSTEM; no domain words, DESIGN_CHECKLIST C5; a chain that read no data
+   gets a brief of its own, PROMOTER_NO_DATA, §24.2): name the constants that
    would change on other data of the same shape; make the data's own range the data's range; propose each remaining
    constant as an input of one of the five types, at most five, fewer is better; leave a loader's file name exactly
    as it is and never make the loaded period an input (§4.7); rewrite as find/replace edits; leave the method, the
@@ -306,7 +308,8 @@ as routine; the first item then reads "Saved as favourite".
    other data; delete the routine, or make it again from the chain*), `zero_holds`; the manager's Run button is
    disabled with the reason, the card's chip pulses *verifying…* or reads *did not reproduce*, the side item says
    so. With the chain's data no longer loaded, the routine is created *unverified* and says so, and may run (its
-   first run shows whether the method still runs). A chain from before the data record takes the data loaded now
+   first run shows whether the method still runs). A chain that ran with nothing loaded has no data to lose: it is
+   verified like any other (§24.1). A chain from before the data record takes the data loaded now
    for its own. The library's foreground mode (`create(..., background=False)`, the tests' default) keeps the old
    contract: a method that does not reproduce is refused and not kept.
 5. The run dialog says what a run will take before Run is pressed — *the last run took 8 min — expect about as
@@ -637,7 +640,8 @@ Endura: *Load from Endura* with the race list (the original race selected; its a
 a file* (the original's name shown) beside *The data loaded now*, which is the default when something is loaded. The
 line under the data loaded now is green when nothing differs, a note (△) when a column will be empty or a file is
 absent, red when there is nothing to run on - the one case *Run* is off. While a load runs, its progress shows
-under the choices (*Downloading activities… (12/60)*); a load that fails leaves its message there.
+under the choices (*Downloading activities… (12/60)*); a load that fails leaves its message there. A routine made
+without data has no choices: *Data: none needed*, then its inputs (§24.3).
 
 ### S4 — A run in the main panes — built
 
@@ -662,7 +666,7 @@ interval, this run's, the change, the mark — moved / within, or changed / same
 legend says nothing there is written by a model; a failed run's error block above the table), **What changed** (the
 note, step 3), **Plots**, **Results** (printed output), **Data** (what the run ran on: source, how it was loaded,
 name, rows, range, the method's file names and what they opened in this run, a file absent, the columns with their
-types).
+types; in a stored run's view also the inputs the run was made with, §24.4).
 
 ### S5 — Save on a chain of the origin thread
 
@@ -1715,3 +1719,116 @@ on the interval it fills (before, a filter picked earlier in the session stayed)
 - the integrations walk (`tests/e2e/test_integrations.py`): two subjects on the original's dates - the switch from
   one's run to the other's and back, All athletes over the three dates run, *run it* opening the dialog on the other
   subject and the dates.
+
+## 24. A routine without data (2026-11-14)
+
+Palo, 14 November: "When I create a routine from a chain that never had a datasets attached (Plot Lorenz attractor
+with 5 different initial conditions). It first throws a warning when the routine is created saying the chain data is
+no longer available. I am still able to create it though. But when I try to run it it brings this window, preventing
+me from run it. I know we may say why to re-run it as a routine. But for example we may want to change initial
+conditions values, or change a parameter of a simulation etc."
+
+Three places took *nothing loaded* for *the data is gone*. Save laid the chain's record against the Data tab: a record
+of none against nothing read *gone* - the warning, and a routine created unverified; with another file on the Data
+tab it read *assumed*, and that file became the routine's data. The Run dialog had no plan for a source of none and
+offered *Upload a file*, with *Run* off until something was loaded. And the run itself refused: *no data is loaded*.
+The engine never needed data: the script's opening lines touch `df` only when it is defined, and the statements run
+one at a time whatever they read.
+
+The rule built: **a record that says none is a fact about the method**, not a fact missing. The app writes
+`source: "none"` with no frame and no files when an analysis runs with nothing loaded (2026-10-10);
+`rt.without_data(record)` reads exactly that - a record that says nothing of its data (a chain from before the
+record) is not one, nor is one with auxiliary files.
+
+### 24.1 Save
+
+- `data_state` answers `none` for such a chain, whatever is on the Data tab; the proposal's data is the chain's
+  record. The dialog's chip reads *No data* and its line *This chain used no dataset, so the routine runs without
+  one.* - no warning; the checklist's data step reads *no dataset*.
+- Run zero runs the method as it runs any chain's, and its lines name no data: *verifying: the method is being run
+  again*, *The routine is checked once before it is created*, a toast's *verified*, the holds (*the routine is still
+  being verified - run it when it has settled*).
+- The proof behind the dialog is not tied to the Data tab. A method that reads data stops when the frame changes
+  under it (*the data on the Data tab changed while the routine was being verified*); this one reads none, so a file
+  loaded meanwhile does not stop it.
+
+### 24.2 The promoter's brief
+
+A chain that read no data has nothing that *changes on other data*, which is what the brief asks about, and a
+routine without an input can only repeat itself: the inputs of such a method are found by another question. The
+chain gets a brief of its own (`PROMOTER_NO_DATA`, picked by `promoter_system(data)`; the rewriting, the pick of the
+lines, the instruction and the reply's shape are shared with the other, `_PROMOTER_STEPS`):
+
+- the test of an input: *would the person set it differently to ask the same question of another case?* Where the
+  computation starts, a parameter of what is computed, how far and how finely it runs, how many cases it takes, a
+  seed, a switch between variants - yes. What only shapes the output is not;
+- at most five, each of one type - number, numbers, choice (one word among those the script matches; no column),
+  toggle. Values that belong together are one input: one quantity for several cases is a list of numbers; several
+  points, each with its coordinates, are **rows of numbers** - a list of lists, a row a point. A constant that
+  follows from another becomes the expression;
+- *where the code has such a constant, propose at least one*;
+- the message's DATA section says *none - the analysis read no dataset, and `df` is not defined*.
+
+No domain words, as the other (C5; the test's list is extended with the first case's own).
+
+Rows are new to the type, for every routine (`_rows_of`, `in_rows`): a promoter's nested list was *left out* as
+unreadable, and with it the one input such a method is saved for. The dialog writes rows with a semicolon between
+them (*1, 1, 1; 1.001, 1, 1*) and reads them back so; a nested list as text is read too. A typed value keeps the
+shape its input holds - one row typed where it holds rows is one row; rows typed where it holds one list are refused
+(*… could not be read as a list of numbers*). Forty numbers at most, as before.
+
+### 24.3 Run
+
+- The load plan's source is `none`. The dialog reads *Data: none needed*, then the inputs, the Compare row where
+  there is a choice, and *Run* - nothing of what is loaded, no file to pick, no interval (an interval is a load's
+  window).
+- The check before the run has the values alone to check (*Starting value: 'abc' could not be read as a number*;
+  a type is said in plain words - *a list of numbers*, *two dates* - for every routine).
+- The run takes the routine's record of none **whatever is on the Data tab**: a frame loaded is not looked at,
+  checked, recorded or shown - no CHECK row, no fit, no Data tab of the frame - and the record's data is none
+  (`reads_data(routine)` is the one question the app asks for its log line and its tabs). A frame with no rows runs
+  none of the statements of a method that reads the frame (§22); it does not stop this one, whose `df`, when its
+  code names one, is its own (`version_reads`, `stepwise(..., frame=False)`).
+- Runs compare as a file routine's do: with the run before, or run 0 (*the original values*), or an earlier run.
+
+### 24.4 What tells the runs apart
+
+The inputs are all such a run differs in, and they were on no screen. Two places say them now, for every routine:
+
+- the custom runs' table has, above the results, **a row per input the runs shown differ in** (the label, *input*,
+  each run's value whole: a list wraps, rows of numbers stand a row to a line - a cut could hide the very part two
+  runs differ in). An input the data writes is left out: it follows the data;
+- a run's Data tab (*What this run ran on*) lists **Inputs** by their labels with the values the run used -
+  in a stored run's view (`run_view` carries `inputs`), and for a routine without data also in the view of a run
+  just made, where the frame's table would otherwise stand (the run's answer carries `inputs` too).
+
+A method that only draws records no result lines, and its Summary read *This routine records no result lines; its
+runs keep their output and figures.* - with no run to open from there. The custom runs' table now stands for such a
+routine too: a column per run whose head opens it, the input rows, and the sentence under the table.
+
+### 24.5 Limits
+
+- **Random numbers without a seed.** A method that draws them gives other numbers each time: run zero differs, and
+  the routine is held. Set the seed in the analysis; the promoter may then offer it as an input.
+- **Auxiliary files alone.** A chain that read files but no main dataset is not this case: its record names the
+  files, and it goes the way of a chain whose data is on record.
+- **A routine saved before this patch from such a chain** was stored unverified with a record of none: it runs now
+  as it is. Saving it again gives it the check and the inputs of 24.2.
+
+### 24.6 Acceptance
+
+- the engine and the host (`tests/analyst/test_routines.py`): the record read; the state `none` with nothing loaded
+  and with another file loaded; the brief picked and what it asks; the message's DATA section; propose, create,
+  precheck, run and the stored view over a real kernel; the holds' and the refusal's wording; rows of numbers read,
+  shaped, and a routine made and run with several starting points as one input;
+- the app (`tests/analyst/test_app_path.py`): an instance with nothing loaded - the chain's record, Save verified
+  behind the dialog, the proof not tied to the Data tab (and tied, for a method with data), a run with nothing loaded
+  and with a frame loaded;
+- the page (`tests/analyst/test_routines.js`): the Save dialog's chip, line and notes; the Run dialog's Data row;
+  the labels of run 0; the table's input rows; the Data tab's inputs; the toasts;
+- the stack walk (`tests/e2e/test_stack.py`, both editions): a new workflow with nothing loaded, a question that
+  needs no data, Save as routine without the warning and with the two inputs the stand-in promoter gives only under
+  the brief for such a chain, the routine verified, the Run dialog, a run from another starting value, the table's
+  input row;
+- the screens (`tools/routines_screens.py`): the Save dialog, the Run dialog, the runs with the inputs they differ
+  in, a run's Data tab.
